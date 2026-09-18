@@ -157,6 +157,8 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
    git -C "$DEPLOY_REPO" commit -m "wbs: cutover release $(jq -r .sourceSha descriptor.json)"
    git -C "$DEPLOY_REPO" push origin HEAD:main
    flux --context "$CTX" reconcile source git wbs-deploy -n flux-system
+   # resume only once the source serves the pushed commit, or Flux re-applies an older one
+   kubectl --context "$CTX" -n flux-system get gitrepository wbs-deploy -o jsonpath='{.status.artifact.revision}'
    flux --context "$CTX" resume kustomization wbs -n flux-system
    kubectl --context "$CTX" -n flux-system get kustomization wbs -o jsonpath='{.status.lastAppliedRevision}'
    ```
@@ -182,6 +184,12 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
     auth, edits, WebSocket reconnect/replay, MCP and a solve pass on k3s.
 11. **Retarget backups** and verify one backup/restore cycle (docs/infra/recovery.md). Keep the
     old Compose stack stopped, not removed, until then; propose its retirement through F5.
+
+The rehearsal (`bunx nx run tool-deploy:rehearse:cutover`) runs steps 6-8 against a real
+`Kustomization wbs` over a lab Git source, with the `flux` CLI's suspend/resume done as the
+equivalent `kubectl patch … spec.suspend`. Without the suspend in step 6 it observed Flux
+re-apply `replicas: 1` over the hand-set 0 and start a writer that created
+`/data/wbs.sqlite`, and the restore Job then refused (`already exists`).
 
 ## Rollback boundary
 

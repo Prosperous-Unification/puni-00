@@ -302,11 +302,36 @@ the cluster without it); commit on main and downgrade (`source.test.ts`); proof 
 `recovers` (CLI and workflow block); publish before reopen (with the publish moved back into
 `reconcile-desired` it ran after `reopenWrites`); runner hook (a PR workflow ref started).
 
-Flux in the rehearsal (review M5): not feasible here. Flux's source-controller needs a smart-HTTP
-or SSH Git server for the WBS `GitRepository`; the toolchain lock carries no Git server image,
-and an unpinned one would break the lock rule. The suspend/resume order is unit-tested against
-the fake (publish only while suspended, resume only onto the served revision) and written into
-the cutover plan's steps 6, 8 and the rollback.
+Flux in the rehearsal (review M5), done after the coordinator pointed to the F6 pattern
+(`d2f2ad4a`, run on that SHA via `bunx nx run tool-deploy:rehearse:cutover`, exit 0, 38
+assertions, every `puni-f11-*` object and the k3d network removed): locked Flux controllers
+(`infra/platform/flux/install.yaml`, digest checked), a lab deploy repository served read-only
+over Git smart HTTP (`git-http.ts`, `git http-backend` behind Bun on the k3d network gateway),
+`GitRepository wbs-deploy` and `Kustomization wbs` (interval 10s) over it.
+
+- **Negative**: with the unit active and the source naming the release, applying the manifests
+  with `replicas: 0` by hand lost to Flux: it re-applied `replicas: 1`, a writer started and
+  created `/data/wbs.sqlite`, and the restore Job refused (`already exists; refusing to overwrite
+it`).
+- **With the new `suspend-flux` phase**: suspension was recorded before `replicas: 0`; with the
+  release pushed to the source and a reconcile requested during the restore, no backend pod
+  appeared (max 0 over 54 samples) and nothing new was applied; step 8's resume applied the
+  committed release with the restored digests (at most one backend pod).
+- **F8 `deploy:k3s` through the unit**: the coordinator published the prepared revision exactly
+  once, observed suspended with the branch at the previous release, then resumed; Flux applied
+  the desired revision; the known rows survived; at most one backend pod.
+- **Rollback**: suspended first, then scaled to zero and the release record deleted; through two
+  intervals with a reconcile requested the writer stayed stopped.
+  Faults found on the way: a placeholder in a namespace that did not exist yet kept the unit
+  unready; resuming before the source served the reset commit re-applied the older release and
+  started a writer (the plan now checks the artifact revision before resuming); `puni-local`
+  retains volume data after PVC deletion, so the raced database is wiped in place.
+
+The F8 lab rerun on `d2f2ad4a` failed scenario 3 with `Lease lost during reconcile-desired:
+… Conflict`: the heartbeat and the pre-step renewal raced on one resourceVersion. `1e5b99cb`
+serializes renewals (`never renews the Lease concurrently`: 4 in flight with the queue removed,
+1 with it); the lab then passed on `1e5b99cb` (exit 0, 35 assertions), and its cleanup removed
+the `k3d-puni-f8-lab` network (re-run of the `lab.ts` line: no `f8` container or network left).
 
 ### Not verified, with prepared next steps
 

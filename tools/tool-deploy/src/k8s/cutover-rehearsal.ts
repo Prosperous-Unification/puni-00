@@ -9,7 +9,8 @@
  * `bunx nx run tool-deploy:rehearse:cutover` (`K3D`, `KUBECTL` = locked binaries). Owns only
  * `puni-f11-*` containers, networks, images and k3d objects, and deletes them unless `--keep`.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
@@ -27,8 +28,18 @@ import {
   type SqliteReport,
 } from './cutover';
 import { restoreJob } from './cutover-cli';
-import { kubectlEffects, renderOverlay, run } from './execute';
-import { K8S_TIERS, type ReleaseIdentity } from './release';
+import { prepareDesiredRevision } from './deploy-repo';
+import {
+  backendTaskJob,
+  executeRelease,
+  kubectlEffects,
+  type ReleaseEffects,
+  renderOverlay,
+  run,
+} from './execute';
+import { serveGitHttp } from './git-http';
+import { fileJournal } from './journal';
+import { K8S_TIERS, type ReleaseIdentity, releaseIdOf, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const PREFIX = 'puni-f11-';
@@ -52,6 +63,7 @@ const keep = process.argv.includes('--keep');
 const lock = JSON.parse(readFileSync(join(ROOT, 'infra/versions/toolchain.json'), 'utf8')) as {
   binaries: Record<string, { version: string }>;
   runtimeImages: Record<string, { name: string; digest: string }>;
+  manifests: { fluxInstall: { sha256: string } };
 };
 
 function log(line: string): void {
@@ -408,48 +420,48 @@ async function runRestoreJob(
 ): Promise<{ completed: boolean; logs: string }> {
   await k(['create', '-f', '-'], JSON.stringify(restoreJob(image, exported, name)));
   const selector = `job-name=${name}`;
-  await k([
-    '-n',
-    'wbs-solver',
-    'wait',
-    '--for=condition=Ready',
-    'pod',
-    '-l',
-    selector,
-    '--timeout=300s',
-  ]);
-  const pod = (
+  // The pod appears after the Job, and a refused restore exits before it is ever Ready.
+  let pod = '';
+  let podPhase = '';
+  await until(`restore pod for ${name}`, 300_000, async () => {
+    const found = JSON.parse(
+      await k(['-n', 'wbs-solver', 'get', 'pod', '-l', selector, '-o', 'json']),
+    ) as { items: { metadata: { name: string }; status: { phase: string } }[] };
+    if (found.items.length === 0) return false;
+    pod = found.items[0].metadata.name;
+    podPhase = found.items[0].status.phase;
+    return podPhase === 'Running' || podPhase === 'Succeeded' || podPhase === 'Failed';
+  });
+  if (podPhase === 'Failed') {
+    return { completed: false, logs: await k(['-n', 'wbs-solver', 'logs', pod]) };
+  }
+  try {
     await k([
       '-n',
       'wbs-solver',
-      'get',
-      'pod',
-      '-l',
-      selector,
-      '-o',
-      'jsonpath={.items[0].metadata.name}',
-    ])
-  ).trim();
-  await k([
-    '-n',
-    'wbs-solver',
-    'cp',
-    '-c',
-    'task',
-    exportFile,
-    `${pod}:/data/cutover-incoming.sqlite`,
-  ]);
-  await k([
-    '-n',
-    'wbs-solver',
-    'exec',
-    pod,
-    '-c',
-    'task',
-    '--',
-    'touch',
-    '/data/cutover-incoming.done',
-  ]);
+      'cp',
+      '-c',
+      'task',
+      exportFile,
+      `${pod}:/data/cutover-incoming.sqlite`,
+    ]);
+    await k([
+      '-n',
+      'wbs-solver',
+      'exec',
+      pod,
+      '-c',
+      'task',
+      '--',
+      'touch',
+      '/data/cutover-incoming.done',
+    ]);
+  } catch (cause) {
+    // A restore that refused at start is gone before the copy; its Job status says so below.
+    log(
+      `copy into ${pod} failed: ${cause instanceof Error ? cause.message.split('\n')[0] : String(cause)}`,
+    );
+  }
   const deadline = Date.now() + 300_000;
   let outcome = '';
   while (outcome === '') {
@@ -470,6 +482,256 @@ async function runRestoreJob(
   }
   const complete = outcome === 'succeeded';
   return { completed: complete, logs: await k(['-n', 'wbs-solver', 'logs', `job/${name}`]) };
+}
+
+// ---- Flux: the WBS unit over a lab Git smart-HTTP source ------------------------------------
+
+const FLUX = { namespace: 'flux-system', kustomization: 'wbs', gitRepository: 'wbs-deploy' };
+const MANIFEST = 'clusters/local/wbs/release.yaml';
+const fluxDirectory = join(state, 'flux');
+const bare = join(fluxDirectory, 'deploy.git');
+const clone = join(fluxDirectory, 'clone');
+
+function git(cwd: string, ...args: string[]): string {
+  const child = Bun.spawnSync({
+    cmd: ['git', '-C', cwd, '-c', 'user.name=f11', '-c', 'user.email=f11@lab.invalid', ...args],
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 60_000,
+  });
+  if (child.exitCode !== 0) throw new Error(`git ${args.join(' ')}: ${child.stderr.toString()}`);
+  return child.stdout.toString().trim();
+}
+
+/** Locked Flux controllers; only source and kustomize run, to keep the lab small. */
+async function installFlux(): Promise<void> {
+  const path = join(ROOT, 'infra/platform/flux/install.yaml');
+  const digest = createHash('sha256').update(readFileSync(path)).digest('hex');
+  if (digest !== lock.manifests.fluxInstall.sha256) {
+    throw new Error(
+      `${path} sha256 ${digest} is not the locked ${lock.manifests.fluxInstall.sha256}`,
+    );
+  }
+  await k(['apply', '--server-side', '-f', path]);
+  await k([
+    '-n',
+    'flux-system',
+    'scale',
+    'deployment',
+    'helm-controller',
+    'notification-controller',
+    '--replicas=0',
+  ]);
+  for (const controller of ['source-controller', 'kustomize-controller']) {
+    await k([
+      '-n',
+      'flux-system',
+      'rollout',
+      'status',
+      `deployment/${controller}`,
+      '--timeout=300s',
+    ]);
+  }
+}
+
+/** The deploy repository: a bare repo the lab Git server serves, and the clone that commits. */
+async function startDeployRepository(): Promise<{
+  url: string;
+  c0: string;
+  stop: () => Promise<void>;
+}> {
+  rmSync(fluxDirectory, { recursive: true, force: true });
+  mkdirSync(join(clone, 'clusters/local/wbs'), { recursive: true });
+  git(fluxDirectory, 'init', '--quiet', '--bare', '-b', 'main', bare);
+  git(clone, 'init', '--quiet', '-b', 'main');
+  git(clone, 'remote', 'add', 'origin', bare);
+  writeFileSync(
+    join(clone, MANIFEST),
+    'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: wbs-deploy-placeholder\n  namespace: flux-system\n',
+  );
+  git(clone, 'add', MANIFEST);
+  git(clone, 'commit', '--quiet', '-m', 'wbs: placeholder before the cutover');
+  git(clone, 'push', '--quiet', 'origin', 'main');
+  const gateway = (
+    await sh([
+      'docker',
+      'network',
+      'inspect',
+      `k3d-${CLUSTER}`,
+      '-f',
+      '{{range .IPAM.Config}}{{.Gateway}}{{end}}',
+    ])
+  ).trim();
+  const server = serveGitHttp(fluxDirectory, gateway);
+  return {
+    url: `http://${gateway}:${String(server.port)}/deploy.git`,
+    c0: git(bare, 'rev-parse', 'main'),
+    stop: () => server.stop(),
+  };
+}
+
+async function createFluxUnit(url: string): Promise<void> {
+  const objects = [
+    {
+      apiVersion: 'source.toolkit.fluxcd.io/v1',
+      kind: 'GitRepository',
+      metadata: { name: FLUX.gitRepository, namespace: FLUX.namespace },
+      spec: { interval: '10s', url, ref: { branch: 'main' }, timeout: '30s' },
+    },
+    {
+      apiVersion: 'kustomize.toolkit.fluxcd.io/v1',
+      kind: 'Kustomization',
+      metadata: { name: FLUX.kustomization, namespace: FLUX.namespace },
+      spec: {
+        interval: '10s',
+        path: './clusters/local/wbs',
+        prune: false,
+        timeout: '2m',
+        sourceRef: { kind: 'GitRepository', name: FLUX.gitRepository },
+      },
+    },
+  ];
+  await k(['apply', '-f', '-'], JSON.stringify({ apiVersion: 'v1', kind: 'List', items: objects }));
+}
+
+async function fluxField(kind: 'kustomization' | 'gitrepository', path: string): Promise<string> {
+  const name = kind === 'kustomization' ? FLUX.kustomization : FLUX.gitRepository;
+  const resource =
+    kind === 'kustomization'
+      ? `kustomizations.kustomize.toolkit.fluxcd.io/${name}`
+      : `gitrepositories.source.toolkit.fluxcd.io/${name}`;
+  return (await k(['-n', FLUX.namespace, 'get', resource, '-o', `jsonpath={${path}}`])).trim();
+}
+
+const suspended = async (): Promise<boolean> =>
+  (await fluxField('kustomization', '.spec.suspend')) === 'true';
+const lastApplied = (): Promise<string> =>
+  fluxField('kustomization', '.status.lastAppliedRevision');
+
+async function setSuspended(value: boolean): Promise<void> {
+  await k([
+    '-n',
+    FLUX.namespace,
+    'patch',
+    `kustomizations.kustomize.toolkit.fluxcd.io/${FLUX.kustomization}`,
+    '--type=merge',
+    '-p',
+    JSON.stringify({ spec: { suspend: value } }),
+  ]);
+}
+
+async function requestReconcile(): Promise<void> {
+  const at = `reconcile.fluxcd.io/requestedAt=${new Date().toISOString()}`;
+  await k([
+    '-n',
+    FLUX.namespace,
+    'annotate',
+    '--overwrite',
+    `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+    at,
+  ]);
+  await k([
+    '-n',
+    FLUX.namespace,
+    'annotate',
+    '--overwrite',
+    `kustomizations.kustomize.toolkit.fluxcd.io/${FLUX.kustomization}`,
+    at,
+  ]);
+}
+
+async function until(label: string, ms: number, check: () => Promise<boolean>): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > deadline) throw new Error(`${label} did not happen within ${String(ms)}ms`);
+    await Bun.sleep(2000);
+  }
+}
+
+async function waitApplied(revision: string): Promise<void> {
+  await requestReconcile();
+  await until(`Flux applying ${revision}`, 240_000, async () =>
+    (await lastApplied()).endsWith(revision),
+  );
+}
+
+/** The release's full manifests, committed and pushed to the deploy branch. */
+async function commitRelease(identity: ReleaseIdentity, message: string): Promise<string> {
+  writeFileSync(
+    join(clone, MANIFEST),
+    await renderOverlay(
+      { kubectl, overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local') },
+      identity,
+    ),
+  );
+  git(clone, 'add', MANIFEST);
+  git(clone, 'commit', '--quiet', '-m', message);
+  git(clone, 'push', '--quiet', 'origin', 'main');
+  return git(clone, 'rev-parse', 'HEAD');
+}
+
+/** Moves the served branch directly (lab resets only). */
+function setBranch(revision: string): void {
+  git(bare, 'update-ref', 'refs/heads/main', revision);
+}
+
+async function backendReplicas(): Promise<string> {
+  return (
+    await k([
+      '-n',
+      'wbs-solver',
+      'get',
+      'deployment',
+      'wbs-backend',
+      '-o',
+      'jsonpath={.spec.replicas}',
+    ])
+  ).trim();
+}
+
+/** Backend pods that can still run (the writer, not schema Jobs). */
+async function backendPods(): Promise<string[]> {
+  const pods = JSON.parse(
+    await k([
+      '-n',
+      'wbs-solver',
+      'get',
+      'pods',
+      '-l',
+      'app.kubernetes.io/name=wbs-backend',
+      '-o',
+      'json',
+    ]),
+  ) as {
+    items: { metadata: { name: string; deletionTimestamp?: string }; status: { phase: string } }[];
+  };
+  return pods.items
+    .filter((p) => p.status.phase !== 'Succeeded' && p.status.phase !== 'Failed')
+    .map((p) => p.metadata.name);
+}
+
+/** Samples backend pods every 500 ms; `stop()` returns the most seen at once. */
+function watchBackend(): { stop: () => Promise<{ max: number; samples: number }> } {
+  const flag = { running: true };
+  let max = 0;
+  let samples = 0;
+  const loop = (async () => {
+    while (flag.running) {
+      const pods = await backendPods().catch(() => null);
+      if (pods !== null) {
+        samples++;
+        max = Math.max(max, pods.length);
+      }
+      await Bun.sleep(500);
+    }
+  })();
+  return {
+    stop: async () => {
+      flag.running = false;
+      await loop;
+      return { max, samples };
+    },
+  };
 }
 
 async function backendGet(path: string): Promise<{ status: number; body: string }> {
@@ -533,6 +795,7 @@ async function main(): Promise<void> {
   const sourceSha = (await sh(['git', '-C', ROOT, 'rev-parse', 'HEAD'])).trim();
   log(`source ${sourceSha}; state ${state}`);
   const port = await upCluster();
+  let stopGit: () => Promise<void> = () => Promise.resolve();
   try {
     await build(`${PREFIX}be:v1`, 'apps/wbs/be-01/Dockerfile');
     await build(`${PREFIX}gw:v1`, 'apps/wbs/gw-01/Dockerfile');
@@ -548,6 +811,15 @@ async function main(): Promise<void> {
     };
     log(`old digests = new digests: ${JSON.stringify(identity.images)}`);
     assertMemory();
+
+    log('new side: locked Flux and an active WBS unit whose source holds only a placeholder');
+    await installFlux();
+    const deployRepository = await startDeployRepository();
+    stopGit = deployRepository.stop;
+    const c0 = deployRepository.c0;
+    await createFluxUnit(deployRepository.url);
+    await waitApplied(c0);
+    assert(!(await suspended()), `WBS unit active and applied ${c0.slice(0, 12)}`);
 
     log('old side: production Compose shape up; known rows written through the edge');
     await upOld({ be: be.host, gw: gw.host, fe: fe.host });
@@ -610,9 +882,99 @@ async function main(): Promise<void> {
     );
     assert(exported.counts['project'] === KNOWN.length, 'exactly the known projects were exported');
 
+    const exportFile = join(state, 'export', 'wbs-export.sqlite');
+    log('negative: restore without suspending Flux while the source already names the release');
+    const c1 = await commitRelease(identity, 'wbs: cutover release');
+    await prepareNewSide(identity);
+    await waitApplied(c1);
+    await until('Flux restarting the writer', 240_000, async () => {
+      const pods = await backendPods();
+      if (pods.length === 0) return false;
+      const phase = await k([
+        '-n',
+        'wbs-solver',
+        'get',
+        'pod',
+        pods[0],
+        '-o',
+        'jsonpath={.status.phase}',
+      ]);
+      return phase.trim() === 'Running';
+    });
+    assert((await backendReplicas()) === '1', 'Flux re-applied replicas 1 over the hand-set 0');
+    await Bun.sleep(5000);
+    const raced = await runRestoreJob(
+      identity.images.backend,
+      exported,
+      exportFile,
+      'wbs-cutover-restore-raced',
+    );
+    assert(
+      !raced.completed && raced.logs.includes('already exists; refusing to overwrite it'),
+      'the restore refused the database the Flux-started writer created',
+    );
+    log(
+      'reset after the negative: suspend, source back to the placeholder, raced database removed',
+    );
+    await setSuspended(true);
+    setBranch(c0);
+    // Resuming before the source serves c0 would re-apply c1 (a writer on the volume) first.
+    await requestReconcile();
+    await until('the source serving the placeholder again', 240_000, async () =>
+      (await fluxField('gitrepository', '.status.artifact.revision')).endsWith(c0),
+    );
+    await k(['-n', 'wbs-solver', 'scale', 'deployment', 'wbs-backend', '--replicas=0']);
+    await until(
+      'the raced writer stopping',
+      180_000,
+      async () => (await backendPods()).length === 0,
+    );
+    await k(['-n', 'wbs-solver', 'delete', 'job', 'wbs-cutover-restore-raced', '--wait=true']);
+    // puni-local retains volume data (Retain), so the raced database is removed in place.
+    const wipe = backendTaskJob(
+      { namespaces: NAMESPACES },
+      'wbs-cutover-wipe',
+      identity.images.backend,
+      {},
+    );
+    const wipeSpec = wipe['spec'] as {
+      template: { spec: { containers: { command: string[] }[] } };
+    };
+    wipeSpec.template.spec.containers[0].command = [
+      'bun',
+      '-e',
+      "for (const f of ['wbs.sqlite', 'wbs.sqlite-wal', 'wbs.sqlite-shm']) require('node:fs').rmSync('/data/' + f, { force: true })",
+    ];
+    await k(['create', '-f', '-'], JSON.stringify(wipe));
+    await k([
+      '-n',
+      'wbs-solver',
+      'wait',
+      '--for=condition=complete',
+      'job/wbs-cutover-wipe',
+      '--timeout=300s',
+    ]);
+    await setSuspended(false);
+    await waitApplied(c0);
+    assert(!(await suspended()), 'WBS unit active again at the placeholder');
+
+    phase('suspend-flux');
+    const order: string[] = [];
+    await setSuspended(true);
+    assert(await suspended(), 'the WBS unit reports suspended');
+    order.push('suspended');
+
     phase('restore-into-pvc');
     await prepareNewSide(identity);
-    const exportFile = join(state, 'export', 'wbs-export.sqlite');
+    order.push('replicas-0');
+    assert(
+      order.indexOf('suspended') < order.indexOf('replicas-0'),
+      'the unit was suspended before the writer was set to 0 replicas',
+    );
+    // Worst case: the source names the release (replicas 1) during the restore.
+    setBranch(c1);
+    await requestReconcile();
+    const racing = watchBackend();
     const tampered = join(state, 'export', 'tampered.sqlite');
     writeFileSync(tampered, Buffer.concat([readFileSync(exportFile), Buffer.from([0])]));
     const refused = await runRestoreJob(
@@ -632,6 +994,13 @@ async function main(): Promise<void> {
       'wbs-cutover-restore',
     );
     assert(restoredRun.completed, 'the restore Job completed with the real export');
+    await Bun.sleep(25_000);
+    const raceWatch = await racing.stop();
+    assert(
+      raceWatch.max === 0 && (await backendReplicas()) === '0',
+      `no Flux-started writer while suspended with the release in the source (max ${String(raceWatch.max)} over ${String(raceWatch.samples)} samples)`,
+    );
+    assert((await lastApplied()).endsWith(c0), 'the suspended unit applied nothing new');
     const restored = parseSqliteReport(restoredRun.logs);
     writeFileSync(join(state, 'restore-report.json'), JSON.stringify(restored, null, 2));
     assertRestoredMatches(exported, restored);
@@ -665,6 +1034,20 @@ async function main(): Promise<void> {
       current !== null && JSON.stringify(current.images) === JSON.stringify(identity.images),
       'release record names the restored release; F8 releases can start from it',
     );
+    log('cutover step 8: resume the WBS unit onto the committed release');
+    const handover = watchBackend();
+    await setSuspended(false);
+    await waitApplied(c1);
+    const handed = await handover.stop();
+    const adopted = await kubectlEffects(settings).currentRelease();
+    assert(
+      adopted !== null && JSON.stringify(adopted.images) === JSON.stringify(identity.images),
+      'Flux applied the release manifests with the same digests the restore started',
+    );
+    assert(
+      handed.max <= 1,
+      `at most one backend pod across the resume (max ${String(handed.max)})`,
+    );
 
     phase('smoke-host-override');
     await kubectlEffects(settings).smoke('f11-cutover', identity);
@@ -672,6 +1055,110 @@ async function main(): Promise<void> {
     assert(listed.status === 200, `GET /api/projects with Host: ${SITE} answers 200`);
     for (const name of KNOWN)
       assert(listed.body.includes(name), `known row ${name} is served by k3s`);
+
+    log('F8 deploy:k3s through the WBS Flux unit: publish only while suspended, resume onto it');
+    await sh(
+      [
+        'docker',
+        'build',
+        '-q',
+        '-f',
+        join(ROOT, 'deploy/k8s/wbs/lab/backend-upgrade.Dockerfile'),
+        '--build-arg',
+        `BASE=${PREFIX}be:v1`,
+        '-t',
+        `${PREFIX}be:v2`,
+        join(ROOT, 'deploy/k8s/wbs/lab'),
+      ],
+      null,
+      1_800_000,
+    );
+    const be2 = await publish(`${PREFIX}be:v2`, 'wbs-be-01', port);
+    const v2: ReleaseIdentity = { sourceSha, images: { ...identity.images, backend: be2.cluster } };
+    const repository = { path: clone, remote: 'origin', branch: 'main' };
+    const revisions = prepareDesiredRevision(
+      repository,
+      MANIFEST,
+      await renderOverlay({ kubectl, overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local') }, v2),
+      releaseIdOf(v2),
+    );
+    assert(revisions.previousRevision === c1, 'the prepared commit sits on the cutover release');
+    const uid = (
+      await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
+    ).trim();
+    const request: ReleaseRequest = {
+      environment: 'local',
+      cluster: { context: CONTEXT, uid },
+      namespaces: NAMESPACES,
+      release: v2,
+      expectedCurrent: identity,
+      admission: { package: 'lab-package', activation: 'lab-activation' },
+      flux: { ...FLUX, ...revisions },
+      recovers: null,
+    };
+    const real = kubectlEffects({ ...settings, deployRepository: repository });
+    const observedAtPublish: { suspended: boolean; branch: string }[] = [];
+    const effects: ReleaseEffects = {
+      ...real,
+      publishDesired: async (published) => {
+        observedAtPublish.push({
+          suspended: await suspended(),
+          branch: git(bare, 'rev-parse', 'main'),
+        });
+        await real.publishDesired(published);
+      },
+    };
+    const f8Watch = watchBackend();
+    await executeRelease(request, fileJournal(join(state, 'f8-flux.json')), effects, log);
+    const f8Seen = await f8Watch.stop();
+    assert(
+      observedAtPublish.length === 1 &&
+        observedAtPublish[0].suspended &&
+        observedAtPublish[0].branch === c1,
+      'the coordinator published the desired revision once, while the unit was suspended and the branch was the previous release',
+    );
+    assert(
+      git(bare, 'rev-parse', 'main') === revisions.desiredRevision,
+      'the deploy branch now names the release',
+    );
+    assert(!(await suspended()), 'the coordinator resumed the WBS unit');
+    assert(
+      (await lastApplied()).endsWith(revisions.desiredRevision),
+      'Flux applied the desired revision',
+    );
+    const promoted = await kubectlEffects(settings).currentRelease();
+    assert(
+      promoted !== null && promoted.images.backend === be2.cluster,
+      'the cluster runs the F8 release',
+    );
+    const afterF8 = await backendGet('/api/projects');
+    for (const name of KNOWN)
+      assert(afterF8.body.includes(name), `known row ${name} survived the F8 release`);
+    assert(
+      f8Seen.max <= 1,
+      `at most one backend pod during the F8 release (max ${String(f8Seen.max)})`,
+    );
+
+    log('k3s-side rollback: suspend first, then stop the tiers; the unit must not restart them');
+    await setSuspended(true);
+    await k(['-n', 'wbs-solver', 'scale', 'deployment', 'wbs-backend', '--replicas=0']);
+    await k([
+      '-n',
+      'wbs',
+      'scale',
+      'deployment',
+      'wbs-gateway',
+      'wbs-frontend',
+      'wbs-mcp',
+      '--replicas=0',
+    ]);
+    await k(['-n', 'wbs-solver', 'delete', 'configmap', 'wbs-release']);
+    await requestReconcile();
+    await Bun.sleep(25_000);
+    assert(
+      (await backendReplicas()) === '0' && (await backendPods()).length === 0,
+      'the suspended unit left the rolled-back writer stopped through two intervals',
+    );
 
     phase('switch-traffic');
     log(
@@ -700,6 +1187,7 @@ async function main(): Promise<void> {
     assert(statusAfter === statusBefore, 'old side migration status unchanged by the cutover');
     log('all cutover rehearsal assertions passed');
   } finally {
+    await stopGit();
     if (keep)
       log(
         `kept ${PREFIX}* objects; delete with: docker compose -p ${PROJECT} down -v && ${k3d} cluster delete ${CLUSTER} && ${k3d} registry delete k3d-${REGISTRY}`,

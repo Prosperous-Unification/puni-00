@@ -423,9 +423,29 @@ export async function executeRelease(
   if (state.phase !== 'requested') await claim();
   if (state.phase !== 'requested' && history.at(-1)?.phase !== state.phase) record(state);
 
+  // One Lease write at a time: a heartbeat and a pre-step renewal racing each other read the
+  // same resourceVersion, and the loser's Conflict looked like a lost Lease.
+  // Proof: execute.test.ts `never renews the Lease concurrently` saw two renewals in flight
+  // without this queue; the live F8 lab lost its Lease to a 409 in reconcile-desired (verify.md).
+  let leaseQueue: Promise<void> = Promise.resolve();
+  const renewals = { pending: 0 };
+  const serialRenew = (): Promise<void> => {
+    renewals.pending++;
+    const next = leaseQueue.then(() => effects.renewLease(holder));
+    leaseQueue = next.then(
+      () => {
+        renewals.pending--;
+      },
+      () => {
+        renewals.pending--;
+      },
+    );
+    return next;
+  };
   const heartbeat = setInterval(() => {
-    if (!held.value) return;
-    effects.renewLease(holder).catch((e: unknown) => {
+    // A renewal already queued refreshes the Lease; heartbeats never pile up behind it.
+    if (!held.value || renewals.pending > 0) return;
+    serialRenew().catch((e: unknown) => {
       held.lost = e;
     });
   }, heartbeatMs);
@@ -440,16 +460,23 @@ export async function executeRelease(
         // Proof: without this renewal `stops when another process takes the Lease` kept mutating
         // after its Lease was taken over.
         try {
-          await effects.renewLease(holder);
+          await serialRenew();
         } catch (e: unknown) {
           throw new LeaseLostError(`Lease lost before ${step.kind}: ${messageOf(e)}`);
         }
       }
       log(`[k3s-release ${state.releaseId}] ${step.kind}`);
       let outcome: StepOutcome;
+      const releasing = step.kind === 'release-lease' || step.kind === 'rollback-release-lease';
+      if (releasing) {
+        // No heartbeat may renew (and fail on) a Lease this step deletes.
+        held.value = false;
+        await leaseQueue;
+      }
       try {
         outcome = await perform(step, request, state, effects, { claim, holder });
       } catch (e: unknown) {
+        if (releasing) held.value = true;
         // Nothing is durable before intent: validation and Lease failures change no state.
         if (state.phase === 'requested' || state.phase === 'validated') throw e;
         if (e instanceof LeaseLostError) throw e;
