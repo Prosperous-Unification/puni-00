@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 
 import type { ApplyDependencies, ApplyObservation, OperationLease } from './apply';
 import { decodeFleetNode, readToolchain } from './contracts';
+import { findMachineFactDocument } from './observation';
 import type { OperationPlan } from './plan';
 import {
   decodeTerraformDestroyPlan,
@@ -987,10 +988,10 @@ function requireMachineFact(
   },
 ): string {
   requireAnsibleRecap(stdout);
-  const marker = /PUNI_MACHINE_FACT=(\{(?:\\.|[^}\r\n])+\})/.exec(stdout);
-  if (marker?.[1] === undefined) throw new Error('Controlled SSH fact document is absent');
+  const marker = findMachineFactDocument(stdout);
+  if (marker === undefined) throw new Error('Controlled SSH fact document is absent');
   const fact = requireRecord(
-    parseJson(marker[1].replaceAll('\\"', '"'), 'Controlled SSH fact'),
+    parseJson(marker.replaceAll('\\"', '"'), 'Controlled SSH fact'),
     'Controlled SSH fact',
   );
   if (

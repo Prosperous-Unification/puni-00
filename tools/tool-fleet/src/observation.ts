@@ -76,3 +76,14 @@ export function serializeObservation(input: unknown): string {
 export function digestObservation(body: FleetObservationBody): string {
   return createHash('sha256').update(serializeObservation(body)).digest('hex');
 }
+
+/**
+ * Find the first `PUNI_MACHINE_FACT={...}` document the controlled Ansible fact task printed and
+ * return its brace-delimited text, still carrying any `\"` escapes from Ansible's JSON `msg`.
+ * A backslash always consumes the next character, so an escaped `}` never closes the document.
+ * The two alternatives never start on the same character, which keeps matching linear on
+ * adversarial SSH output instead of backtracking exponentially over runs of backslashes.
+ */
+export function findMachineFactDocument(stdout: string): string | undefined {
+  return /PUNI_MACHINE_FACT=(\{(?:\\[^\r\n]|[^\\}\r\n])+\})/.exec(stdout)?.[1];
+}

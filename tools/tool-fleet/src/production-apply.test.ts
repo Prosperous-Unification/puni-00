@@ -250,12 +250,21 @@ describe('production apply adapter', () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-command-timeout-'));
     const sentinel = join(directory, 'survived');
     const script = join(directory, 'descendant.ts');
+    const survivor = join(directory, 'survivor.ts');
+    // The sentinel path travels as argv so no test value is ever spliced into generated code.
+    await writeFile(
+      survivor,
+      "await Bun.sleep(300); await Bun.write(process.argv[2] ?? '', 'survived');",
+    );
     await writeFile(
       script,
-      `process.on('SIGTERM', () => {}); const child = Bun.spawn([process.execPath, '-e', ${JSON.stringify(`await Bun.sleep(300); await Bun.write(${JSON.stringify(sentinel)}, 'survived')`)}]); await child.exited;`,
+      "process.on('SIGTERM', () => {}); const child = Bun.spawn([process.execPath, ...process.argv.slice(2)]); await child.exited;",
     );
     expect(
-      runBoundedCommand({ executable: process.execPath, arguments: [script] }, 50),
+      runBoundedCommand(
+        { executable: process.execPath, arguments: [script, survivor, sentinel] },
+        50,
+      ),
     ).rejects.toThrow(/timed out/i);
     await Bun.sleep(400);
     expect(access(sentinel)).rejects.toThrow();

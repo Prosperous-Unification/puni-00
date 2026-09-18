@@ -23,6 +23,7 @@ import {
 import {
   digestObservation,
   type DiscoverySource,
+  findMachineFactDocument,
   type FleetObservation,
   type ObservedNode,
   type ObservedNodeState,
@@ -284,11 +285,11 @@ function parseSshOutput(stdout: string, source: DiscoverySource): readonly SshHo
     const input: unknown = JSON.parse(stdout);
     return parseSshHosts(input, source);
   } catch (cause) {
-    const marker = /PUNI_MACHINE_FACT=(\{(?:\\.|[^}\r\n])+\})/.exec(stdout);
-    if (marker?.[1] !== undefined) {
+    const marker = findMachineFactDocument(stdout);
+    if (marker !== undefined) {
       let markerInput: unknown;
       try {
-        markerInput = JSON.parse(marker[1].replaceAll('\\"', '"')) as unknown;
+        markerInput = JSON.parse(marker.replaceAll('\\"', '"')) as unknown;
       } catch (parseCause) {
         throw new Error(`${source} emitted a malformed machine identity fact`, {
           cause: parseCause,

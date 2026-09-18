@@ -6,7 +6,11 @@ import { describe, expect, it } from 'bun:test';
 
 import { decodeFleet, decodeObservation, type Fleet } from './contracts';
 import { type DiscoveryCommand, type DiscoveryResponse, observeFleet } from './discover';
-import { digestObservation, type FleetObservationBody } from './observation';
+import {
+  digestObservation,
+  findMachineFactDocument,
+  type FleetObservationBody,
+} from './observation';
 
 const now = new Date('2026-09-17T12:00:00.000Z');
 
@@ -1269,4 +1273,24 @@ it('commits strict uncached private inventories and a read-only machine identity
   expect(playbook).toContain('puni_display_name | default(puni_node_name, true)');
   expect(playbook.match(/changed_when: false/g)).toHaveLength(3);
   expect(playbook).not.toMatch(/shell:|command:/);
+});
+
+describe('findMachineFactDocument', () => {
+  it('returns the escaped fact document Ansible printed', () => {
+    expect(
+      findMachineFactDocument('ok: [h] => {"msg":"PUNI_MACHINE_FACT={\\"name\\":\\"a\\"}"}'),
+    ).toBe('{\\"name\\":\\"a\\"}');
+    expect(findMachineFactDocument('PUNI_MACHINE_FACT={"name":"a\\}b"}\n')).toBe(
+      '{"name":"a\\}b"}',
+    );
+    expect(findMachineFactDocument('PUNI_MACHINE_FACT={\n}')).toBeUndefined();
+  });
+
+  it('refuses a long run of escapes without a closing brace in linear time', () => {
+    // Proof: with the prior overlapping `(?:\\.|[^}\r\n])+` alternation Bun spent ~480 ms
+    // backtracking over this input and failed the 100 ms bound; the disjoint alternatives take ~2 ms.
+    const started = performance.now();
+    expect(findMachineFactDocument(`PUNI_MACHINE_FACT={${'\\|'.repeat(1000)}`)).toBeUndefined();
+    expect(performance.now() - started).toBeLessThan(100);
+  });
 });
