@@ -138,3 +138,95 @@ restored):
   staging/prod apply** are plan-only in F8 and belong to F11.
 - **The MCP production image** has no Dagger target. The lab Dockerfile is not a production
   path.
+
+## F11 commands and results (2026-09-18, worktree `change/tbf-f11`)
+
+Commits: `1be744b5` descriptor/promotion/publish, `d86292bb` workflows, `19556f26` fleet check,
+`fb4f771a` merge of `9088797e`, `3a60d6c5` solverImages order, `e89955fb` cutover,
+`e75a4e1f` restore-marker fix. Locked tools: kubectl v1.36.4 and helm v4.3.0 from the
+toolchain URLs, shellcheck 0.11.0 and actionlint 1.7.12 from `check-tools.json`, each
+`sha256` verified by `check-provision.ts` (the actionlint and shellcheck digests were also
+compared with the GitHub release API's asset digests); k3d v5.9.0 `sha256sum -c` OK.
+
+| Command                                                                        | SHA / tree                 | Result                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t lint typecheck -p tool-deploy tool-fleet --skip-nx-cache` | `fb4f771a`                 | exit 0                                                                                                                                                                                                                                        |
+| `bun test` in tool-deploy / tool-fleet                                         | `e75a4e1f`                 | 233 pass 0 fail / 204 pass 0 fail                                                                                                                                                                                                             |
+| `bunx nx format:check --all`                                                   | before each commit         | exit 0                                                                                                                                                                                                                                        |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                       | docs tree after `e75a4e1f` | 95 items, 95 passed                                                                                                                                                                                                                           |
+| `bunx nx run tool-fleet:check:faults`                                          | `e75a4e1f`                 | exit 0: clean copy exit 0; each of 9 faults exit 1 naming its family (schema; yaml [+kustomize]; ansible-syntax; ansible-inventory; kustomize; helm; shellcheck; workflows; executables). Pending inventory `network:` applied to copies only |
+| `bunx nx run tool-fleet:check`                                                 | `e75a4e1f`                 | **exit 1**: test/lint/typecheck pass; every family passes except `ansible-inventory` on both committed inventories: `Could not set puni_private_ipv4 … 'hcloud_private_ipv4' is undefined` (see findings)                                     |
+| `bunx nx run tool-deploy:rehearse:cutover` (`K3D`, `KUBECTL` locked), run 4    | `e75a4e1f`                 | exit 0; all assertions below; every `puni-f11-*` container, network, image and k3d object deleted (`docker ps -a` shows none)                                                                                                                 |
+
+Cutover rehearsal, run 4 (06:43–06:45Z): old side = `tier.compose.tmpl`/`site.caddy.tmpl`
+rendered for be/gw/fe plus a Caddy edge importing `log-redact.caddy`, the images' own
+`migrate-cli`/`migrate-status-cli`. Two known projects written through the edge (HTTP 200).
+Fence: POST 503, GET 200, `/ws` 503. Gateway drained at 0 connections. Writer stopped. Export
+`e2fe3457…`: 44 migrations, newest `20260912120000_add_work_item_facts` equal to the status CLI,
+integrity `ok`, no FK violations, both known rows. **Tampered export** (one byte appended):
+the restore Job failed with "copied export is …, not e2fe3457…" and wrote nothing. Real restore:
+same SHA-256, migrations and per-table counts, owner UID 10001. Tiers rolled out, release record
+written and read back by `currentRelease`, F8 smoke Job 5/5 ok, `GET /api/projects` with
+`Host: wbs.f11.test` served both rows. After the (simulated) switch the old edge still refused
+writes; the pre-switch rollback (start be/gw, restore the site file, reload) accepted a new write
+and left the old migration status unchanged. Fence to k3s serving: 06:44:11 → 06:45:16 (65 s),
+30 s of which is `docker stop --time 30` on gw-01 (it did not exit on SIGTERM).
+
+Faults the rehearsal found (fixed, then re-observed passing): run 1 asserted every exported
+migration against `migrate-status-cli`, which prints only the newest (my assumption, corrected);
+run 3's refused tampered restore left `cutover-incoming.done`, so the real restore Job read the
+stale bytes and exited before the copy (`e75a4e1f`: refused bytes are deleted, a stale marker is
+refused).
+
+### R5 failure proofs (each guard disabled, the named test observed failing, then restored and passing)
+
+| Check                                              | Test observed failing                                                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Digest-pinned tier image in a candidate            | `refuses a tag-only tier image`                                                                                            |
+| Gate run is for the descriptor's commit            | `refuses gate evidence for another commit`                                                                                 |
+| `pixels` job passed                                | `refuses a run whose browser job did not pass`                                                                             |
+| `requireDeploymentAdmission` on every tier (seal)  | `refuses an admission record for another commit` (call replaced by a pass-through)                                         |
+| Fresh admission has the descriptor's activation    | `refuses a fresh admission from another activation`                                                                        |
+| Prod digests equal the staging proof's             | `refuses a production digest staging did not prove`                                                                        |
+| State directory is 0700                            | `refuses a state directory others can read`                                                                                |
+| Descriptor SHA-256 is the requested one            | `refuses a descriptor other than the one named`                                                                            |
+| Prod reads the staging proof                       | `refuses production before staging proved the descriptor`                                                                  |
+| Resume only the recorded request                   | `refuses to resume a journal recorded against another cluster context`                                                     |
+| Publish only while the WBS unit is suspended       | `refuses to publish the desired revision while the WBS unit is not suspended`                                              |
+| Publish only from `previousRevision`               | `refuses to move a deploy branch someone else moved`                                                                       |
+| `solverImages` candidate first                     | `admits the candidate then the rollback digest, once when they are equal`                                                  |
+| Strict YAML                                        | `refuses duplicate keys and malformed YAML`                                                                                |
+| New executable needs a shellchecking target        | `refuses a new executable no target shellchecks`                                                                           |
+| Inventory lists exactly its own cluster            | `refuses an inventory that lists a foreign-cluster host`                                                                   |
+| Locked tool digest                                 | `refuses a download whose digest differs from the lock, installing nothing`                                                |
+| Export integrity / FK / restored bytes / owner UID | `refuses an export whose integrity_check …`, `… foreign key violations`, `… different bytes`, `… backend UID does not own` |
+| Workflow: main-only dispatch (run block)           | `refuses a dispatch from any ref but main` (exit 0 instead of 78)                                                          |
+| Workflow: installed-package route (run block)      | `refuses admission on the archive-launcher route` (exit 127 instead of 78)                                                 |
+
+Live family-level negatives are the `check:faults` rows above; the restore SHA-256 refusal was
+observed live in the rehearsal.
+
+### tool-devsync baseline
+
+Before merging `9088797e`, the suite showed 15 failures on this branch; three were F11's
+(`tool-deploy:test` reading `ci.yml`, the overlays and be-01 without declaring them) and were
+cleared by the `tool-deploy` test inputs. After the merge two more were F11's and are fixed:
+`cutover-rehearsal.ts` spelled the tier union itself (`b4e302cb`), and the index checker could
+not resolve the then-untracked `cutover-plan.md`. The final count is recorded below.
+
+### Not verified, with prepared next steps
+
+- **`tool-fleet:check` is red on the committed tree**: both hcloud inventories use
+  `connect_with: private_ipv4` without `network:`, so hetzner.hcloud 7.0.1 sets no
+  `ansible_host`/`hcloud_private_ipv4` and `strict: true` aborts. Fix (infra/ansible, not owned
+  here): `network: puni-platform` / `network: puni-workers` (Terraform names the networks
+  `puni-<cluster>`).
+- **Workflows in real GitHub Actions**: neither `infra-check` nor `deploy-k3s` has run. Unverified:
+  `docker load` of the controller OCI on `ubuntu-latest`, artifact download across runs, the
+  protected environments, and the `puni-deploy` runner.
+- **Staging rollout/rollback through `deploy-k3s`**: blocked on the installed-package admission
+  route (P5 flip), the WBS Flux unit and deploy repository, the environments/secrets/variables in
+  [deployment.md](../../../docs/infra/deployment.md#cicd), and a production MCP image.
+- **h2puni gate**: `bin/h2puni-gate.sh <sha>` not run from this worktree (the gate host is h2puni).
+- **Production cutover**: plan only ([cutover-plan.md](../../../docs/infra/cutover-plan.md));
+  no authorization, nothing applied.
