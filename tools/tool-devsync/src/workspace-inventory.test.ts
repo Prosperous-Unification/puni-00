@@ -101,7 +101,11 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // `Received length: 162` rows, then `Received length: 80` files — this inventory reads apps
   // and libraries only, so the project's four configuration files entered it for the first time
   // with six parent-relative values between them (2026-09-16).
-  expect(paths).toHaveLength(162);
+  // Proof: leaving 162 here after the package release added apps/wiki/cli's `test:package`
+  // target failed with `Received length: 163`; its command carries the project's seventh
+  // parent-relative value in the already-inventoried project.json, so the file count holds
+  // at 80 (2026-09-18).
+  expect(paths).toHaveLength(163);
   expect(new Set(paths.map(({ file }) => file))).toHaveLength(80);
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',

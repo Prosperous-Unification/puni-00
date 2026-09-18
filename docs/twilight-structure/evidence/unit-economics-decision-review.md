@@ -164,7 +164,7 @@ margin without that missing yield and cost distribution.
 
 ## F6 — The research overstates what benchmarks prove about model routing
 
-The [bottom-up model](../research/unit-economics/models/bottom-up-cost.md#t4-model-cost-per-accepted-unit-across-serving-scenarios-low-base-high-h090)
+The [bottom-up model](../research/unit-economics/models/bottom-up-cost.md#t4-model-cost-per-accepted-unit-across-serving-scenarios-low--base--high-h090)
 says DeepSeek and MiniMax cannot finish within balanced's rework limit “at all.”
 Its own table puts MiniMax's base attempts at **2.50**, below its assumed cap of
 three, and a larger expected attempt count would not establish impossibility
