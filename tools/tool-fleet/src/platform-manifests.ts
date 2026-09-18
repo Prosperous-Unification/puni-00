@@ -544,3 +544,38 @@ export function assertTrustedPolicyScope(manifests: readonly PlatformManifest[])
     );
   }
 }
+
+const StandaloneClaim = type({
+  kind: "'PersistentVolumeClaim'",
+  metadata: { name: 'string>0' },
+  spec: { 'storageClassName?': 'string' },
+});
+const RetainClass = type({
+  kind: "'StorageClass'",
+  metadata: { name: "'puni-retain'" },
+  reclaimPolicy: 'string',
+});
+
+/**
+ * Require every platform PersistentVolumeClaim to name `puni-retain`, and the local class of that
+ * name to retain its volumes, so a deleted PersistentVolume object never deletes platform data
+ * and a restore can rebind it. Chart-rendered claims are bound by their value schemas.
+ */
+export function assertRetainedClaims(manifests: readonly PlatformManifest[]): void {
+  for (const { path, document } of manifests) {
+    const claim = StandaloneClaim(document);
+    if (claim instanceof type.errors) continue;
+    if (claim.spec.storageClassName !== 'puni-retain') {
+      // Proof: with this comparison removed, platform.test.ts `rejects a platform claim outside
+      // the retained class` failed (2026-09-18).
+      throw new Error(`${path} PersistentVolumeClaim/${claim.metadata.name} must use puni-retain`);
+    }
+  }
+  const classes = manifests.flatMap(({ document }) => {
+    const retained = RetainClass(document);
+    return retained instanceof type.errors ? [] : [retained];
+  });
+  if (classes.length !== 1 || classes[0]?.reclaimPolicy !== 'Retain') {
+    throw new Error('The local puni-retain StorageClass must exist once with reclaimPolicy Retain');
+  }
+}

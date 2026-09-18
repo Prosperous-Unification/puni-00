@@ -80,6 +80,53 @@ describe('validatePlatform', () => {
     });
   });
 
+  it('rejects a platform claim outside the retained class', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/registry/base/registry.yaml',
+      '  storageClassName: puni-retain\n',
+      '',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/registry must use puni-retain/);
+  });
+
+  it('rejects a retained class that deletes its volumes', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/storage/local/storage-class.yaml',
+      'name: puni-retain\nprovisioner: rancher.io/local-path\nreclaimPolicy: Retain',
+      'name: puni-retain\nprovisioner: rancher.io/local-path\nreclaimPolicy: Delete',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/puni-retain StorageClass/);
+  });
+
+  it('rejects chart-rendered platform claims outside the retained class', async () => {
+    for (const [path, before] of [
+      [
+        'infra/platform/observability/elastic/local/elasticsearch.yaml',
+        '              storageClassName: puni-retain\n',
+      ],
+      [
+        'infra/platform/observability/prometheus/kube-prometheus-stack.yaml',
+        '              storageClassName: puni-retain\n',
+      ],
+      [
+        'infra/platform/storage/production/hcloud-csi.yaml',
+        '      - { name: puni-retain, defaultStorageClass: false, reclaimPolicy: Retain }\n',
+      ],
+    ] as const) {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, '');
+      const refusal = await validatePlatform(root).then(
+        () => 'accepted',
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      );
+      expect(refusal).toMatch(/storageClass/);
+    }
+  });
+
   it('rejects a chart version that differs from the toolchain lock', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(

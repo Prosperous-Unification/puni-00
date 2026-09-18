@@ -91,6 +91,22 @@ const HcloudCcmValues = type({
 
 const HcloudCsiImage = type({ name: 'string>0', tag: "''", '+': 'reject' });
 const HcloudCsiValues = type({
+  // Proof: loosening this tuple to `object[]` made the chart-rendered storage-class negative in
+  // platform.test.ts accept a production graph without puni-retain (2026-09-18).
+  storageClasses: type([
+    {
+      name: "'hcloud-volumes'",
+      defaultStorageClass: 'true',
+      reclaimPolicy: "'Delete'",
+      '+': 'reject',
+    },
+    {
+      name: "'puni-retain'",
+      defaultStorageClass: 'false',
+      reclaimPolicy: "'Retain'",
+      '+': 'reject',
+    },
+  ]),
   controller: {
     image: {
       csiAttacher: HcloudCsiImage,
@@ -150,6 +166,7 @@ const ElasticsearchValues = type({
     volumeClaimTemplates: type({
       metadata: { name: "'elasticsearch-data'", '+': 'reject' },
       spec: {
+        storageClassName: "'puni-retain'",
         accessModes: type(["'ReadWriteOnce'"]),
         resources: { requests: { storage: 'string>0', '+': 'reject' }, '+': 'reject' },
         '+': 'reject',
@@ -233,6 +250,7 @@ const KubePrometheusStackValues = type({
       storageSpec: {
         volumeClaimTemplate: {
           spec: {
+            storageClassName: "'puni-retain'",
             accessModes: type(["'ReadWriteOnce'"]),
             resources: { requests: { storage: 'string>0', '+': 'reject' }, '+': 'reject' },
             '+': 'reject',

@@ -94,6 +94,7 @@ spec:
         storageSpec:
           volumeClaimTemplate:
             spec:
+              storageClassName: puni-retain
               accessModes: [ReadWriteOnce]
               resources:
                 requests:

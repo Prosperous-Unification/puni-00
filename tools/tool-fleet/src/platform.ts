@@ -10,6 +10,7 @@ import {
   assertEncryptedSecrets,
   assertLockedWorkloadImages,
   assertRegistryTransport,
+  assertRetainedClaims,
   assertSecretClosure,
   assertStagePlacement,
   assertTrustedPolicyScope,
@@ -380,6 +381,7 @@ export async function validatePlatform(root: string): Promise<{
   const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);
+  assertRetainedClaims(manifests);
   assertTrustedWorkloadImages(manifests);
   assertTrustedPolicyScope(manifests);
 

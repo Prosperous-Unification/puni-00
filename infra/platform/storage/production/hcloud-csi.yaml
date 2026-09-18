@@ -16,6 +16,10 @@ spec:
         name: puni-platform
         namespace: flux-system
   values:
+    # hcloud-volumes stays the chart's default; every platform claim names puni-retain.
+    storageClasses:
+      - { name: hcloud-volumes, defaultStorageClass: true, reclaimPolicy: Delete }
+      - { name: puni-retain, defaultStorageClass: false, reclaimPolicy: Retain }
     controller:
       image:
         csiAttacher:

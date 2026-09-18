@@ -5,3 +5,13 @@ metadata:
 provisioner: rancher.io/local-path
 reclaimPolicy: Retain
 volumeBindingMode: WaitForFirstConsumer
+---
+# Every platform claim uses this class in both environments (production: hcloud CSI, Retain), so
+# deleting a PersistentVolume object never deletes its data and a restore can rebind it.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: puni-retain
+provisioner: rancher.io/local-path
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer

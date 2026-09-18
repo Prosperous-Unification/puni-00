@@ -6,6 +6,7 @@ metadata:
   name: object-store
   namespace: puni-backup
 spec:
+  storageClassName: puni-retain
   accessModes: [ReadWriteOnce]
   resources:
     requests:

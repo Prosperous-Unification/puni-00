@@ -11,6 +11,7 @@ metadata:
   name: registry
   namespace: puni-registry
 spec:
+  storageClassName: puni-retain
   accessModes: [ReadWriteOnce]
   resources:
     requests:
