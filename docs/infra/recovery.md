@@ -146,14 +146,98 @@ To stop Elasticsearch deliberately, suspend Flux `observability` and the
 `eck.k8s.elastic.co/pause-orchestration=true`, and scale its StatefulSet.
 Collectors keep queued logs on the node until it returns.
 
-## etcd
+## etcd and cold restore
 
-Snapshots live under `s3://<bucket>/<cluster-id>/`. A cold restore stops k3s on
-every server, then on the first server runs
-`k3s server --cluster-reset --cluster-reset-restore-path=<snapshot> --etcd-s3 ...`
-with the escrowed token in `/etc/rancher/k3s/server-token`, starts k3s, deletes
-stale VolumeAttachments and rejoins the other servers. This path is prepared but
-not yet drilled; the F10 cold-recovery drill proves it.
+Snapshots live under `s3://<bucket>/<cluster-id>/`. A cold restore needs, from escrow, the
+server token (the whole `/var/lib/rancher/k3s/server/token` line), the SOPS age identity and a
+recovery manifest recorded when the snapshot was taken:
+
+```sh
+bunx nx run tool-fleet:recover -- record-manifest --cluster <id> --source-revision <git sha> \
+  --snapshot <downloaded snapshot> --object-key <id>/<name> --token-file <escrow>/token \
+  --sops-age-key-file <escrow>/age.agekey --stores stores.json > manifest.json
+```
+
+`stores.json` lists what the restore must prove: the SQLite report key and a known row, Velero
+backups, the Elastic snapshot and a query, and registry image digests. Keep the manifest with
+the escrowed secrets. To restore, first fence every original server (powered off or deleted)
+and write that evidence to `fences.json`, then:
+
+```sh
+bunx nx run tool-fleet:recover -- verify-cold-restore --cluster <id> --manifest manifest.json \
+  --token-file <escrow>/token --sops-age-key-file <escrow>/age.agekey \
+  --snapshot <downloaded snapshot> --fences fences.json > plan.json
+ansible-playbook -i <inventory> infra/ansible/playbooks/restore.yml -e puni_cluster_id=<id> \
+  -e puni_restore_plan_path=plan.json -e puni_restore_snapshot_path=<snapshot> \
+  -e puni_restore_token_path=<escrow>/token -e puni_node_name=<first replacement server>
+```
+
+`verify-cold-restore` refuses a missing or different token or SOPS identity, a snapshot whose
+size or SHA-256 differs from the manifest (a corrupt archive), a snapshot from another
+cluster's folder, a k3s version other than the lock, and any original server that is not
+fenced. It never plans an empty bootstrap. `restore.yml` re-checks the placed token and
+snapshot bytes against the plan before it stops k3s, moves the old datastore aside, runs
+`k3s server --cluster-reset --cluster-reset-restore-path`, starts k3s and deletes the fenced
+Node objects by exact name. The reset records the node's current IP as the etcd peer URL, so it
+must run on the replacement server itself with its final address.
+
+Then, in order:
+
+1. **Volumes.** A node-local PersistentVolume still names the dead node. After checking its
+   data survived, rebind it deliberately:
+   `bunx nx run tool-fleet:recover -- rebind-volume --kubeconfig <k> --kubectl <path> --volume <pv> --to-node <node> --fences fences.json`.
+   It refuses a CSI volume, a claim with another UID, an unfenced old node and a reclaim
+   policy other than `Retain`. The platform's own claims use the default `local-path` class
+   (`Delete`), so patch each to `Retain` first; never delete such a PV object otherwise.
+2. **Stale attachments.** For CSI volumes (Hetzner), delete only the attachment of that exact
+   volume on a fenced node:
+   `bunx nx run tool-fleet:recover -- remove-attachment --kubeconfig <k> --kubectl <path> --volume <pv> --node <old node> --fences fences.json`.
+   It re-reads the object and compares its UID before deleting. Never delete attachments to
+   unstick a Pending pod on a live node.
+3. **Controllers.** `flux reconcile ks puni-cluster --with-source`; every stage must reach
+   `Ready` at the manifest's source revision.
+4. **Applications.** Restore SQLite from the report into a new claim (below) and read the known
+   row and migration set; pull each recorded registry digest; query Elastic; server-side
+   dry-run `solver-allowed` (admitted) and `solver-alternate-path` (denied).
+5. **Backups again.** Take an etcd snapshot, record a new manifest, and run
+   `tool-fleet:health`; a restored cluster has no snapshot of its own until then.
+
+A restore of etcd alone does not restore applications.
+
+## Routine maintenance
+
+`bunx nx run tool-fleet:maintenance -- plan --input evidence.json` plans one operation from
+recorded evidence (`operation` selects it). Each refuses before any effect:
+
+| Operation                 | Refuses when                                                                |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `control-plane-expansion` | a member is not a healthy voter, no snapshot, target even or not larger     |
+| `certificate-rotation`    | a member is unhealthy, no snapshot, one server without accepting the outage |
+| `token-rotation`          | the new token is not escrowed; keeps the old one for older snapshots        |
+| `sops-key-rotation`       | the new identity is not escrowed; rotates through a two-identity window     |
+| `registry-recovery`       | an image is not a digest reference                                          |
+| `forge-replacement`       | the old forge is not fenced or a worktree head is not pushed                |
+
+## Scheduled verification and health
+
+`wbs/sqlite-backup-verify` (daily 03:45) restores the newest SQLite report into scratch with
+the byte-bound runner and fails when the newest report is older than 26 hours or does not
+verify; `PuniBackupJobFailed` covers it.
+
+`bunx nx run tool-fleet:health -- --cluster <id> --kubeconfig <k> --kubectl <path>` is
+read-only (any kubectl verb but `get` throws) and exits 1 on a critical finding. Rules: target
+marker, node Ready, etcd voter, newest etcd snapshot within 7 h, Flux objects Ready (suspended
+is a warning), pods Ready, VolumeAttachments attached, claims Bound (Lost is critical), SQLite
+backup within 2 h, Velero schedule within 26 h, latest backup Job per CronJob not failed,
+certificates Ready with 14 days left. Elastic snapshot age is not observable through Kubernetes
+and is not covered.
+
+## Synthetic worker drills
+
+`bunx nx run harness-example:package`, then
+`bunx nx run tool-fleet:synthetic -- dispatch|reconcile|cancel --run <id> ... --journal <file>`
+runs the fake-ACP harness as a bounded Job in `workers`. The journal stands in for Twilight's
+authority outside the cluster. These are infrastructure proofs, not Twilight's M1 contract.
 
 ## Velero
 
@@ -188,3 +272,46 @@ object-storage latency.
 | Broken backup credentials                | upload HTTP 403, Job failed, `PuniBackupJobFailed` delivered         |
 | Velero FSB backup and namespace restore  | 7 s and 9 s for 2.2 MB; blob digest verified                         |
 | etcd snapshot to S3                      | 0.43 s for 29.7 MB; wrong key exits 1                                |
+
+## Cold restore, measured
+
+k3d on 2026-09-18, one server, embedded etcd, the full platform-local graph at a rehearsal
+commit; commands and evidence in
+[platform verification](../../openspec/changes/k3s-platform/verify.md#f10-recovery-and-maintenance-drills).
+The source cluster was deleted (the fence); its local-path directory was kept on the host, as a
+Hetzner volume outlives its server.
+
+| Measure                                  | Result                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| etcd snapshot to S3                      | 0.50 s for 36 MiB, 6.9 s after the last write                              |
+| Missing token, missing key, corrupt copy | each refused by `verify-cold-restore`, exit 1; `restore.yml` refused too   |
+| Loss to API up on the replacement        | 5 min 06 s (includes one reset redone for a wrong peer IP, about 2 min)    |
+| Loss to every application check passing  | 13 min 04 s: rows and 44 migrations, registry pull, Elastic hit, admission |
+| Loss to every Flux stage Ready           | 17 min 53 s, delayed by a lab DNS entry k3d had not injected               |
+| Worker cluster deleted to policy Ready   | 1 min 32 s; the in-flight run restarted once and completed at 2 min 22 s   |
+| Worker node stopped to run complete      | 42 s after the out-of-service fence taint; nothing ran before the fence    |
+
+RPO by store:
+
+| Store                | RPO                                      | Observed                                              |
+| -------------------- | ---------------------------------------- | ----------------------------------------------------- |
+| etcd                 | snapshot interval, 6 h                   | on-demand snapshot held all state written before it   |
+| WBS SQLite (S3)      | backup interval, 1 h                     | a row written 90 s after the backup was not restored  |
+| WBS SQLite (volume)  | 0 when the volume survives and is fenced | the rebound volume held that row                      |
+| Elasticsearch        | ingest delay; SLM daily for off-cluster  | the rebound volume held the injected event            |
+| Registry, other PVCs | Velero daily, or 0 on a rebound volume   | image pulled by digest; Velero restore also completed |
+
+## Residual single points of failure
+
+- One server per cluster: its loss is a cold restore, not a failover; expansion to three is
+  planned but not executed.
+- One SQLite writer and one Elasticsearch node with zero replicas.
+- The local rehearsal object store lives inside the cluster; only production object storage
+  is outside the failure domain, and the off-region copy is not yet running.
+- Platform claims use `local-path` with `Delete`; the `Retain` class `puni-local` is unused by
+  them, so a careless PV deletion loses data.
+- A kubelet enforces `emptyDir.sizeLimit` by eviction, not quota: the disk-exhaustion Job wrote
+  about 2 GB into a 64 MiB scratch in 59 s before eviction.
+- Escrow (token, SOPS identity, manifest) is an operator procedure; no second-machine check has
+  run.
+- The Git source and its deploy key: a restore cannot reconcile without them.

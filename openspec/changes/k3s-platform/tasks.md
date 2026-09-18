@@ -21,4 +21,12 @@
   - [ ] Volume-threshold and OTel-network-block drills on production-like storage; h3 monitoring retirement evidence.
 - [ ] F9 — Preserve source-run development on k3s per [F9](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f9--source-run-development-and-localhost-experience).
 - [ ] F10 — Execute cold recovery and routine maintenance drills per [F10](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f10--recovery-and-routine-maintenance).
+  - [x] Cold-restore verifier, `restore.yml`, fenced attachment removal and deliberate volume rebind; missing-token, missing-key and corrupt-archive refusals (live, k3d).
+  - [x] Cold restore on k3d from a snapshot with the escrowed token: Flux reconciled, SQLite known row and 44 migrations, registry pull by digest, Elastic query, admission dry-runs.
+  - [x] Maintenance planners (expansion, certificate/token/SOPS rotation, registry recovery, forge replacement) with refusal tests.
+  - [x] Daily SQLite restore verification; read-only health check with a fault drill per rule.
+  - [x] Worker cluster recreation and synthetic Jobs: duplicate start, cancellation, drain, node loss, memory and disk exhaustion, telemetry outage (infrastructure proofs only).
+  - [ ] `restore.yml` end to end on systemd hosts (VM lab or cloud): prepared; the controller run stops at the systemd boundary.
+  - [ ] Control-plane expansion, certificate and token rotation, SOPS key rotation and forge replacement executed on real hosts: planners only.
+  - [ ] Platform claims on the `Retain` class; hard scratch limits for worker Jobs.
 - [ ] F12 — Finish the tested operator handoff per [F12](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f12--finish-the-operator-handoff).

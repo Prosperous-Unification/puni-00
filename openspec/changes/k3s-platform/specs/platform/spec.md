@@ -83,3 +83,45 @@ Each store SHALL be backed up through its own consistent mechanism, and every re
 - **GIVEN** log producers running while Elasticsearch is stopped for less than the queue capacity
 - **WHEN** Elasticsearch returns
 - **THEN** every produced event is searchable once and a backlog alert fired during the outage
+
+#### Scenario: Snapshot archive is corrupt
+
+- **GIVEN** a recovery manifest and a snapshot whose size or SHA-256 differs from it
+- **WHEN** cold recovery is verified or the playbook places the snapshot
+- **THEN** it refuses before k3s is stopped
+
+### Requirement: Volume recovery is fenced and exact
+
+Recovery SHALL remove a VolumeAttachment or move a node-local volume only when the old node is fenced and the volume, node and claim identities match exactly.
+
+#### Scenario: Attachment belongs to a live node
+
+- **GIVEN** a VolumeAttachment of the requested volume on a node without fence evidence
+- **WHEN** stale-attachment removal runs
+- **THEN** it refuses and the attachment remains
+
+#### Scenario: Volume would lose its data
+
+- **GIVEN** a node-local PersistentVolume whose reclaim policy is not Retain
+- **WHEN** a rebind is requested
+- **THEN** it refuses before the PersistentVolume object is deleted
+
+### Requirement: Fleet health is read-only and every rule can fail
+
+The health check SHALL issue only read requests and SHALL report a critical finding for each rule's injected fault.
+
+#### Scenario: Kubeconfig reaches another cluster
+
+- **GIVEN** a kubeconfig for a cluster whose marker names a different cluster
+- **WHEN** the health check runs
+- **THEN** it reports only the marker finding and exits non-zero
+
+### Requirement: Worker runs survive infrastructure loss under outside authority
+
+Synthetic worker Jobs SHALL be bounded, SHALL start at most once per run identity, and SHALL restart after node or cluster loss only as decided by a journal outside the cluster.
+
+#### Scenario: Worker cluster is recreated during a run
+
+- **GIVEN** a dispatched run whose worker cluster is deleted and recreated
+- **WHEN** the authority reconciles the run
+- **THEN** it starts the run once more and records its completion, or fails it after the attempt limit
