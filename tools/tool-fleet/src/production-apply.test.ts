@@ -411,6 +411,73 @@ describe('production apply adapter', () => {
     expect(
       calls.some((request) => request.arguments.some((arg) => arg.endsWith('/join.yml'))),
     ).toBe(true);
+
+    // A cluster server may accompany the target for validation; another agent may not.
+    const host = (address: string, machine: string): Record<string, string> => ({
+      ansible_host: address,
+      ansible_user: 'puni',
+      puni_machine_id: machine,
+      puni_provider_identity: machine,
+      ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
+    });
+    const target = host('10.0.0.44', 'abcdefabcdefabcdefabcdefabcdefab');
+    const server = host('10.0.0.11', '11111111111111111111111111111111');
+    for (const [agents, expected] of [
+      [{ 'external-c': target }, 'complete'],
+      [{ 'external-c': target, 'other-agent': host('10.0.0.45', 'c'.repeat(32)) }, 'refused'],
+    ] as const) {
+      const extendedDirectory = await mkdtemp(join(tmpdir(), 'fleet-existing-enroll-server-'));
+      const extendedPath = join(extendedDirectory, 'operation.json');
+      const extendedInventory = `${JSON.stringify({
+        all: {
+          children: {
+            k3s_agents: { hosts: agents },
+            k3s_join_servers: { hosts: {} },
+            k3s_bootstrap_servers: { hosts: { 'server-1': server } },
+          },
+        },
+      }).replaceAll(knownHostsPath, `${extendedPath}.known_hosts`)}\n`;
+      const extendedKnownHosts = `${knownHostsSource}10.0.0.11 ssh-ed25519 AAAAC3NzaServerKey\n10.0.0.45 ssh-ed25519 AAAAC3NzaOtherKey\n`;
+      await writeFile(`${extendedPath}.inventory.json`, extendedInventory, { mode: 0o600 });
+      await writeFile(`${extendedPath}.ansible-vars.json`, variablesSource, { mode: 0o600 });
+      await writeFile(`${extendedPath}.known_hosts`, extendedKnownHosts, { mode: 0o600 });
+      const { planSha256: _reviewedDigest, ...unsealed } = plan;
+      const extendedPlan = sealOperationPlan({
+        ...unsealed,
+        request: {
+          kind: 'enroll',
+          nodeId: 'external-c',
+          clusterId: 'workers',
+          ansibleVariablesSha256: createHash('sha256').update(variablesSource).digest('hex'),
+          inventorySha256: createHash('sha256').update(extendedInventory).digest('hex'),
+          knownHostsSha256: createHash('sha256').update(extendedKnownHosts).digest('hex'),
+        },
+      });
+      leaseExists = false;
+      calls.length = 0;
+      const outcome = applyOperation({
+        plan: extendedPlan,
+        expectedSha256: extendedPlan.planSha256,
+        journalPath: `${extendedPath}.journal.json`,
+        dependencies: createProductionApplyDependencies(
+          join(import.meta.dir, '../../..'),
+          extendedPlan,
+          extendedPath,
+          run,
+          () => new Date('2026-09-17T09:01:00.000Z'),
+          'execution-owner',
+        ),
+      });
+      if (expected === 'complete') {
+        expect((await outcome).state).toBe('complete');
+      } else {
+        expect(outcome).rejects.toThrow(/lacks exact host identity/);
+        await outcome.catch(() => undefined);
+        expect(
+          calls.some((request) => request.arguments.some((arg) => arg.endsWith('/join.yml'))),
+        ).toBe(false);
+      }
+    }
   });
 
   it('prepares a private saved plan and emits its exact state bindings', async () => {
