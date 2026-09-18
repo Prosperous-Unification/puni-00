@@ -572,8 +572,8 @@ async function main(): Promise<void> {
       ])
     ).trim();
     assert(
-      admitted === `${v1.images.backend},${broken.images.backend}`,
-      'the coordinator wrote solverImages as the rollback and candidate digests',
+      admitted === `${broken.images.backend},${v1.images.backend}`,
+      'the coordinator wrote solverImages as the candidate then the rollback digest',
     );
     await expectRestored(v1, ['f8-row-before']);
     assert(

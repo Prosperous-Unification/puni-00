@@ -464,7 +464,7 @@ describe('executeRelease', () => {
   it('admits the candidate and rollback digests before any backend pod starts', async () => {
     const fake = cluster();
     await executeRelease(request(), memoryJournal(), fake, quiet, on(fake));
-    expect(fake.approved).toEqual([OLD.images.backend, NEW.images.backend]);
+    expect(fake.approved).toEqual([NEW.images.backend, OLD.images.backend]);
     expect(fake.calls.indexOf('admitBackendImages')).toBeLessThan(fake.calls.indexOf('capture'));
   });
 
