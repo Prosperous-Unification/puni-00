@@ -1,8 +1,31 @@
 # Platform reconciliation
 
-Ansible installs k3s and bootstraps Flux. Flux then owns controllers, storage,
-policy and registry resources in that order. Do not apply the long-lived
-platform manifests from Ansible or by hand.
+Ansible installs k3s and bootstraps Flux. Flux then owns every long-lived
+platform object through one ordered graph per cluster. Do not apply the platform
+manifests from Ansible or by hand.
+
+| Stage           | Path under `infra/platform/`       | Waits for        |
+| --------------- | ---------------------------------- | ---------------- |
+| `target`        | `target` (applies nothing)         | none             |
+| `controllers`   | `networking`                       | target           |
+| `storage`       | `storage/<environment>`            | controllers      |
+| `policy`        | `policy` (namespaces, admission)   | controllers      |
+| `secrets`       | `secrets/<cluster-id>` (SOPS only) | policy           |
+| `platform`      | `registry/<environment>`           | storage, secrets |
+| `observability` | `observability/<environment>`      | platform         |
+| `alerts`        | `alerts/<environment>`             | observability    |
+| `backup`        | `backup/<environment>`             | alerts           |
+
+Every stage reconciles through its own `<cluster-id>-kubeconfig` Secret and
+decrypts with `sops-age`. A missing `sops-age` Secret fails the first stage, so no
+controller or privileged workload runs. The `target` stage health-checks the
+immutable ConfigMap `kube-system/puni-cluster-<cluster-id>`, which only
+`platform.yml` creates on that cluster; a kubeconfig that reaches another cluster
+stops there and every later stage reports its dependency as not ready.
+`alerts` is separate because PrometheusRule and Probe need the CRDs that the
+`observability` stage installs. `tool-fleet:check` binds this graph, every
+native kustomization's resource list, every chart archive and image digest, and
+every plain workload image to `infra/versions/toolchain.json`.
 
 Run `infra/ansible/playbooks/platform.yml` against the bootstrap server with the
 exact cluster ID, toolchain-locked Flux URL/version/checksum, immutable Git commit,
@@ -20,7 +43,9 @@ default-deny networking. The `wbs-solver` and `puni-forge` namespaces admit thei
 narrow host-path exception through the committed admission policy. Solver pods
 may mount only `/run/puni/solver` as a directory, and source pods may mount only
 the roots listed in the `puni-trusted-workload` ConfigMap. Neither may request
-privilege escalation, host networking, host PID, Docker sockets or an API token.
+privilege escalation, host networking, host PID, Docker sockets or an API token. Every solver container must use one of the one or two digests in
+`solverImages` (the release's candidate and rollback, comma separated); the policy
+matches whole entries, so a digest prefix is denied.
 Apart from those exact host directories, the policy enforces the Kubernetes 1.36
 [Restricted Pod Security Standard](https://v1-36.docs.kubernetes.io/docs/concepts/security/pod-security-standards/),
 including pod, regular-container, init-container and ephemeral-container security
@@ -31,7 +56,7 @@ Role; ordinary authenticated users receive no trusted-namespace Role or service
 account impersonation grant.
 
 Run the committed admission probes with server-side dry-run after applying the
-policy overlay. `solver-allowed.yaml` and `forge-allowed.yaml` must succeed. Every
+policy overlay. `solver-allowed.yaml`, `solver-rollback-allowed.yaml` and `forge-allowed.yaml` must succeed. Every
 other YAML manifest in `infra/platform/conformance/admission/` must be denied with
 its specific admission or Restricted Pod Security diagnostic:
 
@@ -72,8 +97,97 @@ kubectl wait --for=condition=Failed job/denied-egress -n workers --timeout=2m
 test "$(kubectl get job denied-egress -n workers -o jsonpath='{.status.conditions[?(@.type=="Failed")].reason}')" = BackoffLimitExceeded
 ```
 
-The in-cluster registry is pinned to the amd64 manifest for Distribution 2.8.3.
-Keep the existing external registry as the build and pull endpoint until TLS,
-authentication, offline garbage collection and restart-pull recovery have been
-observed against the replacement. This manifest alone does not authorize that
-migration.
+## Secrets
+
+Git carries platform credentials only as SOPS files under
+`infra/platform/secrets/<cluster-id>/`, each listed in that directory's
+kustomization and encrypted with `--encrypted-regex '^(data|stringData)$'` to the
+cluster's age recipient. The check rejects a Secret anywhere else, a plaintext
+value, and a non-`*.sops.yaml` resource. The committed directories are empty:
+dependents that need a credential stay unready until the operator adds it. The
+root `.sops.yaml` only covers `tools/tool-secrets`, so pass the recipient and
+bypass it explicitly:
+
+```sh
+sops --config /dev/null --encrypt --age "$CLUSTER_AGE_RECIPIENT" \
+  --encrypted-regex '^(data|stringData)$' --input-type yaml --output-type yaml \
+  registry-auth.yaml > infra/platform/secrets/platform-production/registry-auth.sops.yaml
+```
+
+| Secret                           | Namespace       | Keys                                                                 |
+| -------------------------------- | --------------- | -------------------------------------------------------------------- |
+| `registry-auth`                  | `puni-registry` | `htpasswd` (bcrypt)                                                  |
+| `registry-ca` (production)       | `puni-registry` | `tls.crt`, `tls.key` of the private registry CA                      |
+| `alertmanager-puni`              | `observability` | `alertmanager.yaml`, including the real receiver and dead-man URL    |
+| `elastic-s3-credentials`         | `observability` | `s3.client.default.access_key`, `s3.client.default.secret_key`       |
+| `sqlite-backup-s3`               | `wbs`           | `endpoint`, `bucket`, `region`, `access-key-id`, `secret-access-key` |
+| `velero-credentials`             | `puni-backup`   | `cloud` (AWS credentials file)                                       |
+| `velero-repo-credentials`        | `puni-backup`   | `repository-password` (Kopia repository encryption)                  |
+| `object-store-root` (local only) | `puni-backup`   | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`                             |
+
+A local rehearsal generates a disposable age identity, encrypts test values for
+these Secrets and serves them as one extra commit on top of the reviewed SHA;
+no age private key is committed.
+
+## Registry
+
+`registry/base` serves Distribution 2.8.3 over TLS with htpasswd authentication
+and a separate plain-HTTP debug port (5001) for health probes. `registry/local`
+issues a disposable CA and certificate through cert-manager.
+`registry/production` issues `registry.puni.internal` from the escrowed
+`registry-ca` Secret, so a rebuild keeps the chain that nodes and Dagger trust.
+Node containerd trust (`/etc/rancher/k3s/registries.yaml` with that CA and
+credential) and the private-network endpoint are not yet configured by any
+role; until they are, the existing external registry stays authoritative.
+
+Migrate by copying each image by tag without re-encoding it; the copier
+verifies every blob digest and requires the target to report the source
+manifest digest:
+
+```sh
+TARGET_USERNAME=puni-push TARGET_PASSWORD=... TARGET_CA_FILE=registry-ca.crt \
+  bun tools/tool-fleet/src/platform-registry.ts copy \
+  https://<existing-registry> https://registry.puni.internal:5000 wbs/be-01:<tag> ...
+```
+
+Garbage collection runs offline. Suspend Flux `platform`, set
+`REGISTRY_STORAGE_MAINTENANCE_READONLY={"enabled": true}` and wait for the
+rollout, confirm pushes return 405, then run
+`registry garbage-collect /etc/docker/registry/config.yml` in the pod.
+`flux resume kustomization platform` restores write mode and restarts the pod;
+pull a kept image by digest before declaring success. Request manifests with
+both the OCI and Docker v2 media types: a Docker-only `Accept` returns 404 for
+OCI manifests.
+
+## Certificates and DNS
+
+Production has only the `letsencrypt-staging` ClusterIssuer, restricted to
+`wbs.bulletpoints.club` and `wbs-staging.bulletpoints.club`. Add a production
+issuer only after staging issuance succeeds for both names. Local clusters use
+self-signed issuers and port-forwards only. Kibana, Prometheus and Alertmanager
+have no Ingress; reach them over the private network or `kubectl port-forward`.
+
+DNS for both domains stays manual at GoDaddy. Prepare every change as a
+reviewed plan with the exact rollback and wait:
+
+```sh
+bun tools/tool-fleet/src/platform-dns.ts plan bulletpoints.club current.json desired.json
+```
+
+Lower the TTL of each changed record first, wait `propagationWaitSeconds`,
+apply `changes` by hand, verify, and apply `rollback` if verification fails.
+
+## Observability
+
+ECK runs one Elasticsearch node (1 GiB heap locally, 2 GiB in production) and
+Kibana; kube-prometheus-stack runs Prometheus (15 d, 8 GB), Alertmanager,
+kube-state-metrics and node-exporter on port 9101, because Traefik's
+host-network metrics entry point owns 9100 on ingress nodes. The OTel
+collector DaemonSet reads `/var/log/pods` with checkpoints and a persistent
+sending queue under `/var/lib/puni-otelcol`, redacts credential shapes in the
+log body, and writes the `logs-puni.otel-<environment>` data stream. Its
+`logs-otel@custom` component template applies ILM `puni-logs` (rollover 1 d or
+10 GB, delete after 30 d), zero replicas and a 500-field mapping limit that
+stores extra dynamic attributes unindexed. Alert routes and recipients come from
+the `alertmanager-puni` Secret; `Watchdog` is the dead-man signal.
+Store-specific backups and restores are in [recovery](recovery.md).
