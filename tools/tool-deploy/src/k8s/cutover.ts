@@ -172,8 +172,9 @@ export function assertRestoredMatches(exported: SqliteReport, restored: SqliteRe
 
 /**
  * The restore Job's command (`bun -e`). It waits for the operator to copy the export in, refuses
- * to overwrite an existing database, verifies the copied bytes against `PUNI_EXPORT_SHA256`,
- * renames the file into place, and prints the {@link SQLITE_REPORT_SCRIPT} report.
+ * to overwrite an existing database or reuse a stale arrival marker, verifies the copied bytes
+ * against `PUNI_EXPORT_SHA256` (deleting refused bytes), and renames the file into place; the
+ * Job then prints the {@link SQLITE_REPORT_SCRIPT} report.
  */
 export const RESTORE_SCRIPT = String.raw`
 const fs = require('node:fs');
@@ -183,13 +184,18 @@ const done = '/data/cutover-incoming.done';
 const target = process.env.PUNI_DB;
 const expected = process.env.PUNI_EXPORT_SHA256;
 if (fs.existsSync(target)) throw new Error(target + ' already exists; refusing to overwrite it');
+if (fs.existsSync(done)) throw new Error('stale ' + done + ' from an earlier attempt; remove it first');
 const deadline = Date.now() + Number(process.env.PUNI_WAIT_MS || '600000');
 while (!fs.existsSync(done)) {
   if (Date.now() > deadline) throw new Error('no export arrived at ' + incoming);
   Bun.sleepSync(500);
 }
 const actual = crypto.createHash('sha256').update(fs.readFileSync(incoming)).digest('hex');
-if (actual !== expected) throw new Error('copied export is ' + actual + ', not ' + expected);
+if (actual !== expected) {
+  fs.rmSync(incoming, { force: true });
+  fs.rmSync(done, { force: true });
+  throw new Error('copied export is ' + actual + ', not ' + expected);
+}
 fs.renameSync(incoming, target);
 fs.rmSync(done);
 `;
@@ -254,9 +260,8 @@ export function exportArgv(
 }
 
 /**
- * The new side's restore Job: a writer-labelled backend task (F6 admission, single-writer
- * guard) that waits for the export, verifies its SHA-256, moves it to `/data/wbs.sqlite` and
- * reports on the result. `task` stands in for `backendTaskJob` so this module stays pure.
+ * Command of the new side's restore Job (`cutover-cli.ts` `restoreJob`, a writer-labelled
+ * backend task): {@link RESTORE_SCRIPT}, then {@link SQLITE_REPORT_SCRIPT} on the result.
  */
 export function restoreCommand(): string[] {
   return ['bun', '-e', `{${RESTORE_SCRIPT}}\n{${SQLITE_REPORT_SCRIPT}}`];
