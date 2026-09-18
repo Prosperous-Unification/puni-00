@@ -300,6 +300,7 @@ else if (arguments_[0] === 'list') {
   else if (command.includes('/etc/machine-id')) process.stdout.write(machine.includes('server') ? 'a'.repeat(32) + '\\n' : 'b'.repeat(32) + '\\n');
   else if (command.includes('/server/node-token')) process.stdout.write('K10' + 'c'.repeat(64) + '::server:' + 'd'.repeat(64) + '\\n');
   else if (command.includes('/server/agent-token')) process.stdout.write('K10' + 'c'.repeat(64) + '::node:' + 'e'.repeat(64) + '\\n');
+  else if (command.includes('/etc/rancher/k3s/k3s.yaml')) process.stdout.write('apiVersion: v1\\nclusters:\\n- cluster:\\n    certificate-authority-data: Q0E=\\n    server: https://127.0.0.1:6443\\n  name: default\\ncontexts:\\n- context:\\n    cluster: default\\n    user: default\\n  name: default\\ncurrent-context: default\\nkind: Config\\nusers:\\n- name: default\\n  user:\\n    client-certificate-data: Q0VSVA==\\n    client-key-data: S0VZ\\n');
   else process.exit(41);
 } else process.exit(42);
 `,
@@ -477,7 +478,7 @@ describe('the Ansible host and k3s contract', () => {
     expect(agent).toContain('notify: Restart k3s agent');
     expect(agent).toContain('no_log: true');
     expect(labSource).toContain('`${operation.prefix}server-1`');
-    expect(labSource).toContain('observeK3sEnrollmentTokens(serverName)');
+    expect(labSource).toContain('observeK3sEnrollmentTokens(provider, serverName)');
     expect(labSource).toContain("'--kill-after=0.1s'");
   });
 
