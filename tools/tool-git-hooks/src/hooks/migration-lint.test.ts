@@ -219,6 +219,21 @@ describe('the role -> step rename waiver', () => {
     expect(lintMigration(file, unrelatedRoot)).rejects.toThrow(/workspace root.*migration/);
   });
 
+  it('lints a lab migration under the lab root by the same rules', async () => {
+    const root = scratchSync('wbs-lab-migration-');
+    roots.push(root);
+    const migrationDir = join(root, 'deploy', 'k8s', 'wbs', 'lab', 'migrations', '20260918_lab');
+    mkdirSync(migrationDir, { recursive: true });
+    const file = join(migrationDir, 'migration.sql');
+    writeFileSync(join(migrationDir, 'down.sql'), 'SELECT 1;');
+    // Proof: with the lab root absent from MIGRATION_ROOTS this additive lab migration was refused
+    // with `does not own migration`, which is how the CI step failed on 2026-09-18.
+    writeFileSync(file, 'ALTER TABLE `work_item` ADD `lab_marker` text;');
+    expect(await lintMigration(file, root)).toBeNull();
+    writeFileSync(file, 'DROP TABLE work_item;');
+    expect((await lintMigration(file, root))?.reason).toMatch(/DROP TABLE/);
+  });
+
   it('refuses a relative workspace root', () => {
     const { file } = checkout(RENAME, RENAME_SQL, { gate: true });
 

@@ -91,26 +91,40 @@ const WAIVERS = new Map<string, Waiver>([
   ],
 ]);
 
+/**
+ * Directories whose `<folder>/migration.sql` files reach the WBS migrator. The lab root holds
+ * migrations that `deploy/k8s/wbs/lab/backend-upgrade.Dockerfile` copies into the drizzle root of a
+ * lab-only backend image, so they run through the same migrator and obey the same rules.
+ */
+const MIGRATION_ROOTS: readonly (readonly string[])[] = [
+  ['apps', 'wbs', 'be-01', 'drizzle'],
+  ['deploy', 'k8s', 'wbs', 'lab', 'migrations'],
+];
+
+function isInside(root: string, path: string): boolean {
+  const fromRoot = relative(root, path);
+  return !(
+    fromRoot === '' ||
+    fromRoot === '..' ||
+    fromRoot.startsWith(`..${sep}`) ||
+    isAbsolute(fromRoot)
+  );
+}
+
 function assertMigrationWorkspace(file: string, workspaceRoot: string): string {
   // Proof: injecting `.` as the production boundary's workspace root made
   // `refuses a relative workspace root` observe this named refusal.
   if (!isAbsolute(workspaceRoot) || resolve(workspaceRoot) !== workspaceRoot) {
     throw new Error(`workspace root must be an absolute normalized path: ${workspaceRoot}`);
   }
-  const migrationsRoot = join(workspaceRoot, 'apps', 'wbs', 'be-01', 'drizzle');
+  const migrationsRoots = MIGRATION_ROOTS.map((segments) => join(workspaceRoot, ...segments));
   const migrationPath = resolve(file);
-  const fromMigrationsRoot = relative(migrationsRoot, migrationPath);
   // Proof: supplying an unrelated checkout root to the production lint path previously
   // resolved the waiver by directory depth. The moved-depth fixture observed a resolved
   // promise instead of the required `workspace root ... migration` refusal (10 pass / 3 fail).
-  if (
-    fromMigrationsRoot === '' ||
-    fromMigrationsRoot === '..' ||
-    fromMigrationsRoot.startsWith(`..${sep}`) ||
-    isAbsolute(fromMigrationsRoot)
-  ) {
+  if (!migrationsRoots.some((root) => isInside(root, migrationPath))) {
     throw new Error(
-      `workspace root ${workspaceRoot} does not own migration ${migrationPath} under ${migrationsRoot}`,
+      `workspace root ${workspaceRoot} does not own migration ${migrationPath} under ${migrationsRoots.join(' or ')}`,
     );
   }
   return workspaceRoot;
