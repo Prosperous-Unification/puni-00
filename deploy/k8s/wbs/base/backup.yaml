@@ -215,9 +215,20 @@ data:
       readonly reportKey: string;
       readonly targetPath: string;
       readonly store: ObjectStore;
+      /** The report's SHA-256 from the escrowed recovery manifest; omitted only by `verify`. */
+      readonly reportSha256?: string;
     }): Promise<BackupReport> {
       if (existsSync(options.targetPath)) throw new Error(`${options.targetPath} already exists`);
-      const report = parseReport(await options.store.get(options.reportKey), options.reportKey);
+      const reportBytes = await options.store.get(options.reportKey);
+      if (
+        options.reportSha256 !== undefined &&
+        createHash('sha256').update(reportBytes).digest('hex') !== options.reportSha256
+      ) {
+        // Proof: with this comparison removed, the replaced-report negative in backup-sqlite.test.ts
+        // restored a report the manifest never recorded (2026-09-18).
+        throw new Error(`${options.reportKey} differs from the SHA-256 in the recovery manifest`);
+      }
+      const report = parseReport(reportBytes, options.reportKey);
       const partialPath = join(dirname(options.targetPath), `.${basename(options.targetPath)}.partial`);
       await writeFile(partialPath, await options.store.get(report.objectKey));
       try {
@@ -352,6 +363,7 @@ data:
       } else if (mode === 'restore') {
         const report = await restoreSqlite({
           reportKey: requireEnv('RESTORE_REPORT_KEY'),
+          reportSha256: requireEnv('RESTORE_REPORT_SHA256'),
           targetPath: requireEnv('RESTORE_TARGET_PATH'),
           store: storeFromEnv(),
         });

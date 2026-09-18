@@ -1,5 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { type } from 'arktype';
@@ -19,6 +19,7 @@ const DigestReference = type(/^[a-z0-9.:/-]+@sha256:[0-9a-f]{64}$/);
 const StoreSchema = type({
   kind: "'sqlite'",
   reportKey: 'string>0',
+  reportSha256: Sha256,
   knownRow: { table: /^[a-z_]+$/, id: 'string>0', '+': 'reject' },
   '+': 'reject',
 })
@@ -39,6 +40,10 @@ const RecoveryManifestSchema = type({
   sourceRevision: /^[0-9a-f]{40}$/,
   tokenSha256: Sha256,
   sopsRecipient: /^age1[02-9ac-hj-np-z]{58}$/,
+  // The etcd members when the snapshot was taken: every one must be fenced before a restore.
+  etcdMembers: type(/^[a-z0-9][a-z0-9.-]*$/)
+    .array()
+    .atLeastLength(1),
   etcdSnapshot: {
     name: 'string>0',
     objectKey: 'string>0',
@@ -208,7 +213,7 @@ function storeSteps(store: RecoveryStore): RecoveryStep[] {
       return [
         {
           id: 'restore-sqlite',
-          action: `restore ${store.reportKey} into a new PVC with backup-sqlite.ts restore`,
+          action: `restore ${store.reportKey} (report sha256 ${store.reportSha256}) into a new PVC with backup-sqlite.ts restore and RESTORE_REPORT_SHA256`,
         },
         {
           id: 'verify-sqlite',
@@ -309,6 +314,16 @@ export function planColdRestore(inputs: ColdRestoreInputs): ColdRestorePlan {
       // Proof: with this guard removed, the running-original negative planned a second writer.
       throw new Error(`Cold restore refused: original server ${fence.nodeName} is not fenced`);
     }
+  }
+  const unfenced = manifest.etcdMembers.filter(
+    (member) => !inputs.fences.some(({ nodeName }) => nodeName === member),
+  );
+  if (unfenced.length > 0) {
+    // Proof: with this guard removed, the partial-fence negative (two recorded members, one
+    // fenced) planned a restore while the other member could keep a quorum of its own.
+    throw new Error(
+      `Cold restore refused: recorded etcd members without fence evidence: ${unfenced.join(', ')}`,
+    );
   }
   const fencedServers = inputs.fences.map(({ nodeName }) => nodeName);
   return {
@@ -607,6 +622,57 @@ export async function removeStaleAttachment(
   return selected;
 }
 
+/**
+ * Rebind one retained node-local volume to `toNode` through {@link planVolumeRebind}. The
+ * replacement PersistentVolume is written to `replacementOut` (which must not exist) before the
+ * original object is deleted, so an interrupted rebind can be finished by hand.
+ */
+export async function rebindVolume(
+  kubectl: Kubectl,
+  volumeName: string,
+  toNode: string,
+  fences: readonly ServerFence[],
+  replacementOut: string,
+): Promise<VolumeRebindPlan> {
+  const volume: unknown = JSON.parse(await kubectl(['get', 'pv', volumeName, '--output=json']));
+  const claimRef = PersistentVolume(volume);
+  if (claimRef instanceof type.errors || claimRef.spec.claimRef === undefined) {
+    throw new Error(`Rebind refused: ${volumeName} has no claim`);
+  }
+  const claim: unknown = JSON.parse(
+    await kubectl([
+      'get',
+      'pvc',
+      claimRef.spec.claimRef.name,
+      `--namespace=${claimRef.spec.claimRef.namespace}`,
+      '--output=json',
+    ]),
+  );
+  const plan = planVolumeRebind(volume, claim, toNode, fences);
+  const uid = await kubectl(['get', 'pv', plan.volumeName, '--output=jsonpath={.metadata.uid}']);
+  if (uid !== claimRef.metadata.uid) {
+    throw new Error(`Rebind refused: ${plan.volumeName} changed after it was planned`);
+  }
+  // The replacement is on disk before the original object goes, so a failure between the
+  // delete and the create never loses the volume's path and claim binding.
+  await writeFile(replacementOut, `${JSON.stringify(plan.replacement, null, 2)}\n`, { flag: 'wx' });
+  // The pv-protection controller re-adds its finalizer to any live PV, so the delete is
+  // requested first and the finalizer removed from the terminating object.
+  // Proof: removing the finalizer before the delete hung the live 2026-09-18 rebind of
+  // the Prometheus volume until the finalizer was removed again by hand.
+  await kubectl(['delete', 'pv', plan.volumeName, '--wait=false']);
+  await kubectl([
+    'patch',
+    'pv',
+    plan.volumeName,
+    '--type=json',
+    '--patch=[{"op":"remove","path":"/metadata/finalizers"}]',
+  ]);
+  await kubectl(['wait', 'pv', plan.volumeName, '--for=delete', '--timeout=60s']);
+  await kubectl(['create', '--filename=-'], JSON.stringify(plan.replacement));
+  return plan;
+}
+
 /** Read an escrow file: absent is `undefined` (a modeled refusal), unreadable throws. */
 export async function readEscrow(path: string): Promise<Buffer | undefined> {
   try {
@@ -664,6 +730,7 @@ export async function recordManifest(values: {
   readonly tokenPath: string;
   readonly sopsIdentityPath: string;
   readonly storesPath: string;
+  readonly etcdMembers: readonly string[];
 }): Promise<RecoveryManifest> {
   const snapshot = await readFile(values.snapshotPath);
   const token = (await readFile(values.tokenPath, 'utf8')).trim();
@@ -675,6 +742,7 @@ export async function recordManifest(values: {
     sourceRevision: values.sourceRevision,
     tokenSha256: sha256(token),
     sopsRecipient: ageRecipientOf(await readFile(values.sopsIdentityPath, 'utf8')),
+    etcdMembers: values.etcdMembers,
     etcdSnapshot: {
       name: objectName,
       objectKey: values.objectKey,
@@ -698,6 +766,7 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
         '--token-file',
         '--sops-age-key-file',
         '--stores',
+        '--etcd-members',
       ] as const);
       const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
       return recordManifest({
@@ -709,6 +778,7 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
         tokenPath: values['--token-file'],
         sopsIdentityPath: values['--sops-age-key-file'],
         storesPath: values['--stores'],
+        etcdMembers: values['--etcd-members'].split(','),
       });
     }
     case 'verify-cold-restore': {
@@ -757,54 +827,15 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
         '--volume',
         '--to-node',
         '--fences',
+        '--replacement-out',
       ] as const);
-      const kubectl = createKubectl(values['--kubectl'], values['--kubeconfig']);
-      const volume: unknown = JSON.parse(
-        await kubectl(['get', 'pv', values['--volume'], '--output=json']),
-      );
-      const claimRef = PersistentVolume(volume);
-      if (claimRef instanceof type.errors || claimRef.spec.claimRef === undefined) {
-        throw new Error(`Rebind refused: ${values['--volume']} has no claim`);
-      }
-      const claim: unknown = JSON.parse(
-        await kubectl([
-          'get',
-          'pvc',
-          claimRef.spec.claimRef.name,
-          `--namespace=${claimRef.spec.claimRef.namespace}`,
-          '--output=json',
-        ]),
-      );
-      const plan = planVolumeRebind(
-        volume,
-        claim,
+      return rebindVolume(
+        createKubectl(values['--kubectl'], values['--kubeconfig']),
+        values['--volume'],
         values['--to-node'],
         decodeServerFences(await readJson(values['--fences'])),
+        values['--replacement-out'],
       );
-      const uid = await kubectl([
-        'get',
-        'pv',
-        plan.volumeName,
-        '--output=jsonpath={.metadata.uid}',
-      ]);
-      if (uid !== claimRef.metadata.uid) {
-        throw new Error(`Rebind refused: ${plan.volumeName} changed after it was planned`);
-      }
-      // The pv-protection controller re-adds its finalizer to any live PV, so the delete is
-      // requested first and the finalizer removed from the terminating object.
-      // Proof: removing the finalizer before the delete hung the live 2026-09-18 rebind of
-      // the Prometheus volume until the finalizer was removed again by hand.
-      await kubectl(['delete', 'pv', plan.volumeName, '--wait=false']);
-      await kubectl([
-        'patch',
-        'pv',
-        plan.volumeName,
-        '--type=json',
-        '--patch=[{"op":"remove","path":"/metadata/finalizers"}]',
-      ]);
-      await kubectl(['wait', 'pv', plan.volumeName, '--for=delete', '--timeout=60s']);
-      await kubectl(['create', '--filename=-'], JSON.stringify(plan.replacement));
-      return plan;
     }
     default:
       throw new Error(

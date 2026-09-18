@@ -2,7 +2,9 @@
 # Cold restore of one cluster's etcd onto its first replacement server.
 # Run only with a plan from `recover.ts verify-cold-restore`, which refuses a missing or wrong
 # token or SOPS identity, a corrupt snapshot, an unlocked k3s version and unfenced originals.
-# This play re-checks that the bytes it places are the bytes that plan verified.
+# This play re-checks that the bytes it places are the bytes that plan verified, and that it
+# runs on exactly one host whose k3s node name is the planned replacement. Always pass
+# `--limit <replacement host>`.
 - name: Restore etcd from a verified snapshot on the first replacement server
   hosts: k3s_bootstrap_servers
   become: true
@@ -18,6 +20,13 @@
           - puni_restore_token_path is defined
           - puni_node_name is defined
         fail_msg: Cold restore needs the verified plan, snapshot and escrowed token paths
+
+    # Proof: in the locked controller on 2026-09-18 a two-host inventory without --limit stopped
+    # here; with this assertion removed the first host went on to the datastore checks.
+    - name: Refuse to restore on more than one host
+      ansible.builtin.assert:
+        that: ansible_play_hosts_all | length == 1
+        fail_msg: Cold restore runs on exactly one replacement server; pass --limit <host>
 
     - name: Read the verified cold-restore plan
       ansible.builtin.set_fact:
@@ -47,6 +56,47 @@
         that: (puni_restore_token | hash('sha256')) == puni_restore_plan.tokenSha256
         fail_msg: The escrowed token differs from the one the restore plan verified
       no_log: true
+
+    - name: Read this host's k3s configuration
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/config.yaml
+      register: puni_restore_host_config
+
+    # The play's target is the host, not the -e variable: a still-labelled original in the
+    # group must never be reset because an operator typed the replacement's name.
+    # Proof: with this assertion removed, the locked controller carried a host whose config
+    # names the fenced original past this point to the datastore checks (2026-09-18).
+    - name: Refuse a host whose k3s node name is not the planned replacement
+      ansible.builtin.assert:
+        that:
+          - (puni_restore_host_config.content | b64decode | from_yaml)['node-name'] == puni_node_name
+          - (puni_restore_host_config.content | b64decode | from_yaml)['node-name'] not in puni_restore_plan.fencedServers
+        fail_msg: This host's k3s node-name is not the planned replacement server
+
+    - name: Inspect the host's existing datastore
+      ansible.builtin.stat:
+        path: /var/lib/rancher/k3s/server/db
+      register: puni_restore_existing_db
+
+    - name: Read whether k3s is running on this host
+      ansible.builtin.command:
+        argv: [systemctl, is-active, k3s]
+      register: puni_restore_k3s_active
+      changed_when: false
+      failed_when: puni_restore_k3s_active.rc not in [0, 3, 4]
+
+    # A running server with a datastore may be a live cluster member; resetting it would replace
+    # live state with the snapshot. The operator must name this exact host to proceed.
+    # Proof: with this assertion removed, the VM lab reset a running server's datastore
+    # (2026-09-18); with it, the run stopped here until the confirmation named the host.
+    - name: Refuse to reset a running server's datastore without host confirmation
+      ansible.builtin.assert:
+        that: >-
+          not (puni_restore_existing_db.stat.exists and puni_restore_k3s_active.stdout == 'active')
+          or (puni_restore_confirm_existing_datastore | default('')) == inventory_hostname
+        fail_msg: >-
+          k3s is running with a datastore on {{ inventory_hostname }}; set
+          puni_restore_confirm_existing_datastore={{ inventory_hostname }} only after fencing it
 
     - name: Create the token and restore staging directories
       ansible.builtin.file:
@@ -95,14 +145,16 @@
         state: stopped
 
     # Existing state is moved aside, never deleted, so an aborted restore can be inspected.
+    - name: Name the aside copy of this restore
+      ansible.builtin.set_fact:
+        puni_restore_aside: "/var/lib/rancher/k3s/server/db.pre-restore-{{ puni_restore_plan.snapshotSha256[:12] }}-{{ now(utc=true).strftime('%Y%m%dT%H%M%SZ') }}"
+
+    # Existing state is moved aside, never deleted, so an aborted restore can be inspected; every
+    # run gets its own name so a repeated restore still starts from an empty datastore.
     - name: Move any existing datastore aside
       ansible.builtin.command:
-        argv:
-          - mv
-          - /var/lib/rancher/k3s/server/db
-          - '/var/lib/rancher/k3s/server/db.pre-restore-{{ puni_restore_plan.snapshotSha256[:12] }}'
+        argv: [mv, /var/lib/rancher/k3s/server/db, '{{ puni_restore_aside }}']
         removes: /var/lib/rancher/k3s/server/db
-        creates: '/var/lib/rancher/k3s/server/db.pre-restore-{{ puni_restore_plan.snapshotSha256[:12] }}'
 
     - name: Reset etcd membership from the snapshot
       ansible.builtin.command:
@@ -112,6 +164,9 @@
           - --cluster-reset
           - '--cluster-reset-restore-path=/var/lib/rancher/k3s/server/restore/{{ puni_restore_plan.snapshotName }}'
           - --token-file=/etc/rancher/k3s/server-token
+          # The snapshot is the verified local file; any etcd-s3 setting in config.yaml.d must not
+          # make k3s fetch a different object.
+          - --etcd-s3=false
       register: puni_restore_reset
       changed_when: true
 
@@ -119,6 +174,19 @@
       ansible.builtin.systemd_service:
         name: k3s
         state: started
+
+    # kubectl wait fails at once for a Node that does not exist yet, and a renamed replacement
+    # registers only after k3s starts.
+    # Proof: without this task the VM lab restore failed with `nodes "puni-vm-f10-platform-restore"
+    # not found` two seconds after k3s started (2026-09-18).
+    - name: Wait for this node to register
+      ansible.builtin.command:
+        argv: [k3s, kubectl, get, 'node/{{ puni_node_name }}', --output=name]
+      register: puni_restore_registered
+      until: puni_restore_registered.rc == 0
+      retries: 60
+      delay: 5
+      changed_when: false
 
     - name: Wait for this node to become Ready
       ansible.builtin.command:

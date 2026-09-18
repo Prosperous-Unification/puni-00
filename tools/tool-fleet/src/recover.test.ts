@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,6 +19,7 @@ import {
   planColdRestore,
   planVolumeRebind,
   readEscrow,
+  rebindVolume,
   type RecoveryManifest,
   removeStaleAttachment,
   type ServerFence,
@@ -56,6 +57,7 @@ function manifest(): RecoveryManifest {
     sourceRevision: 'c'.repeat(40),
     tokenSha256: sha256(token),
     sopsRecipient: ageRecipientOf(identity),
+    etcdMembers: ['k3d-puni-f10-src-server-0'],
     etcdSnapshot: {
       name: 'puni-f10-src-server-0-1',
       objectKey: 'platform-local/puni-f10-src-server-0-1',
@@ -66,6 +68,7 @@ function manifest(): RecoveryManifest {
       {
         kind: 'sqlite',
         reportKey: 'sqlite/wbs/1.db.report.json',
+        reportSha256: 'e'.repeat(64),
         knownRow: { table: 'project', id: 'drill' },
       },
       { kind: 'registry', images: [`registry.puni.test/drill@sha256:${'d'.repeat(64)}`] },
@@ -153,6 +156,13 @@ describe('planColdRestore', () => {
     expect(() => planColdRestore(inputs({ manifest: foreign }))).toThrow(/not a platform-local/);
     expect(() => planColdRestore(inputs({ lockedK3sVersion: 'v1.36.5+k3s1' }))).toThrow(
       /the lock is/,
+    );
+  });
+
+  it('refuses a fence that leaves a recorded etcd member unfenced', () => {
+    const twoMembers = { ...manifest(), etcdMembers: ['k3d-puni-f10-src-server-0', 'server-b'] };
+    expect(() => planColdRestore(inputs({ manifest: twoMembers }))).toThrow(
+      /etcd members without fence evidence: server-b/,
     );
   });
 
@@ -349,6 +359,40 @@ describe('planVolumeRebind', () => {
   });
 });
 
+describe('rebindVolume', () => {
+  it('writes the replacement before deleting the original and refuses to overwrite it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'puni-rebind-'));
+    const out = join(directory, 'replacement.json');
+    const order: string[] = [];
+    const kubectl: Kubectl = async (arguments_) => {
+      order.push(arguments_.slice(0, 2).join(' '));
+      if (arguments_[0] === 'delete') {
+        // The replacement must already be readable when the original is deleted.
+        const written = (await readFile(out, 'utf8')).includes('k3d-puni-f10-restore-server-0');
+        order.push(written ? 'replacement:true' : 'replacement:false');
+      }
+      if (arguments_[0] !== 'get') return '';
+      if (arguments_[1] === 'pvc') return JSON.stringify(claim);
+      if (arguments_.some((argument) => argument.includes('jsonpath'))) return 'pv-uid';
+      return JSON.stringify(localVolume());
+    };
+    await rebindVolume(kubectl, 'pvc-1234', 'k3d-puni-f10-restore-server-0', fences, out);
+    expect(order).toContain('replacement:true');
+    expect(order.indexOf('delete pv')).toBeLessThan(order.indexOf('create --filename=-'));
+    const again = await rebindVolume(
+      kubectl,
+      'pvc-1234',
+      'k3d-puni-f10-restore-server-0',
+      fences,
+      out,
+    ).then(
+      () => 'rebound',
+      (error: unknown) => (error instanceof Error ? error.message : ''),
+    );
+    expect(again).toContain('EEXIST');
+  });
+});
+
 describe('readEscrow', () => {
   it('distinguishes an absent escrow file from an unreadable one', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'puni-recover-escrow-'));
@@ -413,11 +457,16 @@ describe('restore.yml', () => {
       'Require a plan for this cluster with fenced originals',
       'Refuse a token that differs from the verified plan',
       'Refuse a snapshot whose placed bytes differ from the verified plan',
+      'Refuse to restore on more than one host',
+      'Refuse a host whose k3s node name is not the planned replacement',
+      "Refuse to reset a running server's datastore without host confirmation",
     ]) {
       expect(names.indexOf(check)).toBeGreaterThanOrEqual(0);
       expect(names.indexOf(check)).toBeLessThan(stop);
     }
     expect(playbook).toContain('--token-file=/etc/rancher/k3s/server-token');
+    expect(playbook).toContain('--etcd-s3=false');
+    expect(playbook).toContain('ansible_play_hosts_all | length == 1');
     expect(playbook).not.toMatch(/\brm\b|state: absent/);
   });
 });

@@ -8,6 +8,7 @@
  * `bunx nx run tool-deploy:test:backup` (`K3D`, `KUBECTL` = locked binaries). Owns only
  * `puni-f11-backup*` objects and deletes them unless `--keep`.
  */
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -443,7 +444,12 @@ async function main(): Promise<void> {
     const logs = await k(['-n', 'wbs-solver', 'logs', 'job/f11-backup-once']);
     log(logs.trim().slice(-600));
     assert(outcome === 'succeeded', 'the backup Job succeeded with the backend image');
-    const report = JSON.parse(logs.trim().split('\n').at(-1) ?? '{}') as {
+    const reportLine = logs.trim().split('\n').at(-1) ?? '{}';
+    // backupSqlite uploads exactly this object pretty-printed, so its digest is the report's.
+    const reportSha256 = createHash('sha256')
+      .update(`${JSON.stringify(JSON.parse(reportLine), null, 2)}\n`)
+      .digest('hex');
+    const report = JSON.parse(reportLine) as {
       objectKey: string;
       objectVersion: string;
       sourceRevision: string;
@@ -490,6 +496,7 @@ async function main(): Promise<void> {
           ['bun', '/runner/backup-sqlite.ts', 'restore'],
           [
             { name: 'RESTORE_REPORT_KEY', value: `${report.objectKey}.report.json` },
+            { name: 'RESTORE_REPORT_SHA256', value: reportSha256 },
             { name: 'RESTORE_TARGET_PATH', value: '/restore/wbs.sqlite' },
             ...s3Env,
           ],

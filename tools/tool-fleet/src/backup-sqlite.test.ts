@@ -217,6 +217,44 @@ describe('createS3Store', () => {
   });
 });
 
+describe('restoreSqlite with a recorded report digest', () => {
+  it('refuses a report whose bytes differ from the manifest before writing the target', async () => {
+    const directory = await scratchAsync('sqlite-report-digest-');
+    createLiveDatabase(join(directory, 'live.db')).close();
+    const store = memoryStore();
+    const report = await backupSqlite({
+      database: 'wbs',
+      sourcePath: join(directory, 'live.db'),
+      scratchDirectory: directory,
+      prefix: 'sqlite',
+      sourceRevision: 'a'.repeat(40),
+      store,
+      now: new Date('2026-09-18T12:00:00Z'),
+    });
+    const reportKey = `${report.objectKey}.report.json`;
+    const recorded = new Bun.CryptoHasher('sha256')
+      .update(store.objects.get(reportKey) ?? '')
+      .digest('hex');
+    const refusal = await rejectionOf(
+      restoreSqlite({
+        reportKey,
+        reportSha256: 'f'.repeat(64),
+        targetPath: join(directory, 'a.db'),
+        store,
+      }),
+    );
+    expect(refusal.message).toContain('differs from the SHA-256 in the recovery manifest');
+    expect(existsSync(join(directory, 'a.db'))).toBe(false);
+    await restoreSqlite({
+      reportKey,
+      reportSha256: recorded,
+      targetPath: join(directory, 'b.db'),
+      store,
+    });
+    expect(existsSync(join(directory, 'b.db'))).toBe(true);
+  });
+});
+
 describe('verifyLatestBackup', () => {
   async function backedUp(now: Date) {
     const directory = await scratchAsync('sqlite-verify-');
