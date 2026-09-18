@@ -40,19 +40,24 @@
         puni_restore_token: "{{ lookup('ansible.builtin.file', puni_restore_token_path) | trim }}"
       no_log: true
 
+    # Proof: with this assertion removed, the locked controller carried a wrong token past
+    # every check to "Stop k3s before the reset" on 2026-09-18; with it, the play stopped here.
     - name: Refuse a token that differs from the verified plan
       ansible.builtin.assert:
         that: (puni_restore_token | hash('sha256')) == puni_restore_plan.tokenSha256
         fail_msg: The escrowed token differs from the one the restore plan verified
       no_log: true
 
-    - name: Create the restore staging directory
+    - name: Create the token and restore staging directories
       ansible.builtin.file:
-        path: /var/lib/rancher/k3s/server/restore
+        path: '{{ item }}'
         state: directory
         owner: root
         group: root
         mode: '0700'
+      loop:
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s/server/restore
 
     - name: Place the verified snapshot
       ansible.builtin.copy:
@@ -68,6 +73,8 @@
         checksum_algorithm: sha256
       register: puni_restore_snapshot
 
+    # Proof: with this assertion removed, a one-byte-corrupted snapshot reached "Stop k3s before
+    # the reset" in the locked controller on 2026-09-18; with it, the play stopped here.
     - name: Refuse a snapshot whose placed bytes differ from the verified plan
       ansible.builtin.assert:
         that: puni_restore_snapshot.stat.checksum == puni_restore_plan.snapshotSha256

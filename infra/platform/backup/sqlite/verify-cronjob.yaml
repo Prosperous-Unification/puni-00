@@ -1,5 +1,8 @@
 # Scheduled restore verification: restore the newest SQLite backup into scratch with the same
 # runner and refuse a report older than 26 hours. A failed run raises PuniBackupJobFailed.
+# Proof: on k3d on 2026-09-18 a newer report with a wrong sha256 failed the restore ("bytes
+# differ from its report"), and a report stamped 2026-09-01 failed the age check; with the age
+# line removed, the same stale report restored and the Job completed.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

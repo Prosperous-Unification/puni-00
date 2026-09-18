@@ -16,6 +16,10 @@ spec:
   # A replacement pod starts only after the old one has terminated, so one run never has two
   # live pods sharing an identity.
   podReplacementPolicy: Failed
+  # Proof (k3d, 2026-09-18): a drained pod was replaced on the other agent and the Job finished
+  # with failed unset; a pod on a stopped node was replaced only after the out-of-service fence
+  # taint; OOMKilled (137) and the kubelet's emptyDir eviction (137, no DisruptionTarget) failed
+  # the Job without a retry.
   podFailurePolicy:
     rules:
       # Drain, node loss and kubelet eviction are infrastructure disruption: retry elsewhere.

@@ -399,7 +399,8 @@ export function planAttachmentRemoval(
   const fence = fences.find(({ nodeName }) => nodeName === request.nodeName);
   if (fence === undefined || fence.state === 'running' || fence.fenceId.length === 0) {
     // Proof: with this guard removed, the unfenced-node negative returned the live node's
-    // attachment on 2026-09-18.
+    // attachment, and on the restored k3d cluster `remove-attachment` deleted the attachment
+    // of the running node (2026-09-18); restored, it refused that node.
     throw new Error(`Attachment removal refused: node ${request.nodeName} is not fenced`);
   }
   const matches = attachments.filter(
@@ -789,6 +790,11 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
       if (uid !== claimRef.metadata.uid) {
         throw new Error(`Rebind refused: ${plan.volumeName} changed after it was planned`);
       }
+      // The pv-protection controller re-adds its finalizer to any live PV, so the delete is
+      // requested first and the finalizer removed from the terminating object.
+      // Proof: removing the finalizer before the delete hung the live 2026-09-18 rebind of
+      // the Prometheus volume until the finalizer was removed again by hand.
+      await kubectl(['delete', 'pv', plan.volumeName, '--wait=false']);
       await kubectl([
         'patch',
         'pv',
@@ -796,7 +802,7 @@ async function runRecover(argv: readonly string[], root: string): Promise<unknow
         '--type=json',
         '--patch=[{"op":"remove","path":"/metadata/finalizers"}]',
       ]);
-      await kubectl(['delete', 'pv', plan.volumeName, '--wait=true']);
+      await kubectl(['wait', 'pv', plan.volumeName, '--for=delete', '--timeout=60s']);
       await kubectl(['create', '--filename=-'], JSON.stringify(plan.replacement));
       return plan;
     }

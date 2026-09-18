@@ -308,6 +308,26 @@ describe('observeCluster', () => {
     expect(rulesOf(snapshot)).toEqual(['cluster-marker']);
   });
 
+  it('finds the marker among other kube-system ConfigMaps', async () => {
+    const kubectl: Kubectl = (arguments_) =>
+      Promise.resolve(
+        arguments_[1] === 'configmaps'
+          ? JSON.stringify({
+              items: [
+                { metadata: { name: 'kube-root-ca.crt' }, data: { 'ca.crt': 'pem' } },
+                { metadata: { name: 'local-path-config' } },
+                {
+                  metadata: { name: 'puni-cluster-workers-local' },
+                  data: { 'cluster-id': 'workers-local' },
+                },
+              ],
+            })
+          : '{"items":[]}',
+      );
+    const snapshot = await observeCluster(kubectl, 'workers-local');
+    expect(snapshot.marker).toEqual({ data: { 'cluster-id': 'workers-local' } });
+  });
+
   it('fails when a required resource type cannot be read', async () => {
     const kubectl: Kubectl = (arguments_) => {
       if (arguments_[1] === 'schedules.velero.io') {

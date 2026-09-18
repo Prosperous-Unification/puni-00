@@ -306,7 +306,9 @@ function evaluateBackups(
         rule: 'backup-fresh',
         severity: 'critical',
         subject: subject(schedule.metadata),
-        detail: `last Velero backup ${age.toFixed(1)} h ago`,
+        detail: Number.isFinite(age)
+          ? `last Velero backup ${age.toFixed(1)} h ago`
+          : 'no Velero backup yet',
       });
     }
   }
@@ -418,7 +420,11 @@ export async function observeCluster(
   const reader = readOnly(kubectl);
   const markers = await readList(
     reader,
-    List(type({ metadata: Metadata, data: { 'cluster-id': 'string' } })),
+    // Other kube-system ConfigMaps carry arbitrary data; only the marker must hold cluster-id.
+    // Proof: requiring cluster-id on every item made the first live run refuse the source
+    // cluster's kube-root-ca ConfigMap on 2026-09-18; restoring that schema failed the
+    // "finds the marker among other kube-system ConfigMaps" test.
+    List(type({ metadata: Metadata, 'data?': type({ '[string]': 'string' }) })),
     'configmaps',
     'kube-system',
   );
@@ -435,7 +441,10 @@ export async function observeCluster(
   const platform = clusterId.startsWith('platform-');
   return {
     clusterId,
-    marker: marker === undefined ? 'absent' : { data: marker.data },
+    marker:
+      marker === undefined
+        ? 'absent'
+        : { data: { 'cluster-id': marker.data?.['cluster-id'] ?? '' } },
     nodes: await readList(reader, NodeList, 'nodes', 'cluster'),
     pods: await readList(reader, PodList, 'pods', 'all'),
     attachments: await readList(
