@@ -103,13 +103,15 @@
       register: puni_flux_install
       changed_when: "' configured' in puni_flux_install.stdout or ' created' in puni_flux_install.stdout"
 
+    # Proof: `rollout status deployment --all` exits "unknown flag: --all" on the locked k3s
+    # kubectl v1.36.4 (observed on the QEMU lab server); `wait --all` is bounded and accepted.
     - name: Wait for Flux controllers
       ansible.builtin.command:
         argv:
           - k3s
           - kubectl
-          - rollout
-          - status
+          - wait
+          - --for=condition=Available
           - deployment
           - --all
           - --namespace
