@@ -390,7 +390,7 @@ describe('production apply adapter', () => {
       return Promise.resolve({
         exitCode: 0,
         stdout:
-          'PLAY RECAP\nexternal-c : ok=12 changed=1 unreachable=0 failed=0\nother-agent : ok=12 changed=1 unreachable=0 failed=0',
+          'PLAY RECAP\nexternal-c : ok=12 changed=1 unreachable=0 failed=0\nother-agent : ok=12 changed=1 unreachable=0 failed=0\nserver-1 : ok=12 changed=0 unreachable=0 failed=0',
         stderr: '',
       });
     };
@@ -484,7 +484,7 @@ describe('production apply adapter', () => {
         const refresh = calls.find((request) =>
           request.arguments.some((argument) => argument.endsWith('/firewall.yml')),
         );
-        expect(refresh?.arguments).toContain('other-agent');
+        expect(refresh?.arguments).toContain('server-1,other-agent');
         expect(refresh?.arguments.join(' ')).not.toContain('puni_node_ip');
       } else if (expected === 'complete') {
         expect((await outcome).state).toBe('complete');

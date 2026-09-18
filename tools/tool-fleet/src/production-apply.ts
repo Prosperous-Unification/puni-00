@@ -818,7 +818,8 @@ interface EnrollmentInventory {
   readonly addresses: readonly string[];
   readonly machineId: string;
   readonly providerIdentity: string;
-  /** Existing members whose firewalls enrollment refreshes; never configured or joined. */
+  /** Existing members (the bootstrap server and firewall members) whose firewalls enrollment
+   * refreshes before the target joins; they are never reconfigured beyond the network role. */
   readonly firewallMembers: readonly string[];
 }
 
@@ -944,7 +945,13 @@ async function readEnrollmentInventory(
     addresses,
     machineId,
     providerIdentity,
-    firewallMembers: Object.keys(memberHosts),
+    firewallMembers:
+      accompaniment === 'enrollment'
+        ? [
+            ...Object.keys(bootstrapServerHosts).filter((server) => server !== nodeId),
+            ...Object.keys(memberHosts),
+          ]
+        : [],
   };
 }
 
