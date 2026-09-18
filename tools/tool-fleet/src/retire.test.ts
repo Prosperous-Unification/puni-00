@@ -154,7 +154,7 @@ fi
       undefined,
       directory,
     );
-    expect(floors.stderr.toString()).toContain('execution would keep 0 Ready nodes');
+    expect(String(floors.stderr)).toContain('execution would keep 0 Ready nodes');
     expect(floors.exitCode).toBe(1);
 
     const members = {
