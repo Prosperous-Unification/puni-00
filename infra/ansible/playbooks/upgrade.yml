@@ -106,10 +106,12 @@
     # Proof: a Running/Ready=False pod passed the phase-only selector; the complete pod predicate
     # now fails for every non-terminal pod that lacks Ready=True.
     - name: Require every non-terminal workload Ready
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' pods-ready '{{ puni_kube_context }}'
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - pods-ready
+          - '{{ puni_kube_context }}'
       delegate_to: localhost
       become: false
       changed_when: false
@@ -117,10 +119,12 @@
     # Proof: a VolumeAttachment without status.attached passed the false-only selector; requiring
     # attached=true for every observed attachment makes unknown storage health fail closed.
     - name: Require every persistent volume attachment healthy
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' attachments-healthy '{{ puni_kube_context }}'
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - attachments-healthy
+          - '{{ puni_kube_context }}'
       delegate_to: localhost
       become: false
       changed_when: false

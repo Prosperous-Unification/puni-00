@@ -70,8 +70,9 @@ describe('planUpgrade', () => {
     expect(playbook).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(playbook).toContain('--for=condition=Ready');
     expect(playbook).toContain('Restart k3s service before health proof');
-    expect(playbook).toContain("cluster-checks.py' pods-ready");
-    expect(playbook).toContain("cluster-checks.py' attachments-healthy");
+    expect(playbook).toContain("cluster-checks.py'\n          - pods-ready");
+    expect(playbook).toContain("cluster-checks.py'\n          - attachments-healthy");
+    expect(playbook).not.toContain('ansible.builtin.shell');
     expect(playbook).toContain('EtcdIsVoter');
     expect(playbook).not.toContain('--force');
     expect(playbook).not.toContain('--delete-emptydir-data');

@@ -2,8 +2,12 @@
 
 The locked controller image has kubectl and Python but no jq, so retirement and upgrade checks
 delegated to localhost live here. Each check reads live state through kubectl in the explicit
-context and exits 0 when safe, 1 when refused, and 2 when kubectl fails or its output is
+context and exits 0 when safe, 1 when refused, and 2 when kubectl fails or its input is
 malformed. Refusal and malformed input both stop the play.
+
+Playbooks call it with `ansible.builtin.command` argv, never a shell, and pass data derived from
+remote results (etcd voters, delegated probe results) on stdin, so no remote byte is parsed by a
+shell.
 """
 
 import json
@@ -131,8 +135,8 @@ def attachments_healthy(context):
             raise Refused(f"{attachment['metadata']['name']} is not attached")
 
 
-def etcd_map(context, target, voters_json):
-    voters = json.loads(voters_json)
+def etcd_map(context, target):
+    voters = json.loads(sys.stdin.read())
     nodes = kubectl(context, "get", "nodes")
     mapped = []
     for member in voters:
@@ -161,11 +165,12 @@ def etcd_map(context, target, voters_json):
     print(json.dumps(mapped))
 
 
-def etcd_majority(voters_json, probes_json, minimum):
-    voters = json.loads(voters_json)
+def etcd_majority(minimum):
+    document = json.loads(sys.stdin.read())
+    voters = document["voters"]
     healthy = {
         probe["puni_surviving_etcd_node"]["memberId"]
-        for probe in json.loads(probes_json)
+        for probe in document["probes"]
         if probe.get("rc") == 0
     }
     if len(healthy) < int(minimum) or len(healthy) < len(voters) // 2 + 1:
