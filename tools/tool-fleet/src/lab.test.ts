@@ -378,7 +378,7 @@ describe('the rootless QEMU lab provider', () => {
       const agent = inventory.all.children.k3s_agents.hosts[`${prefix}agent-1`];
       expect(agent['ansible_host']).toBe('10.55.0.12');
       expect(agent['ansible_ssh_extra_args']).toMatch(
-        /^-o HostName=127\.\d+\.\d+\.12 -o Port=2222 -o HostKeyAlias=10\.55\.0\.12$/,
+        /^-o HostName=127\.\d+\.\d+\.12 -o Port=2222 -o HostKeyAlias=10\.55\.0\.12 -o IdentitiesOnly=yes$/,
       );
       expect(await readFile(join(state, 'known_hosts'), 'utf8')).toContain(
         '10.55.0.11 ssh-ed25519 AAAAHOSTKEY',

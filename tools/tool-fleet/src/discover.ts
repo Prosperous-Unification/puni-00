@@ -603,7 +603,15 @@ function buildDiscoveryCommand(
       timeoutMs,
     };
   }
-  const resource = kind === 'nodes' ? 'nodes' : kind;
+  // Proof: the first live lab discovery passed the source kind `pvs` to kubectl, which exited
+  // "the server doesn't have a resource type"; restoring `pvs` fails the resource-name assertion
+  // in `lab-provider.test.ts`.
+  const resource = {
+    nodes: 'nodes',
+    pvcs: 'persistentvolumeclaims',
+    pvs: 'persistentvolumes',
+    volumeattachments: 'volumeattachments',
+  }[kind];
   return {
     source: `kubernetes-${kind}:${cluster.id}`,
     executable: 'kubectl',

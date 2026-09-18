@@ -132,6 +132,17 @@ describe('the lab discovery provider', () => {
     expect(commands.map(({ source }) => source)).not.toContain(
       'ssh-facts:workers/puni-vm-l-workers-agent-1',
     );
+    const resources = Object.fromEntries(
+      commands
+        .filter(({ executable }) => executable === 'kubectl')
+        .map(({ source, arguments: argv }) => [source, argv[argv.indexOf('get') + 1]]),
+    );
+    expect(resources).toEqual({
+      'kubernetes-nodes:workers': 'nodes',
+      'kubernetes-pvcs:workers': 'persistentvolumeclaims',
+      'kubernetes-pvs:workers': 'persistentvolumes',
+      'kubernetes-volumeattachments:workers': 'volumeattachments',
+    });
     const factCommand = commands.find(({ source }) => source.startsWith('ssh-facts:'));
     expect(factCommand?.arguments).toContain(join(state, 'discovery-inventory.json'));
     expect(observation.sources.map(({ name }) => name)).toContain('provider:workers');
