@@ -464,7 +464,7 @@ describe('the Ansible host and k3s contract', () => {
     expect(network).toContain('notify: Restart fleet firewall');
     expect(network).toContain('-M do');
     expect(firewall).toContain('destroy table inet puni_k3s');
-    expect(firewall).toContain('ip saddr @cluster_ipv4 tcp dport 6443 accept');
+    expect(firewall).toContain('ip saddr @cluster_ipv4 tcp dport { 6443, 10250 } accept');
     expect(firewall).toContain('tcp dport { 6443, 2379, 2380, 10250 } reject');
     expect(firewall).toContain('udp dport 8472 drop');
     expect(firewallService).toContain('WantedBy=multi-user.target');

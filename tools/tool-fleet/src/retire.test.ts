@@ -108,6 +108,7 @@ describe('planRetirement', () => {
       puni_node_name: 'target-node',
       puni_etcd_member_name: 'target',
       'puni_minimum_surviving_control_planes | int': '3',
+      'puni_required_capability_floors | to_json': '{"execution":1}',
     };
     const check = (
       name: string,
@@ -143,6 +144,18 @@ fi
       directory,
     );
     expect(detach.exitCode).not.toBe(0);
+    // The floor check runs from the playbook's own argv; a live run once dropped its floors.
+    await writeFile(
+      kubectl,
+      `#!/bin/bash\nprintf '%s\\n' '{"items":[{"metadata":{"name":"target-node","labels":{"puni.dev/capability-execution":"true"}},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}'\n`,
+    );
+    const floors = check(
+      'Require live Ready capacity for every cluster capability floor',
+      undefined,
+      directory,
+    );
+    expect(floors.stderr.toString()).toContain('execution would keep 0 Ready nodes');
+    expect(floors.exitCode).toBe(1);
 
     const members = {
       members: [

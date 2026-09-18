@@ -198,7 +198,7 @@
           - floors
           - '{{ puni_kube_context }}'
           - '{{ puni_node_name }}'
-        stdin: '{{ puni_required_capability_floors | to_json }}'
+          - '{{ puni_required_capability_floors | to_json }}'
       delegate_to: localhost
       become: false
       changed_when: false
@@ -306,6 +306,13 @@
           - '{{ puni_node_name }}'
       delegate_to: localhost
       become: false
+      register: puni_workloads_detached
+      # Rescheduled pods need time to become Ready; the wait is bounded and then refuses.
+      # Proof: without it the live QEMU lab retirement refused while the rescheduled
+      # metrics-server was still starting on the surviving agent.
+      until: puni_workloads_detached.rc == 0
+      retries: 36
+      delay: 5
       changed_when: false
       tags: [detach]
 
