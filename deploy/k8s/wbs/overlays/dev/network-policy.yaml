@@ -1,0 +1,19 @@
+# Only the ingress controller reaches a dev environment; one environment cannot call another's
+# tiers. Egress stays open for `bun install` after a lockfile change.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dev-environment
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dev-environment
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
