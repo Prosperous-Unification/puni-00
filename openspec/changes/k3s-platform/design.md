@@ -21,3 +21,18 @@ Backups follow the store: SQLite through the byte-bound `backup-sqlite.ts` runne
 - `solverImages` holds the release's candidate and rollback backend digests, comma separated; the key replaces the former single `solverImage`.
 - Local rehearsals use an in-cluster MinIO (`RELEASE.2025-09-07T16-13-09Z`, the last published community image) only as an S3 stand-in, a disposable age identity, and a Git smart-HTTP server for the rehearsal commit; none of these is a production component.
 - Elasticsearch runs one node with zero replicas at stage 1; the index template sets `number_of_replicas: 0` so a single node stays green.
+
+## F9 source-run development
+
+`tool-fleet:lab` (`k3d-lab.ts`) owns k3d labs; `--lab-id` still routes to the VM lab. `tool-devsync:dev-env` serves one worktree as one Pod in `puni-forge`, rendered from `deploy/k8s/wbs/overlays/dev` and bound to its slug, worktree, image digest and URLs. An in-Pod supervisor keeps `bin/dev.sh` running and applies `RESTART_PATHS` from `sync.ts`; the forge image and overlay are recreate inputs. [Local lab](../../../docs/infra/local.md) has the commands and measurements.
+
+Assumptions recorded without an interview:
+
+- Environments share the one trusted namespace `puni-forge`, because the F6 admission matches that name; each gets its own labels, database volume, Service, Ingress and NetworkPolicy instead of its own namespace.
+- On a lab it owns (label `puni.dev/lab-id` on `wbs-solver/puni-trusted-workload`), `dev-env` writes the forge image digest and exact roots into the admission parameters. Elsewhere those are reviewed policy changes and `dev-env` refuses.
+- The solver runtime directory `/run/puni/solver` is admitted for the forge through the same exact-root list (`forgeWorktreeRoots`) and mounted read-only; F6 has no separate forge solver parameter.
+- The forge image is `deploy/dev-src/Dockerfile`, the h2puni dev image, built without BuildKit attestations so an unchanged Dockerfile keeps one digest.
+- "Foreign" means another owner UID, no shared root commit with the invoking repository, or not a Git top level. The owned prefix is the lab's `--worktree-root`.
+- `app` keeps k3s's bundled Traefik and metrics-server as the light ingress and telemetry; `platform` and `fleet` disable bundled Traefik and ServiceLB on both clusters and stop after the locked Flux install, leaving the platform graph to the documented rehearsal.
+- URLs are `http://<slug>.localhost:<port>`; browsers and curl resolve `*.localhost` to loopback, and Vite allows those hosts by default.
+- Lab state lives under `.puni/fleet-labs/k3d/<id>/`, inside the existing ignore rule, because `.gitignore` is not F9's to change.
