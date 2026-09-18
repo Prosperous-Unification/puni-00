@@ -2,7 +2,8 @@
 # promotes the exact descriptor staging proved. Plan is the default; `apply` must be chosen.
 #
 # Trust layout (pinned by tools/tool-deploy/src/k8s/deploy-k3s-workflow.test.ts):
-#   resolve    ubuntu-latest, read-only. Refuses any ref but main; names the candidate source.
+#   resolve    ubuntu-latest, read-only. Refuses any ref but main; names the candidate source and
+#              refuses one that is not already on main.
 #   admission  ubuntu-latest, no secrets. Installs the base-owned package BEFORE checking out the
 #              candidate, runs `admit.sh`, and uploads `admission.json` as a workflow artifact.
 #   describe   ubuntu-latest, read-only. Trusted main code seals (staging) or re-checks (prod) the
@@ -135,6 +136,35 @@ jobs:
           esac
           [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || { printf 'source sha is not a full commit\n' >&2; exit 78; }
           printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+
+      # Admission checks the candidate out in a job that can write main's Actions cache. Only a
+      # commit already merged into this run's main may reach it, so no unreviewed tree is ever on
+      # disk there; describe re-checks ancestry against origin/main when sealing.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Proof: deploy-k3s-workflow.test.ts runs this block with a side-branch commit and with an
+      # unknown SHA and observes exit 78 for each; with the ancestry test replaced by `true` the
+      # side-branch candidate exited 0 and that test failed.
+      - name: Require a candidate already on main
+        env:
+          SOURCE_SHA: ${{ steps.candidate.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          if git -C "$GITHUB_WORKSPACE" merge-base --is-ancestor "$SOURCE_SHA" "$GITHUB_SHA"; then
+            exit 0
+          else
+            status=$?
+          fi
+          if [[ "$status" == 1 ]]; then
+            printf 'candidate %s is not on main at %s\n' "$SOURCE_SHA" "$GITHUB_SHA" >&2
+          else
+            printf 'cannot resolve candidate %s against main (git status %s)\n' "$SOURCE_SHA" "$status" >&2
+          fi
+          exit 78
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

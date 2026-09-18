@@ -166,6 +166,53 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     expect(execute(guard, { DISPATCH_REF: 'refs/heads/main' }).code).toBe(0);
   });
 
+  it('refuses a candidate that is not already on main (production run block)', () => {
+    const repository = scratchSync('deploy-k3s-ancestry-');
+    roots.push(repository);
+    const git = (...args: string[]): string => {
+      const child = Bun.spawnSync(['git', '-C', repository, ...args], {
+        env: {
+          PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_AUTHOR_NAME: 'test',
+          GIT_AUTHOR_EMAIL: 'test@example.test',
+          GIT_COMMITTER_NAME: 'test',
+          GIT_COMMITTER_EMAIL: 'test@example.test',
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      if (child.exitCode !== 0)
+        throw new Error(`git ${args.join(' ')}: ${child.stderr.toString()}`);
+      return child.stdout.toString().trim();
+    };
+    git('init', '--quiet', '--initial-branch=main');
+    git('commit', '--quiet', '--allow-empty', '-m', 'merged');
+    const merged = git('rev-parse', 'HEAD');
+    git('checkout', '--quiet', '-b', 'side');
+    git('commit', '--quiet', '--allow-empty', '-m', 'unreviewed');
+    const side = git('rev-parse', 'HEAD');
+    git('checkout', '--quiet', 'main');
+    git('commit', '--quiet', '--allow-empty', '-m', 'head');
+    const head = git('rev-parse', 'HEAD');
+
+    const guard = step(jobs['resolve'], 'Require a candidate already on main').run ?? '';
+    const run = (source: string) =>
+      execute(guard, { GITHUB_WORKSPACE: repository, GITHUB_SHA: head, SOURCE_SHA: source });
+    expect(run(merged).code).toBe(0);
+    expect(run(head).code).toBe(0);
+    const unmerged = run(side);
+    expect(unmerged.code).toBe(78);
+    expect(unmerged.stderr).toContain('is not on main');
+    const unknown = run('f'.repeat(40));
+    expect(unknown.code).toBe(78);
+    expect(unknown.stderr).toContain('cannot resolve candidate');
+    const names = jobs['resolve'].steps.map((s) => s.name ?? s.uses ?? '');
+    expect(names.indexOf('Require a candidate already on main')).toBeGreaterThan(
+      names.indexOf('Name the candidate'),
+    );
+  });
+
   it('refuses a malformed recovery input (production run block)', () => {
     const guard = step(jobs['resolve'], 'Validate the recovery input').run ?? '';
     expect(execute(guard, { RECOVERS: 'latest' }).code).toBe(78);
