@@ -523,7 +523,15 @@ async function bootstrapCluster(
       throw new Error(`infra/platform/flux/install.yaml sha256 ${digest} is not the locked digest`);
     }
     await kubectl(['apply', '--server-side', '-f', join(root, 'infra/platform/flux/install.yaml')]);
-    await kubectl(['rollout', 'status', 'deployment', '--namespace=flux-system', '--timeout=300s']);
+    // `kubectl rollout status` takes no `--all` (kubectl v1.36.4 refused it live); `wait` does.
+    await kubectl([
+      'wait',
+      '--for=condition=Available',
+      'deployment',
+      '--all',
+      '--namespace=flux-system',
+      '--timeout=300s',
+    ]);
   }
 }
 
@@ -610,11 +618,11 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
 
     const clusters: K3dLabRecord['clusters'][number][] = [];
     for (const { role, name, apiPort, configPath } of planned) {
-      // `platform`/`fleet` hand ingress to the Flux-owned Traefik DaemonSet (`infra/platform/networking`).
-      const replaced =
-        profile.flux && role === 'platform'
-          ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
-          : [];
+      // `platform`/`fleet` hand ingress on both clusters to the Flux-owned Traefik DaemonSet
+      // (`infra/platform/networking`); the bundled one would hold the same host ports.
+      const replaced = profile.flux
+        ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
+        : [];
       // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
       // user's default kubeconfig and current context untouched.
       await run(tools.k3d, ['cluster', 'create', '--config', configPath, ...replaced], {
