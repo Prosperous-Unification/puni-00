@@ -128,11 +128,13 @@
           "{workspaceRoot}/.github/workflows/twilight-bureaucrat-release.yml",
           "{workspaceRoot}/apps/wiki/consumer/**/*",
           "{projectRoot}/package.json",
-          "{projectRoot}/NOTICE"
+          "{projectRoot}/NOTICE",
+          "{workspaceRoot}/infra/ci/bureaucrat/**/*",
+          "{workspaceRoot}/bin/tool-wiki-*.sh"
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --preload ../../../tools/test/scratch/preload.ts",
+          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../tools/test/scratch/preload.ts",
           "cwd": "apps/wiki/cli"
         },
         "outputs": ["{projectRoot}/coverage"],

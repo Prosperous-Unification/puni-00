@@ -148,6 +148,10 @@
           {
             "kind": "path",
             "value": "ops/agent-trailer/prepare-commit-msg"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/solver/files/puni-cri-peer"
           }
         ],
         "exclude": [
@@ -255,6 +259,22 @@
           {
             "kind": "name",
             "value": "Containerfile"
+          },
+          {
+            "kind": "suffix",
+            "value": ".cfg"
+          },
+          {
+            "kind": "suffix",
+            "value": ".j2"
+          },
+          {
+            "kind": "suffix",
+            "value": ".hcl"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tf"
           }
         ],
         "exclude": [
@@ -417,7 +437,98 @@
         "allowedRecordKinds": ["benchmark-corpus", "candidate-inventory", "experiment-manifest"]
       }
     ],
-    "binaryDeclarations": [],
+    "binaryDeclarations": [
+      {
+        "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/cert-manager.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/elastic/local/elasticsearch.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-kibana-0.20.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/kibana/kibana.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-operator-3.5.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/eck/eck-operator.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/hcloud-cloud-controller-manager-1.37.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/storage/production/hcloud-ccm.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/hcloud-csi-2.23.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/storage/production/hcloud-csi.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/kube-prometheus-stack-91.4.1.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/prometheus/kube-prometheus-stack.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/opentelemetry-collector-0.173.1.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/otel/collector.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/traefik-41.6.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/traefik.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/velero-12.2.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/backup/velero/local/velero.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      }
+    ],
     "gitlinkBoundaries": [],
     "symlinks": "inventory-only",
     "gitlinks": "declared-external-boundary"

@@ -673,7 +673,10 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // observed digest below at the same 257 occurrences — the new lab Dockerfiles, the fixture
     // README and the re-pinned inventory comment shifted classified contexts, none
     // unclassified (2026-09-18).
-    digest: '2f42a9f945fdbfa351c85f2c127eff34a01aa948198c0808cae8ae3681e97fe0',
+    // Proof: leaving `2f42a9f9...` here after the PR #7 CI repairs failed on the observed digest
+    // below at the same 257 occurrences and no unclassified entries; the added workflow, policy
+    // and controller edits shifted classified contexts only (2026-09-18).
+    digest: 'c67de18ea22b18c9893a419ba2b207586a4f3f272e232d916b1d42e7ba958d67',
     occurrences: 257,
     unclassified: [],
   });
