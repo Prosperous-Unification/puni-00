@@ -16,6 +16,8 @@ export const CUTOVER_PHASES = [
   'stop-writer',
   'export-sqlite',
   'verify-export',
+  // The WBS Flux unit must not apply the release (writer at replicas 1) while the restore runs.
+  'suspend-flux',
   'restore-into-pvc',
   'start-tiers',
   'smoke-host-override',
