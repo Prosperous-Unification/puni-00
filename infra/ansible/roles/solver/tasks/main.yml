@@ -7,8 +7,7 @@
     that:
       - puni_node_capabilities is defined
       - "'product' in puni_node_capabilities"
-      - puni_solver_uid is defined
-      - puni_solver_uid | int >= 1000
+      - puni_solver_docker_version is match('^[0-9][0-9A-Za-z.+~:-]+$')
       - puni_solver_bun_url is defined
       - puni_solver_bun_sha256 is match('^[0-9a-f]{64}$')
       - puni_solver_bun_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
@@ -37,12 +36,26 @@
     fail_msg: The solver supervisor bundle differs from its reviewed SHA-256
   # Proof: a one-byte-different bundle SHA-256 failed this assertion on the live lab before copy.
 
-- name: Install the container runtime the supervisor drives
+# The supervisor drives solver containers through the Docker CLI. Membership in the docker
+# group is root-equivalent on this node; the account exists only for the supervisor.
+- name: Install the pinned container runtime the supervisor drives
   ansible.builtin.apt:
-    name: [docker.io, unzip]
+    name: ['docker.io={{ puni_solver_docker_version }}', unzip]
     state: present
     update_cache: true
     cache_valid_time: 3600
+
+- name: Read the installed Docker package version
+  ansible.builtin.command:
+    argv: [dpkg-query, '--showformat=${Version}', --show, docker.io]
+  register: puni_solver_docker
+  changed_when: false
+
+- name: Require the pinned Docker package
+  ansible.builtin.assert:
+    that:
+      - puni_solver_docker.stdout == puni_solver_docker_version
+    fail_msg: The node's docker.io differs from the locked package version
 
 - name: Create the solver group
   ansible.builtin.group:
@@ -83,16 +96,23 @@
     checksum: 'sha256:{{ puni_solver_bun_sha256 }}'
     mode: '0644'
 
+- name: Create the per-checksum Bun unpack directory
+  ansible.builtin.file:
+    path: '/var/cache/puni-bun-{{ puni_solver_bun_sha256 }}'
+    state: directory
+    mode: '0755'
+
+# The directory is keyed by the archive checksum, so a repinned Bun always unpacks afresh.
 - name: Unpack the pinned Bun runtime
   ansible.builtin.unarchive:
     src: /var/cache/puni-bun-linux-x64.zip
-    dest: /var/cache
+    dest: '/var/cache/puni-bun-{{ puni_solver_bun_sha256 }}'
     remote_src: true
-    creates: /var/cache/bun-linux-x64/bun
+    creates: '/var/cache/puni-bun-{{ puni_solver_bun_sha256 }}/bun-linux-x64/bun'
 
 - name: Install the pinned Bun runtime
   ansible.builtin.copy:
-    src: /var/cache/bun-linux-x64/bun
+    src: '/var/cache/puni-bun-{{ puni_solver_bun_sha256 }}/bun-linux-x64/bun'
     dest: /var/lib/wbs-solver/.local/lib/wbs-solver/bun
     remote_src: true
     owner: wbs-solver
@@ -131,7 +151,7 @@
   vars:
     puni_solver_config:
       socketPath: '/run/user/{{ puni_solver_uid }}/wbs-solver/supervisor.sock'
-      maxSearchWorkers: 1
+      maxSearchWorkers: 2
       maxMemoryLimitMb: 512
       pidsLimit: 128
       maxManagedContainers: 4
@@ -147,6 +167,48 @@
     group: wbs-solver
     mode: '0644'
   notify: Restart solver supervisor
+
+# The supervisor creates solver containers with `--pull never`, so every mapped image must
+# already be local; pulling by exact digest here keeps the node's image set reviewed.
+- name: Read locally present solver images
+  ansible.builtin.command:
+    argv: [docker, image, inspect, --format, '{{ "{{" }}.Id{{ "}}" }}', '{{ item.solverImage }}']
+  loop: '{{ puni_solver_images }}'
+  register: puni_solver_image_present
+  changed_when: false
+  failed_when: false
+
+- name: Pull missing solver images by digest
+  ansible.builtin.command:
+    argv: [docker, pull, '{{ item.item.solverImage }}']
+  loop: '{{ puni_solver_image_present.results }}'
+  when: item.rc != 0
+
+- name: Create the root-owned helper directory
+  ansible.builtin.file:
+    path: /usr/local/libexec
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the root-owned CRI peer identity helper
+  ansible.builtin.copy:
+    src: puni-cri-peer
+    dest: /usr/local/libexec/puni-cri-peer
+    owner: root
+    group: root
+    mode: '0755'
+
+# Only this helper, only with one exact container id, may run as root for the supervisor.
+- name: Allow the supervisor to read one pod container identity
+  ansible.builtin.copy:
+    content: "wbs-solver ALL=(root) NOPASSWD: /usr/local/libexec/puni-cri-peer ^[0-9a-f]{64}$\n"
+    dest: /etc/sudoers.d/puni-cri-peer
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
 
 - name: Link the exact admitted directory to the supervisor runtime directory
   ansible.builtin.template:

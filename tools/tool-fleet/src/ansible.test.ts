@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
+import { parse } from 'yaml';
 
 import {
   decodeMachineId,
@@ -480,6 +481,50 @@ describe('the Ansible host and k3s contract', () => {
     expect(labSource).toContain('`${operation.prefix}server-1`');
     expect(labSource).toContain('observeK3sEnrollmentTokens(provider, serverName)');
     expect(labSource).toContain("'--kill-after=0.1s'");
+  });
+
+  it('runs the solver supervisor as the backend pod uid from one asserted value', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const vars = parse(
+      await readFile(join(root, 'infra/ansible/roles/solver/vars/main.yml'), 'utf8'),
+    ) as { puni_solver_uid: number };
+    const backend = (await readFile(join(root, 'deploy/k8s/wbs/base/backend.yaml'), 'utf8'))
+      .split('\n---\n')
+      .map(
+        (document) =>
+          parse(document) as {
+            kind?: string;
+            spec?: { template?: { spec?: { securityContext?: Record<string, number> } } };
+          },
+      )
+      .find((document) => document.kind === 'Deployment');
+    const context = backend?.spec?.template?.spec?.securityContext;
+    // Proof: changing either value made this test fail; the pod reaches the supervisor's 0700
+    // runtime directory only as the same uid.
+    expect(context?.['runAsUser']).toBe(vars.puni_solver_uid);
+    expect(context?.['runAsGroup']).toBe(vars.puni_solver_uid);
+    const tasks = await readFile(join(root, 'infra/ansible/roles/solver/tasks/main.yml'), 'utf8');
+    expect(tasks).toContain("name: ['docker.io={{ puni_solver_docker_version }}', unzip]");
+    expect(tasks).toContain(
+      "creates: '/var/cache/puni-bun-{{ puni_solver_bun_sha256 }}/bun-linux-x64/bun'",
+    );
+    const sudoers = /content: "(wbs-solver ALL=\(root\) NOPASSWD: [^"]+)\\n"/.exec(tasks)?.[1];
+    expect(sudoers).toBe(
+      'wbs-solver ALL=(root) NOPASSWD: /usr/local/libexec/puni-cri-peer ^[0-9a-f]{64}$',
+    );
+  });
+
+  it('lets the root CRI identity helper run only for one exact container id', () => {
+    const helper = join(import.meta.dir, '../../../infra/ansible/roles/solver/files/puni-cri-peer');
+    // Proof: removing the helper's argument check made these reach /usr/local/bin/k3s (exit 127).
+    for (const argv of [
+      [],
+      ['a'.repeat(63)],
+      [`${'a'.repeat(64)} --runtime-endpoint x`],
+      ['a'.repeat(64), 'b'],
+    ]) {
+      expect(Bun.spawnSync(['bash', helper, ...argv]).exitCode).toBe(64);
+    }
   });
 
   it('ships no role defaults for required security or identity state', async () => {

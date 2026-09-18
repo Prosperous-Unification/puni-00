@@ -1,0 +1,5 @@
+---
+# The backend pod's runAsUser/runAsGroup in deploy/k8s/wbs/base/backend.yaml. The pod reaches the
+# socket through the supervisor's 0700 runtime directory only as this same uid; the tool-fleet
+# ansible test holds both values equal.
+puni_solver_uid: 10001

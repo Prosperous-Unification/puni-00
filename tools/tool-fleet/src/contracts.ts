@@ -72,8 +72,15 @@ const ToolchainSchema = type({
     // of reject on 2026-09-18; age shares the same required BinaryLock boundary.
     sops: BinaryLock,
     age: BinaryLock,
+    // Bun that runs the host-owned WBS solver supervisor (infra/ansible/roles/solver).
+    // Proof: making solverBun optional made the same missing-lock negative resolve.
+    solverBun: BinaryLock,
     '+': 'reject',
   },
+  // Ubuntu packages installed at an exact version by host roles.
+  // Proof: making dockerIo optional made the missing-host-package production-reader negative
+  // resolve instead of reject.
+  hostPackages: { dockerIo: /^[0-9][0-9A-Za-z.+~:-]+$/, '+': 'reject' },
   terraform: {
     hcloudProvider: {
       version: exactVersion,
