@@ -1,0 +1,48 @@
+# The public edge for wbs-staging.bulletpoints.club through F6's Traefik (namespace traefik), which the WBS
+# NetworkPolicies already admit. Ingress cannot cross namespaces, so /api is routed by its own
+# Ingress in wbs-solver; Traefik serves both from the one certificate the wbs Ingress requests.
+# Issuer: letsencrypt-staging.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wbs-public
+  namespace: wbs
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [wbs-staging.bulletpoints.club]
+      secretName: wbs-tls
+  rules:
+    - host: wbs-staging.bulletpoints.club
+      http:
+        paths:
+          - path: /ws
+            pathType: Prefix
+            backend: { service: { name: wbs-gateway, port: { name: http } } }
+          - path: /mcp
+            pathType: Prefix
+            backend: { service: { name: wbs-mcp, port: { name: http } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: wbs-frontend, port: { number: 80 } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wbs-api
+  namespace: wbs-solver
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: wbs-staging.bulletpoints.club
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: wbs-backend, port: { name: http } } }

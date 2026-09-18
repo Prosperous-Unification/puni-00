@@ -43,6 +43,13 @@
         "command": "bun tools/tool-deploy/src/k8s/cutover-rehearsal.ts"
       }
     },
+    "cutover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/cutover-cli.ts"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "inputs": [
