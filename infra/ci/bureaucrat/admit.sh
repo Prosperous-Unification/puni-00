@@ -75,7 +75,8 @@ fi
 
 report="$scratch/admission-report.json"
 # Proof: consumer-bootstrap.test.ts sets a BUN_OPTIONS preload sentinel on the step; with this
-# empty environment replaced by the inherited one the sentinel file was written.
+# empty environment replaced by the inherited one the sentinel file was written, and the
+# CI-gated gate-entrypoints.test.ts literal check failed.
 if env -i PATH="$trusted_path" HOME="$scratch/home" TOOL_WIKI_ACTIVATION_ROOT="$activation_root" \
   TOOL_WIKI_REQUIRE_CERTIFIED=1 "$bun_path" run --cwd "$scratch/home" --no-env-file \
   "$installed/dist/bin.mjs" lint committed "$candidate" "$revision" >"$report"; then

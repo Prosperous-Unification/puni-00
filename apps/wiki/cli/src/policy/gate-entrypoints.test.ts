@@ -1979,3 +1979,174 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(cachedMutation.exitCode, cachedOutput).toBe(0);
   }, 30_000);
 });
+
+/**
+ * The CI-gated half of the package bootstrap contract. `consumer-bootstrap.test.ts` proves the
+ * installed route end to end but needs the packed tarball; these run in every `test` and need no
+ * registry, because each refusal happens before `bun install`.
+ */
+describe('package-backed admission bootstrap in the CI gate', () => {
+  const bureaucratSource = join(workspace, 'infra', 'ci', 'bureaucrat');
+  const packageRoute = {
+    schemaVersion: 1,
+    admission: 'installed-package',
+    registry: 'https://registry.npmjs.org/',
+  };
+
+  function trustedSteps(): { name?: string; run?: string; with?: Record<string, unknown> }[] {
+    // The repository's YAML parser owns this shape; the claimed fields are compared below.
+    const workflow = parseYaml(
+      readFileSync(join(workspace, '.github', 'workflows', 'trusted-wiki.yml'), 'utf8'),
+    ) as {
+      jobs?: {
+        lint?: { steps?: { name?: string; run?: string; with?: Record<string, unknown> }[] };
+      };
+    };
+    const steps = workflow.jobs?.lint?.steps;
+    if (steps === undefined) throw new Error('trusted-wiki has no lint job steps');
+    return steps;
+  }
+
+  /** Runs the workflow's own bootstrap block over a simulated sparse base checkout. */
+  function runBootstrap(edit: (directory: string) => void) {
+    const runner = mkdtempSync(join(tmpdir(), 'tool-wiki-bootstrap-runner-'));
+    scratchPaths.push(runner);
+    const directory = join(runner, 'workspace', 'trusted-base', 'infra', 'ci', 'bureaucrat');
+    mkdirSync(directory, { recursive: true });
+    for (const name of ['bootstrap.sh', 'admit.sh', 'package.json', 'consumer.json']) {
+      writeFileSync(join(directory, name), readFileSync(join(bureaucratSource, name)));
+    }
+    edit(directory);
+    const output = join(runner, 'github-output');
+    writeFileSync(output, '');
+    const step = trustedSteps().find((candidate) => candidate.name === 'Bootstrap trusted package');
+    if (step?.run === undefined) throw new Error('trusted-wiki has no bootstrap step');
+    const invocation = Bun.spawnSync(['bash', '-e', '-c', step.run], {
+      cwd: join(runner, 'workspace'),
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        HOME: runner,
+        GITHUB_OUTPUT: output,
+        GITHUB_WORKSPACE: join(runner, 'workspace'),
+        RUNNER_TEMP: runner,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+    return {
+      exitCode: invocation.exitCode,
+      stderr: streamText(invocation.stderr, 'bootstrap stderr'),
+      output: readFileSync(output, 'utf8'),
+      installed: existsSync(join(runner, 'twilight-bureaucrat', 'consumer', 'node_modules')),
+    };
+  }
+
+  test('the base-owned bootstrap runs before any candidate checkout', () => {
+    const steps = trustedSteps();
+    const names = steps.map((step) => step.name);
+    const base = names.indexOf('Check out base-owned package bootstrap');
+    const bootstrap = names.indexOf('Bootstrap trusted package');
+    const candidate = names.indexOf('Check out exact candidate');
+    // Proof: moving `Check out exact candidate` above the base checkout failed here with
+    // `Expected: < 4, Received: 6` while the workflow otherwise parsed.
+    expect(base).toBeGreaterThan(-1);
+    expect(base).toBeLessThan(bootstrap);
+    expect(bootstrap).toBeLessThan(candidate);
+    expect(steps[base]?.with).toEqual({
+      ref: '${{ github.event.pull_request.base.sha }}',
+      path: 'trusted-base',
+      'sparse-checkout': 'infra/ci/bureaucrat/',
+      'sparse-checkout-cone-mode': false,
+      'persist-credentials': false,
+    });
+  });
+
+  test('bootstrap and admission install and run with a scrubbed, frozen, script-free Bun', () => {
+    const bootstrap = readFileSync(join(bureaucratSource, 'bootstrap.sh'), 'utf8');
+    const admit = readFileSync(join(bureaucratSource, 'admit.sh'), 'utf8');
+    // Proof: replacing `env -i` with `env` in either script, or dropping `--frozen-lockfile`,
+    // `--ignore-scripts` or `--registry` from the install, failed here on the missing literal.
+    expect(bootstrap).toContain(
+      'trusted_bun() {\n  env -i PATH="$trusted_path" HOME="$scratch/home" BUN_INSTALL_CACHE_DIR="$scratch/cache" \\\n    "$@"\n}',
+    );
+    expect(bootstrap).toContain(
+      'trusted_bun "$bun_path" install --frozen-lockfile --ignore-scripts --registry "$registry"',
+    );
+    expect(
+      bootstrap
+        .split('\n')
+        .filter(
+          (line) =>
+            !line.trimStart().startsWith('#') &&
+            line.includes(' install --') &&
+            !line.includes('trusted_bun'),
+        ),
+    ).toEqual([]);
+    expect(admit).toContain(
+      'if env -i PATH="$trusted_path" HOME="$scratch/home" TOOL_WIKI_ACTIVATION_ROOT="$activation_root" \\',
+    );
+    expect(admit).toContain('if [[ $activation_release != "$identity" ]]; then');
+  });
+
+  test('the CI gate runs the packed package suite whenever Tool Wiki is in scope', () => {
+    // The ci.yml gate job owns this shape; only the two named steps are claimed.
+    const workflow = parseYaml(
+      readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
+    ) as { jobs?: { gate?: { steps?: { name?: string; if?: string; run?: string }[] } } };
+    const steps = workflow.jobs?.gate?.steps ?? [];
+    const suite = steps.find((step) => step.name === 'Twilight Bureaucrat packed package suite');
+    const bubblewrap = steps.find(
+      (step) => step.name === 'Provision bubblewrap for the packed package suite',
+    );
+    // Proof: deleting the suite step from ci.yml failed here on the undefined step.
+    expect(suite).toEqual({
+      name: 'Twilight Bureaucrat packed package suite',
+      if: "steps.gate_mode.outputs.tool_wiki == 'run'",
+      run: 'bunx nx run twilight-bureaucrat:test:package --skip-nx-cache --output-style=stream',
+    });
+    expect(bubblewrap?.if).toBe("steps.gate_mode.outputs.tool_wiki == 'run'");
+    expect(steps.indexOf(bubblewrap ?? {})).toBeLessThan(steps.indexOf(suite ?? {}));
+  });
+
+  test('the committed switch keeps the archive launcher and installs nothing', () => {
+    const committed = runBootstrap(() => undefined);
+    expect(committed.exitCode, committed.stderr).toBe(0);
+    expect(committed.output).toBe('route=archive-launcher\n');
+    expect(committed.installed).toBe(false);
+  });
+
+  test('the package route refuses a missing lock, a malformed switch and a scripted manifest', () => {
+    const missingLock = runBootstrap((directory) => {
+      writeFileSync(join(directory, 'consumer.json'), `${JSON.stringify(packageRoute)}\n`);
+    });
+    // Proof: with the lock-presence refusal removed the frozen install resolved from the registry
+    // with no lock and exited 0 (consumer-bootstrap.test.ts); here it exits 78 before any install.
+    expect(missingLock.exitCode).toBe(78);
+    expect(missingLock.stderr).toContain('base-owned bootstrap lock is absent');
+    expect(missingLock.installed).toBe(false);
+
+    const unknownRoute = runBootstrap((directory) => {
+      writeFileSync(
+        join(directory, 'consumer.json'),
+        `${JSON.stringify({ ...packageRoute, admission: 'candidate-choice' })}\n`,
+      );
+    });
+    expect(unknownRoute.exitCode).toBe(78);
+    expect(unknownRoute.stderr).toContain('consumer configuration is malformed');
+    expect(unknownRoute.output).toBe('');
+
+    const scripted = runBootstrap((directory) => {
+      writeFileSync(join(directory, 'consumer.json'), `${JSON.stringify(packageRoute)}\n`);
+      writeFileSync(join(directory, 'bun.lock'), '{}\n');
+      const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      manifest['scripts'] = { preinstall: 'exit 0' };
+      writeFileSync(join(directory, 'package.json'), `${JSON.stringify(manifest)}\n`);
+    });
+    expect(scripted.exitCode).toBe(78);
+    expect(scripted.stderr).toContain('must pin exactly twilight-bureaucrat');
+    expect(scripted.installed).toBe(false);
+  });
+});

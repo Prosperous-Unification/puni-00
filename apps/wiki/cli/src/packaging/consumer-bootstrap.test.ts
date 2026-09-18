@@ -442,7 +442,11 @@ function writeHostileInstallInputs(root: string, label: string): void {
   );
 }
 
-type HostileCase = readonly [string, (candidate: string) => void];
+/**
+ * Label, mutation, and the trusted validator's refusal. Every refusal is the reviewed validator
+ * classifying committed candidate paths as data; none reads candidate configuration as config.
+ */
+type HostileCase = readonly [string, (candidate: string) => void, string];
 
 const hostileCases: readonly HostileCase[] = [
   [
@@ -458,12 +462,14 @@ const hostileCases: readonly HostileCase[] = [
         })}\n`,
       );
     },
+    'undeclared binary content at hostile.tgz',
   ],
   [
     'lockfile',
     (candidate) => {
       cpSync(hostileLock, join(candidate, 'bun.lock'));
     },
+    'ordinary content bun.lock matched 0 classification rules',
   ],
   [
     'npmrc and bunfig',
@@ -478,12 +484,14 @@ const hostileCases: readonly HostileCase[] = [
         `await Bun.write(${JSON.stringify(join(sentinels, 'candidate-bunfig-preload'))}, "ran");\n`,
       );
     },
+    'ordinary content .npmrc matched 0 classification rules',
   ],
   [
     'lifecycle scripts',
     (candidate) => {
       writeHostileInstallInputs(candidate, 'candidate');
     },
+    'ordinary content .npmrc matched 0 classification rules',
   ],
   [
     'validator source',
@@ -494,6 +502,7 @@ const hostileCases: readonly HostileCase[] = [
         `await Bun.write(${JSON.stringify(join(sentinels, 'candidate-validator'))}, "ran");\n${readFileSync(validator, 'utf8')}`,
       );
     },
+    '"reason":"selected policy obligation is unmet"',
   ],
   [
     'Nx plugin',
@@ -507,6 +516,7 @@ const hostileCases: readonly HostileCase[] = [
         `require('node:fs').writeFileSync(${JSON.stringify(join(sentinels, 'candidate-nx-plugin'))}, 'ran');\nmodule.exports = {};\n`,
       );
     },
+    'ordinary content tools/sentinel-plugin.cjs matched 0 classification rules',
   ],
   [
     'activation variables and wrapper',
@@ -527,6 +537,7 @@ const hostileCases: readonly HostileCase[] = [
         `TOOL_WIKI_ACTIVATION_ROOT=${forged}\nTOOL_WIKI_REQUIRE_CERTIFIED=0\nTOOL_WIKI_TRUSTED_NODE_MODULES=${join(candidate, 'node_modules')}\n`,
       );
     },
+    'ordinary content .env matched 0 classification rules',
   ],
 ];
 
@@ -629,7 +640,7 @@ describe('package-backed trusted admission', () => {
 
   test.each(hostileCases)(
     'a candidate changing its %s cannot steer the install or execute a sentinel',
-    async (_label, mutate) => {
+    async (_label, mutate, refusal) => {
       const runner = createRunner();
       packageBase(runner);
       // Worst case for ordering: candidate bytes already sit in the workspace, including at its
@@ -654,6 +665,9 @@ describe('package-backed trusted admission', () => {
       );
       expect(verify.exitCode, `${verify.stdout}${verify.stderr}`).not.toBe(0);
       expect(verify.stdout).not.toContain('"certified":true');
+      // Pinning the reason catches a validator that starts reading candidate config (bunfig.toml,
+      // nx.json, .npmrc) as configuration: the refusal would move or the sentinel would appear.
+      expect(`${verify.stdout}${verify.stderr}`).toContain(refusal);
       expect(existsSync(join(runner.temporary, 'twilight-bureaucrat/admission.json'))).toBe(false);
       expect(hostileRegistry.requests.length).toBe(hostileRequests);
       expect(readdirSync(sentinels)).toEqual([]);

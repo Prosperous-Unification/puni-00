@@ -39,7 +39,7 @@ mkdir -m 0700 -- "$scratch/consumer" "$scratch/home" "$scratch/cache"
 # Every Bun below runs with an empty environment from an empty directory, so no inherited
 # BUN_OPTIONS, registry variable, bunfig.toml or .npmrc can steer it.
 # Proof: with `env -i` replaced by `env`, consumer-bootstrap.test.ts's inherited BUN_OPTIONS
-# preload wrote its sentinel.
+# preload wrote its sentinel, and the CI-gated gate-entrypoints.test.ts literal check failed.
 trusted_bun() {
   env -i PATH="$trusted_path" HOME="$scratch/home" BUN_INSTALL_CACHE_DIR="$scratch/cache" \
     "$@"
@@ -83,9 +83,9 @@ lock="$bootstrap/bun.lock"
 if [[ ! -f $manifest ]] || [[ ! -r $manifest ]]; then
   refuse "base-owned bootstrap manifest is absent or unreadable: $manifest"
 fi
-# Proof: consumer-bootstrap.test.ts selects installed-package without a lock and observes exit 78;
-# with this refusal removed `bun install --frozen-lockfile` resolved the pin from the registry
-# with no lock at all and exited 0.
+# Proof: with this refusal removed `bun install --frozen-lockfile` resolved the pin from the
+# loopback registry with no lock and exited 0 (consumer-bootstrap.test.ts); in the CI-gated
+# gate-entrypoints.test.ts it reached npmjs and failed on the wrong refusal instead.
 if [[ ! -e $lock ]]; then
   refuse "base-owned bootstrap lock is absent: $lock (publish, then pin, then flip)"
 fi
