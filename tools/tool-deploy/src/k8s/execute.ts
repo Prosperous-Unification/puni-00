@@ -96,6 +96,12 @@ export interface ReleaseEffects {
   rolloutTiers(identity: ReleaseIdentity): Promise<void>;
   smoke(releaseId: string, identity: ReleaseIdentity): Promise<void>;
   persistRelease(identity: ReleaseIdentity): Promise<void>;
+  /**
+   * Flux mode: moves the deploy branch to `flux.desiredRevision` while the WBS unit is
+   * suspended and waits for the source to serve it. Runs in `persist-release`, before writes
+   * reopen, so a failed push still rolls back (or ends `flux-revert-required`).
+   */
+  publishDesired(request: ReleaseRequest): Promise<void>;
   reconcileDesired(request: ReleaseRequest): Promise<void>;
 }
 
@@ -210,6 +216,10 @@ async function perform(
       await effects.smoke(state.transactionId, request.release);
       return {};
     case 'persist-release':
+      // Proof: execute.test.ts `publishes the desired revision before writes reopen, and rolls
+      // back when the push fails`; with the publish moved back into reconcile-desired it ran
+      // after reopenWrites (call 29 vs 27), where a failed push leaves recovery-required.
+      if (flux !== null) await effects.publishDesired(request);
       await effects.persistRelease(request.release);
       return {};
     case 'reopen-writes':
@@ -502,6 +512,8 @@ export const OBJECTS = {
   admissionParams: 'puni-trusted-workload',
   pvc: 'wbs-data',
   backendServiceAccount: 'wbs-backend',
+  /** deploy/k8s/wbs/base/backup.yaml; it runs the backend image, so it moves with it. */
+  backupCronJob: 'sqlite-backup',
 } as const;
 
 export interface KubectlSettings {
@@ -521,7 +533,28 @@ export interface KubectlSettings {
   drainTimeoutMs: number;
   /** Lease lifetime without renewal; the executor's heartbeat must be several times shorter. */
   leaseDurationSeconds: number;
+  /**
+   * Clone of the deploy repository the WBS GitRepository serves. `reconcile-desired` pushes
+   * `flux.desiredRevision` to it, and only while the WBS unit is suspended. Absent or `null`,
+   * a Flux release requires the source to be at the desired revision already.
+   */
+  deployRepository?: DeployRepository | null;
   log: (line: string) => void;
+}
+
+/** A local clone holding the prepared desired commit, and where Flux reads it from. */
+export interface DeployRepository {
+  path: string;
+  remote: string;
+  branch: string;
+}
+
+/** The effects the CLI also uses to build a request from the live cluster. */
+export interface ClusterReader {
+  /** The `kube-system` namespace UID. */
+  clusterUid(): Promise<string>;
+  /** The release record the last promotion persisted, verified against the running tiers. */
+  currentRelease(): Promise<ReleaseIdentity | null>;
 }
 
 interface Invocation {
@@ -884,7 +917,7 @@ export function parseLease(json: string): ObservedLease & { version: string } {
 }
 
 /** Real effects over kubectl. Every wait has an explicit ceiling from `settings`. */
-export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
+export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & ClusterReader {
   const { app, backend } = settings.namespaces;
   const base = [
     settings.kubectl,
@@ -996,8 +1029,45 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
     return parseTaskReport(logs);
   }
 
+  /** The SQLite backup CronJob's image; F6 admits its pods only with a backend digest. */
+  async function backupImage(): Promise<string> {
+    return (
+      await kubectl([
+        '-n',
+        backend,
+        'get',
+        'cronjob',
+        OBJECTS.backupCronJob,
+        '-o',
+        'jsonpath={.spec.jobTemplate.spec.template.spec.containers[?(@.name=="backup")].image}',
+      ])
+    ).trim();
+  }
+
   async function rollout(namespace: string, tier: K8sTier, image: string): Promise<void> {
     const deployment = OBJECTS.deployments[tier];
+    if (tier === 'backend') {
+      // Proof: execute-adapter.test.ts `moves the backup CronJob with every backend rollout`
+      // saw no cronjob patch with this block removed; its next run would then use a digest the
+      // coordinator may already have dropped from solverImages, and admission would deny it.
+      const cronPatch = {
+        spec: {
+          jobTemplate: {
+            spec: { template: { spec: { containers: [{ name: 'backup', image }] } } },
+          },
+        },
+      };
+      await kubectl([
+        '-n',
+        namespace,
+        'patch',
+        'cronjob',
+        OBJECTS.backupCronJob,
+        '--type=strategic',
+        '-p',
+        JSON.stringify(cronPatch),
+      ]);
+    }
     const patch = {
       spec: { replicas: 1, template: { spec: { containers: [{ name: tier, image }] } } },
     };
@@ -1067,7 +1137,27 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
         );
       }
     }
+    const backup = await backupImage();
+    if (backup !== identity.images.backend) {
+      throw new Error(
+        `CronJob ${OBJECTS.backupCronJob} runs ${backup} but the release record says ` +
+          identity.images.backend,
+      );
+    }
     return identity;
+  }
+
+  async function sourceRevision(unit: FluxUnit): Promise<string> {
+    return (
+      await kubectl([
+        '-n',
+        unit.namespace,
+        'get',
+        `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
+        '-o',
+        'jsonpath={.status.artifact.revision}',
+      ])
+    ).trim();
   }
 
   async function fluxSuspended(unit: FluxUnit): Promise<boolean> {
@@ -1118,6 +1208,12 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
   const fencedSelector = { matchLabels: { 'puni.dev/writes': 'fenced' } };
 
   return {
+    currentRelease,
+    async clusterUid() {
+      return (
+        await kubectl(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
+      ).trim();
+    },
     async observeCluster(request) {
       const uid = (
         await kubectl(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
@@ -1423,31 +1519,49 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
       settings.log(logs.trim());
     },
     async persistRelease(identity) {
-      const record = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: { name: OBJECTS.releaseRecord, namespace: backend },
-        data: {
-          releaseId: releaseIdOf(identity),
-          sourceSha: identity.sourceSha,
-          images: JSON.stringify(identity.images),
-        },
-      };
+      const record = releaseRecord(identity, backend);
       await kubectl(['apply', '-f', '-'], JSON.stringify(record));
+    },
+    async publishDesired(request) {
+      const unit = request.flux;
+      if (unit === null) return;
+      const revision = await sourceRevision(unit);
+      if (revision.endsWith(unit.desiredRevision)) return;
+      const repository = settings.deployRepository ?? null;
+      if (repository === null) {
+        throw new Error(
+          `Flux source is at ${revision}, not ${unit.desiredRevision}, and no deploy ` +
+            'repository is configured to publish it',
+        );
+      }
+      // Proof: deploy-repo.test.ts `refuses to publish the desired revision while the WBS unit
+      // is not suspended`; with this guard removed the bare remote's branch moved to the
+      // desired commit while Flux was live.
+      if (!(await fluxSuspended(unit))) {
+        throw new Error(
+          `refusing to publish ${unit.desiredRevision}: Flux unit ${unit.kustomization} is ` +
+            'not suspended, so it would apply the new release outside the transaction',
+        );
+      }
+      await publishRevision(repository, unit.desiredRevision, unit.previousRevision);
+      await kubectl([
+        '-n',
+        unit.namespace,
+        'annotate',
+        '--overwrite',
+        `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
+        `reconcile.fluxcd.io/requestedAt=${new Date().toISOString()}`,
+      ]);
+      await pollUntil(
+        `Flux source ${unit.gitRepository} serving ${unit.desiredRevision}`,
+        settings.rolloutTimeoutSeconds * 1000,
+        async () => (await sourceRevision(unit)).endsWith(unit.desiredRevision),
+      );
     },
     async reconcileDesired(request) {
       if (request.flux !== null) {
-        // Flux mode: the source must already carry the release; resume-flux applies it.
-        const revision = (
-          await kubectl([
-            '-n',
-            request.flux.namespace,
-            'get',
-            `gitrepositories.source.toolkit.fluxcd.io/${request.flux.gitRepository}`,
-            '-o',
-            'jsonpath={.status.artifact.revision}',
-          ])
-        ).trim();
+        // Flux mode: persist-release published the release; resume-flux applies it.
+        const revision = await sourceRevision(request.flux);
         if (!revision.endsWith(request.flux.desiredRevision)) {
           throw new Error(`Flux source is at ${revision}, not ${request.flux.desiredRevision}`);
         }
@@ -1479,4 +1593,61 @@ export async function renderOverlay(
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
+}
+
+/**
+ * Moves the deploy branch from `previous` to `desired`, and only from there. A branch already at
+ * `desired` (a resumed run) is left alone; one anywhere else means someone else changed what
+ * Flux will apply, and the push is refused rather than overwriting it.
+ */
+export async function publishRevision(
+  repository: DeployRepository,
+  desired: string,
+  previous: string,
+): Promise<void> {
+  const git = (args: readonly string[]): Promise<Invocation> =>
+    run(['git', '-C', repository.path, ...args], null, 120_000);
+  const listed = await git(['ls-remote', repository.remote, `refs/heads/${repository.branch}`]);
+  if (listed.exitCode !== 0) {
+    throw new Error(`git ls-remote ${repository.remote} failed: ${listed.stderr.trim()}`);
+  }
+  const head = listed.stdout.trim().split(/\s+/)[0] ?? '';
+  if (head === desired) return;
+  // Proof: deploy-repo.test.ts `refuses to move a deploy branch someone else moved`; with this
+  // comparison removed only the lease push refused, with an error naming neither commit.
+  if (head !== previous) {
+    throw new Error(
+      `deploy branch ${repository.remote}/${repository.branch} is at ${head || '(absent)'}, ` +
+        `not the previous release ${previous}; refusing to publish ${desired}`,
+    );
+  }
+  const pushed = await git([
+    'push',
+    `--force-with-lease=refs/heads/${repository.branch}:${previous}`,
+    repository.remote,
+    `${desired}:refs/heads/${repository.branch}`,
+  ]);
+  if (pushed.exitCode !== 0) {
+    throw new Error(`publishing ${desired} failed: ${pushed.stderr.trim()}`);
+  }
+}
+
+/**
+ * The `wbs-release` ConfigMap `persistRelease` writes: what later releases take as the running
+ * release, and whose `sourceSha` the backup CronJob records. The cutover writes it once by hand.
+ */
+export function releaseRecord(
+  identity: ReleaseIdentity,
+  namespace = 'wbs-solver',
+): Record<string, unknown> {
+  return {
+    apiVersion: 'v1',
+    kind: 'ConfigMap',
+    metadata: { name: OBJECTS.releaseRecord, namespace },
+    data: {
+      releaseId: releaseIdOf(identity),
+      sourceSha: identity.sourceSha,
+      images: JSON.stringify(identity.images),
+    },
+  };
 }

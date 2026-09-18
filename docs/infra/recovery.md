@@ -70,41 +70,56 @@ retained generations from the copy.
 
 ## SQLite
 
+The backup ships with the WBS release (`deploy/k8s/wbs/base/backup.yaml`): CronJob
+`wbs-solver/sqlite-backup` runs the release's own backend image, because F6 admits a pod
+beside `wbs-data` only with the backend's service account, controller label, product node and
+a `solverImages` digest. The release coordinator rewrites its image with every backend
+rollout. `tool-fleet:check` (family `wbs-backup`) requires its namespace, service account,
+label, node, image, UID, PVC, database path (`/data/wbs.sqlite`) and release-record key to match
+the backend in every overlay. Its Secret `wbs-solver/sqlite-backup-s3` and egress policy are
+per-environment inputs.
+
 Each run writes `sqlite/wbs/<timestamp>.db` and `<timestamp>.db.report.json`.
-The report records the object version, SHA-256, size, source revision, applied
-migration names and hashes, and `restoreProcedureVersion: sqlite-restore/1`,
-which is this section. The runner is `tools/tool-fleet/src/backup-sqlite.ts`;
+The report records the object version, SHA-256, size, source revision (`wbs-release`
+`sourceSha`), applied migration names and hashes, and `restoreProcedureVersion:
+sqlite-restore/1`, which is this section. The runner is `tools/tool-fleet/src/backup-sqlite.ts`;
 the ConfigMap copy must match it byte for byte.
 
-To restore, run the same runner in `restore` mode into a new volume. It
-downloads the report and snapshot, checks SHA-256, `integrity_check`,
-`foreign_key_check` and the exact migration set, and refuses an existing target:
+To restore, run the same runner in `restore` mode into a new volume in `wbs-solver`, as a pod
+F6 admits: the backend image and identity. It downloads the report and snapshot, checks
+SHA-256, `integrity_check`, `foreign_key_check` and the exact migration set, and refuses an
+existing target. `bunx nx run tool-deploy:test:backup` runs exactly this Job in a k3d lab after
+one CronJob run and reads the known row back:
 
 ```yaml
 apiVersion: batch/v1
 kind: Job
-metadata: { name: sqlite-restore, namespace: wbs }
+metadata: { name: sqlite-restore, namespace: wbs-solver }
 spec:
   backoffLimit: 0
   template:
-    metadata: { labels: { puni.dev/workload: sqlite-backup } }
+    metadata:
+      labels: { puni.dev/controller: wbs-backend, puni.dev/workload: sqlite-backup }
     spec:
       restartPolicy: Never
+      serviceAccountName: wbs-backend
       automountServiceAccountToken: false
+      nodeSelector: { puni.dev/capability-product: 'true' }
       securityContext:
         {
           runAsNonRoot: true,
-          runAsUser: 1000,
-          fsGroup: 1000,
+          runAsUser: 10001,
+          runAsGroup: 10001,
+          fsGroup: 10001,
           seccompProfile: { type: RuntimeDefault },
         }
       containers:
         - name: restore
-          image: docker.io/oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f
+          image: <the running backend digest, from wbs-solver/wbs-release>
           command: [bun, /runner/backup-sqlite.ts, restore]
           env:
             - { name: RESTORE_REPORT_KEY, value: sqlite/wbs/<timestamp>.db.report.json }
-            - { name: RESTORE_TARGET_PATH, value: /restore/wbs.db }
+            - { name: RESTORE_TARGET_PATH, value: /restore/wbs.sqlite }
             - { name: HOME, value: /tmp }
             - { name: BUN_RUNTIME_TRANSPILER_CACHE_PATH, value: '0' }
             # S3_ENDPOINT, S3_BUCKET, S3_REGION, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
@@ -113,6 +128,8 @@ spec:
             {
               allowPrivilegeEscalation: false,
               readOnlyRootFilesystem: true,
+              runAsNonRoot: true,
+              seccompProfile: { type: RuntimeDefault },
               capabilities: { drop: [ALL] },
             }
           volumeMounts:

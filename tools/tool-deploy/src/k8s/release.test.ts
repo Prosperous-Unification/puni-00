@@ -217,8 +217,8 @@ describe('assertObservedCluster', () => {
     }).toThrow('does not approve the running backend');
   });
 
-  it('admits the rollback and candidate digests, once when they are equal', () => {
-    expect(admittedBackendImages(request())).toEqual([OLD.images.backend, NEW.images.backend]);
+  it('admits the candidate then the rollback digest, once when they are equal', () => {
+    expect(admittedBackendImages(request())).toEqual([NEW.images.backend, OLD.images.backend]);
     const same = { ...NEW, images: { ...NEW.images, backend: OLD.images.backend } };
     expect(admittedBackendImages(request({ release: same }))).toEqual([OLD.images.backend]);
   });

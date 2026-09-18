@@ -74,3 +74,47 @@ changing the transaction's phase order.
   to include the running backend, which proves the parameters belong to this deployment.
   Flux's platform reconciliation owns the same ConfigMap: F6/F11 must exclude
   `data.solverImages` from Flux's managed fields, or the reconciler reverts the list mid-release.
+
+## F11 implementation decisions and assumptions
+
+Recorded under the "make reasonable assumptions and record them" instruction.
+
+- **Descriptor transport.** Staging takes the operator's candidate (Dagger's be/gw/fe
+  digests, the MCP digest, the `ci` run id) as a dispatch input; the workflow seals it with the
+  trusted admission and the observed run. Production takes the staging run id and the
+  descriptor SHA-256, downloads that run's `release-descriptor` artifact, and the deploy job
+  additionally requires the staging proof in the persistent state directory. The artifact is
+  transport; the proof on the protected runner is the authority. Assumes one deploy runner
+  (label `puni-deploy`) holds both environments' state; split runners would have to carry the
+  proof as a protected artifact.
+- **Re-admission for production.** Production runs the admission job again and requires the
+  same package and activation identities as the descriptor, rather than trusting staging's
+  record. A changed activation between staging and prod therefore blocks promotion.
+- **Deploy repository.** Flux's WBS source is a separate repository (`vars.PUNI_DEPLOY_REPO_URL`)
+  holding the rendered release at `clusters/<env>/wbs/release.yaml`. The desired commit is
+  prepared deterministically (fixed identity and dates) so a resumed run rebuilds the same
+  request, is kept at `refs/wbs/desired/<release>`, and is pushed in `persist-release`, before
+  writes reopen, while the unit is suspended, with `--force-with-lease` from
+  `previousRevision` (review M2: a failed push after reopen stranded the environment at
+  `recovery-required`). The deploy repository never names an unproven release.
+- **Admission route.** Deployment requires the `installed-package` route because only it writes
+  `admission.json`; the committed route is still `archive-launcher`, so staging is blocked on the
+  P5 flip, deliberately.
+- **Validation tools.** kubectl and helm come from `infra/versions/toolchain.json`; shellcheck
+  0.11.0 and actionlint 1.7.12 from `tools/tool-fleet/src/check-tools.json` (the toolchain schema
+  rejects unknown keys and is not owned here). Ansible runs only inside the digest-locked
+  controller image, with `--network none`. actionlint checks the two F11 workflows only:
+  `ci.yml` and `trusted-wiki.yml` carry pre-existing SC2174 findings.
+- **Executable ownership.** Checked means shellchecked by some Nx target. Eleven existing
+  executables are not; `check-tools.json` lists them and the check fails when the list is
+  stale, so it only shrinks.
+- **Cutover.** Old and new digests are the same be/gw/fe bytes (the release running on
+  Compose), plus the new MCP image. The export runs in the old release's own backend image
+  with the writer stopped (`wal_checkpoint(TRUNCATE)`, `VACUUM INTO`). The restore is a
+  writer-labelled backend Job so F6 admission and the single-writer guard apply to it. The
+  rollback boundary is the DNS switch. The k3d lab has no Traefik, so the rehearsal's host
+  override targets the backend Service with a `Host` header; the Ingress objects are rendered
+  and checked but not exercised.
+- **Edge.** Staging and prod overlays add Traefik Ingress objects (one per namespace, since
+  `/api` lives in `wbs-solver`); prod names `letsencrypt-production`, which does not exist yet
+  and is a cutover prerequisite.

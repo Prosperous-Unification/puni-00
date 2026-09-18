@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "shellcheck": {
+    "version": "0.11.0",
+    "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+    "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198",
+    "member": "shellcheck-v0.11.0/shellcheck"
+  },
+  "actionlint": {
+    "version": "1.7.12",
+    "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+    "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+    "member": "actionlint"
+  },
+  "uncheckedExecutables": [
+    "bin/dev.test.sh",
+    "bin/h2puni-gate-steps.sh",
+    "bin/h2puni-gate.sh",
+    "bin/h2puni-gate.test.sh",
+    "bin/heavy-lock.test.sh",
+    "bin/tool-wiki-lint.sh",
+    "bin/tool-wiki-package-lint.sh",
+    "bin/tool-wiki-push-audit.sh",
+    "bin/with-heavy-lock.sh",
+    "notes/t415-sweep.sh",
+    "ops/agent-trailer/prepare-commit-msg"
+  ]
+}

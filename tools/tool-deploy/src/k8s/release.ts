@@ -322,13 +322,16 @@ export function assertObservedCluster(request: ReleaseRequest, observed: Observe
 }
 
 /**
- * The `solverImages` list F6's trusted-workload admission reads for this release: the rollback
- * digest and the candidate, one entry when they are the same image.
+ * The `solverImages` list F6's trusted-workload admission reads for this release: the candidate
+ * first, then the rollback digest, one entry when they are the same image. The order is the
+ * contract in docs/infra/platform.md, "Trusted image ownership".
  */
 export function admittedBackendImages(request: ReleaseRequest): readonly string[] {
   const rollback = request.expectedCurrent.images.backend;
   const candidate = request.release.images.backend;
-  return rollback === candidate ? [rollback] : [rollback, candidate];
+  // Proof: release.test.ts `admits the candidate then the rollback digest` failed with
+  // `[OLD, NEW]` while this returned the F8 rollback-first order.
+  return rollback === candidate ? [candidate] : [candidate, rollback];
 }
 
 export function initialState(request: ReleaseRequest): ReleaseState {

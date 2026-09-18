@@ -9,6 +9,8 @@
       "{projectRoot}/**/*",
       "{workspaceRoot}/infra/**/*",
       "{workspaceRoot}/deploy/k8s/**/*",
+      "{workspaceRoot}/.github/workflows/infra-check.yml",
+      "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
       "sharedGlobals"
     ],
     "production": [
@@ -51,9 +53,17 @@
     },
     "check": {
       "executor": "nx:run-commands",
+      "cache": false,
       "dependsOn": ["test", "lint", "typecheck"],
       "options": {
-        "command": "bun tools/tool-fleet/src/entrypoint.ts check"
+        "command": "bun tools/tool-fleet/src/check-cli.ts"
+      }
+    },
+    "check:faults": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/check-faults.ts"
       }
     },
     "lab": {
