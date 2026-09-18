@@ -156,7 +156,7 @@
   },
   "controller": {
     "image": "ghcr.io/prosperous-unification/fleet-controller:0.1.0",
-    "digest": "sha256:5f00e0eb382406f3f0a7ac30a40ffe722ffe8778d2e21e6c1b90130ac88d46ce",
+    "digest": "sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de",
     "builder": {
       "role": "buildkit",
       "name": "docker.io/moby/buildkit:v0.33.0",

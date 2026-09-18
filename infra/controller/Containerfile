@@ -3,8 +3,11 @@ FROM ghcr.io/ansible/community-ansible-dev-tools@sha256:70f705fee2386deb320598ea
 ARG KUBECTL_URL
 ARG KUBECTL_SHA256
 USER root
-COPY infra/controller/requirements.yml /tmp/fleet-requirements.yml
-COPY infra/controller/requirements-python.txt /tmp/fleet-requirements-python.txt
+# Proof: without --chmod the checkout's umask reached these layers: the 0664 local worktree
+# reproduced sha256:5f00e0eb... while the umask-022 GitHub checkout missed it on 2026-09-18.
+# With --chmod a 0644, re-dated copy of the context and the worktree both build sha256:372f6f43...
+COPY --chmod=0444 infra/controller/requirements.yml /tmp/fleet-requirements.yml
+COPY --chmod=0444 infra/controller/requirements-python.txt /tmp/fleet-requirements-python.txt
 # Proof: installing into root's default collection path produced manifest
 # sha256:6d063a..., where USER 1000 reported hetzner.hcloud.hcloud as unknown.
 # Proof: two --no-cache builds on the locked BuildKit differed only in this layer's

@@ -705,3 +705,7 @@ and `format:check --all` exited 0 at `de289e3b` (238 tests). `df3ce0fb` failed `
 - R5: removing the builder-image, inspect-absence and create-exit guards each failed its named
   `controller.test.ts` case; making `controller.builder` optional failed `contracts.test.ts`
   `rejects a missing controller builder lock`.
+- The first CI run on that lock still missed it: `COPY` carried the checkout's file mode (0664
+  under the local umask 002, 0644 on GitHub). With `COPY --chmod=0444`, the worktree and a
+  `--no-cache` build from a 0644, re-dated copy of the context both produced
+  `sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de`, the current lock.

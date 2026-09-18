@@ -155,6 +155,8 @@ export async function buildController(
   if (index.manifests.length !== 1 || index.manifests[0]?.digest !== lock.digest) {
     // Proof: removing this guard made the mismatched-manifest production
     // boundary negative fail on 2026-09-17.
-    throw new Error('Controller OCI manifest does not match lock');
+    throw new Error(
+      `Controller OCI manifest does not match lock: built ${index.manifests.map((manifest) => manifest.digest).join(', ')}, locked ${lock.digest}`,
+    );
   }
 }
