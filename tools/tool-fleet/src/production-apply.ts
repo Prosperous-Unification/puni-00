@@ -517,6 +517,11 @@ function leaseManifest(
   renewedAt: string,
   resourceVersion?: string,
 ): string {
+  // Lease times are Kubernetes MicroTime. Proof: the live QEMU lab API server rejected the
+  // millisecond ISO string with BadRequest; the production-apply tests' fake API now does too.
+  const microTime = renewedAt.replace(/\.(\d{3})Z$/, '.$1000Z');
+  if (!/\.\d{6}Z$/.test(microTime))
+    throw new Error(`Lease time is not an ISO instant: ${renewedAt}`);
   return JSON.stringify({
     apiVersion: 'coordination.k8s.io/v1',
     kind: 'Lease',
@@ -528,8 +533,8 @@ function leaseManifest(
     spec: {
       holderIdentity: holder,
       leaseDurationSeconds,
-      acquireTime: renewedAt,
-      renewTime: renewedAt,
+      acquireTime: microTime,
+      renewTime: microTime,
     },
   });
 }

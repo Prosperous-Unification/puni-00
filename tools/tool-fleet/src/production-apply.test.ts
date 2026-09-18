@@ -105,10 +105,21 @@ function leaseMutation(request: CommandRequest, fallbackHolder: string): Command
     metadata?: { resourceVersion?: unknown };
     spec?: {
       holderIdentity?: unknown;
+      acquireTime?: unknown;
       renewTime?: unknown;
       leaseDurationSeconds?: unknown;
     };
   };
+  // The API server parses Lease times as MicroTime and rejects millisecond RFC 3339 strings.
+  for (const time of [manifest.spec?.acquireTime, manifest.spec?.renewTime]) {
+    if (typeof time === 'string' && !/\.\d{6}Z$/.test(time)) {
+      return {
+        exitCode: 1,
+        stdout: '',
+        stderr: `Error from server (BadRequest): parsing time "${time}" as "2006-01-02T15:04:05.000000Z07:00"`,
+      };
+    }
+  }
   return {
     exitCode: 0,
     stdout: JSON.stringify({
@@ -626,7 +637,7 @@ describe('production apply adapter', () => {
         (request) =>
           request.executable === 'kubectl' &&
           request.arguments.includes('replace') &&
-          request.stdin?.includes('1970-01-01T00:00:00.000Z') === true,
+          request.stdin?.includes('1970-01-01T00:00:00.000000Z') === true,
       ),
     ).toBe(true);
   });
