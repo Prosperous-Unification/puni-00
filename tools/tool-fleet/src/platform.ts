@@ -69,6 +69,15 @@ const HelmRelease = type({
   '+': 'reject',
 });
 
+// Proof: changing the native Kustomization's unknown-key policy to delete admitted a patch that
+// removed Traefik's locked digest in the production validator on 2026-09-17.
+const NativeKustomization = type({
+  apiVersion: "'kustomize.config.k8s.io/v1beta1'",
+  kind: "'Kustomization'",
+  resources: type('string>0').array().atLeastLength(1),
+  '+': 'reject',
+});
+
 const RegistryDeployment = type({
   apiVersion: "'apps/v1'",
   kind: "'Deployment'",
@@ -133,6 +142,39 @@ const releases = [
   ['hcloud-csi', 'hcloudCsi', 'storage/production/hcloud-csi.yaml', 'charts/hcloud-csi-2.23.0.tgz'],
   ['traefik', 'traefik', 'networking/traefik.yaml', 'charts/traefik-41.6.0.tgz'],
 ] as const;
+
+const platformKustomizations = [
+  ['networking/kustomization.yaml', ['namespaces.yaml', 'cert-manager.yaml', 'traefik.yaml']],
+  [
+    'policy/kustomization.yaml',
+    [
+      'namespaces.yaml',
+      'network-policy.yaml',
+      'trusted-rbac.yaml',
+      'trusted-images.yaml',
+      'trusted-workloads.yaml',
+    ],
+  ],
+  ['registry/kustomization.yaml', ['registry.yaml']],
+  ['storage/local/kustomization.yaml', ['storage-class.yaml']],
+  ['storage/production/kustomization.yaml', ['hcloud-ccm.yaml', 'hcloud-csi.yaml']],
+] as const;
+
+function requireNativeResources(
+  path: string,
+  source: unknown,
+  expectedResources: readonly string[],
+) {
+  const kustomization = NativeKustomization(source);
+  if (kustomization instanceof type.errors) {
+    throw new Error(`${path} native Kustomization is invalid: ${kustomization.summary}`);
+  }
+  if (kustomization.resources.join('\n') !== expectedResources.join('\n')) {
+    // Proof: removing this comparison made a substituted networking resource list resolve instead
+    // of reject in the production validator on 2026-09-17.
+    throw new Error(`${path} native Kustomization resources differ from the locked graph`);
+  }
+}
 
 const ImageValues = type({
   repository: 'string>0',
@@ -305,6 +347,14 @@ export async function validatePlatform(
   for (const [index, [cluster, environment]] of clusterPaths.entries()) {
     const expectedCluster = clusters[index];
     const clusterRoot = join(root, 'infra/clusters', cluster, environment);
+    const clusterKustomizationPath = join(clusterRoot, 'kustomization.yaml');
+    requireNativeResources(clusterKustomizationPath, await readYaml(clusterKustomizationPath), [
+      'identity.yaml',
+      'controllers.yaml',
+      'storage.yaml',
+      'policy.yaml',
+      'platform.yaml',
+    ]);
     const identity = PlatformIdentity(await readYaml(join(clusterRoot, 'identity.yaml')));
     if (identity instanceof type.errors) {
       throw new Error(`${expectedCluster} cluster identity is invalid: ${identity.summary}`);
@@ -344,6 +394,11 @@ export async function validatePlatform(
         throw new Error(`${expectedCluster} ${stageName} dependency order is invalid`);
       }
     }
+  }
+
+  for (const [relativePath, resources] of platformKustomizations) {
+    const path = join(root, 'infra/platform', relativePath);
+    requireNativeResources(path, await readYaml(path), resources);
   }
 
   const releaseNames: string[] = [];

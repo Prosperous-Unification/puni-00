@@ -367,3 +367,21 @@ assertions.
 The final uncached check after the outer-rendering repair passed 149 tests with
 755 assertions, lint, typecheck, the toolchain lock reader and platform
 validation.
+
+The exact-SHA Astra review of `c0c82d7d` closed the Flux and Helm custom-resource
+overrides, then found the final unchecked rendering layer in native
+`kustomization.yaml` files. A JSON patch there removed Traefik's digest before
+the HelmRelease was reconciled; the validator passed and the exact Kustomize and
+Helm path rendered unpinned `docker.io/library/traefik:v3.7.13`.
+
+The validator now binds all four cluster-root and all five platform-stage native
+Kustomizations to strict resources-only schemas and their exact ordered resource
+lists. Native patches, image transforms, generators, components and resource
+substitution are rejected. Changing unknown fields from reject to delete made
+the patch negative resolve, and removing the exact-resource comparison made the
+resource-substitution negative resolve. Both guards were restored before the
+focused platform suite passed 19 tests with 35 assertions.
+
+The final uncached check after binding native Kustomizations passed 151 tests
+with 759 assertions, lint, typecheck, the toolchain lock reader and platform
+validation.

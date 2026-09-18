@@ -126,6 +126,30 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/traefik HelmRelease.*postRenderers/i);
   });
 
+  it('rejects a native Kustomize patch that overrides the locked image', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/kustomization.yaml',
+      'kind: Kustomization\nresources:',
+      'kind: Kustomization\npatches: []\nresources:',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/networking.*native Kustomization.*patches/i);
+  });
+
+  it('rejects a substituted native Kustomize resource graph', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/kustomization.yaml',
+      '  - traefik.yaml',
+      '  - namespaces.yaml',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /networking.*resources differ from the locked graph/i,
+    );
+  });
+
   it('rejects changed vendored chart bytes', async () => {
     const root = await mutablePlatform();
     const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');
