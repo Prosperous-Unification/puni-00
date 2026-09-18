@@ -152,15 +152,18 @@ release rehearsal. `.github/workflows/deploy-k3s.yml` is a manual dispatch from 
 inputs environment, cluster context, the staging candidate or the prod descriptor identity,
 and `apply` (default false, which plans):
 
-| Job         | Runner                     | Credentials                                | Runs                                                                                   |
-| ----------- | -------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `resolve`   | `ubuntu-latest`            | `GITHUB_TOKEN` read                        | refuses any ref but main; names the source (prod: the staging run's descriptor)        |
-| `admission` | `ubuntu-latest`            | none                                       | base-owned package bootstrap, then candidate checkout, `admit.sh`; uploads `admission` |
-| `describe`  | `ubuntu-latest`            | `GITHUB_TOKEN` read, `REGISTRY_READ_AUTH`  | main's code seals (staging) or re-checks (prod) against the `ci` run; uploads it       |
-| `deploy`    | `self-hosted, puni-deploy` | environment secrets, protected environment | main's code only; `deploy:k3s --descriptor`, journal in `vars.PUNI_DEPLOY_STATE`       |
+| Job         | Runner                     | Credentials                                | Runs                                                                                                        |
+| ----------- | -------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `resolve`   | `ubuntu-latest`            | `GITHUB_TOKEN` read                        | refuses any ref but main; names the source (prod: the staging run's descriptor) and refuses one not on main |
+| `admission` | `ubuntu-latest`            | none                                       | base-owned package bootstrap, then the candidate from main's history, `admit.sh`; uploads `admission`       |
+| `describe`  | `ubuntu-latest`            | `GITHUB_TOKEN` read, `REGISTRY_READ_AUTH`  | main's code seals (staging) or re-checks (prod) against the `ci` run; uploads it                            |
+| `deploy`    | `self-hosted, puni-deploy` | environment secrets, protected environment | main's code only; `deploy:k3s --descriptor`, journal in `vars.PUNI_DEPLOY_STATE`                            |
 
-Candidate code runs only in `admission`, on an ephemeral runner, after the trusted package is
-installed, with main's `.bun-version`. The admission route must be `installed-package`; the
+Candidate bytes exist only in `admission`, on an ephemeral runner, after the trusted package is
+installed, with main's `.bun-version`. The candidate must already be merged into the dispatching
+main: `resolve` refuses any other commit, and `admission` re-checks ancestry before cloning it
+from main's history, so this job, which can write main's Actions cache, never holds unreviewed
+bytes. No job in the workflow saves or restores an Actions cache. The admission route must be `installed-package`; the
 `archive-launcher` route writes no `admission.json` and is refused.
 
 Setup outside Git, all required:

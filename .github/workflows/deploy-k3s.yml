@@ -4,8 +4,9 @@
 # Trust layout (pinned by tools/tool-deploy/src/k8s/deploy-k3s-workflow.test.ts):
 #   resolve    ubuntu-latest, read-only. Refuses any ref but main; names the candidate source and
 #              refuses one that is not already on main.
-#   admission  ubuntu-latest, no secrets. Installs the base-owned package BEFORE checking out the
-#              candidate, runs `admit.sh`, and uploads `admission.json` as a workflow artifact.
+#   admission  ubuntu-latest, no secrets. Installs the base-owned package BEFORE the candidate
+#              exists, materialises it from main's history, runs `admit.sh`, and uploads
+#              `admission.json` as a workflow artifact.
 #   describe   ubuntu-latest, read-only. Trusted main code seals (staging) or re-checks (prod) the
 #              descriptor against the admission record and the `ci` run's gate/pixels evidence.
 #   deploy     the protected environment on the persistent deploy runner. It checks out only
@@ -253,7 +254,7 @@ jobs:
           printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
 
       # The package pin and lock come from main (this run's own commit), never the candidate,
-      # and are installed before the candidate checkout below exists.
+      # and are installed before the candidate exists.
       - name: Check out base-owned package bootstrap
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -275,11 +276,15 @@ jobs:
         id: bootstrap
         run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat" "$RUNNER_TEMP/twilight-bureaucrat" >> "$GITHUB_OUTPUT"
 
-      - name: Check out exact candidate
+      # Main's own history, which resolve proved contains the candidate. No step checks the
+      # candidate out by itself: the admission step materialises it after re-checking ancestry, so
+      # nothing from outside main is ever on disk in this cache-writing default-branch job.
+      - name: Check out main history
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ needs.resolve.outputs.source_sha }}
-          path: candidate
+          ref: ${{ github.sha }}
+          path: main-history
+          fetch-depth: 0
           persist-credentials: false
 
       # Deployment needs the package's admission record; the archive-launcher route certifies
@@ -297,6 +302,15 @@ jobs:
             printf 'deployment admission requires the installed-package route, not %s\n' "$ADMISSION_ROUTE" >&2
             exit 78
           fi
+          # Proof: deploy-k3s-workflow.test.ts runs this block with a side-branch candidate and
+          # observes exit 78 with no candidate directory; with the test replaced by `true` the
+          # side-branch tree was checked out.
+          if ! git -C "$GITHUB_WORKSPACE/main-history" merge-base --is-ancestor "$CANDIDATE_SHA" "$GITHUB_SHA"; then
+            printf 'candidate %s is not on main at %s\n' "$CANDIDATE_SHA" "$GITHUB_SHA" >&2
+            exit 78
+          fi
+          git clone --quiet --no-checkout "$GITHUB_WORKSPACE/main-history" "$GITHUB_WORKSPACE/candidate"
+          git -C "$GITHUB_WORKSPACE/candidate" checkout --quiet --detach "$CANDIDATE_SHA"
           bash "$RUNNER_TEMP/twilight-bureaucrat/admit.sh" "$RUNNER_TEMP/twilight-bureaucrat" \
             "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"
           test -s "$RUNNER_TEMP/twilight-bureaucrat/admission.json"

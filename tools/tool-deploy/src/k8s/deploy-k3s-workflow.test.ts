@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -53,6 +53,38 @@ function execute(script: string, env: Record<string, string>): { code: number; s
     stderr: 'pipe',
   });
   return { code: child.exitCode, stderr: child.stderr.toString() };
+}
+
+/** A repository whose main has `merged` then `head`, and `side` branched off `merged`. */
+function mainWithSideBranch(): { repository: string; merged: string; side: string; head: string } {
+  const repository = scratchSync('deploy-k3s-ancestry-');
+  roots.push(repository);
+  const git = (...args: string[]): string => {
+    const child = Bun.spawnSync(['git', '-C', repository, ...args], {
+      env: {
+        PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_AUTHOR_NAME: 'test',
+        GIT_AUTHOR_EMAIL: 'test@example.test',
+        GIT_COMMITTER_NAME: 'test',
+        GIT_COMMITTER_EMAIL: 'test@example.test',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (child.exitCode !== 0) throw new Error(`git ${args.join(' ')}: ${child.stderr.toString()}`);
+    return child.stdout.toString().trim();
+  };
+  git('init', '--quiet', '--initial-branch=main');
+  git('commit', '--quiet', '--allow-empty', '-m', 'merged');
+  const merged = git('rev-parse', 'HEAD');
+  git('checkout', '--quiet', '-b', 'side');
+  git('commit', '--quiet', '--allow-empty', '-m', 'unreviewed');
+  const side = git('rev-parse', 'HEAD');
+  git('checkout', '--quiet', 'main');
+  git('commit', '--quiet', '--allow-empty', '-m', 'head');
+  const head = git('rev-parse', 'HEAD');
+  return { repository, merged, side, head };
 }
 
 describe('infra-check.yml is unprivileged', () => {
@@ -110,17 +142,20 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     expect(checkouts.map((s) => s.with?.['persist-credentials'])).toEqual([false]);
   });
 
-  it('checks the candidate out only in the admission job, after the trusted bootstrap', () => {
-    const candidateCheckouts = Object.entries(jobs).flatMap(([name, job]) =>
+  it('checks out only main, and materialises the candidate after the trusted bootstrap', () => {
+    const otherCheckouts = Object.entries(jobs).flatMap(([name, job]) =>
       job.steps
         .filter((s) => s.uses?.startsWith('actions/checkout@'))
         .filter((s) => s.with?.['ref'] !== '${{ github.sha }}')
         .map(() => name),
     );
-    expect(candidateCheckouts).toEqual(['admission']);
+    expect(otherCheckouts).toEqual([]);
     const names = jobs['admission'].steps.map((s) => s.name ?? s.uses ?? '');
     expect(names.indexOf('Bootstrap trusted package')).toBeLessThan(
-      names.indexOf('Check out exact candidate'),
+      names.indexOf('Check out main history'),
+    );
+    expect(names.indexOf('Check out main history')).toBeLessThan(
+      names.indexOf('Admit the candidate'),
     );
   });
 
@@ -167,35 +202,7 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
   });
 
   it('refuses a candidate that is not already on main (production run block)', () => {
-    const repository = scratchSync('deploy-k3s-ancestry-');
-    roots.push(repository);
-    const git = (...args: string[]): string => {
-      const child = Bun.spawnSync(['git', '-C', repository, ...args], {
-        env: {
-          PATH: process.env['PATH'] ?? '/usr/bin:/bin',
-          GIT_CONFIG_GLOBAL: '/dev/null',
-          GIT_AUTHOR_NAME: 'test',
-          GIT_AUTHOR_EMAIL: 'test@example.test',
-          GIT_COMMITTER_NAME: 'test',
-          GIT_COMMITTER_EMAIL: 'test@example.test',
-        },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      if (child.exitCode !== 0)
-        throw new Error(`git ${args.join(' ')}: ${child.stderr.toString()}`);
-      return child.stdout.toString().trim();
-    };
-    git('init', '--quiet', '--initial-branch=main');
-    git('commit', '--quiet', '--allow-empty', '-m', 'merged');
-    const merged = git('rev-parse', 'HEAD');
-    git('checkout', '--quiet', '-b', 'side');
-    git('commit', '--quiet', '--allow-empty', '-m', 'unreviewed');
-    const side = git('rev-parse', 'HEAD');
-    git('checkout', '--quiet', 'main');
-    git('commit', '--quiet', '--allow-empty', '-m', 'head');
-    const head = git('rev-parse', 'HEAD');
-
+    const { repository, merged, side, head } = mainWithSideBranch();
     const guard = step(jobs['resolve'], 'Require a candidate already on main').run ?? '';
     const run = (source: string) =>
       execute(guard, { GITHUB_WORKSPACE: repository, GITHUB_SHA: head, SOURCE_SHA: source });
@@ -218,6 +225,38 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     expect(execute(guard, { RECOVERS: 'latest' }).code).toBe(78);
     expect(execute(guard, { RECOVERS: '' }).code).toBe(0);
     expect(execute(guard, { RECOVERS: 'abcdef012345-abcdef012345' }).code).toBe(0);
+  });
+
+  it('materialises only a candidate already on main for admission (production run block)', () => {
+    const { repository, merged, side, head } = mainWithSideBranch();
+    const workspace = scratchSync('deploy-k3s-admit-workspace-');
+    roots.push(workspace);
+    symlinkSync(repository, join(workspace, 'main-history'));
+    const admit = step(jobs['admission'], 'Admit the candidate').run ?? '';
+    const env = {
+      ADMISSION_ROUTE: 'installed-package',
+      RUNNER_TEMP: workspace,
+      GITHUB_WORKSPACE: workspace,
+      GITHUB_SHA: head,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+    };
+
+    const refused = execute(admit, { ...env, CANDIDATE_SHA: side });
+    expect(refused.code).toBe(78);
+    expect(refused.stderr).toContain('is not on main');
+    expect(existsSync(join(workspace, 'candidate'))).toBe(false);
+
+    // The merged candidate is checked out, then the absent test package ends the block.
+    const admitted = execute(admit, { ...env, CANDIDATE_SHA: merged });
+    expect(admitted.stderr).toContain('twilight-bureaucrat/admit.sh');
+    const checkedOut = Bun.spawnSync([
+      'git',
+      '-C',
+      join(workspace, 'candidate'),
+      'rev-parse',
+      'HEAD',
+    ]);
+    expect(checkedOut.stdout.toString().trim()).toBe(merged);
   });
 
   it('refuses admission on the archive-launcher route (production run block)', () => {
