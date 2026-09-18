@@ -8,19 +8,24 @@
  * no mode flag to set incorrectly, and `main.ts` cannot reach this module's
  * factory at all.
  *
- * **What it does NOT provide**, all three being Linux mechanisms the supervised
- * path owns and this one has no substitute for:
+ * **What it does NOT provide** depends on the platform, because the launcher
+ * arms its own guards only where the kernel has them (`launcher.py`):
  *
- * - no cgroup memory ceiling, so a solve here is unbounded in memory;
- * - no `PR_SET_PDEATHSIG`, so a be-01 that dies leaves the child running until
- *   its own `SIGALRM` deadline fires — and a stopped child outlives even that;
- * - no `systemd-run` timer, so the deadline has no durable external owner.
+ * - no cgroup memory ceiling anywhere. Linux gets only the launcher's loose
+ *   `RLIMIT_AS` backstop; Darwin has no memory bound at all;
+ * - no `PR_SET_PDEATHSIG` on Darwin, so a be-01 that dies leaves the child
+ *   running until its own `SIGALRM` deadline fires — and a stopped child
+ *   outlives even that. Linux arms it, and a Bun parent's SIGKILL was observed
+ *   to kill a guarded child while an unguarded control survived;
+ * - no `systemd-run` timer anywhere, so the deadline has no durable external owner.
  *
- * Those absences are reported by {@link LOCAL_SOLVER_CAPABILITIES} and printed
+ * Those absences are reported by {@link localSolverCapabilities} and printed
  * at startup rather than described only here. A profile that quietly implied
  * production's guarantees would be the same class of untruth as the stale seat
  * that reported `retrying` with nothing running.
  */
+import { join, resolve } from 'node:path';
+
 import type {
   ReservedSolverChild,
   ReservedSpawner,
@@ -31,20 +36,21 @@ import { spawnSolverLauncher } from '../service/solver-launcher-process';
 /** What this profile actually guarantees, in the shape a caller can print. */
 export interface LocalSolverCapabilities {
   readonly kind: 'local-solver';
-  readonly parentDeath: 'no-immediate-termination';
-  readonly memoryEnforcement: 'none';
+  readonly parentDeath: 'kernel-signal' | 'no-immediate-termination';
+  readonly memoryEnforcement: 'address-space-backstop' | 'none';
   readonly oomEvidence: 'unavailable';
   readonly deadline: 'child-alarm-only';
 }
 
-/**
- * The literal capability record.
- *
- * Written as one frozen constant rather than assembled per call so that a
- * caller cannot report a capability the spawner does not have; the startup
- * banner and any future status endpoint read this same object.
- */
-export const LOCAL_SOLVER_CAPABILITIES: LocalSolverCapabilities = Object.freeze({
+const LINUX_CAPABILITIES: LocalSolverCapabilities = Object.freeze({
+  kind: 'local-solver',
+  parentDeath: 'kernel-signal',
+  memoryEnforcement: 'address-space-backstop',
+  oomEvidence: 'unavailable',
+  deadline: 'child-alarm-only',
+});
+
+const DARWIN_CAPABILITIES: LocalSolverCapabilities = Object.freeze({
   kind: 'local-solver',
   parentDeath: 'no-immediate-termination',
   memoryEnforcement: 'none',
@@ -52,16 +58,45 @@ export const LOCAL_SOLVER_CAPABILITIES: LocalSolverCapabilities = Object.freeze(
   deadline: 'child-alarm-only',
 });
 
+/**
+ * The capability record for the platform the launcher runs on.
+ *
+ * Frozen constants rather than a record assembled per call, so that a caller
+ * cannot report a capability the spawner does not have; the startup banner and
+ * any future status endpoint read these same objects.
+ *
+ * @throws For a platform whose launcher behaviour nobody has examined; reporting
+ * either record there would be a guess.
+ */
+export function localSolverCapabilities(platform: NodeJS.Platform): LocalSolverCapabilities {
+  if (platform === 'linux') return LINUX_CAPABILITIES;
+  if (platform === 'darwin') return DARWIN_CAPABILITIES;
+  throw new Error(`no local solver capability record for ${platform}; only linux and darwin`);
+}
+
+/**
+ * The provisioned environment's `bin`, from be-01's project directory — the
+ * `cwd` both serve targets give it.
+ *
+ * `.venv-solver` sits at the repo root, where `tools/dev/solver-environment.ts`
+ * builds it, so the depth here is the project's depth in the tree and must move
+ * with it.
+ */
+export function solverBinDirectory(projectDirectory: string): string {
+  return join(resolve(projectDirectory, '../../..'), '.venv-solver', 'bin');
+}
+
 export interface LocalSolverOptions {
-  /** Absolute `bin` of the provisioned environment; `solver-py:setup-macos` makes it. */
+  /** Absolute `bin` of the provisioned environment; `wbs-solver-py:setup-local-solver` makes it. */
   readonly binDirectory: string;
   /** CP-SAT search workers, matching the supervised path's configuration knob. */
   readonly searchWorkers: number;
   /**
    * Passed through to the launcher because its argument parser requires it.
    *
-   * It buys nothing on this platform: `_apply_address_space_limit` is Linux-only
-   * by construction, so this number is carried and discarded. It is NOT renamed
+   * On Darwin it buys nothing: `_apply_address_space_limit` is Linux-only by
+   * construction, so this number is carried and discarded. On Linux it sizes
+   * the launcher's `RLIMIT_AS` backstop at four times this value. It is NOT renamed
    * or defaulted away, because the launcher's protocol is production's and this
    * profile does not get to edit it.
    */

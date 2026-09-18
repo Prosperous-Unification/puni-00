@@ -73,7 +73,7 @@ describe('assertLocksAgree', () => {
 
 describe('solverEnvironment', () => {
   it('names absolute paths, never a bare interpreter', () => {
-    const environment = solverEnvironment('/repo');
+    const environment = solverEnvironment('/repo', { platform: 'darwin', arch: 'arm64' });
     expect(environment.python).toBe('/repo/.venv-solver/bin/python');
     expect(environment.bin).toBe('/repo/.venv-solver/bin');
     expect(environment.lock).toBe(
@@ -84,6 +84,37 @@ describe('solverEnvironment', () => {
     // The launcher execs `wbs-solver` through PATH, so `bin` is not a
     // convenience: it is what the local solver must put first.
     expect(environment.bin.endsWith('/bin')).toBe(true);
+  });
+
+  /**
+   * Linux x86_64 is the runtime's own lock, so a Linux developer installs the
+   * exact artifacts h2puni runs rather than a macOS wheel pip rejects on hash.
+   *
+   * Proof: returning the macOS lock for every host failed this case on
+   * `Expected: "/repo/libs/wbs/adapters/solver-py/requirements.lock" / Received:
+   * "/repo/libs/wbs/adapters/solver-py/requirements.macos-arm64.lock"`.
+   */
+  it('installs Linux x86_64 from the runtime lock', () => {
+    expect(solverEnvironment('/repo', { platform: 'linux', arch: 'x64' }).lock).toBe(
+      '/repo/libs/wbs/adapters/solver-py/requirements.lock',
+    );
+  });
+
+  /**
+   * Every lock is single-platform, so a host without one would fail later as a
+   * hash mismatch that names a wheel rather than the missing platform.
+   *
+   * Proof: returning the macOS lock for every host that is not linux/x64 failed
+   * this case on
+   * `Received function did not throw`.
+   */
+  it('refuses a host no lock was generated for', () => {
+    expect(() => solverEnvironment('/repo', { platform: 'linux', arch: 'arm64' })).toThrow(
+      'no solver lock for linux/arm64',
+    );
+    expect(() => solverEnvironment('/repo', { platform: 'darwin', arch: 'x64' })).toThrow(
+      'no solver lock for darwin/x64',
+    );
   });
 });
 
@@ -173,7 +204,9 @@ describe('verifySolverEnvironment', () => {
 
   it('refuses an environment that was never provisioned', () => {
     expect(() => {
-      verifySolverEnvironment(solverEnvironment(scratchSync('absent-')));
+      verifySolverEnvironment(
+        solverEnvironment(scratchSync('absent-'), { platform: 'linux', arch: 'x64' }),
+      );
     }).toThrow('not provisioned');
   });
 });
