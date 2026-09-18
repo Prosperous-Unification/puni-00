@@ -867,10 +867,11 @@
         variants = ['A', 'B', 'C'],
         titles = { A: 'Work overview', B: 'Conversation first', C: 'Delivery board' };
       const secretary = { id: 'secretary', name: 'Secretary', tone: '' };
-      let variant = new URL(location.href).searchParams.get('variant') || 'A',
+      // The query value only selects one of the constant layout names; it is never rendered.
+      const requested = new URL(location.href).searchParams.get('variant');
+      let variant = requested === 'B' ? 'B' : requested === 'C' ? 'C' : 'A',
         recipient = 'secretary',
         noticeTimer;
-      if (!variants.includes(variant)) variant = 'A';
       const esc = (value) =>
         String(value).replace(
           /[&<>"']/g,
