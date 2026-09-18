@@ -31,6 +31,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends bubblewrap
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
           # Proof: removing this provisioning made the package suite refuse because bwrap was
           # absent; this probe also refuses runners that install it but disable mount namespaces.
           bwrap --die-with-parent --new-session --ro-bind / / --dev /dev --proc /proc true
