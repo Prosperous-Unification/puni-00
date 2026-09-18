@@ -1,0 +1,10 @@
+---
+- name: Require the intended enrollment identity
+  # Proof: reversing the machine-ID comparison made the matching pinned-controller play exit 2;
+  # different machine-ID and address inputs independently exited 2 on the production assertion.
+  ansible.builtin.assert:
+    that:
+      - puni_enrollment_uid | length > 0
+      - puni_enrollment_machine_id == puni_expected_machine_id
+      - puni_enrollment_address == puni_expected_address
+    fail_msg: Node does not match its independently observed machine identity and address

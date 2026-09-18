@@ -1,0 +1,84 @@
+# Synthetic worker Job for fleet infrastructure drills only; it is not Twilight's worker contract.
+# `maintenance-workers.ts` renders one per run: it sets the name, run id, scenario, hold and the
+# digest-named bundle ConfigMap, and refuses a template whose bounds below have loosened.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: synthetic-template
+  namespace: workers
+  labels:
+    puni.dev/workload: worker
+    puni.dev/proof: infrastructure
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  # A replacement pod starts only after the old one has terminated, so one run never has two
+  # live pods sharing an identity.
+  podReplacementPolicy: Failed
+  # Proof (k3d, 2026-09-18): a drained pod was replaced on the other agent and the Job finished
+  # with failed unset; a pod on a stopped node was replaced only after the out-of-service fence
+  # taint; OOMKilled (137) failed the Job without a retry. With memory-backed scratch, the
+  # disk-exhaustion run stopped at exactly 64 MiB with ENOSPC (exit 1, retried once by
+  # backoffLimit); the earlier disk-backed scratch was evicted only after about 2 GB.
+  podFailurePolicy:
+    rules:
+      # Drain, node loss and kubelet eviction are infrastructure disruption: retry elsewhere.
+      - action: Ignore
+        onPodConditions: [{ type: DisruptionTarget }]
+      # Out of memory or a cancelled run never retries.
+      - action: FailJob
+        onExitCodes: { containerName: worker, operator: In, values: [137, 143] }
+  template:
+    metadata:
+      labels:
+        puni.dev/workload: worker
+        puni.dev/proof: infrastructure
+    spec:
+      restartPolicy: Never
+      serviceAccountName: worker
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 20
+      nodeSelector:
+        puni.dev/capability-execution: 'true'
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: worker
+          image: docker.io/oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f
+          command:
+            - sh
+            - -ec
+            - gzip -dc /bundle/worker.js.gz > /runner/worker.js && exec bun /runner/worker.js
+          env:
+            - { name: PUNI_RUN_ID, value: template }
+            - { name: PUNI_WORKSPACE, value: /workspace }
+            - { name: PUNI_SCENARIO, value: complete }
+            - { name: PUNI_HOLD_SECONDS, value: '0' }
+            - { name: HOME, value: /runner }
+            - { name: TMPDIR, value: /runner }
+            - { name: BUN_RUNTIME_TRANSPILER_CACHE_PATH, value: '0' }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi, ephemeral-storage: 160Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: workspace, mountPath: /workspace }
+            - { name: runner, mountPath: /runner }
+            - { name: bundle, mountPath: /bundle, readOnly: true }
+      volumes:
+        # Memory-backed scratch is a tmpfs of exactly sizeLimit: a write past it fails with ENOSPC
+        # at once, and its pages count against the container's memory limit. Disk-backed
+        # emptyDir is only evicted after the kubelet's next scan (2 GB written into 64 MiB).
+        - name: workspace
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+        - name: runner
+          emptyDir: { medium: Memory, sizeLimit: 16Mi }
+        - name: bundle
+          configMap: { name: harness-worker-bundle }

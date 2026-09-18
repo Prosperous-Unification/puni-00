@@ -613,7 +613,7 @@ async function sourceFilesIn(root: URL, prefix: string): Promise<{ path: string;
  * `Tier` was written out four times and inline twice more, `Color` three times,
  * and the image names, container names and ports twice each — across four
  * projects that have to agree or a deploy pushes an image the server will not
- * run. `@wbs/deploy-contract` is the one declaration since 2026-09-02, and this
+ * run. `@tools/deploy-contract` is the one declaration since 2026-09-02, and this
  * is what stops the copies coming back: a re-declared union reads exactly like
  * the original to anybody who does not go looking for the other three.
  *
@@ -773,5 +773,126 @@ describe('the root fast tier discovers every eligible project', () => {
     // inventory, and its deliberate assertion failed on Expected: false,
     // Received: true. Watched through `bun run test:unit` on 2026-09-10.
     expect(Reflect.get(root.scripts, 'test:unit')).toBe('nx run-many -t test:unit');
+  });
+});
+
+describe('lint:fast cache locations', () => {
+  it('every lint:fast cache location is qualified by the Nx project name', async () => {
+    const unqualified = (await readProjects(WORKSPACE)).flatMap((project) => {
+      const options = project.targets['lint:fast']?.options;
+      const command = options?.command;
+      if (typeof command !== 'string') return [];
+      const expected = `--cache-location .nx/eslintcache-${project.name}`;
+      return command.includes(expected) ? [] : [`${project.root}: ${command}`];
+    });
+    // Proof: before the rename this failed with `Expected - 1 / Received + 18`,
+    // listing all 16 product manifests and the unqualified cache each still
+    // named — apps/wbs/be-01 (eslintcache-be-01), apps/wbs/fe-01 (-fe-01),
+    // apps/wbs/gw-01 (-gw-01), apps/wbs/mcp-01 (-mcp-01),
+    // libs/wbs/adapters/auth (-auth), .../config (-config),
+    // .../observability (-observability), .../realtime (-realtime),
+    // .../runtime-portable (-runtime-portable), .../store-memory (-store-memory),
+    // .../store-sqlite (-store-sqlite), libs/wbs/application/conformance
+    // (-conformance), .../core (-core), libs/wbs/domain/contracts (-contracts),
+    // .../domain (-domain) and .../validation (-validation) (2026-09-15).
+    // A second product's be-01 would otherwise share `.nx/eslintcache-be-01`
+    // with WBS, so each would invalidate the other's ESLint cache.
+    expect(unqualified).toEqual([]);
+  });
+});
+
+/**
+ * The one file every workflow oracle reads is the one file `outsideReads` cannot see.
+ *
+ * Both spellings in this workspace slip past that walk. `join(import.meta.dir, '..', '..',
+ * '..', '..', '.github', 'workflows', 'ci.yml')` is not a single `../../../…` literal, and
+ * `read('.github/workflows/ci.yml')` beneath a `new URL('../../../', import.meta.url)`
+ * resolves to the workspace root, which that walk skips as too broad. So a suite whose whole
+ * subject is `.github/workflows/ci.yml` could read it while no target declared it.
+ *
+ * That was not hypothetical. Until 2026-09-16 `tool-git-hooks:test` declared
+ * `["default", "^production", "{workspaceRoot}/lefthook.yml"]` while
+ * `pixels-workflow.test.ts` and `corpus-lint-workflow.test.ts` both read the workflow, and
+ * `tool-wiki:test` declared no inputs at all while `gate-entrypoints.test.ts` and
+ * `selectors.test.ts` read it — and `gate-entrypoints.test.ts` reads
+ * `.github/workflows/trusted-wiki.yml`, which nothing declared either. With the gate now
+ * running `nx affected` on pull requests, that is worse than a stale cache: a pull request
+ * whose only edit is `ci.yml` never schedules the suite that is entirely about `ci.yml`, and
+ * reports green. An oracle is only as reachable as its Nx inputs.
+ *
+ * The list is data, so adding a workflow here is the whole change — but a name in it is not
+ * evidence that anything reads it. See the two non-vacuity assertions below for why that
+ * takes an assertion of its own, and why the obvious one cannot supply it.
+ */
+const TRACKED_WORKFLOWS = [
+  '.github/workflows/ci.yml',
+  '.github/workflows/trusted-wiki.yml',
+  '.github/workflows/infra-check.yml',
+  '.github/workflows/deploy-k3s.yml',
+] as const;
+
+/** Whether a source names this workflow, with its path written either way. */
+function readsWorkflow(source: string, workflow: string): boolean {
+  return source.replace(/["'`,\s\\/]+/g, '').includes(workflow.replaceAll('/', ''));
+}
+
+describe('every suite that reads a CI workflow declares it', () => {
+  it('names each workflow in the test target that runs it', async () => {
+    const readersOf = new Map<string, string[]>(TRACKED_WORKFLOWS.map((each) => [each, []]));
+    const undeclared: string[] = [];
+    for (const project of await readProjects(WORKSPACE)) {
+      const sources = new Bun.Glob('src/**/*.test.{ts,tsx}');
+      const read = new Set<string>();
+      for await (const path of sources.scan({
+        cwd: new URL(`${project.root}/`, WORKSPACE).pathname,
+      })) {
+        const source = await readFile(new URL(`${project.root}/${path}`, WORKSPACE), 'utf8');
+        for (const workflow of TRACKED_WORKFLOWS)
+          if (readsWorkflow(source, workflow)) read.add(workflow);
+      }
+      if (read.size === 0) continue;
+      const declared = (project.targets['test']?.inputs ?? [])
+        .filter(
+          (each): each is string => typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
+        )
+        .map((each) => each.slice('{workspaceRoot}/'.length));
+      for (const workflow of TRACKED_WORKFLOWS) {
+        if (!read.has(workflow)) continue;
+        readersOf.get(workflow)?.push(project.name);
+        if (!declared.some((pattern) => new Bun.Glob(pattern).match(workflow)))
+          undeclared.push(`${project.name}:test does not declare ${workflow}`);
+      }
+    }
+
+    // Non-vacuity, per workflow, and it takes TWO assertions because they prove different
+    // things and the obvious single one proves neither on its own.
+    //
+    // The first is self-proving that the DETECTOR runs: this file names every tracked path,
+    // so a `readsWorkflow` that stopped matching finds nothing at all and fails here rather
+    // than passing over an empty scan.
+    //
+    // The second is that each ENTRY is real. The first cannot do that job, and neither can
+    // the flattened reader list it replaced: `TRACKED_WORKFLOWS` lives in this file, so
+    // whatever string is in it self-matches and `tool-devsync` is a reader of a typo too.
+    // Watched 2026-09-16 — with the second entry misspelled `trusted-wikii.yml`, asserting
+    // only `toContain('tool-devsync')` stayed GREEN, checking nothing. A tracked workflow
+    // some real suite reads has a reader that is not this file's own project.
+    for (const workflow of TRACKED_WORKFLOWS) {
+      const readers = readersOf.get(workflow) ?? [];
+      expect(readers, `the detector matched nothing for ${workflow}`).toContain('tool-devsync');
+      expect(
+        readers.filter((name) => name !== 'tool-devsync'),
+        `${workflow} is read by no suite but the list that names it`,
+      ).not.toBeEmpty();
+    }
+    // Proof, watched red on 2026-09-16 against the real manifests. Before any input was
+    // added: `["tool-git-hooks:test does not declare .github/workflows/ci.yml",
+    // "tool-wiki:test does not declare .github/workflows/ci.yml"]`. With `ci.yml` declared
+    // and `trusted-wiki.yml` not — `gate-entrypoints.test.ts` reads both — it failed again
+    // on `["tool-wiki:test does not declare .github/workflows/trusted-wiki.yml"]`.
+    // Reverting `tool-git-hooks/project.json` alone reproduces the first line.
+    // Proof: with deploy-k3s.yml removed from tool-deploy:test's inputs this failed on
+    // `["tool-deploy:test does not declare .github/workflows/deploy-k3s.yml"]` (2026-09-18).
+    expect(undeclared).toEqual([]);
   });
 });

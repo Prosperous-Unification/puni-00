@@ -26,6 +26,21 @@ describe('the host-owned solver image map', () => {
     );
   });
 
+  it('maps the k3s backend pod caller only with a digest-pinned caller image', () => {
+    const policy = supervisorImagePolicy([
+      { callerName: 'k8s_wbs-solver_backend', callerImage: BLUE, solverImage: SOLVER },
+    ]);
+    expect(policy.allowedNamePatterns.map((pattern) => pattern.source)).toEqual([
+      '^k8s_wbs-solver_backend$',
+    ]);
+    expect(policy.imageFor({ id: '1', name: 'k8s_wbs-solver_backend', image: BLUE })).toBe(SOLVER);
+    expect(() =>
+      supervisorImagePolicy([
+        { callerName: 'k8s_wbs-solver_backend', callerImage: null, solverImage: SOLVER },
+      ]),
+    ).toThrow(/callerImage is not digest-pinned/);
+  });
+
   it('refuses a stale prod image and an authenticated caller absent from the map', () => {
     const policy = supervisorImagePolicy(RULES);
     expect(() =>

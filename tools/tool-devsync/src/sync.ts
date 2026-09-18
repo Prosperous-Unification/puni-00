@@ -34,7 +34,7 @@ import {
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
-} from '@wbs/deploy-contract';
+} from '@tools/deploy-contract';
 import { $ } from 'bun';
 
 import { prepareTargetSolverBinding } from './solver-binding-host';
@@ -400,6 +400,13 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',
   'apps/wbs/mcp-01/project.json',
+  // The wiki CLI has no serve target, but it is an app on disk and `sync.test.ts`
+  // walks apps rather than trusting this list; a manifest the supervisor's project
+  // graph reads at startup belongs here either way.
+  // Proof: omitting it failed `names every app project.json, which the supervisor
+  // reads once at startup` on `Expected to contain: "apps/wiki/cli/project.json"`
+  // (2026-09-16).
+  'apps/wiki/cli/project.json',
   'apps/wbs/fe-01/vite.config.ts',
   // TypeScript config is read once, at process start. A moved path alias
   // resolves against the old mapping in three already-running processes while
@@ -410,6 +417,9 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/wbs/gw-01/tsconfig.json',
   'apps/wbs/fe-01/tsconfig.json',
   'apps/wbs/mcp-01/tsconfig.json',
+  // Proof: omitting this entry failed `names every app tsconfig, which is read once at
+  // process start` on `Expected to contain: "apps/wiki/cli/tsconfig.json"` (2026-09-16).
+  'apps/wiki/cli/tsconfig.json',
   // A library's project.json can change what its serve-time build resolves to,
   // and the Nx supervisor read the project graph at startup like the rest.
   // Listed per library rather than as `libs`, which would restart on every
@@ -436,6 +446,10 @@ export const RESTART_PATHS: readonly string[] = [
   'libs/wbs/adapters/store-sqlite/project.json',
   'libs/wbs/domain/validation/project.json',
   'libs/wbs/adapters/solver-py/project.json',
+  // Proof: omitting this entry after creating the project failed `names every
+  // library project.json that exists on disk` with `Expected to contain:
+  // "libs/shared/domain/validation/project.json"` (2026-09-15).
+  'libs/shared/domain/validation/project.json',
 ];
 
 /**

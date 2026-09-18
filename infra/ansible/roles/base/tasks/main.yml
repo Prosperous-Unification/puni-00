@@ -1,0 +1,144 @@
+---
+- name: Require supported host and base security inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '24.04'
+      - ansible_architecture in ['x86_64', 'amd64']
+      - puni_operator_name is defined
+      - puni_operator_name | length > 0
+      - puni_operator_authorized_keys is defined
+      - puni_operator_authorized_keys | length > 0
+      - puni_swap_enabled is defined
+      - puni_swap_enabled == false
+      - puni_machine_id is defined
+      - puni_machine_id is match('^[0-9a-f]{32}$')
+    fail_msg: Host support, operator identity, keys, and the disabled-swap policy are required
+
+- name: Install host prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - chrony
+      - conntrack
+      - curl
+      - iptables
+      - jq
+      - nftables
+      - nfs-common
+      - open-iscsi
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the fleet operator
+  ansible.builtin.user:
+    name: '{{ puni_operator_name }}'
+    create_home: true
+    shell: /bin/bash
+    groups: sudo
+    append: true
+
+- name: Create the operator SSH directory
+  ansible.builtin.file:
+    path: '/home/{{ puni_operator_name }}/.ssh'
+    state: directory
+    owner: '{{ puni_operator_name }}'
+    group: '{{ puni_operator_name }}'
+    mode: '0700'
+
+- name: Install the exact operator authorized keys
+  ansible.builtin.copy:
+    dest: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
+    content: |
+      {{ puni_operator_authorized_keys | join('\n') }}
+    owner: '{{ puni_operator_name }}'
+    group: '{{ puni_operator_name }}'
+    mode: '0600'
+
+- name: Install the operator sudo boundary
+  # Proof: replacing the template newline with literal `\n` made the rendered-output visudo test fail.
+  ansible.builtin.template:
+    src: operator-sudoers.j2
+    dest: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Remove the broad cloud-init bootstrap sudo file
+  ansible.builtin.file:
+    path: /etc/sudoers.d/90-cloud-init-users
+    state: absent
+
+- name: Create the journald configuration directory
+  # Proof: a clean Ubuntu 24.04 VM omitted this directory and the production bootstrap exited 2
+  # before the bounded journald policy could be installed.
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Render bounded journald storage
+  ansible.builtin.template:
+    src: journald-fleet.conf.j2
+    dest: /etc/systemd/journald.conf.d/50-puni-fleet.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart journald
+
+- name: Render k3s kernel settings
+  ansible.builtin.template:
+    src: k3s-sysctl.conf.j2
+    dest: /etc/sysctl.d/90-puni-k3s.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Apply k3s sysctls
+
+- name: Inspect required k3s kernel modules
+  ansible.builtin.stat:
+    path: '/sys/module/{{ item }}'
+  loop:
+    - overlay
+    - br_netfilter
+  register: puni_k3s_modules
+
+- name: Load required k3s kernel modules
+  ansible.builtin.command: 'modprobe {{ item.item }}'
+  loop: '{{ puni_k3s_modules.results }}'
+  when: not item.stat.exists
+  changed_when: true
+
+- name: Persist required k3s kernel modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/puni-k3s.conf
+    content: "overlay\nbr_netfilter\n"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Read active swap devices
+  ansible.builtin.command: cat /proc/swaps
+  register: puni_active_swap
+  changed_when: false
+
+- name: Disable active swap explicitly
+  ansible.builtin.command: swapoff --all
+  when: puni_active_swap.stdout_lines | length > 1
+  changed_when: true
+
+- name: Disable configured swap mounts
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(?!#)(\S+\s+\S+\s+swap\s+.*)$'
+    replace: '# puni-fleet disabled swap: \1'
+
+- name: Start chrony
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true

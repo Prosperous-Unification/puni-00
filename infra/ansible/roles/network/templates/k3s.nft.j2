@@ -1,0 +1,28 @@
+destroy table inet puni_k3s
+table inet puni_k3s {
+  set enrolled_ipv4 {
+    type ipv4_addr
+    flags interval
+    elements = { {{ puni_enrolled_private_addresses | join(', ') }} }
+  }
+
+  set cluster_ipv4 {
+    type ipv4_addr
+    flags interval
+    elements = { {{ puni_cluster_cidr }} }
+  }
+
+  chain input {
+    type filter hook input priority -5; policy accept;
+    iifname "lo" accept
+    tcp dport 22 accept comment "retain SSH recovery"
+    # Proof: removing this rule made the pod-to-API firewall contract test fail.
+    # Proof: without 10250 the live QEMU lab metrics-server could not scrape its own node's
+    # kubelet ("connection refused") and stayed unready after an agent retirement.
+    iifname { "cni0", "flannel.1" } ip saddr @cluster_ipv4 tcp dport { 6443, 10250 } accept
+    iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 tcp dport { 6443, 2379, 2380, 10250 } accept
+    tcp dport { 6443, 2379, 2380, 10250 } reject with tcp reset
+    iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 udp dport 8472 accept
+    udp dport 8472 drop
+  }
+}

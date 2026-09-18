@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: puni-telemetry
+  namespace: observability
+data:
+  cluster: workers-local
+  # The platform-local cluster's otel-gateway NodePort.
+  upstream: host.k3d.internal:30417

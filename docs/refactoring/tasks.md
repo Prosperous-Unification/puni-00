@@ -84,6 +84,28 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       produce typed 409 reads and `plan_unavailable` publication; detached capture preserves
       the selected schedule or named absence without admitting a solve; the SQLite adapter
       retains the existing hash bytes and scheduler contract version.
+- [ ] **A devsync oracle comparing `check.*` facts to their Nx manifests** — a target pinned
+      by a `check.*` fact in `docs/wiki-policy/relationships.json` and
+      `relationships.bootstrap.json` carries its WHOLE configuration in that fact, `inputs`
+      included, and the declarations extractor refuses any drift. Changing a pinned target
+      without updating both facts therefore breaks `wiki-cli:test`, and nothing says so until
+      that ~15-minute suite runs: on 2026-09-16 the `affected-pr-gate` work added two workflow
+      inputs to that target — then still named `tool-wiki:test` — and the h2puni smoke gate was
+      what caught it, one round after the change had been reviewed. A tool-devsync oracle reading every `check.*` fact and
+      comparing `expectedConfiguration` with the real manifest would fail in seconds instead,
+      beside the other manifest oracles in `workspace-targets.test.ts`. Until it exists, any
+      change to a fact-pinned target MUST update the fact in both files in the same commit.
+- [ ] **Narrow `wiki-cli:lint` and `tool-devsync:test` inputs** — both declare
+      `{workspaceRoot}/**/*`, so `nx show projects --affected` names them for EVERY file:
+      measured 2026-09-16 before the wiki moved, `--files=LLM_README.md` answered
+      `["tool-devsync","tool-wiki"]`; re-measured on this branch after the move, it answers
+      `["tool-devsync","wiki-cli"]` — the same two projects under the new name.
+      Two consequences for the affected PR gate (`openspec/changes/affected-pr-gate`): its
+      `tool_wiki=skip` branch is unreachable today, and the per-PR saving is bounded well
+      under the 38 minutes its proposal cites. Narrowing them is a wiki-policy decision about
+      what the wiki's lint is really allowed to read, not a change the gate work may make on
+      its own — `wiki-cli:lint`'s catch-all is what its admission model rests on. Needs its
+      own change with the usual negatives before either input moves.
 - [ ] **[source-conformance-completion](../../openspec/changes/source-conformance-completion/tasks.md)** —
       after core's source composition/staged memory. Complete the named 17 transactional
       plus two independent-history families, typed broken-source controls and honest
@@ -125,6 +147,55 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       benefit remains unestablished.
       Precedents, Drift anchors and the extraction trigger:
       [plan](../plans/2026-09-13-tool-wiki-precedents-and-extraction.md).
+- [ ] core↔store-memory cycle: all 27 core importers of `@wbs/store-memory` are under
+      `libs/wbs/application/core/src/testing/` and `libs/wbs/application/core/testing/`. Move
+      `src/testing/harness.ts`, `src/testing/writes-fixture.ts` and `testing/portable-composition.ts`
+      into `libs/wbs/application/conformance` (already `ring:application`, already depends on
+      both), then delete every `ignoredCircularDependencies` entry in `eslint.config.js`.
+- [ ] Solver host tooling relocation: `tools/tool-remote-scripts/src/lib/solver-supervisor-*`,
+      `src/materialize-solver-supervisor-config.ts`, `deploy/solver-supervisor/*` and
+      `tools/dev/write-*-golden-corpus.ts` are WBS code in infra. Move them under `apps/wbs/`
+      (a `wbs-host-tools` project, `ring:adapter`, `product:wbs`), then remove both entries from
+      the `allow` list in `eslint.config.js` and the pinning test in eslint-boundaries.test.ts.
+      The tools-scoped `allow` in eslint.config.js is keyed on the import specifier — each entry
+      anchored, so it excuses that exact specifier and no subpath of it — which still leaves any
+      other tool importing one of the two aliases excused too; the relocation closes that.
+- [ ] Archive completed OpenSpec packets: ~120 unarchived `openspec/changes/*` directories still
+      name pre-move roots; the handoff legacy-path scan therefore covers only the active packet.
+      Archive every packet whose tasks are all checked and merged (`opsx:bulk-archive`), then
+      widen `ACTIVE_OPENSPEC_PACKET` in repo-namespacing-handoff.test.ts to every unarchived packet.
+- [ ] Derive fe-01's alias maps: `apps/wbs/fe-01` repeats the `@wbs/*`/`@shared/*` alias list in
+      eight places (vite, vitest, four tsconfigs) with nothing comparing them to
+      `tsconfig.base.json`; Task 1.3b had to add `@shared/validation` by hand. Generate the Vite
+      alias map from `tsconfig.base.json` and pin equality in vite-config.test.ts.
+- [ ] Make `shared-validation` buildable or drop tool-devsync's buildable status: tool-devsync's
+      shellcheck `build` target makes Nx treat it as buildable, so its tests may not import the
+      non-buildable `@shared/validation` without the eslint-disable in
+      repo-namespacing-handoff.test.ts. Give shared-validation a `build` target or move
+      shellcheck off the `build` name; then delete the disable.
+- [ ] heavy lock: atomic dead-holder reclaim and holderless lock-dir recovery — four pre-existing
+      shapes in `bin/heavy-lock-lib.sh` that the `fifo-heavy-lock` review found and deliberately
+      did not touch. (1) A holder killed between its `mkdir` and `record_lock_holder` leaves a
+      lock directory with no holder file; every later run reads that as a claim in progress and
+      queues for ever, so one SIGKILL (or one ENOSPC) wedges the host until a human removes the
+      directory. (2) The dead-holder reclaim is `rm -rf` then `mkdir`, which is not atomic: two
+      runs reclaiming the same stale lock can both succeed. Fix by renaming out of the way —
+      `mv "$lock_dir" "$lock_dir.stale.$$"` then removing the rename's result, so only the run
+      that won the rename proceeds. (3) A holder has no deadline, only a pid, so a SIGKILLed
+      holder whose pid the kernel reuses holds the lock for the whole life of the unrelated
+      process; tickets already carry a deadline for exactly this reason. (4)
+      `install_release_trap` replaces any INT/TERM trap the caller installed — the EXIT trap is
+      chained, these two are not. Two operational items from the same lock, observed once it became
+      visible: (5) `bin/h2puni-gate.sh`'s default `HEAVY_LOCK_WAIT_SECONDS` of 1800 cannot cover a
+      second waiter behind a full gate — on 2026-09-16 two queued gates expired behind a 40-minute
+      holder — so raise it to cover two gates and say what the number is derived from; (6)
+      `bin/with-heavy-lock.sh status` could mark a waiter whose budget has run out as expired in
+      its own right, since such a ticket is reclaimable and its owner has already given up.
+- [ ] Wiki policy rule overlap: a `*.test.ts` under a `fixtures/` segment matches both the `test`
+      (suffix) and `fixture` (segment) `contentRules` in `docs/wiki-policy/policy.json`, and
+      `classify-entries` refuses the whole candidate. Give the `fixture` rule the
+      `.test.ts`/`.test.tsx` exclusions its siblings carry, in a change that re-activates the
+      trusted policy (W5).
 
 ## R1–R9 archival closeout
 

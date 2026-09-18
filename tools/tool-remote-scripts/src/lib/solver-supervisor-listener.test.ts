@@ -45,6 +45,7 @@ describe('the solver supervisor Unix listener', () => {
           return { pid: process.pid, uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 };
         },
         cgroup: () => Promise.resolve(`0::/system.slice/docker-${CALLER_ID}.scope\n`),
+        inspectPod: () => Promise.reject(new Error('no pod peer in this fixture')),
         inspect: (id) => Promise.resolve({ id, name: 'wbs-dev-src', image: 'wbs-dev-src:1' }),
         run: async (frame, channel) => {
           seenFrame = frame;
@@ -115,6 +116,7 @@ describe('the solver supervisor Unix listener', () => {
           {
             credentials: () => ({ pid: process.pid, uid: 0, gid: 0 }),
             cgroup: () => Promise.resolve(`0::/system.slice/docker-${CALLER_ID}.scope\n`),
+            inspectPod: () => Promise.reject(new Error('no pod peer in this fixture')),
             inspect: (id) => Promise.resolve({ id, name: 'wbs-dev-src', image: 'wbs-dev-src:1' }),
             run: () => Promise.resolve(),
           },

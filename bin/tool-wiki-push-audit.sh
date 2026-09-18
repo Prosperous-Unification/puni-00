@@ -46,16 +46,27 @@ if [[ ! -r $descriptor ]]; then
   exit 78
 fi
 launcher_ref=$(<"$descriptor")
-if [[ $launcher_ref != /* ]]; then launcher_ref="$trusted_root/$launcher_ref"; fi
-if ! launcher=$(realpath -- "$launcher_ref") || [[ ! -f $launcher ]] || [[ ! -r $launcher ]]; then
+if ! launcher=$(realpath -- "$trusted_root/$launcher_ref") || [[ ! -f $launcher ]] ||
+  [[ ! -r $launcher ]]; then
   printf 'external launcher is not a readable regular file\n' >&2
   exit 78
 fi
 # Proof: gate-entrypoints.test.ts invokes this production script through a symlinked candidate
 # workspace while the external descriptor resolves back into it; canonical comparison exits 78.
+# This stays ahead of the root rule below so a candidate-owned launcher keeps its own name.
 case "$launcher" in
   "$candidate"/*)
     printf 'external launcher resolved inside candidate checkout\n' >&2
+    exit 78
+    ;;
+esac
+# Proof: gate-entrypoints.test.ts sets the descriptor to `../outside-launcher.sh` and observed that
+# launcher run with exit 0; the old rule refused only a launcher inside the candidate, while the
+# archive's transport digest authenticates nothing outside the archive at all.
+case "$launcher" in
+  "$trusted_root"/*) ;;
+  *)
+    printf 'external launcher resolved outside its activation root\n' >&2
     exit 78
     ;;
 esac
@@ -65,7 +76,7 @@ modules_input=${TOOL_WIKI_TRUSTED_NODE_MODULES:-$trusted_root/trusted-node-modul
 # the external launcher can run.
 if ! trusted_modules=$(realpath -- "$modules_input") || [[ ! -d $trusted_modules ]] ||
   [[ ! -f $trusted_modules/typescript/package.json ]]; then
-  printf 'external activation has no trusted TypeScript runtime modules\n' >&2
+  printf 'trusted TypeScript runtime modules are not provisioned: %s\n' "$modules_input" >&2
   exit 78
 fi
 # Proof: gate-entrypoints.test.ts explicitly points the runtime override inside the candidate and

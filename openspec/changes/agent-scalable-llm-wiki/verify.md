@@ -3100,6 +3100,11 @@ scoped 45-second ceiling after a local full-suite RED at 25013.97ms under its fo
 The global Bun timeout, required command chain, exit handling, and all other CI job limits remain
 unchanged.
 
+PR #7 run `35337661318`, job `105576147982` (2026-09-18, head `288b547a`), had every project affected
+and the packed package suite in scope. It spent 39m43s in the Nx gate step and reached the end of
+the solver image smoke at 44m48s, then was canceled at the 45-minute limit during the heavy-work
+lock test. The allowance is now 60 minutes.
+
 ### Slice 6.1 strict census tooling (operational freeze pending)
 
 The new exhaustive sweep record derives its primary population from immutable candidate B: every

@@ -1,0 +1,472 @@
+---
+- name: Retire one exact k3s node
+  hosts: all
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Require reviewed retirement identity and recovery evidence
+      ansible.builtin.assert:
+        that:
+          - puni_node_name is defined
+          - puni_kubernetes_node_uid is defined
+          - puni_kube_context is defined
+          - puni_backup_receipt is defined
+          - puni_backup_receipt | length > 0
+          - puni_control_plane_target is defined
+          - puni_etcd_membership_removed is defined
+          - puni_etcd_member_name is defined
+          - puni_api_endpoint_host is defined
+          - puni_minimum_surviving_control_planes | int >= 1
+          - puni_required_capability_floors is defined
+        fail_msg: Retirement requires exact node, cluster, Kubernetes UID, and backup evidence
+      tags: [always]
+
+    - name: Read exact Kubernetes node before every retirement mutation
+      ansible.builtin.command:
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            get,
+            node,
+            '{{ puni_node_name }}',
+            -o,
+            json,
+          ]
+      delegate_to: localhost
+      become: false
+      register: puni_retirement_node
+      changed_when: false
+      tags: [always]
+
+    - name: Require exact Kubernetes identity
+      ansible.builtin.assert:
+        that:
+          - (puni_retirement_node.stdout | from_json).metadata.uid == puni_kubernetes_node_uid
+          - >-
+            puni_kubernetes_provider_id | default('') | length == 0 or
+            (puni_retirement_node.stdout | from_json).spec.providerID == puni_kubernetes_provider_id
+        fail_msg: Live node identity differs from the reviewed retirement target
+      tags: [always]
+
+    - name: Require exact healthy etcd voter identity for a retiring server
+      ansible.builtin.assert:
+        that:
+          - (puni_retirement_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/node-name'] == puni_etcd_member_name
+          - (puni_retirement_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/node-address'] | length > 0
+          - >-
+            ((puni_retirement_node.stdout | from_json).status.conditions |
+            selectattr('type', 'equalto', 'EtcdIsVoter') |
+            selectattr('status', 'equalto', 'True') | list | length) == 1
+        fail_msg: Retiring server is not an identified healthy etcd voter
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
+      tags: [always]
+
+    - name: Require exact removed etcd voter identity during recovery
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((puni_retirement_node.stdout | from_json).metadata.annotations[
+            'etcd.k3s.cattle.io/removed-node-name'] | default('')) in ['', puni_etcd_member_name]
+        fail_msg: Removed etcd member marker differs from the persisted reviewed identity
+      when: puni_control_plane_target | bool
+      tags: [always]
+
+    # Proof: a seven-member fixture with an omitted Kubernetes Node passed the annotation-derived
+    # denominator; the linearizable MemberList supplies the actual voting denominator.
+    - name: Read actual embedded etcd voting membership
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          members="$(curl --fail --silent --show-error
+          --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
+          --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
+          --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
+          --header 'Content-Type: application/json' --data '{"linearizable":true}'
+          https://127.0.0.1:2382/v3/cluster/member/list)";
+          target='{{ puni_etcd_member_name }}';
+          voters="$(jq -c '[.members[] | select(.isLearner != true)]' <<<"$members")";
+          test "$(jq --arg target "$target" '[.[] | select(.name == $target)] | length' <<<"$voters")" -eq 1;
+          printf '%s\n' "$voters"
+      args:
+        executable: /bin/bash
+      register: puni_actual_etcd_voters
+      changed_when: false
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
+      tags: [always]
+
+    - name: Map every surviving etcd voter to one exact Kubernetes node
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - etcd-map
+          - '{{ puni_kube_context }}'
+          - '{{ puni_etcd_member_name }}'
+        stdin: '{{ puni_actual_etcd_voters.stdout }}'
+      delegate_to: localhost
+      become: false
+      register: puni_surviving_etcd_nodes
+      changed_when: false
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
+      tags: [always]
+
+    - name: Probe fresh linearizable health on every surviving etcd voter
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          status="$(curl --fail --silent --show-error
+          --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
+          --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
+          --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
+          --header 'Content-Type: application/json' --data '{}'
+          https://127.0.0.1:2382/v3/maintenance/status)";
+          jq -e --arg member_id '{{ puni_surviving_etcd_node.memberId }}'
+          '(.header.member_id | tostring) == $member_id' <<<"$status" >/dev/null;
+          curl --fail --silent --show-error
+          --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
+          --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
+          --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
+          https://127.0.0.1:2382/health?serializable=false |
+          jq -e '.health == true or .health == "true"' >/dev/null
+      args:
+        executable: /bin/bash
+      delegate_to: '{{ puni_surviving_etcd_node.nodeName }}'
+      # Proof: the live agent retirement failed here with `puni_surviving_etcd_node` undefined:
+      # Ansible templated delegate_to for the skipped non-server case before `when`. The mapping
+      # task is skipped without stdout there, so an empty loop skips this probe instead.
+      loop: "{{ puni_surviving_etcd_nodes.stdout | default('[]') | from_json }}"
+      loop_control:
+        loop_var: puni_surviving_etcd_node
+      register: puni_surviving_etcd_health
+      changed_when: false
+      failed_when: false
+      ignore_unreachable: true
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
+      tags: [always]
+
+    # Proof: four distinct healthy member IDs pass for seven voters while three fail; duplicate
+    # Kubernetes annotations are rejected by the mapping task before this count.
+    - name: Require a freshly healthy surviving majority of distinct etcd voters
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - etcd-majority
+          - '{{ puni_minimum_surviving_control_planes | int }}'
+        stdin: "{{ {'voters': puni_actual_etcd_voters.stdout | from_json, 'probes': puni_surviving_etcd_health.results} | to_json }}"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
+      tags: [always]
+
+    # Proof: the healthy-survivor probe failed with jq exit 5 when the floor entry replaced the
+    # nodes document in scope; binding the input as $nodes makes the same production filter pass.
+    - name: Require live Ready capacity for every cluster capability floor
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - floors
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
+          - '{{ puni_required_capability_floors | to_json }}'
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      tags: [preflight]
+
+    - name: Prove the registration endpoint survives server retirement
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          getent ahostsv4 '{{ puni_api_endpoint_host }}' |
+          awk '{print $1}' | sort -u | grep -vxF '{{ ansible_host }}' | grep -q .
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      when: puni_control_plane_target | bool
+      tags: [always]
+
+    - name: Refuse unmanaged, local-state, forge, singleton database, and hostPath workloads
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - workloads
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      tags: [preflight]
+
+    - name: Refuse PVCs backed by local or target-affined persistent volumes
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - local-volumes
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      tags: [preflight]
+
+    - name: Cordon exact node
+      ansible.builtin.command:
+        argv: [kubectl, --context, '{{ puni_kube_context }}', cordon, '{{ puni_node_name }}']
+      delegate_to: localhost
+      become: false
+      tags: [cordon]
+
+    # Reviewed exception to the generic drain's emptyDir refusal: only the k3s-bundled
+    # kube-system metrics-server, whose emptyDir is a cache, is moved first. Its namespace and
+    # label are exact; no other pod loses emptyDir data and the drain below keeps its refusal.
+    # Proof: without this step the live QEMU lab agent retirement stopped at the drain with
+    # "cannot delete Pods with local storage: kube-system/metrics-server-…".
+    - name: Move the reviewed emptyDir system pods off the node
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --context
+          - '{{ puni_kube_context }}'
+          - --namespace
+          - kube-system
+          - delete
+          - pod
+          - --selector
+          - k8s-app=metrics-server
+          - --field-selector
+          - 'spec.nodeName={{ puni_node_name }}'
+          - --wait=true
+          - --timeout=2m
+      delegate_to: localhost
+      become: false
+      register: puni_system_pod_move
+      changed_when: "'deleted' in puni_system_pod_move.stdout"
+      tags: [drain]
+
+    - name: Drain while respecting disruption budgets and local storage refusal
+      ansible.builtin.command:
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            drain,
+            '{{ puni_node_name }}',
+            --ignore-daemonsets,
+            --timeout=10m,
+          ]
+      delegate_to: localhost
+      become: false
+      tags: [drain]
+
+    # Proof: a Pending workload followed by an empty attachment list previously returned exit 0;
+    # errexit now preserves the first failed required check.
+    - name: Require workloads healthy elsewhere and all volume attachments detached
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - detached
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
+      delegate_to: localhost
+      become: false
+      register: puni_workloads_detached
+      # Rescheduled pods need time to become Ready; the wait is bounded and then refuses.
+      # Proof: without it the live QEMU lab retirement refused while the rescheduled
+      # metrics-server was still starting on the surviving agent.
+      until: puni_workloads_detached.rc == 0
+      retries: 36
+      delay: 5
+      changed_when: false
+      tags: [detach]
+
+    - name: Read installed services
+      ansible.builtin.service_facts:
+      tags: [deconfigure, verify]
+
+    - name: Stop and disable installed k3s services
+      ansible.builtin.systemd_service:
+        name: '{{ service_name }}'
+        state: stopped
+        enabled: false
+      loop: [k3s, k3s-agent]
+      loop_control:
+        loop_var: service_name
+      # Proof: the live agent retirement failed "Could not find the requested service k3s": the
+      # firewall unit's Before=k3s.service makes systemd list a not-found k3s.service stub.
+      when:
+        - (service_name + '.service') in ansible_facts.services
+        - ansible_facts.services[service_name + '.service'].status != 'not-found'
+      tags: [deconfigure]
+
+    # Proof: injecting generated server/token and server/agent-token files previously let verify
+    # pass; both generated authority paths now participate in removal and absence verification.
+    - name: Remove node enrollment configuration and credentials
+      ansible.builtin.file:
+        path: '{{ credential_path }}'
+        state: absent
+      loop:
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s/agent
+        - /var/lib/rancher/k3s/server/cred
+        - /var/lib/rancher/k3s/server/tls
+        - /var/lib/rancher/k3s/server/token
+        - /var/lib/rancher/k3s/server/agent-token
+      loop_control:
+        loop_var: credential_path
+      tags: [deconfigure]
+
+    - name: Inspect retired credential paths
+      ansible.builtin.stat:
+        path: '{{ credential_path }}'
+      register: puni_retired_credentials
+      loop:
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s/agent
+        - /var/lib/rancher/k3s/server/cred
+        - /var/lib/rancher/k3s/server/tls
+        - /var/lib/rancher/k3s/server/token
+        - /var/lib/rancher/k3s/server/agent-token
+      loop_control:
+        loop_var: credential_path
+      tags: [verify]
+
+    - name: Verify services are inactive and disabled and credentials are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (service_name + '.service') not in ansible_facts.services or
+            ansible_facts.services[service_name + '.service'].status == 'not-found' or
+            (ansible_facts.services[service_name + '.service'].state != 'running' and
+            ansible_facts.services[service_name + '.service'].status == 'disabled')
+          - puni_retired_credentials.results | selectattr('stat.exists', 'equalto', true) | list | length == 0
+        fail_msg: Retired k3s service or enrollment credential remains active
+      loop: [k3s, k3s-agent]
+      loop_control:
+        loop_var: service_name
+      tags: [verify]
+
+    - name: Request exact embedded etcd member removal
+      ansible.builtin.command:
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            annotate,
+            node,
+            '{{ puni_node_name }}',
+            etcd.k3s.cattle.io/remove=true,
+            --overwrite,
+          ]
+      delegate_to: localhost
+      become: false
+      when:
+        - puni_control_plane_target | bool
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
+      tags: [etcd-membership]
+
+    - name: Wait for exact embedded etcd member removal
+      ansible.builtin.command:
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            get,
+            node,
+            '{{ puni_node_name }}',
+            -o,
+            json,
+          ]
+      delegate_to: localhost
+      become: false
+      register: puni_etcd_removed_node
+      changed_when: false
+      until: >-
+        (puni_etcd_removed_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/removed-node-name'] |
+        default('') == puni_etcd_member_name
+      retries: 60
+      delay: 2
+      when:
+        - puni_control_plane_target | bool
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
+      tags: [etcd-membership]
+
+    - name: Remove exact Kubernetes membership
+      ansible.builtin.command:
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            delete,
+            node,
+            '{{ puni_node_name }}',
+            --wait=true,
+            --timeout=2m,
+            --ignore-not-found=true,
+          ]
+      delegate_to: localhost
+      become: false
+      tags: [kubernetes-membership]
+
+    - name: Verify exact Kubernetes membership is absent
+      ansible.builtin.command:
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            get,
+            node,
+            '{{ puni_node_name }}',
+            -o,
+            json,
+          ]
+      delegate_to: localhost
+      become: false
+      register: puni_retired_node_lookup
+      changed_when: false
+      failed_when: puni_retired_node_lookup.rc == 0 or 'NotFound' not in puni_retired_node_lookup.stderr
+      tags: [kubernetes-membership]

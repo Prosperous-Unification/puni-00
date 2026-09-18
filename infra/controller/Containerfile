@@ -1,0 +1,41 @@
+FROM ghcr.io/ansible/community-ansible-dev-tools@sha256:70f705fee2386deb320598ea011812292598111cca85f0107ee9479062628e79
+
+ARG KUBECTL_URL
+ARG KUBECTL_SHA256
+USER root
+# Proof: without --chmod the checkout's umask reached these layers: the 0664 local worktree
+# reproduced sha256:5f00e0eb... while the umask-022 GitHub checkout missed it on 2026-09-18.
+# With --chmod a 0644, re-dated copy of the context and the worktree both build sha256:372f6f43...
+COPY --chmod=0444 infra/controller/requirements.yml /tmp/fleet-requirements.yml
+COPY --chmod=0444 infra/controller/requirements-python.txt /tmp/fleet-requirements-python.txt
+# Proof: installing into root's default collection path produced manifest
+# sha256:6d063a..., where USER 1000 reported hetzner.hcloud.hcloud as unknown.
+# Proof: two --no-cache builds on the locked BuildKit differed only in this layer's
+# /root/.ansible/galaxy_cache/api.json and in pip's timestamp-stamped .pyc files; dropping the
+# cache and compiling with SOURCE_DATE_EPOCH (checked-hash .pyc) made both builds equal on 2026-09-18.
+RUN ansible-galaxy collection install --force \
+  --collections-path /usr/share/ansible/collections \
+  --requirements-file /tmp/fleet-requirements.yml \
+  && rm /tmp/fleet-requirements.yml \
+  && rm -r /root/.ansible/galaxy_cache \
+  && install -d -o 1000 -g 0 -m 0700 /runner/.ansible \
+  && install -d -o 1000 -g 0 -m 0700 /runner/.ansible/tmp
+RUN SOURCE_DATE_EPOCH=0 python -m pip install --no-cache-dir --require-hashes \
+  --requirement /tmp/fleet-requirements-python.txt \
+  && rm /tmp/fleet-requirements-python.txt
+# Proof: an all-`a` KUBECTL_SHA256 made the production Docker build exit 1 with a computed-checksum
+# mismatch on 2026-09-17; restored builds accept only the locked kubectl bytes.
+RUN test -n "$KUBECTL_URL" \
+  && test -n "$KUBECTL_SHA256" \
+  && curl --fail --location --silent --show-error --output /usr/local/bin/kubectl "$KUBECTL_URL" \
+  && printf '%s  %s\n' "$KUBECTL_SHA256" /usr/local/bin/kubectl | sha256sum --check --strict \
+  && chmod 0755 /usr/local/bin/kubectl
+
+ENV HOME=/runner
+USER 1000
+# Proof: the prior private-path image failed the collection lookup after the user switch, and the
+# first shared-path image failed the hcloud plugin import because requests was absent.
+RUN ansible-doc --type inventory hetzner.hcloud.hcloud >/dev/null \
+  && ansible-doc --type module kubernetes.core.k8s_info >/dev/null \
+  && python -c 'import dateutil, requests' \
+  && kubectl version --client

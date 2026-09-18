@@ -5,20 +5,63 @@ The bootstrap policy is `policy.tool-wiki-bootstrap.v1` in
 `boundary.infra.tool-wiki`; the six modules in the historical pilot remain named, non-selected
 review debt. Tasks 6 and 7 remain open.
 
-## Prepare
+## Release
 
-An operator, outside the candidate checkout, invokes the trusted review harness for the exact
-frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
-hook, and Nx callers declared by `tools/tool-wiki/README.md`. Retain the real review receipt and
-journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
+`twilight-bureaucrat` is the distribution envelope for the reusable toolkit. The package carries
+the launcher, snapshotter, validator, activation preparers and trusted TypeScript closure. Installing
+it certifies no consumer commit; an activation still binds one candidate identity. The distinction
+is recorded in [ADR 0026](adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md).
+
+Tag the reviewed commit `twilight-bureaucrat-vMAJOR.MINOR.PATCH` and push it. The
+`twilight-bureaucrat-release.yml` workflow runs the uncached source and packed-install checks, binds
+the tarball digest to the tag and source commit, and transfers that exact tarball to a protected
+`twilight-bureaucrat-release` environment. The publish job verifies the transfer, runs
+`bun publish <tarball> --dry-run`, publishes that file, and retains it with `release.json` as release
+assets. It then waits for the registry coordinate, compares its integrity to `release.json`, and
+installs that coordinate with lifecycle scripts disabled in a fresh consumer. It refuses an existing
+registry version or GitHub release and never rebuilds after transfer.
+
+Before the first tag, administrators must restrict `twilight-bureaucrat-v*`, create the protected
+environment, verify ownership of the `twilight-bureaucrat` registry name, and install its
+least-privilege `NPM_TOKEN`. Publication remains pending while the package is `UNLICENSED`; add the
+actual repository license before granting the environment approval.
+
+To reproduce the prepared artifact without publishing:
+
+```sh
+bun install --frozen-lockfile
+bunx nx run twilight-bureaucrat:test:package --skip-nx-cache
+bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
+  --tag twilight-bureaucrat-vX.Y.Z \
+  --repository "$PWD" \
+  --tarball dist/twilight-bureaucrat-pack/twilight-bureaucrat-X.Y.Z.tgz \
+  --record /tmp/twilight-bureaucrat-release.json \
+  --source-revision "$(git rev-parse HEAD)"
+```
+
+Preparation refuses a malformed or misplaced tag, a dirty checkout, event/tag/source/package
+version drift, missing package assets or distribution license, source identity drift, an existing
+registry version, and unknown registry state. The publish boundary refuses a tarball whose
+filename, SHA-256 or npm integrity differs from the transfer record.
+
+A consumer then produces its **own** per-commit activation from that toolkit with
+`prepare-activation.mjs`, supplying its policy, mapping, review record and audit strata. The whole
+consumer procedure is `apps/wiki/consumer/README.md`, beside the workflow template it copies.
+
+### This repository's own activation
 
 Run the three exact scoped checks selected by the bootstrap obligation:
 
 ```sh
-bunx nx run tool-wiki:test --skip-nx-cache
-bunx nx run tool-wiki:lint:source --skip-nx-cache
-bunx nx run tool-wiki:typecheck --skip-nx-cache
+bunx nx run twilight-bureaucrat:test --skip-nx-cache
+bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
+bunx nx run twilight-bureaucrat:typecheck --skip-nx-cache
 ```
+
+An operator, outside the candidate checkout, invokes the trusted review harness for the exact
+frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
+hook, and Nx callers declared by `apps/wiki/cli/README.md`. Retain the real review receipt and
+journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
 
 Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
 policy, mapping, separate local/CI bindings, lint evidence, trusted authority, and review receipt.
@@ -28,7 +71,8 @@ role paths and digests, joins the policy/mapping/validator/review identities to 
 and records every artifact digest.
 `selectActivation` requires the independently expected package identity and atomically replaces the
 small operator-controlled `selected.json`. Never edit an activated file or reuse a per-candidate
-authority snapshot.
+authority snapshot. In practice `prepare-relocation-activation-cli.ts` does all of this — see
+[Relocation](#relocation).
 
 ## Transport and admission
 
@@ -48,18 +92,27 @@ It never relocates candidate-installed modules into the trust path. With no arch
 reports inactive; partial configuration or a configured activation root that loses its marker
 fails rather than silently auditing nothing.
 
-Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. The
-target-context workflow checks out that immutable revision, installs its lockfile-pinned runtime
-modules with lifecycle scripts disabled, and passes their external path to the validator. The
-validator refuses runtime modules inside the candidate. Nx relationships are read statically from
+Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. No
+workflow checks that revision out. Provisioning refuses an archive whose selected manifest
+`sourceRevision` differs from the variable, naming both, then installs the launcher the archive
+root's `launcher-path` names and runs it against the archive's own `trusted-node-modules`. The
+launcher, the push audit and the h2puni host gate all default `TOOL_WIKI_TRUSTED_NODE_MODULES` to
+that directory and refuse when it is absent; the validator refuses runtime modules inside the
+candidate. A consumer repository therefore needs the three variables and this workflow, never a
+checkout of the wiki's source. Nx relationships are read statically from
 `nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
 admitted by this bootstrap boundary.
 
-The h2puni host gate defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to the archive's external
-`trusted-node-modules` directory. It refuses a missing TypeScript package and any explicit override
-that resolves inside the candidate checkout. The archive transport SHA-256 authenticates these
-runtime bytes alongside the root descriptors; do not construct or install the host archive without
-that directory.
+The h2puni host gate resolves `TOOL_WIKI_TRUSTED_NODE_MODULES` the same way. It refuses a missing
+TypeScript package and any explicit override that resolves inside the candidate checkout. The
+archive transport SHA-256 authenticates these runtime bytes alongside the root descriptors; do not
+construct or install the host archive without that directory.
+
+The toolkit tar is published as a release asset of **this** repository, under its `wiki-v*` tag.
+An activation tar is published as a release asset of the repository whose commit it certifies — for
+a consumer, its own. The two never mix: a consumer's three variables always point at the consumer's
+own archive, and a root `toolkit-release` descriptor records which toolkit produced it as
+provenance that nothing on the admission path reads.
 
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
@@ -68,13 +121,149 @@ version configuration. The job always runs: with none or only some of the three 
 variables set, its required configuration guards fail and admission stays red. The archive root contains
 `selected.json` beside its selected version directory; paths in both the selector and the package
 role descriptors are relative so the same archive can be extracted under a host version directory
-or runner temporary storage. The preserved
-launcher verifies the selected manifest identity, checksum-list identity, and every role artifact
-before reading a descriptor. The separately administered required-workflow/ruleset remains an
+or runner temporary storage. The launcher installed from the
+archive's own `launcher-path` verifies the selected manifest identity, checksum-list identity, and
+every role artifact before reading a descriptor. The separately administered required-workflow/ruleset remains an
 external prerequisite; candidate YAML cannot activate it.
 
 Required admission must refuse an inactive, observe-only, absent, unreadable, malformed, or
 wrong-scope activation. Diagnostic local rollout may still report inactive without certification.
+
+## Relocation
+
+A candidate that moves files under a trusted boundary is refused with `trusted boundary selector
+selects no candidate input`, because the activation's policy still selects the old path. The policy
+models a move: `selector` names the new path and `sourceSelector` the old one, and the baselines stay
+at the old paths. Landing a move takes two steps: activate from the candidate head, then merge.
+
+1. The candidate ships, at its head SHA: `selector` new and `sourceSelector` old for every moved
+   boundary in `docs/wiki-policy/bootstrap-policy.json` (nothing else in the policy changes except
+   `relationshipRequest`); `docs/wiki-policy/modules.bootstrap.json` with the new prefixes, index
+   paths and `externalConsumers`, `predecessorModuleIds` for any renamed module id, and a bumped
+   `mappingVersion`; `docs/wiki-policy/relationships.bootstrap.json` facts pointing at the renamed
+   Nx projects. Keep `pilot.sourceRevision` and the mapping `sourceRevision` unchanged: the
+   baselines are reviewed tuples at that revision, and the command refuses a revision that lacks
+   them. The mapping file's own path is the one thing a relocation cannot move — the command reads
+   it from the base activation's CI binding (`pilotModuleMapping.candidatePath`), so moving
+   `modules.bootstrap.json` itself needs a hand-assembled activation instead.
+2. Run the trusted review harness for that exact SHA and keep its `AuditReview` record. The harness
+   is operator-run and lives outside this repository; the command never writes a review record and
+   refuses one that does not bind the candidate (`candidateIdentity`, `sourceBase`, the reviewed
+   subject, generation and both completed phases). Any commit after the review invalidates it.
+   Then, from a clean checkout at that SHA with its lockfile-pinned modules installed:
+
+   ```sh
+   bun apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts \
+     --candidate-repository <clean checkout whose HEAD is the SHA> \
+     --candidate-sha <40-hex candidate SHA> \
+     --base-activation <extracted current release>/activation-<base sha> \
+     --review-record <AuditReview record for that SHA>.json \
+     --destination <new archive root, outside the candidate> \
+     --work <retention directory, outside the candidate> \
+     --resource-lane <lane the checks ran in> \
+     --cwd-identity <identity of that working directory>
+   ```
+
+   Every flag above is required. `--resource-lane` and `--cwd-identity` have no default on purpose:
+   they are the operator attestation the check receipts carry, and a tool that invented them would
+   attest on the operator's behalf. `--candidate-policy`, `--candidate-launcher` and
+   `--validator-entry` default to this repository's layout. The command runs the three bootstrap
+   checks, regenerates policy, mapping, launcher, snapshotter, validator, evidence, authority,
+   receipt and both bindings, assembles the archive root, proves the archive certifies its own
+   candidate by running the produced launcher to `certified: true`, and prints the release and
+   variable commands.
+
+3. Publish the tar as release `tool-wiki-activation-<sha8>` and set `TOOL_WIKI_ACTIVATION_VERSION`,
+   `TOOL_WIKI_ACTIVATION_ARCHIVE_URL` and `TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256` together.
+4. Re-run `trusted-wiki` on the candidate. It is green for that head and for no other commit: one
+   authority certifies one commit, so the push audit of the merge commit and every later candidate
+   stay red until each gets its own activation.
+5. Merge with a merge commit, never a squash. The activation version is then an ancestor of `main`
+   and nothing else changes; a squash leaves it reachable only through `refs/pull/N/head`.
+
+The three variables hold one SHA, so two concurrent move candidates serialize: the second is
+prepared only after the first has merged, from a head that contains it.
+
+`bin/tool-wiki-lint.sh` is the launcher role: an activation copies its bytes, and every consumer of
+the archive runs that copy rather than the file in any checkout. A candidate that edits the launcher
+therefore ships a new launcher in the next activation prepared from it, and the command's report
+prints `launcher: changed` beside the validator identity. That is the designed path — review the
+launcher diff as trusted code, because the archive's bytes become the admission entrypoint.
+
+## Package-backed admission
+
+`trusted-wiki` reads one base-owned switch, `infra/ci/bureaucrat/consumer.json`. Its `admission` is
+`archive-launcher` (the archive's own launcher, unchanged behavior) or `installed-package`; any other
+value, key or registry refuses with exit 78. The job sparse-checks-out `infra/ci/bureaucrat/` at the
+pull request's **base** SHA and runs `bootstrap.sh` before the candidate checkout exists. For
+`installed-package` it copies only `package.json` and `bun.lock` into `$RUNNER_TEMP`, then runs
+`bun install --frozen-lockfile --ignore-scripts --registry <consumer.json registry>` under `env -i`
+from that scratch directory, so no candidate `.npmrc`, `bunfig.toml`, lock, pin or inherited Bun
+variable takes part. The manifest must pin exactly `twilight-bureaucrat` at an exact version, with no
+scripts or `trustedDependencies`; the lock must name that version from that registry with a sha512
+integrity. A missing lock refuses rather than resolving from the network.
+
+`admit.sh` then requires the activation's root `toolkit-release` to equal
+`twilight-bureaucrat-v<version> <toolkitIdentity>` of the installed package. The package supplies the
+launcher; the selected activation still supplies the reviewed validator, bindings and runtime
+closure. An activation from another toolkit, or one without `toolkit-release`, refuses, so a
+package bump alone never replaces the selected activation. On certification it writes
+`$RUNNER_TEMP/twilight-bureaucrat/admission.json`: source SHA, package name/version/integrity/toolkit
+identity, and activation version/manifest identity, all read from trusted files.
+{@link requireDeploymentAdmission} in `tools/tool-devsync/src/bureaucrat-consumer.ts` joins that
+record to the staged image digest; deployment preparation must refuse without all four.
+
+Externally administered, never repository files: the three `TOOL_WIKI_ACTIVATION_*` variables, the
+required `trusted-wiki` check, registry ownership and the release environment. The candidate can
+edit none of the inputs above; a pull request that edits `infra/ci/bureaucrat/` is itself judged by
+the base's copy.
+
+### Flip (pending publication)
+
+The committed switch is `archive-launcher` and no `bun.lock` is committed, because the registry
+integrity of `twilight-bureaucrat@0.1.0` exists only after publication. In order:
+
+1. **Publish.** Complete the P4 prerequisites and push `twilight-bureaucrat-v0.1.0`; confirm
+   `bun info twilight-bureaucrat@0.1.0 dist.integrity` equals the release record's integrity.
+2. **Pin.** Resolve the base-owned manifest into a lock with nothing inherited, check its
+   integrity against the release record, commit `bun.lock` alone and merge:
+
+   ```sh
+   cd infra/ci/bureaucrat
+   env -i PATH="$(dirname "$(command -v bun)"):/usr/bin:/bin" HOME="$(mktemp -d)" \
+     bun install --lockfile-only --registry https://registry.npmjs.org/
+   ```
+
+3. **Activation.** From that `main` commit, bootstrap with a local, uncommitted
+   `"admission": "installed-package"` into a fresh scratch directory and run its
+   `consumer/node_modules/twilight-bureaucrat/dist/bin.mjs prepare-activation` with real review and
+   check evidence (never fixture attestations). Publish the archive and set the three variables. Its
+   launcher is the toolkit's, so the archive route keeps working with it.
+4. **Flip.** Commit `"admission": "installed-package"` and merge. That pull request is still judged
+   by the base's `archive-launcher`; later pull requests take the package route.
+5. **Root route.** `bun add --dev --exact twilight-bureaucrat@0.1.0`, then point lefthook's
+   `tool-wiki`, the CI diagnostic step and `twilight-bureaucrat:lint` at
+   `bin/tool-wiki-package-lint.sh`. It refuses without an exact root pin or matching install and
+   refuses re-entry (exit 70). `bin/tool-wiki-lint.sh` stays the launcher source until the
+   exhaustive-corpus freeze lets it move into the package; only then does the route take its name.
+
+**Every pull request is judged by its base's pin against the currently selected activation.** A
+pull request that changes the pin is therefore admitted under the old pin, and a base whose pin
+differs from the selected activation refuses every admission by name until the variables change.
+
+**Upgrade.** Bump the pin and re-lock in a pull request; it is admitted under the old, still
+matching pair, so merge it. From the merged commit, install the new package, prepare and publish an
+activation from it, then set the three variables. Between the merge and the variable change every
+admission refuses with `activation was prepared from another toolkit`; keep that window short and
+merge nothing else during it.
+
+**Old-version recovery.** Repair any base/activation mismatch through the variables, never through a
+pull request: a pull request opened against a mismatched base is refused by the same check it
+would fix. Point the variables at an activation prepared from the version the base pins (the
+previous archive, if the base still pins it). To go back to an older package, merge the pin revert
+while the variables still match the current pin, then select an activation from the older package.
+Setting `admission` back to `archive-launcher` follows the same rule: merge it while admission still
+passes.
 
 ## Final binding and recovery
 

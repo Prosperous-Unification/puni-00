@@ -1,0 +1,66 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: velero
+  namespace: puni-backup
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ./infra/platform/charts/velero-12.2.0.tgz
+      version: 12.2.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  # File-system backup only: hcloud volumes have no snapshots, and databases use their own
+  # application-consistent paths (SQLite VACUUM INTO, Elastic SLM).
+  values:
+    image:
+      repository: docker.io/velero/velero
+      tag: v1.18.2
+      digest: sha256:37396519f399536e5f01427d723565ae69294ec3fb5625cf1c87c09eaa9de16b
+    upgradeCRDs: false
+    initContainers:
+      - name: velero-plugin-for-aws
+        image: docker.io/velero/velero-plugin-for-aws:v1.14.1@sha256:1493a0039cd5cb31004cfbb52f8a1990bc0ed81497ce72516bc76fa9e21506c1
+        volumeMounts:
+          - mountPath: /target
+            name: plugins
+    credentials:
+      useSecret: true
+      existingSecret: velero-credentials
+    snapshotsEnabled: false
+    deployNodeAgent: true
+    configuration:
+      uploaderType: kopia
+      defaultVolumesToFsBackup: false
+      backupStorageLocation:
+        - name: default
+          provider: aws
+          bucket: puni-velero
+          default: true
+          config:
+            region: local
+            s3ForcePathStyle: 'true'
+            s3Url: http://object-store.puni-backup.svc:9000
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: '1', memory: 512Mi }
+    nodeAgent:
+      resources:
+        requests: { cpu: 100m, memory: 128Mi }
+        limits: { cpu: '1', memory: 1Gi }
+      tolerations:
+        - operator: Exists
+    metrics:
+      serviceMonitor:
+        enabled: true
+    schedules:
+      daily-volumes:
+        schedule: '0 2 * * *'
+        template:
+          ttl: 720h
+          includedNamespaces: [puni-registry]
+          defaultVolumesToFsBackup: true
+          snapshotVolumes: false

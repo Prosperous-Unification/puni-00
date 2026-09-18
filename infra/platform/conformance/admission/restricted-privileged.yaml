@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-product
+  namespace: wbs
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  containers:
+    - name: product
+      image: registry.k8s.io/pause:3.10
+      securityContext:
+        privileged: true

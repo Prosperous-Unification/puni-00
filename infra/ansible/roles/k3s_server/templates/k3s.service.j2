@@ -1,0 +1,19 @@
+[Unit]
+Description=Lightweight Kubernetes
+After=network-online.target puni-k3s-firewall.service
+Wants=network-online.target
+# Proof: weakening this to Wants made the required-firewall dependency contract test fail.
+Requires=puni-k3s-firewall.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/k3s server --config /etc/rancher/k3s/config.yaml
+KillMode=process
+Delegate=yes
+LimitNOFILE=1048576
+TasksMax=infinity
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

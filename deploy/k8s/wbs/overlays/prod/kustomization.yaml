@@ -1,0 +1,43 @@
+# prod profile: plan-only in F8. Secrets named here are SOPS-encrypted and reconciled by
+# Flux (F6); this overlay never carries their values. OIDC settings are deployment inputs.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - backup-egress.yaml
+  - ingress.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: wbs-backend-config
+    namespace: wbs-solver
+    literals:
+      - AUTH_MODE=oidc
+      - AUTH_REDIRECT_URI=https://wbs.bulletpoints.club/api/auth/okta/callback
+  - name: wbs-gateway-config
+    namespace: wbs
+    literals:
+      - AUTH_MODE=oidc
+      - LOG_LEVEL=info
+      - BE_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
+      - AUTH_REDIRECT_URI=https://wbs.bulletpoints.club/api/auth/okta/callback
+  - name: wbs-mcp-config
+    namespace: wbs
+    literals:
+      - MCP_AUTH_MODE=standalone
+      - WBS_API_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
+      - MCP_PUBLIC_URL=https://wbs.bulletpoints.club/mcp
+patches:
+  - target: { kind: PersistentVolumeClaim, name: wbs-data }
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: hcloud-volumes
+  # Backend OIDC egress (issuer discovery/JWKS over HTTPS) beyond the base allowances.
+  - target: { kind: NetworkPolicy, name: wbs-backend-egress }
+    patch: |-
+      - op: add
+        path: /spec/egress/-
+        value:
+          ports:
+            - { protocol: TCP, port: 443 }

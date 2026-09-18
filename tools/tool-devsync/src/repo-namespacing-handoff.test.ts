@@ -3,6 +3,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// tool-devsync's `build` target runs shellcheck over `bin/*.sh` and bundles no TypeScript, so the
+// buildable-library half of the boundary rule has no output to protect here. The half that does
+// apply — `scope:infra` may reach `product:shared` — holds, and workspace-projects.test.ts checks
+// it against the real Nx graph.
+// eslint-disable-next-line @nx/enforce-module-boundaries -- no TypeScript build to protect
+import { parseOrThrow, type } from '@shared/validation';
 import { expect, test } from 'bun:test';
 
 import { readProjects } from '../workspace-projects.mjs';
@@ -11,176 +17,95 @@ const WORKSPACE = fileURLToPath(new URL('../../../', import.meta.url));
 const LEGACY_ROOT =
   /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01|\*+|\$\{[^}]+\})|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation|\*+|\$\{[^}]+\}))(?:\/|\b)/g;
 
-const CURRENT_MARKDOWN = [
-  'AGENTS.md',
-  'HUMAN_README.md',
-  'LLM_README.md',
-  'docs/adr/0008-tags-accumulate-down-the-tree.md',
-  'docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md',
-  'docs/adr/0012-a-write-carries-its-actor-as-an-argument.md',
-  'docs/adr/0014-ports-live-in-a-framework-free-core-lib.md',
-  'docs/adr/0016-a-tied-sibling-position-is-legal-and-the-row-id-resolves-it.md',
-  'docs/adr/0018-the-dev-deploy-trigger-owns-solver-compatibility-preparation.md',
-  'docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md',
-  'docs/auth-integration.md',
-  'docs/capacity.md',
-  'docs/findings/current.md',
-  'docs/local-dev.md',
-  'docs/refactoring/tasks.md',
-  'docs/runbook-dev-deploy.md',
-  'openspec/changes/automatic-dev-solver-binding/proposal.md',
-  'openspec/changes/automatic-dev-solver-binding/specs/deployment-pipeline/spec.md',
-  'openspec/changes/dual-optimized-scheduler/supervisor-amendment.md',
-] as const;
+/**
+ * The one OpenSpec change whose packet is read as current prose rather than as a record of
+ * what was once done. Every other unarchived packet keeps its own pre-move evidence in
+ * `tasks.md` and `verify.md`, so the tree as a whole is not a source of current paths.
+ */
+const ACTIVE_OPENSPEC_PACKET = 'openspec/changes/automatic-dev-solver-binding/';
 
-const EXPECTED_ALIASES = [
-  '@wbs/auth',
-  '@wbs/be-01',
-  '@wbs/config',
-  '@wbs/conformance',
-  '@wbs/conformance/*',
-  '@wbs/contracts',
-  '@wbs/contracts/solver/build-request',
-  '@wbs/contracts/solver/materialise-optimized',
-  '@wbs/contracts/solver/optimized-result',
-  '@wbs/contracts/solver/parse-solver-response',
-  '@wbs/contracts/solver/plan-infeasible',
-  '@wbs/contracts/solver/quantised-baseline',
-  '@wbs/contracts/solver/revalidate-solver-result',
-  '@wbs/contracts/solver/solver-failure-disposition',
-  '@wbs/contracts/solver/supervisor-protocol',
-  '@wbs/contracts/ws-frames',
-  '@wbs/core',
-  '@wbs/core/*',
-  '@wbs/deploy-contract',
-  '@wbs/domain',
-  '@wbs/domain/arrange-siblings',
-  '@wbs/domain/assumed-duration',
-  '@wbs/domain/canonical-schedule-input',
-  '@wbs/domain/deadline-offsets',
-  '@wbs/domain/dependency-reach',
-  '@wbs/domain/effective-service',
-  '@wbs/domain/effective-tag',
-  '@wbs/domain/effective-team',
-  '@wbs/domain/external-system',
-  '@wbs/domain/is-within',
-  '@wbs/domain/label-mismatch',
-  '@wbs/domain/marker-color',
-  '@wbs/domain/priority-band',
-  '@wbs/domain/progress',
-  '@wbs/domain/stored-vocabularies',
-  '@wbs/domain/tree-order',
-  '@wbs/domain/workday',
-  '@wbs/gw-01',
-  '@wbs/observability',
-  '@wbs/realtime',
-  '@wbs/runtime-portable',
-  '@wbs/runtime-portable/testing',
-  '@wbs/store-memory',
-  '@wbs/store-memory/*',
-  '@wbs/store-sqlite',
-  '@wbs/store-sqlite/*',
-  '@wbs/tool-compose',
-  '@wbs/tool-env',
-  '@wbs/tool-test-scratch',
-  '@wbs/validation',
-  '@wbs/validation/fixtures',
-] as const;
+/**
+ * What the three per-document checks need to run: the tracked tree and the real Nx project
+ * names, plus every product those projects declare, which the alias-prefix rule reads.
+ */
+interface DocumentContext {
+  readonly candidates: ReadonlySet<string>;
+  readonly projectNames: ReadonlySet<string>;
+  readonly products: ReadonlySet<string>;
+}
 
-const EXPECTED_PROJECTS = [
-  ['apps/wbs/be-01', 'wbs-be-01'],
-  ['apps/wbs/fe-01', 'wbs-fe-01'],
-  ['apps/wbs/gw-01', 'wbs-gw-01'],
-  ['apps/wbs/mcp-01', 'wbs-mcp-01'],
-  ['libs/wbs/adapters/auth', 'wbs-auth'],
-  ['libs/wbs/adapters/config', 'wbs-config'],
-  ['libs/wbs/adapters/observability', 'wbs-observability'],
-  ['libs/wbs/adapters/realtime', 'wbs-realtime'],
-  ['libs/wbs/adapters/runtime-portable', 'wbs-runtime-portable'],
-  ['libs/wbs/adapters/solver-py', 'wbs-solver-py'],
-  ['libs/wbs/adapters/solver-supervisor-protocol', 'wbs-solver-supervisor-protocol'],
-  ['libs/wbs/adapters/store-memory', 'wbs-store-memory'],
-  ['libs/wbs/adapters/store-sqlite', 'wbs-store-sqlite'],
-  ['libs/wbs/application/conformance', 'wbs-conformance'],
-  ['libs/wbs/application/core', 'wbs-core'],
-  ['libs/wbs/domain/contracts', 'wbs-contracts'],
-  ['libs/wbs/domain/domain', 'wbs-domain'],
-  ['libs/wbs/domain/validation', 'wbs-validation'],
-  ['tools/dev', 'tool-dev-setup'],
-  ['tools/test/scratch', 'tool-test-scratch'],
-  ['tools/tool-bootstrap', 'tool-bootstrap'],
-  ['tools/tool-compose', 'tool-compose'],
-  ['tools/tool-dagger', 'tool-dagger'],
-  ['tools/tool-deploy', 'tool-deploy'],
-  ['tools/tool-devsync', 'tool-devsync'],
-  ['tools/tool-git-hooks', 'tool-git-hooks'],
-  ['tools/tool-observability-stack', 'tool-observability-stack'],
-  ['tools/tool-remote-scripts', 'tool-remote-scripts'],
-  ['tools/tool-secrets', 'tool-secrets'],
-  ['tools/tool-smoke', 'tool-smoke'],
-  ['tools/tool-wiki', 'tool-wiki'],
-  ['tools/tool-workflows', 'tool-workflows'],
-] as const;
+async function documentContext(
+  candidates: ReadonlySet<string> = new Set(candidatePaths()),
+): Promise<DocumentContext> {
+  const projects = await readProjects(WORKSPACE);
+  return {
+    candidates,
+    projectNames: new Set(projects.map(({ name }) => name)),
+    products: new Set(
+      projects.flatMap(({ tags }) =>
+        tags.filter((tag) => tag.startsWith('product:')).map((tag) => tag.slice('product:'.length)),
+      ),
+    ),
+  };
+}
 
-const CLASSIFIED_LEGACY_DOCUMENTATION = [
-  ['docs/2026-08-30-agent-loop-audit.md', 'dated audit'],
-  ['docs/2026-08-30-sustainability-audit.md', 'dated audit'],
-  ['docs/2026-09-02-refactoring-handoff.md', 'dated refactoring handoff'],
-  ['docs/2026-09-02-refactoring-plan.md', 'dated refactoring plan'],
-  ['docs/2026-09-02-refactoring-review/A-be-repository.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/B-be-service-controller.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/C-fe-wbs-table.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/D-fe-rest.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/E-gw-mcp-libs.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/F-tools-tests.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/README.md', 'dated review index'],
-  ['docs/2026-09-05-ports-and-adapters-history.md', 'dated architecture history'],
-  ['docs/2026-09-05-ports-and-adapters-plan.md', 'dated architecture plan'],
-  ['docs/adr/0008-tags-accumulate-down-the-tree.md', 'historical diff observation'],
-  ['docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md', 'historical diff observation'],
-  ['docs/findings/checks-that-cannot-fail.md', 'historical incident catalogue'],
-  ['docs/findings/current.md', 'historical migrated root payload'],
-  ['docs/local-dev.md', 'historical measured path'],
-  ['docs/plans/2026-08-07-table-ui-cleanup.md', 'dated plan'],
-  ['docs/plans/2026-08-08-tailwind-spike-verify.md', 'dated verification'],
-  ['docs/plans/2026-08-09-resource-planning.md', 'dated plan'],
-  ['docs/plans/2026-09-13-tool-wiki-precedents-and-extraction.md', 'dated research'],
-  ['docs/refactoring/verify.md', 'historical refactoring verification'],
-  ['docs/refactoring/w4-4/extraction-map.md', 'historical extraction evidence'],
-  ['docs/refactoring/w4-4/verify.md', 'historical extraction verification'],
-  ['docs/runbook-dev-deploy.md', 'dated 2026-08-31 incident'],
-  ['docs/state/TASK-347-http-endpoint-port.md', 'historical task state'],
-  ['docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-08-02-compose-blue-green-deploy.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-08-04-cheap-dev-deploy.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-08-24-password-login.md', 'frozen legacy plan'],
-  [
-    'docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md',
-    'frozen legacy specification',
-  ],
-  [
-    'docs/superpowers/specs/2026-09-05-be01-route-auth-metadata-design.md',
-    'frozen legacy specification',
-  ],
-  ['docs/twilight-structure/evidence/claude-followup.md', 'recorded puni-00 review evidence'],
-  ['docs/twilight-structure/evidence/claude-review.md', 'recorded puni-00 review evidence'],
-  ['docs/twilight-structure/evidence/plan-review.md', 'recorded puni-00 review evidence'],
-] as const;
+/**
+ * Every check a current document has to pass, each reporting what it found in **one** document.
+ * An exemption names the checks it excuses, so excusing a stale `nx` selector never also excuses
+ * a pre-move path or a dead link in the same file.
+ */
+const DOCUMENT_CHECKS = {
+  'legacy-root': legacyRootFailures,
+  'nx-selector': staleSelectorFailures,
+  links: localLinkFailures,
+} as const satisfies Record<string, (path: string, context: DocumentContext) => Promise<string[]>>;
 
-const HANDOFF_TEST_INPUTS = [
-  '{workspaceRoot}/**/*',
-  '{workspaceRoot}/AGENTS.md',
-  '{workspaceRoot}/HUMAN_README.md',
-  '{workspaceRoot}/LLM_README.md',
-  '{workspaceRoot}/docs/**/*.md',
-  '{workspaceRoot}/docs/wiki-policy/*.json',
-  '{workspaceRoot}/lefthook.yml',
-  '{workspaceRoot}/openspec/changes/automatic-dev-solver-binding/**/*.md',
-  '{workspaceRoot}/openspec/changes/dual-optimized-scheduler/supervisor-amendment.md',
-  '{workspaceRoot}/openspec/changes/repo-namespacing/preflight-inventory.md',
-  '{workspaceRoot}/tsconfig.base.json',
-  '{workspaceRoot}/apps/wbs/be-01/drizzle/**/*',
-] as const;
+type DocumentCheck = keyof typeof DOCUMENT_CHECKS;
+
+const DOCUMENT_CHECK_NAMES = Object.keys(DOCUMENT_CHECKS) as DocumentCheck[];
+
+const CheckExemptions = type({
+  expires: /^\d{4}-\d{2}-\d{2}$/,
+  entries: type({
+    path: 'string>0',
+    reason: 'string>0',
+    excuses: type
+      .enumerated(...DOCUMENT_CHECK_NAMES)
+      .array()
+      .atLeastLength(1),
+  }).array(),
+});
+
+/**
+ * The documents exempted from named current-document checks, each with why it is frozen and which
+ * checks it escapes. Malformed or absent content throws rather than silently exempting nothing —
+ * an empty file would let every stale reference read as current and pass. The check names are
+ * taken from {@link DOCUMENT_CHECKS}, so an unknown or empty `excuses` is refused here.
+ */
+async function readCheckExemptions(): Promise<typeof CheckExemptions.infer> {
+  const path = join(WORKSPACE, 'docs/findings/current-document-check-exemptions.json');
+  // Proof: deleting the file failed every consumer here with `ENOENT ... open
+  // '<workspace>/docs/findings/current-document-check-exemptions.json'`; replacing `entries` with
+  // `{}` failed with `Validation failed: entries must be an array (was object)`; an `excuses: []`
+  // failed with `value at [0].excuses must be non-empty` and an `excuses: ['nope']` with
+  // `must be "legacy-root", "links" or "nx-selector" (was "nope")` (2026-09-15).
+  return parseOrThrow(CheckExemptions, JSON.parse(await readFile(path, 'utf8')));
+}
+
+/** The documents whose entry excuses `check` — and no document excused only from another check. */
+async function exemptedFrom(check: DocumentCheck): Promise<Set<string>> {
+  const { entries } = await readCheckExemptions();
+  return new Set(entries.filter(({ excuses }) => excuses.includes(check)).map(({ path }) => path));
+}
+
+/** Every tracked Markdown a reader is expected to act on today. */
+function documentCandidates(candidates: Iterable<string>): string[] {
+  return [...candidates].filter(
+    (path) =>
+      path.endsWith('.md') &&
+      (path.startsWith('docs/') || !path.includes('/') || path.startsWith(ACTIVE_OPENSPEC_PACKET)),
+  );
+}
 
 async function filesBelow(directory: string): Promise<string[]> {
   const files: string[] = [];
@@ -225,11 +150,33 @@ async function currentDocuments(
       path.endsWith('/README.md') &&
       (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
   );
-  const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
-  const rootRouted = (await rootRoutedDocuments(rootRouterSource, candidates)).filter(
-    (path) => candidates.has(path) && !historical.has(path),
+  const rootRouted = (await rootRoutedDocuments(rootRouterSource, candidates)).filter((path) =>
+    candidates.has(path),
   );
-  return [...new Set([...CURRENT_MARKDOWN, ...rootRouted, ...readmes])].sort();
+  return [...new Set([...documentCandidates(candidates), ...rootRouted, ...readmes])].sort();
+}
+
+async function legacyRootFailures(path: string): Promise<string[]> {
+  const source = await readFile(join(WORKSPACE, path), 'utf8');
+  return [...source.matchAll(LEGACY_ROOT)].map((match) => `${path}:${match[0]}`);
+}
+
+async function staleSelectorFailures(path: string, context: DocumentContext): Promise<string[]> {
+  const failures: string[] = [];
+  const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
+  for (const [offset, line] of lines.entries()) {
+    if (line.includes('historical path)')) continue;
+    const commandSelectors = [
+      ...line.matchAll(/\bnx run ([a-z0-9-]+):/g),
+      ...line.matchAll(/\bnx (?:test|lint|build|typecheck) ([a-z0-9-]+)/g),
+    ];
+    for (const match of commandSelectors) {
+      if (!context.projectNames.has(match[1])) {
+        failures.push(`${path}:${String(offset + 1)}:${match[1]}`);
+      }
+    }
+  }
+  return failures;
 }
 
 async function rootRoutedDocuments(
@@ -286,12 +233,61 @@ function documentAnchors(source: string): Set<string> {
     const base = visible
       .replace(/[^\p{L}\p{N}\s_-]/gu, '')
       .trim()
-      .replace(/\s+/g, '-');
+      // GitHub replaces each space with its own hyphen, so `F8 — Build` is `f8--build`.
+      // Proof: collapsing runs with `\s+` reported docs/infra/deployment.md's GitHub-valid
+      // `#f8--build-the-wbs-kubernetes-release-transaction` link absent, and excused three dated
+      // docs whose links were already GitHub-valid (2026-09-18).
+      .replace(/\s/g, '-');
     const collision = collisions.get(base) ?? 0;
     collisions.set(base, collision + 1);
     anchors.add(collision === 0 ? base : `${base}-${String(collision)}`);
   }
   return anchors;
+}
+
+async function localLinkFailures(sourcePath: string, context: DocumentContext): Promise<string[]> {
+  const { candidates } = context;
+  const failures: string[] = [];
+  const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
+  for (const destination of localMarkdownDestinations(source)) {
+    const hashAt = destination.indexOf('#');
+    const encodedPath = hashAt === -1 ? destination : destination.slice(0, hashAt);
+    const encodedAnchor = hashAt === -1 ? '' : destination.slice(hashAt + 1);
+    const decodedPath = decodeURIComponent(encodedPath.split('?', 1)[0]);
+    let targetPath =
+      decodedPath.length === 0
+        ? sourcePath
+        : decodedPath.startsWith('/')
+          ? posix.normalize(decodedPath.slice(1))
+          : posix.normalize(posix.join(posix.dirname(sourcePath), decodedPath));
+    if (!candidates.has(targetPath) && candidates.has(`${targetPath}/README.md`)) {
+      targetPath = `${targetPath}/README.md`;
+    }
+    if (!candidates.has(targetPath)) {
+      failures.push(`${sourcePath} -> ${destination} (absent ${targetPath})`);
+      continue;
+    }
+    if (encodedAnchor.length === 0 || !targetPath.endsWith('.md')) continue;
+    const anchors = documentAnchors(await readFile(join(WORKSPACE, targetPath), 'utf8'));
+    const anchor = decodeURIComponent(encodedAnchor);
+    if (!anchors.has(anchor)) failures.push(`${sourcePath} -> ${destination} (absent #${anchor})`);
+  }
+  return failures;
+}
+
+/** Every failure `check` finds across the current documents it is not excused from. */
+async function currentDocumentFailures(
+  check: DocumentCheck,
+  context: DocumentContext,
+  rootRouterSource?: string,
+): Promise<string[]> {
+  const exempted = await exemptedFrom(check);
+  const failures: string[] = [];
+  for (const path of await currentDocuments(rootRouterSource, new Set(context.candidates))) {
+    if (exempted.has(path)) continue;
+    failures.push(...(await DOCUMENT_CHECKS[check](path, context)));
+  }
+  return failures;
 }
 
 async function currentDocumentLinkFailures(
@@ -304,35 +300,8 @@ async function currentDocumentLinkFailures(
       failures.push(`LLM_README.md -> ${routedPath} (absent ${routedPath})`);
     }
   }
-  for (const sourcePath of await currentDocuments(rootRouterSource, candidates)) {
-    const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
-    for (const destination of localMarkdownDestinations(source)) {
-      const hashAt = destination.indexOf('#');
-      const encodedPath = hashAt === -1 ? destination : destination.slice(0, hashAt);
-      const encodedAnchor = hashAt === -1 ? '' : destination.slice(hashAt + 1);
-      const decodedPath = decodeURIComponent(encodedPath.split('?', 1)[0]);
-      let targetPath =
-        decodedPath.length === 0
-          ? sourcePath
-          : decodedPath.startsWith('/')
-            ? posix.normalize(decodedPath.slice(1))
-            : posix.normalize(posix.join(posix.dirname(sourcePath), decodedPath));
-      if (!candidates.has(targetPath) && candidates.has(`${targetPath}/README.md`)) {
-        targetPath = `${targetPath}/README.md`;
-      }
-      if (!candidates.has(targetPath)) {
-        failures.push(`${sourcePath} -> ${destination} (absent ${targetPath})`);
-        continue;
-      }
-      if (encodedAnchor.length === 0 || !targetPath.endsWith('.md')) {
-        continue;
-      }
-      const anchors = documentAnchors(await readFile(join(WORKSPACE, targetPath), 'utf8'));
-      const anchor = decodeURIComponent(encodedAnchor);
-      if (!anchors.has(anchor))
-        failures.push(`${sourcePath} -> ${destination} (absent #${anchor})`);
-    }
-  }
+  const context = await documentContext(candidates);
+  failures.push(...(await currentDocumentFailures('links', context, rootRouterSource)));
   return failures;
 }
 
@@ -399,13 +368,13 @@ async function legacySourceOccurrences(): Promise<{
                   : [
                         '.dockerignore',
                         '.github/workflows/ci.yml',
+                        'apps/wiki/cli/src/admission/authority-store.ts',
+                        'apps/wiki/cli/src/admission/claims.ts',
+                        'apps/wiki/cli/src/contracts/records.ts',
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
                         'tools/tool-deploy/src/migrations.ts',
                         'tools/tool-git-hooks/src/hooks/corpus-version-lint.ts',
-                        'tools/tool-wiki/src/admission/authority-store.ts',
-                        'tools/tool-wiki/src/admission/claims.ts',
-                        'tools/tool-wiki/src/contracts/records.ts',
                       ].includes(path)
                     ? 'production proof or revision transition'
                     : 'UNCLASSIFIED';
@@ -438,52 +407,27 @@ async function legacySourceOccurrences(): Promise<{
 }
 
 test('current documentation and active solver packets use namespaced roots', async () => {
-  const references: string[] = [];
-  for (const path of await currentDocuments()) {
-    const source = await readFile(join(WORKSPACE, path), 'utf8');
-    for (const match of source.matchAll(LEGACY_ROOT)) references.push(`${path}:${match[0]}`);
-  }
-
-  // The root-source block and 2026-08-31 runbook incident record their paths at observation time;
-  // changing either rewrites evidence rather than repairing current navigation.
+  // The documents that record a pre-move path as evidence — the root-source block and the
+  // 2026-08-31 runbook incident among them — carry a `legacy-root` exemption instead of a second
+  // list here; changing one of them rewrites evidence rather than repairing navigation.
   // Proof: rewriting the root-source path to its current namespace made root-migration.test.ts
   // fail 14 cases behind the exact router.landmines.001 payload mismatch (2026-09-14).
-  expect(references).toEqual([
-    'docs/adr/0008-tags-accumulate-down-the-tree.md:libs/domain/',
-    'docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md:libs/domain/',
-    'docs/findings/current.md:apps/be-01/',
-    'docs/local-dev.md:apps/fe-01',
-    'docs/runbook-dev-deploy.md:apps/be-01/',
-  ]);
+  // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here naming
+  // `docs/capacity.md:libs/domain/`, the discovered document that carries no excuse (2026-09-15).
+  expect(await currentDocumentFailures('legacy-root', await documentContext())).toEqual([]);
 });
 
 test('current Nx commands select existing qualified projects', async () => {
-  const projectNames = new Set((await readProjects(WORKSPACE)).map(({ name }) => name));
-  const staleSelectors: string[] = [];
-  for (const path of await currentDocuments()) {
-    const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
-    for (const [offset, line] of lines.entries()) {
-      if (line.includes('historical path)')) continue;
-      const commandSelectors = [
-        ...line.matchAll(/\bnx run ([a-z0-9-]+):/g),
-        ...line.matchAll(/\bnx (?:test|lint|build|typecheck) ([a-z0-9-]+)/g),
-      ];
-      for (const match of commandSelectors) {
-        const selector = match[1];
-        if (!projectNames.has(selector)) {
-          staleSelectors.push(`${path}:${String(offset + 1)}:${selector}`);
-        }
-      }
-    }
-  }
-
   // Proof: the pre-review current commands named `be-01`, `gw-01`, `fe-01`, and `validation`;
   // this oracle failed with their five exact locations instead of trusting path-only checks.
-  expect(staleSelectors).toEqual([]);
+  // Proof: appending `` run `bunx nx test fe-01` first. `` to docs/local-dev.md — exempted from
+  // `legacy-root` and nothing else — failed here with `docs/local-dev.md:168:fe-01`, so a
+  // pre-move-path exemption does not also switch this check off for that document (2026-09-15).
+  expect(await currentDocumentFailures('nx-selector', await documentContext())).toEqual([]);
 });
 
 test('the production index checker resolves current Markdown links and anchors', () => {
-  const cli = fileURLToPath(new URL('../../tool-wiki/src/cli.ts', import.meta.url));
+  const cli = fileURLToPath(new URL('../../../apps/wiki/cli/src/cli.ts', import.meta.url));
   const invocation = Bun.spawnSync(
     [process.execPath, 'run', cli, 'check-indexes', 'working', WORKSPACE, 'HEAD'],
     { cwd: WORKSPACE, env: process.env, stdout: 'pipe', stderr: 'pipe' },
@@ -501,18 +445,6 @@ test('every routed current document resolves its local links and anchors', async
   // Proof: adding a missing link to newly discovered docs/runbook-prod-deploy.md failed with its
   // exact routed source/destination, proving root discovery feeds this reader (2026-09-14).
   expect(await currentDocumentLinkFailures()).toEqual([]);
-});
-
-test('every root-routed current document participates in handoff checks', async () => {
-  const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
-  const current = new Set(await currentDocuments());
-  const omitted = (await rootRoutedDocuments()).filter(
-    (path) => !historical.has(path) && !current.has(path),
-  );
-
-  // Proof: the fixed list omitted six live LLM routes, including all three production runbooks;
-  // this actual root-router comparison failed with their exact paths before discovery was wired.
-  expect(omitted).toEqual([]);
 });
 
 test('absent inline-code root routes survive extraction', async () => {
@@ -549,22 +481,37 @@ test('every Dockerfile naming variant participates in source inventory', () => {
   expect(inventoried).toEqual(candidates);
 });
 
-test('the public alias manifest remains complete and stable', async () => {
-  const config = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
-    compilerOptions: { paths: Record<string, unknown> };
+test('every alias has an allowed prefix and resolves to a tracked file', async () => {
+  const base = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
+    compilerOptions: { paths: Record<string, string[]> };
   };
+  const { candidates: tracked, products } = await documentContext();
+  // The scopes an alias may carry: the two product-less ones plus one per declared product.
+  // Derived rather than listed, so a second product's aliases need no edit here.
+  const scopes = new Set(['shared', 'tools', ...products]);
+  const failures: string[] = [];
+  for (const [alias, targets] of Object.entries(base.compilerOptions.paths)) {
+    const scope = /^@([a-z0-9-]+)\//.exec(alias)?.[1];
+    if (scope === undefined) failures.push(`${alias}: prefix`);
+    else if (!scopes.has(scope)) failures.push(`${alias}: no product named ${scope}`);
+    for (const target of targets) {
+      const path = target.replace(/^\.\//, '').replace(/\/\*$/, '');
+      const exists = tracked.has(path) || [...tracked].some((file) => file.startsWith(`${path}/`));
+      if (!exists) failures.push(`${alias}: ${target} is not tracked`);
+    }
+  }
 
-  // Proof: deleting `@wbs/validation/fixtures` made this actual-candidate manifest fail with the
-  // complete received key list (2026-09-14).
-  expect(Object.keys(config.compilerOptions.paths).sort()).toEqual([...EXPECTED_ALIASES]);
-});
-
-test('the recursive Nx root and name manifest remains complete', async () => {
-  const projects = (await readProjects(WORKSPACE)).map(({ root, name }) => [root, name] as const);
-
-  // Proof: replacing `wbs-domain` with an unqualified name made this actual-candidate manifest
-  // fail with the differing complete tuple (2026-09-14).
-  expect(projects).toEqual([...EXPECTED_PROJECTS]);
+  // Proof: on 2026-09-15 this rule found two dead aliases in the real tsconfig.base.json —
+  // `@wbs/be-01` and `@wbs/gw-01`, each naming an `src/index.ts` no application has and imported
+  // nowhere — and stayed red until Task 1.7 deleted them; injecting `@wbs/config` ->
+  // ./libs/wbs/adapters/config/src/missing.ts adds `@wbs/config: ... is not tracked`, and an
+  // `@acme/x` -> ./libs/acme/src/index.ts alias adds both a scope failure and its untracked
+  // target.
+  // Proof: with the scopes derived from the real project tags, injecting that `@acme/x` alias
+  // into tsconfig.base.json failed here with `+ "@acme/x: no product named acme"` and
+  // `+ "@acme/x: ./libs/acme/src/index.ts is not tracked"`; reverting the alias returned the
+  // case to green (2026-09-16).
+  expect(failures).toEqual([]);
 });
 
 test('every migration keeps its expected namespaced path and Git blob', async () => {
@@ -595,56 +542,203 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 23,
+      'current recursive selector': 31,
       'frozen migration evidence': 19,
-      'historical bootstrap policy or mapping': 65,
+      'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 39,
       'production proof or revision transition': 18,
-      'test fixture or proof': 98,
+      'test fixture or proof': 106,
     },
     coverage: {
-      applicationLibraryToolReadmes: 16,
+      // Re-pinned 17 -> 18 when `apps/wiki/consumer/README.md` landed: the consumer template's
+      // README is a real application README the sweep must cover, not an exemption.
+      // Re-pinned 18 -> 19 for `apps/wiki/cli/fixtures/consumer/README.md`, the packed-install
+      // consumer fixture's README, which the sweep must cover like any application README.
+      applicationLibraryToolReadmes: 19,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
         'apps/wbs/fe-01/Dockerfile',
         'apps/wbs/gw-01/Dockerfile',
         'deploy/dev-src/Dockerfile',
+        'deploy/k8s/wbs/lab/backend-unhealthy.Dockerfile',
+        'deploy/k8s/wbs/lab/backend-upgrade.Dockerfile',
+        'deploy/k8s/wbs/lab/mcp-01.Dockerfile',
       ],
       extensionlessScripts: true,
       policyJson: true,
       python: true,
     },
-    digest: '4a03b4a9a9e80c2f9f6eaabfd4162d829953dde35608b6eadccb14d6cb72c6d2',
-    occurrences: 262,
+    // Proof: leaving the pre-extraction digest here failed this test with the
+    // observed `1f86dba5...` against the same occurrence count, because every
+    // context carries its line number and the extraction shifted the recursive
+    // selectors in workspace-inventory.test.ts down (2026-09-15).
+    // Proof: leaving `1f86dba5.../262/23` here after the product lint policy moved out of
+    // the root config failed on the observed `e705fb7a.../269/30` — the seven new
+    // `apps/*/eslint.product.mjs` and `libs/*/eslint.product.mjs` selectors in nx.json and
+    // lint-policy-cache.test.ts, all classified, none unclassified.
+    // Proof: leaving `e705fb7a...` here after discovery moved into product-policies.mjs failed
+    // on the observed `ae034489...` at the same 269/30 — the new nx.json and cache-test lines
+    // carry no selector of their own and only shift the ones below them (2026-09-15).
+    // Proof: leaving `ae034489...` here after the exemptions input joined this project's test
+    // inputs failed on the observed `61b47ae3...` at the same 269/30 — the new
+    // `{workspaceRoot}/docs/findings/current-document-check-exemptions.json` line carries no
+    // selector of its own and only shifts the `apps/**` and `libs/**` ones below it. Renaming
+    // that line later left the digest at `61b47ae3...`, since the line count did not move
+    // (2026-09-15).
+    // Proof: leaving `61b47ae3...` here after `@shared/validation` joined fe-01's two alias
+    // maps and the required-alias assertion failed on the observed digest below at the same
+    // 269/30 — the added entries carry no selector of their own and only shift the legacy
+    // `../../libs/*` and `apps/libs/*` contexts in vite-config.test.ts below them (2026-09-16).
+    // Proof: leaving `c29abd13.../269/98` here after the Tool Wiki relocation negative in
+    // pilot-policy.test.ts pinned the refusal text `... (selector prefix libs/domain/src/saved-plan)`
+    // failed on the observed digest below at 270/99 — one more classified `test fixture or proof`
+    // context, none unclassified (2026-09-16).
+    // Proof: leaving `0bc68474.../270/99` here after the three bootstrap wiki-policy files were
+    // re-pointed at the moved pilot boundaries failed on the observed digest below at 253/102 —
+    // 21 `historical bootstrap policy or mapping` contexts left bootstrap-policy.json,
+    // modules.bootstrap.json and relationships.bootstrap.json, while the new on-disk bootstrap
+    // oracle in pilot-policy.test.ts added three `test fixture or proof` contexts and one
+    // `current recursive selector`, none unclassified (2026-09-16).
+    // Proof: leaving `d0b34171.../253/102` here after tool-wiki became apps/wiki/cli failed on
+    // `ab3010e6...` at the same 253/102 — every context that project carries kept its match and
+    // its category and only changed the path it is reported under, which re-sorted the list.
+    // Pinning `ab3010e6...` then failed on the observed digest below, still at 253/102, because
+    // re-pinning the moved project's inventory counts in workspace-inventory.test.ts shifted the
+    // four `apps/**`/`libs/**` selector contexts at the foot of that file.
+    // Proof: pinning `fb328664...` then failed on the observed digest below, still at 253/102,
+    // because re-pinning the moved project's own refusal text in pilot-policy.test.ts shifted
+    // the seven `libs/domain/`, `libs/core/` and `libs/store-memory/` contexts below it; each
+    // context carries its line number (2026-09-16).
+    // Proof: leaving `d0b34171.../253/102` here after the standing bootstrap oracles pinned the
+    // pre-move project, cwd and consumer prefixes they refuse (`core`, `libs/core`,
+    // `libs/core/src`, `libs/domain/src/saved-plan`) in their `Proof:` comments failed on the
+    // observed digest below at 257/106 — four more classified `test fixture or proof` contexts,
+    // none unclassified (2026-09-16).
+    // Proof: merging W5's `fe5c29e2.../257` into this branch's `3816d95b.../253` kept both sides'
+    // contexts, so pinning either side's digest here failed on the observed digest below at 257 —
+    // W5's four new `test fixture or proof` contexts report under the moved `apps/wiki/cli`
+    // paths, which re-sorts them (2026-09-16).
+    // Proof: leaving `b118a4b8...` here after the product-neutral marker, refs and authority
+    // schema rename failed on the observed digest below, still at 257 — the only context that
+    // moved is `apps/wiki/cli/src/admission/authority-store.ts`'s `libs/contracts` proof comment,
+    // pushed from line 816 to 819 by the three JSDoc lines that explain the v5 bump; every other
+    // context in every file this commit touched is byte-identical, checked line by line
+    // (2026-09-16).
+    // Proof: leaving `46db251d...` here after the wiki move's relocation selectors failed on the
+    // observed digest below, still at 257 — the new obligation oracle pushed
+    // pilot-policy.test.ts's four `libs/core` proof contexts from lines 962/963/990/991 to
+    // 1003/1004/1031/1032. bootstrap-policy.json moved none of its five: the four
+    // `sourceSelector` lines added there are cancelled exactly by the four Prettier removes when
+    // the renamed `checkIds` collapsed onto one line, so its contexts sit where they did, checked
+    // line by line. An intermediate pin of `9e192e79...`, taken before that reformat, failed
+    // (2026-09-16).
+    // Proof: leaving `e7919151...` here after the wiki product was routed failed on the observed
+    // digest below, still at 257 — the four comment lines added above the RESTART_PATHS app
+    // oracle pushed sync.test.ts's one `apps/mcp-01` proof context from line 314 to 318, and
+    // nothing else moved; `apps/wiki/eslint.product.mjs` carries no legacy root of its own
+    // (2026-09-16).
+    // Proof: leaving `4c062320...` here after the legacy-authority refusal failed on the observed
+    // digest below, still at 257 — the guard and its JSDoc pushed authority-store.ts's
+    // `libs/contracts` proof context from line 819 to 840, the new refusal test pushed
+    // claims.db.test.ts's eleven claim-path contexts down 18 lines, and the selector pin and the
+    // metadata-less index mutation pushed pilot-policy.test.ts's ten contexts down 16 then 26.
+    // Verified green at `84a4fd63` before these edits, so nothing else contributes; every
+    // context's text and category is unchanged (2026-09-16).
+    // Proof: leaving `c29abd13...` here after the CI pixels scope joined
+    // pixels-workflow.test.ts failed on the observed digest below at the same 269/30 — the
+    // added interface fields and scope cases carry no legacy selector of their own and only
+    // shift the `apps/fe-01/test-results/` context in that file's own proof comment below
+    // them (2026-09-16).
+    // Proof: merging W3's `15cb68e9.../269` into this branch's `2f9b04ad.../257` failed on
+    // either side's digest and, for W3's, on its count. The merged total stays at this branch's
+    // 257 with every category unchanged: W3's added contexts sit in files this scan skips — its
+    // own `apps/fe-01/test-results/` note in the proof chain above (this file excludes itself)
+    // and `openspec/changes/affected-pr-gate/verify.md` (every `.md` is excluded). The one
+    // context W3 does move is `pixels-workflow.test.ts`'s `apps/fe-01/test-results/` proof
+    // comment, pushed from line 54 to 57, which is what changes the digest (2026-09-16).
+    // Proof: leaving `80ba00b5...` here after the affected gate was renamed and the legacy
+    // authority guard moved to `lstatSync` failed on the observed digest below, still at 257 —
+    // the guard's comment and try/catch pushed authority-store.ts's `libs/contracts` context
+    // from line 840 to 855, and the second legacy-store test pushed eleven of the thirteen
+    // claim-path contexts in claims.db.test.ts down 33 lines, from 217-503 to 250-536, leaving
+    // the two above it where they were. The renamed gate pins in toolchain-pins.test.ts, the
+    // re-measured list in pixels-workflow.test.ts and ci.yml itself moved none of theirs,
+    // checked line by line (2026-09-16).
+    // Proof: after staging the resolved merge, the pin failed with the digest below at 257
+    // occurrences; puni-00's retained OpenSpec CI step shifts the upstream workflow contexts.
+    // Proof: the committed-tree bootstrap test fix changed this digest to f3d9a822...;
+    // the old pin failed with the same 257 classified occurrences and no unclassified entries.
+    // Proof: leaving `f3d9a822...` here after the package, fleet and F8 lab work failed on the
+    // observed digest below at the same 257 occurrences — the new lab Dockerfiles, the fixture
+    // README and the re-pinned inventory comment shifted classified contexts, none
+    // unclassified (2026-09-18).
+    // Proof: leaving `2f42a9f9...` here after the PR #7 CI repairs failed on the observed digest
+    // below at the same 257 occurrences and no unclassified entries; the added workflow, policy
+    // and controller edits shifted classified contexts only (2026-09-18).
+    digest: 'c67de18ea22b18c9893a419ba2b207586a4f3f272e232d916b1d42e7ba958d67',
+    occurrences: 257,
     unclassified: [],
   });
 });
 
-test('every legacy documentation reference is classified', async () => {
-  const observed: (readonly [string, string])[] = [];
-  const categories = new Map<string, string>(CLASSIFIED_LEGACY_DOCUMENTATION);
-  const documentation = candidatePaths().filter(
-    (path) => path.startsWith('docs/') && path.endsWith('.md'),
-  );
-  for (const path of documentation) {
-    if ((await readFile(join(WORKSPACE, path), 'utf8')).match(LEGACY_ROOT) === null) continue;
-    observed.push([path, categories.get(path) ?? 'UNCLASSIFIED']);
+test('every current document that trips a check carries an exemption for that check', async () => {
+  const context = await documentContext();
+  const unexcused: string[] = [];
+  for (const check of DOCUMENT_CHECK_NAMES) {
+    const exempted = await exemptedFrom(check);
+    for (const path of await currentDocuments(undefined, new Set(context.candidates))) {
+      if (exempted.has(path)) continue;
+      if ((await DOCUMENT_CHECKS[check](path, context)).length > 0)
+        unexcused.push(`${path}:${check}`);
+    }
   }
 
-  // Proof: restoring a stale `apps/be-01` path in docs/capacity.md made this actual-candidate
-  // inventory fail with that current document classified as UNCLASSIFIED (2026-09-14).
-  expect(observed).toEqual([...CLASSIFIED_LEGACY_DOCUMENTATION]);
+  // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here with
+  // `docs/capacity.md:legacy-root`; dropping the docs/local-dev.md entry failed with
+  // `docs/local-dev.md:legacy-root` (2026-09-15).
+  expect(unexcused).toEqual([]);
 });
 
-test('the Nx test target watches every handoff verification input', async () => {
-  const manifest = JSON.parse(
-    await readFile(join(WORKSPACE, 'tools/tool-devsync/project.json'), 'utf8'),
-  ) as { targets: { test: { inputs: string[] } } };
-  const handoffInputs = new Set<string>(HANDOFF_TEST_INPUTS);
-  const configured = manifest.targets.test.inputs.filter((input) => handoffInputs.has(input));
+test('every exemption names a tracked document that still needs each excuse', async () => {
+  const { entries } = await readCheckExemptions();
+  const context = await documentContext();
 
-  // Proof: without the all-candidate input, adding an old root to the previously unwatched
-  // bin/dev-ports.sh replayed a green local cache; restoring it executed and failed the target.
-  expect(configured).toEqual([...HANDOFF_TEST_INPUTS]);
+  // An entry for a path that no longer exists exempts nothing and hides that the document was
+  // already repaired or deleted.
+  // Proof: adding an entry for the absent docs/local-dev-gone.md failed here with that exact
+  // row (2026-09-15).
+  expect(entries.filter(({ path }) => !context.candidates.has(path))).toEqual([]);
+
+  // Only the current documents are checked at all, so an entry for a tracked document outside
+  // that set excuses nothing and reads as a check being held off a document it never covered.
+  // Proof: adding an entry for the tracked but non-current
+  // openspec/changes/repo-namespacing/design.md — which does trip `legacy-root` — failed here
+  // with exactly that path; removing the entry returned the case to green (2026-09-16).
+  const current = new Set(await currentDocuments(undefined, new Set(context.candidates)));
+  expect(entries.filter(({ path }) => !current.has(path)).map(({ path }) => path)).toEqual([]);
+
+  const unneeded: string[] = [];
+  for (const { path, excuses } of entries) {
+    if (!context.candidates.has(path)) continue;
+    for (const check of excuses) {
+      if ((await DOCUMENT_CHECKS[check](path, context)).length === 0)
+        unneeded.push(`${path}:${check}`);
+    }
+  }
+
+  // An excuse the document no longer needs is a check silently switched off for it.
+  // Proof: adding `links` to the docs/local-dev.md entry, whose links all resolve, failed here
+  // with `docs/local-dev.md:links` (2026-09-15).
+  expect(unneeded).toEqual([]);
+});
+
+test('the current-document check exemptions have not expired', async () => {
+  const exemptions = await readCheckExemptions();
+
+  // Proof: setting expires to 2020-01-01 while 39 entries were still exempted failed here with
+  // received 1577836800000 against the run's own clock (2026-09-15).
+  if (exemptions.entries.length > 0) {
+    expect(new Date(exemptions.expires).getTime()).toBeGreaterThan(Date.now());
+  }
 });

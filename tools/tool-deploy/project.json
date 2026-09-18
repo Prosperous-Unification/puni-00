@@ -22,12 +22,65 @@
         }
       ]
     },
+    "deploy:k3s": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/deploy-k3s.ts"
+      }
+    },
+    "descriptor": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/descriptor-cli.ts"
+      }
+    },
+    "rehearse:cutover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/cutover-rehearsal.ts"
+      }
+    },
+    "cutover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/cutover-cli.ts"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
-      "inputs": ["default", "^production", "{workspaceRoot}/bin/assert-no-prod-release.sh"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/bin/assert-no-prod-release.sh",
+        "{workspaceRoot}/apps/wbs/be-01/**/*",
+        "{workspaceRoot}/deploy/k8s/wbs/overlays/**/*",
+        "{workspaceRoot}/.github/workflows/ci.yml",
+        "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
+        "{workspaceRoot}/.github/workflows/infra-check.yml",
+        "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts",
+        "{workspaceRoot}/infra/ci/deploy-runner/**/*"
+      ],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts",
         "cwd": "tools/tool-deploy"
+      }
+    },
+    "test:k3s": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/lab.ts"
+      }
+    },
+    "test:backup": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/backup-lab.ts"
       }
     },
     "lint": {
@@ -59,5 +112,18 @@
         "parallel": false
       }
     }
+  },
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "{workspaceRoot}/deploy/k8s/**/*",
+      "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)",
+      "!{projectRoot}/tsconfig.spec.json"
+    ]
   }
 }

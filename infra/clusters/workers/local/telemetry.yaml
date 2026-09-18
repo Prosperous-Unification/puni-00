@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: telemetry
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./infra/platform/telemetry/local
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: puni-platform
+  kubeConfig:
+    secretRef:
+      name: workers-local-kubeconfig
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  dependsOn:
+    - name: storage
+    - name: secrets
+  wait: true
+  timeout: 10m

@@ -1,0 +1,89 @@
+import { createHash } from 'node:crypto';
+
+import type { Capability } from './contracts';
+
+export type DiscoverySource =
+  | `provider:${string}`
+  | `lab-provider:${string}`
+  | `kubernetes-nodes:${string}`
+  | `kubernetes-pvcs:${string}`
+  | `kubernetes-pvs:${string}`
+  | `kubernetes-volumeattachments:${string}`
+  | `ssh-facts:${string}`;
+
+export type ObservedNodeState =
+  'enrolled' | 'discovered-unenrolled' | 'missing' | 'ready' | 'not-ready' | 'retiring';
+
+export interface ObservedNode {
+  readonly clusterId: string;
+  readonly desiredNodeId?: string;
+  readonly displayName: string;
+  readonly providerIdentity: string;
+  /** Exact discovery source that supplied or disproved this stable identity. */
+  readonly identitySource: DiscoverySource;
+  readonly privateAddress?: string;
+  readonly machineId?: string;
+  readonly kubernetesNodeUid?: string;
+  readonly kubernetesProviderId?: string;
+  readonly capabilities: readonly Capability[];
+  readonly capabilitiesObserved: boolean;
+  readonly states: readonly ObservedNodeState[];
+  readonly storageAttachments: readonly string[];
+}
+
+export interface FleetObservationBody {
+  readonly schemaVersion: 1;
+  readonly desiredRevision: string;
+  readonly observedAt: string;
+  readonly complete: true;
+  readonly sources: readonly {
+    readonly name: DiscoverySource;
+    readonly observedAt: string;
+  }[];
+  readonly clusters: readonly {
+    readonly id: string;
+    readonly state: 'ready' | 'not-bootstrapped';
+  }[];
+  readonly storage: readonly {
+    readonly clusterId: string;
+    readonly claims: readonly string[];
+    readonly volumes: readonly string[];
+    readonly attachments: readonly string[];
+  }[];
+  readonly nodes: readonly ObservedNode[];
+}
+
+export interface FleetObservation extends FleetObservationBody {
+  readonly digest: string;
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === 'object' && input !== null && !Array.isArray(input);
+}
+
+export function serializeObservation(input: unknown): string {
+  if (Array.isArray(input)) return `[${input.map(serializeObservation).join(',')}]`;
+  if (isRecord(input)) {
+    return `{${Object.entries(input)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${JSON.stringify(key)}:${serializeObservation(value)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(input);
+}
+
+/** Bind every detailed observation field to the identity consumed by planning. */
+export function digestObservation(body: FleetObservationBody): string {
+  return createHash('sha256').update(serializeObservation(body)).digest('hex');
+}
+
+/**
+ * Find the first `PUNI_MACHINE_FACT={...}` document the controlled Ansible fact task printed and
+ * return its brace-delimited text, still carrying any `\"` escapes from Ansible's JSON `msg`.
+ * A backslash always consumes the next character, so an escaped `}` never closes the document.
+ * The two alternatives never start on the same character, which keeps matching linear on
+ * adversarial SSH output instead of backtracking exponentially over runs of backslashes.
+ */
+export function findMachineFactDocument(stdout: string): string | undefined {
+  return /PUNI_MACHINE_FACT=(\{(?:\\[^\r\n]|[^\\}\r\n])+\})/.exec(stdout)?.[1];
+}

@@ -900,3 +900,13 @@ activation root is not provisioned`. The independent post-main review found no m
 reran all 44 gate-entrypoint cases successfully. Tasks 4.2–4.4 remain open: no candidate was
 published, no canonical h2puni gate or external activation was run, no release images were
 published, and no production dry-run acquired its required release manifest.
+
+### Trusted activation debt, 2026-09-16
+
+PR #457 merged with the base-owned `trusted-wiki` check red: the bootstrap policy's trusted
+boundaries still selected the pre-move paths (`libs/domain/src/saved-plan` and its siblings), so
+admission refused every candidate at `validateSelectedInputs` before reading the authority. The
+namespacing move is correct; what is missing is an activation prepared from a candidate SHA that
+carries `selector` new and `sourceSelector` old. That relocation activation is owed and is tracked
+by change `trusted-activation-relocation`, whose `docs/runbook-tool-wiki-activation.md#relocation`
+states the procedure. It is not re-opened here.

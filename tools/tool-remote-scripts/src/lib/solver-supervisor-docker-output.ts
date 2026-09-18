@@ -8,6 +8,8 @@ export interface BackendContainerIdentity {
   readonly id: string;
   readonly name: string;
   readonly image: string;
+  /** The runtime-reported pod name a k3s backend claims as its caller id. */
+  readonly callerAlias?: string;
 }
 
 function defect(message: string): Error {
@@ -137,4 +139,59 @@ export function parseManagedContainerEvidence(
     oomKilled,
     deadlineKilled,
   };
+}
+
+const POD_IDENTITY_KEYS = ['id', 'namespace', 'pod', 'container', 'state', 'image'] as const;
+const POD_NAME = /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/;
+const KUBERNETES_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * Authenticates one running k3s pod container reported by the root-owned CRI identity helper.
+ * Its caller name is `k8s_<namespace>_<container>`; Kubernetes names cannot contain `_`, so the
+ * name is unambiguous.
+ */
+export function parsePodContainerIdentity(
+  raw: string,
+  expectedPeerId: string,
+  allowedNamePatterns: readonly RegExp[],
+): BackendContainerIdentity {
+  requireContainerId(expectedPeerId);
+  if (allowedNamePatterns.length === 0) throw defect('backend name pattern list is empty');
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(oneLine(raw));
+  } catch (error) {
+    if (error instanceof SyntaxError) throw defect('pod inspect output is malformed JSON');
+    throw error;
+  }
+  const identity = asRecord(decoded, 'pod inspect');
+  const unknown = Object.keys(identity).filter((key) => !POD_IDENTITY_KEYS.includes(key as never));
+  if (unknown.length > 0) throw defect(`pod inspect has unknown key ${unknown.sort().join(', ')}`);
+  // Proof: disabling the id, running, or name guard below let the matching pod in the driver
+  // test "inspects a CRI pod peer through the root-owned identity helper only" authenticate.
+  if (identity['id'] !== expectedPeerId) {
+    throw defect('pod inspect id does not equal expected peer id');
+  }
+  if (identity['state'] !== 'CONTAINER_RUNNING') throw defect('pod container is not running');
+  const namespace = identity['namespace'];
+  const container = identity['container'];
+  if (
+    typeof namespace !== 'string' ||
+    typeof container !== 'string' ||
+    !KUBERNETES_NAME.test(namespace) ||
+    !KUBERNETES_NAME.test(container)
+  ) {
+    throw defect('pod container identity is malformed');
+  }
+  const name = `k8s_${namespace}_${container}`;
+  if (!allowedNamePatterns.some((pattern) => pattern.test(name))) {
+    throw defect('pod container name is not allowed');
+  }
+  const image = identity['image'];
+  if (typeof image !== 'string' || image.length === 0 || image.length > 512 || /\s/.test(image)) {
+    throw defect('pod container image is malformed');
+  }
+  const pod = identity['pod'];
+  if (typeof pod !== 'string' || !POD_NAME.test(pod)) throw defect('pod name is malformed');
+  return { id: expectedPeerId, name, image, callerAlias: pod };
 }

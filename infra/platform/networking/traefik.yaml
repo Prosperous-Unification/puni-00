@@ -1,0 +1,33 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ./infra/platform/charts/traefik-41.6.0.tgz
+      version: 41.6.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    image:
+      registry: docker.io
+      repository: library/traefik
+      tag: v3.7.13
+      digest: sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
+    versionOverride: v3.7.13
+    deployment:
+      kind: DaemonSet
+      dnsPolicy: ClusterFirstWithHostNet
+    hostNetwork: true
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
+    nodeSelector:
+      puni.dev/capability-ingress: 'true'

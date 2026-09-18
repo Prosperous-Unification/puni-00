@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "environment": "prod",
+  "namespaces": { "app": "wbs", "backend": "wbs-solver" },
+  "flux": { "namespace": "flux-system", "kustomization": "wbs", "gitRepository": "wbs-deploy" },
+  "deployManifestPath": "clusters/prod/wbs/release.yaml",
+  "publicUrl": "https://wbs.bulletpoints.club"
+}

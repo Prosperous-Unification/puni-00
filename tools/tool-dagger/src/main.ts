@@ -600,6 +600,10 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
             platform: TARGET_PLATFORM,
             buildArgs: buildArgs(tier),
           })
+          // The commit this image was built from, readable by digest from the registry: the
+          // k3s release descriptor requires it to equal the admitted source (tool-deploy
+          // registry.ts, review B1).
+          .withLabel('WBS_SHA', sha)
           // The address here is the registry host (REGISTRY), not the
           // per-image ref — withRegistryAuth authenticates against the
           // registry itself, not a specific repository/tag within it.

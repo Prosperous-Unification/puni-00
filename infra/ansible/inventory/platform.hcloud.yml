@@ -1,0 +1,24 @@
+plugin: hetzner.hcloud.hcloud
+strict: true
+cache: false
+label_selector: puni-fleet=puni,puni-cluster=platform
+connect_with: private_ipv4
+# Proof: hetzner.hcloud 7.0.1 (hcloud.py in the locked controller) raises "You can only connect via
+# private IPv4 if you specify a network" without this filter, and sets hcloud_private_ipv4 only for
+# the filtered network; the inventory contract test in discover.test.ts fails when it is removed.
+network: puni-platform
+groups:
+  k3s_agents: "hcloud_labels['puni-k3s-role'] == 'agent'"
+  k3s_join_servers: >-
+    hcloud_labels['puni-k3s-role'] == 'server' and
+    hcloud_labels.get('puni-k3s-bootstrap', 'false') != 'true'
+  k3s_bootstrap_servers: "hcloud_labels.get('puni-k3s-bootstrap', 'false') == 'true'"
+compose:
+  puni_cluster: hcloud_labels['puni-cluster']
+  puni_instance_id: hcloud_id | string
+  puni_logical_node: hcloud_labels['puni-logical-node']
+  puni_operation_id: hcloud_labels['puni-operation']
+  puni_provider_state: >-
+    'pending-deletion' if hcloud_status == 'deleting' else
+    ('off' if hcloud_status == 'off' else 'running')
+  puni_private_ipv4: hcloud_private_ipv4

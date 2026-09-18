@@ -1,0 +1,146 @@
+{
+  "name": "tool-fleet",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-fleet/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "{workspaceRoot}/infra/**/*",
+      "{workspaceRoot}/deploy/k8s/**/*",
+      "{workspaceRoot}/.github/workflows/infra-check.yml",
+      "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)",
+      "!{projectRoot}/tsconfig.spec.json"
+    ]
+  },
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../test/scratch/preload.ts",
+        "cwd": "tools/tool-fleet"
+      },
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/infra/**/*",
+        "{workspaceRoot}/deploy/k8s/**/*"
+      ]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-fleet/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-fleet/src --cache --cache-location .nx/eslintcache-tool-fleet"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-fleet/tsconfig.json"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["test", "lint", "typecheck"],
+      "options": {
+        "command": "bun tools/tool-fleet/src/check-cli.ts"
+      }
+    },
+    "check:faults": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/check-faults.ts"
+      }
+    },
+    "lab": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/k3d-lab.ts" }
+    },
+    "plan": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/entrypoint.ts plan"
+      }
+    },
+    "terragrunt-plan": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/entrypoint.ts terragrunt-plan"
+      }
+    },
+    "terragrunt-destroy-plan": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/entrypoint.ts terragrunt-destroy-plan"
+      }
+    },
+    "discover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/entrypoint.ts discover"
+      }
+    },
+    "apply": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/entrypoint.ts apply"
+      }
+    },
+    "recover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/recover.ts"
+      }
+    },
+    "health": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/health.ts"
+      }
+    },
+    "maintenance": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/maintenance.ts"
+      }
+    },
+    "synthetic": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/maintenance-workers.ts"
+      }
+    },
+    "controller-image": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/dist/tool-fleet/controller.oci"],
+      "options": {
+        "command": "bun tools/tool-fleet/src/entrypoint.ts build"
+      }
+    }
+  }
+}

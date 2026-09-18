@@ -1,0 +1,159 @@
+# Workers clusters run no Elasticsearch, Kibana or Prometheus: this agent reads pod logs and
+# host metrics on every node and ships them over OTLP to the platform cluster's otel-gateway.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: otel-agent
+  namespace: observability
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ./infra/platform/charts/opentelemetry-collector-0.173.1.tgz
+      version: 0.173.1
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    fullnameOverride: otel-agent
+    mode: daemonset
+    image:
+      repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+      tag: 0.160.0
+      digest: sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    command:
+      name: otelcol-contrib
+    # k3s writes /var/log/pods files as root:root 0640. A non-root UID gets no effective
+    # capabilities from the container spec, so reading them needs UID 0; every capability
+    # except DAC_READ_SEARCH is dropped, escalation is off and the root filesystem is read-only.
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: { drop: [ALL], add: [DAC_READ_SEARCH] }
+    tolerations:
+      - operator: Exists
+    resources:
+      requests: { cpu: 50m, memory: 96Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+    extraEnvs:
+      - name: PUNI_TELEMETRY_UPSTREAM
+        valueFrom:
+          configMapKeyRef: { name: puni-telemetry, key: upstream }
+      - name: PUNI_CLUSTER_ID
+        valueFrom:
+          configMapKeyRef: { name: puni-telemetry, key: cluster }
+    extraVolumes:
+      - name: pod-logs
+        hostPath: { path: /var/log/pods, type: Directory }
+      - name: host-proc
+        hostPath: { path: /proc, type: Directory }
+      - name: state
+        hostPath: { path: /var/lib/puni-otelcol, type: DirectoryOrCreate }
+    extraVolumeMounts:
+      - { name: pod-logs, mountPath: /var/log/pods, readOnly: true }
+      - { name: host-proc, mountPath: /hostfs/proc, readOnly: true }
+      - { name: state, mountPath: /var/lib/otelcol }
+    ports:
+      otlp:
+        enabled: false
+        hostPort: 0
+      otlp-http:
+        enabled: false
+        hostPort: 0
+      jaeger-compact:
+        enabled: false
+      jaeger-thrift:
+        enabled: false
+      jaeger-grpc:
+        enabled: false
+      zipkin:
+        enabled: false
+      metrics:
+        enabled: true
+    service:
+      enabled: false
+    alternateConfig:
+      extensions:
+        health_check:
+          endpoint: ${env:MY_POD_IP}:13133
+        file_storage/queue:
+          directory: /var/lib/otelcol/queue
+          create_directory: true
+        file_storage/checkpoints:
+          directory: /var/lib/otelcol/checkpoints
+          create_directory: true
+      receivers:
+        filelog:
+          include: [/var/log/pods/*/*/*.log]
+          exclude: [/var/log/pods/observability_otel-agent-*/*/*.log]
+          start_at: end
+          include_file_path: true
+          storage: file_storage/checkpoints
+          operators:
+            - type: container
+              id: container-parser
+        hostmetrics:
+          root_path: /hostfs
+          collection_interval: 30s
+          scrapers:
+            cpu: {}
+            load: {}
+            memory: {}
+            network: {}
+            processes: {}
+      processors:
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 200
+          spike_limit_mib: 50
+        transform/redact:
+          log_statements:
+            - context: log
+              statements:
+                - replace_pattern(body, "AGE-SECRET-KEY-1[0-9A-Z]{58}", "[REDACTED]")
+                - replace_pattern(body, "gh[pousr]_[A-Za-z0-9]{36,}", "[REDACTED]")
+                - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
+                - replace_pattern(body, "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+", "$$1[REDACTED]")
+                - replace_pattern(body, "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+", "$$1[REDACTED]")
+        resource/cluster:
+          attributes:
+            - { key: puni.cluster, value: '${env:PUNI_CLUSTER_ID}', action: upsert }
+            - { key: host.name, value: '${env:OTEL_K8S_NODE_NAME}', action: upsert }
+        batch:
+          send_batch_size: 1000
+          timeout: 5s
+      exporters:
+        otlp:
+          endpoint: ${env:PUNI_TELEMETRY_UPSTREAM}
+          # Private network only; otlp-ingress admits the private CIDR. mTLS is an open item.
+          tls:
+            insecure: true
+          sending_queue:
+            enabled: true
+            storage: file_storage/queue
+            queue_size: 5000
+          retry_on_failure:
+            enabled: true
+            max_elapsed_time: 0s
+      service:
+        extensions: [health_check, file_storage/queue, file_storage/checkpoints]
+        telemetry:
+          metrics:
+            readers:
+              - pull:
+                  exporter:
+                    prometheus:
+                      host: ${env:MY_POD_IP}
+                      port: 8888
+        pipelines:
+          logs:
+            receivers: [filelog]
+            processors: [memory_limiter, transform/redact, resource/cluster, batch]
+            exporters: [otlp]
+          metrics:
+            receivers: [hostmetrics]
+            processors: [memory_limiter, resource/cluster, batch]
+            exporters: [otlp]

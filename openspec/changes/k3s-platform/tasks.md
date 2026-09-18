@@ -1,0 +1,39 @@
+# Tasks
+
+- [x] F3 — Prove Ubuntu host and k3s convergence per [F3](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f3--set-up-hosts-and-bootstrap-k3s-immediately). Proved on rootless QEMU/KVM Ubuntu 24.04 VMs, recorded in [k3s-fleet verify.md](../k3s-fleet/verify.md); Hetzner MTU and the Multipass provider are not covered.
+- [ ] F6 — Install Flux-owned platform resources and admission boundaries per [F6](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f6--install-the-platform-with-explicit-ownership).
+  - [x] Locked Flux, chart archives and image digests; staged graph with dependency gating (k3d, 2026-09-17/18).
+  - [x] Trusted solver/forge admission, Restricted namespaces, default-deny network drills; candidate and rollback solver digests.
+  - [x] Live SOPS decryption and missing-key refusal; live wrong-cluster kubeconfig refusal.
+  - [x] Complete cluster-specific Flux source graph reconciled from an immutable Git commit on k3d.
+  - [x] Local test registry with TLS and htpasswd auth, digest-preserving migration copy, read-only offline GC and pull after restart.
+  - [ ] Production registry adoption: node containerd trust, private endpoint and migration from the existing registry. Prepared: `registry/production`, `platform-registry.ts copy`; next: encrypt `registry-ca` and `registry-auth`, add `registries.yaml` to the k3s roles, copy images, repoint pulls.
+  - [ ] Staging ACME issuance for the two hostnames. Prepared: `letsencrypt-staging`; next: a reviewed `platform-dns.ts plan`, applied by hand, then a staging Certificate.
+  - [ ] Production Flux bootstrap with the read-only deploy key and hcloud storage on real hosts.
+- [ ] F7 — Bring up observability and layered backups per [F7](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f7--bring-up-elastic-metrics-logging-and-backups).
+  - [x] ECK/Elasticsearch/Kibana, kube-prometheus-stack, blackbox, OTel with persistent queue and redaction, ILM and SLM, sized and placed by capability (k3d).
+  - [x] Workers clusters reconcile an agent-only telemetry graph that ships logs and host metrics to the platform gateway (k3d, two clusters).
+  - [x] Alert rules covered by promtool unit tests using the locked Prometheus image.
+  - [x] Drills: log injection, failing endpoint and dead-man delivery, Elasticsearch outage count, Elastic restore under a new name, broken backup credentials, SQLite known-row and migration restore, Velero Kopia restore, etcd S3 snapshot.
+  - [ ] mTLS for the cross-cluster OTLP gateway; alerts for missing workers telemetry and stale Elastic snapshots. Prepared: the `otel-gateway` NodePort and `otlp-ingress` policy in `infra/platform/observability/`; next: a cert-manager client certificate per workers cluster and rules in `infra/platform/alerts/`, each with a `promtool` unit test.
+  - [ ] Real recipients and dead-man service in `alertmanager-puni`; production buckets with versioning, object lock and the off-region `rclone copy`. Prepared: the Secret table in `docs/infra/platform.md` and the bucket commands in `docs/infra/recovery.md`; next: encrypt `alertmanager-puni` into `infra/platform/secrets/platform-production/` and run those bucket commands with production credentials.
+  - [ ] Recovery-secret escrow executed and verified on a second machine; `backup.yml` converged on real servers. Prepared: `infra/ansible/playbooks/backup.yml` and the escrow list in `docs/infra/recovery.md`; next: restore each escrowed value on a clean machine and compare fingerprints, then run `backup.yml` against the production servers.
+  - [ ] Volume-threshold and OTel-network-block drills on production-like storage; h3 monitoring retirement evidence. Needs hcloud volumes; next: fill a test volume past the alert threshold and block OTLP egress with a NetworkPolicy on a staging cluster.
+- [ ] F9 — Preserve source-run development on k3s per [F9](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f9--source-run-development-and-localhost-experience).
+  - [x] k3d profiles `app`, `platform`, `fleet` in `tool-fleet:lab`: locked k3s image, loopback-only ports, per-lab contexts, owner-only Git-ignored state, label-scoped `down`, resource refusal naming the smaller profile (live on k3d, 2026-09-18).
+  - [x] `tool-devsync:dev-env`: one worktree, slug and forge Pod under the F6 forge admission; realpath, owner, repository, duplicate-slug and wrong-cluster refusals; solver runtime directory mount; in-place restart on `RESTART_PATHS`; recreate on image or overlay change; independent database (live).
+  - [x] HTTP and headless-Chromium checks of HMR, gateway WebSocket, local auth, API, MCP URLs and restarts after lockfile and config changes; fresh-clone walkthrough from `docs/infra/local.md` (live).
+  - [ ] Measure `platform` and `fleet` with the full platform graph and replace the 16/24 GiB planning thresholds; only the Flux-installed `fleet` shell was measured. Next, on a host with 24 GiB available: `bunx nx run tool-fleet:lab -- up --id measure --profile fleet --worktree-root <dir>`, reconcile the graph as in `docs/infra/local.md`, record `docker stats`.
+  - [ ] Per-environment namespaces: the forge admission matches the namespace name `puni-forge`, so environments share it and are separated by labels and NetworkPolicy. A namespace-label match in `infra/platform/policy` would allow one namespace each. Next: that policy change with its admission probes in `infra/platform/conformance/admission/`.
+  - [x] The real Ubuntu VM host-setup check (`tool-fleet:lab -- up --provider qemu --lab-id …`) ran in the VM lab track; evidence in [k3s-fleet verify.md](../k3s-fleet/verify.md).
+- [ ] F10 — Execute cold recovery and routine maintenance drills per [F10](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f10--recovery-and-routine-maintenance).
+  - [x] Cold-restore verifier, `restore.yml`, fenced attachment removal and deliberate volume rebind; missing-token, missing-key and corrupt-archive refusals (live, k3d).
+  - [x] Cold restore on k3d from a snapshot with the escrowed token: Flux reconciled, SQLite known row and 44 migrations, registry pull by digest, Elastic query, admission dry-runs.
+  - [x] Maintenance planners (expansion, certificate/token/SOPS rotation, registry recovery, forge replacement) with refusal tests.
+  - [x] Daily SQLite restore verification; read-only health check with a fault drill per rule.
+  - [x] Worker cluster recreation and synthetic Jobs: duplicate start, cancellation, drain, node loss, memory and disk exhaustion, telemetry outage (infrastructure proofs only).
+  - [x] `restore.yml` end to end on a systemd host (rootless QEMU lab), with the single-host, node-name and running-datastore refusals.
+  - [ ] Control-plane expansion, certificate and token rotation, SOPS key rotation and forge replacement executed on real hosts: planners only. Next: `bunx nx run tool-fleet:maintenance -- plan --input <evidence.json>` per operation on a three-server lab or staging cluster, then the steps the plan prints.
+  - [x] Platform claims on `puni-retain` (Retain) in both environments; memory-backed worker scratch and ephemeral-storage quota.
+  - [ ] Live drill of `sqlite-backup-verify` in its `wbs-solver` layout with a real backend image; hcloud Retain class on real volumes. Prepared: `deploy/k8s/wbs/base/verify-cronjob.yaml`; next: extend `bunx nx run tool-deploy:test:backup` to create a Job from `cronjob/sqlite-backup-verify`, and a staging PVC on `puni-retain`.
+- [x] F12 — Finish the tested operator handoff per [F12](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f12--finish-the-operator-handoff): [operator guide](../../../docs/infra/README.md) with command table, ownership diagrams and tested platforms; script audit in verify.md.

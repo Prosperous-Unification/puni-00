@@ -1,0 +1,13 @@
+[Unit]
+Description=Configure the k3s private-network MTU
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ip link set dev {{ puni_private_interface }} mtu {{ puni_private_mtu }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+

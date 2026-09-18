@@ -1,0 +1,18 @@
+#!/bin/bash
+# Root-owned CRI identity for one k3s pod container, read by the solver supervisor through sudo.
+# It prints only the runtime's own record: id, namespace, pod, container, state, and the image
+# reference the runtime resolved (imageRef, repo@sha256), never the user-supplied spelling.
+set -euo pipefail
+# Proof: removing this check let ansible.test.ts reach /usr/local/bin/k3s with a malformed id.
+if [[ $# -ne 1 || ! $1 =~ ^[0-9a-f]{64}$ ]]; then
+  echo 'usage: puni-cri-peer <64-hex container id>' >&2
+  exit 64
+fi
+/usr/local/bin/k3s crictl inspect "$1" | jq -ce '{
+  id: .status.id,
+  namespace: .status.labels["io.kubernetes.pod.namespace"],
+  container: .status.labels["io.kubernetes.container.name"],
+  state: .status.state,
+  image: .status.imageRef,
+  pod: .status.labels["io.kubernetes.pod.name"]
+}'

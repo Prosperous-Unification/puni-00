@@ -1,0 +1,37 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kibana
+  namespace: observability
+spec:
+  interval: 30m
+  dependsOn:
+    - name: elasticsearch
+  chart:
+    spec:
+      chart: ./infra/platform/charts/eck-kibana-0.20.0.tgz
+      version: 0.20.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  # No Ingress: Kibana is reached through the private network or a port-forward only.
+  values:
+    fullnameOverride: kibana
+    version: 9.3.8
+    image: docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481
+    count: 1
+    elasticsearchRef:
+      name: elasticsearch
+    podTemplate:
+      spec:
+        nodeSelector:
+          puni.dev/capability-observability: 'true'
+        containers:
+          - name: kibana
+            env:
+              - name: NODE_OPTIONS
+                value: --max-old-space-size=512
+            resources:
+              requests: { cpu: 200m, memory: 768Mi }
+              limits: { cpu: '1', memory: 1Gi }

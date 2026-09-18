@@ -243,8 +243,10 @@ export async function readProjects(workspace) {
 
 /**
  * Build Nx dependency constraints for every product present in the project
- * graph. Product-neutral infrastructure contributes no rule; shared product
- * code may depend only on other shared product code.
+ * graph. Shared product code may depend only on other shared product code. One
+ * trailing `scope:infra` rule holds product-less infrastructure to infra and
+ * the shared product, because such a project carries no `product:` tag for the
+ * per-product rules above to match.
  *
  * @param {readonly WorkspaceProject[]} projects
  * @returns {readonly Readonly<{
@@ -261,7 +263,7 @@ export function productConstraints(projects) {
     }
   }
 
-  return [...products].sort().map((product) => ({
+  const perProduct = [...products].sort().map((product) => ({
     sourceTag: `product:${product}`,
     // Proof: removing only the generated product:probe rule made the fixture's
     // actual uncached Nx lint accept its forbidden @wbs/core production import
@@ -270,11 +272,50 @@ export function productConstraints(projects) {
     onlyDependOnLibsWithTags:
       product === 'shared' ? ['product:shared'] : [`product:${product}`, 'product:shared'],
   }));
+  return [
+    ...perProduct,
+    // Proof: without this rule the fixture's probe tool imported `@wbs/core` and its
+    // uncached Nx lint exited 0, failing `refuses a product import from a product-less
+    // tool and admits shared` on `Expected: 1 · Received: 0` (2026-09-15). Tools carry no
+    // product tag, so no per-product rule above ever applies to them.
+    { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:infra', 'product:shared'] },
+  ];
 }
 
 /** @param {NamespaceProject} project @param {string} axis */
 function filterTags(project, axis) {
   return project.tags.filter((tag) => tag.startsWith(axis));
+}
+
+/**
+ * Application roots whose directory temporarily differs from their product.
+ * `apps/wiki/cli` publishes and runs as `twilight-bureaucrat` but moves to
+ * `apps/twilight-bureaucrat/cli` only after the wiki freeze/adoption tasks
+ * (openspec/changes/twilight-bureaucrat-package/design.md). Each entry excuses
+ * exactly one root, product and name; {@link findStaleLayoutExceptions} fails
+ * once the root is gone so the excuse cannot outlive the move.
+ *
+ * @type {Readonly<Record<string, { readonly product: string, readonly name: string }>>}
+ */
+export const FROZEN_APPLICATION_ROOTS = {
+  'apps/wiki/cli': { product: 'twilight-bureaucrat', name: 'twilight-bureaucrat' },
+};
+
+/**
+ * Name every frozen application root that no discovered project still occupies.
+ *
+ * @param {readonly NamespaceProject[]} projects
+ * @returns {readonly string[]}
+ */
+export function findStaleLayoutExceptions(projects) {
+  const roots = new Set(projects.map((project) => project.root));
+  return (
+    Object.keys(FROZEN_APPLICATION_ROOTS)
+      // Proof: disabling this filter failed `names a frozen root that no project occupies after
+      // the move` (2026-09-18).
+      .filter((root) => !roots.has(root))
+      .map((root) => `${root}: frozen layout exception names no project; remove it`)
+  );
 }
 
 /**
@@ -366,12 +407,20 @@ export function findNamespaceLayoutViolations(projects) {
       // Proof: disabling this check made the owning Nx target omit the app's
       // directory/product disagreement while retaining the library refusal
       // (2026-09-14).
-      if (products.length === 1 && products[0] !== `product:${segments[1]}`) {
+      // Proof: matching any `apps/wiki/` root instead of the exact frozen root failed
+      // `excuses only the exact frozen application product and name`; without the entry the
+      // actual workspace reported `apps/wiki/cli: directory product wiki disagrees with
+      // product:twilight-bureaucrat` and its name refusal (2026-09-18).
+      const frozen = Object.hasOwn(FROZEN_APPLICATION_ROOTS, project.root)
+        ? FROZEN_APPLICATION_ROOTS[project.root]
+        : undefined;
+      const expectedProduct = frozen?.product ?? segments[1];
+      if (products.length === 1 && products[0] !== `product:${expectedProduct}`) {
         violations.push(
-          `${project.root}: directory product ${segments[1]} disagrees with ${products[0]}`,
+          `${project.root}: directory product ${expectedProduct} disagrees with ${products[0]}`,
         );
       }
-      const expectedName = `${segments[1]}-${segments[2]}`;
+      const expectedName = frozen?.name ?? `${segments[1]}-${segments[2]}`;
       // Proof: disabling this app-name check made the owning Nx target omit the
       // unqualified be-01 refusal while retaining the library refusal
       // (2026-09-14).

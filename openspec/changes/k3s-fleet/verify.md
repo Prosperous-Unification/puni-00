@@ -1,0 +1,726 @@
+# Verification
+
+## Commands and results
+
+- `bunx nx run tool-fleet:test --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 15 passed, 0 failed after the reviewed lock/build-boundary repairs.
+- `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): test 15/15, lint, typecheck, and committed-lock validation passed.
+- `bunx nx show projects --affected --files=infra/versions/toolchain.json` (2026-09-17): included `tool-fleet`.
+- `bunx nx run tool-fleet:build --skip-nx-cache` (2026-09-17): produced `dist/tool-fleet/controller.oci`; its OCI index named the locked manifest digest.
+- F0 invocations of `tool-fleet:{lab,plan,apply}` each exited nonzero and named its F3, F1, or F4 prerequisite rather than reporting placeholder success.
+- Official release, chart-index, Snap Store, Galaxy, and OCI registry lookups on 2026-09-17 produced `infra/versions/toolchain.json`.
+- `docker buildx build --output type=oci ...` built the controller manifest `sha256:6d063abc13ee0393fbc98298de7464ad311bf8f6ec376bcdc2d8746c0a3c199b` with Python 3.14.6, ansible-core 2.21.3, community.general 13.4.0, hetzner.hcloud 7.0.1, and kubernetes.core 6.6.0. Registry publication remains pending.
+- F1 `bunx nx run tool-fleet:test --skip-nx-cache` with the Nx daemon disabled (2026-09-17): 30 passed, 0 failed, 152 assertions. The production CLI decoded the committed local YAML and an exact observation, persisted an owner-only JSON plan, and printed its affected-capability, operation-specific downtime and storage implications, and SHA-256.
+- F1 source lint and typecheck exited 0. Desired-state fixtures cover separate platform/worker clusters, a combined product/ingress server, observability placement, a worker server, two execution agents, and an arbitrary fourth hostname.
+- F2 `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17), after phase-review remediation: 45 passed, 0 failed, 307 assertions; lint, typecheck, and lock validation passed. The production CLI fixture exercised bounded provider, Kubernetes, storage, and SSH processes through the digest-locked controller and never invoked its apply sentinel.
+- F2 `bunx nx run tool-fleet:build --skip-nx-cache` (2026-09-17) rebuilt `dist/tool-fleet/controller.oci` and matched locked manifest `sha256:58926be24296929f29d833da7cf18436f981a9b28e3bc42650d03f29fbe13933`.
+- The final controller image exposed kubectl v1.36.4, ansible-core 2.21.3, community.general 13.4.0, hetzner.hcloud 7.0.1, and kubernetes.core 6.6.0 to runtime user 1000; imported the exact hashed Python dependency closure; and passed the committed discovery playbook syntax check. The exact repository-name-plus-digest runtime reference resolved locally.
+- A read-only end-to-end `tool-fleet discover` probe through the exact locked controller reference, with an intentionally invalid placeholder token, observed `ansible-inventory` return exit 0, an empty inventory, and an unauthorized warning. The production adapter rejected that diagnostic before decoding absence and created no observation. Live successful provider and Kubernetes discovery remain unverified because no production credentials or kubeconfigs were supplied.
+- F3 `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 63 passed, 0 failed, 436 assertions; lint, typecheck, and committed-lock validation passed after the live-VM repairs. The focused Ansible/lab suite passed 18 tests and 127 assertions.
+- The digest-locked fleet controller ran `ansible-playbook --syntax-check` successfully for `bootstrap.yml`, `join.yml`, `validate-enrollment.yml`, and the shared enrollment-identity assertion harness. The expected no-inventory host-pattern warnings were the only diagnostics.
+- The shared production enrollment assertion passed matching synthetic identity evidence through the digest-locked controller. A wrong machine ID and a wrong address independently failed their intended assertions with exit 2; reversing the machine-ID comparison made the matching case exit 2 before the comparison was restored.
+- The pinned controller rendered the validation stdin with a synthetic three-node inventory and parsed six Kubernetes documents: Namespace, receiver Pod, Service, and one fresh Job pinned to each node.
+- A direct rootless QEMU/KVM Ubuntu 24.04 platform lab ran the production `bootstrap.yml`, `join.yml`, and `validate-enrollment.yml` playbooks with ansible-core 2.21.3. Bootstrap completed `ok=43 changed=23 failed=0`; the initial join completed `ok=42 changed=25 failed=0`; the second bootstrap and join converged at `changed=0`. The two-node validation observed the exact machine IDs and private addresses, scheduled a fresh digest-pinned Job on each node, and completed cross-node DNS and pod traffic before removing enrollment taints.
+- The live run exposed and repaired four production faults: clean Ubuntu omitted `/etc/systemd/journald.conf.d`; kubectl treated `--patch-file=-` as a literal path; the pinned k3s image lacked `httpd`; and changing the agent token did not restart k3s. The repaired playbooks created the directory, used `/dev/stdin`, served the bounded response through BusyBox `inetd`, and notified the agent restart handler.
+- Real-playbook negatives failed as required: a zero checksum made `get_url` exit 2 while preserving the installed binary and active service; a wrong expected machine ID made validation exit 2 with no changes; and a well-formed false CA-bound agent token restarted k3s but left the node absent while nine matching refusal log entries accumulated. Restoring the generated CA-bound token re-enrolled the same machine ID, emitted zero CA-trust warnings after restart, and passed fresh per-node validation.
+- The production Multipass helper itself remains unexecuted because the exact pinned Multipass provider is unavailable. The direct-QEMU lab proves the roles and playbooks on real Ubuntu/systemd/KVM hosts, but it does not certify the helper's provider lifecycle, firewall reboot persistence, firewall-startup refusal, or the optional three-node worker profile. F3 remains incomplete until those listed paths run through the supported helper/provider.
+- A production-function test drives `runVmLab` through fake Multipass and Docker process boundaries from empty provider state through VM creation, bootstrap, generated-token reads from the exact created server, join, validation, and the stable second pass. This covers helper orchestration and the server-name boundary without claiming a real Multipass convergence.
+- F4 repair `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 88 passed, 0 failed, 529 assertions; lint, typecheck, and committed-lock validation passed. The production command deadline killed a signal-ignoring process group and its descendant before the sentinel write.
+- F4 review hardening reran the same full check (2026-09-17): 94 passed, 0 failed, 550 assertions; lint, typecheck, and committed-lock validation passed. The new production-path cases cover controller stdin, Lease renewal/release and completed-journal reuse, recoverable before/after observation records, exact postconditions, exit-zero inventory diagnostics, purpose/topology refusal, static enrollment inventory, independently observed machine identity, and response-lost recovery through final enrollment.
+- `/tmp/puni-terraform-1.16.3/terraform -chdir=infra/terraform fmt -check -recursive` exited 0. Sandboxed validation could not launch the provider plugin; the escalated exact locked binary then reported `valid: true`, zero errors, and zero warnings. OpenSpec validation reported 95 passed and 0 failed.
+- The real static-inventory parser probe remains unverified in this hardening run. Docker execution was available, but automatic approval review rejected mounting the synthetic inventory into the external locked image; local Ansible installation then failed because sudo requires an interactive password. The production adapter and exact static shape are covered by tests, but those tests do not replace a real `ansible-inventory` parse.
+- Astra review found six cross-path defects in the F4 checkpoint. The shared discovery decoder now accepts and exactly validates the playbook marker's name, machine ID, and address. The executor refreshes recoverable journal state under the acquired Lease and checks plan expiry at the adapter's mutation boundary. Terraform preparation and response-lost import share one reviewed variables path. Provisioning learns and durably records a fresh machine's generated ID before passing it to enrollment. The production planner also refuses the worker control-plane plus execution combination. Focused discovery/planner/apply/production-adapter tests passed 47/47 with 335 assertions, and `tool-fleet:typecheck` passed.
+- After those repairs, `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled passed 103 tests with 579 assertions, lint, typecheck, and the committed-lock check. One concurrent focused discovery run crossed its five-second test deadline; the immediate isolated rerun passed 13/13 with 152 assertions in 5.08 seconds, and the subsequent full check passed the same production discovery case in 4.91 seconds. The second Astra pass found two remaining recovery trust gaps: Terraform preparation now snapshots variables before planning, binds their digest into the operation plan, and checks it before import; active-step enrollment now refuses a missing persisted machine identity. The final full check passed 103 tests with 585 assertions, lint, typecheck, and the committed-lock check.
+- The final Astra R5 follow-up added the missing valid-byte mode-0644 import-variable negative and adjacent production proof. The focused production adapter suite passed 10/10 with 46 assertions and its source lint passed. A later full check included in-progress F5 files and therefore is not F4 evidence.
+- Terraform 1.16.3 loaded the locked hcloud 1.69.0 provider and reported `valid: true`, zero errors, and zero warnings for the F4 module. The provider lock carries its official signed checksum set and the exact downloaded archive checksum.
+- Controlled production adapters bound the complete Terraform request, backend guarantees, Ansible variables, state lineage/serial, and direct provider ownership; acquired a unique-execution per-cluster Lease; recorded before/after observation hashes and active steps; persisted a desired-node candidate; and required both F3 join and Ready validation recaps. An operation-owned server observed after a lost create response was imported once and the stale create plan refused. A reviewed existing SSH host enrolled only with its exact machine ID, address, and known-host key.
+- Removing the production identity recheck made `applyOperation > refuses stale plans, digest mismatch, identity drift, and pending deletion before mutation` resolve instead of reject. Removing lease ownership made the lost-lease case complete instead of persisting recoverable state. Allowing `delete` in both Terraform action guards made the exact allowed-address deletion case stop throwing. Each guard was restored before the passing target.
+- Live hcloud provisioning, independent verification of the production HTTP backend guarantees, real Kubernetes Lease acquisition, and F3 enrollment of a new paid host remain unverified because no hcloud token, production backend endpoints/credentials, kubeconfigs, or exact authorized operation plan were supplied. No paid resource was created. F4 remains incomplete until that exact authorized operation runs and its second apply is an observed no-op.
+- F5 repair `NX_DAEMON=false bunx nx run tool-fleet:check --skip-nx-cache` (2026-09-17): 120 passed, 0 failed, 646 assertions; lint, typecheck, and the committed-lock check passed. Focused retirement, replacement, upgrade, destroy, plan, and CLI coverage passed 40/40 with 220 assertions; the adjacent destroy-plan decoder negative adds the retained-volume refusal.
+- Post-review repair `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache` (2026-09-17): 128 passed, 0 failed, 720 assertions; lint, typecheck, and the committed-lock check passed. The retirement shells rejected duplicate voter mappings and directly proved four-of-seven distinct voter success and three-of-seven refusal through the production jq predicate; counted health comes from fresh delegated linearizable endpoint probes.
+- The exact locked controller image ran a network-disabled synthetic `ansible-playbook` with the reviewed static cluster inventory followed by a provider inventory that supplied only the survivor address. Delegation to the survivor retained the reviewed `ansible_user` and strict `UserKnownHostsFile` policy and passed both assertions. The production negative separately removed survivor host keys from a digest-valid retirement plan and refused before Ansible.
+- Retirement planning binds complete desired revision, observation digest, provider identity, Kubernetes UID, readiness, storage, capability, registration-endpoint, and surviving-control-plane evidence. The production adapter binds both cloud and external SSH retirement to owner-only static inventory and known-host artifacts, rechecks live hcloud identity before each effect, and produces no receipt after injected PDB drain or retained-service/credential verification failures. Changing the static inventory bytes stopped before host observation. Destroy planning accepted an owner-only receipt only when its SHA-256, node, and provider identity matched.
+- The repair binds a structured backup receipt, refreshes live Ready capability floors and local-PV topology before every retirement mutation, uses the explicit Kubernetes context, records exact etcd removal before accepting Node absence, and persists an enrollment exclusion consumed by later enrollment. A saved provider-destroy plan is now applied only after that receipt and may delete the exact server and attachment edges while retained volumes, primary IPs, shared infrastructure, and other nodes remain outside its accepted change set.
+- Replacement planning refused a missing writer without a powered-off/deleted external fence for its exact provider identity. Upgrade planning refused release channels, same-version work, downgrades, unhealthy nodes, stale observations, and missing per-server-cluster recovery snapshots; its playbook is serial and checksum-bound.
+- Real k3s retirement/reboot, local-PV/forge/singleton drain failures, dead-node replacement, serial multi-node upgrade, and the full worker join/job/drain/disappearance/replacement drill remain unverified. The locked-controller retirement playbook syntax check also remains unverified: automatic approval review rejected mounting this private workspace into the external image. No node was drained, fenced, upgraded, destroyed, or purchased in this run; F5 remains incomplete until those infrastructure drills are authorized and observed.
+
+## Failure proofs
+
+| Check                          | Injected fault                                                                                                                                                                    | Production-path test                                                                                                  | Observed result                                                                                                                                                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Toolchain checksum             | Replaced the SHA-256 schema with an accepting expression                                                                                                                          | `readToolchain rejects an invalid checksum`                                                                           | Failed because the malformed checksum resolved; restored the exact SHA-256 guard and the full target passed                                                                                                                           |
+| Required lock                  | Made the k3s property optional                                                                                                                                                    | `readToolchain rejects a missing required binary lock`                                                                | Failed because the missing lock resolved; restored the required property                                                                                                                                                              |
+| Unknown lock key               | Removed the root exactness guard                                                                                                                                                  | `readToolchain rejects unknown keys`                                                                                  | Failed because `releaseChannel` resolved; restored exact parsing                                                                                                                                                                      |
+| Exact version                  | Replaced the exact-version expression with `/.+/`                                                                                                                                 | `readToolchain rejects a release channel in place of an exact version`                                                | Failed because `latest` resolved; restored exact syntax                                                                                                                                                                               |
+| Supported platform             | Widened binary locks to Darwin arm64                                                                                                                                              | `readToolchain rejects an artifact for an unsupported platform`                                                       | Failed because the unsupported artifact resolved; restored Linux amd64 literals                                                                                                                                                       |
+| Chart image closure            | Removed the image-role completeness call                                                                                                                                          | `readToolchain rejects an incomplete chart image closure`                                                             | Failed because cert-manager without its webhook resolved; restored the guard                                                                                                                                                          |
+| Image role framing             | Used newline-joined roles and injected one delimiter-containing role                                                                                                              | `readToolchain rejects image roles that use a delimiter to hide a missing role`                                       | Failed because the malformed closure resolved; restored length and element comparison                                                                                                                                                 |
+| Required state read            | Removed the contextual read guard                                                                                                                                                 | `readToolchain rejects absent, unreadable, and malformed required state`                                              | Failed on the absent-file assertion with raw ENOENT; restored contextual refusal                                                                                                                                                      |
+| Malformed state parse          | Removed the contextual JSON parse guard                                                                                                                                           | `readToolchain rejects absent, unreadable, and malformed required state`                                              | Failed on malformed input with a raw parser error; restored contextual refusal                                                                                                                                                        |
+| Controller build status        | Removed the Docker exit-status guard                                                                                                                                              | `buildController rejects a failed Docker build before artifact inspection`                                            | Failed because inspection replaced the required Docker failure; restored the guard                                                                                                                                                    |
+| Controller artifact identity   | Removed the OCI manifest/lock comparison                                                                                                                                          | `buildController rejects a built artifact whose manifest differs from the lock`                                       | Failed because mismatched bytes resolved; restored the comparison                                                                                                                                                                     |
+| Controller artifact read       | Removed the tar exit-status guard                                                                                                                                                 | `buildController rejects a failed OCI index inspection`                                                               | Failed because JSON parsing replaced the injected tar failure; restored the guard                                                                                                                                                     |
+| Controller artifact JSON       | Removed the contextual JSON guard                                                                                                                                                 | `buildController rejects malformed OCI index JSON`                                                                    | Failed with a raw parser error; restored contextual refusal                                                                                                                                                                           |
+| Controller artifact schema     | Removed the OCI schema guard                                                                                                                                                      | `buildController rejects an OCI index without required manifest state`                                                | Failed with an unmodeled property access; restored schema refusal                                                                                                                                                                     |
+| Fleet identity and topology    | Disabled provider/node/cluster uniqueness, provider presence, cluster membership, topology, placement and capacity-floor guards in watched batches                                | `src/plan.test.ts` through `decodeFleet`                                                                              | Each corresponding negative failed by accepting the invalid desired fleet or reaching an untyped access; restored boundaries name the invalid identity or policy                                                                      |
+| Fleet boundary schema          | Widened capability, provider instance, required policy, observation digest/time and undeclared-key boundaries in turn                                                             | `src/plan.test.ts` through `decodeFleet` and `decodeObservation`                                                      | Each negative failed at the intended assertion; restored strict schemas reject the external input once                                                                                                                                |
+| Observation completeness       | Disabled the completeness refusal                                                                                                                                                 | `planOperation refuses incomplete observation and implicit or invalid targets`                                        | Failed because an incomplete observation emitted a retirement plan; restored guard refuses before effects                                                                                                                             |
+| Operation request identity     | Disabled target, join-cluster, exact-upgrade, provisioning-input/cluster/collision and observation-digest guards in watched batches                                               | `src/plan.test.ts` through `planOperation`                                                                            | Negatives failed by emitting plans or reaching an untyped access; restored planner refuses explicit invalid identities before effects                                                                                                 |
+| Exact operation flags          | Disabled the allowlist for unknown and operation-inapplicable CLI flags                                                                                                           | `production plan input boundary > refuses missing, duplicate, valueless, unknown, and operation-inapplicable flags`   | Failed because an unreviewed flag produced an exit-zero persisted plan; restored the operation-specific allowlist                                                                                                                     |
+| CLI argument framing           | Disabled positional-argument refusal, then removed unknown-operation refusal                                                                                                      | `production plan input boundary > refuses missing, duplicate, valueless, unknown, and operation-inapplicable flags`   | Each fault failed with a later, less precise boundary; restored errors name the exact malformed position or unsupported operation                                                                                                     |
+| Provision flag decoding        | Disabled exact boolean decoding, then disabled empty SSH identity refusal                                                                                                         | `production plan input boundary > refuses malformed provisioning booleans and SSH key lists`                          | Each fault failed: `tru` became false, and an empty identity reached planner validation; restored boundary errors name the malformed flag                                                                                             |
+| Fleet CLI state context        | Removed required-file context, then removed YAML/JSON parser context                                                                                                              | `production plan input boundary > refuses absent, unreadable, and malformed required fleet and observation state`     | Failed with raw ENOENT and parser diagnostics; restored errors identify the required state and its path                                                                                                                               |
+| Exclusive plan creation        | Replaced `wx` with ordinary `w`                                                                                                                                                   | `production plan input boundary > refuses an occupied output without changing its bytes`                              | Failed because the command exited zero and overwrote reviewed bytes; restored exclusive creation                                                                                                                                      |
+| Calendar instant               | Replaced the ISO instant calendar narrow with unconditional acceptance                                                                                                            | `fleet contracts > decodes only an exact observation identity`                                                        | Failed because `2026-99-99T99:99:99.000Z` decoded; restored exact UTC calendar validation                                                                                                                                             |
+| Dedicated worker server        | Disabled the control-plane/execution separation guard                                                                                                                             | `fleet contracts > rejects missing cluster policy, duplicate node ids, and platform execution placement`              | Failed because one server plus one agent satisfied an execution floor of two; restored role separation                                                                                                                                |
+| Planner cluster consistency    | Disabled the defensive desired-node cluster lookup refusal                                                                                                                        | `planOperation > refuses incomplete observation and implicit or invalid targets`                                      | Failed with an undefined policy access; restored refusal names the inconsistent desired node cluster                                                                                                                                  |
+| Required Python closure        | Made `controller.pythonPackages` optional                                                                                                                                         | `readToolchain rejects a missing controller Python dependency closure`                                                | Failed because the incomplete controller lock resolved; restored exact required package versions and hashes                                                                                                                           |
+| Discovery process status       | Disabled the nonzero-exit refusal                                                                                                                                                 | `production discover command` exit-42 case                                                                            | Failed because provider failure decoded as absence; restored refusal names the source, status, and stderr                                                                                                                             |
+| Exit-zero provider failure     | Disabled the Ansible inventory diagnostic refusal                                                                                                                                 | `production discover command` warning case                                                                            | Failed because an unauthorized provider warning plus empty JSON exited zero; restored refusal rejects known parse-failure diagnostics                                                                                                 |
+| Discovery JSON and shape       | Removed contextual JSON handling and widened required object, string, list, SSH fact, node-condition, capability, provider-cluster boundaries                                     | `observeFleet refuses failed, malformed, partial, and stale sources` and the production CLI negatives                 | Each watched negative failed at its intended assertion; restored decoding names the incomplete or malformed source                                                                                                                    |
+| Discovery freshness            | Disabled the maximum source-age refusal                                                                                                                                           | Production stale-provider CLI case                                                                                    | Failed because a delayed source emitted a complete observation; restored refusal checks the captured source instant                                                                                                                   |
+| Discovery timeout              | Disabled bounded-process timeout handling                                                                                                                                         | Production sleeping-provider CLI case                                                                                 | Failed because the command completed after its one-millisecond budget and emitted an observation; restored handling kills the child and refuses                                                                                       |
+| Bootstrap recovery             | Widened the recovery by removing bootstrap and desired-node conditions                                                                                                            | `observeFleet distinguishes an intentional empty bootstrap cluster from a failed established API`                     | Failed because an established or desired nonempty cluster became not-bootstrapped; restored recovery requires explicit bootstrap intent and empty provider state                                                                      |
+| Observation identity           | Disabled recomputation of the detailed observation digest                                                                                                                         | `observeFleet joins cloud and Kubernetes identity`                                                                    | Failed because changed provider identity retained the old digest; restored decoder binds every detailed field                                                                                                                         |
+| Discover CLI boundary          | Disabled unknown, positional, duplicate, valueless, required-flag, and positive-duration checks in watched turns                                                                  | Production discover boundary cases                                                                                    | Each negative failed or advanced to a less precise error; restored parsing rejects malformed invocation before observation                                                                                                            |
+| Observation output ownership   | Replaced exclusive owner-only output creation                                                                                                                                     | Production occupied-output case                                                                                       | Failed because existing bytes were overwritten; restored `wx` creation preserves reviewed state                                                                                                                                       |
+| Locked discovery runtime       | Bypassed controller wrapping and invoked host PATH tools                                                                                                                          | Production discover command Docker-invocation assertion                                                               | Failed because no controller invocation was recorded; restored every Ansible/kubectl process to the locked name-plus-digest image                                                                                                     |
+| Controller kubectl checksum    | Rebuilt with an all-`a` kubectl SHA-256                                                                                                                                           | Real `docker buildx build` checksum step                                                                              | Build exited 1 with `computed checksum did NOT match`; restored locked bytes built manifest `sha256:58926b...`                                                                                                                        |
+| Detailed observation schema    | Disabled the nested ArkType error refusal                                                                                                                                         | `observeFleet joins cloud and Kubernetes identity` recomputed malformed documents                                     | Failed with an untyped access instead of the required contextual refusal; restored strict sources, clusters, nodes, states, capabilities, and storage schemas                                                                         |
+| Detailed identity closure      | Disabled uniqueness and required-source checks in watched turns                                                                                                                   | Recomputed duplicate and missing-source observations                                                                  | Each negative resolved as complete; restored unique identities and per-cluster provider/Kubernetes/storage source closure                                                                                                             |
+| Populated bootstrap topology   | Restored the old blanket `bootstrap: required` exemption                                                                                                                          | `fleet contracts rejects ... invalid topology`                                                                        | Failed because a populated bootstrap fleet with zero servers decoded; restored exemption only for a genuinely empty cluster                                                                                                           |
+| Bootstrap failure kind         | Widened bootstrap recovery to every nonzero Kubernetes command outcome                                                                                                            | Bootstrap Kubernetes `Forbidden` exit-1 case                                                                          | Failed because authorization denial became complete/not-bootstrapped; restored recovery to connection-absence diagnostics plus explicit empty bootstrap facts                                                                         |
+| Observation join identity      | Disabled provider, Kubernetes, and SSH duplicate identity refusals in watched turns                                                                                               | Observer duplicate-source negatives                                                                                   | Each negative resolved as complete; restored global stable-identity ownership before map insertion                                                                                                                                    |
+| Observation identity union     | Iterated only provider identities instead of the provider/Kubernetes union                                                                                                        | `preserves enrolled nodes outside desired/provider state and unattached storage`                                      | Failed because a Kubernetes-only node disappeared; restored the union and retained provider-plus-enrolled and Kubernetes-only facts                                                                                                   |
+| Observation node provenance    | Disabled Kubernetes UID, recorded-source, source-cluster, and controlled SSH-source requirements in watched turns                                                                 | Recomputed detailed-observation negatives                                                                             | Each invalid observation resolved complete; restored enrollment/readiness identity and exact source attribution requirements                                                                                                          |
+| Observed identity attribution  | Replaced actual SSH fact attribution with the cluster provider source                                                                                                             | `round-trips replaced and unenrolled SSH identities with their actual source`                                         | Failed on the replacement source; restored source identity carried from controlled facts independently of desired membership                                                                                                          |
+| SSH fact boundary              | Disabled observed-machine duplicate refusal, then removed contextual malformed-fact refusal                                                                                       | Duplicate SSH machine and malformed controlled-fact negatives                                                         | Duplicate identity resolved complete and malformed facts lost their source diagnostic; restored both production boundary checks                                                                                                       |
+| Storage identity closure       | Disabled duplicate/linkage refusals, per-cluster closure, and storage-cluster ownership in watched turns                                                                          | Storage observer and recomputed detailed-observation negatives                                                        | Each fault resolved or lost its source diagnostic; restored PVC→PV→VolumeAttachment identity, cluster closure, and ownership                                                                                                          |
+| Independent storage evidence   | Filtered unclaimed volumes from the observed storage snapshot                                                                                                                     | `preserves enrolled nodes outside desired/provider state and unattached storage`                                      | Failed because the unattached PV disappeared and the digest no longer changed; restored all observed claims, volumes, and attachments                                                                                                 |
+| Final snapshot freshness       | Removed final revalidation after sequential discovery                                                                                                                             | Advancing-clock observer negative                                                                                     | Failed because early provider evidence aged past the budget while the snapshot resolved complete; restored final checks for every source                                                                                              |
+| Process-group timeout          | Killed only the direct subprocess, then disabled the in-container timeout in separate watched turns                                                                               | Production timeout child-survival sentinel and controller invocation assertion                                        | The descendant wrote its sentinel, then the Docker command lost its timeout contract; restored process-group SIGKILL, bounded streams, and an inner kill deadline                                                                     |
+| Controller failure origin      | Disabled Docker exit 125/126/127 classification                                                                                                                                   | Production empty-bootstrap Docker exit-125 registry-timeout case                                                      | Failed because controller failure emitted complete/not-bootstrapped state; restored execution-layer refusal before Kubernetes absence recovery                                                                                        |
+| Lab identity                   | Widened the lab-ID expression to accept every string                                                                                                                              | `derives every machine name from a bounded lab identity`                                                              | Failed because `../prod` reached state-path and machine-name derivation; restored the bounded DNS-style identity                                                                                                                      |
+| Lab delete ownership           | Disabled refusal of an unexpected same-prefix machine                                                                                                                             | `deletes only exact-prefix machines and refuses ambiguous provider names`                                             | Failed because an arbitrary same-prefix VM entered the delete command; restored exact expected-name ownership                                                                                                                         |
+| Ansible layout                 | Removed `bootstrap.yml` from the required-layout preflight                                                                                                                        | `refuses before launch when the bootstrap playbook is absent`                                                         | Failed because the partial checkout resolved; restored the preflight before provider mutation                                                                                                                                         |
+| SSH host identity              | Disabled the provider-observed host-key decoder guard                                                                                                                             | `rejects malformed provider inventory and SSH host-key evidence`                                                      | Failed because an empty host key resolved; restored strict Ed25519 host-key decoding                                                                                                                                                  |
+| SSH input boundaries           | Disabled public-key and private-key format guards in watched turns                                                                                                                | `rejects key material that could escape cloud-init or fail after launch`                                              | Newline/YAML-like public input and arbitrary private bytes resolved; restored one-line safe public keys and private-key framing                                                                                                       |
+| Cloud-init key slot            | Forced the public-key slot count to one                                                                                                                                           | `rejects key material that could escape cloud-init or fail after launch`                                              | Failed because templates with zero or duplicate slots rendered; restored the exact-one slot guard                                                                                                                                     |
+| Provider inventory address     | Removed IPv4 validation from the provider decoder                                                                                                                                 | `rejects malformed provider inventory and SSH host-key evidence`                                                      | Failed because `999.0.0.1` resolved as machine state; restored strict IPv4 decoding                                                                                                                                                   |
+| Provider version               | Disabled the installed Multipass version guard                                                                                                                                    | `requires the pinned provider version and a bounded subprocess`                                                       | Failed because an unpinned version resolved; restored exact installed-version matching                                                                                                                                                |
+| Lab subprocess deadline        | Multiplied the injected one-millisecond timeout by 1,000                                                                                                                          | `requires the pinned provider version and a bounded subprocess`                                                       | Failed because the sleeping production subprocess completed instead of being killed; restored the bounded deadline                                                                                                                    |
+| Lab process status             | Disabled nonzero subprocess exit refusal                                                                                                                                          | `propagates a provider failure through the production lab command`                                                    | Failed because fake Multipass exit 42 advanced to a later version error; restored immediate status propagation                                                                                                                        |
+| Retained cluster token         | Disabled missing-token refusal, then malformed-token refusal                                                                                                                      | `never invents a replacement token for existing machines`                                                             | Missing trusted state generated a replacement and malformed bytes resolved; restored both refusals                                                                                                                                    |
+| Stable convergence recap       | Disabled changed-host, missing-recap, and failed-host refusals in watched turns                                                                                                   | `requires complete second-pass recaps with only modeled probe changes`                                                | Each fault made an unstable or incomplete second pass resolve; restored complete recap validation with only exact fresh-probe changes                                                                                                 |
+| Rendered sudo boundary         | Replaced the template's real newline with literal `\\n`                                                                                                                           | `renders an actual newline and a valid sudoers boundary`                                                              | Failed on the rendered bytes before `visudo`; restored the newline template and successful `visudo -cf` validation                                                                                                                    |
+| Taint-safe cluster DNS         | Used kubectl's documented stdin sentinel as the patch-file path                                                                                                                   | Live Ubuntu `validate-enrollment.yml`                                                                                 | kubectl v1.36.4 treated `-` as a missing literal file and exited 1; `/dev/stdin` patched CoreDNS, its rollout completed, and the enrollment probes then ran                                                                           |
+| Isolated firewall replacement  | Removed the atomic owned-table destroy and restored private-interface-only rejection                                                                                              | Structural source contract, plus live QEMU lab (2026-09-18)                                                           | Source assertion failed on the missing transaction; live: a policy with a smaller enrolled set replaced the active table and agent-2 API connections were then reset while agent-1 connected                                          |
+| Firewall reboot persistence    | Removed the service's multi-user installation target                                                                                                                              | Structural source contract, plus live QEMU lab reboot (2026-09-18)                                                    | Source assertion failed on the missing installation target; live: after reboot the unit was enabled and active and `inet puni_k3s` was loaded                                                                                         |
+| Enrollment capability labels   | Restored the undiscoverable `puni.io/capability-*` template keys                                                                                                                  | `keeps token files private and enrollment taints until validation`                                                    | Failed because rendered labels diverged from discovery; restored valid per-capability `puni.dev` labels                                                                                                                               |
+| Observed capability value      | Disabled the exact `true` value guard                                                                                                                                             | Discovery malformed-source production negative                                                                        | Failed with a later missing-identity diagnostic instead of refusing the false label; restored exact capability-value decoding                                                                                                         |
+| Enrollment machine identity    | Disabled the provider-observed machine-ID decoder, then reversed the shared production machine-ID comparison                                                                      | Provider evidence negative plus pinned-controller plays with matching, wrong-machine-ID, and wrong-address inputs     | Malformed identity resolved; the mutation made matching evidence exit 2, while both mismatches independently exited 2; restored exact machine ID and address matching                                                                 |
+| Fresh per-node network proof   | The pinned validation image attempted to launch an absent `httpd` applet                                                                                                          | Live Ubuntu `validate-enrollment.yml` with a fresh run ID                                                             | The receiver exited 127; the bounded BusyBox `inetd` replacement then served the response and both node-pinned DNS/network Jobs completed                                                                                             |
+| Lab process-group timeout      | Killed only the direct subprocess                                                                                                                                                 | `kills the subprocess group before a timed-out mutation can continue`                                                 | The descendant wrote its sentinel after timeout; restored detached process-group termination                                                                                                                                          |
+| Controller workload timeout    | Removed the in-container hard-kill deadline                                                                                                                                       | `keeps required inputs explicit and bootstraps and joins separately`                                                  | Failed because the locked-controller invocation lost its independent mutation deadline; restored GNU timeout with TERM and bounded KILL                                                                                               |
+| Complete convergence recap     | Disabled exact expected-host closure, then disabled the modeled-change comparison                                                                                                 | `requires complete second-pass recaps with only modeled probe changes`                                                | Empty recap and an unexplained change resolved; restored exact host records, zero failures, and profile-specific fresh-probe counts                                                                                                   |
+| Pod-to-API firewall path       | Removed the cluster-CIDR allowance for traffic arriving through the CNI and overlay interfaces                                                                                    | Structural source contract; authenticated pod-to-API probe still pending                                              | Source assertion failed on the missing scoped allowance; live pods reached the API only as DNS/Service traffic. The 10250 allowance for pod-to-kubelet was added after the live metrics-server failure (see the 2026-09-18 follow-up) |
+| Changed firewall activation    | Removed the firewall candidate template's restart notification                                                                                                                    | Structural source contract, plus live QEMU lab (2026-09-18)                                                           | Source assertion failed on the missing notification; live: with the notification removed the rendered file listed `.13` but the live set stayed `{.11,.12}`; restored, the handler activated the change                               |
+| Required firewall startup      | Replaced the k3s server and agent units' firewall requirement with a weak want                                                                                                    | Structural source contract, plus live QEMU lab reboot (2026-09-18)                                                    | Source assertions failed on both weakened units; live: broken rules plus reboot left k3s-agent inactive ("Dependency failed"); weakened to `Wants=` on the VM it started without the table                                            |
+| CA-bound enrollment token      | Used the retained 64-hex bootstrap credential, then a well-formed secure token with a false CA hash                                                                               | Decoder/role boundary and live `join.yml` against a reset disposable agent                                            | The bare credential produced k3s's untrusted-CA warning; the false secure token restarted k3s, logged nine refusals, and created no node; the generated token restored Ready                                                          |
+| Agent token activation         | Changed the token file without notifying the service                                                                                                                              | Live wrong-token and restore joins                                                                                    | The old credential remained active until reboot; restoring the handler made each token change restart k3s, so the false token blocked enrollment and the correct token restored it                                                    |
+| Artifact checksum              | Replaced the locked k3s SHA-256 with 64 zeroes                                                                                                                                    | Live Ubuntu `bootstrap.yml`                                                                                           | Ansible exited 2 at `get_url` with a checksum mismatch; the already-installed binary retained its locked hash and k3s remained active                                                                                                 |
+| Enrollment identity            | Replaced the expected agent machine ID with 32 zeroes                                                                                                                             | Live Ubuntu `validate-enrollment.yml`                                                                                 | The shared identity assertion exited 2 before scheduling probes and reported `changed=0`                                                                                                                                              |
+| Identity recheck               | Disabled the target-identity comparison                                                                                                                                           | `applyOperation > refuses stale plans, digest mismatch, identity drift, and pending deletion before mutation`         | Failed because the wrong-instance operation resolved and issued all effects; restoring the comparison returned zero mutations                                                                                                         |
+| Lease ownership                | Replaced the per-effect ownership result with `false`                                                                                                                             | `applyOperation > stops after a lost lease and persists recoverable progress`                                         | Failed because the operation completed instead of rejecting after the first effect; restoring the guard persisted one completed step in recoverable state                                                                             |
+| Response-lost create           | Presented the exact operation-owned server while Terraform state still lacked it                                                                                                  | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Imported provider ID `4815162342` once, issued zero apply calls, persisted recoverable state, and required a fresh reviewed plan                                                                                                      |
+| Production process deadline    | Spawned a signal-ignoring parent and delayed descendant sentinel                                                                                                                  | `kills a signal-ignoring process group at the production command deadline`                                            | Timed out, killed the process group, and the descendant never wrote its sentinel                                                                                                                                                      |
+| Existing SSH enrollment        | Bound inventory to exact machine/address and a plan-specific strict known-hosts path                                                                                              | `enrolls an existing SSH host only from reviewed identity and host-key artifacts`                                     | Controlled identity facts, join recap, and validation recap completed; changing any artifact changes the reviewed digest                                                                                                              |
+| Controller stdin               | Removed Docker `--interactive` while retaining a Lease manifest on the subprocess request                                                                                         | `keeps controller stdin attached for Kubernetes Lease manifests`                                                      | Failed because the production Docker request no longer contained `--interactive`; restored stdin attachment                                                                                                                           |
+| Lease lifecycle                | Reused a completed journal and inspected the production mutation calls for an expired release manifest                                                                            | completed-journal and production provisioning adapter tests                                                           | Completed work performed zero acquisitions; active work renewed at mutation boundaries and persisted an expired release                                                                                                               |
+| Recoverable observations       | Returned a different provider identity after a successful effect                                                                                                                  | `persists a recoverable active step when the postcondition changes identity`                                          | Refused the postcondition and retained the full before observation in a recoverable active step                                                                                                                                       |
+| Provider discovery diagnostics | Returned exit 0, empty inventory, and an hcloud plugin warning                                                                                                                    | `refuses exit-zero provider inventory diagnostics before provisioning`                                                | Refused before Terraform apply; zero provider mutations                                                                                                                                                                               |
+| Provisioning topology          | Requested execution on platform, a server without control-plane, and a second server for a single topology                                                                        | `refuses provisioning that violates cluster purpose, role, or single-server topology`                                 | All three paid-capacity plans were refused before effects                                                                                                                                                                             |
+| Response-lost completion       | Presented an already imported operation-owned server, then a wrong SSH machine ID before the correct fact                                                                         | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Imported once, refused the stale plan, issued no second import, blocked host configuration on the wrong fact, then resumed through enrollment                                                                                         |
+| Delegated machine identity     | Replaced the delegated SSH machine identity with Kubernetes's own reported identity                                                                                               | `the Ansible host and k3s contract > keeps token files private and enrollment taints until validation`                | The production-contract negative failed on the missing independent expression; restored the delegated `/etc/machine-id` comparison                                                                                                    |
+| Shared SSH fact framing        | Passed the production marker-string output from `discover.yml` through the F2 production discovery adapter                                                                        | `observeFleet > joins an external host by machine identity rather than its address or name`                           | Parsed exact name, machine ID, and address; malformed marker JSON still failed with source context                                                                                                                                    |
+| Journal refresh under Lease    | Completed the operation journal while a second execution was paused acquiring the Lease                                                                                           | `applyOperation > refreshes recoverable journal progress after acquiring the Lease`                                   | The broken path replayed three effects; the repaired path refreshed completion under the Lease and executed zero mutations                                                                                                            |
+| Mutation-boundary plan expiry  | Advanced the controlled clock to the exact plan expiry after adapter reads and before its mutation callback                                                                       | `applyOperation > rechecks plan expiry at the adapter mutation boundary`                                              | The broken path executed one expired mutation; the restored boundary check refused first                                                                                                                                              |
+| Response-lost variable binding | Prepared a saved plan and reviewed variables, then presented the operation-owned server with absent Terraform state                                                               | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Import read the exact preparation-produced sibling artifact and matched its bytes before importing once                                                                                                                               |
+| Post-purchase machine identity | Seeded a different durable machine identity before resuming enrollment of the newly purchased host                                                                                | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Enrollment refused before join, then resumed after the observed machine identity was durably restored                                                                                                                                 |
+| Missing recovery identity      | Deleted the post-purchase machine identity after an enrollment step became recoverable                                                                                            | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Recovery refused before discovery or join instead of adopting a different machine                                                                                                                                                     |
+| Terraform variable integrity   | Changed the private preparation snapshot before response-lost import                                                                                                              | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Digest validation refused before the Terraform import invocation; restoring the exact bytes allowed the one-time import                                                                                                               |
+| Terraform variable privacy     | Kept the exact reviewed variable bytes but changed their mode from 0600 to 0644                                                                                                   | `imports an operation-owned server after a lost response and requires a fresh plan`                                   | Permission validation refused before Terraform import; restoring mode 0600 allowed recovery                                                                                                                                           |
+| Provisioned worker separation  | Requested a worker server with both control-plane and execution capabilities                                                                                                      | `planOperation > refuses invalid joins, upgrades, observation identity, and provisioning collisions`                  | Refused before emitting the paid-capacity operation plan                                                                                                                                                                              |
+| Retirement de-enrollment       | Returned the same logical node with a different live hcloud instance, then injected drain and verification failures                                                               | `production retirement` adapter cases                                                                                 | Wrong identity refused before a playbook; drain and verification faults left no completion receipt                                                                                                                                    |
+| Retirement capability floor    | Removed the only surviving execution capability and targeted the sole control-plane server                                                                                        | `planRetirement > refuses the last required capability and sole control-plane server`                                 | Both plans refused before emitting a drain sequence                                                                                                                                                                                   |
+| Replacement fencing            | Omitted fence evidence, supplied another provider identity, then marked the old instance running                                                                                  | `planReplacement` negatives                                                                                           | Every case refused before storage reassignment or replacement provisioning                                                                                                                                                            |
+| Upgrade recovery boundary      | Supplied a channel, downgrade, same version, stale/unhealthy observation, and absent server snapshot                                                                              | `planUpgrade` negatives                                                                                               | Every case refused before a server drain or binary installation                                                                                                                                                                       |
+| Destroy retirement receipt     | Changed receipt bytes and supplied a hash-valid receipt naming another node                                                                                                       | `production plan input boundary > binds destroy to an owner-only completed retirement receipt for the exact provider` | Both cases refused before a provider-destruction plan was persisted                                                                                                                                                                   |
+| Retirement live safety         | Made the production preflight report a lost capability floor or target-affined persistent volume                                                                                  | `production retirement > does not issue a receipt after a lost capability floor or target-affined persistent volume`  | Apply stopped before the next mutation and wrote no retirement receipt                                                                                                                                                                |
+| Retired membership exclusion   | Completed retirement, then attempted enrollment of the same logical membership                                                                                                    | `production retirement > persists an authoritative exclusion consumed by later enrollment`                            | Enrollment refused before host discovery or configuration                                                                                                                                                                             |
+| Saved provider destroy         | Applied a reviewed server-only deletion after an exact retirement receipt, then observed provider absence and an advanced state serial                                            | `production destroy consumes retirement and a saved non-storage Terraform deletion`                                   | The adapter completed only after direct provider absence and remote-state advancement; retained storage was outside the accepted plan                                                                                                 |
+| Replacement authorization      | Changed the consumed authorization bytes after reviewing their SHA-256                                                                                                            | `the production plan command binds distinct replacement capacity to its authorization`                                | Planning refused the changed receipt; exact bytes bind the old logical and provider identities into the distinct provisioning plan                                                                                                    |
+| Interrupted upgrade recovery   | Failed after installing the target binary, then resumed with the target already present                                                                                           | `planUpgrade > recovers an interrupted exact version transition and verifies the installed result`                    | Recovery reran service restart and health gates instead of treating the target binary as completion; a fresh already-target operation was refused                                                                                     |
+| Actual etcd majority           | Supplied seven real MemberList voters, duplicated one voter-to-Node annotation, returned another voter ID from delegated status, then supplied only three successful fresh probes | `planRetirement > uses the production drain path without bypassing PDB or local-storage refusal`                      | Ambiguous mapping and mismatched endpoint identity exited nonzero; the distinct-ID count passed with four healthy probes and exited nonzero with three                                                                                |
+| Exact etcd recovery identity   | Replaced `removed-node-name` with an unrelated stale member after the removal response was lost                                                                                   | `production retirement > binds response-lost etcd removal recovery to the persisted exact member name`                | Recovery refused against the owner-only identity persisted before mutation                                                                                                                                                            |
+| Etcd voter SSH trust           | Removed the reviewed host keys for both surviving delegated voter connections while preserving the artifact's reviewed digest                                                     | `production retirement > requires reviewed SSH host keys for every delegated etcd voter probe`                        | Production observation refused before Ansible or any retirement mutation                                                                                                                                                              |
+| Retirement shell sequencing    | Returned a Pending workload followed by an empty attachment response                                                                                                              | Same production-shell test                                                                                            | The exact `set -euo pipefail` shell exited nonzero at workload health and could not be masked by the later successful query                                                                                                           |
+| Upgrade workload and storage   | Supplied Running/Ready=False pod JSON and a VolumeAttachment with unknown attached state                                                                                          | `planUpgrade > uses serial health-gated playbook upgrades with exact artifacts`                                       | Both exact production jq predicates exited nonzero                                                                                                                                                                                    |
+| Upgrade recovery token         | Changed the private retained recovery-token bytes after reviewing their SHA-256                                                                                                   | `planUpgrade > recovers an interrupted exact version transition and verifies the installed result`                    | Production observation refused before another upgrade play or completion                                                                                                                                                              |
+
+## Terragrunt migration evidence
+
+The migration retains Terraform 1.16.3, the HTTP backend, provider lock, resource addresses, saved-plan format, variable snapshots, and state lineage/serial. All four provision/destroy preparation/apply adapters use the shared Terragrunt boundary, including response-lost import and state/output reads. `terragruntConfigSha256` is required in persisted provision/destroy requests and rechecked before each engine command. The unused pure command-list fixture was removed; production adapter tests exercise actual command construction.
+
+Official release evidence: downloaded [Terragrunt 1.1.5 SHA256SUMS](https://github.com/gruntwork-io/terragrunt/releases/download/v1.1.5/SHA256SUMS) and `terragrunt_linux_amd64`; the published checksum and GitHub release-asset digest both equal `ffc9a19a2eeb5bd9d8dcf8fb7ce3f2a51754a815fecfbdd4aaa35e526dd1d352`. Local `sha256sum` matched and `terragrunt --version` printed `terragrunt version v1.1.5`. The exact binary's `run --help` confirmed `--config`, `--tf-path`, `--no-auto-init`, `--no-auto-retry`, and `--tf-forward-stdout`; no newer-version hook flags are assumed.
+
+An isolated `/tmp/fleet-terragrunt-smoke-N8YRgA` fixture had the exact two-line committed Terragrunt configuration, Terraform `required_version = "= 1.16.3"`, and one constant output. The real checksum-matched binaries ran `terragrunt run --config <absolute-config> --tf-path <locked-terraform> --no-auto-init --no-auto-retry --tf-forward-stdout -- <command>` for `init -input=false -lockfile=readonly`, `validate -json`, `plan -input=false -lock=true -out=<absolute-plan>`, `show -json <same-plan>`, `apply -input=false -lock=true <same-plan>`, `state pull`, and `output -json`: all exited 0. JSON parsed without log prefixes, reported engine 1.16.3, and returned the expected output and local state lineage/serial. No provider or cloud resource was created. This proves the exact-release command boundary and saved-plan path, not remote-backend connectivity, cloud credentials, cloud import, or live provisioning.
+
+A second fresh smoke invoked the production `readTerragruntConfig` → `buildTerragruntRequest` → `lockTerragruntRequest` → `runBoundedCommand` path in `/tmp/fleet-terragrunt-production-aukiF7`, copying the committed configuration and lock. Both real executable hashes were checked; the same seven local-state commands passed, including parseable JSON and exact saved-plan application. Configuration digest was `c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f`.
+
+Fresh focused command `bun test tools/tool-fleet/src/terragrunt.test.ts tools/tool-fleet/src/production-apply.test.ts tools/tool-fleet/src/destroy.test.ts tools/tool-fleet/src/contracts.test.ts`: 27/27 tests, 89 assertions passed. This includes preserved response-lost import and saved destruction paths. Planner tests additionally passed 12/12, 113 assertions, including missing/malformed configuration digests and digest sensitivity. Focused ESLint and `bunx tsc --build --force tools/tool-fleet/tsconfig.json` passed. Nx project inspection shows `terragrunt-plan` and `terragrunt-destroy-plan`, with the former `terraform-plan` target absent.
+
+Each row below was observed failing with the production check removed; the source was restored and the focused suite rerun successfully. Receipts were captured on 2026-09-17, using `bun test tools/tool-fleet/src/terragrunt.test.ts` unless specified.
+
+| Production boundary                   | Injected fault / mutation                                                                                        | Observed proof                                                                            |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Exact source-free HCL                 | Append executable `run_cmd` HCL; remove exact-content guard                                                      | Named configuration-reader negative failed, exit 1                                        |
+| Reviewed configuration binding        | Supply another reviewed SHA-256; remove digest guard                                                             | Command-builder negative failed, exit 1                                                   |
+| Saved-plan command lifecycle          | Request direct `destroy`; remove command allowlist                                                               | Command-builder negative failed, exit 1                                                   |
+| Ambient execution control             | Supply `TG_*`, `TERRAGRUNT_*`, Terraform CLI/config/workspace/variable/provider overrides; remove override guard | Runner negatives failed, exit 1                                                           |
+| Required executable                   | Resolver returns absent tool; remove missing-tool guard                                                          | Negative lost required diagnostic and failed, exit 1                                      |
+| Both executable identities            | Tamper Terragrunt or Terraform bytes; remove SHA-256 guard                                                       | Runner negatives failed, exit 1                                                           |
+| Executable permissions                | Valid Terraform bytes with mode 0600; remove execute-bit guard                                                   | Runner negative failed, exit 1                                                            |
+| Implicit Terraform CLI configuration  | Remove pinned `/dev/null` CLI configuration from child environment                                               | Environment boundary assertion failed, exit 1                                             |
+| Required Terragrunt lock              | Make the binary lock optional                                                                                    | `contracts.test.ts -t 'rejects a missing Terragrunt lock'` failed, exit 1                 |
+| Explicit execution flags              | Remove no-auto-init, no-auto-retry, tf-forward-stdout, and tf-path individually                                  | Production builder/runner assertions failed for each removal, exit 1                      |
+| Provision and destroy request digests | Remove each request configuration-hash predicate separately                                                      | `plan.test.ts -t 'emits deterministic JSON-ready plans'` failed for each mutation, exit 1 |
+
+Absent configuration is also a production-reader negative. No unattended Terragrunt retry or implicit initialization is exposed by the adapter. The final `NX_DAEMON=false bunx nx run tool-fleet:check --skip-nx-cache` passed all 126 tests/708 assertions, lint, typecheck, lock validation, and the fleet check; `git diff --check` was clean. The attempted `TMPDIR=/tmp OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec validate --all --json` was blocked before execution by `bun is unable to write files to tempdir: EROFS`; this attempt does not establish OpenSpec validity. Remote HTTP backend/provider execution remains unverified locally and requires the existing production credentials and evidence. Existing F3 live-lab limitations remain unchanged.
+
+An exact-SHA Astra high-effort review of `97e605f4ebfee782089be9f51dab0e3cc53d66e9` found no blocking defects. Its focused retirement suite passed 54 tests with 301 assertions. The exact wrong-member-ID shell exited 1, and removing the identity guard made it exit 0 before restoration. Live cluster/provider lifecycle drills, remote-backend acceptance, and the canonical host gate remain outside that review.
+
+The required `bin/h2puni-gate.sh 97e605f4ebfee782089be9f51dab0e3cc53d66e9` invocation refused before printing its running-SHA marker because `/home/puni1/.cache`, the canonical Linux heavy-lock parent, does not exist on this runner. Creating the directory was unavailable because host sudo requires an interactive password. This is a blocked gate attempt, not verification evidence.
+
+## F6 platform checkpoint
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache`
+passed 149 tests with 747 assertions, lint, typecheck, the toolchain lock reader and
+the platform graph validator. The exact locked kubectl rendered the networking,
+policy, local-storage and production-storage Kustomizations. Helm v4.3.0, after
+its downloaded archive matched the toolchain SHA-256, rendered Traefik 41.6.0,
+cert-manager v1.21.2, hcloud CCM 1.37.0 and hcloud CSI 2.23.0 from their
+checksum-matched chart archives with all enabled image digests pinned.
+
+A disposable two-node k3d cluster ran the exact k3s v1.36.4+k3s1 image with
+bundled Traefik and ServiceLB disabled. The SHA-256-matched Flux v2.9.5 CLI
+installed the checked-in manifest; all four Flux controller Deployments became
+Ready and their runtime image IDs matched the four toolchain digests. Flux then
+reconciled cert-manager and Traefik. The live run exposed and repaired Traefik
+41.6.0's placement of `dnsPolicy` under `deployment` and its requirement for a
+nonzero DaemonSet `maxUnavailable` with host networking. The final Traefik Pod
+and the cert-manager controller, webhook and CA injector Pods were Ready with
+the locked runtime image IDs.
+
+Live server-side admission dry-runs accepted the exact solver and forge
+boundaries. They denied an alternate solver parent, a nested forge path, an
+untrusted service account, a changed image digest and a trusted Pod without
+`automountServiceAccountToken: false`. Restricted Pod Security denied a
+privileged Pod in the ordinary `wbs` namespace. Live authorization checks for
+an ordinary authenticated user returned `no` for forge Pod creation and trusted
+service-account impersonation; the forge controller service account returned
+`yes` for Pod creation. The committed network conformance manifests produced a
+completed telemetry-egress Job and a `BackoffLimitExceeded` cross-namespace Job
+whose connection attempts failed under the default-deny policy.
+
+The R5 mutations removed eight trusted-workload checks, made the registry and
+network-probe locks optional, removed Flux controller and manifest locks,
+disabled the chart-image and Flux-manifest hash guards, replaced exact forge-root
+membership with prefix acceptance, and removed the forge RoleBinding. Their
+targeted tests or live probes failed before each check was restored. The exact
+Flux install manifest hash is
+`80779d11e7f0050ed01a3f072556fdabefa38f5f6cb623e9df44381c9ec1d592`.
+
+F6 remains incomplete. Live SOPS decryption and missing-key reconciliation,
+registry TLS/auth/offline-GC/restart-pull migration, production cloud storage,
+staging ACME/DNS, and the complete cluster-specific Flux source graph have not
+been exercised. No production secret or cloud credential was available, and no
+production resource was changed.
+
+### F6 Astra repair
+
+The exact-SHA Astra review of `240aad8e` found six blockers. Live server-side
+dry-runs proved the trusted policy admitted a privileged untrusted-image init
+container, an explicit projected service-account token, host IPC, omitted
+`allowPrivilegeEscalation`, and a root/NET_ADMIN/Unconfined container. It also
+proved the node kubeconfig still named `127.0.0.1`, the image validator accepted
+an ignored Helm value, chart reconciliation did not consume the archive hashes,
+and the network negative could fail at destination ingress.
+
+After the repairs, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+tool-fleet:check --skip-nx-cache` passed 143 tests with 743 assertions, lint,
+typecheck, the toolchain lock reader and the platform validator.
+
+The repaired admission policy covers regular, init and ephemeral containers and
+the ephemeral-container subresource. It requires the approved digest for every
+container, explicit non-root/no-escalation/RuntimeDefault-or-Localhost/drop-ALL
+security contexts, no added capabilities, no host IPC/PID/network, no unsafe
+sysctls, no projected service-account token, and only Restricted volume types
+plus the exact reviewed host directory. Both positive fixtures passed. All five
+Astra bypass fixtures and the privileged ephemeral-container patch were denied
+by the live API before a workload ran.
+
+The platform playbook now transforms only the expected k3s loopback server into
+`https://kubernetes.default.svc:443`, stores the resulting kubeconfig owner-only,
+and sets `KUBECONFIG` explicitly for the final Flux CLI call. A temporary
+in-cluster Job using the exact k3s image mounted that transformed Secret, called
+`get --raw=/readyz`, completed, and printed `ok`; its Job, Secret and local
+credential file were deleted afterward. The digest-locked controller's
+network-disabled `ansible-playbook --syntax-check` accepted the changed playbook.
+
+The four checksum-matched chart archives are now vendored and selected through
+the immutable `puni-platform` GitRepository rather than mutable HTTP chart
+repositories. All four HelmRelease resources passed live server-side CRD
+validation. Helm v4.3.0 rendered the vendored archives with all enabled runtime
+digests, and the production validator hashes each archive and decodes each
+effective image value instead of searching raw YAML. Moving Traefik's digest to
+`unusedDigest`, changing one archive byte, selecting the upstream chart name,
+and disabling the controller-reachable kubeconfig check each made its focused
+negative fail before the production guard was restored.
+
+The repaired network drill has two positive controls: telemetry egress from a
+worker and access to the denied destination from an unrestricted control
+namespace. Both completed. The isolated worker failed specifically with
+`BackoffLimitExceeded`; adding a temporary WBS egress allowance made that same
+Job complete, and deleting the allowance restored the exact failure.
+
+The exact-SHA Astra follow-up on `d6fd5815` closed the token, kubeconfig, vendored
+chart and network findings. It found two remaining production bypasses: the
+trusted-hostpath policy still allowed Kubernetes 1.36 Baseline fields outside
+its earlier examples, and the hcloud CSI validator ignored the chart's tag
+suffix when deciding whether an image was locked.
+
+The admission policy now covers all Kubernetes 1.36 Restricted controls except
+its intentional exact hostPath roots. The live 1.36.4 API accepted the solver
+and forge positive fixtures and denied host ports; pod and container AppArmor
+and SELinux overrides; pod root and Unconfined seccomp overrides; the deprecated
+Unconfined AppArmor annotation; Unmasked procMount; and HTTP/TCP host selection
+in probes and lifecycle hooks. The complete committed negative set also remained
+denied. Windows HostProcess necessarily enables host networking, which the same
+policy already denies.
+
+For the R5 production mutation, the four new policy validations were removed
+from the live disposable cluster. All eleven new manifests were then accepted
+by server-side dry-run. Reapplying the checked-in policy made those same inputs
+fail before a workload could run. The checked-in policy was the final live state.
+
+The image validator now compares each complete effective image reference with
+the toolchain lock and requires every hcloud CSI tag suffix to be empty. Helm
+v4.3.0 rendered a mutated `csiAttacher.tag: v0` as the invalid reference
+`csi-attacher:v4.11.0@sha256:b74…:v0`; the production validator rejects that
+value. Removing the empty-tag schema made the named test resolve instead of
+reject, and weakening the full-reference comparison to digest-only did the same
+for a substituted Traefik repository. Both guards were restored before the
+focused platform suite passed 13 tests with 23 assertions.
+
+The first two full check attempts exposed an existing discovery integration test
+whose real subprocess matrix took 5.00 seconds under load and collided with
+Bun's default 5-second test deadline. Its behavioral subprocess deadlines remain
+unchanged; the enclosing test budget is now 10 seconds. A fresh uncached
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check
+--skip-nx-cache` then passed 145 tests with 747 assertions, lint, typecheck, the
+toolchain lock reader and the platform validator. The formerly flaky integration
+test completed in 5.33 seconds during that passing run.
+
+The exact-SHA Astra review of `9176a40d` closed the admission finding: both live
+positives passed, all 22 committed negatives and five extra init-container
+variants were denied. It found one remaining image branch in the vendored
+Traefik chart: `oci_meta.enabled` takes precedence over `image.digest`. Helm
+v4.3.0 rendered that mutation as unpinned
+`docker.io/library/traefik:v3.7.13`, while the validator had silently deleted the
+unmodeled input.
+
+Every chart release now decodes its complete checked-in values shape with
+unknown keys rejected at each modeled object boundary. This makes new chart
+configuration an explicit review event and prevents hidden image-selection
+branches. The exact `oci_meta` mutation is rejected. Weakening only Traefik's
+top-level unknown-key policy from reject to delete made the named production
+negative resolve instead of reject; the strict policy was restored before the
+14-test, 25-assertion focused platform suite passed.
+
+The final uncached tool-fleet check after this repair passed 146 tests with 749
+assertions, lint, typecheck, the toolchain lock reader and platform validation.
+
+The exact-SHA Astra review of `6c48ca5f` confirmed strict chart values closed the
+inner override, then found that HelmRelease `postRenderers` could still replace
+the rendered container image. The exact vendored Helm render followed by the
+same Kustomize JSON patch produced `docker.io/library/traefik:latest`.
+
+HelmRelease metadata, chart, source and spec objects now reject every unmodeled
+field, including `postRenderers`, `valuesFrom` and chart `valuesFiles`. Flux
+Kustomization metadata, source, secret and spec objects do the same, excluding
+`images`, patches and post-build substitutions; each stage must also select its
+exact platform path. Removing each of the Helm spec, Flux spec and path guards
+made its named production negative resolve instead of reject. All three guards
+were restored before the focused platform suite passed 17 tests with 31
+assertions.
+
+The final uncached check after the outer-rendering repair passed 149 tests with
+755 assertions, lint, typecheck, the toolchain lock reader and platform
+validation.
+
+The exact-SHA Astra review of `c0c82d7d` closed the Flux and Helm custom-resource
+overrides, then found the final unchecked rendering layer in native
+`kustomization.yaml` files. A JSON patch there removed Traefik's digest before
+the HelmRelease was reconciled; the validator passed and the exact Kustomize and
+Helm path rendered unpinned `docker.io/library/traefik:v3.7.13`.
+
+The validator now binds all four cluster-root and all five platform-stage native
+Kustomizations to strict resources-only schemas and their exact ordered resource
+lists. Native patches, image transforms, generators, components and resource
+substitution are rejected. Changing unknown fields from reject to delete made
+the patch negative resolve, and removing the exact-resource comparison made the
+resource-substitution negative resolve. Both guards were restored before the
+focused platform suite passed 19 tests with 35 assertions.
+
+The final uncached check after binding native Kustomizations passed 151 tests
+with 759 assertions, lint, typecheck, the toolchain lock reader and platform
+validation.
+
+## F6 completion and F7 observability and backup drills
+
+Implementation landed in `a91b3c7f` (committed from the working tree by another
+session), then `f8265dc7`, `1c477ad8`, `5a98d4fd` and `ab7250f5`. Live evidence
+comes from the disposable single-server k3d cluster `puni-f7-0723` (exact k3s
+v1.36.4+k3s1 image digest, embedded etcd via `--cluster-init`, bundled Traefik
+and ServiceLB disabled); `puni-f6-0350` was deleted first to free memory. Flux
+v2.9.5 was installed from the hash-locked `infra/platform/flux/install.yaml`
+(sha256 `80779d11…`). The Git source was a task-owned bare clone served through
+`git http-backend` on the host (`http://host.k3d.internal:8418`); the production
+playbook keeps the SSH read-only deploy key. Each rehearsal commit is the
+reviewed tree plus one commit adding `infra/platform/secrets/platform-local/*.sops.yaml`,
+encrypted to a disposable age identity generated for the run; no private key
+entered the repository. The bootstrap steps were the ones `platform.yml`
+performs: immutable marker `kube-system/puni-cluster-platform-local`,
+`platform-local-kubeconfig` with server `https://kubernetes.default.svc:443`,
+`sops-age`, GitRepository pinned by commit, root Kustomization
+`./infra/clusters/platform/local`.
+
+Checks: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check
+--skip-nx-cache` exited 0 on the tree committed as `ab7250f5` with 183 tests,
+815 expect() calls, lint, typecheck, the toolchain reader and platform
+validation; `bunx nx format:check --all` exited 0. Findings the live run
+exposed and fixed: ConfigMap data keys cannot contain `/` (the old identity key
+`puni.dev/cluster-id` is refused by the API server); PrometheusRule and Probe in
+the same stage as kube-prometheus-stack fail dry-run until its CRDs exist, so
+they moved to the `alerts` stage; node-exporter's host port 9100 collided with
+Traefik's host-network metrics port (node-exporter now uses 9101); the
+conformance `receivers.yaml` no longer re-declares the `observability`
+namespace as Restricted; `PuniBackupJobFailed` counted retried pods of a Job that
+later completed and now keys on `kube_job_failed{condition="true"}`.
+
+- chart downloads: all six F7 chart archives matched toolchain sha256 (sha256sum -c OK).
+- sops v3.13.3 sha256 e5bec334... matched upstream checksums.txt; age v1.3.2 tgz sha256 cbe24006... matched GitHub asset digest.
+- image digests: all 13 existing F7 chart image locks equal the registry index digest (docker buildx imagetools inspect).
+- new locks: minio RELEASE.2025-09-07T16-13-09Z index 14cea493..., velero-plugin-for-aws v1.14.1 index 1493a003..., blackbox v0.28.0 e753ff9f..., oven/bun 1.4.2-alpine d888c0ae...
+- R5: making sops / sqliteBackup optional -> "rejects a missing SOPS binary lock" and "rejects a missing SQLite backup runner image lock" failed (17 pass 2 fail); restored -> 19 pass.
+- cluster puni-f7-0723 created (single server, cluster-init etcd, traefik/servicelb disabled, locked k3s image digest); puni-f6-0350 deleted.
+- backup-sqlite focused suite 7 pass. R5: FK guard removed -> "refuses a snapshot that violates a foreign key" failed; report sha comparison removed -> "refuses restored bytes that differ from the report" failed; version-id guard removed -> "refuses an upload the store did not version" failed. Restored each -> 7 pass.
+- F6 finding: ConfigMap data key `puni.dev/cluster-id` is invalid for the API server (`kubectl create configmap --from-literal=puni.dev/cluster-id=...` refused: "is not a valid key name for a ConfigMap"); identity.yaml switched to `cluster-id`.
+- Flux prototype (commit d9478b70 in a task-owned bare repo served by git http-backend): kustomization with decryption.secretRef sops-age and no Secret -> Ready=False `secrets "sops-age" not found` even with empty content; healthChecks on absent ConfigMap kube-system/puni-cluster-platform-local -> `health check failed after 40.007s ... NotFound`; dependent -> `dependency 'flux-system/proto-health' is not ready`.
+- live missing-key refusal (rehearsal commit 3321f9b1 = worktree + SOPS secrets): without flux-system/sops-age every stage stayed not ready: target 'secrets "sops-age" not found', all others 'dependency ... is not ready'; no HelmRelease and no platform namespace existed; pods only in flux-system/kube-system.
+- live SOPS decryption: after creating flux-system/sops-age from the rehearsal age identity, target applied (marker health check passed) and the secrets stage applied revision 3321f9b1; kustomize-controller decrypted all 7 SOPS files into Secrets (observability/alertmanager-puni, observability/elastic-s3-credentials, puni-backup/{object-store-root,velero-credentials,velero-repo-credentials}, puni-registry/registry-auth, wbs/sqlite-backup-s3); registry-auth htpasswd decoded to prefix 'puni-push:$2b$'.
+- platform-registry copy suite 3 pass; removing the source-blob digest check or the target manifest-digest check each made its negative fail (2 pass 1 fail); restored.
+- registry TLS/auth live (platform stage, local CA from cert-manager): https://localhost:15000/v2/ via port-forward -> anonymous 401, plain HTTP 400, wrong password 401, puni-push 200; openssl verify against the served CA: return code 0.
+- registry migration drill: legacy registry = locked Distribution 2.8.3 container (plain HTTP, 127.0.0.1:15001) holding drill/busybox:1.36.1 (manifest sha256:b7f3d86d...) and drill/garbage:1 (sha256:46faa9a1...). `bun tools/tool-fleet/src/platform-registry.ts copy http://127.0.0.1:15001 https://localhost:15000 drill/busybox:1.36.1 drill/garbage:1` exit 0, uploaded 2 + 6 blobs; target HEAD returned the identical digests. Wrong target password -> refused (HTTP 401 error); missing CA -> `unable to verify the first certificate`.
+- registry offline GC drill: DELETE drill/garbage manifest -> 202. Suspended Flux `platform`, set REGISTRY_STORAGE_MAINTENANCE_READONLY={"enabled": true}, rolled out: upload POST -> 405 "Method not allowed" (read-only), manifest GET (OCI+Docker accept) -> 200. `registry garbage-collect /etc/docker/registry/config.yml` exit 0: "3 blobs marked, 7 blobs and 0 manifests eligible for deletion"; storage 12348 KiB -> 2416 KiB. `flux resume ks platform` reverted the env to {"enabled": false} and restarted the pod (new pod registry-d6fc49f-b8lrw); after restart `docker pull localhost:15000/drill/busybox@sha256:b7f3d86d...` downloaded successfully; garbage manifest 404; upload POST 202.
+- note: a first manifest GET sent only the Docker v2 Accept header and got 404 because the pushed manifest is OCI; the procedure must request both media types.
+- live wrong-cluster refusal: second disposable k3d cluster puni-f7-wrong (same docker network, marker kube-system/puni-cluster-workers-local). Copies of the committed platform-local `target` and `controllers` stages, bound to a kubeconfig for that cluster: wrong-target `health check failed after 2m0.03s: timeout waiting for: [ConfigMap/kube-system/puni-cluster-platform-local status: 'NotFound']`; wrong-controllers `dependency 'flux-system/wrong-target' is not ready`; the wrong cluster had only default/kube-* namespaces and coredns/local-path pods. R5: removing healthChecks from wrong-target made it apply and wrong-controllers then created the cert-manager and traefik namespaces in the wrong cluster. Test objects and the cluster were deleted.
+- log ingestion drill: pod default/log-drill printed "puni-drill-e4dcf7cebe81 password=hunter2-should-not-ship authorization: Bearer abc.def.ghi". match_phrase on body.text in data stream logs-puni.otel-local returned exactly 1 hit with body "puni-drill-e4dcf7cebe81 password=[REDACTED] authorization: Bearer [REDACTED]", k8s.namespace.name=default, k8s.pod.name=log-drill; a match_phrase for the secret value returned 0 hits. Second token puni-drill-1cd70b4b1561 became searchable 14.1 s after pod creation (0.5 s polling). Data stream logs-puni.otel-local uses template logs-otel@template (composes logs-otel@custom) with ILM policy puni-logs.
+- alert drills: Alertmanager config came from the SOPS secret alertmanager-puni. Watchdog (dead-man signal) reached the local test receiver every ~2 minutes (04:59:32, 05:01:32, 05:04:02, 05:06:02, 05:08:02 UTC). A temporary Probe for http://drill-missing.observability.svc:8080/ plus PrometheusRule PuniEndpointDown (applied 05:09:44 UTC) produced a firing webhook at 05:11:37 UTC (startsAt 05:11:27, ~113 s after the rule existed); the registry positive-control probe did not fire. No real recipient was configured or contacted.
+- Elastic SLM drill: elastic-snapshots Job registered repository puni-snapshots (S3 bucket puni-es-snapshots on the in-cluster MinIO, base_path local) and SLM policy puni-daily (daily 01:30, expire 365d, min 7, max 400); its first two attempts failed with repository_verification_exception until the bucket Job had created the bucket, then the third attempt succeeded. _verify listed the node. POST _slm/policy/puni-daily/_execute produced snapshot puni-daily-2026.09.18-b6dvoqiqqzsvg2nrl0itog: SUCCESS, 1/1 shards, data stream logs-puni.otel-local. Restoring backing index .ds-logs-puni.otel-local-2026.09.18-000001 with rename to restored-logs-puni.otel-local-2026.09.18-000001 took 0.32 s; the restored index contained the injected token (1 hit); it was deleted afterwards.
+- Elasticsearch outage drill: generator pod emitted 1800 sequenced lines (puni-outage-6f41a11b seq=0..1799, ~5/s) from 05:12:47 to 05:18:48 UTC. With Flux observability and the elasticsearch HelmRelease suspended and ECK orchestration paused, the StatefulSet was scaled to 0 at 05:13:27.9 (pod gone 05:14:21.5) and back to 1 at 05:18:09.6; the pod was Ready at 05:18:55.0 (unavailable 5 min 27 s from scale-down, 4 min 34 s without a pod). 1601 of the lines carry timestamps inside that window. During the outage otelcol_exporter_queue_size (persistent file_storage queue, capacity 5000) rose 25 -> 43 -> 55; PuniLogBacklog fired at 05:17:59 UTC to the test receiver and later resolved. After recovery the queue drained to 1 within ~40 s and Elasticsearch held exactly 1800 distinct seq values (0..1799) and 1800 seq documents: no loss and no duplicates for this interval. Bounded limit: loss begins only when the queue's 5000 requests fill or a node loses /var/lib/puni-otelcol; neither was exercised.
+- SQLite backup/restore drill (namespace wbs, restricted PSS, default-deny plus the committed sqlite-backup-egress policy): a database created by the real `apps/wbs/be-01/src/migrate-cli.ts` (44 migrations, newest 20260912120000_add_work_item_facts) with known row project/drill-project-f7 was placed on PVC wbs-data behind a stand-in be-01 pod that held a writer open and inserted drill-project-wal. `kubectl create job --from=cronjob/sqlite-backup` completed: object sqlite/wbs/20260918T052128631Z.db, MinIO version 2324beb3-da72-4cf4-80ba-8230fd6b6ff6, sha256 72b25170..., source revision 9d458e38..., 44 migrations, report beside it. A restore Job (same runner, restore mode) into a new PVC completed; an inspection pod read both known rows, integrity_check=ok, 44 migrations with the same newest name. Re-running the restore into the same path failed with "/restore/wbs.db already exists".
+- Scheduled run sqlite-backup-29828477 (05:17 UTC) started before the drill database existed and failed with SQLITE_CANTOPEN; kube_job_failed{condition="true"}=1 for it.
+- Broken backup credentials drill: with Flux `secrets` suspended, sqlite-backup-s3.secret-access-key was replaced; job sqlite-backup-drill-badcreds failed with "Upload of sqlite/wbs/20260918T052223597Z.db failed with HTTP 403" (backoffLimit 0) and PuniBackupJobFailed for it reached the test receiver at 05:23:13 UTC. Resuming `secrets` restored the SOPS value; the next job (sqlite-backup-drill-2) completed with version ec51d87b-697f-47b4-8f45-c25359fbede0.
+- Alert finding: PuniBackupJobFailed first used kube_job_status_failed > 0 and fired at 05:10:43 for elastic-snapshots, whose first two pods failed before the Job completed. The rule now uses kube_job_failed{condition="true"} == 1 (terminal Job failure only).
+- Velero FSB/Kopia drill: Backup drill-registry-fsb (namespace puni-registry, defaultVolumesToFsBackup) Completed 05:24:13 -> 05:24:20 UTC, 82 items, PodVolumeBackup via kopia 2,208,380 bytes; BackupRepository puni-registry-default-kopia Ready; velero-repo-credentials stayed owned by the Flux secrets stage (the SOPS repository password, not Velero's default). Restore drill-registry-restore with namespaceMapping puni-registry->registry-restore Completed 05:24:29 -> 05:24:38 (0 errors, 4 warnings: node-OS lookup and baseline-PSS notices for the node agent), PodVolumeRestore 2,208,380 bytes; the restored registry pod (restricted namespace, restore-wait init container admitted) held tag drill/busybox:1.36.1 -> sha256:b7f3d86d... and blob b116e155... whose sha256 matched its name. The drill namespace was deleted.
+- etcd snapshot drill: `k3s etcd-snapshot save --etcd-s3` inside the k3d server (embedded etcd via --cluster-init) against the in-cluster MinIO ClusterIP saved puni-f7-drill-k3d-puni-f7-0723-server-0-1789709191 (29,716,512 bytes) in 0.43 s; `etcd-snapshot ls --etcd-s3` listed it in s3://puni-etcd. With a wrong secret key the save exited 1: 'failed to initialize S3 client ... signature ... does not match'. etcd restore (cluster-reset) was not drilled; it belongs to F10.
+- Ansible backup role: the digest-locked controller (sha256:58926be2...) accepted `ansible-playbook --syntax-check` for playbooks/backup.yml and playbooks/platform.yml (network disabled). Running backup.yml in the controller as root against a synthetic /var/lib/rancher/k3s/server/token: a wrong escrow fingerprint failed at "Refuse snapshots whose server token is not escrowed" with "The k3s server token differs from the escrowed fingerprint" (ok=2 failed=1); the matching fingerprint passed that task and wrote the snapshot drop-in, then stopped at the k3s restart because the container has no systemd (expected; k3s restart and the S3 verification snapshot need a real host, F3/F10 VM lab). With the assertion task removed, the wrong fingerprint wrote the configuration.
+- Final live reconcile at committed ab7250f5: rehearsal commit 84649c0e = ab7250f5 plus only infra/platform/secrets/platform-local/*.sops.yaml and its kustomization. All nine stages and the puni-cluster root reported Applied revision sha1:84649c0e; all eight HelmReleases Ready. The only non-Running pods were the deliberately failed drill Jobs and the retried attempts of Jobs that later completed.
+- Trusted solver digests (live, policy from ab7250f5 via Flux): solver-allowed and solver-rollback-allowed admitted by server-side dry-run; solver-digest-prefix and solver-untrusted-image denied. R5: replacing list membership with solverImages.contains(container.image) admitted solver-digest-prefix; restoring the committed policy denied it again.
+
+Not verified locally and still open: production registry adoption (node
+containerd trust, private endpoint, copy from the existing registry), staging
+ACME issuance and any DNS change, production Flux bootstrap with the deploy key,
+hcloud storage, real Alertmanager recipients and dead-man service, production
+buckets with object lock and the off-region copy, escrow executed on a second
+machine, `backup.yml` on real servers (k3s restart and the S3 verification
+snapshot), etcd cold restore (F10), the volume-threshold drill (local-path
+volumes report the host filesystem, 493 GB, as capacity), and blocking OTel
+egress by network policy. No production host, DNS record, credential or paid
+resource was touched.
+
+### F6/F7 review repairs
+
+A high-effort review of the F6/F7 work found five major and six minor defects.
+The repairs were proved on two disposable k3d clusters sharing one Docker
+network: `puni-f7-plat` (platform-local) and `puni-f7-work` (workers-local). Both
+reconciled one rehearsal commit: the worktree plus disposable SOPS values for
+platform-local. Evidence:
+
+- review fix 6: backup-sqlite and platform-registry negatives now await the rejection (rejectionOf) before asserting the target path/blob state; with the report-hash check or the blob-digest check removed, the named negatives failed; restored -> 10 pass.
+- review fix 1 (placement): with assertStagePlacement added and the nine-stage workers graph unchanged, `validatePlatform` on the repository failed: "workers-local controllers stage selects capability ingress in networking/traefik.yaml, which its nodes cannot carry".
+- review fix 4 (host ports): Helm v4.3.0 rendering of the vendored collector chart with the committed values has 0 hostPort entries (the platform collector and the workers agent). Removing `hostPort: 0` from the otlp and otlp-http ports rendered hostPort 4317 and 4318; the new strict `ports` schema rejects that input ("rejects a collector OTLP port bound on the host").
+- review fix 1: after reducing the workers graph to target, storage, policy, secrets and telemetry, all four overlays validate; the new negative "rejects a workers stage that selects a platform-only capability" failed with the placement check disabled (0 pass 1 fail) and passed with it restored.
+- review fix 9 (secret closure): the validator derives each cluster's consumed Secrets from its reconciled graph (7 for platform-local, 7 for platform-production, none for workers). Removing the missing-secret loop made "rejects a consumed Secret that is neither listed nor declared" resolve; removing the stale check made "rejects a declared Secret that nothing consumes" resolve; both restored.
+- review fixes 3 and 8 (alerts): `bun tools/tool-fleet/src/platform-alerts.ts` runs promtool 3.14.0 from the toolchain-locked Prometheus image (index sha256:50c707e9..., network disabled) over infra/platform/conformance/alerts/rules.test.yaml: SUCCESS. The same tests against the previous rules.yaml failed 8 cases: log ingest with vanished series; backup failure at 10 m and its clearing after a later success at 30 m; failure after an earlier success; SQLite never succeeded and suspended; Velero partial failure and staleness.
+- review fix 2 (live, workers-local k3d cluster puni-f7-work, policy from the rehearsal commit): with the parameter ConfigMap deleted, server-side dry-runs of a plain pod in kube-system and flux-system were admitted and solver-allowed.yaml in wbs-solver was denied. R5: applying the same policy without namespaceSelector made the kube-system pod be denied ("failed to ..." parameter not found); restoring the scoped policy admitted it again. puni-trusted-namespace-label denied removing the label from wbs-solver and relabelling puni-forge as solver; with its binding deleted, removing the label succeeded (restored, then Flux recreated the binding).
+- review fix 10 (live): a tag entry `registry.puni.test/wbs-be:rollback` in solverImages made solver-allowed.yaml be denied with "every solverImages entry must be a digest-pinned image reference"; with that validation removed, the same pod was admitted; restored.
+- review fix 5 (live): Flux created wbs-solver/puni-trusted-workload (label kustomize.toolkit.fluxcd.io/name=policy, ssa IfNotPresent). A patch of data.solverImages under field manager wbs-release to the d…/a… pair survived `flux reconcile ks policy`. R5: serving a commit with `ssa: Merge` instead made the same reconcile revert solverImages to the Git a…/c… value; the rehearsal source was reset afterwards.
+- review fix 1 (live): workers-local on k3d puni-f7-work (server labelled control-plane, agent labelled execution) converged: target, storage, policy, secrets, telemetry and the root all Ready at the rehearsal commit; otel-agent pods ran on both nodes. The platform-local registry pod became Ready behind registry-ingress (kubelet readiness on 5001 from the node is admitted by k3s' network policy controller).
+- review fix 1 (live cross-cluster telemetry): platform-local on k3d puni-f7-plat (all nine stages at the rehearsal commit; the load balancer publishes otel-gateway NodePort 30417 on 172.30.0.1, which is host.k3d.internal for both clusters). A pod on the workers execution node printed "puni-workers-c52ccada0e token=abc123secret"; 10.4 s later exactly one document in .ds-logs-puni.otel-local-2026.09.18-000001 had body "puni-workers-c52ccada0e token=[REDACTED]", puni.cluster=workers-local, k8s.namespace.name=default. Prometheus held remote-written host metrics labelled puni_cluster="workers-local" for both workers nodes (system_cpu__, system_memory_usage_bytes, system_network__).
+- review fixes 4 and 11 (live NetworkPolicy): from a pod in a fresh namespace, the collector's 4317 was open and 8888 closed; from observability 8888 was open. Registry 5000 was open from the fresh namespace, 5001 closed there and open from observability; the registry and collector pods stayed Ready (kubelet probes from the node are admitted). R5: with registry-ingress and otlp-ingress deleted (Flux suspended), 5001 and 8888 were open from the fresh namespace; resuming Flux restored both policies and both ports closed again.
+- review fix 7 (live): the committed bucket script, run in the MinIO pod, enabled versioning and imported the noncurrent-version rule (read back as {"ID":"expire-noncurrent","NoncurrentVersionExpiration":{"NoncurrentDays":30},"Status":"Enabled"}) for all four buckets, exit 0. With the import replaced by after removing puni-etcd's rules, it exited 1 with "store/puni-etcd lifecycle rule missing"; restored, exit 0. (The first version grepped the output and failed: the MinIO image has no grep or sed.)
+- Elasticsearch and Kibana were stopped as soon as the telemetry drill finished; both k3d clusters (puni-f7-plat, puni-f7-work) and network puni-f7-net were deleted afterwards.
+
+Still open from this review: mTLS for the cross-cluster OTLP gateway (it is
+plain gRPC admitted only from the private CIDR), whether Hetzner honours
+`NoncurrentVersionExpiration`, an Elastic snapshot-staleness alert (there is no
+Elasticsearch exporter), and alerting when workers telemetry stops arriving.
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache`
+exited 0 after these repairs with 189 tests, 827 expect() calls, lint, typecheck
+and platform validation; `bunx nx format:check --all` exited 0.
+
+## Rootless QEMU lab and F3/F5 live drills (2026-09-18, worktree `change/tbf-vm`)
+
+Host: no root, `/dev/kvm` usable, QEMU 8.2.2 (`1:8.2.2+ds-0ubuntu1.18`) extracted at
+`/tmp/puni-qemu/root` (`--qemu-prefix`), Ubuntu 24.04 image `release-20260911` SHA-256
+`612b2c0c…7354`, controller `fleet-controller@sha256:58926be2…`. At most three 2 GiB VMs ran at
+once; every VM this run created was deleted (`lab down`, empty `qemu/` state), and `pgrep`
+found no leftover QEMU, hub, or tunnel process. Two VMs from an earlier agent
+(`puni-f3-platform`, `puni-f3-agent`, started 2026-09-17) were left untouched.
+
+### F3 (helper run at `b570f499`, drills on the resulting three-node worker lab)
+
+- `bunx nx run tool-fleet:lab -- up --provider qemu --qemu-prefix … --lab-id f3 --profile workers …`
+  from empty state: exit 0 in 6m40s. The helper booted three VMs, converged bootstrap, join and
+  validation, and passed its stable second pass (`requireStableRecap`: bootstrap and join
+  `changed=0`, validation `changed=2`). Manual reruns printed `server-1 ok=35 changed=0`,
+  `agent-1/agent-2 ok=34 changed=0`.
+- Reboot persistence: agent-1 rebooted (boot_id `a64a1131…` → `4dab5779…`);
+  `puni-k3s-firewall` enabled+active, `inet puni_k3s` loaded, `k3s-agent` active, node Ready.
+- Firewall-startup refusal: an invalid line appended to the rendered nft file, then reboot:
+  firewall `failed`, `k3s-agent` `inactive` ("Dependency failed … result 'dependency'"), node
+  NotReady. Fault: `Requires=` → `Wants=` on the VM, same broken rules, reboot: `k3s-agent`
+  active with no `puni_k3s` table and the node Ready. `join.yml --limit agent-1` restored the
+  unit and rules (`changed=5`, both restart handlers), node Ready.
+- Changed-policy activation: server-only bootstrap with enrolled set `{.11,.12}` ran
+  `Restart fleet firewall`; the live set became `{.11,.12}` and agent-2's API connection failed
+  (curl 7) while agent-1's connected. Fault: notification removed from the candidate task and the
+  full set applied: file listed `.13`, live set stayed `{.11,.12}`. Restored and rerun: live set
+  back to all three; full bootstrap/join rerun at `changed=0`; agent-2 Ready.
+- Platform profile: `up --lab-id f8 --profile platform` at `dee87bcc` exit 0 in 4m02s.
+
+Faults the live runs found and fixed (each observed failing first):
+
+| Fault                                                                                          | Fix                                         |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `ssh_genkeytypes: []` failed cloud-init schema; `cloud-init status --wait` exit 2 stopped `up` | `[ed25519]` with the injected host key      |
+| `Bun.udpSocket` hub died on ECONNREFUSED from the absent spare port; MTU probes failed         | `node:dgram` hub ignoring only ECONNREFUSED |
+| Learning hub left a silent VM unreachable by ARP after a hub restart                           | every declared peer receives every frame    |
+| `up` on running VMs never restarted a dead hub                                                 | `ensureNetwork()` before readiness          |
+| `validate-enrollment.yml` `kubectl wait` exited NotFound 10 s before the last agent registered | bounded registration wait first             |
+
+### F5 (production `discover`/`plan`/`apply`, `--lab-state` provider, SSH-provider fleet)
+
+Fleet: cluster `workers`, `execution: 1`, API at the lab tunnel; kubeconfig from the lab.
+All plans were planned from fresh observations; `apply` ran through the locked controller.
+
+- Retire agent-1 (hosting `f5-service` and a completed Job): plan `6daffde6…`, apply exit 0
+  after the fixes below; journal `complete`, receipt `state: retired`, enrollment exclusion
+  written. `f5-service` rescheduled to agent-2; Node removed; `k3s-agent` disabled and inactive.
+  Rebooting the retired VM (boot_id changed) left `k3s-agent` inactive and the Node absent.
+  Re-applying the same plan exited 0 (completed journal, no new effect).
+- Last capability: with agent-1 gone, `plan --operation retire --node …agent-2` exited 1:
+  "Retirement would violate required capability execution: 0 < 1".
+- Vanished node: `lab fence --member agent-2` (SIGKILL, evidence `pid 187024 powered-off`).
+  Discovery: agent-2 `['missing','not-ready']`, identity from `kubernetes-nodes`, no SSH read.
+  `plan --operation replace` with a fence receipt from that evidence: `3dedcbe7…`; the same
+  receipt against `server-1` was refused ("names another provider identity"). Apply exit 0:
+  exclusion plus `replacement-authorized` (`fenceState: powered-off`); re-apply exit 0.
+- Replacement: `lab spare` created `spare-1` (machine ID `89f4d243…`, distinct from agent-2's
+  `196f5639…`). Enrollment plan `e6617909…` applied exit 0; spare Ready with no taints; a
+  new Job completed on it; `f5-service` was evicted from the dead node at the 300 s toleration
+  and ran on spare-1. Re-apply exit 0.
+- Control-plane loss: `lab fence --member server-1`; the tunnel exited and `discover` exited 1
+  (`kubernetes-nodes:workers … connection refused`) and wrote no observation, so no plan could
+  be made. Recovery is the F10 restore; not rehearsed here.
+
+Production faults found by these drills and fixed (each failed live first):
+
+| Fault                                                                                | Fix and proof                                                                                 |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `discover` passed `pvs`/`pvcs` to kubectl ("doesn't have a resource type")           | resource names; `lab-provider.test.ts` fails with `pvs` restored                              |
+| Controller forwards `SSH_AUTH_SOCK`; sshd "Too many authentication failures"         | `IdentitiesOnly=yes` in lab SSH args                                                          |
+| Lease `acquireTime` rejected: millisecond ISO is not MicroTime (BadRequest)          | MicroTime; fake API in `production-apply.test.ts` rejects the old format (6 tests failed)     |
+| `puni-system` namespace absent on a fresh cluster; Lease create needs it             | created by hand in the lab (assumed platform-owned)                                           |
+| `retire.yml` templated the etcd probe `delegate_to` for an agent before `when`       | empty loop when the mapping is skipped                                                        |
+| Controller image has no `jq`; every localhost retirement/upgrade check exited 127    | `infra/ansible/scripts/cluster-checks.py`; four faults each failed `cluster-checks.test.ts`   |
+| Agent retirement tried to stop the not-found `k3s.service` stub (firewall `Before=`) | not-found units count as absent                                                               |
+| Enrollment accepted only the target, but validation runs on the bootstrap server     | cluster servers allowed, other agents refused; removing the clause failed the enrollment test |
+| `join.yml`'s empty server play printed "no hosts matched"; enrollment refused        | exact target recap decides when a host is expected                                            |
+
+Observed operator steps outside the adapters (open design gaps):
+
+- The k3s bundled `metrics-server` uses `emptyDir`; the generic drain refused it, as designed.
+  The pod was deleted by hand so it rescheduled off the cordoned node.
+- Enrolling a node never reconverges existing nodes' firewalls. The server was re-bootstrapped
+  with the new enrolled set before enrollment (a live changed-policy activation).
+- Replacement does not remove the dead Node; its pod stayed `Terminating` there until manual
+  cleanup would be needed.
+- `validate-enrollment.yml` leaves an owner-less `puni-f3-validation/receiver` pod that the
+  retirement workload check refuses; it was deleted by hand in the F8 lab.
+
+### R5 proofs for the lab code (each fault failed the named test, then was restored)
+
+| Check                                                | Fault                     | Test                                                                                      |
+| ---------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| Image checksum (cached / downloaded)                 | comparison disabled       | `refuses a cached cloud image…` / `downloads an absent image…`                            |
+| QEMU build                                           | exit code only            | `refuses a QEMU build other than the locked one`                                          |
+| Lock schema                                          | schema refusal disabled   | `refuses an absent, malformed, or checksum-free lock`                                     |
+| Role-derived identity                                | default index             | `derives distinct network identities only for lab roles`                                  |
+| Pid ownership                                        | pid file trusted alone    | `creates, converges, fences, and deletes only exact owned machines` (bystander signalled) |
+| Fence of a stopped machine                           | refusal disabled          | same test, second fence                                                                   |
+| Provider / prefix / member / Multipass fence parsing | each refusal disabled     | `decodes qemu requests only with their exact required inputs`                             |
+| Kubeconfig shape                                     | server comparison dropped | `refuses a kubeconfig that does not address the local admin endpoint`                     |
+| Lab provider production refusal (path, endpoint)     | each disabled             | `is never selectable for a production fleet`                                              |
+| Lab node ownership                                   | disabled                  | `refuses a fleet node the lab does not own`                                               |
+| Observed absence skips SSH                           | skip removed              | `reports a machine the lab provider saw stop as missing…`                                 |
+
+Not fault-injected: the hub's peer-list refusal, bounded process-exit waits, and QEMU
+post-daemonize liveness.
+
+### Checks
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache` exited 0
+(228 tests) before the final documentation commit; `bunx nx format:check --all` exited 0.
+
+### Still open (prepared commands)
+
+- F4 remote HTTP backend and a paid hcloud node: `tool-fleet:terragrunt-plan` and `apply` as in
+  `infra/terraform/README.md`, with backend credentials and `HCLOUD_TOKEN`.
+- Hetzner CSI RWO/RWOP and MTU on the real private network; provider firewall.
+- HA control-plane removal and serial upgrade: needs at least three servers plus an agent,
+  more than the three-VM budget here.
+- PDB-blocked drain, local-PV and singleton SQLite drain refusals as live cases.
+- Multipass provider live run on a host with root: `tool-fleet:lab -- up --lab-id … --profile workers …`.
+
+## 2026-09-18 follow-up: review fixes and manual-step-free F5 reruns
+
+Commits `759dd8e4`..`de289e3b` on `change/tbf-vm`. Every commit ran with hooks. `tool-fleet:check`
+and `format:check --all` exited 0 at `de289e3b` (238 tests). `df3ce0fb` failed `tool-fleet:typecheck`
+(an untyped test `stderr`), and `cb63f9e6` fixed that. Two VMs belonging to earlier agents
+(`puni-f3-platform`, `puni-f3-agent`) were left untouched.
+
+### HA cluster-check injection (review blocker)
+
+- **Fix.** Every `cluster-checks.py` task in `retire.yml` and `upgrade.yml` is now an
+  `ansible.builtin.command` argv. Etcd voters and the delegated probe results travel on stdin.
+- **Live run on the qemu `ha` profile.** Three embedded-etcd servers, at `de289e3b`.
+  `retire.yml --tags preflight` targeted server-3 with its real etcd member name.
+  - It mapped both surviving voters, probed them through delegation, and passed the majority and
+    floor checks, exiting 0.
+  - A fake `curl` on server-2 wrote `'; touch /sentinel/pwned #` to stderr and exited 22.
+    The current playbook refused with "1 healthy surviving voters of 3" (exit 2).
+  - The playbook and script from `93960ee0`, mounted over the current ones, exited 2 with
+    `bash: syntax error near unexpected token '('` on the majority task.
+  - In both runs the writable `/sentinel` stayed empty.
+- **Local shell demo.** The old quoting, fed a result whose stderr is `'; touch …/pwned #`,
+  created the sentinel file.
+- **Test.** `retire.test.ts` runs the playbook argv with real-shape results, including a quoted
+  `cmd`, that stderr, and `$(touch …)` in stdout. It asserts no sentinel file.
+- **Not run: a complete HA server retirement.** The planner requires three proven surviving
+  servers ("HA cluster ha requires three proven replacement servers", observed live). That
+  means four servers, above the 3 × 2 GiB budget.
+- **Test coverage of the checks.** `retire.test.ts` exercises etcd-map, etcd-majority, detached
+  and floors through the playbook argv. `upgrade.test.ts` covers pods-ready and
+  attachments-healthy. `cluster-checks.test.ts` covers floors, workloads, local-volumes and
+  kubectl failure directly.
+- **Fault found live.** The first rerun passed floors on stdin while the script read argv
+  (a TypeError, exit 2). This is fixed, and the playbook-argv test fails with the stdin form.
+
+### F5 reruns with no manual steps (lab `f5`, workers profile)
+
+- **Fresh `up` at `cb63f9e6`.** `puni-system` existed; it is now created by `k3s_server`, where
+  the earlier run needed a manual `kubectl create`. No validation receiver pod remained.
+- **Clean retirement of agent-1, run 2** (plan `efbfe583…`). metrics-server,
+  local-path-provisioner and CoreDNS were on agent-1. One `apply` exited 0 in 3m48s and
+  reported `complete`. The reviewed step moved metrics-server first, the drain ran without
+  force flags, the service rescheduled to agent-2, and the Node was removed. No command ran
+  outside plan and apply.
+- **Run 1 (plan `278c3664…`) found two faults before the fix.**
+  - Floors were passed on stdin.
+  - Detach refused while the rescheduled metrics-server stayed unready: the firewall rejected
+    pod→kubelet `10250` on `cni0` ("connection refused").
+  - Fixed in `df3ce0fb` with the 10250 allowance and a bounded detach wait. The lab
+    bootstrap/join rolled the policy out (changed=2 per host, the firewall handler ran), and the
+    same plan resumed to `complete`.
+- **Vanished node and replacement** (plan `6bbc2441…`).
+  - Effects included `remove fenced Kubernetes membership`, bound to `kubernetes:a45dc17f…`.
+  - Apply exited 0. The dead Node was deleted through `kubectl delete --raw` with a UID
+    precondition, and a re-apply exited 0.
+  - The production refusal cases (other UID, Ready, other provider identity) are
+    `replace.test.ts` negatives.
+- **Enrollment of spare-1** (plan `dce7aa0d…`).
+  - Before apply, the server's live set was `{.11,.12,.13}`. Apply exited 0: it refreshed
+    `server-1`'s firewall to `{.11,.14}` itself, then joined.
+  - spare-1 was Ready, `f5-service` ran on it, and a re-apply exited 0.
+- **Observation sources.** Recorded as `lab-provider:workers`.
+
+### Other review items
+
+- **qemu-lab.lock.json.** The three deb SHA-256s matched fresh downloads from
+  `archive.ubuntu.com/ubuntu/pool` (qemu-system-x86 `14602e26…`, qemu-utils `10695e57…`,
+  genisoimage `cfa9f63d…`).
+- **Lab hub.** A send after an absent peer threw that peer's ECONNREFUSED and dropped the
+  frame, so the three-server lab lost all private traffic. The hub now retries once
+  (`lab.test.ts` hub case: 0 of 5 frames delivered without the retry).
+- **Evidence rows.** The firewall rows that said "pending" now cite the live runs. The
+  authenticated pod-to-API probe is still pending.
+
+## F12 (2026-09-18)
+
+The fleet rows of the operator guide ran in the k3s-platform verify.md, "F12 operator handoff":
+
+- The retire plan (`tool-fleet:plan -- --operation retire --node workers-agent-a` over
+  `infra/fleet/examples/local.yaml` and a synthetic observation) exited 0 and printed its
+  digest; the digest value was not recorded.
+- `tool-fleet:apply` with that plan and an all-zero `--expect-sha256` exited 1 with "Operation
+  plan digest differs from its reviewed SHA-256" before any effect.
+- `tool-fleet:lab -- status --provider qemu` exited 0 with no machines.
+- `discover`, `terragrunt-plan` and `terragrunt-destroy-plan` each exited 1 naming the missing
+  input.
+- `docs/infra/fleet.md` now names the QEMU provider and its lock.
+- Not yet fault-injected: the hub peer-list refusal, the process-exit waits and QEMU liveness.
+
+## 2026-09-18 PR CI: reproducible controller image
+
+- The `58926be2…` lock was only cache-reproducible: a `--no-cache` build on the host's default
+  builder produced `sha256:4cd7fd09…`, and GitHub's `docker` driver refused the OCI exporter.
+- On a `docker-container` builder from `moby/buildkit:v0.33.0@sha256:6c2fa84a…` with
+  `SOURCE_DATE_EPOCH=0`, `rewrite-timestamp=true` and no attestations, two `--no-cache` builds
+  still differed (`9e7166f5…`, `decb0447…`) in the Galaxy API cache and pip's timestamped `.pyc`
+  files. After the Containerfile dropped the cache and compiled with `SOURCE_DATE_EPOCH`, two
+  `--no-cache` builds and a third `bunx nx run tool-fleet:controller-image` on a newly created
+  locked builder all produced `sha256:5f00e0eb382406f3f0a7ac30a40ffe722ffe8778d2e21e6c1b90130ac88d46ce`,
+  now the lock. `docker load` tagged it from the index name; `bunx nx run tool-fleet:check` passed.
+- The target was renamed from `build` so the ordinary gate no longer pulls a 2 GB base image;
+  `infra-check.yml` still builds it before `tool-fleet:check`.
+- R5: removing the builder-image, inspect-absence and create-exit guards each failed its named
+  `controller.test.ts` case; making `controller.builder` optional failed `contracts.test.ts`
+  `rejects a missing controller builder lock`.
+- The first CI run on that lock still missed it: `COPY` carried the checkout's file mode (0664
+  under the local umask 002, 0644 on GitHub). With `COPY --chmod=0444`, the worktree and a
+  `--no-cache` build from a 0644, re-dated copy of the context both produced
+  `sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de`, the current lock.

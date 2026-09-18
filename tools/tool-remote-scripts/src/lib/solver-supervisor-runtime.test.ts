@@ -50,6 +50,10 @@ class FakeDriver implements SolverSupervisorDriver {
     return Promise.resolve(this.#lists === 1 ? ['d'.repeat(64)] : []);
   }
 
+  inspectPod(): Promise<{ id: string; name: string; image: string }> {
+    return Promise.reject(new Error('no pod peer in this fixture'));
+  }
+
   inspectBackend(id: string): Promise<{ id: string; name: string; image: string }> {
     this.events.push(`peer-inspect:${id}`);
     return Promise.resolve({ id, name: 'wbs-dev-src', image: 'wbs-dev-src:1' });

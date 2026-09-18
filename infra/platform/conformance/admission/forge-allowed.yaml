@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: allowed-forge
+  namespace: puni-forge
+  labels:
+    puni.dev/controller: dev-environment
+spec:
+  serviceAccountName: dev-environment-controller
+  automountServiceAccountToken: false
+  nodeSelector:
+    puni.dev/capability-forge: 'true'
+  containers:
+    - name: source
+      image: registry.puni.test/dev-environment@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities: { drop: [ALL] }
+        seccompProfile: { type: RuntimeDefault }
+      volumeMounts:
+        - name: worktree
+          mountPath: /workspace
+  volumes:
+    - name: worktree
+      hostPath:
+        path: /srv/puni/worktrees/puni-00
+        type: Directory

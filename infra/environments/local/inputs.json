@@ -1,0 +1,16 @@
+{
+  "profile": "local",
+  "cloudProjectId": "local-fixture",
+  "cloudNetworkId": "local-k3d",
+  "adminSshCidrs": ["127.0.0.1/32"],
+  "adminSshKeyFingerprints": ["fixture-only"],
+  "desiredHostAllocations": ["platform-local", "worker-local"],
+  "apiEndpoint": "https://127.0.0.1:6443",
+  "dnsHostnames": ["wbs.localhost", "observability.localhost"],
+  "dnsOwner": "local-fixture",
+  "registryUrl": "registry.localhost:5000",
+  "encryptedSecretReferences": [],
+  "objectStoreEndpoints": ["http://object-store.localhost:9000"],
+  "failureDomains": ["local-process"],
+  "alertDestination": "local-sink"
+}

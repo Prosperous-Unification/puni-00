@@ -1,8 +1,5 @@
 import type { BackendContainerIdentity } from './solver-supervisor-docker-output';
-import {
-  dockerContainerIdFromPeerCgroup,
-  readSupervisorPeerCgroup,
-} from './solver-supervisor-peer-cgroup';
+import { peerContainerFromCgroup, readSupervisorPeerCgroup } from './solver-supervisor-peer-cgroup';
 import {
   readSupervisorPeerCredentials,
   type SupervisorPeerCredentials,
@@ -19,10 +16,18 @@ export interface SupervisorPeerDependencies {
     containerId: string,
     allowedNamePatterns: readonly RegExp[],
   ): Promise<BackendContainerIdentity>;
+  inspectPod(
+    containerId: string,
+    allowedNamePatterns: readonly RegExp[],
+  ): Promise<BackendContainerIdentity>;
 }
 
 export interface SupervisorBackendInspector {
   inspectBackend(
+    containerId: string,
+    allowedNamePatterns: readonly RegExp[],
+  ): Promise<BackendContainerIdentity>;
+  inspectPod(
     containerId: string,
     allowedNamePatterns: readonly RegExp[],
   ): Promise<BackendContainerIdentity>;
@@ -48,6 +53,8 @@ export function hostSupervisorPeerDependencies(
     cgroup: (pid) => host.cgroup(pid),
     inspect: (containerId, allowedNamePatterns) =>
       inspector.inspectBackend(containerId, allowedNamePatterns),
+    inspectPod: (containerId, allowedNamePatterns) =>
+      inspector.inspectPod(containerId, allowedNamePatterns),
   };
 }
 
@@ -59,8 +66,11 @@ export async function authenticateSupervisorPeer(
 ): Promise<BackendContainerIdentity> {
   const peer = dependencies.credentials(socket);
   const cgroup = await dependencies.cgroup(peer.pid);
-  const containerId = dockerContainerIdFromPeerCgroup(cgroup);
+  const container = peerContainerFromCgroup(cgroup);
   // Proof: solver-supervisor-peer.test.ts gives the peer a host cgroup and
   // requires that Docker inspection is never reached.
-  return dependencies.inspect(containerId, policy.allowedNamePatterns);
+  // Proof: routing a CRI pod peer to Docker inspection made the pod-peer test observe `docker`.
+  return container.runtime === 'cri-containerd'
+    ? dependencies.inspectPod(container.id, policy.allowedNamePatterns)
+    : dependencies.inspect(container.id, policy.allowedNamePatterns);
 }

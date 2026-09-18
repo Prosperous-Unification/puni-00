@@ -1,0 +1,32 @@
+write-kubeconfig-mode: "0600"
+node-name: {{ puni_node_name }}
+node-ip: {{ puni_node_ip }}
+flannel-iface: {{ puni_private_interface }}
+flannel-backend: vxlan
+cluster-cidr: {{ puni_cluster_cidr }}
+service-cidr: {{ puni_service_cidr }}
+secrets-encryption: true
+disable:
+  - traefik
+  - servicelb
+disable-cloud-controller: {{ puni_disable_cloud_controller | bool | lower }}
+token-file: /etc/rancher/k3s/server-token
+agent-token-file: /etc/rancher/k3s/agent-token
+{% if puni_k3s_cluster_init %}
+cluster-init: true
+{% else %}
+server: {{ puni_registration_url }}
+{% endif %}
+tls-san:
+{% for san in puni_tls_sans %}
+  - {{ san }}
+{% endfor %}
+node-taint:
+  - puni.io/enrollment=pending:NoSchedule
+{% if puni_cluster_id == 'workers' %}
+  - puni.io/worker-control-plane=true:NoSchedule
+{% endif %}
+node-label:
+{% for capability in puni_node_capabilities %}
+  - puni.dev/capability-{{ capability }}=true
+{% endfor %}

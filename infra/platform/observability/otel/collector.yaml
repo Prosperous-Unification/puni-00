@@ -1,0 +1,178 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: otel-collector
+  namespace: observability
+spec:
+  interval: 30m
+  dependsOn:
+    - name: elasticsearch
+    - name: kube-prometheus-stack
+  chart:
+    spec:
+      chart: ./infra/platform/charts/opentelemetry-collector-0.173.1.tgz
+      version: 0.173.1
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    fullnameOverride: otel-collector
+    mode: daemonset
+    image:
+      repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+      tag: 0.160.0
+      digest: sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    command:
+      name: otelcol-contrib
+    # k3s writes /var/log/pods files as root:root 0640. A non-root UID gets no effective
+    # capabilities from the container spec, so reading them needs UID 0; every capability
+    # except DAC_READ_SEARCH is dropped, escalation is off and the root filesystem is read-only.
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: { drop: [ALL], add: [DAC_READ_SEARCH] }
+    tolerations:
+      - operator: Exists
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: '1', memory: 320Mi }
+    extraEnvs:
+      - name: ELASTIC_PASSWORD
+        valueFrom:
+          secretKeyRef: { name: elasticsearch-es-elastic-user, key: elastic }
+      - name: PUNI_ENVIRONMENT
+        valueFrom:
+          configMapKeyRef: { name: puni-telemetry, key: environment }
+    extraVolumes:
+      - name: pod-logs
+        hostPath: { path: /var/log/pods, type: Directory }
+      - name: state
+        hostPath: { path: /var/lib/puni-otelcol, type: DirectoryOrCreate }
+      - name: es-ca
+        secret: { secretName: elasticsearch-es-http-certs-public }
+    extraVolumeMounts:
+      - { name: pod-logs, mountPath: /var/log/pods, readOnly: true }
+      - { name: state, mountPath: /var/lib/otelcol }
+      - { name: es-ca, mountPath: /etc/elastic, readOnly: true }
+    # No host ports: producers reach the collector through its Service and, across clusters,
+    # the otel-gateway NodePort that otlp-ingress restricts.
+    ports:
+      otlp:
+        enabled: true
+        hostPort: 0
+      otlp-http:
+        enabled: true
+        hostPort: 0
+      jaeger-compact:
+        enabled: false
+      jaeger-thrift:
+        enabled: false
+      jaeger-grpc:
+        enabled: false
+      zipkin:
+        enabled: false
+      metrics:
+        enabled: true
+    service:
+      enabled: true
+    serviceMonitor:
+      enabled: true
+      metricsEndpoints:
+        - port: metrics
+    alternateConfig:
+      extensions:
+        health_check:
+          endpoint: ${env:MY_POD_IP}:13133
+        file_storage/queue:
+          directory: /var/lib/otelcol/queue
+          create_directory: true
+        file_storage/checkpoints:
+          directory: /var/lib/otelcol/checkpoints
+          create_directory: true
+      receivers:
+        filelog:
+          include: [/var/log/pods/*/*/*.log]
+          # The collector's own output would feed back into itself.
+          exclude: [/var/log/pods/observability_otel-collector-*/*/*.log]
+          start_at: end
+          include_file_path: true
+          storage: file_storage/checkpoints
+          operators:
+            - type: container
+              id: container-parser
+        otlp:
+          protocols:
+            grpc:
+              endpoint: ${env:MY_POD_IP}:4317
+            http:
+              endpoint: ${env:MY_POD_IP}:4318
+      processors:
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 240
+          spike_limit_mib: 60
+        # Bodies stay one text field; credential shapes are replaced before export.
+        transform/redact:
+          log_statements:
+            - context: log
+              statements:
+                - replace_pattern(body, "AGE-SECRET-KEY-1[0-9A-Z]{58}", "[REDACTED]")
+                - replace_pattern(body, "gh[pousr]_[A-Za-z0-9]{36,}", "[REDACTED]")
+                - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
+                - replace_pattern(body, "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+", "$$1[REDACTED]")
+                - replace_pattern(body, "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+", "$$1[REDACTED]")
+        resource/stream:
+          attributes:
+            - { key: data_stream.dataset, value: puni, action: upsert }
+            - { key: data_stream.namespace, value: '${env:PUNI_ENVIRONMENT}', action: upsert }
+        batch:
+          send_batch_size: 1000
+          timeout: 5s
+      exporters:
+        prometheusremotewrite:
+          endpoint: http://kps-prometheus.observability.svc:9090/api/v1/write
+          resource_to_telemetry_conversion:
+            enabled: true
+        elasticsearch:
+          endpoint: https://elasticsearch-es-http.observability.svc:9200
+          user: elastic
+          password: ${env:ELASTIC_PASSWORD}
+          tls:
+            ca_file: /etc/elastic/ca.crt
+          mapping:
+            mode: otel
+          sending_queue:
+            enabled: true
+            storage: file_storage/queue
+            queue_size: 5000
+          # Consumers keep retrying while the persistent queue absorbs the outage; loss starts only
+          # once the queue is full. The measured outage drill is in openspec/changes/k3s-fleet/verify.md.
+          retry:
+            enabled: true
+            max_retries: 100000
+            initial_interval: 1s
+            max_interval: 30s
+            retry_on_status: [429, 502, 503, 504]
+      service:
+        extensions: [health_check, file_storage/queue, file_storage/checkpoints]
+        telemetry:
+          metrics:
+            readers:
+              - pull:
+                  exporter:
+                    prometheus:
+                      host: ${env:MY_POD_IP}
+                      port: 8888
+        pipelines:
+          logs:
+            receivers: [filelog, otlp]
+            processors: [memory_limiter, transform/redact, resource/stream, batch]
+            exporters: [elasticsearch]
+          # Workers clusters ship host metrics here; Prometheus accepts them by remote write.
+          metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [prometheusremotewrite]

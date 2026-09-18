@@ -1,0 +1,122 @@
+---
+- name: Require server identity, artifact, endpoint, and secret inputs
+  # Proof: accepting a bare bootstrap credential for a joining node produced a live k3s warning
+  # that the cluster CA was not trusted; joins require the generated CA-bound server token.
+  ansible.builtin.assert:
+    that:
+      - puni_k3s_version is defined
+      - puni_k3s_url is defined
+      - puni_k3s_sha256 is defined
+      - puni_k3s_sha256 | length == 64
+      - puni_k3s_server_credential is defined
+      - puni_k3s_server_credential is match('^[0-9a-f]{64}$')
+      - puni_k3s_agent_credential is defined
+      - puni_k3s_agent_credential is match('^[0-9a-f]{64}$')
+      - puni_k3s_cluster_init is defined
+      - puni_k3s_cluster_init or (puni_k3s_server_token is defined and puni_k3s_server_token is match('^K10[0-9a-f]{64}::server:[0-9a-f]{64}$'))
+      - puni_node_name is defined
+      - puni_node_ip is defined
+      - puni_private_interface is defined
+      - puni_cluster_cidr is defined
+      - puni_service_cidr is defined
+      - puni_tls_sans is defined
+      - puni_disable_cloud_controller is defined
+      - puni_node_capabilities is defined
+      - puni_k3s_cluster_init or puni_registration_url is defined
+    fail_msg: k3s server identity, pinned artifact, endpoint, and tokens are required
+
+- name: Download the pinned k3s server binary
+  ansible.builtin.get_url:
+    url: '{{ puni_k3s_url }}'
+    dest: /usr/local/bin/k3s
+    checksum: 'sha256:{{ puni_k3s_sha256 }}'
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create k3s server configuration directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s/server
+
+- name: Write the private server token
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/server-token
+    content: |
+      {{ puni_k3s_server_credential if puni_k3s_cluster_init else puni_k3s_server_token }}
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Write the private agent token
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/agent-token
+    content: |
+      {{ puni_k3s_agent_credential }}
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Render the k3s server configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart k3s server
+
+- name: Install the k3s server service
+  ansible.builtin.template:
+    src: k3s.service.j2
+    dest: /etc/systemd/system/k3s.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart k3s server
+
+- name: Start the k3s server
+  ansible.builtin.systemd_service:
+    name: k3s
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Flush server restarts before creating fleet-owned API objects
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the local API before creating fleet-owned API objects
+  ansible.builtin.command:
+    argv: [k3s, kubectl, get, --raw, /readyz]
+  register: puni_k3s_readyz
+  until: puni_k3s_readyz.rc == 0
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Read the fleet operation namespace
+  ansible.builtin.command:
+    argv: [k3s, kubectl, get, namespace, puni-system, -o, name]
+  register: puni_system_namespace
+  changed_when: false
+  failed_when: puni_system_namespace.rc != 0 and 'NotFound' not in puni_system_namespace.stderr
+
+# tool-fleet apply serializes membership operations with a Lease in puni-system; the server role
+# owns the namespace so a freshly bootstrapped cluster can be operated on without a manual step.
+# Proof: the live F5 retirement on a fresh QEMU lab failed to create its Lease ("namespaces
+# puni-system not found") before this task existed.
+- name: Create the fleet operation namespace
+  ansible.builtin.command:
+    argv: [k3s, kubectl, create, namespace, puni-system]
+  when: puni_system_namespace.rc != 0

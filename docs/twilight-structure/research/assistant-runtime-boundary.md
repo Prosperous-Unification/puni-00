@@ -179,7 +179,7 @@ were not rerun.
 The existing design assigns LangGraph the compiled delivery workflow and gives
 Twilight the durable store, approval/effect authority, fencing, evidence and usage
 settlement. K3s is already selected for isolated execution attempts in
-[ADR 0016](../../adr/0016-k3s-schedules-the-expandable-worker-pool.md).
+[ADR 0028](../../adr/0028-k3s-schedules-the-expandable-worker-pool.md).
 The [worker provisioning port](../../../openspec/changes/twilight-control-plane/design.md#invariant-ownership)
 must remain the path into that pool. An OpenClaw background task is not
 automatically an admitted Twilight attempt, and stopping a chat run does not

@@ -1,0 +1,9 @@
+---
+- name: Install the host-owned solver supervisor on product nodes
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Configure the solver supervisor
+      ansible.builtin.include_role:
+        name: solver

@@ -1,0 +1,315 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: puni-trusted-hostpath
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    # Only the trusted namespaces evaluate this policy, so an absent parameter ConfigMap
+    # (parameterNotFoundAction: Deny) cannot block pods in kube-system, flux-system or elsewhere.
+    # Proof: with the parameter deleted on a live k3d cluster, the policy without this selector
+    # denied a kube-system pod and with it admitted that pod while still denying wbs-solver.
+    namespaceSelector:
+      matchExpressions:
+        - { key: puni.dev/trusted-hostpath, operator: Exists }
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods, pods/ephemeralcontainers]
+  validations:
+    # Proof: replacing exact membership with a path-prefix check admitted
+    # /srv/puni/worktrees/puni-00/subdirectory in a live server-side dry-run on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (!has(object.spec.volumes) || object.spec.volumes.all(volume,
+          has(volume.configMap) || has(volume.csi) || has(volume.downwardAPI) ||
+          has(volume.emptyDir) || has(volume.ephemeral) || has(volume.persistentVolumeClaim) ||
+          has(volume.projected) || has(volume.secret) ||
+          (has(volume.hostPath) && volume.hostPath.type == 'Directory' &&
+           ((object.metadata.namespace == 'wbs-solver' && volume.hostPath.path == '/run/puni/solver') ||
+            (object.metadata.namespace == 'puni-forge' &&
+             volume.hostPath.path in params.data.forgeWorktreeRoots.split(','))))))
+      message: trusted workloads may use only Restricted volume types or their exact directory root
+    - expression: >-
+        object.metadata.namespace != 'wbs-solver' ||
+        (object.spec.serviceAccountName == 'wbs-backend' &&
+         object.metadata.labels['puni.dev/controller'] == 'wbs-backend' &&
+         object.spec.nodeSelector['puni.dev/capability-product'] == 'true')
+      message: solver workloads require the approved controller, service account, and product node
+    # Proof: adding a privileged init container with another image was admitted before every
+    # container type was included in both image and security checks on 2026-09-17.
+    # A release admits its candidate and rollback digests together, so `solverImages` is an exact
+    # comma-separated digest list; membership is whole-string, never a prefix.
+    # Proof: replacing list membership with `solverImages.contains(container.image)` admitted
+    # solver-digest-prefix.yaml in a live server-side dry-run on 2026-09-18; restoring it denied it
+    # while solver-allowed.yaml and solver-rollback-allowed.yaml stayed admitted.
+    # Proof: a tag-only entry in solverImages still admitted solver-allowed.yaml before this
+    # parameter-format check; with it, the same pod was denied on 2026-09-18.
+    - expression: >-
+        object.metadata.namespace != 'wbs-solver' ||
+        params.data.solverImages.split(',').all(image,
+          image.matches('^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'))
+      message: every solverImages entry must be a digest-pinned image reference
+    - expression: >-
+        object.metadata.namespace != 'wbs-solver' ||
+        (object.spec.containers.all(container, container.image in params.data.solverImages.split(',')) &&
+         (!has(object.spec.initContainers) ||
+          object.spec.initContainers.all(container, container.image in params.data.solverImages.split(','))) &&
+         (!has(object.spec.ephemeralContainers) ||
+          object.spec.ephemeralContainers.all(container, container.image in params.data.solverImages.split(','))))
+      message: solver workloads require an approved backend image digest for every container
+    - expression: >-
+        object.metadata.namespace != 'puni-forge' ||
+        (object.spec.serviceAccountName == 'dev-environment-controller' &&
+         object.metadata.labels['puni.dev/controller'] == 'dev-environment' &&
+         object.spec.nodeSelector['puni.dev/capability-forge'] == 'true' &&
+         object.spec.containers.all(container, container.image == params.data.forgeImage) &&
+         (!has(object.spec.initContainers) ||
+          object.spec.initContainers.all(container, container.image == params.data.forgeImage)) &&
+         (!has(object.spec.ephemeralContainers) ||
+          object.spec.ephemeralContainers.all(container, container.image == params.data.forgeImage)))
+      message: source workloads require the approved controller, service account, image, and forge node
+    # Proof: removing the explicit token check admitted a trusted solver Pod without
+    # automountServiceAccountToken=false in a live server-side dry-run on 2026-09-17.
+    # Proof: a projected serviceAccountToken, hostIPC, omitted privilege-escalation control,
+    # and root/NET_ADMIN/Unconfined container were each admitted before this complete guard.
+    # Kubernetes requires hostNetwork for Windows HostProcess Pods, so rejecting hostNetwork
+    # also excludes pod-level and container-level windowsOptions.hostProcess.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (has(object.spec.automountServiceAccountToken) &&
+         !object.spec.automountServiceAccountToken &&
+         (!has(object.spec.hostNetwork) || !object.spec.hostNetwork) &&
+         (!has(object.spec.hostPID) || !object.spec.hostPID) &&
+         (!has(object.spec.hostIPC) || !object.spec.hostIPC) &&
+         (!has(object.spec.securityContext) ||
+          !has(object.spec.securityContext.sysctls) || object.spec.securityContext.sysctls.size() == 0) &&
+         (!has(object.spec.volumes) || object.spec.volumes.all(volume,
+           !has(volume.projected) || !has(volume.projected.sources) ||
+           volume.projected.sources.all(source, !has(source.serviceAccountToken)))) &&
+         object.spec.containers.all(container,
+           has(container.securityContext) &&
+           (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
+           has(container.securityContext.allowPrivilegeEscalation) &&
+           !container.securityContext.allowPrivilegeEscalation &&
+           has(container.securityContext.runAsNonRoot) && container.securityContext.runAsNonRoot &&
+           (!has(container.securityContext.runAsUser) || container.securityContext.runAsUser != 0) &&
+           has(container.securityContext.seccompProfile) &&
+           container.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'] &&
+           has(container.securityContext.capabilities) &&
+           has(container.securityContext.capabilities.drop) &&
+           'ALL' in container.securityContext.capabilities.drop &&
+           (!has(container.securityContext.capabilities.add) ||
+            container.securityContext.capabilities.add.size() == 0)) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           has(container.securityContext) &&
+           (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
+           has(container.securityContext.allowPrivilegeEscalation) &&
+           !container.securityContext.allowPrivilegeEscalation &&
+           has(container.securityContext.runAsNonRoot) && container.securityContext.runAsNonRoot &&
+           (!has(container.securityContext.runAsUser) || container.securityContext.runAsUser != 0) &&
+           has(container.securityContext.seccompProfile) &&
+           container.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'] &&
+           has(container.securityContext.capabilities) &&
+           has(container.securityContext.capabilities.drop) &&
+           'ALL' in container.securityContext.capabilities.drop &&
+           (!has(container.securityContext.capabilities.add) ||
+            container.securityContext.capabilities.add.size() == 0))) &&
+         (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+           has(container.securityContext) &&
+           (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
+           has(container.securityContext.allowPrivilegeEscalation) &&
+           !container.securityContext.allowPrivilegeEscalation &&
+           has(container.securityContext.runAsNonRoot) && container.securityContext.runAsNonRoot &&
+           (!has(container.securityContext.runAsUser) || container.securityContext.runAsUser != 0) &&
+           has(container.securityContext.seccompProfile) &&
+           container.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'] &&
+           has(container.securityContext.capabilities) &&
+           has(container.securityContext.capabilities.drop) &&
+           'ALL' in container.securityContext.capabilities.drop &&
+           (!has(container.securityContext.capabilities.add) ||
+            container.securityContext.capabilities.add.size() == 0))))
+      message: trusted workloads must preserve Restricted-equivalent isolation without API tokens
+    # Proof: hostPort 18080 was accepted by the live API before this Baseline control was added
+    # for every applicable container type on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (object.spec.containers.all(container,
+           !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0)) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0))) &&
+         (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+           !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0))))
+      message: trusted workloads may not bind host ports
+    # Proof: pod and container Unconfined AppArmor, unsafe SELinux labels, pod-level root and
+    # Unconfined seccomp, and Unmasked procMount were accepted before this guard on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        ((!has(object.spec.securityContext) ||
+          ((!has(object.spec.securityContext.appArmorProfile) ||
+            object.spec.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(object.spec.securityContext.seLinuxOptions) ||
+            ((!has(object.spec.securityContext.seLinuxOptions.user) ||
+              object.spec.securityContext.seLinuxOptions.user == '') &&
+             (!has(object.spec.securityContext.seLinuxOptions.role) ||
+              object.spec.securityContext.seLinuxOptions.role == '') &&
+             (!has(object.spec.securityContext.seLinuxOptions.type) ||
+              object.spec.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(object.spec.securityContext.runAsUser) || object.spec.securityContext.runAsUser != 0) &&
+           (!has(object.spec.securityContext.seccompProfile) ||
+            object.spec.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost']))) &&
+         object.spec.containers.all(container,
+           (!has(container.securityContext.appArmorProfile) ||
+            container.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(container.securityContext.seLinuxOptions) ||
+            ((!has(container.securityContext.seLinuxOptions.user) ||
+              container.securityContext.seLinuxOptions.user == '') &&
+             (!has(container.securityContext.seLinuxOptions.role) ||
+              container.securityContext.seLinuxOptions.role == '') &&
+             (!has(container.securityContext.seLinuxOptions.type) ||
+              container.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(container.securityContext.procMount) || container.securityContext.procMount == 'Default')) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           (!has(container.securityContext.appArmorProfile) ||
+            container.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(container.securityContext.seLinuxOptions) ||
+            ((!has(container.securityContext.seLinuxOptions.user) ||
+              container.securityContext.seLinuxOptions.user == '') &&
+             (!has(container.securityContext.seLinuxOptions.role) ||
+              container.securityContext.seLinuxOptions.role == '') &&
+             (!has(container.securityContext.seLinuxOptions.type) ||
+              container.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(container.securityContext.procMount) || container.securityContext.procMount == 'Default'))) &&
+         (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+           (!has(container.securityContext.appArmorProfile) ||
+            container.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(container.securityContext.seLinuxOptions) ||
+            ((!has(container.securityContext.seLinuxOptions.user) ||
+              container.securityContext.seLinuxOptions.user == '') &&
+             (!has(container.securityContext.seLinuxOptions.role) ||
+              container.securityContext.seLinuxOptions.role == '') &&
+             (!has(container.securityContext.seLinuxOptions.type) ||
+              container.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(container.securityContext.procMount) || container.securityContext.procMount == 'Default'))))
+      message: trusted workloads must use Baseline pod and container security profiles
+    # Proof: the deprecated Unconfined AppArmor annotation was accepted by the live API before
+    # annotation values were restricted to runtime/default or localhost profiles on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !has(object.metadata.annotations) || object.metadata.annotations.all(key,
+          !key.startsWith('container.apparmor.security.beta.kubernetes.io/') ||
+          object.metadata.annotations[key] == 'runtime/default' ||
+          object.metadata.annotations[key].startsWith('localhost/'))
+      message: trusted workloads may not disable AppArmor through legacy annotations
+    # Proof: loopback HTTP hosts in a liveness probe and preStop hook were accepted by the live
+    # API before every current probe and lifecycle host field was checked on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (object.spec.containers.all(container,
+           (!has(container.livenessProbe) ||
+            ((!has(container.livenessProbe.httpGet) || !has(container.livenessProbe.httpGet.host) ||
+              container.livenessProbe.httpGet.host == '') &&
+             (!has(container.livenessProbe.tcpSocket) || !has(container.livenessProbe.tcpSocket.host) ||
+              container.livenessProbe.tcpSocket.host == ''))) &&
+           (!has(container.readinessProbe) ||
+            ((!has(container.readinessProbe.httpGet) || !has(container.readinessProbe.httpGet.host) ||
+              container.readinessProbe.httpGet.host == '') &&
+             (!has(container.readinessProbe.tcpSocket) || !has(container.readinessProbe.tcpSocket.host) ||
+              container.readinessProbe.tcpSocket.host == ''))) &&
+           (!has(container.startupProbe) ||
+            ((!has(container.startupProbe.httpGet) || !has(container.startupProbe.httpGet.host) ||
+              container.startupProbe.httpGet.host == '') &&
+             (!has(container.startupProbe.tcpSocket) || !has(container.startupProbe.tcpSocket.host) ||
+              container.startupProbe.tcpSocket.host == ''))) &&
+           (!has(container.lifecycle) ||
+            ((!has(container.lifecycle.postStart) ||
+              ((!has(container.lifecycle.postStart.httpGet) || !has(container.lifecycle.postStart.httpGet.host) ||
+                container.lifecycle.postStart.httpGet.host == '') &&
+               (!has(container.lifecycle.postStart.tcpSocket) || !has(container.lifecycle.postStart.tcpSocket.host) ||
+                container.lifecycle.postStart.tcpSocket.host == ''))) &&
+             (!has(container.lifecycle.preStop) ||
+              ((!has(container.lifecycle.preStop.httpGet) || !has(container.lifecycle.preStop.httpGet.host) ||
+                container.lifecycle.preStop.httpGet.host == '') &&
+               (!has(container.lifecycle.preStop.tcpSocket) || !has(container.lifecycle.preStop.tcpSocket.host) ||
+                container.lifecycle.preStop.tcpSocket.host == '')))))) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           (!has(container.livenessProbe) ||
+            ((!has(container.livenessProbe.httpGet) || !has(container.livenessProbe.httpGet.host) ||
+              container.livenessProbe.httpGet.host == '') &&
+             (!has(container.livenessProbe.tcpSocket) || !has(container.livenessProbe.tcpSocket.host) ||
+              container.livenessProbe.tcpSocket.host == ''))) &&
+           (!has(container.readinessProbe) ||
+            ((!has(container.readinessProbe.httpGet) || !has(container.readinessProbe.httpGet.host) ||
+              container.readinessProbe.httpGet.host == '') &&
+             (!has(container.readinessProbe.tcpSocket) || !has(container.readinessProbe.tcpSocket.host) ||
+              container.readinessProbe.tcpSocket.host == ''))) &&
+           (!has(container.startupProbe) ||
+            ((!has(container.startupProbe.httpGet) || !has(container.startupProbe.httpGet.host) ||
+              container.startupProbe.httpGet.host == '') &&
+             (!has(container.startupProbe.tcpSocket) || !has(container.startupProbe.tcpSocket.host) ||
+              container.startupProbe.tcpSocket.host == ''))) &&
+           (!has(container.lifecycle) ||
+            ((!has(container.lifecycle.postStart) ||
+              ((!has(container.lifecycle.postStart.httpGet) || !has(container.lifecycle.postStart.httpGet.host) ||
+                container.lifecycle.postStart.httpGet.host == '') &&
+               (!has(container.lifecycle.postStart.tcpSocket) || !has(container.lifecycle.postStart.tcpSocket.host) ||
+                container.lifecycle.postStart.tcpSocket.host == ''))) &&
+             (!has(container.lifecycle.preStop) ||
+              ((!has(container.lifecycle.preStop.httpGet) || !has(container.lifecycle.preStop.httpGet.host) ||
+                container.lifecycle.preStop.httpGet.host == '') &&
+               (!has(container.lifecycle.preStop.tcpSocket) || !has(container.lifecycle.preStop.tcpSocket.host) ||
+                container.lifecycle.preStop.tcpSocket.host == ''))))))))
+      message: trusted workload probes and lifecycle hooks may not select a host
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: puni-trusted-hostpath
+spec:
+  policyName: puni-trusted-hostpath
+  paramRef:
+    name: puni-trusted-workload
+    namespace: wbs-solver
+    parameterNotFoundAction: Deny
+  validationActions: [Deny, Audit]
+---
+# The trusted policy above selects namespaces by label, so removing the label from a trusted
+# namespace would silently exempt it. This policy keeps the label on both namespaces.
+# Proof: with this binding deleted, removing the wbs-solver label succeeded on a live k3d cluster
+# on 2026-09-18; with it, the removal and a wrong puni-forge value were denied.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: puni-trusted-namespace-label
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [namespaces]
+  validations:
+    - expression: >-
+        !(object.metadata.name in ['wbs-solver', 'puni-forge']) ||
+        (has(object.metadata.labels) &&
+         'puni.dev/trusted-hostpath' in object.metadata.labels &&
+         object.metadata.labels['puni.dev/trusted-hostpath'] ==
+           (object.metadata.name == 'wbs-solver' ? 'solver' : 'source'))
+      message: trusted namespaces must keep their puni.dev/trusted-hostpath label
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: puni-trusted-namespace-label
+spec:
+  policyName: puni-trusted-namespace-label
+  validationActions: [Deny]

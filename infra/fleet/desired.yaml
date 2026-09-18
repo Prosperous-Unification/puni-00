@@ -1,0 +1,36 @@
+schemaVersion: 1
+revision: production-inputs-pending-v1
+clusters:
+  - id: platform
+    purpose: platform
+    apiEndpoint: https://platform.example.invalid:6443
+    controlPlane: single
+    bootstrap: complete
+    requiredCapabilities: { product: 1, ingress: 1, observability: 1 }
+  - id: workers
+    purpose: workers
+    apiEndpoint: https://workers.example.invalid:6443
+    controlPlane: single
+    bootstrap: complete
+    requiredCapabilities: { execution: 2 }
+nodes:
+  - id: platform-pending
+    cluster: platform
+    capabilities: [control-plane, product, ingress, observability]
+    lifecycle: present
+    provider: { kind: ssh, machineId: pending-platform-machine-id, address: 192.0.2.10 }
+  - id: workers-server-pending
+    cluster: workers
+    capabilities: [control-plane]
+    lifecycle: present
+    provider: { kind: ssh, machineId: pending-workers-server-id, address: 192.0.2.20 }
+  - id: workers-agent-a-pending
+    cluster: workers
+    capabilities: [execution]
+    lifecycle: present
+    provider: { kind: ssh, machineId: pending-workers-agent-a-id, address: 192.0.2.21 }
+  - id: workers-agent-b-pending
+    cluster: workers
+    capabilities: [execution]
+    lifecycle: present
+    provider: { kind: ssh, machineId: pending-workers-agent-b-id, address: 192.0.2.22 }

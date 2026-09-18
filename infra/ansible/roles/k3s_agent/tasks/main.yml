@@ -1,0 +1,76 @@
+---
+- name: Require agent identity, artifact, endpoint, and secret inputs
+  # Proof: the 64-hex bootstrap credential let the live agent reach authentication without first
+  # binding the server certificate to the cluster CA; only the generated CA-bound token may join.
+  ansible.builtin.assert:
+    that:
+      - puni_k3s_version is defined
+      - puni_k3s_url is defined
+      - puni_k3s_sha256 is defined
+      - puni_k3s_sha256 | length == 64
+      - puni_k3s_agent_token is defined
+      - puni_k3s_agent_token is match('^K10[0-9a-f]{64}::node:[0-9a-f]{64}$')
+      - puni_registration_url is defined
+      - puni_node_name is defined
+      - puni_node_ip is defined
+      - puni_private_interface is defined
+      - puni_node_capabilities is defined
+    fail_msg: k3s agent identity, pinned artifact, endpoint, and token are required
+
+- name: Download the pinned k3s agent binary
+  ansible.builtin.get_url:
+    url: '{{ puni_k3s_url }}'
+    dest: /usr/local/bin/k3s
+    checksum: 'sha256:{{ puni_k3s_sha256 }}'
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create the k3s agent configuration directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Write the private agent token
+  # Proof: changing this token without notifying the service left the old credential active until
+  # reboot; the live wrong-token drill now restarts the agent and makes enrollment validation fail.
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/agent-token
+    content: |
+      {{ puni_k3s_agent_token }}
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart k3s agent
+
+- name: Render the k3s agent configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart k3s agent
+
+- name: Install the k3s agent service
+  ansible.builtin.template:
+    src: k3s-agent.service.j2
+    dest: /etc/systemd/system/k3s-agent.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart k3s agent
+
+- name: Start the k3s agent
+  ansible.builtin.systemd_service:
+    name: k3s-agent
+    state: started
+    enabled: true
+    daemon_reload: true

@@ -311,7 +311,7 @@ The docs define a 16-stage DAG (request → discovery → specification → plan
 
 - value: One dedicated K3s server that schedules no attempt Pods + at least two K3s agent nodes; h3mon outside as monitoring; h4claw runs OpenClaw, control services and app deployment (not a worker); manual join/drain; VPS auto-provisioning is later Terragrunt scope
 - confidence: quoted
-- source: docs/adr/0016-k3s-schedules-the-expandable-worker-pool.md:5-9; docs/twilight-structure/assumptions.md:96-97 (A49-A50) (2026-09-06)
+- source: docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md:5-9; docs/twilight-structure/assumptions.md:96-97 (A49-A50) (2026-09-06)
 - note: Costs named: operating a control plane, Pod security, networking, image distribution, storage, telemetry, upgrades, cleanup (worker-pools.md:47-51).
 
 ### 45. One sandbox (Kubernetes Job) per admitted attempt with resource bounds and no privileges

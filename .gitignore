@@ -60,6 +60,16 @@ playwright-report/
 *.db-shm
 # SDD scratch workspace (ledger, briefs, review packages)
 .superpowers/
+.puni/fleet-labs/
+.puni/fleet/
+
+# Terraform downloads signed providers and writes local state/plan artifacts; reviewed locks and
+# configuration stay tracked while runtime state remains in the encrypted remote backend.
+**/.terraform/
+**/.terragrunt-cache/
+*.tfstate
+*.tfstate.*
+*.tfplan
 
 # Reviewer transcripts and one-off prompts. Ephemeral by design: the codex
 # transcript for one review ran to 4,460 lines of tool traffic, and it was

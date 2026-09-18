@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://puni.invalid/schemas/fleet-operation-plan.v1.json",
+  "title": "Fleet operation plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "desiredRevision",
+    "observationDigest",
+    "observedAt",
+    "expiresAt",
+    "request",
+    "targetIdentities",
+    "preconditions",
+    "effects",
+    "affectedCapabilities",
+    "storageImplication",
+    "downtimeImplication",
+    "summary",
+    "planSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "desiredRevision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observationDigest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "observedAt": {
+      "$ref": "#/$defs/instant"
+    },
+    "expiresAt": {
+      "$ref": "#/$defs/instant"
+    },
+    "request": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "nodeId",
+            "clusterId",
+            "inventorySha256",
+            "ansibleVariablesSha256",
+            "knownHostsSha256"
+          ],
+          "properties": {
+            "kind": {
+              "const": "enroll"
+            },
+            "nodeId": {
+              "$ref": "#/$defs/name"
+            },
+            "clusterId": {
+              "$ref": "#/$defs/name"
+            },
+            "inventorySha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "ansibleVariablesSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "knownHostsSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "nodeId",
+            "backupReceipt",
+            "backupReceiptSha256",
+            "inventorySha256",
+            "knownHostsSha256"
+          ],
+          "properties": {
+            "kind": {
+              "const": "retire"
+            },
+            "nodeId": {
+              "$ref": "#/$defs/name"
+            },
+            "backupReceipt": {
+              "$ref": "#/$defs/name"
+            },
+            "backupReceiptSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "inventorySha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "knownHostsSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "nodeId", "fenceReceiptSha256"],
+          "properties": {
+            "kind": {
+              "const": "replace"
+            },
+            "nodeId": {
+              "$ref": "#/$defs/name"
+            },
+            "fenceReceiptSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "nodeId",
+            "retirementReceiptSha256",
+            "cloudAccount",
+            "terraformPlanSha256",
+            "terraformVariablesSha256",
+            "terraformBackendEvidenceSha256",
+            "terraformStateLineage",
+            "terraformStateSerial",
+            "terragruntConfigSha256"
+          ],
+          "properties": {
+            "kind": {
+              "const": "destroy"
+            },
+            "nodeId": {
+              "$ref": "#/$defs/name"
+            },
+            "retirementReceiptSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "cloudAccount": {
+              "$ref": "#/$defs/name"
+            },
+            "terraformPlanSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "terraformVariablesSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "terraformBackendEvidenceSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "terraformStateLineage": {
+              "$ref": "#/$defs/name"
+            },
+            "terraformStateSerial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "terragruntConfigSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "nodeId",
+            "version",
+            "upgradeEvidenceSha256",
+            "inventorySha256",
+            "knownHostsSha256"
+          ],
+          "properties": {
+            "kind": {
+              "const": "upgrade"
+            },
+            "nodeId": {
+              "$ref": "#/$defs/name"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+$"
+            },
+            "upgradeEvidenceSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "inventorySha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "knownHostsSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "nodeId",
+            "clusterId",
+            "cloudAccount",
+            "region",
+            "machineType",
+            "image",
+            "network",
+            "sshKeyIds",
+            "retainedStorage",
+            "k3sRole",
+            "capabilities",
+            "budgetCapEur",
+            "providerOwnershipId",
+            "terraformPlanSha256",
+            "terraformVariablesSha256",
+            "terraformBackendEvidenceSha256",
+            "ansibleVariablesSha256",
+            "terraformStateLineage",
+            "terraformStateSerial",
+            "terragruntConfigSha256"
+          ],
+          "properties": {
+            "kind": {
+              "const": "provision"
+            },
+            "nodeId": {
+              "$ref": "#/$defs/name"
+            },
+            "clusterId": {
+              "$ref": "#/$defs/name"
+            },
+            "cloudAccount": {
+              "$ref": "#/$defs/name"
+            },
+            "region": {
+              "$ref": "#/$defs/name"
+            },
+            "machineType": {
+              "$ref": "#/$defs/name"
+            },
+            "image": {
+              "$ref": "#/$defs/name"
+            },
+            "network": {
+              "$ref": "#/$defs/name"
+            },
+            "sshKeyIds": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/name"
+              }
+            },
+            "retainedStorage": {
+              "type": "boolean"
+            },
+            "k3sRole": {
+              "enum": ["server", "agent"]
+            },
+            "capabilities": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "control-plane",
+                  "product",
+                  "ingress",
+                  "observability",
+                  "forge",
+                  "execution"
+                ]
+              }
+            },
+            "budgetCapEur": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "providerOwnershipId": {
+              "$ref": "#/$defs/name"
+            },
+            "terraformPlanSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "terraformVariablesSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "terraformBackendEvidenceSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "ansibleVariablesSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "terraformStateLineage": {
+              "$ref": "#/$defs/name"
+            },
+            "terraformStateSerial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "terragruntConfigSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "replacementAuthorizationSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      ]
+    },
+    "targetIdentities": {
+      "$ref": "#/$defs/nonemptyStrings"
+    },
+    "preconditions": {
+      "$ref": "#/$defs/nonemptyStrings"
+    },
+    "effects": {
+      "$ref": "#/$defs/nonemptyStrings"
+    },
+    "affectedCapabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["control-plane", "product", "ingress", "observability", "forge", "execution"]
+      }
+    },
+    "storageImplication": {
+      "$ref": "#/$defs/name"
+    },
+    "downtimeImplication": {
+      "$ref": "#/$defs/name"
+    },
+    "summary": {
+      "$ref": "#/$defs/name"
+    },
+    "planSha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "instant": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonemptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/name"
+      }
+    }
+  }
+}

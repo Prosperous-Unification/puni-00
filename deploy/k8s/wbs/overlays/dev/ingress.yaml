@@ -1,0 +1,22 @@
+# Reached only through the lab's loopback-bound load balancer: http://<slug>.localhost:<port>/.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dev-environment
+spec:
+  rules:
+    - host: dev-environment.localhost
+      http:
+        paths:
+          - path: /mcp
+            pathType: Prefix
+            backend: { service: { name: dev-environment, port: { name: mcp } } }
+          - path: /.well-known/oauth-protected-resource
+            pathType: Prefix
+            backend: { service: { name: dev-environment, port: { name: mcp } } }
+          - path: /.well-known/oauth-authorization-server
+            pathType: Prefix
+            backend: { service: { name: dev-environment, port: { name: mcp } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: dev-environment, port: { name: web } } }

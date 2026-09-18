@@ -10,7 +10,9 @@ trap 'rm -f -- "$openspec_report"' EXIT
 # Proof: h2puni-gate.test.sh injects failed=1, passed="0", passed=1.5 and failed-then-passing
 # documents. The loose jq check admitted the latter three and reached Nx; this exact contract
 # refuses every injected fault before Nx while retaining the validator JSON in gate output.
-bunx @fission-ai/openspec@1.3.0 validate --all --json | tee "$openspec_report"
+# Proof: h2puni-gate.test.sh case 22 observed the obsolete 1.3.0 invocation instead
+# of the required 1.12.0 contract; the real gate also rejected three legacy Twilight changes.
+bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$openspec_report"
 jq -s -e '
   length == 1 and
   (.[0] | type == "object") and
@@ -22,8 +24,8 @@ trap - EXIT
 
 bunx nx format:check --all
 # Proof: dropping this exclusion made gate-entrypoints.test.ts lose the exact-once split and fail
-# at `Expected to contain: --exclude=tool-wiki`; tool-wiki source lint is invoked below.
-bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=tool-wiki
-bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 --skip-nx-cache
-bunx nx run tool-wiki:lint:source --skip-nx-cache
+# at `Expected to contain: --exclude=twilight-bureaucrat`; source lint is invoked below.
+bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=twilight-bureaucrat
+bunx nx run-many -t test typecheck build -p twilight-bureaucrat --parallel=2 --skip-nx-cache
+bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
 WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run wbs-be-01:solver-image-smoke

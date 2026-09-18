@@ -1,0 +1,49 @@
+{
+  "name": "harness-example",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/harness-example/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "run": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/harness-example/src/main.ts"
+      },
+      "cache": false
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/dist/harness-example"],
+      "options": {
+        "command": "bun build tools/harness-example/src/worker.ts --target=bun --minify --outfile=dist/harness-example/worker.js && gzip -9nf dist/harness-example/worker.js"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/harness-example"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/harness-example/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/harness-example/src --cache --cache-location .nx/eslintcache-harness-example"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/harness-example/tsconfig.json"
+      }
+    }
+  }
+}

@@ -17,11 +17,11 @@ for clients, resting on three premises:
 
 ## Method
 
-Eight web-researched fact sheets ([`sources/`](sources/)), each fact carrying its URL, date
+Eight web-researched fact sheets (`sources/`), each fact carrying its URL, date
 and a quoted / derived / estimated label. Seven independent fact-check passes
-([`verification/`](verification/)) fetched every cited source: 241 of 279 checked claims
+(`verification/`) fetched every cited source: 241 of 279 checked claims
 confirmed, the rest corrected at the edges, one sub-value refuted and unused. Three
-independent models built the economics from the same sheets ([`models/`](models/)): a
+independent models built the economics from the same sheets (`models/`): a
 bottom-up stage stack, a top-down business plan and an investment read on the harness; three
 adversaries tried to refute each premise; an arithmetic audit ([`models/audit.md`](models/audit.md))
 recomputed every headline, found fifteen non-reproducing figures and no overturned

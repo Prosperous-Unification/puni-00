@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: platform-endpoints
+  namespace: observability
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter.observability.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://registry.puni-registry.svc:5001/debug/health

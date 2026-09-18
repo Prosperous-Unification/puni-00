@@ -91,8 +91,22 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // Proof: filtering out `compilerOptions.outDir` made this production-workspace
   // oracle fail with 111 instead of 148 rows and omitted the core outDir below
   // (2026-09-14).
-  expect(paths).toHaveLength(148);
-  expect(new Set(paths.map(({ file }) => file))).toHaveLength(72);
+  // Proof: adding libs/shared/domain/validation's three tsconfigs without
+  // raising these numbers failed with `Received length: 152` rows, then
+  // `Received length: 76` files (2026-09-15).
+  // Proof: adding the `@shared/validation` path mapping to fe-01's four tsconfigs without
+  // raising the row count failed with `Received length: 156` against the pinned 152; the file
+  // count stayed at 76 because all four were already inventoried (2026-09-16).
+  // Proof: leaving 156/76 here after tool-wiki became the app apps/wiki/cli failed with
+  // `Received length: 162` rows, then `Received length: 80` files — this inventory reads apps
+  // and libraries only, so the project's four configuration files entered it for the first time
+  // with six parent-relative values between them (2026-09-16).
+  // Proof: leaving 162 here after the package release added apps/wiki/cli's `test:package`
+  // target failed with `Received length: 163`; its command carries the project's seventh
+  // parent-relative value in the already-inventoried project.json, so the file count holds
+  // at 80 (2026-09-18).
+  expect(paths).toHaveLength(163);
+  expect(new Set(paths.map(({ file }) => file))).toHaveLength(80);
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',
     propertyPath: 'extends',
@@ -112,6 +126,13 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
     file: 'apps/wbs/fe-01/tsconfig.e2e.json',
     propertyPath: 'compilerOptions.paths.@wbs/domain/workday.0',
     value: '../../../libs/wbs/domain/domain/src/workday.ts',
+  });
+  // Proof: pinning the pre-move `../../dist/tools/tool-wiki` here failed this oracle with the
+  // moved project's actual three-deep outDir (2026-09-16).
+  expect(paths).toContainEqual({
+    file: 'apps/wiki/cli/tsconfig.lib.json',
+    propertyPath: 'compilerOptions.outDir',
+    value: '../../../dist/apps/wiki/cli',
   });
 });
 

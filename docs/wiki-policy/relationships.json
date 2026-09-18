@@ -110,21 +110,32 @@
       }
     },
     {
-      "factId": "check.tool-wiki.test",
+      "factId": "check.wiki-cli.test",
       "family": "targets",
       "at": {
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "tool-wiki",
+      "project": "twilight-bureaucrat",
       "target": "test",
       "expectedConfiguration": {
         "cache": true,
-        "inputs": ["default", "^production"],
+        "inputs": [
+          "default",
+          "^production",
+          "{workspaceRoot}/.github/workflows/ci.yml",
+          "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
+          "{workspaceRoot}/.github/workflows/twilight-bureaucrat-release.yml",
+          "{workspaceRoot}/apps/wiki/consumer/**/*",
+          "{projectRoot}/package.json",
+          "{projectRoot}/NOTICE",
+          "{workspaceRoot}/infra/ci/bureaucrat/**/*",
+          "{workspaceRoot}/bin/tool-wiki-*.sh"
+        ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../node_modules bun test --preload ../test/scratch/preload.ts",
-          "cwd": "tools/tool-wiki"
+          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../tools/test/scratch/preload.ts",
+          "cwd": "apps/wiki/cli"
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -132,37 +143,37 @@
       }
     },
     {
-      "factId": "check.tool-wiki.lint-source",
+      "factId": "check.wiki-cli.lint-source",
       "family": "targets",
       "at": {
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "tool-wiki",
+      "project": "twilight-bureaucrat",
       "target": "lint:source",
       "expectedConfiguration": {
         "cache": false,
         "executor": "nx:run-commands",
         "options": {
-          "command": "bunx eslint tools/tool-wiki/src"
+          "command": "bunx eslint apps/wiki/cli/src"
         },
         "configurations": {},
         "parallelism": true
       }
     },
     {
-      "factId": "check.tool-wiki.typecheck",
+      "factId": "check.wiki-cli.typecheck",
       "family": "targets",
       "at": {
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "tool-wiki",
+      "project": "twilight-bureaucrat",
       "target": "typecheck",
       "expectedConfiguration": {
         "executor": "nx:run-commands",
         "options": {
-          "command": "bunx tsc --build --force tools/tool-wiki/tsconfig.json"
+          "command": "bunx tsc --build --force apps/wiki/cli/tsconfig.json"
         },
         "configurations": {},
         "parallelism": true,

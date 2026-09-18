@@ -1,0 +1,140 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: observability
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ./infra/platform/charts/kube-prometheus-stack-91.4.1.tgz
+      version: 91.4.1
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    fullnameOverride: kps
+    crds:
+      enabled: true
+    grafana:
+      enabled: false
+    windowsMonitoring:
+      enabled: false
+    thanosRuler:
+      enabled: false
+    # k3s embeds these components in one process without separate metrics endpoints.
+    kubeEtcd:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    defaultRules:
+      create: true
+      rules:
+        etcd: false
+        kubeControllerManager: false
+        kubeProxy: false
+        kubeSchedulerAlerting: false
+        kubeSchedulerRecording: false
+        windows: false
+    prometheusOperator:
+      image:
+        registry: quay.io
+        repository: prometheus-operator/prometheus-operator
+        tag: v0.94.0
+        sha: cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55
+      prometheusConfigReloader:
+        image:
+          registry: quay.io
+          repository: prometheus-operator/prometheus-config-reloader
+          tag: v0.94.0
+          sha: 142a1f11df8dd165f00375b0b1826aecb9c9adeb05c39855893138d7c7575ff7
+      admissionWebhooks:
+        deployment:
+          image:
+            registry: quay.io
+            repository: prometheus-operator/admission-webhook
+            tag: v0.94.0
+            sha: 83ee9756c83af92060b45254bd3734da6dab14163cdbc45ca32674359e69906b
+        patch:
+          image:
+            registry: ghcr.io
+            repository: jkroepke/kube-webhook-certgen
+            tag: 1.8.8
+            sha: cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44
+      resources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits: { cpu: 500m, memory: 256Mi }
+      nodeSelector:
+        puni.dev/capability-observability: 'true'
+    prometheus:
+      prometheusSpec:
+        image:
+          registry: quay.io
+          repository: prometheus/prometheus
+          tag: v3.14.0-distroless
+          sha: 50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a
+        retention: 15d
+        # Receives workers-cluster host metrics from the platform collector.
+        enableRemoteWriteReceiver: true
+        retentionSize: 8GB
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        resources:
+          requests: { cpu: 200m, memory: 512Mi }
+          limits: { cpu: '1', memory: 1Gi }
+        nodeSelector:
+          puni.dev/capability-observability: 'true'
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: puni-retain
+              accessModes: [ReadWriteOnce]
+              resources:
+                requests:
+                  storage: 10Gi
+    alertmanager:
+      alertmanagerSpec:
+        image:
+          registry: quay.io
+          repository: prometheus/alertmanager
+          tag: v0.34.0
+          sha: 690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d
+        # Routes and recipients are a deployment input delivered by the SOPS secrets stage.
+        configSecret: alertmanager-puni
+        resources:
+          requests: { cpu: 10m, memory: 64Mi }
+          limits: { cpu: 200m, memory: 128Mi }
+        nodeSelector:
+          puni.dev/capability-observability: 'true'
+    kube-state-metrics:
+      image:
+        registry: registry.k8s.io
+        repository: kube-state-metrics/kube-state-metrics
+        tag: v2.20.0
+        sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b
+      resources:
+        requests: { cpu: 10m, memory: 64Mi }
+        limits: { cpu: 200m, memory: 256Mi }
+    prometheus-node-exporter:
+      image:
+        registry: quay.io
+        repository: prometheus/node-exporter
+        tag: v1.12.1
+        distroless: false
+        digest: sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+      # Traefik's host-network metrics entry point already binds 9100 on ingress nodes.
+      service:
+        port: 9101
+        targetPort: 9101
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+        limits: { cpu: 200m, memory: 64Mi }
+      tolerations:
+        - operator: Exists

@@ -1,7 +1,7 @@
 # Operating Twilight
 
 Status: proposed product behavior, 2026-09-06. Contracts and implementation order
-live in the [control-plane change](../../openspec/changes/twilight-control-plane/).
+live in the [control-plane change](../../openspec/changes/twilight-control-plane/proposal.md).
 This page describes what the person sees; it is not a claim that these screens exist.
 What the service must guarantee is the [control-plane spec](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md)
 and is not restated here.

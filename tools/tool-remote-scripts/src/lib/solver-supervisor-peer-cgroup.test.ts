@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   dockerContainerIdFromPeerCgroup,
+  peerContainerFromCgroup,
   readSupervisorPeerCgroup,
   type SupervisorCgroupFile,
   type SupervisorCgroupOpen,
@@ -54,6 +55,40 @@ describe('dockerContainerIdFromPeerCgroup', () => {
       `0::/docker/${ID}\n1:name=/docker/${'d'.repeat(64)}\n`,
     ]) {
       expect(() => dockerContainerIdFromPeerCgroup(raw)).toThrow(/peer cgroup/);
+    }
+  });
+
+  it('decodes only the exact k3s containerd pod scope as a CRI peer', () => {
+    const pod = 'kubepods-besteffort-pod1a2b3c4d_5e6f_7a8b_9c0d_1e2f3a4b5c6d.slice';
+    expect(
+      peerContainerFromCgroup(
+        `0::/kubepods.slice/kubepods-besteffort.slice/${pod}/cri-containerd-${ID}.scope\n`,
+      ),
+    ).toEqual({ runtime: 'cri-containerd', id: ID });
+    expect(
+      peerContainerFromCgroup(
+        `0::/kubepods.slice/kubepods-pod1a2b3c4d_5e6f_7a8b_9c0d_1e2f3a4b5c6d.slice/cri-containerd-${ID}.scope\n`,
+      ),
+    ).toEqual({ runtime: 'cri-containerd', id: ID });
+    expect(peerContainerFromCgroup(`0::/system.slice/docker-${ID}.scope\n`)).toEqual({
+      runtime: 'docker',
+      id: ID,
+    });
+  });
+
+  it('refuses host processes and CRI scopes that are not exactly a kubepods container', () => {
+    const pod = 'kubepods-besteffort-pod1a2b3c4d_5e6f_7a8b_9c0d_1e2f3a4b5c6d.slice';
+    for (const raw of [
+      '0::/system.slice/k3s.service\n',
+      '0::/user.slice/user-10001.slice/user@10001.service/app.slice/wbs-solver-supervisor.service\n',
+      `0::/system.slice/cri-containerd-${ID}.scope\n`,
+      `0::/kubepods.slice/kubepods-besteffort.slice/${pod}/cri-containerd-${ID}.scope/child\n`,
+      `0::/evil/kubepods.slice/kubepods-besteffort.slice/${pod}/cri-containerd-${ID}.scope\n`,
+      `0::/kubepods.slice/kubepods-besteffort.slice/${pod}/cri-containerd-${ID.slice(1)}.scope\n`,
+      `0::/kubepods.slice/kubepods-burstable.slice/${pod}/cri-containerd-${ID}.scope\n`,
+      `0::/kubepods.slice/kubepods-besteffort.slice/${pod}/cri-containerd-${ID}.scope\n1:name=/docker/${'d'.repeat(64)}\n`,
+    ]) {
+      expect(() => peerContainerFromCgroup(raw)).toThrow(/peer cgroup/);
     }
   });
 
