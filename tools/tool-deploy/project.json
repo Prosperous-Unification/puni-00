@@ -29,9 +29,34 @@
         "command": "bun tools/tool-deploy/src/k8s/deploy-k3s.ts"
       }
     },
+    "descriptor": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/descriptor-cli.ts"
+      }
+    },
+    "rehearse:cutover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/cutover-rehearsal.ts"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
-      "inputs": ["default", "^production", "{workspaceRoot}/bin/assert-no-prod-release.sh"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/bin/assert-no-prod-release.sh",
+        "{workspaceRoot}/apps/wbs/be-01/src/**/*",
+        "{workspaceRoot}/apps/wbs/be-01/drizzle/**/*",
+        "{workspaceRoot}/deploy/k8s/wbs/overlays/**/*",
+        "{workspaceRoot}/.github/workflows/ci.yml",
+        "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
+        "{workspaceRoot}/.github/workflows/infra-check.yml",
+        "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts"
+      ],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts",
         "cwd": "tools/tool-deploy"
@@ -75,7 +100,12 @@
     }
   },
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "{workspaceRoot}/deploy/k8s/**/*", "sharedGlobals"],
+    "default": [
+      "{projectRoot}/**/*",
+      "{workspaceRoot}/deploy/k8s/**/*",
+      "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts",
+      "sharedGlobals"
+    ],
     "production": [
       "default",
       "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)",

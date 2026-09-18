@@ -521,7 +521,28 @@ export interface KubectlSettings {
   drainTimeoutMs: number;
   /** Lease lifetime without renewal; the executor's heartbeat must be several times shorter. */
   leaseDurationSeconds: number;
+  /**
+   * Clone of the deploy repository the WBS GitRepository serves. `reconcile-desired` pushes
+   * `flux.desiredRevision` to it, and only while the WBS unit is suspended. Absent or `null`,
+   * a Flux release requires the source to be at the desired revision already.
+   */
+  deployRepository?: DeployRepository | null;
   log: (line: string) => void;
+}
+
+/** A local clone holding the prepared desired commit, and where Flux reads it from. */
+export interface DeployRepository {
+  path: string;
+  remote: string;
+  branch: string;
+}
+
+/** The effects the CLI also uses to build a request from the live cluster. */
+export interface ClusterReader {
+  /** The `kube-system` namespace UID. */
+  clusterUid(): Promise<string>;
+  /** The release record the last promotion persisted, verified against the running tiers. */
+  currentRelease(): Promise<ReleaseIdentity | null>;
 }
 
 interface Invocation {
@@ -884,7 +905,7 @@ export function parseLease(json: string): ObservedLease & { version: string } {
 }
 
 /** Real effects over kubectl. Every wait has an explicit ceiling from `settings`. */
-export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
+export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & ClusterReader {
   const { app, backend } = settings.namespaces;
   const base = [
     settings.kubectl,
@@ -1070,6 +1091,19 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
     return identity;
   }
 
+  async function sourceRevision(unit: FluxUnit): Promise<string> {
+    return (
+      await kubectl([
+        '-n',
+        unit.namespace,
+        'get',
+        `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
+        '-o',
+        'jsonpath={.status.artifact.revision}',
+      ])
+    ).trim();
+  }
+
   async function fluxSuspended(unit: FluxUnit): Promise<boolean> {
     const value = await kubectl([
       '-n',
@@ -1118,6 +1152,12 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
   const fencedSelector = { matchLabels: { 'puni.dev/writes': 'fenced' } };
 
   return {
+    currentRelease,
+    async clusterUid() {
+      return (
+        await kubectl(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
+      ).trim();
+    },
     async observeCluster(request) {
       const uid = (
         await kubectl(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
@@ -1437,20 +1477,39 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
     },
     async reconcileDesired(request) {
       if (request.flux !== null) {
-        // Flux mode: the source must already carry the release; resume-flux applies it.
-        const revision = (
-          await kubectl([
-            '-n',
-            request.flux.namespace,
-            'get',
-            `gitrepositories.source.toolkit.fluxcd.io/${request.flux.gitRepository}`,
-            '-o',
-            'jsonpath={.status.artifact.revision}',
-          ])
-        ).trim();
-        if (!revision.endsWith(request.flux.desiredRevision)) {
-          throw new Error(`Flux source is at ${revision}, not ${request.flux.desiredRevision}`);
+        // Flux mode: the source must carry the release before resume-flux applies it. The
+        // coordinator publishes the prepared commit itself, here, so the deploy repository never
+        // names a release before the WBS unit is suspended (and never an unproven one).
+        const unit = request.flux;
+        const revision = await sourceRevision(unit);
+        if (revision.endsWith(unit.desiredRevision)) return;
+        const repository = settings.deployRepository ?? null;
+        if (repository === null) {
+          throw new Error(`Flux source is at ${revision}, not ${unit.desiredRevision}`);
         }
+        // Proof: deploy-repo.test.ts `refuses to publish the desired revision while the WBS unit
+        // is not suspended`; with this guard removed the bare remote's branch moved to the
+        // desired commit while Flux was live.
+        if (!(await fluxSuspended(unit))) {
+          throw new Error(
+            `refusing to publish ${unit.desiredRevision}: Flux unit ${unit.kustomization} is ` +
+              'not suspended, so it would apply the new release outside the transaction',
+          );
+        }
+        await publishRevision(repository, unit.desiredRevision, unit.previousRevision);
+        await kubectl([
+          '-n',
+          unit.namespace,
+          'annotate',
+          '--overwrite',
+          `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
+          `reconcile.fluxcd.io/requestedAt=${new Date().toISOString()}`,
+        ]);
+        await pollUntil(
+          `Flux source ${unit.gitRepository} serving ${unit.desiredRevision}`,
+          settings.rolloutTimeoutSeconds * 1000,
+          async () => (await sourceRevision(unit)).endsWith(unit.desiredRevision),
+        );
         return;
       }
       await kubectl(['apply', '-f', '-'], await renderOverlay(settings, request.release));
@@ -1478,5 +1537,42 @@ export async function renderOverlay(
     return rendered.stdout;
   } finally {
     rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Moves the deploy branch from `previous` to `desired`, and only from there. A branch already at
+ * `desired` (a resumed run) is left alone; one anywhere else means someone else changed what
+ * Flux will apply, and the push is refused rather than overwriting it.
+ */
+export async function publishRevision(
+  repository: DeployRepository,
+  desired: string,
+  previous: string,
+): Promise<void> {
+  const git = (args: readonly string[]): Promise<Invocation> =>
+    run(['git', '-C', repository.path, ...args], null, 120_000);
+  const listed = await git(['ls-remote', repository.remote, `refs/heads/${repository.branch}`]);
+  if (listed.exitCode !== 0) {
+    throw new Error(`git ls-remote ${repository.remote} failed: ${listed.stderr.trim()}`);
+  }
+  const head = listed.stdout.trim().split(/\s+/)[0] ?? '';
+  if (head === desired) return;
+  // Proof: deploy-repo.test.ts `refuses to move a deploy branch someone else moved`; with this
+  // comparison removed only the lease push refused, with an error naming neither commit.
+  if (head !== previous) {
+    throw new Error(
+      `deploy branch ${repository.remote}/${repository.branch} is at ${head || '(absent)'}, ` +
+        `not the previous release ${previous}; refusing to publish ${desired}`,
+    );
+  }
+  const pushed = await git([
+    'push',
+    `--force-with-lease=refs/heads/${repository.branch}:${previous}`,
+    repository.remote,
+    `${desired}:refs/heads/${repository.branch}`,
+  ]);
+  if (pushed.exitCode !== 0) {
+    throw new Error(`publishing ${desired} failed: ${pushed.stderr.trim()}`);
   }
 }
