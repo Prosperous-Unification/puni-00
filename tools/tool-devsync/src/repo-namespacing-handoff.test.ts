@@ -676,7 +676,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `2f42a9f9...` here after the PR #7 CI repairs failed on the observed digest
     // below at the same 257 occurrences and no unclassified entries; the added workflow, policy
     // and controller edits shifted classified contexts only (2026-09-18).
-    digest: 'c67de18ea22b18c9893a419ba2b207586a4f3f272e232d916b1d42e7ba958d67',
+    // Proof: leaving `c67de18e...` here after the work-view screenshots joined
+    // docs/wiki-policy/policy.json's binary declarations failed on the observed digest below at
+    // the same occurrence count — the 27 added lines shift that file's classified selector
+    // contexts, none unclassified (2026-09-18).
+    digest: '539a2b3510eb980a119cac87d2802876da15d9ba08f3e8f3fa903df3b3a79c26',
     occurrences: 257,
     unclassified: [],
   });
