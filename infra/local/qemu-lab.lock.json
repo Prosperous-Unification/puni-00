@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "qemu": {
+    "package": "1:8.2.2+ds-0ubuntu1.18",
+    "systemVersionLine": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)",
+    "imageToolVersionLine": "qemu-img version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)",
+    "isoToolVersionLine": "genisoimage 1.1.11 (Linux)",
+    "debs": [
+      {
+        "name": "qemu-system-x86_1:8.2.2+ds-0ubuntu1.18_amd64.deb",
+        "sha256": "14602e262627adac030329d2cecfee5f6c0938b34566ff2ea2d4c9a9eb02430d"
+      },
+      {
+        "name": "qemu-utils_1:8.2.2+ds-0ubuntu1.18_amd64.deb",
+        "sha256": "10695e57937d8a1d0ec6d017a6770d02353ec0c9500e4a36928230b2d39026c5"
+      },
+      {
+        "name": "genisoimage_9:1.1.11-3.5_amd64.deb",
+        "sha256": "cfa9f63d8208a3e1b2c228357707f607e2b402334262d6f591abc44a429bb217"
+      }
+    ]
+  },
+  "image": {
+    "release": "20260911",
+    "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260911/ubuntu-24.04-server-cloudimg-amd64.img",
+    "sha256": "612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354",
+    "file": "ubuntu-24.04-server-cloudimg-amd64-20260911.img"
+  }
+}

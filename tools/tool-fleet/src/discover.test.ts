@@ -1254,6 +1254,11 @@ it('commits strict uncached private inventories and a read-only machine identity
     expect(inventory).toContain('cache: false');
     expect(inventory).toContain(`puni-cluster=${purpose}`);
     expect(inventory).toContain('connect_with: private_ipv4');
+    // Terraform names each cluster network `puni-<cluster>`; the plugin needs it for private IPs.
+    expect(inventory).toMatch(new RegExp(`^network: puni-${purpose}$`, 'm'));
+    expect(await readFile(join(root, 'infra/terraform/main.tf'), 'utf8')).toContain(
+      'name     = "puni-${each.key}"',
+    );
     expect(inventory).toContain("puni_cluster: hcloud_labels['puni-cluster']");
     expect(inventory).toContain('puni_instance_id: hcloud_id | string');
     expect(inventory).toContain('puni_private_ipv4: hcloud_private_ipv4');

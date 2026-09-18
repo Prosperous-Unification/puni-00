@@ -16,6 +16,18 @@
           - puni_validation_run_id is match('^[0-9a-f]{16}$')
         fail_msg: A digest-pinned validation image and unique run identity are required
 
+    # Proof: the live three-node QEMU lab ran this play 10 s before the last serially joined agent
+    # registered; `kubectl wait` exited NotFound at once. Bounded registration wait precedes Ready.
+    - name: Wait for every expected node to register
+      ansible.builtin.command: >-
+        k3s kubectl get node {{ item }} -o name
+      loop: '{{ puni_all_nodes }}'
+      register: puni_node_registration
+      until: puni_node_registration.rc == 0
+      retries: 36
+      delay: 5
+      changed_when: false
+
     - name: Wait for every expected node to become Ready
       ansible.builtin.command: >-
         k3s kubectl wait --for=condition=Ready node/{{ item }} --timeout=180s

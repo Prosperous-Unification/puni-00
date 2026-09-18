@@ -110,23 +110,8 @@
     - name: Map every surviving etcd voter to one exact Kubernetes node
       ansible.builtin.shell:
         cmd: >-
-          set -euo pipefail;
-          kubectl --context '{{ puni_kube_context }}' get nodes -o json |
-          jq -c --arg target '{{ puni_etcd_member_name }}'
-          --argjson voters '{{ puni_actual_etcd_voters.stdout }}'
-          '. as $nodes |
-          [$voters[] | select(.name != $target) as $member |
-          [$nodes.items[] |
-          select(.metadata.annotations["etcd.k3s.cattle.io/node-name"] == $member.name)] as $matches |
-          select(($matches | length) == 1) |
-          {memberId: $member.ID, memberName: $member.name,
-          nodeName: $matches[0].metadata.name}] as $mapped |
-          if (($mapped | length) == (($voters | length) - 1) and
-          ([$mapped[].memberId] | all(. != null)) and
-          ([$mapped[].memberId] | unique | length) == ($mapped | length) and
-          ([$mapped[].memberName] | unique | length) == ($mapped | length) and
-          ([$mapped[].nodeName] | unique | length) == ($mapped | length))
-          then $mapped else error("ambiguous or incomplete etcd voter mapping") end'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' etcd-map '{{ puni_kube_context }}'
+          '{{ puni_etcd_member_name }}' '{{ puni_actual_etcd_voters.stdout }}'
       args:
         executable: /bin/bash
       delegate_to: localhost
@@ -162,7 +147,10 @@
       args:
         executable: /bin/bash
       delegate_to: '{{ puni_surviving_etcd_node.nodeName }}'
-      loop: '{{ puni_surviving_etcd_nodes.stdout | from_json }}'
+      # Proof: the live agent retirement failed here with `puni_surviving_etcd_node` undefined:
+      # Ansible templated delegate_to for the skipped non-server case before `when`. The mapping
+      # task is skipped without stdout there, so an empty loop skips this probe instead.
+      loop: "{{ puni_surviving_etcd_nodes.stdout | default('[]') | from_json }}"
       loop_control:
         loop_var: puni_surviving_etcd_node
       register: puni_surviving_etcd_health
@@ -182,12 +170,9 @@
     - name: Require a freshly healthy surviving majority of distinct etcd voters
       ansible.builtin.shell:
         cmd: >-
-          jq -ne --argjson voters '{{ puni_actual_etcd_voters.stdout }}'
-          --argjson probes '{{ puni_surviving_etcd_health.results | to_json }}'
-          --argjson minimum '{{ puni_minimum_surviving_control_planes | int }}'
-          '([$probes[] | select(.rc == 0) | .puni_surviving_etcd_node.memberId] | unique) as $healthy |
-          ($healthy | length) >= $minimum and
-          ($healthy | length) >= ((($voters | length) / 2 | floor) + 1)'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' etcd-majority '{{ puni_actual_etcd_voters.stdout }}'
+          '{{ puni_surviving_etcd_health.results | to_json }}'
+          '{{ puni_minimum_surviving_control_planes | int }}'
       args:
         executable: /bin/bash
       delegate_to: localhost
@@ -206,14 +191,8 @@
     - name: Require live Ready capacity for every cluster capability floor
       ansible.builtin.shell:
         cmd: >-
-          set -o pipefail;
-          kubectl --context '{{ puni_kube_context }}' get nodes -o json |
-          jq -e --arg target '{{ puni_node_name }}'
-          --argjson floors '{{ puni_required_capability_floors | to_json }}'
-          '. as $nodes | all($floors | to_entries[]; . as $floor |
-          ([$nodes.items[] | select(.metadata.name != $target) |
-          select(([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) == 1) |
-          select(.metadata.labels["puni.dev/capability-" + $floor.key] == "true")] | length) >= $floor.value)'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' floors '{{ puni_kube_context }}' '{{ puni_node_name }}'
+          '{{ puni_required_capability_floors | to_json }}'
       args:
         executable: /bin/bash
       delegate_to: localhost
@@ -238,16 +217,7 @@
     - name: Refuse unmanaged, local-state, forge, singleton database, and hostPath workloads
       ansible.builtin.shell:
         cmd: >-
-          set -o pipefail;
-          kubectl --context '{{ puni_kube_context }}' get pods --all-namespaces
-          --field-selector spec.nodeName={{ puni_node_name }} -o json |
-          jq -e '[.items[] | select(
-          (.metadata.ownerReferences | length == 0) or
-          (.metadata.annotations["puni.dev/unmanaged"] == "true") or
-          (.metadata.labels["puni.dev/local-state"] == "true") or
-          (.metadata.labels["puni.dev/forge-worktree"] == "true") or
-          (.metadata.labels["puni.dev/singleton-sqlite"] == "true") or
-          any(.spec.volumes[]?; has("hostPath")))] | length == 0'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' workloads '{{ puni_kube_context }}' '{{ puni_node_name }}'
       args:
         executable: /bin/bash
       delegate_to: localhost
@@ -258,20 +228,7 @@
     - name: Refuse PVCs backed by local or target-affined persistent volumes
       ansible.builtin.shell:
         cmd: >-
-          set -o pipefail;
-          claims="$(kubectl --context '{{ puni_kube_context }}' get pods --all-namespaces
-          --field-selector spec.nodeName={{ puni_node_name }} -o json |
-          jq -c '[.items[] as $pod | $pod.spec.volumes[]? |
-          select(has("persistentVolumeClaim")) |
-          {namespace: $pod.metadata.namespace, name: .persistentVolumeClaim.claimName}] | unique')";
-          kubectl --context '{{ puni_kube_context }}' get persistentvolumes -o json |
-          jq -e --arg node '{{ puni_node_name }}' --argjson claims "$claims"
-          '[.items[] | select(. as $pv | any($claims[];
-          .namespace == $pv.spec.claimRef.namespace and .name == $pv.spec.claimRef.name)) |
-          select(has("spec") and
-          ((.spec | has("local")) or
-          any(.spec.nodeAffinity.required.nodeSelectorTerms[]?.matchExpressions[]?;
-          .key == "kubernetes.io/hostname" and (.values | index($node)))))] | length == 0'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' local-volumes '{{ puni_kube_context }}' '{{ puni_node_name }}'
       args:
         executable: /bin/bash
       delegate_to: localhost
@@ -307,17 +264,7 @@
     - name: Require workloads healthy elsewhere and all volume attachments detached
       ansible.builtin.shell:
         cmd: >-
-          set -euo pipefail;
-          test "$(kubectl --context '{{ puni_kube_context }}' get pods --all-namespaces
-          --field-selector spec.nodeName={{ puni_node_name }} -o json |
-          jq '[.items[] | select(.metadata.ownerReferences[0].kind != "DaemonSet")] | length')" -eq 0;
-          kubectl --context '{{ puni_kube_context }}' get pods --all-namespaces -o json |
-          jq -e '[.items[] | select(.status.phase == "Pending" or .status.phase == "Unknown" or
-          (.status.phase == "Running" and
-          ([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) == 0))] |
-          length == 0';
-          kubectl --context '{{ puni_kube_context }}' get volumeattachments.storage.k8s.io -o json |
-          jq -e --arg node '{{ puni_node_name }}' '[.items[] | select(.spec.nodeName == $node)] | length == 0'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' detached '{{ puni_kube_context }}' '{{ puni_node_name }}'
       args:
         executable: /bin/bash
       delegate_to: localhost
@@ -337,7 +284,11 @@
       loop: [k3s, k3s-agent]
       loop_control:
         loop_var: service_name
-      when: (service_name + '.service') in ansible_facts.services
+      # Proof: the live agent retirement failed "Could not find the requested service k3s": the
+      # firewall unit's Before=k3s.service makes systemd list a not-found k3s.service stub.
+      when:
+        - (service_name + '.service') in ansible_facts.services
+        - ansible_facts.services[service_name + '.service'].status != 'not-found'
       tags: [deconfigure]
 
     # Proof: injecting generated server/token and server/agent-token files previously let verify
@@ -377,6 +328,7 @@
         that:
           - >-
             (service_name + '.service') not in ansible_facts.services or
+            ansible_facts.services[service_name + '.service'].status == 'not-found' or
             (ansible_facts.services[service_name + '.service'].state != 'running' and
             ansible_facts.services[service_name + '.service'].status == 'disabled')
           - puni_retired_credentials.results | selectattr('stat.exists', 'equalto', true) | list | length == 0

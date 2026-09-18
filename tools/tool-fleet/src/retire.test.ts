@@ -39,10 +39,9 @@ describe('planRetirement', () => {
     const playbook = await readFile(join(root, 'infra/ansible/playbooks/retire.yml'), 'utf8');
     expect(playbook).toContain('puni_kubernetes_node_uid');
     expect(playbook).toContain('puni_backup_receipt');
-    expect(playbook).toContain('puni.dev/local-state');
-    expect(playbook).toContain('puni.dev/forge-worktree');
-    expect(playbook).toContain('puni.dev/singleton-sqlite');
-    expect(playbook).toContain('volumeattachments.storage.k8s.io');
+    const checks = await readFile(join(root, 'infra/ansible/scripts/cluster-checks.py'), 'utf8');
+    expect(checks).toContain('"local-state", "forge-worktree", "singleton-sqlite"');
+    expect(checks).toContain('volumeattachments.storage.k8s.io');
     expect(playbook).toContain('set -euo pipefail;');
     expect(playbook).toContain('/v3/cluster/member/list');
     expect(playbook).toContain('https://127.0.0.1:2382/v3/cluster/member/list');
@@ -65,7 +64,7 @@ describe('planRetirement', () => {
       const command = plays[0]?.tasks.find((task) => task.name === name)?.['ansible.builtin.shell']
         ?.cmd;
       if (command === undefined) throw new Error(`Missing retirement shell task ${name}`);
-      return command;
+      return command.replaceAll('{{ playbook_dir }}', join(root, 'infra/ansible/playbooks'));
     };
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-shell-'));
     const kubectl = join(directory, 'kubectl');

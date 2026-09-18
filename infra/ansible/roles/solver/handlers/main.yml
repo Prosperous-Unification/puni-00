@@ -1,0 +1,9 @@
+---
+- name: Restart solver supervisor
+  ansible.builtin.command:
+    argv: [systemctl, --user, -M, wbs-solver@, daemon-reload]
+  notify: Restart solver supervisor unit
+
+- name: Restart solver supervisor unit
+  ansible.builtin.command:
+    argv: [systemctl, --user, -M, wbs-solver@, restart, wbs-solver-supervisor]

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -70,44 +70,36 @@ describe('planUpgrade', () => {
     expect(playbook).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(playbook).toContain('--for=condition=Ready');
     expect(playbook).toContain('Restart k3s service before health proof');
-    expect(playbook).toContain('.status.phase != "Running"');
-    expect(playbook).toContain('.status.attached == true');
-    expect(playbook).toContain('volumeattachments.storage.k8s.io');
+    expect(playbook).toContain("cluster-checks.py' pods-ready");
+    expect(playbook).toContain("cluster-checks.py' attachments-healthy");
     expect(playbook).toContain('EtcdIsVoter');
     expect(playbook).not.toContain('--force');
     expect(playbook).not.toContain('--delete-emptydir-data');
 
-    const workloadFilter = /get pods[\s\S]+?jq -e '([\s\S]+?)'\n/.exec(playbook)?.[1];
-    const storageFilter = /get volumeattachments[\s\S]+?jq -e '([\s\S]+?)'\n/.exec(playbook)?.[1];
-    if (workloadFilter === undefined || storageFilter === undefined) {
-      throw new Error('Upgrade playbook health predicates are absent');
-    }
+    const checks = join(root, 'infra/ansible/scripts/cluster-checks.py');
     const directory = await mkdtemp(join(tmpdir(), 'fleet-upgrade-health-'));
-    const workloadPath = join(directory, 'workloads.json');
-    const attachmentPath = join(directory, 'attachments.json');
+    const kubectl = join(directory, 'kubectl');
     await writeFile(
-      workloadPath,
-      JSON.stringify({
-        items: [
-          {
-            status: {
-              phase: 'Running',
-              conditions: [{ type: 'Ready', status: 'False' }],
-            },
-          },
-        ],
-      }),
+      kubectl,
+      `#!/bin/bash
+if [[ "$*" == *volumeattachments* ]]; then
+  printf '%s\\n' '{"items":[{"metadata":{"name":"attachment"},"status":{}}]}'
+else
+  printf '%s\\n' '{"items":[{"metadata":{"namespace":"n","name":"p"},"status":{"phase":"Running","conditions":[{"type":"Ready","status":"False"}]}}]}'
+fi
+`,
     );
-    await writeFile(attachmentPath, JSON.stringify({ items: [{ status: {} }] }));
-    const unhealthyWorkload = Bun.spawnSync(['jq', '-e', workloadFilter], {
-      stdin: Bun.file(workloadPath),
+    await chmod(kubectl, 0o700);
+    const environment = { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` };
+    const unhealthyWorkload = Bun.spawnSync(['python3', checks, 'pods-ready', 'workers'], {
+      env: environment,
     });
-    const unknownAttachment = Bun.spawnSync(['jq', '-e', storageFilter], {
-      stdin: Bun.file(attachmentPath),
+    const unknownAttachment = Bun.spawnSync(['python3', checks, 'attachments-healthy', 'workers'], {
+      env: environment,
     });
     expect(unhealthyWorkload.exitCode).not.toBe(0);
     expect(unknownAttachment.exitCode).not.toBe(0);
-    // Proof: the exact production jq predicates fail for Running/Ready=False workloads and
+    // Proof: the production cluster-check predicates fail for Running/Ready=False workloads and
     // VolumeAttachments whose attached state is unknown.
   });
 
