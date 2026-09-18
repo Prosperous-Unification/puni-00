@@ -823,7 +823,8 @@ export async function directoryIdentity(path: string): Promise<string> {
  */
 export function requireMountedRoot(recorded: string, observed: string, root: string): void {
   // Proof: with this comparison removed, `refuses a root replaced after lab up` failed; live, a
-  // root moved aside and recreated made `up` refuse only with it (k3s-platform verify.md).
+  // root moved aside and recreated left the Pod stuck on `hostPath type check failed`, and with it
+  // `up` refused before any change (k3s-platform verify.md).
   if (recorded !== observed) {
     throw new Error(
       `${root} is not the directory the lab mounted (recorded ${recorded}, now ${observed}); ` +
@@ -925,8 +926,8 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
       });
     }
   } catch (cause) {
-    // Proof: without this restore, a live `up` whose Pod create was denied left its root and
-    // image admitted; with it the parameters matched their pre-`up` state (k3s-platform verify.md).
+    // Proof: without this restore, a live `up` whose Pod create was forbidden left its root and
+    // claim admitted; with it the parameters matched their pre-`up` state (k3s-platform verify.md).
     await updateForgeAdmission(store, cluster.record.labId, {
       kind: 'restore',
       slug: request.slug,
@@ -983,8 +984,8 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
   ]);
   // Released by slug, so a root stays admitted only while its environment's claim exists, even
   // when the Pod was already gone.
-  // Proof: releasing only for a running Pod left dev-gone's root admitted after its Pod was
-  // deleted by hand; by slug, `down` removed it (live k3d, k3s-platform verify.md).
+  // Proof: with the release gated on a running Pod, a live `down` after dev-beta's Pod was deleted
+  // by hand left its root admitted; by slug, the next `down` removed it (k3s-platform verify.md).
   await updateForgeAdmission(store, cluster.record.labId, {
     kind: 'release',
     slug: request.slug,

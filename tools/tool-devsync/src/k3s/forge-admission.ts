@@ -75,9 +75,9 @@ export function decodeForgeAdmission(configMap: unknown, labId: string): ForgeAd
         'forge roots and images are reviewed changes to infra/platform/policy, not something dev-env writes',
     );
   }
-  // Proof: with this check removed, `refuses a Flux-applied ConfigMap without create-once` failed;
-  // live, Flux reverted a dev-env root on its next reconcile once the annotation was dropped
-  // (k3s-platform verify.md, F9 review).
+  // Proof: with this check removed, `refuses a Flux-applied ConfigMap without create-once` failed,
+  // and live `up` wrote its root into a Flux-applied copy without the annotation; Flux's next
+  // reconcile reverted the roots to the committed one (k3s-platform verify.md, F9 review).
   if (
     labels[FLUX_NAME_LABEL] !== undefined &&
     annotations[FLUX_SSA_ANNOTATION] !== 'IfNotPresent'
@@ -205,8 +205,8 @@ export async function updateForgeAdmission(
     const before = decodeForgeAdmission(configMap, labId);
     const after = planForgeAdmission(before, change);
     // Proof: dropping the resourceVersion from the replacement (an unconditional write) failed
-    // `keeps both roots when two claims race`; live, two concurrent `up`s kept both roots only
-    // with it (k3s-platform verify.md, F9 review).
+    // `keeps both roots when two claims race`; live, four concurrent claims kept all four with it
+    // (6 conflicts retried) and only one without it (k3s-platform verify.md, F9 review).
     if ((await store.replace(encodeForgeAdmission(configMap, after))) === 'replaced') {
       return { before, after };
     }

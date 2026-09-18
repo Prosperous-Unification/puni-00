@@ -67,9 +67,11 @@ reconciles, these profiles have no ingress, so a dev environment there is not re
 
 Every host port binds `127.0.0.1`. Kubeconfigs, rendered k3d configs and `lab.json` live in
 `.puni/fleet-labs/k3d/<id>/` (mode 0700, ignored by Git; `up` refuses if it is not ignored).
-Neither `up` nor `down` touches `~/.kube/config` or its current context. `down` deletes only
-Docker resources labelled `puni.dev/lab-id=<id>` whose names the lab derives; anything else
-with the label is reported and left.
+Neither `up` nor `down` touches `~/.kube/config` or its current context. `up` refuses if the
+registry or a cluster load balancer publishes anything beyond `127.0.0.1`. `down` deletes only
+Docker resources labelled `puni.dev/lab-id=<id>` whose names the lab derives, and only the
+clusters of the named `--profile`; the registry, network and state stay while another lab
+cluster remains. Anything else with the label is reported and left.
 
 ## Source-run dev environments
 
@@ -90,8 +92,13 @@ container.
 `up` refuses a worktree whose real path is outside `--worktree-root` (a symlink escape
 included), the root itself, a subdirectory of a checkout, one owned by another user, one that
 shares no root commit with this repository, a slug already serving another worktree, a
-worktree already served under another slug, and a kubeconfig that reaches a cluster whose
-marker another lab owns. The worktree needs `bun install` and `bun run dev:setup` first.
+worktree already served under another slug, a kubeconfig that reaches a cluster whose marker
+another lab owns, and a `--worktree-root` that is no longer the directory `lab up` mounted
+(moved aside and recreated: the node would still serve the old one). Two Leases,
+`dev-<slug>` and `dev-wt-<hash>`, are the claim: of two concurrent `up`s for one slug or one
+worktree, the second refuses. `down` deletes them. The worktree needs `bun install` and
+`bun run dev:setup` first. The Pod runs as the worktree's owner UID and GID; a root-owned
+worktree is refused.
 
 The environment gets its own SQLite database on volume `dev-<slug>-data` (`DB_PATH=/data/wbs.db`),
 never the worktree's `local.db`. It survives Pod recreation; `down` deletes it with the Pod,
@@ -100,7 +107,11 @@ admits only the ingress controller, so one environment cannot call another's tie
 
 `up` builds `deploy/dev-src/Dockerfile`, pushes it to the lab registry and, on a lab it owns,
 writes that digest and the exact worktree and solver directories into the forge admission
-parameters (`wbs-solver/puni-trusted-workload`). The Pod is created as the
+parameters (`wbs-solver/puni-trusted-workload`). The roots are derived from per-slug claims
+kept in an annotation, written only at the version read (a conflict is retried), restored
+if the Pod cannot be created, and released by slug on `down` even when the Pod is gone. If a
+Flux Kustomization applies that ConfigMap without `kustomize.toolkit.fluxcd.io/ssa:
+IfNotPresent`, `dev-env` refuses: Flux would revert the roots on its next reconcile. The Pod is created as the
 `dev-environment-controller` service account, the only identity the forge Role lets create
 Pods there. Outside a lab those parameters are reviewed policy changes, and `dev-env` refuses
 to write them. The forge admits one image, so all environments of a lab build the same
@@ -111,12 +122,13 @@ The solver supervisor's runtime directory is mounted read-only at `/run/wbs-solv
 
 ### What reaches a running environment
 
-| Change                                                                                                                                                        | What carries it                                                                                                                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source                                                                                                                                                    | The watchers. Nothing restarts.                                                                                                                                                                         |
-| A `RESTART_PATHS` entry of `tools/tool-devsync/src/sync.ts` (`bun.lock`, migrations, `package.json`, `nx.json`, project and tsconfig files, `vite.config.ts`) | The in-Pod supervisor stops the tiers, runs `bun install --frozen-lockfile` and starts them again, within about two seconds of the write. The container is not restarted.                               |
-| `deploy/dev-src/Dockerfile`, `deploy/k8s/wbs/overlays/dev/`                                                                                                   | Nothing until `dev-env up`, which recreates the Pod. `status` prints `RECREATE REQUIRED` and exits 3 meanwhile.                                                                                         |
-| Per-tier `.env` files                                                                                                                                         | Nothing: they are not watched, as on h2puni. `kubectl exec dev-<slug> -- kill 1` restarts the container and keeps the database. The Pod environment overrides `DB_PATH`, `APP_ORIGIN` and the MCP URLs. |
+| Change                                                                                                                                                        | What carries it                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App source                                                                                                                                                    | The watchers. Nothing restarts.                                                                                                                                                                                                                                                                     |
+| A `RESTART_PATHS` entry of `tools/tool-devsync/src/sync.ts` (`bun.lock`, migrations, `package.json`, `nx.json`, project and tsconfig files, `vite.config.ts`) | The in-Pod supervisor stops the tiers, runs `bun install --frozen-lockfile` and starts them again, within about two seconds of the write. The container is not restarted. If the install fails the container stops and retries it on every restart; `status` prints `INSTALL REQUIRED` and exits 4. |
+| The supervisor's own sources (non-test `tools/tool-devsync/src/**/*.ts`)                                                                                      | The supervisor exits and the kubelet restarts the container with the new code.                                                                                                                                                                                                                      |
+| `deploy/dev-src/Dockerfile`, `deploy/k8s/wbs/overlays/dev/`                                                                                                   | Nothing until `dev-env up`, which recreates the Pod. `status` prints `RECREATE REQUIRED` and exits 3 meanwhile.                                                                                                                                                                                     |
+| Per-tier `.env` files                                                                                                                                         | Nothing: they are not watched, as on h2puni. `kubectl exec dev-<slug> -- kill 1` restarts the container and keeps the database. The Pod environment overrides `DB_PATH`, `APP_ORIGIN` and the MCP URLs.                                                                                             |
 
 ### Live check
 

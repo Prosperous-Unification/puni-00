@@ -155,8 +155,9 @@ function reportTermination(message: string): void {
  */
 export async function superviseForge(root: string): Promise<never> {
   // Proof: without this install before the first start, a live container restarted after a
-  // failed install served on stale node_modules; with it the Pod stayed not ready and `status`
-  // printed INSTALL REQUIRED (k3s-platform verify.md, F9 review).
+  // failed install started the tiers on unsynced node_modules and crash-looped with no named
+  // cause; with it the container stops first and `status` prints INSTALL REQUIRED, exit 4
+  // (k3s-platform verify.md, F9 review).
   if (!installDependencies(() => runInstall(root), reportTermination)) process.exit(65);
   let baseline = {
     restart: await fingerprintWorktree(root),

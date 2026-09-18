@@ -61,9 +61,9 @@ export function decodeClaimLease(lease: unknown): EnvironmentClaim {
  * @throws When the slug serves another worktree or the worktree is served under another slug.
  */
 export function requireOwnClaim(existing: EnvironmentClaim, wanted: EnvironmentClaim): void {
-  // Proof: accepting any existing Lease failed `refuses a Lease another environment holds`; live,
-  // two concurrent `up --slug race` runs for different worktrees both applied before the Leases
-  // (k3s-platform verify.md, F9 review).
+  // Proof: accepting any existing Lease failed `refuses a Lease another environment holds`. Live,
+  // two concurrent `up --slug race` runs for different worktrees: with the claim, one served and
+  // one refused; without it both passed the Pod check and built (k3s-platform verify.md).
   if (existing.slug === wanted.slug && existing.worktree === wanted.worktree) return;
   throw new Error(
     existing.slug === wanted.slug
