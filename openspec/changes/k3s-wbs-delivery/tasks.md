@@ -13,10 +13,12 @@
         writer pod throughout; exact solver directory admitted, alternate host paths refused.
   - [x] Ubuntu VM lab: solver role, exact-path admission and alternate-path denial on a real
         node, socket replacement and reboot reconnect (verify.md, "F8 solver in the Ubuntu VM lab").
-  - [ ] A real solve from a k3s pod. Blocked: the supervisor identifies peers only by Docker
-        cgroup and refuses every containerd pod. Prepared: `infra/ansible/playbooks/solver.yml`;
-        next: a containerd peer identity in `tools/tool-remote-scripts`, then rerun that play and
-        an optimize request against a seeded project in the QEMU platform lab.
+  - [x] A real solve from a k3s pod: the backend in `wbs-solver` solved `ready`/`proven` through
+        the containerd peer identity (`puni-cri-peer`) in the QEMU platform lab (verify.md,
+        "F8 real solve from a k3s pod", `93960ee0`).
+  - [ ] A release-path solve: `deploy:k3s --apply` with the retained PVC on a VM node, then an
+        optimize request against a seeded project. The `93960ee0` solve used an emptyDir DB and
+        `MIGRATE_ON_STARTUP=true` outside the release transaction.
   - [x] F6 `solverImages` approved-digest set (F6 `f8265dc7`); the coordinator writes it.
   - [x] Review fixes: rollback resumes Flux only onto the previous revision; per-process
         Lease with heartbeat and expiry; writer guard on every schema Job.

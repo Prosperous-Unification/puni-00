@@ -119,6 +119,10 @@ restored):
 
 ## Not verified, with prepared next steps
 
+Superseded in part: the VM-lab solver rows are in "F8 solver in the Ubuntu VM lab" and the k3s-pod
+solve in "F8 real solve from a k3s pod" below; Flux suspend/resume ran in the `d2f2ad4a`
+rehearsals. What stays open is listed in "F12 status".
+
 - **Solver in the Ubuntu VM lab** (real solve, socket replacement and reconnect, refusal of
   an alternate host path on a real node). This is blocked on this host: `multipass` is not
   installed, and no Ansible role installs the solver supervisor
@@ -167,7 +171,8 @@ Faults found along the way: the F6 policy's `solverImages` regex rejects `name:t
 (the bun lock uses a tag), so the digest-only form is required; Restricted container fields
 (`runAsNonRoot`, `seccompProfile`) are required per container, not only per pod.
 
-Not verified, with the reason:
+Not verified, with the reason (superseded: "F8 real solve from a k3s pod" below solved through
+the containerd peer identity at `93960ee0`):
 
 - **A real solve from a k3s pod is blocked by the supervisor.** It identifies peers only by a
   Docker cgroup (`solver-supervisor-peer-cgroup.ts`); the k3s pod's cgroup is
@@ -375,7 +380,8 @@ deadline units were left behind.
 
 `tasks.md` now separates what ran from what is blocked. Flux suspend/resume against a live
 source is checked because the `d2f2ad4a` rehearsals above ran it; the solver admission and
-socket rows are checked from the VM lab section; a real solve, the Hetzner access mode, OIDC,
+socket rows are checked from the VM lab section, and the k3s-pod solve from its own section. A
+release-path solve with the retained PVC on a VM node, the Hetzner access mode (RWOP), OIDC,
 GitHub Actions, staging, the h2puni gate and the production cutover stay open, each with its
 next command. F12 fixed the `descriptor -- seal` example in `docs/infra/deployment.md` (it
 lacked `--repository` and `--main-ref`) and bounded the `test:k3s` wait for the `migrated`

@@ -14,7 +14,7 @@ Backups follow the store: SQLite through the byte-bound `backup-sqlite.ts` runne
 
 ## Assumptions recorded without an interview
 
-- The WBS database lives on PVC `wbs-data` at `/data/wbs.db` in namespace `wbs`, the backend pods carry `app.kubernetes.io/name: be-01` and run as UID 1000, and the release publishes ConfigMap `wbs/wbs-release` with key `revision`. The backup CronJob fails loudly until these exist.
+- The WBS database lives on PVC `wbs-data` at `/data/wbs.sqlite` in namespace `wbs-solver`, the backend pods carry `app.kubernetes.io/name: wbs-backend` and run as UID 10001, and the release publishes ConfigMap `wbs-release` with key `sourceSha`. The backup CronJob fails loudly until these exist.
 - Workers telemetry crosses clusters as plain OTLP on the private network (`10.1.0.0/16`), admitted by `otlp-ingress`; mTLS for the gateway is an open item. Workers PVCs are not backed up by Velero; execution workloads are treated as disposable and k3s state is covered by etcd snapshots.
 - Production object storage is Hetzner `hel1` (`hel1.your-objectstorage.com`, path-style), and the production registry endpoint is `registry.puni.internal` on the private network.
 - Staging and product hostnames are `wbs-staging.bulletpoints.club` and `wbs.bulletpoints.club`; the ACME account email is `ops@bulletpoints.club`.

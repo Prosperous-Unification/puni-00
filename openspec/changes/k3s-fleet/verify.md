@@ -689,6 +689,21 @@ and `format:check --all` exited 0 at `de289e3b` (238 tests). `df3ce0fb` failed `
 - **Evidence rows.** The firewall rows that said "pending" now cite the live runs. The
   authenticated pod-to-API probe is still pending.
 
+## F12 (2026-09-18)
+
+The fleet rows of the operator guide ran in the k3s-platform verify.md, "F12 operator handoff":
+
+- The retire plan (`tool-fleet:plan -- --operation retire --node workers-agent-a` over
+  `infra/fleet/examples/local.yaml` and a synthetic observation) exited 0 and printed its
+  digest; the digest value was not recorded.
+- `tool-fleet:apply` with that plan and an all-zero `--expect-sha256` exited 1 with "Operation
+  plan digest differs from its reviewed SHA-256" before any effect.
+- `tool-fleet:lab -- status --provider qemu` exited 0 with no machines.
+- `discover`, `terragrunt-plan` and `terragrunt-destroy-plan` each exited 1 naming the missing
+  input.
+- `docs/infra/fleet.md` now names the QEMU provider and its lock.
+- Not yet fault-injected: the hub peer-list refusal, the process-exit waits and QEMU liveness.
+
 ## 2026-09-18 PR CI: reproducible controller image
 
 - The `58926be2…` lock was only cache-reproducible: a `--no-cache` build on the host's default

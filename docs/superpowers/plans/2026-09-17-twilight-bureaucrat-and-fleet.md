@@ -116,7 +116,7 @@ packet is archived.
 | F5    | open  | [fleet][fleet]            | HA control-plane removal, live upgrade, PDB/local-PV/singleton drains                 |
 | F6    | open  | [platform][platform]      | production registry adoption, staging ACME, production Flux bootstrap                 |
 | F7    | open  | [platform][platform]      | OTLP mTLS, real receivers and buckets, escrow check, production-storage drills        |
-| F8    | open  | [delivery][delivery]      | real solve from a k3s pod, Hetzner CSI access mode, OIDC smoke                        |
+| F8    | open  | [delivery][delivery]      | release-path solve with a PVC on a VM node, Hetzner RWOP, OIDC smoke                  |
 | F9    | open  | [platform][platform]      | full-graph `platform`/`fleet` measurement, per-environment namespaces                 |
 | F10   | open  | [platform][platform]      | maintenance on real hosts, live `sqlite-backup-verify` in `wbs-solver`, hcloud Retain |
 | F11   | open  | [delivery][delivery]      | GitHub Actions and staging runs, h2puni gate, authorized production cutover           |
