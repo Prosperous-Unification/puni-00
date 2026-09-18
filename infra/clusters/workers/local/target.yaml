@@ -1,0 +1,25 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: target
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./infra/platform/target
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: puni-platform
+  kubeConfig:
+    secretRef:
+      name: workers-local-kubeconfig
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  healthChecks:
+    - apiVersion: v1
+      kind: ConfigMap
+      name: puni-cluster-workers-local
+      namespace: kube-system
+  timeout: 2m

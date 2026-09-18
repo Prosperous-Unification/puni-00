@@ -71,6 +71,14 @@ const validToolchain = {
       os: 'linux',
       arch: 'amd64',
     },
+    sops: {
+      version: 'v1.0.0',
+      url: 'https://example.test/sops',
+      sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
+    age: { version: 'v1.0.0', url: 'https://example.test/age', sha256, os: 'linux', arch: 'amd64' },
   },
   terraform: {
     hcloudProvider: {
@@ -90,6 +98,9 @@ const validToolchain = {
     fluxKustomizeController: image('flux-kustomize-controller'),
     fluxNotificationController: image('flux-notification-controller'),
     fluxSourceController: image('flux-source-controller'),
+    objectStore: image('object-store'),
+    sqliteBackup: image('sqlite-backup'),
+    blackboxExporter: image('blackbox-exporter'),
   },
   manifests: { fluxInstall: { sha256 } },
   controller: {
@@ -134,7 +145,7 @@ const validToolchain = {
       'prometheus',
     ]),
     opentelemetryCollector: chart(['collector']),
-    velero: chart(['server']),
+    velero: chart(['pluginAws', 'server']),
   },
 };
 
@@ -171,6 +182,20 @@ describe('readToolchain', () => {
     expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
       /terragrunt/,
     );
+  });
+
+  it('rejects a missing SOPS binary lock', async () => {
+    const { sops: _removed, ...binaries } = validToolchain.binaries;
+    expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
+      /sops/,
+    );
+  });
+
+  it('rejects a missing SQLite backup runner image lock', async () => {
+    const { sqliteBackup: _removed, ...runtimeImages } = validToolchain.runtimeImages;
+    expect(
+      readToolchain(await writeToolchain({ ...validToolchain, runtimeImages })),
+    ).rejects.toThrow(/sqliteBackup/);
   });
 
   it('rejects a missing registry image lock', async () => {

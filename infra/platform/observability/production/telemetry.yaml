@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: puni-telemetry
+  namespace: observability
+data:
+  environment: production

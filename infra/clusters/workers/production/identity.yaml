@@ -4,4 +4,4 @@ metadata:
   name: puni-cluster-identity
   namespace: flux-system
 data:
-  puni.dev/cluster-id: workers-production
+  cluster-id: workers-production

@@ -1,0 +1,27 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: eck-operator
+  namespace: observability
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ./infra/platform/charts/eck-operator-3.5.0.tgz
+      version: 3.5.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    image:
+      repository: docker.elastic.co/eck/eck-operator
+      tag: 3.5.0
+      digest: sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314
+    resources:
+      requests: { cpu: 100m, memory: 150Mi }
+      limits: { cpu: '1', memory: 512Mi }
+    nodeSelector:
+      puni.dev/capability-observability: 'true'
+    config:
+      containerRegistry: docker.elastic.co

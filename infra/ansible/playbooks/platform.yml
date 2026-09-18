@@ -117,6 +117,30 @@
           - --timeout=300s
       changed_when: false
 
+    # Every Flux stage health-checks this marker through its own kubeconfig before any
+    # controller reconciles, so a kubeconfig for another cluster stops at the target stage.
+    - name: Render the immutable target-cluster marker
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - kubectl
+          - create
+          - configmap
+          - 'puni-cluster-{{ puni_cluster_id }}'
+          - --namespace=kube-system
+          - '--from-literal=cluster-id={{ puni_cluster_id }}'
+          - --dry-run=client
+          - --output=yaml
+      register: puni_cluster_marker
+      changed_when: false
+
+    - name: Reconcile the immutable target-cluster marker
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: "{{ puni_cluster_marker.stdout | from_yaml | combine({'immutable': true}) | to_nice_yaml }}"
+      register: puni_cluster_marker_apply
+      changed_when: "' created' in puni_cluster_marker_apply.stdout"
+
     - name: Render the read-only repository credential
       ansible.builtin.command:
         argv:

@@ -65,3 +65,30 @@ metadata:
   name: dev-environment-controller
   namespace: puni-forge
 automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: puni-registry
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# node-exporter needs the host network and PID namespaces and the log collector reads
+# /var/log/pods; only platform controllers deploy here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: baseline
+---
+# Velero's node agent reads pod volumes through /var/lib/kubelet/pods.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: puni-backup
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: baseline

@@ -64,6 +64,20 @@
       "sha256": "ffc9a19a2eeb5bd9d8dcf8fb7ce3f2a51754a815fecfbdd4aaa35e526dd1d352",
       "os": "linux",
       "arch": "amd64"
+    },
+    "sops": {
+      "version": "v3.13.3",
+      "url": "https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64",
+      "sha256": "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "age": {
+      "version": "v1.3.2",
+      "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz",
+      "sha256": "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10",
+      "os": "linux",
+      "arch": "amd64"
     }
   },
   "terraform": {
@@ -111,6 +125,21 @@
       "role": "flux-source-controller",
       "name": "ghcr.io/fluxcd/source-controller:v1.9.5",
       "digest": "sha256:6f20d232d596a758c923d2861f23511718fc303b8a2e36a1434a7c736b9f4268"
+    },
+    "objectStore": {
+      "role": "object-store",
+      "name": "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z",
+      "digest": "sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+    },
+    "sqliteBackup": {
+      "role": "sqlite-backup",
+      "name": "docker.io/oven/bun:1.4.2-alpine",
+      "digest": "sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f"
+    },
+    "blackboxExporter": {
+      "role": "blackbox-exporter",
+      "name": "quay.io/prometheus/blackbox-exporter:v0.28.0",
+      "digest": "sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc"
     }
   },
   "manifests": {
@@ -345,9 +374,14 @@
           "role": "server",
           "name": "docker.io/velero/velero:v1.18.2",
           "digest": "sha256:37396519f399536e5f01427d723565ae69294ec3fb5625cf1c87c09eaa9de16b"
+        },
+        {
+          "role": "pluginAws",
+          "name": "docker.io/velero/velero-plugin-for-aws:v1.14.1",
+          "digest": "sha256:1493a0039cd5cb31004cfbb52f8a1990bc0ed81497ce72516bc76fa9e21506c1"
         }
       ],
-      "disabledComponents": ["nodeAgent"]
+      "disabledComponents": ["upgradeCRDs"]
     }
   }
 }

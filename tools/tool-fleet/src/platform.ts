@@ -3,15 +3,24 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { type } from 'arktype';
-import { parse, parseAllDocuments } from 'yaml';
+import { parse } from 'yaml';
 
 import { readToolchain } from './contracts';
+import {
+  assertEncryptedSecrets,
+  assertLockedWorkloadImages,
+  assertRegistryTransport,
+  assertSqliteRunner,
+  readPlatformManifests,
+} from './platform-manifests';
+import { platformReleases } from './platform-releases';
 
 const PlatformIdentity = type({
   apiVersion: "'v1'",
   kind: "'ConfigMap'",
   metadata: { name: "'puni-cluster-identity'", namespace: "'flux-system'" },
-  data: { 'puni.dev/cluster-id': 'string>0', '+': 'reject' },
+  // ConfigMap keys cannot contain `/`; the API server refused `puni.dev/cluster-id` on 2026-09-18.
+  data: { 'cluster-id': 'string>0', '+': 'reject' },
   '+': 'reject',
 });
 
@@ -34,6 +43,15 @@ const FluxStage = type({
     },
     'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
     'wait?': 'true',
+    'healthChecks?': type({
+      apiVersion: "'v1'",
+      kind: "'ConfigMap'",
+      name: 'string>0',
+      namespace: "'kube-system'",
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
     'timeout?': 'string>0',
     '+': 'reject',
   },
@@ -74,45 +92,13 @@ const HelmRelease = type({
 const NativeKustomization = type({
   apiVersion: "'kustomize.config.k8s.io/v1beta1'",
   kind: "'Kustomization'",
-  resources: type('string>0').array().atLeastLength(1),
+  resources: type('string>0').array(),
   '+': 'reject',
-});
-
-const RegistryDeployment = type({
-  apiVersion: "'apps/v1'",
-  kind: "'Deployment'",
-  metadata: { name: "'registry'", namespace: "'puni-registry'" },
-  spec: {
-    template: {
-      spec: {
-        automountServiceAccountToken: 'false',
-        containers: type({ name: "'registry'", image: 'string>0', '+': 'delete' })
-          .array()
-          .atLeastLength(1),
-        '+': 'delete',
-      },
-      '+': 'delete',
-    },
-    '+': 'delete',
-  },
-  '+': 'delete',
 });
 
 async function readYaml(path: string): Promise<unknown> {
   try {
     return parse(await readFile(path, 'utf8'));
-  } catch (cause) {
-    throw new Error(`Cannot read platform manifest ${path}`, { cause });
-  }
-}
-
-async function readYamlDocuments(path: string): Promise<unknown[]> {
-  try {
-    return parseAllDocuments(await readFile(path, 'utf8')).map((document) => {
-      const encoded = JSON.stringify(document.toJSON());
-      const decoded: unknown = JSON.parse(encoded);
-      return decoded;
-    });
   } catch (cause) {
     throw new Error(`Cannot read platform manifest ${path}`, { cause });
   }
@@ -126,24 +112,18 @@ const clusterPaths = [
   ['workers', 'production'],
 ] as const;
 
-const releases = [
-  [
-    'cert-manager',
-    'certManager',
-    'networking/cert-manager.yaml',
-    'charts/cert-manager-v1.21.2.tgz',
-  ],
-  [
-    'hcloud-ccm',
-    'hcloudCcm',
-    'storage/production/hcloud-ccm.yaml',
-    'charts/hcloud-cloud-controller-manager-1.37.0.tgz',
-  ],
-  ['hcloud-csi', 'hcloudCsi', 'storage/production/hcloud-csi.yaml', 'charts/hcloud-csi-2.23.0.tgz'],
-  ['traefik', 'traefik', 'networking/traefik.yaml', 'charts/traefik-41.6.0.tgz'],
-] as const;
+const observabilityResources = (environment: string) => [
+  '../eck',
+  `../elastic/${environment}`,
+  '../elastic/settings',
+  '../kibana',
+  '../prometheus',
+  '../otel',
+  'telemetry.yaml',
+];
 
-const platformKustomizations = [
+const platformKustomizations: readonly (readonly [string, readonly string[]])[] = [
+  ['target/kustomization.yaml', []],
   ['networking/kustomization.yaml', ['namespaces.yaml', 'cert-manager.yaml', 'traefik.yaml']],
   [
     'policy/kustomization.yaml',
@@ -155,10 +135,39 @@ const platformKustomizations = [
       'trusted-workloads.yaml',
     ],
   ],
-  ['registry/kustomization.yaml', ['registry.yaml']],
+  ['registry/base/kustomization.yaml', ['registry.yaml']],
+  ['registry/local/kustomization.yaml', ['../base', 'issuers.yaml']],
+  ['registry/production/kustomization.yaml', ['../base', 'issuers.yaml']],
   ['storage/local/kustomization.yaml', ['storage-class.yaml']],
   ['storage/production/kustomization.yaml', ['hcloud-ccm.yaml', 'hcloud-csi.yaml']],
-] as const;
+  ['observability/eck/kustomization.yaml', ['eck-operator.yaml']],
+  ['observability/elastic/local/kustomization.yaml', ['elasticsearch.yaml']],
+  ['observability/elastic/production/kustomization.yaml', ['elasticsearch.yaml']],
+  ['observability/elastic/settings/kustomization.yaml', ['settings.yaml']],
+  ['observability/kibana/kustomization.yaml', ['kibana.yaml']],
+  [
+    'observability/prometheus/kustomization.yaml',
+    ['kube-prometheus-stack.yaml', 'blackbox-exporter.yaml'],
+  ],
+  ['observability/otel/kustomization.yaml', ['collector.yaml']],
+  ['observability/local/kustomization.yaml', [...observabilityResources('local'), 'receiver.yaml']],
+  ['observability/production/kustomization.yaml', observabilityResources('production')],
+  ['alerts/base/kustomization.yaml', ['rules.yaml', 'probes.yaml']],
+  ['alerts/local/kustomization.yaml', ['../base']],
+  ['alerts/production/kustomization.yaml', ['../base', 'public-probes.yaml']],
+  ['backup/sqlite/kustomization.yaml', ['runner.yaml', 'cronjob.yaml']],
+  ['backup/elastic/kustomization.yaml', ['snapshots.yaml']],
+  ['backup/velero/local/kustomization.yaml', ['velero.yaml']],
+  ['backup/velero/production/kustomization.yaml', ['velero.yaml']],
+  [
+    'backup/local/kustomization.yaml',
+    ['../sqlite', '../elastic', '../velero/local', 'object-store.yaml', 'sqlite-egress.yaml'],
+  ],
+  [
+    'backup/production/kustomization.yaml',
+    ['../sqlite', '../elastic', '../velero/production', 'sqlite-egress.yaml'],
+  ],
+];
 
 function requireNativeResources(
   path: string,
@@ -176,173 +185,65 @@ function requireNativeResources(
   }
 }
 
-const ImageValues = type({
-  repository: 'string>0',
-  tag: 'string>0',
-  digest: 'string>0',
-  '+': 'reject',
-});
-// Proof: changing Traefik's top-level unknown-key policy to delete admitted the operative
-// `oci_meta` image override in the production validator on 2026-09-17.
-const TraefikValues = type({
-  image: {
-    registry: 'string>0',
-    repository: 'string>0',
-    tag: 'string>0',
-    digest: 'string>0',
-    '+': 'reject',
-  },
-  versionOverride: 'string>0',
-  deployment: {
-    kind: "'DaemonSet'",
-    dnsPolicy: "'ClusterFirstWithHostNet'",
-    '+': 'reject',
-  },
-  hostNetwork: 'true',
-  updateStrategy: {
-    type: "'RollingUpdate'",
-    rollingUpdate: { maxUnavailable: 'number', maxSurge: 'number', '+': 'reject' },
-    '+': 'reject',
-  },
-  nodeSelector: { 'puni.dev/capability-ingress': "'true'", '+': 'reject' },
-  '+': 'reject',
-});
-const CertManagerValues = type({
-  crds: { enabled: 'true', '+': 'reject' },
-  image: ImageValues,
-  webhook: { image: ImageValues, '+': 'reject' },
-  cainjector: { image: ImageValues, '+': 'reject' },
-  acmesolver: { image: ImageValues, '+': 'reject' },
-  startupapicheck: { image: ImageValues, '+': 'reject' },
-  '+': 'reject',
-});
-const HcloudCcmValues = type({
-  image: { repository: 'string>0', tag: 'string>0', '+': 'reject' },
-  '+': 'reject',
-});
-const HcloudCsiImage = type({ name: 'string>0', tag: "''", '+': 'reject' });
-const HcloudCsiValues = type({
-  controller: {
-    image: {
-      csiAttacher: HcloudCsiImage,
-      csiResizer: HcloudCsiImage,
-      csiProvisioner: HcloudCsiImage,
-      livenessProbe: HcloudCsiImage,
-      hcloudCSIDriver: HcloudCsiImage,
-      '+': 'reject',
-    },
-    '+': 'reject',
-  },
-  node: {
-    image: {
-      csiNodeDriverRegistrar: HcloudCsiImage,
-      livenessProbe: HcloudCsiImage,
-      hcloudCSIDriver: HcloudCsiImage,
-      '+': 'reject',
-    },
-    '+': 'reject',
-  },
-  '+': 'reject',
-});
-
-function imageReference(repository: string, tag: string, digest: string): string {
-  return `${repository}:${tag}@${digest}`;
-}
-
-function releaseImageReferences(
-  releaseName: string,
-  values: unknown,
-): Readonly<Record<string, string>> {
-  if (releaseName === 'traefik') {
-    const parsed = TraefikValues(values);
-    if (parsed instanceof type.errors)
-      throw new Error(`traefik values are invalid: ${parsed.summary}`);
-    return {
-      controller: imageReference(
-        `${parsed.image.registry}/${parsed.image.repository}`,
-        parsed.image.tag,
-        parsed.image.digest,
-      ),
-    };
+/**
+ * Bind a cluster's SOPS directory: resources are only `*.sops.yaml` files, listed in
+ * name order. Their encryption is checked with every other platform Secret.
+ */
+async function requireSecretResources(root: string, cluster: string): Promise<void> {
+  const path = join(root, 'infra/platform/secrets', cluster, 'kustomization.yaml');
+  const kustomization = NativeKustomization(await readYaml(path));
+  if (kustomization instanceof type.errors) {
+    throw new Error(`${path} native Kustomization is invalid: ${kustomization.summary}`);
   }
-  if (releaseName === 'cert-manager') {
-    const parsed = CertManagerValues(values);
-    if (parsed instanceof type.errors) {
-      throw new Error(`cert-manager values are invalid: ${parsed.summary}`);
-    }
-    return {
-      controller: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
-      webhook: imageReference(
-        parsed.webhook.image.repository,
-        parsed.webhook.image.tag,
-        parsed.webhook.image.digest,
-      ),
-      caInjector: imageReference(
-        parsed.cainjector.image.repository,
-        parsed.cainjector.image.tag,
-        parsed.cainjector.image.digest,
-      ),
-      acmeSolver: imageReference(
-        parsed.acmesolver.image.repository,
-        parsed.acmesolver.image.tag,
-        parsed.acmesolver.image.digest,
-      ),
-      startupApiCheck: imageReference(
-        parsed.startupapicheck.image.repository,
-        parsed.startupapicheck.image.tag,
-        parsed.startupapicheck.image.digest,
-      ),
-    };
+  const sorted = [...kustomization.resources].sort();
+  // Proof: removing the file-name test made the non-SOPS-resource negative resolve on 2026-09-18.
+  if (
+    kustomization.resources.some((resource) => !/^[a-z0-9-]+\.sops\.yaml$/.test(resource)) ||
+    sorted.join('\n') !== kustomization.resources.join('\n')
+  ) {
+    throw new Error(`${path} may list only sorted *.sops.yaml Secrets`);
   }
-  if (releaseName === 'hcloud-ccm') {
-    const parsed = HcloudCcmValues(values);
-    if (parsed instanceof type.errors) {
-      throw new Error(`hcloud-ccm values are invalid: ${parsed.summary}`);
-    }
-    return { controller: `${parsed.image.repository}:${parsed.image.tag}` };
-  }
-  const parsed = HcloudCsiValues(values);
-  if (parsed instanceof type.errors)
-    throw new Error(`hcloud-csi values are invalid: ${parsed.summary}`);
-  const controllerLiveness = parsed.controller.image.livenessProbe.name;
-  const nodeLiveness = parsed.node.image.livenessProbe.name;
-  if (controllerLiveness !== nodeLiveness) {
-    throw new Error('hcloud-csi liveness probe digests differ between controller and node');
-  }
-  const controllerDriver = parsed.controller.image.hcloudCSIDriver.name;
-  const nodeDriver = parsed.node.image.hcloudCSIDriver.name;
-  if (controllerDriver !== nodeDriver) {
-    throw new Error('hcloud-csi driver digests differ between controller and node');
-  }
-  return {
-    controller: controllerDriver,
-    csiAttacher: parsed.controller.image.csiAttacher.name,
-    csiResizer: parsed.controller.image.csiResizer.name,
-    csiProvisioner: parsed.controller.image.csiProvisioner.name,
-    livenessProbe: controllerLiveness,
-    csiNodeDriverRegistrar: parsed.node.image.csiNodeDriverRegistrar.name,
-  };
 }
 
 const stageDependencies = {
-  controllers: '',
+  target: '',
+  controllers: 'target',
   storage: 'controllers',
   policy: 'controllers',
-  platform: 'storage,policy',
+  secrets: 'policy',
+  platform: 'storage,secrets',
+  observability: 'platform',
+  // Rules and probes need the monitoring CRDs that the observability stage installs.
+  alerts: 'observability',
+  backup: 'alerts',
 } as const;
 
-function platformStagePath(stageName: string, environment: string): string {
+function platformStagePath(stageName: string, cluster: string, environment: string): string {
+  if (stageName === 'target') return './infra/platform/target';
   if (stageName === 'controllers') return './infra/platform/networking';
   if (stageName === 'storage') return `./infra/platform/storage/${environment}`;
   if (stageName === 'policy') return './infra/platform/policy';
-  if (stageName === 'platform') return './infra/platform/registry';
+  if (stageName === 'secrets') return `./infra/platform/secrets/${cluster}`;
+  if (stageName === 'platform') return `./infra/platform/registry/${environment}`;
+  if (stageName === 'observability') return `./infra/platform/observability/${environment}`;
+  if (stageName === 'alerts') return `./infra/platform/alerts/${environment}`;
+  if (stageName === 'backup') return `./infra/platform/backup/${environment}`;
   throw new Error(`Unknown platform stage ${stageName}`);
 }
 
-/** Validate the checked-in cluster identities and locked Flux platform graph. */
-export async function validatePlatform(
-  root: string,
-): Promise<{ readonly clusters: readonly string[]; readonly releases: readonly string[] }> {
+/**
+ * Validate the checked-in cluster identities and locked Flux platform graph.
+ *
+ * Every stage reconciles through its own cluster's kubeconfig with SOPS decryption, and the
+ * first stage health-checks the bootstrap marker `kube-system/puni-cluster-<id>`, so a
+ * kubeconfig for another cluster or a missing age key stops before any controller runs.
+ */
+export async function validatePlatform(root: string): Promise<{
+  readonly clusters: readonly string[];
+  readonly releases: readonly string[];
+  readonly workloadImages: number;
+  readonly secrets: number;
+}> {
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   for (const [index, [cluster, environment]] of clusterPaths.entries()) {
     const expectedCluster = clusters[index];
@@ -350,20 +251,18 @@ export async function validatePlatform(
     const clusterKustomizationPath = join(clusterRoot, 'kustomization.yaml');
     requireNativeResources(clusterKustomizationPath, await readYaml(clusterKustomizationPath), [
       'identity.yaml',
-      'controllers.yaml',
-      'storage.yaml',
-      'policy.yaml',
-      'platform.yaml',
+      ...Object.keys(stageDependencies).map((stage) => `${stage}.yaml`),
     ]);
     const identity = PlatformIdentity(await readYaml(join(clusterRoot, 'identity.yaml')));
     if (identity instanceof type.errors) {
       throw new Error(`${expectedCluster} cluster identity is invalid: ${identity.summary}`);
     }
-    if (identity.data['puni.dev/cluster-id'] !== expectedCluster) {
+    if (identity.data['cluster-id'] !== expectedCluster) {
       // Proof: removing this guard made the substituted cluster-identity production negative
       // resolve instead of reject on 2026-09-17.
       throw new Error(`${expectedCluster} cluster identity does not match its overlay`);
     }
+    await requireSecretResources(root, expectedCluster);
 
     for (const [stageName, expectedDependencies] of Object.entries(stageDependencies)) {
       const stage = FluxStage(await readYaml(join(clusterRoot, `${stageName}.yaml`)));
@@ -373,7 +272,7 @@ export async function validatePlatform(
       if (stage.metadata.name !== stageName) {
         throw new Error(`${expectedCluster} Flux stage name does not match ${stageName}`);
       }
-      const expectedPath = platformStagePath(stageName, environment);
+      const expectedPath = platformStagePath(stageName, expectedCluster, environment);
       if (stage.spec.path !== expectedPath) {
         // Proof: removing this comparison made the changed-stage-path production negative resolve
         // instead of reject on 2026-09-17.
@@ -393,6 +292,14 @@ export async function validatePlatform(
       if (dependencies !== expectedDependencies) {
         throw new Error(`${expectedCluster} ${stageName} dependency order is invalid`);
       }
+      const markers = (stage.spec.healthChecks ?? []).map(({ name }) => name).join(',');
+      const expectedMarkers = stageName === 'target' ? `puni-cluster-${expectedCluster}` : '';
+      // Flux ignores healthChecks when wait is true, so the target stage must not wait.
+      const waits = stage.spec.wait === true;
+      if (markers !== expectedMarkers || waits === (stageName === 'target')) {
+        // Proof: removing this comparison made both marker negatives resolve on 2026-09-18.
+        throw new Error(`${expectedCluster} ${stageName} must gate on its own cluster marker`);
+      }
     }
   }
 
@@ -402,33 +309,32 @@ export async function validatePlatform(
   }
 
   const releaseNames: string[] = [];
-  for (const [releaseName, lockName, relativePath, chartPath] of releases) {
-    const releasePath = join(root, 'infra/platform', relativePath);
-    const releaseSource = await readFile(releasePath, 'utf8');
-    const release = HelmRelease(parse(releaseSource));
-    if (release instanceof type.errors) {
-      throw new Error(`${releaseName} HelmRelease is invalid: ${release.summary}`);
+  for (const release of platformReleases) {
+    const releasePath = join(root, 'infra/platform', release.path);
+    const parsed = HelmRelease(await readYaml(releasePath));
+    if (parsed instanceof type.errors) {
+      throw new Error(`${release.name} HelmRelease is invalid: ${parsed.summary}`);
     }
-    if (release.metadata.name !== releaseName) throw new Error(`${releaseName} name is invalid`);
-    if (release.spec.chart.spec.chart !== `./infra/platform/${chartPath}`) {
+    if (parsed.metadata.name !== release.name) throw new Error(`${release.name} name is invalid`);
+    if (parsed.spec.chart.spec.chart !== `./infra/platform/${release.chart}`) {
       // Proof: removing this guard made the upstream-name Traefik source negative resolve instead
       // of requiring the vendored archive on 2026-09-17.
-      throw new Error(`${releaseName} does not consume its vendored chart archive`);
+      throw new Error(`${release.name} does not consume its vendored chart archive`);
     }
-    if (release.spec.chart.spec.version !== toolchain.charts[lockName].version) {
+    const lock = toolchain.charts[release.lock];
+    if (parsed.spec.chart.spec.version !== lock.version) {
       // Proof: removing this guard made the changed-chart-version production negative resolve
       // instead of reject on 2026-09-17.
-      throw new Error(`${releaseName} chart version differs from the toolchain lock`);
+      throw new Error(`${release.name} chart version differs from the toolchain lock`);
     }
-    const chart = await readFile(join(root, 'infra/platform', chartPath));
-    const chartSha256 = createHash('sha256').update(chart).digest('hex');
-    if (chartSha256 !== toolchain.charts[lockName].sha256) {
+    const chart = await readFile(join(root, 'infra/platform', release.chart));
+    if (createHash('sha256').update(chart).digest('hex') !== lock.sha256) {
       // Proof: changing one byte of the vendored Traefik archive made the production platform
       // validator reject it on 2026-09-17.
-      throw new Error(`${releaseName} chart archive differs from the toolchain lock`);
+      throw new Error(`${release.name} chart archive differs from the toolchain lock`);
     }
-    const configuredReferences = releaseImageReferences(releaseName, release.spec.values);
-    for (const image of toolchain.charts[lockName].images) {
+    const configuredReferences = release.imageReferences(parsed.spec.values);
+    for (const image of lock.images) {
       if (configuredReferences[image.role] !== `${image.name}@${image.digest}`) {
         // Proof: moving the Traefik digest to ignored `image.unusedDigest` made the production
         // validator reject the missing effective value on 2026-09-17.
@@ -436,28 +342,17 @@ export async function validatePlatform(
         // the schema required the chart's tag suffix to remain empty on 2026-09-17.
         // Proof: substituting Traefik's repository while retaining its digest made the production
         // validator's repository negative fail on 2026-09-17.
-        throw new Error(`${releaseName} differs from the locked ${image.role} image reference`);
+        throw new Error(`${release.name} differs from the locked ${image.role} image reference`);
       }
     }
-    releaseNames.push(releaseName);
+    if (!releaseNames.includes(release.name)) releaseNames.push(release.name);
   }
 
-  const registryDocuments = await readYamlDocuments(
-    join(root, 'infra/platform/registry/registry.yaml'),
-  );
-  const registry = registryDocuments
-    .map((document) => RegistryDeployment(document))
-    .find((document) => !(document instanceof type.errors));
-  if (registry === undefined || registry instanceof type.errors) {
-    throw new Error('Registry deployment is absent or invalid');
-  }
-  const registryImage = registry.spec.template.spec.containers[0]?.image;
-  const expectedRegistryImage = `${toolchain.runtimeImages.registry.name}@${toolchain.runtimeImages.registry.digest}`;
-  if (registryImage !== expectedRegistryImage) {
-    // Proof: removing this guard made the changed-registry-digest production negative resolve
-    // instead of reject on 2026-09-17.
-    throw new Error('Registry image differs from the toolchain lock');
-  }
+  const manifests = await readPlatformManifests(root);
+  const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
+  const secrets = assertEncryptedSecrets(manifests);
+  assertRegistryTransport(manifests);
+  await assertSqliteRunner(root, manifests);
 
   const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));
   const fluxInstallSha256 = createHash('sha256').update(fluxInstall).digest('hex');
@@ -480,5 +375,13 @@ export async function validatePlatform(
     // negative resolve before this controller-reachability guard was restored on 2026-09-17.
     throw new Error('Flux bootstrap must use a controller-reachable kubeconfig explicitly');
   }
-  return { clusters, releases: releaseNames };
+  if (
+    !platformPlaybook.includes("'puni-cluster-{{ puni_cluster_id }}'") ||
+    !platformPlaybook.includes("combine({'immutable': true})")
+  ) {
+    // Proof: removing this guard made the production validator's bootstrap-marker negative
+    // resolve on 2026-09-18.
+    throw new Error('Flux bootstrap must create the immutable target-cluster marker');
+  }
+  return { clusters, releases: releaseNames, workloadImages, secrets };
 }

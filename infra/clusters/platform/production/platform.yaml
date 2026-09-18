@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./infra/platform/registry
+  path: ./infra/platform/registry/production
   prune: true
   sourceRef:
     kind: GitRepository
@@ -19,4 +19,6 @@ spec:
       name: sops-age
   dependsOn:
     - name: storage
-    - name: policy
+    - name: secrets
+  wait: true
+  timeout: 10m

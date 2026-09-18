@@ -68,6 +68,10 @@ const ToolchainSchema = type({
     kubectl: BinaryLock,
     helm: BinaryLock,
     multipass: BinaryLock,
+    // Proof: making sops optional made the missing-SOPS production-reader negative resolve instead
+    // of reject on 2026-09-18; age shares the same required BinaryLock boundary.
+    sops: BinaryLock,
+    age: BinaryLock,
     '+': 'reject',
   },
   terraform: {
@@ -97,6 +101,12 @@ const ToolchainSchema = type({
     fluxKustomizeController: ImageLock,
     fluxNotificationController: ImageLock,
     fluxSourceController: ImageLock,
+    // Local rehearsal S3 target only; production uses provider object storage.
+    objectStore: ImageLock,
+    // Proof: making sqliteBackup optional made the missing-backup-runner production-reader
+    // negative resolve instead of reject on 2026-09-18.
+    sqliteBackup: ImageLock,
+    blackboxExporter: ImageLock,
     '+': 'reject',
   },
   manifests: {
@@ -184,7 +194,7 @@ const requiredImageRoles = {
     'prometheus',
   ],
   opentelemetryCollector: ['collector'],
-  velero: ['server'],
+  velero: ['pluginAws', 'server'],
 } as const satisfies Record<keyof Toolchain['charts'], readonly string[]>;
 
 function assertCompleteImageLocks(toolchain: Toolchain): void {

@@ -1,0 +1,52 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: elasticsearch
+  namespace: observability
+spec:
+  interval: 30m
+  dependsOn:
+    - name: eck-operator
+  chart:
+    spec:
+      chart: ./infra/platform/charts/eck-elasticsearch-0.20.0.tgz
+      version: 0.20.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    fullnameOverride: elasticsearch
+    version: 9.3.8
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+    secureSettings:
+      - secretName: elastic-s3-credentials
+    volumeClaimDeletePolicy: DeleteOnScaledownOnly
+    nodeSets:
+      - name: default
+        count: 1
+        config:
+          node.store.allow_mmap: false
+          s3.client.default.endpoint: hel1.your-objectstorage.com
+          s3.client.default.protocol: https
+          s3.client.default.path_style_access: true
+        podTemplate:
+          spec:
+            nodeSelector:
+              puni.dev/capability-observability: 'true'
+            containers:
+              - name: elasticsearch
+                env:
+                  - name: ES_JAVA_OPTS
+                    value: -Xms2g -Xmx2g
+                resources:
+                  requests: { cpu: 500m, memory: 4Gi }
+                  limits: { cpu: '2', memory: 4Gi }
+        volumeClaimTemplates:
+          - metadata:
+              name: elasticsearch-data
+            spec:
+              accessModes: [ReadWriteOnce]
+              resources:
+                requests:
+                  storage: 100Gi

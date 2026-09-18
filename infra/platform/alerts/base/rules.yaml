@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: puni-platform
+  namespace: observability
+spec:
+  groups:
+    - name: puni-endpoints
+      rules:
+        - alert: PuniEndpointDown
+          expr: probe_success == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: '{{ $labels.instance }} failed its blackbox probe'
+    - name: puni-telemetry
+      rules:
+        - alert: PuniLogBacklog
+          expr: max by (pod) (otelcol_exporter_queue_size{exporter="elasticsearch"}) > 20
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: '{{ $labels.pod }} is queueing logs it cannot deliver to Elasticsearch'
+        - alert: PuniLogExportFailing
+          expr: sum by (pod) (rate(otelcol_exporter_send_failed_log_records_total[5m])) > 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: '{{ $labels.pod }} fails to export logs'
+        - alert: PuniLogIngestStopped
+          expr: sum(rate(otelcol_exporter_sent_log_records_total{exporter="elasticsearch"}[15m])) == 0
+          for: 15m
+          labels: { severity: critical }
+          annotations:
+            summary: No log records reached Elasticsearch for 15 minutes
+    - name: puni-backups
+      rules:
+        - alert: PuniBackupJobFailed
+          expr: kube_job_status_failed{job_name=~"(sqlite-backup|elastic-snapshots).*"} > 0
+          labels: { severity: critical }
+          annotations:
+            summary: 'Backup job {{ $labels.namespace }}/{{ $labels.job_name }} failed'
+        - alert: PuniSqliteBackupStale
+          expr: time() - kube_cronjob_status_last_successful_time{cronjob="sqlite-backup"} > 26 * 3600
+          labels: { severity: critical }
+          annotations:
+            summary: No successful SQLite backup for more than 26 hours
+        - alert: PuniVeleroBackupFailed
+          expr: increase(velero_backup_failure_total[1h]) > 0
+          labels: { severity: critical }
+          annotations:
+            summary: A Velero backup failed
+        - alert: PuniVolumeNearlyFull
+          expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.15
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has under 15% free'

@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: public-endpoints
+  namespace: observability
+spec:
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter.observability.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - https://wbs.bulletpoints.club/
+        - https://wbs-staging.bulletpoints.club/
