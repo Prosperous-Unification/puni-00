@@ -94,8 +94,9 @@ function requireBuilder(builder: ControllerBuildLock['builder'], run: RunCommand
  * to match the identity resolved in the committed toolchain lock. `SOURCE_DATE_EPOCH=0` with
  * `rewrite-timestamp=true` clamps image and layer timestamps, and provenance and SBOM
  * attestations are disabled, so a fresh build without layer cache reproduces the digest. The
- * archive index names `lock.image`, so `docker load` tags it and a containerd image store resolves
- * `image@digest` in {@link resolveController}.
+ * archive is a Docker image archive that is also an OCI layout with OCI media types: both image
+ * stores can `docker load` it, the index names `lock.image` so the load tags it, and a containerd
+ * store then resolves `image@digest` in {@link resolveController}.
  */
 export async function buildController(
   root: string,
@@ -121,8 +122,11 @@ export async function buildController(
     `KUBECTL_URL=${lock.kubectl.url}`,
     '--build-arg',
     `KUBECTL_SHA256=${lock.kubectl.sha256}`,
+    // Proof: the classic image store (GitHub runners; docker:dind 29.8.1 on vfs) refused the
+    // `type=oci` archive with "does not contain a manifest.json"; this docker-exporter archive
+    // carries the same OCI index and manifest digest plus manifest.json, and it loaded (2026-09-18).
     '--output',
-    `type=oci,dest=${destination},name=${lock.image},rewrite-timestamp=true`,
+    `type=docker,dest=${destination},name=${lock.image},oci-mediatypes=true,rewrite-timestamp=true`,
     root,
   ]);
   if (build.exitCode !== 0) {

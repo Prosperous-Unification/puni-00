@@ -53,7 +53,7 @@ describe('buildController', () => {
     expect(build).toContain('--provenance=false');
     expect(build).toContain('--sbom=false');
     expect(build).toContain(
-      `type=oci,dest=${join(root, 'dist/tool-fleet/controller.oci')},name=${lock.image},rewrite-timestamp=true`,
+      `type=docker,dest=${join(root, 'dist/tool-fleet/controller.oci')},name=${lock.image},oci-mediatypes=true,rewrite-timestamp=true`,
     );
     expect(build).toContain('KUBECTL_URL=https://example.test/kubectl');
     expect(build).toContain(`KUBECTL_SHA256=${'b'.repeat(64)}`);

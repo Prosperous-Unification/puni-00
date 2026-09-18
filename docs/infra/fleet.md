@@ -26,7 +26,8 @@ cluster mutation.
 
 tool-fleet:check validates the committed lock and its tests.
 `tool-fleet:controller-image` builds the controller OCI artifact on a `docker-container` buildx
-builder started from the locked BuildKit image (`controller.builder`), with clamped timestamps,
+builder started from the locked BuildKit image (`controller.builder`), with clamped timestamps
+and a Docker archive in OCI media types that both Docker image stores load,
 so a fresh build on any host reproduces `controller.digest`. It is not a `build` target: the
 ordinary gate never pulls the base image; `infra-check.yml` builds it before `tool-fleet:check`.
 `tool-fleet:apply` consumes only a persisted plan and its reviewed digest. Provisioning additionally consumes same-prefix saved Terraform plan, backend evidence, and Ansible variables artifacts. Existing-host enrollment consumes hash-bound static inventory, Ansible variables, and SSH known-hosts artifacts. Production Ansible and Kubernetes commands run through the digest-locked controller; Terragrunt 1.1.5 invokes Terraform 1.16.3 only after both executable hashes match the toolchain lock. The source-free unit runs in place, with its configuration digest bound into provision and destroy plans; backend and Terraform state identity remain unchanged. See [the infrastructure operation runbook](../../infra/terraform/README.md).
