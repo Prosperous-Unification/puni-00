@@ -233,7 +233,11 @@ function documentAnchors(source: string): Set<string> {
     const base = visible
       .replace(/[^\p{L}\p{N}\s_-]/gu, '')
       .trim()
-      .replace(/\s+/g, '-');
+      // GitHub replaces each space with its own hyphen, so `F8 — Build` is `f8--build`.
+      // Proof: collapsing runs with `\s+` reported docs/infra/deployment.md's GitHub-valid
+      // `#f8--build-the-wbs-kubernetes-release-transaction` link absent, and excused three dated
+      // docs whose links were already GitHub-valid (2026-09-18).
+      .replace(/\s/g, '-');
     const collision = collisions.get(base) ?? 0;
     collisions.set(base, collision + 1);
     anchors.add(collision === 0 ? base : `${base}-${String(collision)}`);
@@ -548,13 +552,18 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     coverage: {
       // Re-pinned 17 -> 18 when `apps/wiki/consumer/README.md` landed: the consumer template's
       // README is a real application README the sweep must cover, not an exemption.
-      applicationLibraryToolReadmes: 18,
+      // Re-pinned 18 -> 19 for `apps/wiki/cli/fixtures/consumer/README.md`, the packed-install
+      // consumer fixture's README, which the sweep must cover like any application README.
+      applicationLibraryToolReadmes: 19,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
         'apps/wbs/fe-01/Dockerfile',
         'apps/wbs/gw-01/Dockerfile',
         'deploy/dev-src/Dockerfile',
+        'deploy/k8s/wbs/lab/backend-unhealthy.Dockerfile',
+        'deploy/k8s/wbs/lab/backend-upgrade.Dockerfile',
+        'deploy/k8s/wbs/lab/mcp-01.Dockerfile',
       ],
       extensionlessScripts: true,
       policyJson: true,
@@ -660,7 +669,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // occurrences; puni-00's retained OpenSpec CI step shifts the upstream workflow contexts.
     // Proof: the committed-tree bootstrap test fix changed this digest to f3d9a822...;
     // the old pin failed with the same 257 classified occurrences and no unclassified entries.
-    digest: 'f3d9a8220acf9fce737e6a3bf47cc73d4f396800d62bc69758af617c3f9d652b',
+    // Proof: leaving `f3d9a822...` here after the package, fleet and F8 lab work failed on the
+    // observed digest below at the same 257 occurrences — the new lab Dockerfiles, the fixture
+    // README and the re-pinned inventory comment shifted classified contexts, none
+    // unclassified (2026-09-18).
+    digest: '2f42a9f945fdbfa351c85f2c127eff34a01aa948198c0808cae8ae3681e97fe0',
     occurrences: 257,
     unclassified: [],
   });

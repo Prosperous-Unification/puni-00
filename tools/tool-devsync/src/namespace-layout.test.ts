@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
-import { findNamespaceLayoutViolations, readProjects } from '../workspace-projects.mjs';
+import {
+  findNamespaceLayoutViolations,
+  findStaleLayoutExceptions,
+  readProjects,
+} from '../workspace-projects.mjs';
 
 const WORKSPACE = new URL('../../../', import.meta.url);
 
@@ -71,6 +75,33 @@ describe('namespace layout validation', () => {
     // Proof: before the coordinated move this owning Nx target named malformed
     // roots for all 18 WBS applications and libraries.
     expect(findNamespaceLayoutViolations(projects)).toEqual([]);
+    expect(findStaleLayoutExceptions(projects)).toEqual([]);
+  });
+
+  it('excuses only the exact frozen application product and name', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/wiki/cli', 'twilight-bureaucrat', [...tags, 'product:twilight-bureaucrat']),
+      ]),
+    ).toEqual([]);
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/wiki/cli', 'wiki-cli', [...tags, 'product:wiki']),
+        project('apps/wiki/other', 'twilight-bureaucrat', [...tags, 'product:twilight-bureaucrat']),
+      ]),
+    ).toEqual([
+      'apps/wiki/cli: directory product twilight-bureaucrat disagrees with product:wiki',
+      'apps/wiki/cli: project name must be twilight-bureaucrat, found wiki-cli',
+      'apps/wiki/other: directory product wiki disagrees with product:twilight-bureaucrat',
+      'apps/wiki/other: project name must be wiki-other, found twilight-bureaucrat',
+    ]);
+  });
+
+  it('names a frozen root that no project occupies after the move', () => {
+    expect(findStaleLayoutExceptions(VALID_PROJECTS)).toEqual([
+      'apps/wiki/cli: frozen layout exception names no project; remove it',
+    ]);
   });
 
   it('accepts both apps, every library ring directory and product-neutral tools', () => {

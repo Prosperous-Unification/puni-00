@@ -11,7 +11,7 @@ tiers and proving they work cannot be left to Flux.
 - Effects: `kubectlEffects` in `tools/tool-deploy/src/k8s/execute.ts`.
 - Journal: `fileJournal` in `tools/tool-deploy/src/k8s/journal.ts`.
 - Contract: [F8](../superpowers/plans/2026-09-17-k3s-fleet.md#f8--build-the-wbs-kubernetes-release-transaction)
-  and the [OpenSpec packet](../../openspec/changes/k3s-wbs-delivery/).
+  and the [OpenSpec packet](../../openspec/changes/k3s-wbs-delivery/proposal.md).
 
 ## Commands
 

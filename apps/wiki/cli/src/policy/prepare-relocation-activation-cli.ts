@@ -230,6 +230,7 @@ function runCheck(
     exitCode: skipProbe?.exitCode ?? invocation.exitCode,
     stdout,
     stderr,
+    measured: skipProbe ?? invocation,
     stdoutPath,
     stderrPath,
   };

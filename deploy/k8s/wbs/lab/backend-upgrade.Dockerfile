@@ -3,4 +3,4 @@
 #     --build-arg BASE=<current backend image> -t wbs-be-01:f8-v2 deploy/k8s/wbs/lab
 ARG BASE
 FROM ${BASE}
-COPY 20260918000000_lab_additive /app/apps/wbs/be-01/drizzle/20260918000000_lab_additive
+COPY migrations/20260918000000_lab_additive /app/apps/wbs/be-01/drizzle/20260918000000_lab_additive
