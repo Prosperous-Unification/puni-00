@@ -4,6 +4,7 @@ metadata:
   name: puni-trusted-workload
   namespace: wbs-solver
 data:
-  solverImage: registry.puni.test/wbs-be@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  # Candidate and rollback backend digests; the WBS release transaction rewrites this list.
+  solverImages: registry.puni.test/wbs-be@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,registry.puni.test/wbs-be@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
   forgeImage: registry.puni.test/dev-environment@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   forgeWorktreeRoots: /srv/puni/worktrees/puni-00

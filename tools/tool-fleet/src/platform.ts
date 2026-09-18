@@ -11,6 +11,7 @@ import {
   assertLockedWorkloadImages,
   assertRegistryTransport,
   assertSqliteRunner,
+  assertTrustedWorkloadImages,
   readPlatformManifests,
 } from './platform-manifests';
 import { platformReleases } from './platform-releases';
@@ -352,6 +353,7 @@ export async function validatePlatform(root: string): Promise<{
   const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);
+  assertTrustedWorkloadImages(manifests);
   await assertSqliteRunner(root, manifests);
 
   const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));

@@ -269,3 +269,37 @@ export async function assertSqliteRunner(
     );
   }
 }
+
+const TrustedWorkloadImages = type({
+  kind: "'ConfigMap'",
+  metadata: { name: "'puni-trusted-workload'", namespace: "'wbs-solver'" },
+  data: { solverImages: 'string', forgeImage: 'string', forgeWorktreeRoots: 'string' },
+});
+const pinnedImage = /^[a-z0-9.-]+(?::[0-9]+)?\/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$/;
+
+/**
+ * Require the trusted-workload admission parameters to name only digest-pinned images.
+ *
+ * `solverImages` is the candidate and optional rollback backend digest, comma separated,
+ * which the admission policy matches by whole-entry membership.
+ */
+export function assertTrustedWorkloadImages(manifests: readonly PlatformManifest[]): void {
+  const parameters = manifests.flatMap(({ document }) => {
+    const configMap = TrustedWorkloadImages(document);
+    return configMap instanceof type.errors ? [] : [configMap];
+  });
+  const [parameter] = parameters;
+  if (parameters.length !== 1) {
+    throw new Error('Exactly one puni-trusted-workload admission ConfigMap is required');
+  }
+  const solverImages = parameter.data.solverImages.split(',');
+  if (
+    solverImages.length < 1 ||
+    solverImages.length > 2 ||
+    new Set(solverImages).size !== solverImages.length ||
+    ![...solverImages, parameter.data.forgeImage].every((image) => pinnedImage.test(image))
+  ) {
+    // Proof: accepting any entry made the tag-only solver image negative resolve on 2026-09-18.
+    throw new Error('Trusted workload images must be one or two distinct digest-pinned references');
+  }
+}

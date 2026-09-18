@@ -456,4 +456,15 @@ describe('validatePlatform', () => {
     );
     expect(validatePlatform(root)).rejects.toThrow(/immutable target-cluster marker/);
   });
+
+  it('rejects a trusted solver image that is not digest-pinned', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-images.yaml',
+      ',registry.puni.test/wbs-be@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      ',registry.puni.test/wbs-be:rollback',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/one or two distinct digest-pinned/);
+  });
 });

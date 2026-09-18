@@ -35,14 +35,19 @@ spec:
       message: solver workloads require the approved controller, service account, and product node
     # Proof: adding a privileged init container with another image was admitted before every
     # container type was included in both image and security checks on 2026-09-17.
+    # A release admits its candidate and rollback digests together, so `solverImages` is an exact
+    # comma-separated digest list; membership is whole-string, never a prefix.
+    # Proof: replacing list membership with `solverImages.contains(container.image)` admitted
+    # solver-digest-prefix.yaml in a live server-side dry-run on 2026-09-18; restoring it denied it
+    # while solver-allowed.yaml and solver-rollback-allowed.yaml stayed admitted.
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||
-        (object.spec.containers.all(container, container.image == params.data.solverImage) &&
+        (object.spec.containers.all(container, container.image in params.data.solverImages.split(',')) &&
          (!has(object.spec.initContainers) ||
-          object.spec.initContainers.all(container, container.image == params.data.solverImage)) &&
+          object.spec.initContainers.all(container, container.image in params.data.solverImages.split(','))) &&
          (!has(object.spec.ephemeralContainers) ||
-          object.spec.ephemeralContainers.all(container, container.image == params.data.solverImage)))
-      message: solver workloads require the approved backend image digest for every container
+          object.spec.ephemeralContainers.all(container, container.image in params.data.solverImages.split(','))))
+      message: solver workloads require an approved backend image digest for every container
     - expression: >-
         object.metadata.namespace != 'puni-forge' ||
         (object.spec.serviceAccountName == 'dev-environment-controller' &&
