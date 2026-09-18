@@ -18,7 +18,7 @@ spec:
   restartPolicy: Always
   terminationGracePeriodSeconds: 20
   securityContext:
-    # The worktree owner on the host; the supervisor writes node_modules and .nx there.
+    # Replaced by dev-env with the worktree owner, so node_modules and .nx stay theirs.
     runAsUser: 1000
     runAsGroup: 1000
     runAsNonRoot: true
@@ -37,7 +37,8 @@ spec:
         # Nx keeps daemon state under .nx/ in the worktree; a recreated Pod would wait on the
         # dead daemon's locks (`deploy/dev-src/compose.yml`).
         - { name: NX_DAEMON, value: 'false' }
-        - { name: HOME, value: /home/bun }
+        # Writable for any owner UID dev-env binds; the image's /home/bun belongs to UID 1000.
+        - { name: HOME, value: /tmp }
         # The environment's own database on its own volume, never the worktree's local.db.
         - { name: DB_PATH, value: /data/wbs.db }
         # Bound by dev-env to http://<slug>.localhost:<port>.

@@ -1,9 +1,20 @@
 #!/usr/bin/env bun
 import { createHash } from 'node:crypto';
-import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { type } from 'arktype';
+
+import {
+  decodeForgeAdmission,
+  type ForgeAdmissionStore,
+  SOLVER_NODE_PATH,
+  TRUSTED_WORKLOAD,
+  TRUSTED_WORKLOAD_NAMESPACE,
+  updateForgeAdmission,
+} from './forge-admission';
+import { claimLease, claimLeaseNames, decodeClaimLease, requireOwnClaim } from './forge-claims';
+import { INSTALL_REQUIRED } from './forge-supervisor';
 
 type DevEnvironmentAction = 'up' | 'down' | 'status';
 
@@ -26,6 +37,7 @@ const LabRecord = type({
   registry: { host: 'string>0', hostPort: 'number.integer>0', '+': 'reject' },
   httpPort: 'number.integer>0',
   worktreeRoot: 'string>0',
+  worktreeRootIdentity: /^\d+:\d+$/,
   solverRuntime: 'string>0',
   clusters: type({
     name: 'string>0',
@@ -48,6 +60,7 @@ export interface WorktreeInspection {
   readonly requested: string;
   readonly realpath: string;
   readonly ownerUid: number;
+  readonly ownerGid: number;
   readonly topLevel: string;
   readonly rootCommits: readonly string[];
 }
@@ -70,11 +83,9 @@ export interface EnvironmentBinding {
   readonly host: string;
   readonly origin: string;
   readonly recreateInputs: string;
-}
-
-export interface AdmissionParameters {
-  readonly forgeImage: string;
-  readonly forgeWorktreeRoots: readonly string[];
+  /** The worktree owner; the Pod runs as them so files it writes stay theirs. */
+  readonly ownerUid: number;
+  readonly ownerGid: number;
 }
 
 type ManifestObject = Record<string, unknown>;
@@ -82,12 +93,13 @@ type ManifestObject = Record<string, unknown>;
 export const FORGE_NAMESPACE = 'puni-forge';
 export const FORGE_CONTROLLER = `system:serviceaccount:${FORGE_NAMESPACE}:dev-environment-controller`;
 export const WORKTREE_NODE_ROOT = '/srv/puni/worktrees';
-export const SOLVER_NODE_PATH = '/run/puni/solver';
+export { SOLVER_NODE_PATH };
 export const SLUG_LABEL = 'puni.dev/dev-slug';
 const LAB_LABEL = 'puni.dev/lab-id';
 const WORKTREE_ANNOTATION = 'puni.dev/worktree';
 const RECREATE_ANNOTATION = 'puni.dev/recreate-inputs';
 const POD_SPEC_ANNOTATION = 'puni.dev/pod-spec';
+
 const SLUG = /^[a-z](?:[a-z0-9-]{0,18}[a-z0-9])?$/;
 const CLUSTER = /^puni-[a-z0-9-]+-platform$|^puni-[a-z0-9-]+-workers$/;
 const DIGEST_IMAGE = /^[^\s@]+@sha256:[0-9a-f]{64}$/;
@@ -247,8 +259,8 @@ export function requireOwnedWorktree(
 }
 
 /**
- * One worktree, one slug. Re-running `up` for the same pair is allowed; anything else that
- * reuses either half is refused.
+ * One worktree, one slug, checked against running Pods for an early, readable refusal. It is a
+ * check, not a lock: the claim Leases (`forge-claims.ts`) are what two racing `up`s contend on.
  */
 export function requireUniqueEnvironment(
   slug: string,
@@ -269,50 +281,6 @@ export function requireUniqueEnvironment(
       );
     }
   }
-}
-
-/**
- * The forge admission parameters after this environment starts or stops.
- *
- * The admission accepts one forge image, so an environment whose Dockerfile builds a different
- * digest is refused while another environment still runs the old one.
- */
-export function nextAdmissionParameters(
-  current: AdmissionParameters,
-  change:
-    | {
-        readonly kind: 'start';
-        readonly slug: string;
-        readonly image: string;
-        readonly roots: readonly string[];
-      }
-    | { readonly kind: 'stop'; readonly slug: string; readonly roots: readonly string[] },
-  running: readonly RunningEnvironment[],
-): AdmissionParameters {
-  const others = running.filter((environment) => environment.slug !== change.slug);
-  if (change.kind === 'start') {
-    // Proof: ignoring other environments failed `refuses a second forge image while another
-    // environment runs the first`; the forge would then deny that environment's next Pod.
-    const conflicting = others.find((environment) => environment.image !== change.image);
-    if (conflicting !== undefined) {
-      throw new Error(
-        `environment ${conflicting.slug} runs forge image ${conflicting.image}; the forge admits one image, ` +
-          `so recreate it from the same deploy/dev-src/Dockerfile before starting ${change.slug}`,
-      );
-    }
-    return {
-      forgeImage: change.image,
-      forgeWorktreeRoots: [...new Set([...current.forgeWorktreeRoots, ...change.roots])],
-    };
-  }
-  const stillUsed = new Set(others.map((environment) => environment.worktreeNodePath));
-  const released = change.roots.filter(
-    (root) => !(root === SOLVER_NODE_PATH ? others.length > 0 : stillUsed.has(root)),
-  );
-  return {
-    forgeImage: current.forgeImage,
-    forgeWorktreeRoots: current.forgeWorktreeRoots.filter((root) => !released.includes(root)),
-  };
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -380,6 +348,8 @@ export function bindEnvironment(
       `dev overlay must render exactly ${OVERLAY_KINDS.join(', ')}; got ${kinds.join(', ')}`,
     );
   }
+  // Proof: with this guard replaced by an empty-string check, `refuses a forge image that is not
+  // digest-pinned` failed on a clean overlay (the earlier test passed on a broken namespace).
   if (!DIGEST_IMAGE.test(binding.image))
     throw new Error(`forge image must be digest-pinned: ${binding.image}`);
   const name = `dev-${binding.slug}`;
@@ -446,6 +416,15 @@ function bindPod(
   const container = containers[0];
   if (!isRecord(container)) throw new Error('dev overlay container is not an object');
   container['image'] = binding.image;
+  // Proof: with this refusal removed, `refuses to run as root` failed; the forge admission would
+  // deny the Pod only after the lab parameters had been rewritten.
+  if (binding.ownerUid === 0 || binding.ownerGid === 0) {
+    throw new Error('dev-env refuses a worktree owned by root; the forge runs as its owner');
+  }
+  // Proof: with this binding removed, `runs the Pod as the worktree owner` failed: the Pod kept
+  // the overlay's UID 1000 and would write foreign-owned node_modules into another user's tree.
+  recordAt(pod, 'spec', 'securityContext')['runAsUser'] = binding.ownerUid;
+  recordAt(pod, 'spec', 'securityContext')['runAsGroup'] = binding.ownerGid;
   const environment = container['env'];
   if (!Array.isArray(environment)) throw new Error('dev overlay container lacks env');
   const bound: Record<string, string> = {
@@ -496,6 +475,18 @@ export function digestRecreateInputs(
   return createHash('sha256').update(lines.join('\n')).digest('hex');
 }
 
+/**
+ * The supervisor's install failure, if the container's current or last termination reported one
+ * through its termination message (`forge-supervisor.ts`).
+ */
+export function installFailureOf(pod: unknown): string | undefined {
+  for (const state of ['state', 'lastState']) {
+    const message = field(pod, 'status', 'containerStatuses', '0', state, 'terminated', 'message');
+    if (typeof message === 'string' && message.startsWith(INSTALL_REQUIRED)) return message;
+  }
+  return undefined;
+}
+
 /** Decode `kubectl get pods -o json` into the identities of running environments. */
 export function decodeRunningEnvironments(text: string): readonly RunningEnvironment[] {
   const list: unknown = JSON.parse(text);
@@ -531,11 +522,18 @@ interface RunOptions {
   readonly timeoutMs?: number;
 }
 
-async function run(
+interface CommandOutcome {
+  readonly exitCode: number;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/** Run a bounded subprocess and return its outcome; the caller models non-zero exits. */
+async function attempt(
   executable: string,
   arguments_: readonly string[],
   options: RunOptions = {},
-): Promise<string> {
+): Promise<CommandOutcome> {
   const child = Bun.spawn([executable, ...arguments_], {
     stdin: options.input === undefined ? 'ignore' : new TextEncoder().encode(options.input),
     stdout: 'pipe',
@@ -548,12 +546,21 @@ async function run(
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ]);
-  if (exitCode !== 0) {
+  return { exitCode, stdout, stderr };
+}
+
+async function run(
+  executable: string,
+  arguments_: readonly string[],
+  options: RunOptions = {},
+): Promise<string> {
+  const outcome = await attempt(executable, arguments_, options);
+  if (outcome.exitCode !== 0) {
     throw new Error(
-      `${executable} ${arguments_.join(' ')} exited ${String(exitCode)}: ${stderr.trim()}`,
+      `${executable} ${arguments_.join(' ')} exited ${String(outcome.exitCode)}: ${outcome.stderr.trim()}`,
     );
   }
-  return stdout;
+  return outcome.stdout;
 }
 
 async function readLabRecords(root: string): Promise<readonly LabRecord[]> {
@@ -591,6 +598,7 @@ async function inspectWorktree(requested: string): Promise<WorktreeInspection> {
     requested,
     realpath: real,
     ownerUid: status.uid,
+    ownerGid: status.gid,
     topLevel: await realpath(topLevel),
     rootCommits,
   };
@@ -639,11 +647,19 @@ interface Cluster {
   readonly record: LabRecord;
   readonly cluster: LabCluster;
   kubectl(arguments_: readonly string[], options?: RunOptions): Promise<string>;
+  attempt(arguments_: readonly string[], options?: RunOptions): Promise<CommandOutcome>;
 }
 
 async function connect(root: string, clusterName: string): Promise<Cluster> {
   const { record, cluster } = findForgeCluster(await readLabRecords(root), clusterName);
   const kubectlPath = process.env['KUBECTL'] ?? 'kubectl';
+  const scoped = (arguments_: readonly string[]): readonly string[] => [
+    '--kubeconfig',
+    cluster.kubeconfig,
+    '--context',
+    cluster.context,
+    ...arguments_,
+  ];
   const kubectl = (arguments_: readonly string[], options?: RunOptions): Promise<string> =>
     run(
       kubectlPath,
@@ -665,7 +681,12 @@ async function connect(root: string, clusterName: string): Promise<Cluster> {
       `${clusterName}'s kubeconfig reaches a cluster that lab ${record.labId} does not own`,
     );
   }
-  return { record, cluster, kubectl };
+  return {
+    record,
+    cluster,
+    kubectl,
+    attempt: (arguments_, options) => attempt(kubectlPath, scoped(arguments_), options),
+  };
 }
 
 async function runningEnvironments(cluster: Cluster): Promise<readonly RunningEnvironment[]> {
@@ -682,51 +703,67 @@ async function runningEnvironments(cluster: Cluster): Promise<readonly RunningEn
   );
 }
 
-async function readAdmissionParameters(cluster: Cluster): Promise<AdmissionParameters> {
-  const configMap: unknown = JSON.parse(
-    await cluster.kubectl([
-      'get',
-      'configmap',
-      'puni-trusted-workload',
-      '--namespace=wbs-solver',
-      '-o',
-      'json',
-    ]),
-  );
-  // Proof: with this comparison removed, `up` patched parameters that had lost the lab label
-  // instead of refusing (live k3d, 2026-09-18).
-  if (field(configMap, 'metadata', 'labels', LAB_LABEL) !== cluster.record.labId) {
-    throw new Error(
-      'wbs-solver/puni-trusted-workload is not owned by this lab; outside a lab, forge roots and ' +
-        'images are reviewed changes to infra/platform/policy, not something dev-env writes',
-    );
-  }
-  const forgeImage = field(configMap, 'data', 'forgeImage');
-  const roots = field(configMap, 'data', 'forgeWorktreeRoots');
-  if (typeof forgeImage !== 'string' || typeof roots !== 'string') {
-    throw new Error('wbs-solver/puni-trusted-workload lacks forgeImage or forgeWorktreeRoots');
-  }
-  return { forgeImage, forgeWorktreeRoots: roots.split(',').filter((root) => root !== '') };
+/** A store over the live ConfigMap: read it, and replace it only at the version read. */
+function admissionStore(cluster: Cluster): ForgeAdmissionStore {
+  const location = [TRUSTED_WORKLOAD, `--namespace=${TRUSTED_WORKLOAD_NAMESPACE}`];
+  return {
+    read: async () =>
+      JSON.parse(await cluster.kubectl(['get', 'configmap', ...location, '-o', 'json'])) as unknown,
+    replace: async (object) => {
+      const outcome = await cluster.attempt(['replace', '-f', '-'], {
+        input: JSON.stringify(object),
+      });
+      if (outcome.exitCode === 0) return 'replaced';
+      if (outcome.stderr.includes('(Conflict)')) return 'conflict';
+      throw new Error(`kubectl replace ${TRUSTED_WORKLOAD} failed: ${outcome.stderr.trim()}`);
+    },
+  };
 }
 
-async function writeAdmissionParameters(
-  cluster: Cluster,
-  parameters: AdmissionParameters,
-): Promise<void> {
-  await cluster.kubectl([
-    'patch',
-    'configmap',
-    'puni-trusted-workload',
-    '--namespace=wbs-solver',
-    '--type=merge',
-    '-p',
-    JSON.stringify({
-      data: {
-        forgeImage: parameters.forgeImage,
-        forgeWorktreeRoots: parameters.forgeWorktreeRoots.join(','),
-      },
-    }),
-  ]);
+/**
+ * Create both claim Leases, or accept them when they already name this pair.
+ *
+ * @throws When either Lease names another pair; a Lease this run created is deleted first.
+ */
+async function claimEnvironment(cluster: Cluster, slug: string, worktree: string): Promise<void> {
+  const created: string[] = [];
+  try {
+    for (const name of claimLeaseNames({ slug, worktree })) {
+      const lease = claimLease(name, FORGE_NAMESPACE, cluster.record.labId, { slug, worktree });
+      const outcome = await cluster.attempt(['create', '-f', '-'], {
+        input: JSON.stringify(lease),
+      });
+      if (outcome.exitCode === 0) {
+        created.push(name);
+        continue;
+      }
+      if (!outcome.stderr.includes('(AlreadyExists)')) {
+        throw new Error(`kubectl create lease ${name} failed: ${outcome.stderr.trim()}`);
+      }
+      const existing: unknown = JSON.parse(
+        await cluster.kubectl([
+          'get',
+          'lease',
+          name,
+          `--namespace=${FORGE_NAMESPACE}`,
+          '-o',
+          'json',
+        ]),
+      );
+      requireOwnClaim(decodeClaimLease(existing), { slug, worktree });
+    }
+  } catch (cause) {
+    for (const name of created) {
+      await cluster.kubectl([
+        'delete',
+        'lease',
+        name,
+        `--namespace=${FORGE_NAMESPACE}`,
+        '--ignore-not-found',
+      ]);
+    }
+    throw cause;
+  }
 }
 
 async function publishForgeImage(
@@ -735,7 +772,8 @@ async function publishForgeImage(
   slug: string,
 ): Promise<string> {
   const context = join(worktree, 'deploy/dev-src');
-  const local = `puni-dev-environment:${cluster.record.labId}`;
+  // One tag per environment, so concurrent `up`s never retag each other's build.
+  const local = `puni-dev-environment:${cluster.record.labId}-${slug}`;
   // BuildKit attestations carry build timestamps, so with them every rebuild of an unchanged
   // Dockerfile pushes a new digest. The forge admits one image and `up` compares digests.
   // Proof: without these two flags, rerunning `up` on an unchanged worktree pushed a new digest
@@ -754,8 +792,8 @@ async function publishForgeImage(
   const pushed = `127.0.0.1:${String(cluster.record.registry.hostPort)}/dev-environment:${slug}`;
   await run('docker', ['tag', local, pushed]);
   const output = await run('docker', ['push', pushed]);
-  // The loopback registry tag names a port that dies with the lab; keep only the build tag.
-  await run('docker', ['rmi', pushed]);
+  // Both tags name this run only; the layers stay in the build cache for the next `up`.
+  await run('docker', ['rmi', pushed, local]);
   const digest = /digest: (sha256:[0-9a-f]{64})/.exec(output)?.[1];
   if (digest === undefined) throw new Error(`docker push printed no digest: ${output}`);
   return `${cluster.record.registry.host}:5000/dev-environment@${digest}`;
@@ -771,25 +809,51 @@ function urlsOf(slug: string, record: LabRecord): readonly string[] {
   ];
 }
 
+/** `st_dev:st_ino` of a directory, the identity `lab up` recorded for the mounted root. */
+export async function directoryIdentity(path: string): Promise<string> {
+  const status = await stat(path, { bigint: true });
+  return `${String(status.dev)}:${String(status.ino)}`;
+}
+
+/**
+ * Refuse when the worktree root is no longer the directory the k3d node mounted.
+ *
+ * A root moved aside and recreated at the same path passes every path check, while the node
+ * still serves the old directory: pods would run code the user is not editing.
+ */
+export function requireMountedRoot(recorded: string, observed: string, root: string): void {
+  // Proof: with this comparison removed, `refuses a root replaced after lab up` failed; live, a
+  // root moved aside and recreated made `up` refuse only with it (k3s-platform verify.md).
+  if (recorded !== observed) {
+    throw new Error(
+      `${root} is not the directory the lab mounted (recorded ${recorded}, now ${observed}); ` +
+        'recreate the lab to mount it again',
+    );
+  }
+}
+
 async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
   if (request.worktree === undefined) throw new Error('dev-env up requires --worktree');
   const cluster = await connect(root, request.cluster);
   const uid = process.getuid?.();
   if (uid === undefined)
     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');
+  const prefix = await realpath(cluster.record.worktreeRoot);
+  requireMountedRoot(cluster.record.worktreeRootIdentity, await directoryIdentity(prefix), prefix);
   const repositoryRoots = (await run('git', ['-C', root, 'rev-list', '--max-parents=0', 'HEAD']))
     .split('\n')
     .filter((line) => line !== '');
   const inspection = await inspectWorktree(request.worktree);
   const worktreeNodePath = requireOwnedWorktree(inspection, {
-    prefix: await realpath(cluster.record.worktreeRoot),
+    prefix,
     uid,
     rootCommits: repositoryRoots,
   });
   const worktree = inspection.realpath;
-  const running = await runningEnvironments(cluster);
-  requireUniqueEnvironment(request.slug, worktree, running);
+  requireUniqueEnvironment(request.slug, worktree, await runningEnvironments(cluster));
   await requireSeededWorktree(worktree);
+  // The claim is the lock: nothing below runs for a pair another environment holds.
+  await claimEnvironment(cluster, request.slug, worktree);
 
   const recreateInputs = await readRecreateInputs(worktree);
   const image = await publishForgeImage(worktree, cluster, request.slug);
@@ -808,51 +872,67 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
     host: `${request.slug}.localhost`,
     origin,
     recreateInputs,
+    ownerUid: inspection.ownerUid,
+    ownerGid: inspection.ownerGid,
   });
-
-  const parameters = nextAdmissionParameters(
-    await readAdmissionParameters(cluster),
-    { kind: 'start', slug: request.slug, image, roots: [worktreeNodePath, SOLVER_NODE_PATH] },
-    running,
-  );
-  await writeAdmissionParameters(cluster, parameters);
-
   const pod = bound.find((object) => object['kind'] === 'Pod');
   if (pod === undefined) throw new Error('bound dev overlay has no Pod');
   const others = bound.filter((object) => object !== pod);
-  await cluster.kubectl(['apply', '--server-side', '-f', '-'], {
-    input: JSON.stringify({ apiVersion: 'v1', kind: 'List', items: others }),
+
+  const store = admissionStore(cluster);
+  const { before } = await updateForgeAdmission(store, cluster.record.labId, {
+    kind: 'claim',
+    slug: request.slug,
+    root: worktreeNodePath,
+    image,
   });
   const podName = `dev-${request.slug}`;
-  const wanted = field(pod, 'metadata', 'annotations', POD_SPEC_ANNOTATION);
-  const existing = await cluster.kubectl([
-    'get',
-    'pods',
-    `--namespace=${FORGE_NAMESPACE}`,
-    '-l',
-    `${SLUG_LABEL}=${request.slug}`,
-    '-o',
-    'json',
-  ]);
-  const current = existingPodFingerprint(existing);
-  if (current !== undefined && current !== wanted) {
-    console.log(`[dev-env] ${podName}: recreate inputs or bound spec changed; recreating the Pod`);
-    await cluster.kubectl([
-      'delete',
-      'pod',
-      podName,
-      `--namespace=${FORGE_NAMESPACE}`,
-      '--as',
-      FORGE_CONTROLLER,
-      '--wait=true',
-    ]);
-  }
-  if (current !== wanted) {
-    // The forge Role grants Pod creation to the controller service account only; creating as it
-    // proves the environment would start without cluster-admin.
-    await cluster.kubectl(['create', '--as', FORGE_CONTROLLER, '-f', '-'], {
-      input: JSON.stringify(pod),
+  try {
+    await cluster.kubectl(['apply', '--server-side', '-f', '-'], {
+      input: JSON.stringify({ apiVersion: 'v1', kind: 'List', items: others }),
     });
+    const wanted = field(pod, 'metadata', 'annotations', POD_SPEC_ANNOTATION);
+    const current = existingPodFingerprint(
+      await cluster.kubectl([
+        'get',
+        'pods',
+        `--namespace=${FORGE_NAMESPACE}`,
+        '-l',
+        `${SLUG_LABEL}=${request.slug}`,
+        '-o',
+        'json',
+      ]),
+    );
+    if (current !== undefined && current !== wanted) {
+      console.log(
+        `[dev-env] ${podName}: recreate inputs or bound spec changed; recreating the Pod`,
+      );
+      await cluster.kubectl([
+        'delete',
+        'pod',
+        podName,
+        `--namespace=${FORGE_NAMESPACE}`,
+        '--as',
+        FORGE_CONTROLLER,
+        '--wait=true',
+      ]);
+    }
+    if (current !== wanted) {
+      // The forge Role grants Pod creation to the controller service account only; creating as
+      // it proves the environment would start without cluster-admin.
+      await cluster.kubectl(['create', '--as', FORGE_CONTROLLER, '-f', '-'], {
+        input: JSON.stringify(pod),
+      });
+    }
+  } catch (cause) {
+    // Proof: without this restore, a live `up` whose Pod create was denied left its root and
+    // image admitted; with it the parameters matched their pre-`up` state (k3s-platform verify.md).
+    await updateForgeAdmission(store, cluster.record.labId, {
+      kind: 'restore',
+      slug: request.slug,
+      previous: before,
+    });
+    throw cause;
   }
   await cluster.kubectl(
     [
@@ -874,24 +954,14 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
 
 async function down(root: string, request: DevEnvironmentRequest): Promise<void> {
   const cluster = await connect(root, request.cluster);
-  const running = await runningEnvironments(cluster);
-  const environment = running.find((candidate) => candidate.slug === request.slug);
-  // Ownership of the admission parameters is checked before anything is deleted, so a refused
-  // teardown leaves the environment whole rather than running roots behind.
+  const store = admissionStore(cluster);
+  // Ownership of the parameters is checked before anything is deleted, so a refused teardown
+  // leaves the environment whole rather than its roots admitted behind it.
   // Proof: with the read after the deletes, a live `down` against parameters without the lab
   // label deleted dev-beta and then refused, leaving its root admitted (2026-09-18).
-  const parameters =
-    environment === undefined
-      ? undefined
-      : nextAdmissionParameters(
-          await readAdmissionParameters(cluster),
-          {
-            kind: 'stop',
-            slug: request.slug,
-            roots: [environment.worktreeNodePath, SOLVER_NODE_PATH],
-          },
-          running,
-        );
+  await store.read().then((configMap) => {
+    decodeForgeAdmission(configMap, cluster.record.labId);
+  });
   const selector = `${SLUG_LABEL}=${request.slug},${LAB_LABEL}=${cluster.record.labId}`;
   await cluster.kubectl([
     'delete',
@@ -911,10 +981,25 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
     selector,
     '--wait=true',
   ]);
-  if (parameters !== undefined) await writeAdmissionParameters(cluster, parameters);
+  // Released by slug, so a root stays admitted only while its environment's claim exists, even
+  // when the Pod was already gone.
+  // Proof: releasing only for a running Pod left dev-gone's root admitted after its Pod was
+  // deleted by hand; by slug, `down` removed it (live k3d, k3s-platform verify.md).
+  await updateForgeAdmission(store, cluster.record.labId, {
+    kind: 'release',
+    slug: request.slug,
+  });
+  await cluster.kubectl([
+    'delete',
+    'lease',
+    `--namespace=${FORGE_NAMESPACE}`,
+    '-l',
+    selector,
+    '--ignore-not-found',
+  ]);
   console.log(
-    `[dev-env] ${request.slug}: deleted its Pod, Service, Ingress, NetworkPolicy and database volume` +
-      (environment === undefined ? ' (no running Pod; admitted roots left unchanged)' : ''),
+    `[dev-env] ${request.slug}: deleted its Pod, Service, Ingress, NetworkPolicy, database ` +
+      'volume and claim, and released its admitted root',
   );
 }
 
@@ -944,6 +1029,7 @@ async function status(root: string, request: DevEnvironmentRequest): Promise<voi
   const phase = field(pod, 'status', 'phase');
   const ready = field(pod, 'status', 'containerStatuses', '0', 'ready');
   const restarts = field(pod, 'status', 'containerStatuses', '0', 'restartCount');
+  const install = installFailureOf(pod);
   console.log(
     [
       `[dev-env] ${request.slug}: ${String(phase)}, ready=${String(ready)}, container restarts=${String(restarts)}`,
@@ -954,10 +1040,17 @@ async function status(root: string, request: DevEnvironmentRequest): Promise<voi
             '  a restart cannot apply it. Run dev-env up again to recreate the Pod (the database volume stays).',
           ]
         : []),
+      ...(install === undefined
+        ? []
+        : [
+            `  INSTALL REQUIRED: ${install}`,
+            '  the tiers are not running; fix bun.lock or the install, and the container retries it.',
+          ]),
       ...urlsOf(request.slug, cluster.record),
     ].join('\n'),
   );
-  if (drift) process.exitCode = 3;
+  if (install !== undefined) process.exitCode = 4;
+  else if (drift) process.exitCode = 3;
 }
 
 export async function runDevEnvironment(

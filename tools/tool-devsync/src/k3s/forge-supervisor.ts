@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { createHash } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -8,6 +9,7 @@ import { type Fingerprint, needsRestart, RESTART_PATHS } from '../sync';
 const POLL_MS = 2000;
 const STOP_GRACE_MS = 20_000;
 const ABSENT = 'absent';
+const TERMINATION_LOG = '/dev/termination-log';
 
 /**
  * Hash one worktree path: a file by content, a directory by its sorted recursive listing and
@@ -74,16 +76,92 @@ async function stopTiers(tiers: Bun.Subprocess): Promise<void> {
   }
 }
 
+/** The supervisor's own sources: a change to them needs a new process, not a tier restart. */
+export const SUPERVISOR_PATHS: readonly string[] = ['tools/tool-devsync/src'];
+
+/** The termination-message prefix `dev-env status` reports as INSTALL REQUIRED. */
+export const INSTALL_REQUIRED = 'install-required:';
+
+/** Hash only the non-test TypeScript under `tools/tool-devsync/src`, the supervisor's graph. */
+export async function fingerprintSupervisor(root: string): Promise<string> {
+  const directory = join(root, 'tools/tool-devsync/src');
+  const files = (await readdir(directory, { recursive: true, withFileTypes: true }))
+    .filter(
+      (entry) => entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts'),
+    )
+    .map((entry) => join(entry.parentPath, entry.name))
+    .sort();
+  const hash = createHash('sha256');
+  for (const file of files)
+    hash
+      .update(file.slice(root.length))
+      .update('\0')
+      .update(await readFile(file));
+  return hash.digest('hex');
+}
+
+export type SupervisorAction = 'none' | 'restart-tiers' | 'exit';
+
 /**
- * Keep `bin/dev.sh` running from `/src`, restarting it when a `RESTART_PATHS` entry changes.
+ * What a poll requires. A changed supervisor source outranks a restart path: restarting the tiers
+ * under an outdated supervisor would keep applying the old restart rules.
+ */
+export function supervisorActionOf(
+  baseline: { readonly restart: Fingerprint; readonly supervisor: string },
+  current: { readonly restart: Fingerprint; readonly supervisor: string },
+): SupervisorAction {
+  // Proof: with this comparison removed, `exits when its own sources change` failed; the old
+  // supervisor would keep running after sync.ts changed RESTART_PATHS.
+  if (baseline.supervisor !== current.supervisor) return 'exit';
+  return needsRestart(baseline.restart, current.restart) ? 'restart-tiers' : 'none';
+}
+
+/**
+ * Run `bun install --frozen-lockfile`; on failure report INSTALL REQUIRED and return false.
  *
- * Source edits reach the watchers directly through the worktree mount and restart nothing, as on
- * h2puni. A restart path first runs `bun install --frozen-lockfile`, then starts the tiers again,
- * matching `sync.ts`. If the tiers exit on their own the supervisor exits with their status, so
- * the kubelet restarts the container and counts it.
+ * Every tier start goes through here, the first included: a container the kubelet restarted
+ * after a failed install must not start the tiers on the stale `node_modules`.
+ */
+export function installDependencies(
+  install: () => number,
+  report: (message: string) => void,
+): boolean {
+  const exitCode = install();
+  if (exitCode === 0) return true;
+  report(`${INSTALL_REQUIRED} bun install --frozen-lockfile exited ${String(exitCode)}`);
+  return false;
+}
+
+function runInstall(root: string): number {
+  return Bun.spawnSync(['bun', 'install', '--frozen-lockfile'], {
+    cwd: root,
+    stdio: ['ignore', 'inherit', 'inherit'],
+  }).exitCode;
+}
+
+/** The kubelet shows this file's content as the container's termination message. */
+function reportTermination(message: string): void {
+  console.error(`[forge] ${message}`);
+  writeFileSync(TERMINATION_LOG, message);
+}
+
+/**
+ * Keep `bin/dev.sh` running from `/src`.
+ *
+ * Source edits reach the watchers through the worktree mount and restart nothing, as on h2puni.
+ * A `RESTART_PATHS` change stops the tiers, installs and starts them again, matching `sync.ts`.
+ * A failed install, a change to the supervisor's own sources, or tiers that exit on their own
+ * end the process, so the kubelet restarts the container visibly; the next start installs first.
  */
 export async function superviseForge(root: string): Promise<never> {
-  let baseline = await fingerprintWorktree(root);
+  // Proof: without this install before the first start, a live container restarted after a
+  // failed install served on stale node_modules; with it the Pod stayed not ready and `status`
+  // printed INSTALL REQUIRED (k3s-platform verify.md, F9 review).
+  if (!installDependencies(() => runInstall(root), reportTermination)) process.exit(65);
+  let baseline = {
+    restart: await fingerprintWorktree(root),
+    supervisor: await fingerprintSupervisor(root),
+  };
   let tiers = startTiers(root);
   process.on('SIGTERM', () => {
     void stopTiers(tiers).then(() => process.exit(143));
@@ -91,25 +169,26 @@ export async function superviseForge(root: string): Promise<never> {
   for (;;) {
     const exit = await Promise.race([tiers.exited, Bun.sleep(POLL_MS).then(() => undefined)]);
     if (exit !== undefined) {
-      console.error(
-        `[forge] tiers exited with ${String(exit)}; the kubelet restarts the container`,
-      );
+      reportTermination(`tiers exited with ${String(exit)}`);
       process.exit(exit === 0 ? 1 : exit);
     }
-    const current = await fingerprintWorktree(root);
-    if (!needsRestart(baseline, current)) continue;
-    const changed = RESTART_PATHS.filter((path) => baseline[path] !== current[path]);
-    console.error(`[forge] restart required, changed: ${changed.join(', ')}`);
+    const current = {
+      restart: await fingerprintWorktree(root),
+      supervisor: await fingerprintSupervisor(root),
+    };
+    const action = supervisorActionOf(baseline, current);
+    if (action === 'none') continue;
     await stopTiers(tiers);
-    const install = Bun.spawnSync(['bun', 'install', '--frozen-lockfile'], {
-      cwd: root,
-      stdio: ['ignore', 'inherit', 'inherit'],
-    });
-    if (install.exitCode !== 0) {
-      console.error(`[forge] bun install --frozen-lockfile exited ${String(install.exitCode)}`);
-      process.exit(install.exitCode);
+    if (action === 'exit') {
+      reportTermination('supervisor sources changed; restarting the container to load them');
+      process.exit(0);
     }
-    baseline = await fingerprintWorktree(root);
+    const changed = RESTART_PATHS.filter(
+      (path) => baseline.restart[path] !== current.restart[path],
+    );
+    console.error(`[forge] restart required, changed: ${changed.join(', ')}`);
+    if (!installDependencies(() => runInstall(root), reportTermination)) process.exit(65);
+    baseline = current;
     tiers = startTiers(root);
     console.error('[forge] tiers restarted');
   }

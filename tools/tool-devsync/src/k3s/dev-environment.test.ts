@@ -14,9 +14,10 @@ import {
   existingPodFingerprint,
   findForgeCluster,
   FORGE_NAMESPACE,
+  installFailureOf,
   type LabRecord,
-  nextAdmissionParameters,
   parseDevEnvironmentRequest,
+  requireMountedRoot,
   requireOwnedWorktree,
   requireUniqueEnvironment,
   SOLVER_NODE_PATH,
@@ -36,6 +37,7 @@ const LAB: LabRecord = {
   registry: { host: 'puni-f9-registry', hostPort: 32780 },
   httpPort: 44425,
   worktreeRoot: '/home/dev/worktrees',
+  worktreeRootIdentity: '2049:131',
   solverRuntime: '/home/dev/solver',
   clusters: [
     {
@@ -67,6 +69,8 @@ const BINDING: EnvironmentBinding = {
   host: 'alpha.localhost',
   origin: 'http://alpha.localhost:44425',
   recreateInputs: 'c'.repeat(64),
+  ownerUid: 1000,
+  ownerGid: 1000,
 };
 
 /** The committed overlay as `kubectl kustomize` renders it: its resources in its namespace. */
@@ -90,6 +94,7 @@ function inspection(overrides: Partial<WorktreeInspection> = {}): WorktreeInspec
     requested: '/home/dev/worktrees/alpha',
     realpath: '/home/dev/worktrees/alpha',
     ownerUid: 1000,
+    ownerGid: 1000,
     topLevel: '/home/dev/worktrees/alpha',
     rootCommits: ['root-a'],
     ...overrides,
@@ -253,73 +258,6 @@ describe('requireUniqueEnvironment', () => {
   });
 });
 
-describe('nextAdmissionParameters', () => {
-  const alpha = {
-    slug: 'alpha',
-    worktree: '/w/alpha',
-    worktreeNodePath: '/srv/puni/worktrees/alpha',
-    image: IMAGE,
-  };
-  const committed = {
-    forgeImage: 'registry.puni.test/dev-environment@sha256:' + 'b'.repeat(64),
-    forgeWorktreeRoots: ['/srv/puni/worktrees/puni-00'],
-  };
-
-  it('adds exact roots and the image when an environment starts', () => {
-    expect(
-      nextAdmissionParameters(
-        committed,
-        {
-          kind: 'start',
-          slug: 'alpha',
-          image: IMAGE,
-          roots: [alpha.worktreeNodePath, SOLVER_NODE_PATH],
-        },
-        [],
-      ),
-    ).toEqual({
-      forgeImage: IMAGE,
-      forgeWorktreeRoots: [
-        '/srv/puni/worktrees/puni-00',
-        '/srv/puni/worktrees/alpha',
-        SOLVER_NODE_PATH,
-      ],
-    });
-  });
-
-  it('refuses a second forge image while another environment runs the first', () => {
-    expect(() =>
-      nextAdmissionParameters(
-        committed,
-        { kind: 'start', slug: 'beta', image: IMAGE.replace('bbb', 'ddd'), roots: [] },
-        [alpha],
-      ),
-    ).toThrow('the forge admits one image');
-  });
-
-  it('keeps the solver directory while another environment still runs', () => {
-    const beta = { ...alpha, slug: 'beta', worktreeNodePath: '/srv/puni/worktrees/beta' };
-    const current = {
-      forgeImage: IMAGE,
-      forgeWorktreeRoots: [alpha.worktreeNodePath, beta.worktreeNodePath, SOLVER_NODE_PATH],
-    };
-    expect(
-      nextAdmissionParameters(
-        current,
-        { kind: 'stop', slug: 'alpha', roots: [alpha.worktreeNodePath, SOLVER_NODE_PATH] },
-        [alpha, beta],
-      ).forgeWorktreeRoots,
-    ).toEqual([beta.worktreeNodePath, SOLVER_NODE_PATH]);
-    expect(
-      nextAdmissionParameters(
-        { forgeImage: IMAGE, forgeWorktreeRoots: [beta.worktreeNodePath, SOLVER_NODE_PATH] },
-        { kind: 'stop', slug: 'beta', roots: [beta.worktreeNodePath, SOLVER_NODE_PATH] },
-        [beta],
-      ).forgeWorktreeRoots,
-    ).toEqual([]);
-  });
-});
-
 describe('bindEnvironment', () => {
   it('binds the committed overlay to one environment', async () => {
     const bound = bindEnvironment(await renderOverlay(), BINDING);
@@ -399,7 +337,7 @@ describe('bindEnvironment', () => {
     );
   });
 
-  it('refuses an object in another namespace, another volume, and a tag-only image', async () => {
+  it('refuses an object in another namespace and an extra volume', async () => {
     const moved = await renderOverlay();
     (moved[0] as { metadata: Record<string, unknown> }).metadata['namespace'] = 'wbs';
     expect(() => bindEnvironment(moved, BINDING)).toThrow('is not in puni-forge');
@@ -410,10 +348,29 @@ describe('bindEnvironment', () => {
     };
     pod.spec.volumes.push({ name: 'docker', hostPath: { path: '/var/run/docker.sock' } });
     expect(() => bindEnvironment(widened, BINDING)).toThrow('volumes must be exactly');
+  });
 
+  it('refuses a forge image that is not digest-pinned', async () => {
+    const clean = await renderOverlay();
     expect(() =>
-      bindEnvironment(moved, { ...BINDING, image: 'puni-f9-registry:5000/dev-environment:x' }),
-    ).toThrow();
+      bindEnvironment(clean, { ...BINDING, image: 'puni-f9-registry:5000/dev-environment:x' }),
+    ).toThrow('digest-pinned');
+  });
+
+  it('runs the Pod as the worktree owner', async () => {
+    const pod = bindEnvironment(await renderOverlay(), {
+      ...BINDING,
+      ownerUid: 1234,
+      ownerGid: 2345,
+    }).find((object) => object['kind'] === 'Pod') as {
+      spec: { securityContext: Record<string, unknown> };
+    };
+    expect(pod.spec.securityContext).toMatchObject({ runAsUser: 1234, runAsGroup: 2345 });
+  });
+
+  it('refuses to run as root', async () => {
+    const clean = await renderOverlay();
+    expect(() => bindEnvironment(clean, { ...BINDING, ownerUid: 0 })).toThrow('owned by root');
   });
 
   it('changes the Pod fingerprint when the recreate inputs change', async () => {
@@ -496,5 +453,35 @@ describe('forge supervisor fingerprint', () => {
     const first = await hashWorktreePath(root, 'nx.json');
     await writeFile(join(root, 'nx.json'), '{ }');
     expect(await hashWorktreePath(root, 'nx.json')).not.toBe(first);
+  });
+});
+
+describe('installFailureOf', () => {
+  it('reports an install failure from the current or last termination', () => {
+    const failed = (state: string) => ({
+      status: {
+        containerStatuses: [
+          { [state]: { terminated: { message: 'install-required: bun install exited 1' } } },
+        ],
+      },
+    });
+    expect(installFailureOf(failed('lastState'))).toBe('install-required: bun install exited 1');
+    expect(installFailureOf(failed('state'))).toBe('install-required: bun install exited 1');
+    expect(
+      installFailureOf({
+        status: { containerStatuses: [{ lastState: { terminated: { message: 'tiers exited' } } }] },
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe('requireMountedRoot', () => {
+  it('accepts the recorded directory and refuses a root replaced after lab up', () => {
+    expect(() => {
+      requireMountedRoot('2049:131', '2049:131', '/w');
+    }).not.toThrow();
+    expect(() => {
+      requireMountedRoot('2049:131', '2049:977', '/w');
+    }).toThrow('not the directory the lab mounted');
   });
 });

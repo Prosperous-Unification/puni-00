@@ -1,5 +1,15 @@
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, readFile, realpath, rm, statfs, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  statfs,
+  writeFile,
+} from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 
@@ -72,6 +82,9 @@ export interface LabResource {
 
 export interface K3dLabTeardown {
   readonly clusters: readonly string[];
+  /** Lab clusters of another profile, kept with the registry, network and state they need. */
+  readonly retained: readonly string[];
+  readonly removeState: boolean;
   readonly registry: string | undefined;
   readonly network: string | undefined;
   readonly ignored: readonly string[];
@@ -89,6 +102,8 @@ export interface K3dLabRecord {
   readonly registry: { readonly host: string; readonly hostPort: number };
   readonly httpPort: number;
   readonly worktreeRoot: string;
+  /** `st_dev:st_ino` of the mounted root; `dev-env` refuses a root replaced after `up`. */
+  readonly worktreeRootIdentity: string;
   readonly solverRuntime: string;
   readonly clusters: readonly {
     readonly name: string;
@@ -108,6 +123,7 @@ const K3dLabRecordSchema = type({
   registry: { host: 'string>0', hostPort: 'number.integer>0', '+': 'reject' },
   httpPort: 'number.integer>0',
   worktreeRoot: 'string>0',
+  worktreeRootIdentity: /^\d+:\d+$/,
   solverRuntime: 'string>0',
   clusters: type({
     name: 'string>0',
@@ -298,12 +314,13 @@ export function decodeLabResources(stdout: string): readonly LabResource[] {
 }
 
 /**
- * Choose what `down` deletes: only lab-labelled containers of the lab's derived clusters, its
- * derived registry, and its derived network. Anything else carrying the label is reported, never
- * deleted, so a hand-labelled container cannot widen the teardown.
+ * Choose what `down` deletes: only lab-labelled containers of the profile's derived clusters, and
+ * the lab's derived registry and network once no other lab cluster remains. Anything else carrying
+ * the label is reported, never deleted, so a hand-labelled container cannot widen the teardown.
  */
 export function planK3dLabDown(
   labId: string,
+  profile: K3dProfile,
   containers: readonly LabResource[],
   networks: readonly LabResource[],
 ): K3dLabTeardown {
@@ -311,23 +328,60 @@ export function planK3dLabDown(
   // Proof: dropping this filter failed `never deletes a lab-named resource that lacks the lab
   // label`; the live decoy container survived `down` (k3s-platform verify.md, F9).
   const owned = containers.filter((container) => container.labId === labId);
-  const clusters = [
-    ...new Set(
-      owned
-        .map((container) => container.cluster)
-        .filter((cluster) => cluster === names.platform || cluster === names.workers),
-    ),
-  ].sort();
-  const registry = owned.find((container) => container.name === names.registry)?.name;
-  const network = networks.find(
-    (candidate) => candidate.labId === labId && candidate.name === names.network,
-  )?.name;
+  const derived = [names.platform, names.workers];
+  const wanted = PROFILES[profile].clusters.map((role) => names[role]);
+  const present = [...new Set(owned.map((container) => container.cluster))].filter((cluster) =>
+    derived.includes(cluster),
+  );
+  // Proof: deleting every lab cluster regardless of profile failed `leaves clusters outside the
+  // named profile`; `down --profile app` would have removed a fleet lab's worker cluster.
+  const clusters = present.filter((cluster) => wanted.includes(cluster)).sort();
+  const retained = present.filter((cluster) => !wanted.includes(cluster)).sort();
+  const registry =
+    retained.length === 0
+      ? owned.find((container) => container.name === names.registry)?.name
+      : undefined;
+  const network =
+    retained.length === 0
+      ? networks.find((candidate) => candidate.labId === labId && candidate.name === names.network)
+          ?.name
+      : undefined;
   const ignored = owned
     .filter(
-      (container) => container.name !== names.registry && !clusters.includes(container.cluster),
+      (container) => container.name !== names.registry && !present.includes(container.cluster),
     )
     .map((container) => container.name);
-  return { clusters, registry, network, ignored };
+  const tornDown = clusters.length > 0 || registry !== undefined || network !== undefined;
+  const listed = owned.length > 0 || networks.some((candidate) => candidate.labId === labId);
+  // Proof: removing state unconditionally failed `keeps state while anything it names remains`;
+  // the retained cluster's kubeconfig would have been deleted with it.
+  const removeState = retained.length === 0 && (tornDown || !listed);
+  return { clusters, retained, registry, network, ignored, removeState };
+}
+
+/**
+ * Refuse a container that publishes any port beyond loopback. `docker port` prints one
+ * `<port>/tcp -> <host>:<port>` line per binding.
+ */
+export function requireLoopbackPublished(container: string, dockerPort: string): void {
+  const bindings = dockerPort
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  // Proof: accepting any binding failed `refuses a port published beyond loopback`; the live
+  // serverlb and registry printed only 127.0.0.1 bindings (k3s-platform verify.md, F9 review).
+  const exposed = bindings.filter((line) => !/-> 127\.0\.0\.1:\d+$/.test(line));
+  if (bindings.length === 0 || exposed.length > 0) {
+    throw new Error(
+      `${container} must publish on 127.0.0.1 only; docker port printed: ${dockerPort.trim() || '(nothing)'}`,
+    );
+  }
+}
+
+/** `st_dev:st_ino`, which `dev-env` compares to detect a root replaced after the mount. */
+async function directoryIdentity(path: string): Promise<string> {
+  const status = await stat(path, { bigint: true });
+  return `${String(status.dev)}:${String(status.ino)}`;
 }
 
 async function freeLoopbackPort(): Promise<number> {
@@ -648,10 +702,11 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
       'unless-stopped',
       registryImage,
     ]);
-    const published = (await run('docker', ['port', names.registry, '5000/tcp'])).trim();
-    const registryPort = Number(published.split('\n')[0]?.split(':').at(-1));
-    if (!Number.isInteger(registryPort) || !published.startsWith('127.0.0.1:')) {
-      throw new Error(`Lab registry is not published on loopback only: ${published}`);
+    const published = await run('docker', ['port', names.registry]);
+    requireLoopbackPublished(names.registry, published);
+    const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));
+    if (!Number.isInteger(registryPort)) {
+      throw new Error(`Lab registry port is unreadable: ${published}`);
     }
 
     const clusters: K3dLabRecord['clusters'][number][] = [];
@@ -666,6 +721,10 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
       await run(tools.k3d, ['cluster', 'create', '--config', configPath, ...replaced], {
         environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
       });
+      requireLoopbackPublished(
+        `k3d-${name}-serverlb`,
+        await run('docker', ['port', `k3d-${name}-serverlb`]),
+      );
       const kubeconfig = join(state, `${name}.kubeconfig`);
       await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), {
         mode: 0o600,
@@ -690,6 +749,7 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
       registry: { host: names.registry, hostPort: registryPort },
       httpPort,
       worktreeRoot,
+      worktreeRootIdentity: await directoryIdentity(worktreeRoot),
       solverRuntime,
       clusters,
     };
@@ -721,7 +781,12 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
 
 async function downLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {
   const resources = await listLabResources(request.labId);
-  const teardown = planK3dLabDown(request.labId, resources.containers, resources.networks);
+  const teardown = planK3dLabDown(
+    request.labId,
+    request.profile,
+    resources.containers,
+    resources.networks,
+  );
   const state = join(root, STATE_PARENT, request.labId);
   for (const cluster of teardown.clusters) {
     await run(tools.k3d, ['cluster', 'delete', cluster], {
@@ -735,12 +800,15 @@ async function downLab(root: string, request: K3dLabRequest, tools: LabTools): P
     await run('docker', ['rm', '--force', '--volumes', teardown.registry]);
   }
   if (teardown.network !== undefined) await run('docker', ['network', 'rm', teardown.network]);
-  await rm(state, { recursive: true, force: true });
+  if (teardown.removeState) await rm(state, { recursive: true, force: true });
   console.log(
     [
       `k3d lab ${request.labId}: deleted ${teardown.clusters.length === 0 ? 'no clusters' : teardown.clusters.join(', ')}` +
         (teardown.registry === undefined ? '' : `, ${teardown.registry}`) +
         (teardown.network === undefined ? '' : `, network ${teardown.network}`),
+      ...teardown.retained.map(
+        (name) => `  kept ${name}: not part of profile ${request.profile}; state kept with it`,
+      ),
       ...teardown.ignored.map(
         (name) => `  left ${name}: labelled for this lab but not a lab-derived name`,
       ),

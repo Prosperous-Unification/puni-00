@@ -15,6 +15,7 @@ import {
   prepareStateDirectory,
   PROFILES,
   renderK3dConfig,
+  requireLoopbackPublished,
   requireProfileResources,
 } from './k3d-lab';
 
@@ -181,11 +182,13 @@ describe('planK3dLabDown', () => {
       ].join('\n'),
     );
     const networks = decodeLabResources(`${names.network}\tf9\t\nshared\tf9\t\n`);
-    expect(planK3dLabDown('f9', containers, networks)).toEqual({
+    expect(planK3dLabDown('f9', 'app', containers, networks)).toEqual({
       clusters: [names.platform],
+      retained: [],
       registry: names.registry,
       network: names.network,
       ignored: ['someone-else'],
+      removeState: true,
     });
   });
 
@@ -193,16 +196,72 @@ describe('planK3dLabDown', () => {
     const containers = decodeLabResources(
       `k3d-${names.platform}-server-0\tother\t${names.platform}\n${names.registry}\t\t\n`,
     );
-    expect(planK3dLabDown('f9', containers, [])).toEqual({
+    expect(planK3dLabDown('f9', 'app', containers, [])).toEqual({
       clusters: [],
+      retained: [],
       registry: undefined,
       network: undefined,
       ignored: [],
+      removeState: true,
     });
+  });
+
+  const fleet = decodeLabResources(
+    [
+      `k3d-${names.platform}-server-0\tf9\t${names.platform}`,
+      `k3d-${names.workers}-server-0\tf9\t${names.workers}`,
+      `${names.registry}\tf9\t`,
+    ].join('\n'),
+  );
+  const fleetNetworks = decodeLabResources(`${names.network}\tf9\t\n`);
+
+  it('leaves clusters outside the named profile', () => {
+    const teardown = planK3dLabDown('f9', 'app', fleet, fleetNetworks);
+    expect(teardown.clusters).toEqual([names.platform]);
+    expect(teardown.retained).toEqual([names.workers]);
+    expect(planK3dLabDown('f9', 'fleet', fleet, fleetNetworks).clusters).toEqual([
+      names.platform,
+      names.workers,
+    ]);
+  });
+
+  it('keeps state while anything it names remains', () => {
+    const partial = planK3dLabDown('f9', 'app', fleet, fleetNetworks);
+    expect([partial.registry, partial.network, partial.removeState]).toEqual([
+      undefined,
+      undefined,
+      false,
+    ]);
+    const decoyOnly = decodeLabResources('someone-else\tf9\tsomeone-else\n');
+    expect(planK3dLabDown('f9', 'app', decoyOnly, []).removeState).toBe(false);
+    expect(planK3dLabDown('f9', 'fleet', fleet, fleetNetworks).removeState).toBe(true);
   });
 
   it('refuses an unreadable Docker row', () => {
     expect(() => decodeLabResources('only-a-name\n')).toThrow('Unreadable');
+  });
+});
+
+describe('requireLoopbackPublished', () => {
+  it('accepts loopback-only bindings', () => {
+    expect(() => {
+      requireLoopbackPublished(
+        'k3d-x-serverlb',
+        '80/tcp -> 127.0.0.1:44425\n6443/tcp -> 127.0.0.1:44219\n',
+      );
+    }).not.toThrow();
+  });
+
+  it('refuses a port published beyond loopback', () => {
+    for (const output of [
+      '80/tcp -> 0.0.0.0:44425\n',
+      '80/tcp -> 127.0.0.1:1\n80/tcp -> [::]:44425\n',
+      '',
+    ]) {
+      expect(() => {
+        requireLoopbackPublished('k3d-x-serverlb', output);
+      }).toThrow('127.0.0.1 only');
+    }
   });
 });
 
@@ -244,6 +303,7 @@ describe('decodeK3dLabRecord', () => {
     registry: { host: 'puni-f9-registry', hostPort: 32780 },
     httpPort: 44425,
     worktreeRoot: '/w',
+    worktreeRootIdentity: '2049:131',
     solverRuntime: '/s',
     clusters: [
       {
@@ -266,5 +326,7 @@ describe('decodeK3dLabRecord', () => {
     expect(() => decodeK3dLabRecord(JSON.stringify({ ...record, clusters: [] }))).toThrow(
       'malformed',
     );
+    const { worktreeRootIdentity: _identity, ...withoutIdentity } = record;
+    expect(() => decodeK3dLabRecord(JSON.stringify(withoutIdentity))).toThrow('malformed');
   });
 });
