@@ -495,6 +495,8 @@ async function down(): Promise<void> {
   await run(['docker', 'network', 'rm', NETWORK], null, 60_000);
   await run([k3d, 'cluster', 'delete', CLUSTER], null, 300_000);
   await run([k3d, 'registry', 'delete', `k3d-${REGISTRY}`], null, 120_000);
+  // Observed after run 4: the registry deletion left the cluster's network behind.
+  await run(['docker', 'network', 'rm', `k3d-${CLUSTER}`], null, 60_000);
   const images = await sh(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}']);
   for (const image of images
     .split('\n')
