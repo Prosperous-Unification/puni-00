@@ -1,0 +1,111 @@
+# The single SQLite writer. Replicas stay at one and the Recreate strategy never runs an old
+# and a new pod together; the release coordinator scales it to zero before any schema Job.
+# Namespace wbs-solver is F6's trusted namespace: its admission requires this service account,
+# controller label, product node, the approved image digest, and the exact solver runtime
+# directory as a Directory hostPath.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wbs-backend
+  namespace: wbs-solver
+  labels:
+    app.kubernetes.io/name: wbs-backend
+    app.kubernetes.io/part-of: wbs
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wbs-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wbs-backend
+        app.kubernetes.io/part-of: wbs
+        puni.dev/controller: wbs-backend
+        puni.dev/writer: 'true'
+    spec:
+      serviceAccountName: wbs-backend
+      automountServiceAccountToken: false
+      nodeSelector:
+        puni.dev/capability-product: 'true'
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: wbs-backend
+          ports:
+            - name: http
+              containerPort: 3100
+          env:
+            - { name: PORT, value: '3100' }
+            - { name: DB_PATH, value: /data/wbs.sqlite }
+            # The migration Job is the single migration actor (F8).
+            - { name: MIGRATE_ON_STARTUP, value: 'false' }
+            - { name: LOG_LEVEL, value: info }
+            - { name: HOME, value: /tmp }
+            - { name: GW_URL, value: 'http://wbs-gateway.wbs.svc.cluster.local:3200' }
+          envFrom:
+            - configMapRef:
+                name: wbs-backend-config
+            - secretRef:
+                name: wbs-backend-secrets
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+            # be-01 dials /run/wbs-solver/supervisor.sock; mounting the directory rather than
+            # the socket inode survives the supervisor replacing its socket.
+            - { name: solver-runtime, mountPath: /run/wbs-solver }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: wbs-data
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }
+        - name: solver-runtime
+          hostPath:
+            path: /run/puni/solver
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wbs-backend
+  namespace: wbs-solver
+  labels:
+    app.kubernetes.io/part-of: wbs
+spec:
+  selector:
+    app.kubernetes.io/name: wbs-backend
+  ports:
+    - { name: http, port: 3100, targetPort: http }

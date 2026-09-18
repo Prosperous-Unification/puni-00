@@ -1,0 +1,189 @@
+# F6 default-denies namespace wbs and runs Traefik in namespace traefik. These are the WBS
+# allowances, narrowest first.
+# `wbs-backend-writers` is the write fence: the release coordinator repoints its podSelector
+# at nothing to close writes and back at the backend to reopen them; readers stay allowed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: wbs-solver
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-dns
+  namespace: wbs
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-dns
+  namespace: wbs-solver
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Readers: the gateway (health and replay) and the release smoke Job reach the backend even
+# while writes are fenced.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-backend-readers
+  namespace: wbs-solver
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: wbs-backend }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs }
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [wbs-gateway]
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs }
+          podSelector:
+            matchLabels: { puni.dev/workload: release-smoke }
+      ports:
+        - { protocol: TCP, port: 3100 }
+---
+# Writers: the ingress controller and MCP. The fence target.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-backend-writers
+  namespace: wbs-solver
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: wbs-backend }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: traefik }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: wbs-mcp }
+      ports:
+        - { protocol: TCP, port: 3100 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-backend-egress
+  namespace: wbs-solver
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: wbs-backend }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: wbs-gateway }
+      ports:
+        - { protocol: TCP, port: 3200 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-to-backend
+  namespace: wbs
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [wbs-gateway, wbs-mcp]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs-solver }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: wbs-backend }
+      ports:
+        - { protocol: TCP, port: 3100 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-public-ingress
+  namespace: wbs
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [wbs-gateway, wbs-frontend, wbs-mcp]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: traefik }
+        - podSelector:
+            matchLabels: { puni.dev/workload: release-smoke }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-gateway-from-backend
+  namespace: wbs
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: wbs-gateway }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs-solver }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: wbs-backend }
+      ports:
+        - { protocol: TCP, port: 3200 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wbs-release-smoke
+  namespace: wbs
+spec:
+  podSelector:
+    matchLabels: { puni.dev/workload: release-smoke }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [wbs-gateway, wbs-frontend, wbs-mcp]
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: wbs-solver }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: wbs-backend }

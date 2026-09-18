@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wbs-gateway
+  namespace: wbs
+  labels:
+    app.kubernetes.io/name: wbs-gateway
+    app.kubernetes.io/part-of: wbs
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wbs-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wbs-gateway
+        app.kubernetes.io/part-of: wbs
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: wbs-gateway
+          ports:
+            - name: http
+              containerPort: 3200
+          env:
+            - { name: PORT, value: '3200' }
+            - { name: HOME, value: /tmp }
+          envFrom:
+            - configMapRef:
+                name: wbs-gateway-config
+            - secretRef:
+                name: wbs-gateway-secrets
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wbs-gateway
+  namespace: wbs
+  labels:
+    app.kubernetes.io/part-of: wbs
+spec:
+  selector:
+    app.kubernetes.io/name: wbs-gateway
+  ports:
+    - { name: http, port: 3200, targetPort: http }

@@ -1,0 +1,47 @@
+# Loopback lab profile. Every value here is a lab-only test value, never a credential used
+# anywhere else. Storage is F6's single-node puni-local class.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: wbs-backend-config
+    namespace: wbs-solver
+    literals:
+      # The images set NODE_ENV=production, which forbids local auth; the lab is not production.
+      - NODE_ENV=lab
+      - AUTH_MODE=local
+      - APP_ORIGIN=http://localhost:8080
+  - name: wbs-gateway-config
+    namespace: wbs
+    literals:
+      - NODE_ENV=lab
+      - AUTH_MODE=local
+      - LOG_LEVEL=info
+      - BE_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
+  - name: wbs-mcp-config
+    namespace: wbs
+    literals:
+      - MCP_AUTH_MODE=gateway
+      - MCP_TRUSTED_GATEWAY=true
+      - WBS_API_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
+      - MCP_PUBLIC_URL=http://localhost:8080/mcp
+secretGenerator:
+  - name: wbs-backend-secrets
+    namespace: wbs-solver
+    literals:
+      - INTERNAL_AUTH_SECRET=lab-only-internal-auth-secret-0000000000
+      - JWT_SIGNING_KEY_CURRENT=lab-only-jwt-signing-key-00000000000000
+  - name: wbs-gateway-secrets
+    namespace: wbs
+    literals:
+      - INTERNAL_AUTH_SECRET=lab-only-internal-auth-secret-0000000000
+      - JWT_SIGNING_KEY_CURRENT=lab-only-jwt-signing-key-00000000000000
+patches:
+  - target: { kind: PersistentVolumeClaim, name: wbs-data }
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: puni-local
