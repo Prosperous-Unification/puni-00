@@ -180,3 +180,27 @@ Not verified, with the reason:
 - **Solver state transfer** has no mechanism; scaling the backend to zero stood in for it.
 - A Docker-peer solve (`be-01-blue` container on the node) was not attempted: 1.6 GB image
   and 2 GiB VM memory.
+
+## F8 real solve from a k3s pod (2026-09-18, `change/tbf-vm` at `93960ee0`)
+
+- **Lab.** Rootless QEMU platform profile `f8`. Solver role at `93960ee0`: docker.io
+  `29.1.3-0ubuntu3~24.04.2` and Bun 1.4.2 from toolchain.json, plus the CRI peer helper.
+- **Image.** A WBS backend image built from `apps/wbs/be-01/Dockerfile` at the branch head
+  (`wbs-be-01@sha256:428d3918…`), served from a lab-only registry on the host (`10.0.2.2:5999`).
+  containerd and Docker each had a lab-only insecure-registry entry for it; that configuration
+  is a lab step, not part of the role.
+- **Deployment.** The real backend ran in `wbs-solver` in the shape of `base/backend.yaml`,
+  with an emptyDir DB and `MIGRATE_ON_STARTUP=true` for this minimal deployment. F6 admission
+  was applied from `infra/platform/policy` with `solverImages` set to that digest.
+
+| Step                                                                  | Result                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import of a two-row plan (`planDocumentFixture` with optimization on) | `201`; both variants `ready`/`proven`, finish `fast 6, pri 6, time 6`; supervisor journal shows `puni-cri-peer <id>` via sudo                                                                                       |
+| Refusals seen before the fixes                                        | `callerId is not a full Docker container id` (pod HOSTNAME claim), `searchWorkers … 1 through 1` (role set 1), `image does not match its mapping` (helper returned the local image id): each fixed, then re-run     |
+| Socket replacement                                                    | supervisor restart, inode 68 → 75; the next import solved `ready`/`proven` through the new listener                                                                                                                 |
+| Host process on the node (`runuser -u wbs-solver python3` connect)    | refused: `supervisor peer cgroup: no full container id found`                                                                                                                                                       |
+| Unit negatives                                                        | exact kubepods scope only (prefix, child suffix, QoS mismatch, host scope refused); pod name bound only to the runtime alias; wrong namespace/container/state/id refused; helper refuses anything but one 64-hex id |
+
+Observed but not fixed: after each successful attempt the supervisor logged `systemctl --user
+stop …deadline….service exited 5: Unit … not loaded`. The attempts still completed, and no
+deadline units were left behind.
