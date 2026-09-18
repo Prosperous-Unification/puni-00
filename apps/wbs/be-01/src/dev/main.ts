@@ -9,7 +9,7 @@
  * expression that reaches a local Python spawn.
  */
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
 
@@ -17,16 +17,16 @@ import { bootBe01 } from '../boot';
 import { loadConfig } from '../config';
 import { oidcRouteOptionsFromEnv } from '../controller/oidc-options';
 import { readRuntimeSolverVersion } from '../service/solver-launcher-process';
-import { createLocalSolverSpawner, LOCAL_SOLVER_CAPABILITIES } from './local-solver-spawner';
+import {
+  createLocalSolverSpawner,
+  localSolverCapabilities,
+  solverBinDirectory,
+} from './local-solver-spawner';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
 
-// `cwd` is `apps/wbs/be-01` under the serve target, matching the supervised target,
-// so the repo root is three levels up. `wbs-solver-py:setup-macos` provisions the
-// venv at that root (see `tools/dev/solver-environment.ts`).
-const repoRoot = resolve(process.cwd(), '../../..');
-const binDirectory = join(repoRoot, '.venv-solver', 'bin');
+const binDirectory = solverBinDirectory(process.cwd());
 
 let running;
 try {
@@ -36,13 +36,13 @@ try {
   // whole line of work exists to stop reporting as progress.
   if (!existsSync(join(binDirectory, 'wbs-solver-launcher'))) {
     throw new Error(
-      `no solver environment at ${binDirectory}; run \`bunx nx run wbs-solver-py:setup-macos\` first`,
+      `no solver environment at ${binDirectory}; run \`bunx nx run wbs-solver-py:setup-local-solver\` first`,
     );
   }
 
   logger.warn(
-    { optimizer: LOCAL_SOLVER_CAPABILITIES },
-    'be-01 starting with the local solver (development only): no memory ceiling, no parent-death signal, no durable deadline owner',
+    { optimizer: localSolverCapabilities(process.platform) },
+    'be-01 starting with the local solver (development only): no cgroup memory ceiling, no durable deadline owner',
   );
 
   running = bootBe01({
