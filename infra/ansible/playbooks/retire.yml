@@ -284,7 +284,11 @@
       loop: [k3s, k3s-agent]
       loop_control:
         loop_var: service_name
-      when: (service_name + '.service') in ansible_facts.services
+      # Proof: the live agent retirement failed "Could not find the requested service k3s": the
+      # firewall unit's Before=k3s.service makes systemd list a not-found k3s.service stub.
+      when:
+        - (service_name + '.service') in ansible_facts.services
+        - ansible_facts.services[service_name + '.service'].status != 'not-found'
       tags: [deconfigure]
 
     # Proof: injecting generated server/token and server/agent-token files previously let verify
@@ -324,6 +328,7 @@
         that:
           - >-
             (service_name + '.service') not in ansible_facts.services or
+            ansible_facts.services[service_name + '.service'].status == 'not-found' or
             (ansible_facts.services[service_name + '.service'].state != 'running' and
             ansible_facts.services[service_name + '.service'].status == 'disabled')
           - puni_retired_credentials.results | selectattr('stat.exists', 'equalto', true) | list | length == 0
