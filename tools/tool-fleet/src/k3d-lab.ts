@@ -136,6 +136,7 @@ const PLACEHOLDER = /\$\{([A-Z0-9_]+)\}/g;
 const STATE_PARENT = '.puni/fleet-labs/k3d';
 const MIB = 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
+const INGRESS_TIMEOUT_MS = 5 * 60 * 1000;
 
 function takeFlag(arguments_: readonly string[], position: number): string {
   const value = arguments_.at(position + 1);
@@ -515,6 +516,7 @@ async function bootstrapCluster(
     '--namespace=wbs-solver',
     `${LAB_LABEL}=${labId}`,
   ]);
+  if (!flux) await waitForBundledIngress(kubectl);
   if (flux) {
     const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
     const manifest = await readFile(join(root, 'infra/platform/flux/install.yaml'));
@@ -533,6 +535,42 @@ async function bootstrapCluster(
       '--timeout=300s',
     ]);
   }
+}
+
+/**
+ * Wait until k3s's bundled Traefik serves, so the URLs `up` prints answer. k3s creates the
+ * Deployment from a Helm job some seconds after the node is Ready, so absence is retried until a
+ * deadline and then refused.
+ *
+ * Proof: without this wait, a fresh-clone walkthrough ran `dev-env up` right after `up` and the
+ * printed URL returned an empty reply for about 30 s while Traefik started (2026-09-18).
+ */
+async function waitForBundledIngress(
+  kubectl: (arguments_: readonly string[]) => Promise<string>,
+): Promise<void> {
+  const deadline = Date.now() + INGRESS_TIMEOUT_MS;
+  for (;;) {
+    const listed = await kubectl([
+      'get',
+      'deployments',
+      '--namespace=kube-system',
+      '--selector=app.kubernetes.io/name=traefik',
+      '--output=name',
+    ]);
+    if (listed.trim() !== '') break;
+    if (Date.now() > deadline) {
+      throw new Error('k3s did not create its bundled Traefik Deployment within the deadline');
+    }
+    await Bun.sleep(2000);
+  }
+  await kubectl([
+    'wait',
+    '--for=condition=Available',
+    'deployment',
+    '--selector=app.kubernetes.io/name=traefik',
+    '--namespace=kube-system',
+    `--timeout=${String(Math.max(1, Math.ceil((deadline - Date.now()) / 1000)))}s`,
+  ]);
 }
 
 async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {

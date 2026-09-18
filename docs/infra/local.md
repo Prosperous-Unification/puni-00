@@ -48,12 +48,12 @@ served as worktrees; `--solver-runtime <dir>` mounts a solver supervisor's runti
 Memory is `MemAvailable`, disk the free space under Docker's root. A refusal names the next
 smaller profile. Measured on 2026-09-18 (24 cores, 31 GiB, shared with a VM lab):
 
-| What                                                                      | Memory                                                          | Disk                                                    | Time                                                     |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
-| `app` lab, idle                                                           | 0.66 GiB (server 621 MiB, load balancer 34 MiB, registry 6 MiB) | 1.6 GB k3s data volume, 0.2 GB registry, 0.43 GB images | `up` 16.5 s with images cached; `down` 1.2 s             |
-| each running dev environment                                              | about 0.95 GiB (be, gw, fe, mcp, Nx, supervisor)                | forge image 192 MiB, once                               | first `up` 58 s including the image build; later 12–18 s |
-| `fleet` shell: both clusters with Flux, before the platform graph         | 1.71 GiB (7 containers)                                         | —                                                       | `up` 114 s; `down` 2.2 s                                 |
-| `platform`/`fleet` with the platform graph (Elastic, Prometheus, backups) | not measured                                                    | —                                                       | —                                                        |
+| What                                                                      | Memory                                                          | Disk                                                             | Time                                                                                           |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `app` lab, idle                                                           | 0.66 GiB (server 621 MiB, load balancer 34 MiB, registry 6 MiB) | 1.6 GB k3s data volume, 0.2 GB registry, 0.43 GB images          | `up` 16.5 s with images cached, plus up to 40 s until the bundled Traefik serves; `down` 1.2 s |
+| each running dev environment                                              | about 0.95 GiB (be, gw, fe, mcp, Nx, supervisor)                | forge image 192 MiB, once; a worktree with `node_modules` 1.6 GB | first `up` 58 s including the image build; later 12–28 s                                       |
+| `fleet` shell: both clusters with Flux, before the platform graph         | 1.71 GiB (7 containers)                                         | —                                                                | `up` 114 s; `down` 2.2 s                                                                       |
+| `platform`/`fleet` with the platform graph (Elastic, Prometheus, backups) | not measured                                                    | —                                                                | —                                                                                              |
 
 The `fleet` shell ran with the resource refusal bypassed for the measurement; this host had
 5–11 GiB available while a VM lab shared it, and `up` refused both profiles as it should. The
@@ -122,7 +122,8 @@ The solver supervisor's runtime directory is mounted read-only at `/run/wbs-solv
 
 With an environment up, this drives HTTP, the gateway socket, MCP metadata, the environment
 database, HMR in headless Chromium, a watcher reload and both restart paths. It edits and
-restores three files of the worktree, so run it on a clean checkout:
+restores three files of the worktree, so run it on a clean checkout. The browser part needs
+Chromium once: `bunx playwright install chromium`.
 
 ```sh
 bun tools/tool-devsync/src/k3s/dev-environment-check.ts --origin http://<slug>.localhost:<port> \
