@@ -32,7 +32,8 @@
   - [x] Maintenance planners (expansion, certificate/token/SOPS rotation, registry recovery, forge replacement) with refusal tests.
   - [x] Daily SQLite restore verification; read-only health check with a fault drill per rule.
   - [x] Worker cluster recreation and synthetic Jobs: duplicate start, cancellation, drain, node loss, memory and disk exhaustion, telemetry outage (infrastructure proofs only).
-  - [ ] `restore.yml` end to end on systemd hosts (VM lab or cloud): prepared; the controller run stops at the systemd boundary.
+  - [x] `restore.yml` end to end on a systemd host (rootless QEMU lab), with the single-host, node-name and running-datastore refusals.
   - [ ] Control-plane expansion, certificate and token rotation, SOPS key rotation and forge replacement executed on real hosts: planners only.
-  - [ ] Platform claims on the `Retain` class; hard scratch limits for worker Jobs.
+  - [x] Platform claims on `puni-retain` (Retain) in both environments; memory-backed worker scratch and ephemeral-storage quota.
+  - [ ] Live drill of `sqlite-backup-verify` in its `wbs-solver` layout with a real backend image; hcloud Retain class on real volumes.
 - [ ] F12 — Finish the tested operator handoff per [F12](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f12--finish-the-operator-handoff).

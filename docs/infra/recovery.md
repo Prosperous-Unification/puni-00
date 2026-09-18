@@ -119,6 +119,8 @@ spec:
           command: [bun, /runner/backup-sqlite.ts, restore]
           env:
             - { name: RESTORE_REPORT_KEY, value: sqlite/wbs/<timestamp>.db.report.json }
+            # The report's sha256 from the escrowed recovery manifest; a different report refuses.
+            - { name: RESTORE_REPORT_SHA256, value: <reportSha256 from manifest.json> }
             - { name: RESTORE_TARGET_PATH, value: /restore/wbs.sqlite }
             - { name: HOME, value: /tmp }
             - { name: BUN_RUNTIME_TRANSPILER_CACHE_PATH, value: '0' }
@@ -172,10 +174,13 @@ recovery manifest recorded when the snapshot was taken:
 ```sh
 bunx nx run tool-fleet:recover -- record-manifest --cluster <id> --source-revision <git sha> \
   --snapshot <downloaded snapshot> --object-key <id>/<name> --token-file <escrow>/token \
-  --sops-age-key-file <escrow>/age.agekey --stores stores.json > manifest.json
+  --sops-age-key-file <escrow>/age.agekey --stores stores.json \
+  --etcd-members <every server node name, comma separated> > manifest.json
 ```
 
-`stores.json` lists what the restore must prove: the SQLite report key and a known row, Velero
+`--etcd-members` records the etcd member set at snapshot time; a restore refuses until every
+one of them has fence evidence, so a surviving member cannot keep a quorum of its own.
+`stores.json` lists what the restore must prove: the SQLite report key with its SHA-256 and a known row, Velero
 backups, the Elastic snapshot and a query, and registry image digests. Keep the manifest with
 the escrowed secrets. To restore, first fence every original server (powered off or deleted)
 and write that evidence to `fences.json`, then:
@@ -184,7 +189,8 @@ and write that evidence to `fences.json`, then:
 bunx nx run tool-fleet:recover -- verify-cold-restore --cluster <id> --manifest manifest.json \
   --token-file <escrow>/token --sops-age-key-file <escrow>/age.agekey \
   --snapshot <downloaded snapshot> --fences fences.json > plan.json
-ansible-playbook -i <inventory> infra/ansible/playbooks/restore.yml -e puni_cluster_id=<id> \
+ansible-playbook -i <inventory> --limit <replacement host> infra/ansible/playbooks/restore.yml \
+  -e puni_cluster_id=<id> \
   -e puni_restore_plan_path=plan.json -e puni_restore_snapshot_path=<snapshot> \
   -e puni_restore_token_path=<escrow>/token -e puni_node_name=<first replacement server>
 ```
@@ -192,20 +198,26 @@ ansible-playbook -i <inventory> infra/ansible/playbooks/restore.yml -e puni_clus
 `verify-cold-restore` refuses a missing or different token or SOPS identity, a snapshot whose
 size or SHA-256 differs from the manifest (a corrupt archive), a snapshot from another
 cluster's folder, a k3s version other than the lock, and any original server that is not
-fenced. It never plans an empty bootstrap. `restore.yml` re-checks the placed token and
-snapshot bytes against the plan before it stops k3s, moves the old datastore aside, runs
-`k3s server --cluster-reset --cluster-reset-restore-path`, starts k3s and deletes the fenced
-Node objects by exact name. The reset records the node's current IP as the etcd peer URL, so it
+fenced, including any recorded etcd member without fence evidence. It never plans an empty
+bootstrap. `restore.yml` refuses to run on more than one host, refuses a host whose
+`/etc/rancher/k3s/config.yaml` `node-name` is not `puni_node_name` (or is a fenced original),
+and refuses a host where k3s is running with a datastore unless
+`puni_restore_confirm_existing_datastore` names that exact inventory host. It re-checks the
+placed token and snapshot bytes against the plan before it stops k3s, moves the old datastore
+aside under a per-run name, runs
+`k3s server --cluster-reset --cluster-reset-restore-path=<file> --etcd-s3=false`, starts k3s and
+deletes the fenced Node objects by exact name. The reset records the node's current IP as the etcd peer URL, so it
 must run on the replacement server itself with its final address.
 
 Then, in order:
 
 1. **Volumes.** A node-local PersistentVolume still names the dead node. After checking its
    data survived, rebind it deliberately:
-   `bunx nx run tool-fleet:recover -- rebind-volume --kubeconfig <k> --kubectl <path> --volume <pv> --to-node <node> --fences fences.json`.
-   It refuses a CSI volume, a claim with another UID, an unfenced old node and a reclaim
-   policy other than `Retain`. The platform's own claims use the default `local-path` class
-   (`Delete`), so patch each to `Retain` first; never delete such a PV object otherwise.
+   `bunx nx run tool-fleet:recover -- rebind-volume --kubeconfig <k> --kubectl <path> --volume <pv> --to-node <node> --fences fences.json --replacement-out <new file>`.
+   It writes the replacement PersistentVolume to `--replacement-out` before deleting the
+   original, and refuses a CSI volume, a claim with another UID, an unfenced old node and a
+   reclaim policy other than `Retain`. Every platform claim uses class `puni-retain`
+   (local-path locally, hcloud CSI in production, both `Retain`), enforced by `tool-fleet:check`.
 2. **Stale attachments.** For CSI volumes (Hetzner), delete only the attachment of that exact
    volume on a fenced node:
    `bunx nx run tool-fleet:recover -- remove-attachment --kubeconfig <k> --kubectl <path> --volume <pv> --node <old node> --fences fences.json`.
@@ -247,9 +259,9 @@ backup, the release coordinator moves its image with every backend rollout, and
 
 `bunx nx run tool-fleet:health -- --cluster <id> --kubeconfig <k> --kubectl <path>` is
 read-only (any kubectl verb but `get` throws) and exits 1 on a critical finding. Rules: target
-marker, node Ready, etcd voter, newest etcd snapshot within 7 h, Flux objects Ready (suspended
+marker, node Ready, etcd voter, newest ready `s3://` etcd snapshot within 7 h (node-local `file://` snapshots do not count), Flux objects Ready (suspended
 is a warning), pods Ready, VolumeAttachments attached, claims Bound (Lost is critical), SQLite
-backup within 2 h, Velero schedule within 26 h, latest backup Job per CronJob not failed,
+backup within 2 h, a verified restore within 26 h, Velero schedule within 26 h, latest backup Job per CronJob not failed,
 certificates Ready with 14 days left. Elastic snapshot age is not observable through Kubernetes
 and is not covered.
 
@@ -258,7 +270,12 @@ and is not covered.
 `bunx nx run harness-example:package`, then
 `bunx nx run tool-fleet:synthetic -- dispatch|reconcile|cancel --run <id> ... --journal <file>`
 runs the fake-ACP harness as a bounded Job in `workers`. The journal stands in for Twilight's
-authority outside the cluster. These are infrastructure proofs, not Twilight's M1 contract.
+authority outside the cluster. It records the cluster identity (the `kube-system` UID) at
+each start and deletes a Job after recording its outcome (Jobs carry no TTL). A Job missing
+from the same cluster is a failed run with an unknown outcome; only a Job missing from a
+recreated cluster (new UID) is started again, at most twice. Scratch is a memory-backed
+`emptyDir`, so a write past 64 MiB fails with `ENOSPC`, and the `workers` quota bounds
+ephemeral storage too. These are infrastructure proofs, not Twilight's M1 contract.
 
 ## Velero
 
@@ -311,6 +328,7 @@ Hetzner volume outlives its server.
 | Loss to every Flux stage Ready           | 17 min 53 s, delayed by a lab DNS entry k3d had not injected               |
 | Worker cluster deleted to policy Ready   | 1 min 32 s; the in-flight run restarted once and completed at 2 min 22 s   |
 | Worker node stopped to run complete      | 42 s after the out-of-service fence taint; nothing ran before the fence    |
+| `restore.yml` on a systemd VM (QEMU lab) | 23 s from the play's start to the replacement Ready, fenced node deleted   |
 
 RPO by store:
 
@@ -329,10 +347,11 @@ RPO by store:
 - One SQLite writer and one Elasticsearch node with zero replicas.
 - The local rehearsal object store lives inside the cluster; only production object storage
   is outside the failure domain, and the off-region copy is not yet running.
-- Platform claims use `local-path` with `Delete`; the `Retain` class `puni-local` is unused by
-  them, so a careless PV deletion loses data.
-- A kubelet enforces `emptyDir.sizeLimit` by eviction, not quota: the disk-exhaustion Job wrote
-  about 2 GB into a 64 MiB scratch in 59 s before eviction.
+- Clusters restored before the `puni-retain` change still carry `Delete` volumes; patch them to
+  `Retain` before any rebind.
+- Disk-backed `emptyDir.sizeLimit` is enforced by eviction, not quota (2 GB written into
+  64 MiB in 59 s). Worker scratch is therefore memory-backed: a tmpfs of exactly its size limit,
+  counted against the container's memory limit.
 - Escrow (token, SOPS identity, manifest) is an operator procedure; no second-machine check has
   run.
 - The Git source and its deploy key: a restore cannot reconcile without them.

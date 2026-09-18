@@ -194,3 +194,66 @@ Everything created (`puni-f10-src`, `puni-f10-restore`, `puni-f10-workers`, netw
 `puni-f10`, the legacy registry container, git server, storage and escrow files) was deleted.
 Not verified: `restore.yml` beyond the systemd boundary, any real host or CSI attachment,
 multi-server etcd, and the maintenance planners' effects.
+
+### F10 review fixes, merge and follow-ups (2026-09-18)
+
+Merged `change/twilight-bureaucrat-fleet` at `1a25c498` as `87d8ddad`. F11 moved the SQLite backup
+into `deploy/k8s/wbs/base/backup.yaml` (`wbs-solver`, backend image). `sqlite-backup-verify`
+moved beside it: F6 admits only backend-image pods in `wbs-solver`, where the only backup
+Secret, runner and egress policy live, so the MinIO selection container was replaced by a new
+`backup-sqlite.ts verify` mode (newest report, 26 h age limit), the release coordinator now
+patches both CronJobs with every backend rollout and refuses a release record either one
+disagrees with, `check-backup.ts` compares the verification job's namespace, service account,
+controller label, node selector, image, UID, workload label and runner with the backend and
+backup, and the health rule reads the backup from `wbs-solver`. The live k3d drill of the old
+verify job remains the evidence for the restore/age behaviour; the new layout is proved by unit,
+rendered-overlay and adapter tests only.
+
+Review fixes (Fable, `79b220b4..aec93206`):
+
+- B1 `restore.yml`: single host, host `node-name` from `/etc/rancher/k3s/config.yaml`, running
+  datastore refused unless `puni_restore_confirm_existing_datastore` names the host, `--limit`
+  in the runbook. Locked controller: a two-host inventory stopped at "Refuse to restore on more
+  than one host"; a host whose config names the fenced original stopped at the node-name check;
+  with both assertions removed each reached the datastore checks.
+- M1: manifests record `etcdMembers`; a plan refuses members without fence evidence (VM lab:
+  a manifest listing a second member refused "recorded etcd members without fence evidence:
+  puni-vm-f10-platform-server-2").
+- M2: Job TTL removed and refused by the template schema; the authority deletes a Job after
+  recording it and stores the `kube-system` UID.
+- M3: only `s3://` etcd snapshots count; m3: the verification CronJob must have succeeded
+  within 26 h; m1: `reportSha256` in the manifest and `RESTORE_REPORT_SHA256` required by
+  restore mode; m2: `rebind-volume --replacement-out` writes the PV before deleting; m4:
+  `--etcd-s3=false` on the reset; m5: ephemeral-storage requests/limits in the `workers` quota.
+- Platform claims (object store, registry, Elasticsearch in both environments, Prometheus) use
+  class `puni-retain`: local-path Retain locally, an added hcloud CSI Retain class in production
+  (hcloud-volumes stays default). `tool-fleet:check` refuses any other class.
+
+Fault injections, each against its named test: etcd-member fence, rebind write-first, report
+digest, verification age, S3-only snapshots, verification freshness, same-cluster outcome,
+TTL, memory-backed scratch, delete-after-record, the eight verification-job comparisons, the
+verify CronJob patch in the coordinator, the claim class check and the hcloud class tuple.
+Each disabled guard failed its test; each was restored.
+
+Live, workers k3d (`puni-f10-workers`, rehearsal commit `efdaa16b` = working tree): quota
+showed `requests.ephemeral-storage 16Gi`, `limits.ephemeral-storage 32Gi`. Disk exhaustion with
+memory-backed scratch: last successful write at 67,108,864 bytes, then `ENOSPC`, exit 1; the Job
+failed (BackoffLimitExceeded, one retry, same bound) 37 s after dispatch, no eviction. Memory
+exhaustion still OOMKilled 137. A completed run: Job had no TTL; reconcile recorded `complete`
+and deleted the Job. A Job deleted from the same cluster: `failed`, "outcome unknown: Job absent
+on the same cluster", no restart. Cluster recreated during a run: kube-system UID changed
+(`b3207f30…` → `6157567a…`), the run restarted (attempts 2) and completed.
+
+Live, rootless QEMU VM lab (`lab up --provider qemu --lab-id f10 --profile platform`, two 2 GiB
+VMs, exit 0 in 4 min 35 s, systemd k3s): ConfigMap `drill-before`, local snapshot
+`f10-vm-puni-vm-f10-platform-server-1-1789719252` (sha256 `fad71794…`, identical on host and
+controller), then ConfigMap `drill-after`. The server's config was changed to node-name
+`puni-vm-f10-platform-restore` (replacement identity on the same VM; the old identity is the
+fenced original). With k3s running and no confirmation, `restore.yml --limit` stopped at the
+datastore guard; a confirmation naming `agent-1` also stopped there. With that guard removed
+the play reset the live datastore (`drill-after` gone) and then failed at `kubectl wait` with
+`nodes "puni-vm-f10-platform-restore" not found`; the play now waits for registration first.
+Clean run with the confirmation naming the host: exit 0 in 23 s, `ok=25 changed=5 failed=0`;
+the replacement node Ready, the fenced node deleted, the agent still Ready, `drill-before`
+present, `drill-after` absent, both previous datastores kept as `db.pre-restore-fad717947757-*`.
+The VMs and lab state were deleted; the other agent's `puni-f3-*` VMs were left untouched.
