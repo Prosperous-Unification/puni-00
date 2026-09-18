@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+  admittedBackendImages,
   assertDownMigrationsUnchanged,
   assertMigratedSet,
   assertObservedCluster,
   assertRequest,
+  decideLease,
   failStep,
   FORWARD_PHASES,
   initialState,
@@ -46,6 +48,7 @@ function request(overrides: Partial<ReleaseRequest> = {}): ReleaseRequest {
       kustomization: 'wbs',
       gitRepository: 'deploy',
       desiredRevision: 'c'.repeat(40),
+      previousRevision: 'd'.repeat(40),
     },
     recovers: null,
     ...overrides,
@@ -205,13 +208,19 @@ describe('assertObservedCluster', () => {
     }).toThrow('the request expected');
   });
 
-  it('refuses a backend digest admission would deny', () => {
+  it('refuses admission parameters that do not approve the running backend', () => {
     expect(() => {
       assertObservedCluster(request(), {
         ...observed,
         approvedBackendImages: [NEW.images.backend],
       });
-    }).toThrow('does not approve');
+    }).toThrow('does not approve the running backend');
+  });
+
+  it('admits the rollback and candidate digests, once when they are equal', () => {
+    expect(admittedBackendImages(request())).toEqual([OLD.images.backend, NEW.images.backend]);
+    const same = { ...NEW, images: { ...NEW.images, backend: OLD.images.backend } };
+    expect(admittedBackendImages(request({ release: same }))).toEqual([OLD.images.backend]);
   });
 
   it('accepts the expected cluster and release', () => {
@@ -250,5 +259,55 @@ describe('migration evidence', () => {
       releaseIdOf({ ...NEW, images: { ...NEW.images, mcp: OLD.images.mcp } }),
     );
     expect(releaseIdOf(NEW)).toMatch(/^b{12}-[0-9a-f]{12}$/);
+  });
+});
+
+describe('decideLease', () => {
+  const claim = { holder: 'tx-1#run-b', journalTransaction: 'tx-1', journalPath: '/j.json' };
+  const lease = (patch: Partial<Parameters<typeof decideLease>[0] & object> = {}) => ({
+    holder: 'tx-1#run-a',
+    renewedAtMs: 1000,
+    durationSeconds: 20,
+    parked: null,
+    journal: '/j.json',
+    ...patch,
+  });
+
+  it('creates an absent Lease and keeps its own', () => {
+    expect(decideLease(null, claim, 0)).toEqual({ kind: 'create' });
+    expect(decideLease(lease({ holder: 'tx-1#run-b' }), claim, 0)).toEqual({ kind: 'held' });
+  });
+
+  it('waits once for a live process of its own transaction', () => {
+    expect(decideLease(lease(), claim, 5000)).toEqual({ kind: 'wait', ms: 16_000 });
+  });
+
+  it('refuses a live coordinator of another transaction', () => {
+    expect(() => decideLease(lease({ holder: 'tx-9#run' }), claim, 5000)).toThrow(
+      'held by live coordinator tx-9#run',
+    );
+  });
+
+  it('takes over its own lapsed or parked transaction', () => {
+    expect(decideLease(lease(), claim, 30_000)).toEqual({ kind: 'takeover' });
+    expect(decideLease(lease({ parked: 'recovery-required' }), claim, 0)).toEqual({
+      kind: 'takeover',
+    });
+  });
+
+  it('takes over a lapsed holder that died before persisting intent in the same journal', () => {
+    const fresh = { ...claim, journalTransaction: null };
+    expect(decideLease(lease({ holder: 'tx-0#dead' }), fresh, 30_000)).toEqual({
+      kind: 'takeover',
+    });
+    expect(() =>
+      decideLease(lease({ holder: 'tx-0#dead', journal: '/other.json' }), fresh, 30_000),
+    ).toThrow('delete the Lease by hand');
+  });
+
+  it('never takes over another transaction, even lapsed or parked', () => {
+    expect(() =>
+      decideLease(lease({ holder: 'tx-9#run', parked: 'rollback-failed' }), claim, 0),
+    ).toThrow('inspect that journal');
   });
 });

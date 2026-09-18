@@ -13,7 +13,9 @@
         writer pod throughout; exact solver directory admitted, alternate host paths refused.
   - [ ] Ubuntu VM lab: real solve through the host supervisor, socket replacement/reconnect,
         denied alternate host path on a real node (blocked: see verify.md).
-  - [ ] F6 approved-digest-set change (owned by the platform track; see design.md).
+  - [x] F6 `solverImages` approved-digest set (F6 `f8265dc7`); the coordinator writes it.
+  - [x] Review fixes: rollback resumes Flux only onto the previous revision; per-process
+        Lease with heartbeat and expiry; writer guard on every schema Job.
   - [ ] RWOP decision on the real Hetzner CSI driver; Flux suspend/resume against a live
         source; OIDC smoke (staging, F11).
 - [ ] F11 — Wire package admission, immutable image promotion, CI/CD separation, staging proof, and the concrete production cutover plan per [F11](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f11--wire-cicd-and-stage-the-production-cutover).

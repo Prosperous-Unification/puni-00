@@ -1,6 +1,13 @@
 import type { ReleaseEffects } from './execute';
 import type { JournalRecord, ReleaseJournal } from './journal';
-import { K8S_TIERS, type K8sTier, type ReleaseIdentity, type ReleaseRequest } from './release';
+import {
+  type FluxUnit,
+  K8S_TIERS,
+  type K8sTier,
+  type ObservedLease,
+  type ReleaseIdentity,
+  type ReleaseRequest,
+} from './release';
 
 /** A migration folder as one backend image carries it. */
 export interface FakeMigration {
@@ -25,7 +32,12 @@ export class FakeCluster implements ReleaseEffects {
   writesOpen = true;
   fluxSuspended = false;
   fluxRevision: string;
-  lease: string | null = null;
+  lease: (ObservedLease & { version: number }) | null = null;
+  /** Fake wall clock in ms; tests advance it to expire Leases. */
+  now = 1_000_000;
+  readonly leaseDurationSeconds = 20;
+  /** Manifests each deploy-repository revision pins; resuming Flux applies the served one. */
+  readonly sourceImages = new Map<string, ReleaseIdentity>();
   applied: string[];
   /** Rows written through the open write path, tagged with the schema they were written under. */
   rows: string[] = [];
@@ -57,6 +69,11 @@ export class FakeCluster implements ReleaseEffects {
     if (this.brokenEffects.has(name)) throw new Error(`${name} is broken`);
   }
 
+  /** F6 admission: a backend-image pod starts only if its digest is in `solverImages`. */
+  private admit(image: string): void {
+    if (!this.approved.includes(image)) throw new Error(`admission denied ${image}`);
+  }
+
   private writerJob(): void {
     const writers = this.backendReplicas + 1;
     this.maxConcurrentWriters = Math.max(this.maxConcurrentWriters, writers);
@@ -85,18 +102,69 @@ export class FakeCluster implements ReleaseEffects {
       approvedBackendImages: this.approved,
     });
   }
-  acquireLease(holder: string, accepted: readonly string[]) {
-    this.enter('acquireLease');
-    if (this.lease !== null && !accepted.includes(this.lease)) {
-      throw new Error(`Lease is held by ${this.lease}`);
-    }
-    this.lease = holder;
+  readonly clock = (): number => this.now;
+
+  /** Leaves a Lease as a process that has since died would have. */
+  seedLease(holder: string, journal: string | null, parked: string | null = null): void {
+    this.lease = {
+      holder,
+      renewedAtMs: this.now,
+      durationSeconds: this.leaseDurationSeconds,
+      parked,
+      journal,
+      version: 1,
+    };
+  }
+
+  readLease() {
+    this.enter('readLease');
+    return Promise.resolve(
+      this.lease === null ? null : { ...this.lease, version: String(this.lease.version) },
+    );
+  }
+  createLease(holder: string, journalPath: string) {
+    this.enter('createLease');
+    if (this.lease !== null) throw new Error('AlreadyExists');
+    this.seedLease(holder, journalPath);
     return Promise.resolve();
   }
-  releaseLease(holders: readonly string[]) {
+  takeoverLease(holder: string, version: string, journalPath: string) {
+    this.enter('takeoverLease');
+    if (this.lease === null || String(this.lease.version) !== version) throw new Error('Conflict');
+    this.lease = {
+      holder,
+      renewedAtMs: this.now,
+      durationSeconds: this.leaseDurationSeconds,
+      parked: null,
+      journal: journalPath,
+      version: this.lease.version + 1,
+    };
+    return Promise.resolve();
+  }
+  renewLease(holder: string) {
+    this.enter('renewLease');
+    if (this.lease?.holder !== holder) {
+      throw new Error(`Lease is held by ${this.lease?.holder ?? 'nobody'}`);
+    }
+    this.lease = { ...this.lease, renewedAtMs: this.now, version: this.lease.version + 1 };
+    return Promise.resolve();
+  }
+  parkLease(holder: string, phase: string) {
+    this.enter('parkLease');
+    if (this.lease?.holder === holder) {
+      this.lease = { ...this.lease, parked: phase, version: this.lease.version + 1 };
+    }
+    return Promise.resolve();
+  }
+  releaseLease(holder: string) {
     this.enter('releaseLease');
-    if (this.lease !== null && !holders.includes(this.lease)) throw new Error('foreign lease');
+    if (this.lease !== null && this.lease.holder !== holder) throw new Error('foreign lease');
     this.lease = null;
+    return Promise.resolve();
+  }
+  admitBackendImages(images: readonly string[]) {
+    this.enter('admitBackendImages');
+    this.approved = [...images];
     return Promise.resolve();
   }
   suspendFlux() {
@@ -104,10 +172,23 @@ export class FakeCluster implements ReleaseEffects {
     this.fluxSuspended = true;
     return Promise.resolve();
   }
-  resumeFlux() {
+  fluxSourceRevision() {
+    this.enter('fluxSourceRevision');
+    return Promise.resolve(this.fluxRevision);
+  }
+  /** Resuming applies whatever the source serves, exactly as Flux would. */
+  resumeFlux(_unit: FluxUnit, revision: string) {
     this.enter('resumeFlux');
+    if (this.fluxRevision !== revision) {
+      throw new Error(`Flux source is at ${this.fluxRevision}, not ${revision}`);
+    }
     this.fluxSuspended = false;
+    const served = this.sourceImages.get(this.fluxRevision);
+    if (served !== undefined) this.images = { ...served.images };
     return Promise.resolve();
+  }
+  manualFluxResumeCommand(unit: FluxUnit, revision: string) {
+    return `revert ${unit.gitRepository} to ${revision}, then resume ${unit.kustomization}`;
   }
   closeWrites() {
     this.enter('closeWrites');
@@ -130,6 +211,7 @@ export class FakeCluster implements ReleaseEffects {
   }
   capture(releaseId: string, image: string) {
     this.enter('capture');
+    this.admit(image);
     this.writerJob();
     const folders = this.migrationsOf(image);
     const pending = folders.filter((m) => !this.applied.includes(m.name));
@@ -144,6 +226,7 @@ export class FakeCluster implements ReleaseEffects {
   }
   migrate(_releaseId: string, image: string) {
     this.enter('migrate');
+    this.admit(image);
     this.writerJob();
     this.migrationJobRuns++;
     for (const m of this.migrationsOf(image)) {
@@ -153,12 +236,14 @@ export class FakeCluster implements ReleaseEffects {
   }
   observeDownMigrations(_releaseId: string, image: string) {
     this.enter('observeDownMigrations');
+    this.admit(image);
     return Promise.resolve(
       this.migrationsOf(image).map((m) => ({ name: m.name, downSha256: m.downSha256 })),
     );
   }
-  rollbackSchema(_releaseId: string, _image: string, baseline: string) {
+  rollbackSchema(_releaseId: string, image: string, baseline: string) {
     this.enter('rollbackSchema');
+    this.admit(image);
     this.writerJob();
     const keep = baseline === 'none' ? 0 : this.applied.indexOf(baseline) + 1;
     this.applied = this.applied.slice(0, keep);
@@ -172,6 +257,7 @@ export class FakeCluster implements ReleaseEffects {
   }
   rolloutBackend(image: string) {
     this.enter('rolloutBackend');
+    this.admit(image);
     this.images.backend = image;
     this.backendReplicas = 1;
     if (this.unhealthy.has(image)) throw new Error(`backend ${image} never became ready`);
@@ -179,6 +265,7 @@ export class FakeCluster implements ReleaseEffects {
   }
   rolloutTiers(identity: ReleaseIdentity) {
     this.enter('rolloutTiers');
+    this.admit(identity.images.backend);
     for (const tier of K8S_TIERS) this.images[tier] = identity.images[tier];
     this.backendReplicas = 1;
     if (this.unhealthy.has(identity.images.backend)) throw new Error('backend never became ready');

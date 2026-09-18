@@ -17,9 +17,18 @@ changing the transaction's phase order.
   process); the next run resumes from the last durable write.
 - **Resume rule.** A restart before `smoke-passed` rolls back; from `smoke-passed` on it
   finishes the release. Each rollback undo keys on the phase _before_ the step it reverses,
-  because that step may have run partially. `validated`/`lease-acquired` precede the first
-  journal write; the Lease holder name (the release id, derived from the exact bytes) lets a
-  restart reclaim its own Lease, and any other holder is refused.
+  because that step may have run partially.
+- **Lease.** The holder is `<transactionId>#<run>`, unique to one process. The Lease carries
+  `renewTime`, a duration (20 s local, 120 s staging/prod), and a `puni.dev/journal`
+  annotation. The executor renews it before every step and on a heartbeat (a quarter of the
+  duration) while a step runs. Losing it stops the process with nothing journaled, as a crash
+  would. A live holder is never displaced: a second process of the same transaction waits
+  once for it to lapse and is then refused. A lapsed Lease is taken over only by its own
+  transaction (the journal names it), or, when no journal exists, by a coordinator using the
+  journal path the dead holder recorded (it died before persisting intent). A resumed run
+  claims the Lease before its first journal write. Terminal failure phases park the Lease
+  (`puni.dev/parked`) so that recovery can take it over without waiting, while any other
+  transaction still has to delete it by hand.
 - **Journal.** A 0600 JSON file (fsync + rename) in an operator-supplied persistent
   directory, also holding rendered Job manifests referenced by manual commands. The Lease's
   `puni.dev/journal` annotation names it. An in-cluster journal was rejected for now: it would
@@ -36,6 +45,11 @@ changing the transaction's phase order.
   coordinator refuses to start if the unit is already suspended (unless recovering), and
   refuses to resume unless the GitRepository artifact is at that revision. Ordering
   constraint for F11: the desired revision may be pushed only after the unit is suspended.
+  A rollback resumes Flux only onto `flux.previousRevision`, the deploy-repo commit that pins
+  `expectedCurrent`. If the source already serves the failed release, the coordinator leaves
+  Flux suspended and ends at `flux-revert-required`. The previous release is then serving with
+  writes open, the Lease is parked, and the report names the deploy-repo revert and the resume
+  command.
 - **Migration evidence.** Schema Jobs run the candidate backend image
   (`BACKEND_TASK_SCRIPT`), report applied rows plus each folder's `migration.sql`/`down.sql`
   SHA-256, and are checked by the coordinator: capture refuses an applied migration the
@@ -53,8 +67,10 @@ changing the transaction's phase order.
   local overlay sets `NODE_ENV=lab`. Staging/prod use OIDC with SOPS-managed secrets.
 - **Storage.** RWO everywhere (`puni-local` lab, `hcloud-volumes` staging/prod). RWOP remains
   unselected until tested on the Hetzner CSI driver.
-- **Required F6 change (not made here).** F6's admission compares every `wbs-solver`
-  container image to one `solverImage`. A release needs both the candidate and the rollback
-  digest admitted, so the lab applies a patch making it `image in solverImage.split(',')`
-  (see `APPROVED_SET_PATCH` in `lab.ts`). The coordinator reads the same comma-separated set
-  and refuses before any mutation unless both digests are approved.
+- **Admission list.** F6's trusted-workload policy (`f8265dc7`) admits `wbs-solver` images in
+  the comma-separated `solverImages` parameter. The coordinator writes it after persisting
+  intent, as `admit-images`, and reads it back. It contains the rollback digest and the
+  candidate, or one entry when they are the same image. Validation requires the current list
+  to include the running backend, which proves the parameters belong to this deployment.
+  Flux's platform reconciliation owns the same ConfigMap: F6/F11 must exclude
+  `data.solverImages` from Flux's managed fields, or the reconciler reverts the list mid-release.
