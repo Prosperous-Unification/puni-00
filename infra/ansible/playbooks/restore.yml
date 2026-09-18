@@ -1,0 +1,135 @@
+---
+# Cold restore of one cluster's etcd onto its first replacement server.
+# Run only with a plan from `recover.ts verify-cold-restore`, which refuses a missing or wrong
+# token or SOPS identity, a corrupt snapshot, an unlocked k3s version and unfenced originals.
+# This play re-checks that the bytes it places are the bytes that plan verified.
+- name: Restore etcd from a verified snapshot on the first replacement server
+  hosts: k3s_bootstrap_servers
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Require the verified plan and escrowed recovery inputs
+      ansible.builtin.assert:
+        that:
+          - puni_cluster_id in ['platform-local', 'platform-production', 'workers-local', 'workers-production']
+          - puni_restore_plan_path is defined
+          - puni_restore_snapshot_path is defined
+          - puni_restore_token_path is defined
+          - puni_node_name is defined
+        fail_msg: Cold restore needs the verified plan, snapshot and escrowed token paths
+
+    - name: Read the verified cold-restore plan
+      ansible.builtin.set_fact:
+        puni_restore_plan: "{{ lookup('ansible.builtin.file', puni_restore_plan_path) | from_json }}"
+
+    - name: Require a plan for this cluster with fenced originals
+      ansible.builtin.assert:
+        that:
+          - puni_restore_plan.clusterId == puni_cluster_id
+          - puni_restore_plan.snapshotSha256 is match('^[0-9a-f]{64}$')
+          - puni_restore_plan.tokenSha256 is match('^[0-9a-f]{64}$')
+          - puni_restore_plan.fencedServers | length > 0
+          - puni_node_name not in puni_restore_plan.fencedServers
+        fail_msg: The restore plan is for another cluster, is incomplete, or names this node as fenced
+
+    # The token is read from the operator's escrow on the controller; a missing file fails here
+    # before k3s is stopped, so a missing token can never become an empty rebootstrap.
+    - name: Read the escrowed server token on the controller
+      ansible.builtin.set_fact:
+        puni_restore_token: "{{ lookup('ansible.builtin.file', puni_restore_token_path) | trim }}"
+      no_log: true
+
+    - name: Refuse a token that differs from the verified plan
+      ansible.builtin.assert:
+        that: (puni_restore_token | hash('sha256')) == puni_restore_plan.tokenSha256
+        fail_msg: The escrowed token differs from the one the restore plan verified
+      no_log: true
+
+    - name: Create the restore staging directory
+      ansible.builtin.file:
+        path: /var/lib/rancher/k3s/server/restore
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Place the verified snapshot
+      ansible.builtin.copy:
+        src: '{{ puni_restore_snapshot_path }}'
+        dest: '/var/lib/rancher/k3s/server/restore/{{ puni_restore_plan.snapshotName }}'
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Read the placed snapshot digest
+      ansible.builtin.stat:
+        path: '/var/lib/rancher/k3s/server/restore/{{ puni_restore_plan.snapshotName }}'
+        checksum_algorithm: sha256
+      register: puni_restore_snapshot
+
+    - name: Refuse a snapshot whose placed bytes differ from the verified plan
+      ansible.builtin.assert:
+        that: puni_restore_snapshot.stat.checksum == puni_restore_plan.snapshotSha256
+        fail_msg: The placed snapshot differs from the verified archive
+
+    - name: Write the escrowed server token
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/server-token
+        content: "{{ puni_restore_token }}\n"
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+
+    - name: Stop k3s before the reset
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: stopped
+
+    # Existing state is moved aside, never deleted, so an aborted restore can be inspected.
+    - name: Move any existing datastore aside
+      ansible.builtin.command:
+        argv:
+          - mv
+          - /var/lib/rancher/k3s/server/db
+          - '/var/lib/rancher/k3s/server/db.pre-restore-{{ puni_restore_plan.snapshotSha256[:12] }}'
+        removes: /var/lib/rancher/k3s/server/db
+        creates: '/var/lib/rancher/k3s/server/db.pre-restore-{{ puni_restore_plan.snapshotSha256[:12] }}'
+
+    - name: Reset etcd membership from the snapshot
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - server
+          - --cluster-reset
+          - '--cluster-reset-restore-path=/var/lib/rancher/k3s/server/restore/{{ puni_restore_plan.snapshotName }}'
+          - --token-file=/etc/rancher/k3s/server-token
+      register: puni_restore_reset
+      changed_when: true
+
+    - name: Start k3s on the restored datastore
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: started
+
+    - name: Wait for this node to become Ready
+      ansible.builtin.command:
+        argv:
+          [k3s, kubectl, wait, 'node/{{ puni_node_name }}', --for=condition=Ready, --timeout=10m]
+      changed_when: false
+
+    - name: Forget the fenced original servers by exact name
+      ansible.builtin.command:
+        argv: [k3s, kubectl, delete, node, '{{ item }}', --ignore-not-found, --wait=true]
+      loop: '{{ puni_restore_plan.fencedServers }}'
+      register: puni_restore_forget
+      changed_when: "'deleted' in puni_restore_forget.stdout"
+
+    - name: Report the operator steps that need reviewed evidence
+      ansible.builtin.debug:
+        msg: >-
+          etcd restored from {{ puni_restore_plan.snapshotName }}. Next, with reviewed evidence:
+          recover.ts remove-attachment and rebind-volume for retained volumes, then flux reconcile
+          puni-cluster at {{ puni_restore_plan.sourceRevision }}, the application restores and
+          verification steps in the plan, and join.yml for further servers one at a time.
