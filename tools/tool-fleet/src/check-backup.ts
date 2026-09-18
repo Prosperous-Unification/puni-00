@@ -49,6 +49,18 @@ export interface K8sObject {
 /** The release record key the coordinator's `persistRelease` writes the source commit to. */
 export const RELEASE_RECORD = { name: 'wbs-release', sourceKey: 'sourceSha' } as const;
 
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
+      .join(',')}}`;
+  }
+  return value === undefined ? 'undefined' : JSON.stringify(value);
+}
+
 function find(objects: readonly K8sObject[], kind: string, name: string): K8sObject | undefined {
   return objects.find((each) => each.kind === kind && each.metadata?.name === name);
 }
@@ -80,7 +92,8 @@ export function judgeBackupJob(objects: readonly K8sObject[], runner: string): s
   const jobPod = job?.spec;
   const jobContainer = jobPod?.containers?.[0];
   const same = (field: string, actual: unknown, expected: unknown): void => {
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    // Key order is not meaning: kubectl kustomize re-serialises maps sorted.
+    if (canonical(actual) !== canonical(expected)) {
       problems.push(
         `sqlite-backup ${field} is ${JSON.stringify(actual)}, the backend's is ${JSON.stringify(expected)}`,
       );

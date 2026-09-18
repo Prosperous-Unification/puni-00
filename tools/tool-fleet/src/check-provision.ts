@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -154,16 +155,79 @@ export async function provisionCheckTools(
   );
   await assertToolVersion('actionlint', actionlint, ['-version'], locks.actionlint.version, run);
 
-  const repository = toolchain.controller.image.replace(/:[^/:]+$/, '');
-  const controllerImage = `${repository}@${toolchain.controller.digest}`;
-  const inspected = await run(['docker', 'image', 'inspect', controllerImage], {
-    timeoutMs: 60_000,
-  });
-  if (inspected.exitCode !== 0) {
+  const controllerImage = await resolveController(
+    toolchain.controller.image,
+    toolchain.controller.digest,
+    join(root, 'dist/tool-fleet/controller.oci'),
+    run,
+  );
+  return { kubectl, helm, shellcheck, actionlint, controllerImage };
+}
+
+function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+async function archiveBlob(archive: string, path: string, run: CheckRunner): Promise<Uint8Array> {
+  const read = await run(['tar', '-xOf', archive, path], { timeoutMs: 120_000 });
+  if (read.exitCode !== 0)
+    throw new Error(`cannot read ${path} from ${archive}: ${read.stderr.trim()}`);
+  return new TextEncoder().encode(read.stdout);
+}
+
+/**
+ * The docker reference that runs the locked controller. A containerd image store keeps the
+ * manifest digest, so `name@digest` resolves. The classic overlay2 store (GitHub-hosted runners)
+ * keeps no RepoDigests after `docker load`; there the loaded archive itself is verified instead:
+ * its index must name the locked manifest, the manifest bytes must hash to it, and the image is
+ * addressed by the config digest that manifest names, which is the loaded image's ID.
+ */
+export async function resolveController(
+  image: string,
+  digest: string,
+  archive: string,
+  run: CheckRunner,
+): Promise<string> {
+  const byDigest = `${image.replace(/:[^/:]+$/, '')}@${digest}`;
+  if ((await run(['docker', 'image', 'inspect', byDigest], { timeoutMs: 60_000 })).exitCode === 0) {
+    return byDigest;
+  }
+  if (!existsSync(archive)) {
     throw new Error(
-      `fleet controller ${controllerImage} is not loaded (${inspected.stderr.trim()}); build it ` +
-        'with `bunx nx run tool-fleet:build` and load dist/tool-fleet/controller.oci',
+      `fleet controller ${byDigest} is not loaded and ${archive} does not exist; build it with ` +
+        '`bunx nx run tool-fleet:build` and `docker load --input` that archive',
     );
   }
-  return { kubectl, helm, shellcheck, actionlint, controllerImage };
+  const index = JSON.parse(
+    new TextDecoder().decode(await archiveBlob(archive, 'index.json', run)),
+  ) as {
+    manifests?: { digest?: string }[];
+  };
+  const manifestDigest = index.manifests?.[0]?.digest;
+  // Proof: check.test.ts `refuses a loaded archive whose manifest is not the locked digest`
+  // resolved another build's image with this comparison removed.
+  if (manifestDigest !== digest) {
+    throw new Error(
+      `${archive} names manifest ${String(manifestDigest)}, not the locked ${digest}`,
+    );
+  }
+  const manifestBytes = await archiveBlob(archive, `blobs/sha256/${digest.slice(7)}`, run);
+  if (`sha256:${sha256Hex(manifestBytes)}` !== digest) {
+    throw new Error(`${archive} manifest bytes do not hash to ${digest}`);
+  }
+  const config = (
+    JSON.parse(new TextDecoder().decode(manifestBytes)) as { config?: { digest?: string } }
+  ).config?.digest;
+  if (config === undefined || !/^sha256:[0-9a-f]{64}$/.test(config)) {
+    throw new Error(`${archive} manifest ${digest} names no config digest`);
+  }
+  const id = await run(['docker', 'image', 'inspect', '--format', '{{.Id}}', config], {
+    timeoutMs: 60_000,
+  });
+  if (id.exitCode !== 0 || id.stdout.trim() !== config) {
+    throw new Error(
+      `the image loaded from ${archive} (config ${config}) is not in docker: ${id.stderr.trim()}`,
+    );
+  }
+  return config;
 }

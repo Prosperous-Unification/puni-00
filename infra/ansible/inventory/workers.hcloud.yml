@@ -3,6 +3,9 @@ strict: true
 cache: false
 label_selector: puni-fleet=puni,puni-cluster=workers
 connect_with: private_ipv4
+# Required with private_ipv4: without it hetzner.hcloud sets no ansible_host or
+# hcloud_private_ipv4, and strict: true aborts (tool-fleet:check ansible-inventory).
+network: puni-workers
 groups:
   k3s_agents: "hcloud_labels['puni-k3s-role'] == 'agent'"
   k3s_join_servers: >-

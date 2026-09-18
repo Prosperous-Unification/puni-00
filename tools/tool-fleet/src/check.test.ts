@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   type AnsibleReport,
   assertStrictYaml,
+  type CheckRunner,
   fleetShellScripts,
   judgeAnsibleSyntax,
   judgeExecutables,
@@ -16,7 +17,7 @@ import {
   parseIndexEntries,
 } from './check';
 import { runChecked } from './check-cli';
-import { installLockedTool } from './check-provision';
+import { installLockedTool, resolveController } from './check-provision';
 
 const unsafe = (value: string) => ({ __ansible_unsafe: value });
 
@@ -221,5 +222,69 @@ describe('locked tool provisioning', () => {
     } finally {
       await server.stop(true);
     }
+  });
+});
+
+describe('the loaded controller image', () => {
+  async function archive(manifestDigestOverride?: string) {
+    const directory = scratchSync('fleet-controller-oci-');
+    const config = '{"architecture":"amd64"}';
+    const configDigest = `sha256:${createHash('sha256').update(config).digest('hex')}`;
+    const manifest = JSON.stringify({ schemaVersion: 2, config: { digest: configDigest } });
+    const manifestDigest = `sha256:${createHash('sha256').update(manifest).digest('hex')}`;
+    await Bun.write(join(directory, 'layout/blobs/sha256', configDigest.slice(7)), config);
+    await Bun.write(join(directory, 'layout/blobs/sha256', manifestDigest.slice(7)), manifest);
+    await Bun.write(
+      join(directory, 'layout/index.json'),
+      JSON.stringify({ manifests: [{ digest: manifestDigestOverride ?? manifestDigest }] }),
+    );
+    const tarball = join(directory, 'controller.oci');
+    const packed = await runChecked(
+      ['tar', '-cf', tarball, '-C', join(directory, 'layout'), 'index.json', 'blobs'],
+      {
+        timeoutMs: 30_000,
+      },
+    );
+    if (packed.exitCode !== 0) throw new Error(packed.stderr);
+    return { tarball, configDigest, manifestDigest };
+  }
+
+  /** Docker without RepoDigests (overlay2 after `docker load`): only the image ID resolves. */
+  const classicDocker =
+    (loadedId: string): CheckRunner =>
+    async (argv, options) => {
+      if (argv[0] !== 'docker') return runChecked(argv, options);
+      if (argv.includes('--format') && argv.at(-1) === loadedId) {
+        return { exitCode: 0, stdout: `${loadedId}\n`, stderr: '' };
+      }
+      return { exitCode: 1, stdout: '', stderr: 'No such image' };
+    };
+
+  it('resolves the loaded image by the config digest the locked manifest names', async () => {
+    const { tarball, configDigest, manifestDigest } = await archive();
+    expect(
+      await resolveController(
+        'ghcr.io/x/fleet-controller:0.1.0',
+        manifestDigest,
+        tarball,
+        classicDocker(configDigest),
+      ),
+    ).toBe(configDigest);
+  });
+
+  it('refuses a loaded archive whose manifest is not the locked digest', async () => {
+    const other = `sha256:${'9'.repeat(64)}`;
+    const { tarball, configDigest, manifestDigest } = await archive(other);
+    expect(
+      await resolveController(
+        'ghcr.io/x/fleet-controller:0.1.0',
+        manifestDigest,
+        tarball,
+        classicDocker(configDigest),
+      ).then(
+        () => 'resolved',
+        (e: unknown) => String(e),
+      ),
+    ).toContain(`names manifest ${other}, not the locked ${manifestDigest}`);
   });
 });

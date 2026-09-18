@@ -57,29 +57,6 @@ async function edit(tree: string, path: string, change: (text: string) => string
   await writeFile(file, after);
 }
 
-/**
- * Pending infra/ansible fix (reported, not owned here): the hcloud inventories need `network:`
- * for `connect_with: private_ipv4`. Applied to the copy only when absent, so the baseline can
- * pass; once the real inventories carry it this is a no-op.
- */
-async function applyPendingInventoryFix(tree: string): Promise<string[]> {
-  const applied: string[] = [];
-  for (const cluster of ['platform', 'workers']) {
-    const path = `infra/ansible/inventory/${cluster}.hcloud.yml`;
-    const text = await readFile(join(tree, path), 'utf8');
-    if (/^network:/m.test(text)) continue;
-    await writeFile(
-      join(tree, path),
-      text.replace(
-        /^connect_with: private_ipv4$/m,
-        `connect_with: private_ipv4\nnetwork: puni-${cluster}`,
-      ),
-    );
-    applied.push(path);
-  }
-  return applied;
-}
-
 interface Fault {
   readonly family: CheckFamily;
   readonly description: string;
@@ -122,6 +99,14 @@ const FAULTS: readonly Fault[] = [
           'label_selector: puni-fleet=puni,puni-cluster=platform',
           'label_selector: puni-fleet=puni',
         ),
+      ),
+  },
+  {
+    family: 'ansible-inventory',
+    description: 'workers inventory loses network:, so private_ipv4 hosts get no address',
+    inject: (tree) =>
+      edit(tree, 'infra/ansible/inventory/workers.hcloud.yml', (text) =>
+        text.replace('network: puni-workers\n', ''),
       ),
   },
   {
@@ -205,24 +190,18 @@ async function checkTree(tree: string): Promise<{ exitCode: number; output: stri
   return { exitCode: result.exitCode, output: result.stdout + result.stderr };
 }
 
-async function prepared(fault: Fault | null): Promise<{ tree: string; fixes: string[] }> {
+async function prepared(fault: Fault | null): Promise<{ tree: string }> {
   const tree = await mkdtemp(join(tmpdir(), 'fleet-check-fault-'));
   await copyCheckedTree(tree);
-  const fixes = await applyPendingInventoryFix(tree);
   if (fault !== null) await fault.inject(tree);
   await commitIndex(tree);
-  return { tree, fixes };
+  return { tree };
 }
 
 async function main(): Promise<void> {
   const failures: string[] = [];
   const baseline = await prepared(null);
   try {
-    if (baseline.fixes.length > 0) {
-      console.log(
-        `[check:faults] pending inventory fix applied to copies: ${baseline.fixes.join(', ')}`,
-      );
-    }
     const clean = await checkTree(baseline.tree);
     console.log(`[check:faults] clean copy: exit ${String(clean.exitCode)}`);
     if (clean.exitCode !== 0) {

@@ -440,9 +440,11 @@ export async function runFleetChecks(
         continue;
       }
       try {
-        parseAllDocuments(rendered.stdout, { uniqueKeys: true });
+        // Proof: check.test.ts `refuses duplicate keys and malformed YAML`; the earlier bare
+        // parseAllDocuments call here never threw, so rendered garbage passed (review m1).
+        assertStrictYaml(`${directory} (rendered)`, rendered.stdout);
       } catch (cause) {
-        problems.push(`${directory} renders unparseable YAML: ${String(cause)}`);
+        problems.push(cause instanceof Error ? cause.message : String(cause));
       }
     }
     log(`kustomize: ${String(directories.length)} kustomizations rendered`);
