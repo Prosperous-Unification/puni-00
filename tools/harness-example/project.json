@@ -12,6 +12,14 @@
       },
       "cache": false
     },
+    "package": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/dist/harness-example"],
+      "options": {
+        "command": "bun build tools/harness-example/src/worker.ts --target=bun --minify --outfile=dist/harness-example/worker.js && gzip -9nf dist/harness-example/worker.js"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {
