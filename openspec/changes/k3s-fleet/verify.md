@@ -688,3 +688,20 @@ and `format:check --all` exited 0 at `de289e3b` (238 tests). `df3ce0fb` failed `
   (`lab.test.ts` hub case: 0 of 5 frames delivered without the retry).
 - **Evidence rows.** The firewall rows that said "pending" now cite the live runs. The
   authenticated pod-to-API probe is still pending.
+
+## 2026-09-18 PR CI: reproducible controller image
+
+- The `58926be2…` lock was only cache-reproducible: a `--no-cache` build on the host's default
+  builder produced `sha256:4cd7fd09…`, and GitHub's `docker` driver refused the OCI exporter.
+- On a `docker-container` builder from `moby/buildkit:v0.33.0@sha256:6c2fa84a…` with
+  `SOURCE_DATE_EPOCH=0`, `rewrite-timestamp=true` and no attestations, two `--no-cache` builds
+  still differed (`9e7166f5…`, `decb0447…`) in the Galaxy API cache and pip's timestamped `.pyc`
+  files. After the Containerfile dropped the cache and compiled with `SOURCE_DATE_EPOCH`, two
+  `--no-cache` builds and a third `bunx nx run tool-fleet:controller-image` on a newly created
+  locked builder all produced `sha256:5f00e0eb382406f3f0a7ac30a40ffe722ffe8778d2e21e6c1b90130ac88d46ce`,
+  now the lock. `docker load` tagged it from the index name; `bunx nx run tool-fleet:check` passed.
+- The target was renamed from `build` so the ordinary gate no longer pulls a 2 GB base image;
+  `infra-check.yml` still builds it before `tool-fleet:check`.
+- R5: removing the builder-image, inspect-absence and create-exit guards each failed its named
+  `controller.test.ts` case; making `controller.builder` optional failed `contracts.test.ts`
+  `rejects a missing controller builder lock`.

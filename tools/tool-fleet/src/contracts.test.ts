@@ -114,6 +114,7 @@ const validToolchain = {
   controller: {
     image: 'registry.example.test/puni/fleet-controller:1.0.0',
     digest: `sha256:${sha256}`,
+    builder: image('buildkit'),
     python: '3.12.0',
     pythonPackages: {
       certifi: '2026.7.22',
@@ -261,6 +262,12 @@ describe('readToolchain', () => {
     const { pythonPackages: _removed, ...controller } = validToolchain.controller;
     const path = await writeToolchain({ ...validToolchain, controller });
     expect(readToolchain(path)).rejects.toThrow(/pythonPackages/);
+  });
+
+  it('rejects a missing controller builder lock', async () => {
+    const { builder: _removed, ...controller } = validToolchain.controller;
+    const path = await writeToolchain({ ...validToolchain, controller });
+    expect(readToolchain(path)).rejects.toThrow(/builder/);
   });
 
   it('rejects an invalid checksum', async () => {

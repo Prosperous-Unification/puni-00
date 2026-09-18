@@ -21,12 +21,12 @@ switch (command) {
         import('./controller'),
       ]);
       const toolchain = await readToolchain(toolchainPath);
-      await buildController(
-        root,
-        toolchain.controller.digest,
-        undefined,
-        toolchain.binaries.kubectl,
-      );
+      await buildController(root, {
+        image: toolchain.controller.image,
+        digest: toolchain.controller.digest,
+        builder: toolchain.controller.builder,
+        kubectl: toolchain.binaries.kubectl,
+      });
     }
     break;
   case 'lab':

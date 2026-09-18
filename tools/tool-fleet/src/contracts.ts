@@ -125,6 +125,10 @@ const ToolchainSchema = type({
   controller: {
     image: 'string>0',
     digest,
+    // The BuildKit daemon image that produces `digest`; layer bytes depend on its version.
+    // Proof: making this optional made the missing-controller-builder production-reader negative
+    // resolve instead of reject on 2026-09-18.
+    builder: ImageLock,
     python: exactVersion,
     // Proof: making this dependency closure optional made the missing-Python-packages
     // production-reader negative fail on 2026-09-17.

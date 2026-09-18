@@ -195,7 +195,7 @@ export async function resolveController(
   if (!existsSync(archive)) {
     throw new Error(
       `fleet controller ${byDigest} is not loaded and ${archive} does not exist; build it with ` +
-        '`bunx nx run tool-fleet:build` and `docker load --input` that archive',
+        '`bunx nx run tool-fleet:controller-image` and `docker load --input` that archive',
     );
   }
   const index = JSON.parse(

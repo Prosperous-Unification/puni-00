@@ -134,7 +134,7 @@
         "command": "bun tools/tool-fleet/src/maintenance-workers.ts"
       }
     },
-    "build": {
+    "controller-image": {
       "executor": "nx:run-commands",
       "cache": false,
       "outputs": ["{workspaceRoot}/dist/tool-fleet/controller.oci"],

@@ -7,13 +7,17 @@ COPY infra/controller/requirements.yml /tmp/fleet-requirements.yml
 COPY infra/controller/requirements-python.txt /tmp/fleet-requirements-python.txt
 # Proof: installing into root's default collection path produced manifest
 # sha256:6d063a..., where USER 1000 reported hetzner.hcloud.hcloud as unknown.
+# Proof: two --no-cache builds on the locked BuildKit differed only in this layer's
+# /root/.ansible/galaxy_cache/api.json and in pip's timestamp-stamped .pyc files; dropping the
+# cache and compiling with SOURCE_DATE_EPOCH (checked-hash .pyc) made both builds equal on 2026-09-18.
 RUN ansible-galaxy collection install --force \
   --collections-path /usr/share/ansible/collections \
   --requirements-file /tmp/fleet-requirements.yml \
   && rm /tmp/fleet-requirements.yml \
+  && rm -r /root/.ansible/galaxy_cache \
   && install -d -o 1000 -g 0 -m 0700 /runner/.ansible \
   && install -d -o 1000 -g 0 -m 0700 /runner/.ansible/tmp
-RUN python -m pip install --no-cache-dir --require-hashes \
+RUN SOURCE_DATE_EPOCH=0 python -m pip install --no-cache-dir --require-hashes \
   --requirement /tmp/fleet-requirements-python.txt \
   && rm /tmp/fleet-requirements-python.txt
 # Proof: an all-`a` KUBECTL_SHA256 made the production Docker build exit 1 with a computed-checksum

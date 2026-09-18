@@ -156,7 +156,12 @@
   },
   "controller": {
     "image": "ghcr.io/prosperous-unification/fleet-controller:0.1.0",
-    "digest": "sha256:58926be24296929f29d833da7cf18436f981a9b28e3bc42650d03f29fbe13933",
+    "digest": "sha256:5f00e0eb382406f3f0a7ac30a40ffe722ffe8778d2e21e6c1b90130ac88d46ce",
+    "builder": {
+      "role": "buildkit",
+      "name": "docker.io/moby/buildkit:v0.33.0",
+      "digest": "sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3"
+    },
     "python": "3.14.6",
     "pythonPackages": {
       "certifi": "2026.7.22",
