@@ -15,6 +15,7 @@ import {
   prepareStateDirectory,
   PROFILES,
   renderK3dConfig,
+  requireLabTools,
   requireLoopbackPublished,
   requireProfileResources,
 } from './k3d-lab';
@@ -328,5 +329,14 @@ describe('decodeK3dLabRecord', () => {
     );
     const { worktreeRootIdentity: _identity, ...withoutIdentity } = record;
     expect(() => decodeK3dLabRecord(JSON.stringify(withoutIdentity))).toThrow('malformed');
+  });
+});
+
+describe('requireLabTools', () => {
+  it('names the locked version and variable of an absent tool', async () => {
+    const directory = await scratchAsync('tool-fleet-k3d-tools-');
+    expect(
+      requireLabTools(ROOT, { K3D: join(directory, 'k3d'), KUBECTL: join(directory, 'kubectl') }),
+    ).rejects.toThrow(/^k3d v5\.9\.0 is required: set K3D to the locked binary/);
   });
 });

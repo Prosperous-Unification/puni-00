@@ -439,16 +439,40 @@ interface LabTools {
   readonly kubectl: string;
 }
 
-async function requireLabTools(root: string): Promise<LabTools> {
+/**
+ * Resolve `K3D` and `KUBECTL` (default: `PATH`) and require the toolchain-locked versions.
+ *
+ * An absent or unrunnable binary throws naming the locked version and its variable, because
+ * the spawn error alone names neither.
+ */
+export async function requireLabTools(
+  root: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<LabTools> {
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
-  const tools = { k3d: process.env['K3D'] ?? 'k3d', kubectl: process.env['KUBECTL'] ?? 'kubectl' };
-  const k3dVersion = await run(tools.k3d, ['version']);
+  const tools = { k3d: env['K3D'] ?? 'k3d', kubectl: env['KUBECTL'] ?? 'kubectl' };
+  const versionOf = async (
+    name: 'k3d' | 'kubectl',
+    arguments_: readonly string[],
+  ): Promise<string> => {
+    try {
+      return await run(tools[name], arguments_);
+    } catch (cause) {
+      // Proof: without this context `requireLabTools > names the locked version and variable of
+      // an absent tool` received only the spawn ENOENT for the path (2026-09-18).
+      throw new Error(
+        `${name} ${toolchain.binaries[name].version} is required: set ${name.toUpperCase()} to the locked binary (docs/infra/local.md, "Tools"); ${tools[name]} failed`,
+        { cause },
+      );
+    }
+  };
+  const k3dVersion = await versionOf('k3d', ['version']);
   if (!k3dVersion.includes(`k3d version ${toolchain.binaries.k3d.version}`)) {
     throw new Error(
       `k3d ${toolchain.binaries.k3d.version} is required; found: ${k3dVersion.trim()}`,
     );
   }
-  const kubectlVersion = await run(tools.kubectl, ['version', '--client']);
+  const kubectlVersion = await versionOf('kubectl', ['version', '--client']);
   if (!kubectlVersion.includes(`Client Version: ${toolchain.binaries.kubectl.version}`)) {
     throw new Error(
       `kubectl ${toolchain.binaries.kubectl.version} is required; found: ${kubectlVersion.trim()}`,
