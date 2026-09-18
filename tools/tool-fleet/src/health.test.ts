@@ -76,7 +76,7 @@ function healthy(): ClusterSnapshot {
       items: [
         {
           metadata: { name: 's3-snap' },
-          spec: { snapshotName: 'snap' },
+          spec: { snapshotName: 'snap', location: 's3://puni-etcd/platform-local/snap' },
           status: { readyToUse: true, creationTime: '2026-09-18T08:00:00Z' },
         },
       ],
@@ -88,6 +88,11 @@ function healthy(): ClusterSnapshot {
             metadata: { name: 'sqlite-backup', namespace: 'wbs-solver' },
             spec: {},
             status: { lastSuccessfulTime: '2026-09-18T11:17:00Z' },
+          },
+          {
+            metadata: { name: 'sqlite-backup-verify', namespace: 'wbs-solver' },
+            spec: {},
+            status: { lastSuccessfulTime: '2026-09-18T03:45:00Z' },
           },
         ],
       },
@@ -219,10 +224,11 @@ const faults: Record<HealthRule, Fault> = {
     backups: snapshot.backups && {
       ...snapshot.backups,
       cronJobs: {
-        items: snapshot.backups.cronJobs.items.map((cronJob) => ({
-          ...cronJob,
-          spec: { suspend: true },
-        })),
+        items: snapshot.backups.cronJobs.items.map((cronJob) =>
+          cronJob.metadata.name === 'sqlite-backup'
+            ? { ...cronJob, spec: { suspend: true } }
+            : cronJob,
+        ),
       },
     },
   }),
@@ -274,6 +280,51 @@ describe('evaluateHealth', () => {
     expect(rulesOf(suspended, 'warning').sort()).toEqual(['flux-ready', 'node-ready']);
   });
 
+  it('counts only object-storage etcd snapshots', () => {
+    const snapshot = healthy();
+    const localOnly = {
+      ...snapshot,
+      etcdSnapshots: {
+        items: [
+          {
+            metadata: { name: 'local-snap' },
+            spec: {
+              snapshotName: 'local',
+              location: 'file:///var/lib/rancher/k3s/server/db/snapshots/local',
+            },
+            status: { readyToUse: true, creationTime: '2026-09-18T11:59:00Z' },
+          },
+          {
+            metadata: { name: 's3-snap' },
+            spec: { snapshotName: 'snap', location: 's3://puni-etcd/platform-local/snap' },
+            status: { readyToUse: true, creationTime: '2026-09-17T12:00:00Z' },
+          },
+        ],
+      },
+    };
+    expect(rulesOf(localOnly)).toEqual(['etcd-snapshot-fresh']);
+  });
+
+  it('requires a verified restore within 26 hours', () => {
+    const snapshot = healthy();
+    const stale = {
+      ...snapshot,
+      backups: snapshot.backups && {
+        ...snapshot.backups,
+        cronJobs: {
+          items: snapshot.backups.cronJobs.items.map((cronJob) =>
+            cronJob.metadata.name === 'sqlite-backup-verify'
+              ? { ...cronJob, status: { lastSuccessfulTime: '2026-09-16T03:45:00Z' } }
+              : cronJob,
+          ),
+        },
+      },
+    };
+    expect(evaluateHealth(stale, now).map(({ subject }) => subject)).toContain(
+      'wbs-solver/sqlite-backup-verify',
+    );
+  });
+
   it('reports an absent marker, absent snapshots and absent backups as critical', () => {
     expect(rulesOf({ ...healthy(), marker: 'absent' })).toEqual(['cluster-marker']);
     expect(rulesOf({ ...healthy(), etcdSnapshots: { items: [] } })).toEqual([
@@ -288,7 +339,7 @@ describe('evaluateHealth', () => {
         schedules: { items: [] },
       },
     };
-    expect(rulesOf(noBackups)).toEqual(['backup-fresh', 'backup-fresh']);
+    expect(rulesOf(noBackups)).toEqual(['backup-fresh', 'backup-fresh', 'backup-fresh']);
   });
 });
 

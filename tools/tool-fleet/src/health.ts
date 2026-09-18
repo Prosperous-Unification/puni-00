@@ -116,6 +116,7 @@ export interface ClusterSnapshot {
 export const backupWindows = {
   etcdHours: 7,
   sqliteHours: 2,
+  verificationHours: 26,
   veleroHours: 26,
   certificateDays: 14,
 } as const;
@@ -179,7 +180,13 @@ function evaluateNodes(snapshot: ClusterSnapshot): HealthFinding[] {
 }
 
 function evaluateEtcdSnapshots(snapshot: ClusterSnapshot, now: Date): HealthFinding[] {
-  const ready = snapshot.etcdSnapshots.items.filter(({ status }) => status?.readyToUse === true);
+  // A node-local file:// snapshot dies with its server; only an object-storage copy restores.
+  // Proof: counting every location, the fresh-local/stale-S3 negative in health.test.ts
+  // reported a healthy cluster (2026-09-18).
+  const ready = snapshot.etcdSnapshots.items.filter(
+    ({ spec, status }) =>
+      status?.readyToUse === true && spec.location?.startsWith('s3://') === true,
+  );
   const newest = ready
     .map(({ status, metadata }) => status?.creationTime ?? metadata.creationTimestamp)
     .filter((time) => time !== undefined)
@@ -289,6 +296,28 @@ function evaluateBackups(
         sqlite === undefined
           ? 'CronJob is absent'
           : `last success ${sqliteAge.toFixed(1)} h ago${sqlite.spec.suspend === true ? ', suspended' : ''}`,
+    });
+  }
+  const verify = backups.cronJobs.items.find(
+    ({ metadata }) =>
+      metadata.namespace === 'wbs-solver' && metadata.name === 'sqlite-backup-verify',
+  );
+  const verifyAge = hoursSince(verify?.status?.lastSuccessfulTime, now);
+  if (
+    verify === undefined ||
+    verify.spec.suspend === true ||
+    verifyAge > backupWindows.verificationHours
+  ) {
+    // Proof: with this rule removed, the stale-verification negative in health.test.ts reported
+    // backups as fresh although no restore had been proved for two days (2026-09-18).
+    findings.push({
+      rule: 'backup-fresh',
+      severity: 'critical',
+      subject: 'wbs-solver/sqlite-backup-verify',
+      detail:
+        verify === undefined
+          ? 'CronJob is absent'
+          : `last verified restore ${verifyAge.toFixed(1)} h ago${verify.spec.suspend === true ? ', suspended' : ''}`,
     });
   }
   if (backups.schedules.items.length === 0) {
