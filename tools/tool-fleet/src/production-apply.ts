@@ -734,7 +734,7 @@ async function readAnsibleVariables(
   },
   expectedAddress: string,
   expectedMachineId?: string,
-): Promise<void> {
+): Promise<Readonly<Record<string, unknown>>> {
   const source = await readFile(path);
   if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
     // Proof: changing one enrollment-variable byte makes the production apply negative reach no
@@ -762,6 +762,7 @@ async function readAnsibleVariables(
   ) {
     throw new Error('Ansible enrollment variables differ from reviewed node identity');
   }
+  return variables;
 }
 
 function requireAnsibleRecap(stdout: string, expectedHost?: string): void {
@@ -817,14 +818,23 @@ interface EnrollmentInventory {
   readonly addresses: readonly string[];
   readonly machineId: string;
   readonly providerIdentity: string;
+  /** Existing members whose firewalls enrollment refreshes; never configured or joined. */
+  readonly firewallMembers: readonly string[];
 }
+
+/**
+ * Which hosts may accompany the target in a hash-bound static inventory:
+ * `target` alone; `cluster-servers` for control-plane retirement probes; `enrollment` for one
+ * bootstrap server (validation) plus existing members in `fleet_firewall_members`.
+ */
+type InventoryAccompaniment = 'target' | 'cluster-servers' | 'enrollment';
 
 async function readEnrollmentInventory(
   path: string,
   expectedSha256: string,
   knownHostsPath: string,
   nodeId: string,
-  allowClusterServers = false,
+  accompaniment: InventoryAccompaniment = 'target',
 ): Promise<EnrollmentInventory> {
   const source = await readFile(path);
   if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
@@ -854,6 +864,14 @@ async function readEnrollmentInventory(
     bootstrapServerGroup['hosts'],
     'Enrollment inventory bootstrap server hosts',
   );
+  const memberGroup = children['fleet_firewall_members'];
+  const memberHosts =
+    memberGroup === undefined
+      ? {}
+      : requireRecord(
+          requireRecord(memberGroup, 'Enrollment inventory fleet_firewall_members')['hosts'],
+          'Enrollment inventory firewall member hosts',
+        );
   const candidates = [agentHosts[nodeId], serverHosts[nodeId], bootstrapServerHosts[nodeId]].filter(
     (candidate) => candidate !== undefined,
   );
@@ -866,6 +884,7 @@ async function readEnrollmentInventory(
     ...Object.entries(agentHosts),
     ...Object.entries(serverHosts),
     ...Object.entries(bootstrapServerHosts),
+    ...Object.entries(memberHosts),
   ];
   const addresses = inventoryHosts.map(([inventoryNodeId, inventoryHostInput]) => {
     const inventoryHost = requireRecord(
@@ -893,11 +912,16 @@ async function readEnrollmentInventory(
     return inventoryAddress;
   });
   if (
-    (!allowClusterServers && inventoryHosts.length !== 1) ||
-    (allowClusterServers && inventoryHosts.length < 1) ||
-    // Cluster servers may accompany the target for delegated validation; no other agent may.
-    // Proof: dropping this clause made the enrollment negative with a second agent reach discovery.
-    (allowClusterServers && Object.keys(agentHosts).some((agent) => agent !== nodeId)) ||
+    (accompaniment === 'target' && inventoryHosts.length !== 1) ||
+    (accompaniment !== 'enrollment' && memberGroup !== undefined) ||
+    // Enrollment may add one bootstrap server for validation and firewall members; any other
+    // agent or join server beside the target is refused.
+    // Proof: dropping this clause made the enrollment negatives with a second agent and with an
+    // accompanying join server reach discovery.
+    (accompaniment === 'enrollment' &&
+      (Object.keys(agentHosts).some((agent) => agent !== nodeId) ||
+        Object.keys(serverHosts).some((server) => server !== nodeId) ||
+        Object.keys(bootstrapServerHosts).length > 1)) ||
     new Set(inventoryHosts.map(([inventoryNodeId]) => inventoryNodeId)).size !==
       inventoryHosts.length ||
     new Set(addresses).size !== addresses.length ||
@@ -914,7 +938,14 @@ async function readEnrollmentInventory(
     // configuration or a delegated etcd voter probe.
     throw new Error('Enrollment inventory lacks exact host identity or SSH host-key policy');
   }
-  return { displayName: nodeId, address, addresses, machineId, providerIdentity };
+  return {
+    displayName: nodeId,
+    address,
+    addresses,
+    machineId,
+    providerIdentity,
+    firewallMembers: Object.keys(memberHosts),
+  };
 }
 
 async function readKnownHosts(
@@ -944,7 +975,7 @@ async function readKnownHosts(
 
 function requireMachineFact(
   stdout: string,
-  inventory: Omit<EnrollmentInventory, 'addresses' | 'machineId'> & {
+  inventory: Omit<EnrollmentInventory, 'addresses' | 'machineId' | 'firewallMembers'> & {
     readonly machineId?: string;
   },
 ): string {
@@ -997,7 +1028,10 @@ function createEnrollmentApplyDependencies(
     cwd: join(root, 'infra/ansible'),
   });
 
-  async function inspect(): Promise<EnrollmentInventory> {
+  async function inspect(): Promise<{
+    readonly inventory: EnrollmentInventory;
+    readonly variables: Readonly<Record<string, unknown>>;
+  }> {
     await requireEnrollmentAllowed(root, request.nodeId);
     // Enrollment validation runs on the cluster's bootstrap server, so an SSH-provider cluster
     // lists its servers here. Proof: the live QEMU lab enrollment of a replacement SSH node was
@@ -1007,10 +1041,10 @@ function createEnrollmentApplyDependencies(
       request.inventorySha256,
       knownHostsPath,
       request.nodeId,
-      true,
+      'enrollment',
     );
     await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.addresses);
-    await readAnsibleVariables(
+    const variables = await readAnsibleVariables(
       variablesPath,
       request.ansibleVariablesSha256,
       {
@@ -1059,7 +1093,7 @@ function createEnrollmentApplyDependencies(
         throw new Error('Live hcloud identity differs from reviewed enrollment target');
       }
     }
-    return inventory;
+    return { inventory, variables };
   }
 
   return {
@@ -1082,10 +1116,43 @@ function createEnrollmentApplyDependencies(
       };
     },
     applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
-      await inspect();
+      const { inventory, variables } = await inspect();
       if (effect === 'verify provider identity') return {};
       if (effect === 'configure host') {
         await beforeMutation();
+        if (inventory.firewallMembers.length > 0) {
+          // Existing members admit the new private address before it joins. Only the cluster-wide
+          // network inputs are passed; target-only variables would override every member's own.
+          // Proof: the live QEMU lab enrollment needed a manual server re-bootstrap before this
+          // refresh; production-apply.test.ts observes this play before join.yml.
+          const stdout = await requireCommand(
+            run,
+            {
+              executable: 'ansible-playbook',
+              arguments: [
+                '--inventory',
+                inventoryPath,
+                '--limit',
+                inventory.firewallMembers.join(','),
+                '--extra-vars',
+                JSON.stringify(
+                  Object.fromEntries(
+                    [
+                      'puni_cluster_id',
+                      'puni_private_mtu',
+                      'puni_cluster_cidr',
+                      'puni_enrolled_private_addresses',
+                    ].map((key) => [key, variables[key]]),
+                  ),
+                ),
+                join(root, 'infra/ansible/playbooks/firewall.yml'),
+              ],
+              cwd: join(root, 'infra/ansible'),
+            },
+            `Refresh member firewalls for ${request.nodeId}`,
+          );
+          for (const member of inventory.firewallMembers) requireAnsibleRecap(stdout, member);
+        }
         const stdout = await requireCommand(run, playbook('join'), `Configure ${request.nodeId}`);
         requireAnsibleRecap(stdout, request.nodeId);
         return {};
@@ -1387,7 +1454,7 @@ function createRetirementApplyDependencies(
       request.inventorySha256,
       knownHostsPath,
       request.nodeId,
-      controlPlaneTarget,
+      controlPlaneTarget ? 'cluster-servers' : 'target',
     );
     await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.addresses);
     const nodeResponse = await run({
@@ -1825,6 +1892,66 @@ function createReplacementApplyDependencies(
     return state;
   }
 
+  /**
+   * Deletes the dead Node object only while it is still the reviewed one: same UID, not Ready,
+   * and carrying the fenced provider or machine identity. The delete itself carries a UID
+   * precondition, so a same-name replacement registered in between cannot be removed.
+   */
+  async function removeFencedNode(beforeMutation: () => Promise<void>): Promise<void> {
+    const reviewedUid = requirePlanIdentity(plan, 'kubernetes:');
+    const read = await run({
+      executable: 'kubectl',
+      arguments: ['--context', cluster, 'get', 'node', request.nodeId, '-o', 'json'],
+    });
+    if (read.exitCode !== 0) {
+      if (/notfound/i.test(read.stderr)) return;
+      throw new Error(`Fenced Node observation failed: ${read.stderr}`);
+    }
+    const node = requireRecord(parseJson(read.stdout, 'Fenced Node'), 'Fenced Node');
+    const metadata = requireRecord(node['metadata'], 'Fenced Node metadata');
+    const spec = requireRecord(node['spec'] ?? {}, 'Fenced Node spec');
+    const status = requireRecord(node['status'], 'Fenced Node status');
+    const nodeInfo = requireRecord(status['nodeInfo'], 'Fenced Node nodeInfo');
+    const conditions = Array.isArray(status['conditions']) ? status['conditions'] : [];
+    const ready = conditions.some(
+      (condition: unknown) =>
+        typeof condition === 'object' &&
+        condition !== null &&
+        (condition as Record<string, unknown>)['type'] === 'Ready' &&
+        (condition as Record<string, unknown>)['status'] === 'True',
+    );
+    const providerMatches = reviewedProviderIdentity.startsWith('hcloud:')
+      ? spec['providerID'] === `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`
+      : nodeInfo['machineID'] === reviewedProviderIdentity.slice('ssh:'.length);
+    if (metadata['uid'] !== reviewedUid || !providerMatches || ready) {
+      // Proof: replace.test.ts presents a same-name Node with another UID, a Ready fenced Node,
+      // and another machine ID; each reached `delete` before this refusal existed.
+      throw new Error('Live Node differs from the fenced replacement target; refusing removal');
+    }
+    await beforeMutation();
+    await requireCommand(
+      run,
+      {
+        executable: 'kubectl',
+        arguments: [
+          '--context',
+          cluster,
+          'delete',
+          '--raw',
+          `/api/v1/nodes/${request.nodeId}`,
+          '-f',
+          '-',
+        ],
+        stdin: JSON.stringify({
+          kind: 'DeleteOptions',
+          apiVersion: 'v1',
+          preconditions: { uid: reviewedUid },
+        }),
+      },
+      `Remove fenced Node ${request.nodeId}`,
+    );
+  }
+
   async function persist(
     path: string,
     state: string,
@@ -1883,6 +2010,10 @@ function createReplacementApplyDependencies(
       if (effect === 'persist authoritative enrollment exclusion') {
         await beforeMutation();
         await persist(exclusionPath, 'retired');
+        return {};
+      }
+      if (effect === 'remove fenced Kubernetes membership') {
+        await removeFencedNode(beforeMutation);
         return {};
       }
       if (effect === 'record replacement authorization for a distinct provisioning plan') {

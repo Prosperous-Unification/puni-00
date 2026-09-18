@@ -12,6 +12,8 @@ export interface ReplacementPlan {
   readonly clusterId: string;
   readonly oldProviderIdentity: string;
   readonly fenceId: string;
+  /** The dead Node object's UID, when Kubernetes still lists it; removed only by this identity. */
+  readonly kubernetesNodeUid?: string;
   readonly observationDigest: string;
   readonly steps: readonly string[];
 }
@@ -62,10 +64,14 @@ export function planReplacement(
     clusterId: desired.cluster,
     oldProviderIdentity: target.providerIdentity,
     fenceId: fence.fenceId,
+    ...(target.kubernetesNodeUid === undefined
+      ? {}
+      : { kubernetesNodeUid: target.kubernetesNodeUid }),
     observationDigest: observation.digest,
     steps: [
       'record verified external fence',
       'persist authoritative enrollment exclusion',
+      ...(target.kubernetesNodeUid === undefined ? [] : ['remove fenced Kubernetes membership']),
       'record replacement authorization for a distinct provisioning plan',
     ],
   };

@@ -742,7 +742,9 @@ export async function observeFleet(
       requireLabNodes(fleet, cluster, labProvider, await readLabDiscoveryHosts(labProvider));
       const observedAt = now().toISOString();
       const inventory = await (options.observeLab ?? observeLabProvider)(labProvider);
-      sources.push({ name: providerCommand.source, observedAt });
+      // Proof: recording lab inventory as `provider:` let a lab observation plan like hcloud; the
+      // lab-provider test now requires the distinct source name.
+      sources.push({ name: `lab-provider:${cluster.id}`, observedAt });
       labRunning = new Set(inventory.running);
     }
     for (const host of providerHosts) {

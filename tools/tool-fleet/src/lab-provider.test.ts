@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,7 +6,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { decodeFleet } from './contracts';
 import { type DiscoveryCommand, observeFleet } from './discover';
-import { requireLabFleet } from './lab-provider';
+import { readLabDiscoveryHosts, requireLabFleet } from './lab-provider';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
 const serverId = 'a'.repeat(32);
@@ -63,7 +63,7 @@ function kubernetesNode(name: string, machineId: string, ready: boolean): unknow
 }
 
 describe('the lab discovery provider', () => {
-  it('is never selectable for a production fleet', () => {
+  it('is never selectable for a production fleet', async () => {
     expect(() => {
       requireLabFleet(labFleet(), join(repositoryRoot, 'infra/fleet/desired.yaml'), repositoryRoot);
     }).toThrow(/never selectable for production fleet/);
@@ -77,6 +77,33 @@ describe('the lab discovery provider', () => {
     expect(() => {
       requireLabFleet(labFleet(), '/lab.yaml', repositoryRoot);
     }).not.toThrow();
+    const cloud = labFleet();
+    const withCloudNode = decodeFleet({
+      ...cloud,
+      nodes: [
+        ...cloud.nodes,
+        {
+          id: 'hcloud-node',
+          cluster: 'workers',
+          capabilities: ['execution'],
+          lifecycle: 'present',
+          provider: { kind: 'hcloud', instanceId: '42' },
+        },
+      ],
+    });
+    expect(() => {
+      requireLabFleet(withCloudNode, '/lab.yaml', repositoryRoot);
+    }).toThrow(/hcloud node hcloud-node/);
+    const alias = join(await mkdtemp(join(tmpdir(), 'fleet-lab-alias-')), 'desired.yaml');
+    await symlink(join(repositoryRoot, 'infra/fleet/desired.yaml'), alias);
+    expect(() => {
+      requireLabFleet(labFleet(), alias, repositoryRoot);
+    }).toThrow(/never selectable for production fleet/);
+    const malformed = await mkdtemp(join(tmpdir(), 'fleet-lab-malformed-'));
+    await writeFile(join(malformed, 'discovery-inventory.json'), '{');
+    expect(readLabDiscoveryHosts({ stateDirectory: malformed })).rejects.toThrow(
+      /unreadable or malformed JSON/,
+    );
     const invocation = Bun.spawnSync(
       [
         process.execPath,
@@ -93,6 +120,40 @@ describe('the lab discovery provider', () => {
     );
     expect(invocation.exitCode).not.toBe(0);
     expect(invocation.stderr.toString()).toMatch(/never selectable for production fleet/);
+
+    const labObservation = join(tmpdir(), `lab-observation-${String(Date.now())}.json`);
+    await writeFile(
+      labObservation,
+      JSON.stringify({ sources: [{ name: 'lab-provider:workers', observedAt: 'x' }] }),
+    );
+    const plan = Bun.spawnSync(
+      [
+        process.execPath,
+        join(import.meta.dir, 'entrypoint.ts'),
+        'plan',
+        '--fleet',
+        join(repositoryRoot, 'infra/fleet/desired.yaml'),
+        '--observation',
+        labObservation,
+        '--operation',
+        'retire',
+        '--node',
+        'workers-agent-a',
+        '--backup-receipt',
+        'r',
+        '--backup-receipt-sha256',
+        'a'.repeat(64),
+        '--inventory-sha256',
+        'b'.repeat(64),
+        '--known-hosts-sha256',
+        'c'.repeat(64),
+        '--output',
+        join(tmpdir(), `never-plan-${String(Date.now())}.json`),
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(plan.exitCode).not.toBe(0);
+    expect(plan.stderr.toString()).toMatch(/never selectable for production fleet/);
   });
 
   it('reports a machine the lab provider saw stop as missing without reading its SSH facts', async () => {
@@ -145,7 +206,7 @@ describe('the lab discovery provider', () => {
     });
     const factCommand = commands.find(({ source }) => source.startsWith('ssh-facts:'));
     expect(factCommand?.arguments).toContain(join(state, 'discovery-inventory.json'));
-    expect(observation.sources.map(({ name }) => name)).toContain('provider:workers');
+    expect(observation.sources.map(({ name }) => name)).toContain('lab-provider:workers');
     const agent = observation.nodes.find(
       ({ desiredNodeId }) => desiredNodeId === 'puni-vm-l-workers-agent-1',
     );

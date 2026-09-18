@@ -389,7 +389,8 @@ describe('production apply adapter', () => {
       }
       return Promise.resolve({
         exitCode: 0,
-        stdout: 'PLAY RECAP\nexternal-c : ok=12 changed=1 unreachable=0 failed=0',
+        stdout:
+          'PLAY RECAP\nexternal-c : ok=12 changed=1 unreachable=0 failed=0\nother-agent : ok=12 changed=1 unreachable=0 failed=0',
         stderr: '',
       });
     };
@@ -422,9 +423,12 @@ describe('production apply adapter', () => {
     });
     const target = host('10.0.0.44', 'abcdefabcdefabcdefabcdefabcdefab');
     const server = host('10.0.0.11', '11111111111111111111111111111111');
-    for (const [agents, expected] of [
-      [{ 'external-c': target }, 'complete'],
-      [{ 'external-c': target, 'other-agent': host('10.0.0.45', 'c'.repeat(32)) }, 'refused'],
+    const other = host('10.0.0.45', 'c'.repeat(32));
+    for (const [agents, joinServers, members, expected] of [
+      [{ 'external-c': target }, {}, undefined, 'complete'],
+      [{ 'external-c': target, 'other-agent': other }, {}, undefined, 'refused'],
+      [{ 'external-c': target }, { 'server-2': other }, undefined, 'refused'],
+      [{ 'external-c': target }, {}, { 'other-agent': other }, 'firewall'],
     ] as const) {
       const extendedDirectory = await mkdtemp(join(tmpdir(), 'fleet-existing-enroll-server-'));
       const extendedPath = join(extendedDirectory, 'operation.json');
@@ -432,8 +436,9 @@ describe('production apply adapter', () => {
         all: {
           children: {
             k3s_agents: { hosts: agents },
-            k3s_join_servers: { hosts: {} },
+            k3s_join_servers: { hosts: joinServers },
             k3s_bootstrap_servers: { hosts: { 'server-1': server } },
+            ...(members === undefined ? {} : { fleet_firewall_members: { hosts: members } }),
           },
         },
       }).replaceAll(knownHostsPath, `${extendedPath}.known_hosts`)}\n`;
@@ -468,7 +473,20 @@ describe('production apply adapter', () => {
           'execution-owner',
         ),
       });
-      if (expected === 'complete') {
+      if (expected === 'firewall') {
+        expect((await outcome).state).toBe('complete');
+        const playbooks = calls
+          .filter((request) => request.executable === 'ansible-playbook')
+          .map((request) => request.arguments.at(-1)?.split('/').at(-1));
+        // Proof: removing the member refresh made this order lack firewall.yml before join.yml.
+        expect(playbooks.indexOf('firewall.yml')).toBeGreaterThan(-1);
+        expect(playbooks.indexOf('firewall.yml')).toBeLessThan(playbooks.indexOf('join.yml'));
+        const refresh = calls.find((request) =>
+          request.arguments.some((argument) => argument.endsWith('/firewall.yml')),
+        );
+        expect(refresh?.arguments).toContain('other-agent');
+        expect(refresh?.arguments.join(' ')).not.toContain('puni_node_ip');
+      } else if (expected === 'complete') {
         expect((await outcome).state).toBe('complete');
       } else {
         expect(outcome).rejects.toThrow(/lacks exact host identity/);

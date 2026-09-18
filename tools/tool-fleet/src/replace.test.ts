@@ -65,7 +65,12 @@ describe('planReplacement', () => {
     expect(plan.oldProviderIdentity).toBe('hcloud:2002');
   });
 
-  it('journals exact live fence evidence before replacement authorization', async () => {
+  async function runReplacement(liveNode: unknown): Promise<{
+    readonly outcome: Promise<unknown>;
+    readonly deletions: string[];
+    readonly authorizationPath: string;
+  }> {
+    const deletions: string[] = [];
     const fleet = fleetFixture();
     const observation = missingObservation();
     const replacement = planReplacement(fleet, observation, 'workers-agent-a', {
@@ -100,6 +105,9 @@ describe('planReplacement', () => {
         replacement.oldProviderIdentity,
         `cluster:${replacement.clusterId}`,
         `fence:${replacement.fenceId}`,
+        ...(replacement.kubernetesNodeUid === undefined
+          ? []
+          : [`kubernetes:${replacement.kubernetesNodeUid}`]),
       ],
       preconditions: ['exact external fence'],
       effects: replacement.steps,
@@ -109,7 +117,7 @@ describe('planReplacement', () => {
       summary: 'authorize replacement provisioning',
     });
     let leaseHolder: string | undefined;
-    const run = (request: CommandRequest): Promise<CommandResponse> =>
+    const runCommand = (request: CommandRequest): Promise<CommandResponse> =>
       Promise.resolve().then(() => {
         if (request.executable === 'ansible-inventory') {
           return {
@@ -129,6 +137,15 @@ describe('planReplacement', () => {
           };
         }
         if (request.executable === 'kubectl') {
+          if (request.arguments.includes('node')) {
+            return liveNode === undefined
+              ? { exitCode: 1, stdout: '', stderr: 'Error from server (NotFound)' }
+              : { exitCode: 0, stdout: JSON.stringify(liveNode), stderr: '' };
+          }
+          if (request.arguments.includes('--raw')) {
+            deletions.push(request.stdin ?? '');
+            return { exitCode: 0, stdout: '', stderr: '' };
+          }
           if (request.arguments.includes('get')) {
             return leaseHolder === undefined
               ? { exitCode: 1, stdout: '', stderr: 'NotFound' }
@@ -165,21 +182,54 @@ describe('planReplacement', () => {
       directory,
       plan,
       planPath,
-      run,
+      runCommand,
       () => new Date('2026-09-17T09:00:00.000Z'),
       'replacement-test',
     );
 
-    const receipt = await applyOperation({
+    const outcome = applyOperation({
       plan,
       expectedSha256: plan.planSha256,
       journalPath: `${planPath}.journal.json`,
       dependencies,
     });
-    expect(receipt.state).toBe('complete');
-    expect(
-      JSON.parse(await readFile(`${planPath}.replacement-authorization.json`, 'utf8')),
-    ).toMatchObject({ state: 'replacement-authorized', providerIdentity: 'hcloud:2002' });
+    return { outcome, deletions, authorizationPath: `${planPath}.replacement-authorization.json` };
+  }
+
+  it('journals exact live fence evidence before replacement authorization', async () => {
+    const run = await runReplacement(undefined);
+    expect(await run.outcome).toMatchObject({ state: 'complete' });
+    expect(run.deletions).toEqual([]);
+    expect(JSON.parse(await readFile(run.authorizationPath, 'utf8'))).toMatchObject({
+      state: 'replacement-authorized',
+      providerIdentity: 'hcloud:2002',
+    });
+  });
+
+  it('removes the dead Node only while it is the exact fenced identity', async () => {
+    const node = (overrides: { uid?: string; providerID?: string; ready?: string }) => ({
+      metadata: { name: 'workers-agent-a', uid: overrides.uid ?? 'uid-3' },
+      spec: { providerID: overrides.providerID ?? 'hcloud://2002' },
+      status: {
+        nodeInfo: { machineID: 'm'.repeat(32) },
+        conditions: [{ type: 'Ready', status: overrides.ready ?? 'Unknown' }],
+      },
+    });
+    const removed = await runReplacement(node({}));
+    expect(await removed.outcome).toMatchObject({ state: 'complete' });
+    expect(removed.deletions.map((body) => JSON.parse(body) as unknown)).toEqual([
+      { kind: 'DeleteOptions', apiVersion: 'v1', preconditions: { uid: 'uid-3' } },
+    ]);
+    for (const live of [
+      node({ uid: 'uid-replacement' }),
+      node({ ready: 'True' }),
+      node({ providerID: 'hcloud://9999' }),
+    ]) {
+      const refused = await runReplacement(live);
+      expect(refused.outcome).rejects.toThrow(/fenced replacement target/);
+      await refused.outcome.catch(() => undefined);
+      expect(refused.deletions).toEqual([]);
+    }
   });
 
   it('refuses storage reassignment while the old writer can resume', () => {

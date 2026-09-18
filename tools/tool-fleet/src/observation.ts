@@ -4,6 +4,7 @@ import type { Capability } from './contracts';
 
 export type DiscoverySource =
   | `provider:${string}`
+  | `lab-provider:${string}`
   | `kubernetes-nodes:${string}`
   | `kubernetes-pvcs:${string}`
   | `kubernetes-pvs:${string}`
