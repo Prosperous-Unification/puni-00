@@ -754,6 +754,8 @@ async function publishForgeImage(
   const pushed = `127.0.0.1:${String(cluster.record.registry.hostPort)}/dev-environment:${slug}`;
   await run('docker', ['tag', local, pushed]);
   const output = await run('docker', ['push', pushed]);
+  // The loopback registry tag names a port that dies with the lab; keep only the build tag.
+  await run('docker', ['rmi', pushed]);
   const digest = /digest: (sha256:[0-9a-f]{64})/.exec(output)?.[1];
   if (digest === undefined) throw new Error(`docker push printed no digest: ${output}`);
   return `${cluster.record.registry.host}:5000/dev-environment@${digest}`;
