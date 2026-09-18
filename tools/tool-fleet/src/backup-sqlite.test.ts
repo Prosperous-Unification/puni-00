@@ -16,6 +16,17 @@ import {
   verifySqlite,
 } from './backup-sqlite';
 
+/** Await `promise` and return its rejection, so assertions after it observe the settled state. */
+async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw error;
+  }
+  throw new Error('Expected the operation to reject');
+}
+
 function createLiveDatabase(path: string): Database {
   const db = new Database(path, { create: true });
   db.run('PRAGMA journal_mode = WAL');
@@ -72,9 +83,10 @@ describe('snapshotSqlite', () => {
     const db = new Database(join(directory, 'empty.db'), { create: true });
     db.run('CREATE TABLE project (id TEXT)');
     db.close();
-    expect(snapshotSqlite(join(directory, 'empty.db'), join(directory, 'copy.db'))).rejects.toThrow(
-      /__drizzle_migrations/,
-    );
+    expect(
+      (await rejectionOf(snapshotSqlite(join(directory, 'empty.db'), join(directory, 'copy.db'))))
+        .message,
+    ).toMatch(/__drizzle_migrations/);
     expect(existsSync(join(directory, 'copy.db'))).toBe(false);
   });
 
@@ -86,18 +98,20 @@ describe('snapshotSqlite', () => {
     db.run("INSERT INTO step VALUES ('orphan', 'no-such-project')");
     db.close();
     // Proof: removing the foreign_key_check guard made this negative resolve on 2026-09-18.
-    expect(snapshotSqlite(join(directory, 'wbs.db'), join(directory, 'copy.db'))).rejects.toThrow(
-      /foreign_key_check/,
-    );
+    expect(
+      (await rejectionOf(snapshotSqlite(join(directory, 'wbs.db'), join(directory, 'copy.db'))))
+        .message,
+    ).toMatch(/foreign_key_check/);
   });
 
   it('refuses to replace an existing snapshot', async () => {
     const directory = await scratchAsync('sqlite-backup-');
     createLiveDatabase(join(directory, 'wbs.db')).close();
     await writeFile(join(directory, 'copy.db'), 'previous');
-    expect(snapshotSqlite(join(directory, 'wbs.db'), join(directory, 'copy.db'))).rejects.toThrow(
-      /already exists/,
-    );
+    expect(
+      (await rejectionOf(snapshotSqlite(join(directory, 'wbs.db'), join(directory, 'copy.db'))))
+        .message,
+    ).toMatch(/already exists/);
   });
 });
 
@@ -152,12 +166,16 @@ describe('backupSqlite and restoreSqlite', () => {
     store.objects.set(report.objectKey, new Uint8Array(await Bun.file(substitute).arrayBuffer()));
     // Proof: removing the report sha256 comparison made this negative resolve on 2026-09-18.
     expect(
-      restoreSqlite({
-        reportKey: `${report.objectKey}.report.json`,
-        targetPath: join(directory, 'restored.db'),
-        store,
-      }),
-    ).rejects.toThrow(/bytes differ from its report/);
+      (
+        await rejectionOf(
+          restoreSqlite({
+            reportKey: `${report.objectKey}.report.json`,
+            targetPath: join(directory, 'restored.db'),
+            store,
+          }),
+        )
+      ).message,
+    ).toMatch(/bytes differ from its report/);
     expect(existsSync(join(directory, 'restored.db'))).toBe(false);
   });
 });
@@ -182,8 +200,12 @@ describe('createS3Store', () => {
       // Proof: returning the absent version header as a string made this negative resolve on
       // 2026-09-18.
       expect(
-        store.put('sqlite/wbs/x.db', new Uint8Array([1]), 'application/octet-stream'),
-      ).rejects.toThrow(/no object version/);
+        (
+          await rejectionOf(
+            store.put('sqlite/wbs/x.db', new Uint8Array([1]), 'application/octet-stream'),
+          )
+        ).message,
+      ).toMatch(/no object version/);
     } finally {
       await server.stop(true);
     }
