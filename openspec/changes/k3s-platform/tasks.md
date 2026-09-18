@@ -12,7 +12,10 @@
   - [ ] Production Flux bootstrap with the read-only deploy key and hcloud storage on real hosts.
 - [ ] F7 — Bring up observability and layered backups per [F7](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f7--bring-up-elastic-metrics-logging-and-backups).
   - [x] ECK/Elasticsearch/Kibana, kube-prometheus-stack, blackbox, OTel with persistent queue and redaction, ILM and SLM, sized and placed by capability (k3d).
+  - [x] Workers clusters reconcile an agent-only telemetry graph that ships logs and host metrics to the platform gateway (k3d, two clusters).
+  - [x] Alert rules covered by promtool unit tests using the locked Prometheus image.
   - [x] Drills: log injection, failing endpoint and dead-man delivery, Elasticsearch outage count, Elastic restore under a new name, broken backup credentials, SQLite known-row and migration restore, Velero Kopia restore, etcd S3 snapshot.
+  - [ ] mTLS for the cross-cluster OTLP gateway; alerts for missing workers telemetry and stale Elastic snapshots.
   - [ ] Real recipients and dead-man service in `alertmanager-puni`; production buckets with versioning, object lock and the off-region `rclone copy`.
   - [ ] Recovery-secret escrow executed and verified on a second machine; `backup.yml` converged on real servers.
   - [ ] Volume-threshold and OTel-network-block drills on production-like storage; h3 monitoring retirement evidence.

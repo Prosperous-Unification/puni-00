@@ -459,3 +459,35 @@ snapshot), etcd cold restore (F10), the volume-threshold drill (local-path
 volumes report the host filesystem, 493 GB, as capacity), and blocking OTel
 egress by network policy. No production host, DNS record, credential or paid
 resource was touched.
+
+### F6/F7 review repairs
+
+A high-effort review of the F6/F7 work found five major and six minor defects.
+The repairs were proved on two disposable k3d clusters sharing one Docker
+network: `puni-f7-plat` (platform-local) and `puni-f7-work` (workers-local). Both
+reconciled one rehearsal commit: the worktree plus disposable SOPS values for
+platform-local. Evidence:
+
+- review fix 6: backup-sqlite and platform-registry negatives now await the rejection (rejectionOf) before asserting the target path/blob state; with the report-hash check or the blob-digest check removed, the named negatives failed; restored -> 10 pass.
+- review fix 1 (placement): with assertStagePlacement added and the nine-stage workers graph unchanged, `validatePlatform` on the repository failed: "workers-local controllers stage selects capability ingress in networking/traefik.yaml, which its nodes cannot carry".
+- review fix 4 (host ports): Helm v4.3.0 rendering of the vendored collector chart with the committed values has 0 hostPort entries (the platform collector and the workers agent). Removing `hostPort: 0` from the otlp and otlp-http ports rendered hostPort 4317 and 4318; the new strict `ports` schema rejects that input ("rejects a collector OTLP port bound on the host").
+- review fix 1: after reducing the workers graph to target, storage, policy, secrets and telemetry, all four overlays validate; the new negative "rejects a workers stage that selects a platform-only capability" failed with the placement check disabled (0 pass 1 fail) and passed with it restored.
+- review fix 9 (secret closure): the validator derives each cluster's consumed Secrets from its reconciled graph (7 for platform-local, 7 for platform-production, none for workers). Removing the missing-secret loop made "rejects a consumed Secret that is neither listed nor declared" resolve; removing the stale check made "rejects a declared Secret that nothing consumes" resolve; both restored.
+- review fixes 3 and 8 (alerts): `bun tools/tool-fleet/src/platform-alerts.ts` runs promtool 3.14.0 from the toolchain-locked Prometheus image (index sha256:50c707e9..., network disabled) over infra/platform/conformance/alerts/rules.test.yaml: SUCCESS. The same tests against the previous rules.yaml failed 8 cases: log ingest with vanished series; backup failure at 10 m and its clearing after a later success at 30 m; failure after an earlier success; SQLite never succeeded and suspended; Velero partial failure and staleness.
+- review fix 2 (live, workers-local k3d cluster puni-f7-work, policy from the rehearsal commit): with the parameter ConfigMap deleted, server-side dry-runs of a plain pod in kube-system and flux-system were admitted and solver-allowed.yaml in wbs-solver was denied. R5: applying the same policy without namespaceSelector made the kube-system pod be denied ("failed to ..." parameter not found); restoring the scoped policy admitted it again. puni-trusted-namespace-label denied removing the label from wbs-solver and relabelling puni-forge as solver; with its binding deleted, removing the label succeeded (restored, then Flux recreated the binding).
+- review fix 10 (live): a tag entry `registry.puni.test/wbs-be:rollback` in solverImages made solver-allowed.yaml be denied with "every solverImages entry must be a digest-pinned image reference"; with that validation removed, the same pod was admitted; restored.
+- review fix 5 (live): Flux created wbs-solver/puni-trusted-workload (label kustomize.toolkit.fluxcd.io/name=policy, ssa IfNotPresent). A patch of data.solverImages under field manager wbs-release to the d…/a… pair survived `flux reconcile ks policy`. R5: serving a commit with `ssa: Merge` instead made the same reconcile revert solverImages to the Git a…/c… value; the rehearsal source was reset afterwards.
+- review fix 1 (live): workers-local on k3d puni-f7-work (server labelled control-plane, agent labelled execution) converged: target, storage, policy, secrets, telemetry and the root all Ready at the rehearsal commit; otel-agent pods ran on both nodes. The platform-local registry pod became Ready behind registry-ingress (kubelet readiness on 5001 from the node is admitted by k3s' network policy controller).
+- review fix 1 (live cross-cluster telemetry): platform-local on k3d puni-f7-plat (all nine stages at the rehearsal commit; the load balancer publishes otel-gateway NodePort 30417 on 172.30.0.1, which is host.k3d.internal for both clusters). A pod on the workers execution node printed "puni-workers-c52ccada0e token=abc123secret"; 10.4 s later exactly one document in .ds-logs-puni.otel-local-2026.09.18-000001 had body "puni-workers-c52ccada0e token=[REDACTED]", puni.cluster=workers-local, k8s.namespace.name=default. Prometheus held remote-written host metrics labelled puni_cluster="workers-local" for both workers nodes (system_cpu__, system_memory_usage_bytes, system_network__).
+- review fixes 4 and 11 (live NetworkPolicy): from a pod in a fresh namespace, the collector's 4317 was open and 8888 closed; from observability 8888 was open. Registry 5000 was open from the fresh namespace, 5001 closed there and open from observability; the registry and collector pods stayed Ready (kubelet probes from the node are admitted). R5: with registry-ingress and otlp-ingress deleted (Flux suspended), 5001 and 8888 were open from the fresh namespace; resuming Flux restored both policies and both ports closed again.
+- review fix 7 (live): the committed bucket script, run in the MinIO pod, enabled versioning and imported the noncurrent-version rule (read back as {"ID":"expire-noncurrent","NoncurrentVersionExpiration":{"NoncurrentDays":30},"Status":"Enabled"}) for all four buckets, exit 0. With the import replaced by after removing puni-etcd's rules, it exited 1 with "store/puni-etcd lifecycle rule missing"; restored, exit 0. (The first version grepped the output and failed: the MinIO image has no grep or sed.)
+- Elasticsearch and Kibana were stopped as soon as the telemetry drill finished; both k3d clusters (puni-f7-plat, puni-f7-work) and network puni-f7-net were deleted afterwards.
+
+Still open from this review: mTLS for the cross-cluster OTLP gateway (it is
+plain gRPC admitted only from the private CIDR), whether Hetzner honours
+`NoncurrentVersionExpiration`, an Elastic snapshot-staleness alert (there is no
+Elasticsearch exporter), and alerting when workers telemetry stops arriving.
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache`
+exited 0 after these repairs with 189 tests, 827 expect() calls, lint, typecheck
+and platform validation; `bunx nx format:check --all` exited 0.
