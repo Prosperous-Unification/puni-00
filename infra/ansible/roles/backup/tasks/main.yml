@@ -1,0 +1,73 @@
+---
+- name: Require etcd snapshot and escrow inputs
+  ansible.builtin.assert:
+    that:
+      - puni_cluster_id in ['platform-local', 'platform-production', 'workers-local', 'workers-production']
+      - puni_etcd_s3_endpoint is match('^[a-z0-9.-]+(:[0-9]+)?$')
+      - puni_etcd_s3_bucket is match('^[a-z0-9.-]{3,63}$')
+      - puni_etcd_s3_region is defined
+      - puni_etcd_s3_access_key is defined
+      - puni_etcd_s3_secret_key is defined
+      - puni_etcd_snapshot_cron is defined
+      - puni_etcd_snapshot_retention | int >= 4
+      - puni_k3s_token_sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: Snapshot target, retention and the escrowed k3s token fingerprint are required
+
+- name: Read the cluster server token
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/token
+  register: puni_k3s_token
+  no_log: true
+
+# A snapshot is unusable without the token that encrypted it, so snapshots are not configured
+# until the operator proves the token is held outside the cluster.
+# Proof: on 2026-09-18 the digest-locked controller stopped here with a wrong fingerprint and
+# passed with the escrowed one; with this task removed the wrong fingerprint wrote the snapshot
+# configuration.
+- name: Refuse snapshots whose server token is not escrowed
+  ansible.builtin.assert:
+    that: (puni_k3s_token.content | b64decode | trim | hash('sha256')) == puni_k3s_token_sha256
+    fail_msg: The k3s server token differs from the escrowed fingerprint; escrow it before snapshots
+
+- name: Create the k3s configuration drop-in directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/config.yaml.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Configure scheduled etcd snapshots to object storage
+  ansible.builtin.template:
+    src: etcd-snapshots.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml.d/60-etcd-snapshots.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart k3s server for snapshots
+
+- name: Apply the snapshot configuration before verifying it
+  ansible.builtin.meta: flush_handlers
+
+- name: Take a verification snapshot
+  ansible.builtin.command:
+    argv:
+      - k3s
+      - etcd-snapshot
+      - save
+      - --name
+      - puni-backup-verify
+  register: puni_etcd_verify
+  changed_when: true
+
+- name: List object-storage snapshots
+  ansible.builtin.command:
+    argv: [k3s, etcd-snapshot, ls, --etcd-s3]
+  register: puni_etcd_remote
+  changed_when: false
+
+- name: Require the verification snapshot in object storage
+  ansible.builtin.assert:
+    that: "'s3://' ~ puni_etcd_s3_bucket ~ '/' ~ puni_cluster_id ~ '/puni-backup-verify-' in puni_etcd_remote.stdout"
+    fail_msg: The verification snapshot did not reach object storage

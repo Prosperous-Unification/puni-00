@@ -1,0 +1,8 @@
+---
+- name: Configure verified etcd snapshots on every k3s server
+  hosts: k3s_bootstrap_servers:k3s_join_servers
+  become: true
+  gather_facts: false
+  serial: 1
+  roles:
+    - role: backup
