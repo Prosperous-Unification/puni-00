@@ -1,0 +1,115 @@
+# Scheduled restore verification: restore the newest SQLite backup into scratch with the same
+# runner and refuse a report older than 26 hours. A failed run raises PuniBackupJobFailed.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sqlite-backup-verify
+  namespace: wbs
+spec:
+  schedule: '45 3 * * *'
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            puni.dev/workload: sqlite-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          initContainers:
+            - name: select
+              image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+              command:
+                - bash
+                - -ec
+                - |
+                  mc alias set store "$S3_ENDPOINT" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" >/dev/null
+                  latest=$(mc find "store/$S3_BUCKET/sqlite/wbs" --name '*.db.report.json' | sort | tail -n 1)
+                  if [ -z "$latest" ]; then echo 'no SQLite backup report under sqlite/wbs' >&2; exit 1; fi
+                  key=${latest#store/"$S3_BUCKET"/}
+                  stamp=${key#sqlite/wbs/}
+                  stamp=${stamp%%.db.report.json}
+                  taken=$(date -u -d "${stamp:0:4}-${stamp:4:2}-${stamp:6:2}T${stamp:9:2}:${stamp:11:2}:${stamp:13:2}Z" +%s)
+                  age=$(( $(date -u +%s) - taken ))
+                  if [ "$age" -gt 93600 ]; then echo "newest SQLite backup $key is $age s old" >&2; exit 1; fi
+                  printf '%s' "$key" > /work/report-key
+                  echo "verifying $key ($age s old)"
+              env:
+                - { name: MC_CONFIG_DIR, value: /work/mc }
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: endpoint }
+                - name: S3_BUCKET
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: bucket }
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: access-key-id }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: secret-access-key }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              volumeMounts:
+                - { name: work, mountPath: /work }
+          containers:
+            - name: verify
+              image: docker.io/oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f
+              command:
+                - sh
+                - -ec
+                - RESTORE_REPORT_KEY="$(cat /work/report-key)" exec bun /runner/backup-sqlite.ts restore
+              env:
+                - { name: RESTORE_TARGET_PATH, value: /scratch/verify.db }
+                - { name: HOME, value: /scratch }
+                - { name: TMPDIR, value: /scratch }
+                - { name: BUN_RUNTIME_TRANSPILER_CACHE_PATH, value: '0' }
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: endpoint }
+                - name: S3_BUCKET
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: bucket }
+                - name: S3_REGION
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: region }
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: access-key-id }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef: { name: sqlite-backup-s3, key: secret-access-key }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: '1', memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              volumeMounts:
+                - { name: work, mountPath: /work, readOnly: true }
+                - { name: scratch, mountPath: /scratch }
+                - { name: runner, mountPath: /runner, readOnly: true }
+          volumes:
+            - name: work
+              emptyDir: { sizeLimit: 16Mi }
+            - name: scratch
+              emptyDir: { sizeLimit: 4Gi }
+            - name: runner
+              configMap: { name: sqlite-backup-runner }

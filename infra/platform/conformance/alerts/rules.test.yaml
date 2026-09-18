@@ -48,6 +48,27 @@ tests:
         alertname: PuniBackupJobFailed
         exp_alerts: []
 
+  - name: a failed restore verification alerts even while backups succeed
+    interval: 1m
+    input_series:
+      - series: 'kube_job_status_start_time{namespace="wbs",job_name="sqlite-backup-verify-1"}'
+        values: '300x20'
+      - series: 'kube_job_failed{namespace="wbs",job_name="sqlite-backup-verify-1",condition="true"}'
+        values: '1x20'
+      - series: 'kube_job_owner{namespace="wbs",job_name="sqlite-backup-verify-1",owner_kind="CronJob",owner_name="sqlite-backup-verify",owner_is_controller="true"}'
+        values: '1x20'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="wbs",cronjob="sqlite-backup"}'
+        values: '400x20'
+      - series: 'kube_cronjob_status_last_successful_time{namespace="wbs",cronjob="sqlite-backup-verify"}'
+        values: '200x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PuniBackupJobFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, namespace: wbs, owner_name: sqlite-backup-verify }
+            exp_annotations:
+              summary: The latest wbs/sqlite-backup-verify run failed
+
   - name: a failure after an earlier success alerts
     interval: 1m
     input_series:

@@ -165,7 +165,7 @@ const platformKustomizations: readonly (readonly [string, readonly string[]])[] 
   ['alerts/base/kustomization.yaml', ['rules.yaml', 'probes.yaml']],
   ['alerts/local/kustomization.yaml', ['../base']],
   ['alerts/production/kustomization.yaml', ['../base', 'public-probes.yaml']],
-  ['backup/sqlite/kustomization.yaml', ['runner.yaml', 'cronjob.yaml']],
+  ['backup/sqlite/kustomization.yaml', ['runner.yaml', 'cronjob.yaml', 'verify-cronjob.yaml']],
   ['backup/elastic/kustomization.yaml', ['snapshots.yaml']],
   ['backup/velero/local/kustomization.yaml', ['velero.yaml']],
   ['backup/velero/production/kustomization.yaml', ['velero.yaml']],

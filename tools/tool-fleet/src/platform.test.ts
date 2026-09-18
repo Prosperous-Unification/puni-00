@@ -75,7 +75,7 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 8,
+      workloadImages: 11,
       secrets: 0,
     });
   });

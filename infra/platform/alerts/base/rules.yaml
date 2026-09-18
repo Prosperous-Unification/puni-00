@@ -39,7 +39,10 @@ spec:
             summary: No log records reached Elasticsearch for 15 minutes
     - name: puni-backups
       rules:
-        # A failed sqlite-backup Job alerts until a later run of the same CronJob succeeds.
+        # A failed sqlite-backup or sqlite-backup-verify Job alerts until a later run of the same
+        # CronJob succeeds.
+        # Proof: matching only owner_name="sqlite-backup" failed the restore-verification promtool
+        # case on 2026-09-18.
         # Proof: the previous kube_job_failed rule failed both clear-after-success promtool cases.
         - alert: PuniBackupJobFailed
           expr: >-
@@ -48,17 +51,17 @@ spec:
                 * on (namespace, job_name) group_left ()
                   (kube_job_failed{condition="true"} == 1))
               * on (namespace, job_name) group_left (owner_name)
-                kube_job_owner{owner_kind="CronJob", owner_name="sqlite-backup"}
+                kube_job_owner{owner_kind="CronJob", owner_name=~"sqlite-backup|sqlite-backup-verify"}
             )
             > on (namespace, owner_name)
             (
               max by (namespace, owner_name) (
-                label_replace(kube_cronjob_status_last_successful_time{cronjob="sqlite-backup"},
+                label_replace(kube_cronjob_status_last_successful_time{cronjob=~"sqlite-backup|sqlite-backup-verify"},
                   "owner_name", "$1", "cronjob", "(.+)")
               )
               or on (namespace, owner_name)
               0 * max by (namespace, owner_name) (
-                kube_job_owner{owner_kind="CronJob", owner_name="sqlite-backup"}
+                kube_job_owner{owner_kind="CronJob", owner_name=~"sqlite-backup|sqlite-backup-verify"}
               )
             )
           for: 5m
