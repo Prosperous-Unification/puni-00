@@ -136,6 +136,8 @@ async function up(): Promise<number> {
 async function down(): Promise<void> {
   await run([k3d, 'cluster', 'delete', CLUSTER], null, 300_000);
   await run([k3d, 'registry', 'delete', `k3d-${REGISTRY}`], null, 120_000);
+  // Observed 2026-09-18: the registry deletion left the cluster's network behind.
+  await run(['docker', 'network', 'rm', `k3d-${CLUSTER}`], null, 60_000);
 }
 
 async function build(

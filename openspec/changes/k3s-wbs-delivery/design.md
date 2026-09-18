@@ -93,9 +93,10 @@ Recorded under the "make reasonable assumptions and record them" instruction.
 - **Deploy repository.** Flux's WBS source is a separate repository (`vars.PUNI_DEPLOY_REPO_URL`)
   holding the rendered release at `clusters/<env>/wbs/release.yaml`. The desired commit is
   prepared deterministically (fixed identity and dates) so a resumed run rebuilds the same
-  request, and is pushed in `reconcile-desired`, after writes reopen, while the unit is
-  suspended, with `--force-with-lease` from `previousRevision`. The deploy repository never
-  names an unproven release.
+  request, is kept at `refs/wbs/desired/<release>`, and is pushed in `persist-release`, before
+  writes reopen, while the unit is suspended, with `--force-with-lease` from
+  `previousRevision` (review M2: a failed push after reopen stranded the environment at
+  `recovery-required`). The deploy repository never names an unproven release.
 - **Admission route.** Deployment requires the `installed-package` route because only it writes
   `admission.json`; the committed route is still `archive-launcher`, so staging is blocked on the
   P5 flip, deliberately.

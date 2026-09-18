@@ -30,6 +30,10 @@
   - [x] `solverImages` written candidate first, then rollback (F6 contract).
   - [x] Compose → k3d cutover rehearsal on a local clone, including a tampered-export refusal
         and the pre-switch rollback; staging/prod Traefik Ingress.
+  - [x] SQLite backup shipped with the release on the backend image; overlay-render check; k3d
+        backup-and-restore proof.
+  - [x] Fable review repairs B1, M1–M6, m1–m4 (verify.md); Flux in the rehearsal not feasible
+        (reason recorded).
   - [x] Concrete production operation plan ([cutover-plan.md](../../../docs/infra/cutover-plan.md)).
   - [ ] `infra-check` and `deploy-k3s` observed in real GitHub Actions; staging rollout and
         rollback through `deploy-k3s` (needs the protected environments, runner, deploy repo,

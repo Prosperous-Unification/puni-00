@@ -217,13 +217,59 @@ not resolve the then-untracked `cutover-plan.md`. At `577c1b4d`: `tool-devsync` 
 `TOOL_WIKI_TRUSTED_NODE_MODULES`) 57/0. The cutover rehearsal ran at `e75a4e1f`; `b4e302cb` only
 changed a type annotation in it.
 
+## Backup move and Fable review repairs (2026-09-18)
+
+Commits: `bbf365a9` merge of `e170c948`; `e1f86f02` tracked workflows; `ece5efb2` SQLite backup
+shipped with the release; `bb152e74` fleet check green (inventory `network:`, loaded controller,
+strict rendered YAML); `62d94f56` digest binding, gate event, mainline, recovery, publish before
+reopen, downgrade and proof age, `refs/wbs/desired`; `4bbdec10` runner hook, workflow inputs,
+cutover plan. Runs below are on `4bbdec10` unless stated.
+
+| Command                                                                  | Result                                                                                                                                                     |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` tool-deploy / tool-fleet / tool-devsync                       | 254/0, 243/0, 245/0                                                                                                                                        |
+| `gate-entrypoints.test.ts` (`TOOL_WIKI_TRUSTED_NODE_MODULES` set)        | 57/0                                                                                                                                                       |
+| lint + typecheck tool-deploy, tool-fleet, tool-dagger                    | exit 0                                                                                                                                                     |
+| `bunx nx format:check --all`                                             | exit 0                                                                                                                                                     |
+| `bun tools/tool-fleet/src/check-cli.ts` (the `tool-fleet:check` command) | **exit 0**, every family passed (26 executables, 3 overlays with a matching backup)                                                                        |
+| `bunx nx run tool-fleet:check:faults`                                    | exit 0: clean copy passes; 11 faults each fail naming their family, incl. inventory without `network:` and a backup path mismatch                          |
+| `bunx nx run tool-deploy:test:backup` (k3d `puni-f11-backup`)            | exit 0, 13 assertions (below)                                                                                                                              |
+| `bunx nx run tool-deploy:rehearse:cutover`                               | exit 0, 18 assertions                                                                                                                                      |
+| `bunx nx run tool-deploy:test:k3s` (F8 lab, now with the backup CronJob) | exit 0, 35 assertions; `solverImages` observed candidate-first; the lab's k3d network was left and removed by hand, cleanup added to `lab.ts` (not re-run) |
+
+Backup lab, live: F6 admission denied the job pod under the old `bun:1.4.2-alpine` image
+("approved backend image digest") and admitted it under the release backend digest; the
+rendered CronJob ran that digest; `kubectl create job --from=cronjob/sqlite-backup` succeeded
+against a real `wbs-data` PVC holding a row written through the API, uploaded a versioned
+object to the local object store with `sourceRevision` from `wbs-release`/`sourceSha` and 44
+migrations; the runner's `restore` mode (backend image, backend identity) rebuilt a fresh PVC,
+and the restored file carried the known row, the reported SHA-256, integrity `ok`, no FK
+violations and the reported migration set.
+
+Faults found on the way (fixed, then re-observed passing): the base-file unit test of the
+backup judge passed while the real rendered overlays failed (`kubectl kustomize` re-sorts map
+keys); the judge now compares canonically.
+
+R5 failure proofs added (guard disabled, named test observed failing, restored passing):
+backup judge namespace, image, `PUNI_SOURCE_REVISION` and runner bytes (`check-backup.test.ts`);
+coordinator moves the CronJob image with the backend (`moves the backup CronJob …`); loaded
+controller manifest digest (`refuses a loaded archive …`); tier built from another commit;
+pull_request gate run; registry label (`refuses an image built from another commit`) and the
+deploy-time call (`refuses a descriptor whose image the registry labels …`; the run went on to
+the cluster without it); commit on main and downgrade (`source.test.ts`); proof age; malformed
+`recovers` (CLI and workflow block); publish before reopen (with the publish moved back into
+`reconcile-desired` it ran after `reopenWrites`); runner hook (a PR workflow ref started).
+
+Flux in the rehearsal (review M5): not feasible here. Flux's source-controller needs a smart-HTTP
+or SSH Git server for the WBS `GitRepository`; the toolchain lock carries no Git server image,
+and an unpinned one would break the lock rule. The suspend/resume order is unit-tested against
+the fake (publish only while suspended, resume only onto the served revision) and written into
+the cutover plan's steps 6, 8 and the rollback.
+
 ### Not verified, with prepared next steps
 
-- **`tool-fleet:check` is red on the committed tree**: both hcloud inventories use
-  `connect_with: private_ipv4` without `network:`, so hetzner.hcloud 7.0.1 sets no
-  `ansible_host`/`hcloud_private_ipv4` and `strict: true` aborts. Fix (infra/ansible, not owned
-  here): `network: puni-platform` / `network: puni-workers` (Terraform names the networks
-  `puni-<cluster>`).
+- **Registry labels on real images**: `tool-dagger` now adds `WBS_SHA`, but no Dagger publish has
+  run; until one does, every real image lacks the label and descriptor sealing refuses it.
 - **Workflows in real GitHub Actions**: neither `infra-check` nor `deploy-k3s` has run. Unverified:
   `docker load` of the controller OCI on `ubuntu-latest`, artifact download across runs, the
   protected environments, and the `puni-deploy` runner.
