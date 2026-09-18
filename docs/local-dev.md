@@ -3,6 +3,9 @@
 Quick reference for running `be-01`, `gw-01`, `fe-01` on your workstation — no
 Docker, no Hetzner box, no deploy pipeline.
 
+To serve a worktree from source on a local k3s cluster instead, see
+[local k3s lab](infra/local.md).
+
 ## One-time setup
 
 ```bash

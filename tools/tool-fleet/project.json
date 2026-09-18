@@ -59,9 +59,7 @@
     "lab": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": {
-        "command": "bun tools/tool-fleet/src/entrypoint.ts lab"
-      }
+      "options": { "command": "bun tools/tool-fleet/src/k3d-lab.ts" }
     },
     "plan": {
       "executor": "nx:run-commands",
