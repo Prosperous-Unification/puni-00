@@ -223,10 +223,12 @@ permissions:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
-    # Forty-five minutes is a chosen finite allowance pending the first complete CI measurement,
-    # not a measured completion time. Evidence: openspec/changes/agent-scalable-llm-wiki/verify.md,
+    # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
+    # the packed package suite in scope) spent 44m48s through the solver image smoke and was
+    # canceled in the heavy-work lock test. Sixty minutes is a finite allowance above that
+    # measurement. Evidence: openspec/changes/agent-scalable-llm-wiki/verify.md,
     # "CI gate budget repair after 6234d1c1".
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and

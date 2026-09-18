@@ -1789,7 +1789,9 @@ await import(${JSON.stringify(productionSnapshotter)});
 
     // Proof: the production workflow's obsolete 20-minute value failed here on
     // `Expected: 45 · Received: 20` after CI canceled required Tool Wiki work at 20m11s.
-    expect(Number(gate[1])).toBe(45);
+    // Proof: the 45-minute value failed here on `Expected: 60 · Received: 45` after run
+    // 35337661318 was canceled at 45m with every project affected and the packed suite in scope.
+    expect(Number(gate[1])).toBe(60);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
