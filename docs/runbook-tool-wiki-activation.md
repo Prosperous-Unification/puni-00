@@ -190,6 +190,69 @@ therefore ships a new launcher in the next activation prepared from it, and the 
 prints `launcher: changed` beside the validator identity. That is the designed path — review the
 launcher diff as trusted code, because the archive's bytes become the admission entrypoint.
 
+## Package-backed admission
+
+`trusted-wiki` reads one base-owned switch, `infra/ci/bureaucrat/consumer.json`. Its `admission` is
+`archive-launcher` (the archive's own launcher, unchanged behavior) or `installed-package`; any other
+value, key or registry refuses with exit 78. The job sparse-checks-out `infra/ci/bureaucrat/` at the
+pull request's **base** SHA and runs `bootstrap.sh` before the candidate checkout exists. For
+`installed-package` it copies only `package.json` and `bun.lock` into `$RUNNER_TEMP`, then runs
+`bun install --frozen-lockfile --ignore-scripts --registry <consumer.json registry>` under `env -i`
+from that scratch directory, so no candidate `.npmrc`, `bunfig.toml`, lock, pin or inherited Bun
+variable takes part. The manifest must pin exactly `twilight-bureaucrat` at an exact version, with no
+scripts or `trustedDependencies`; the lock must name that version from that registry with a sha512
+integrity. A missing lock refuses rather than resolving from the network.
+
+`admit.sh` then requires the activation's root `toolkit-release` to equal
+`twilight-bureaucrat-v<version> <toolkitIdentity>` of the installed package. The package supplies the
+launcher; the selected activation still supplies the reviewed validator, bindings and runtime
+closure. An activation from another toolkit, or one without `toolkit-release`, refuses, so a
+package bump alone never replaces the selected activation. On certification it writes
+`$RUNNER_TEMP/twilight-bureaucrat/admission.json`: source SHA, package name/version/integrity/toolkit
+identity, and activation version/manifest identity, all read from trusted files.
+{@link requireDeploymentAdmission} in `tools/tool-devsync/src/bureaucrat-consumer.ts` joins that
+record to the staged image digest; deployment preparation must refuse without all four.
+
+Externally administered, never repository files: the three `TOOL_WIKI_ACTIVATION_*` variables, the
+required `trusted-wiki` check, registry ownership and the release environment. The candidate can
+edit none of the inputs above; a pull request that edits `infra/ci/bureaucrat/` is itself judged by
+the base's copy.
+
+### Flip (pending publication)
+
+The committed switch is `archive-launcher` and no `bun.lock` is committed, because the registry
+integrity of `twilight-bureaucrat@0.1.0` exists only after publication. In order:
+
+1. **Publish.** Complete the P4 prerequisites and push `twilight-bureaucrat-v0.1.0`; confirm
+   `bun info twilight-bureaucrat@0.1.0 dist.integrity` equals the release record's integrity.
+2. **Pin.** Resolve the base-owned manifest into a lock with nothing inherited, check its
+   integrity against the release record, commit `bun.lock` alone and merge:
+
+   ```sh
+   cd infra/ci/bureaucrat
+   env -i PATH="$(dirname "$(command -v bun)"):/usr/bin:/bin" HOME="$(mktemp -d)" \
+     bun install --lockfile-only --registry https://registry.npmjs.org/
+   ```
+
+3. **Activation.** From that `main` commit, bootstrap with a local, uncommitted
+   `"admission": "installed-package"` into a fresh scratch directory and run its
+   `consumer/node_modules/twilight-bureaucrat/dist/bin.mjs prepare-activation` with real review and
+   check evidence (never fixture attestations). Publish the archive and set the three variables. Its
+   launcher is the toolkit's, so the archive route keeps working with it.
+4. **Flip.** Commit `"admission": "installed-package"` and merge. That pull request is still judged
+   by the base's `archive-launcher`; later pull requests take the package route.
+5. **Root route.** `bun add --dev --exact twilight-bureaucrat@0.1.0`, then point lefthook's
+   `tool-wiki`, the CI diagnostic step and `twilight-bureaucrat:lint` at
+   `bin/tool-wiki-package-lint.sh`. It refuses without an exact root pin or matching install and
+   refuses re-entry (exit 70). `bin/tool-wiki-lint.sh` stays the launcher source until the
+   exhaustive-corpus freeze lets it move into the package; only then does the route take its name.
+
+**Upgrade.** Bump the pin, re-lock, prepare and publish an activation from the new package, set the
+variables, then merge the pin. Merging the pin first makes every admission refuse by name.
+**Old-version recovery.** Revert `infra/ci/bureaucrat/{package.json,bun.lock}` to the version the
+selected activation names, or set `admission` back to `archive-launcher`; both take effect for pull
+requests opened against the reverted base.
+
 ## Final binding and recovery
 
 After the exact commit is published and its immutable publication marker exists, emit the canonical
