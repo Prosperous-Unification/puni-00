@@ -43,6 +43,8 @@ spec:
     requests.memory: 16Gi
     limits.cpu: '16'
     limits.memory: 24Gi
+    requests.ephemeral-storage: 16Gi
+    limits.ephemeral-storage: 32Gi
     pods: '40'
 ---
 apiVersion: v1

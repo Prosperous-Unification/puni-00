@@ -12,14 +12,14 @@ metadata:
 spec:
   backoffLimit: 1
   activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 3600
   # A replacement pod starts only after the old one has terminated, so one run never has two
   # live pods sharing an identity.
   podReplacementPolicy: Failed
   # Proof (k3d, 2026-09-18): a drained pod was replaced on the other agent and the Job finished
   # with failed unset; a pod on a stopped node was replaced only after the out-of-service fence
-  # taint; OOMKilled (137) and the kubelet's emptyDir eviction (137, no DisruptionTarget) failed
-  # the Job without a retry.
+  # taint; OOMKilled (137) failed the Job without a retry. With memory-backed scratch, the
+  # disk-exhaustion run stopped at exactly 64 MiB with ENOSPC (exit 1, retried once by
+  # backoffLimit); the earlier disk-backed scratch was evicted only after about 2 GB.
   podFailurePolicy:
     rules:
       # Drain, node loss and kubelet eviction are infrastructure disruption: retry elsewhere.
@@ -73,9 +73,12 @@ spec:
             - { name: runner, mountPath: /runner }
             - { name: bundle, mountPath: /bundle, readOnly: true }
       volumes:
+        # Memory-backed scratch is a tmpfs of exactly sizeLimit: a write past it fails with ENOSPC
+        # at once, and its pages count against the container's memory limit. Disk-backed
+        # emptyDir is only evicted after the kubelet's next scan (2 GB written into 64 MiB).
         - name: workspace
-          emptyDir: { sizeLimit: 64Mi }
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
         - name: runner
-          emptyDir: { sizeLimit: 16Mi }
+          emptyDir: { medium: Memory, sizeLimit: 16Mi }
         - name: bundle
           configMap: { name: harness-worker-bundle }

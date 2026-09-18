@@ -32,7 +32,10 @@ const BoundedJob = type({
   spec: {
     backoffLimit: '0 <= number.integer <= 1',
     activeDeadlineSeconds: '0 < number.integer <= 900',
-    ttlSecondsAfterFinished: 'number.integer',
+    // The authority deletes a Job after recording its outcome; a TTL would delete it first, and
+    // an absent Job would then read as a lost run.
+    // Proof: with this key allowed, the TTL negative in maintenance-workers.test.ts decoded.
+    'ttlSecondsAfterFinished?': 'never',
     podReplacementPolicy: "'Failed'",
     podFailurePolicy: {
       rules: type({
@@ -67,8 +70,18 @@ const BoundedJob = type({
         })
           .array()
           .exactlyLength(1),
-        volumes: type({ name: "'workspace'", emptyDir: { sizeLimit: 'string' }, '+': 'reject' })
-          .or({ name: "'runner'", emptyDir: { sizeLimit: 'string' }, '+': 'reject' })
+        // Proof: with medium optional, the disk-backed-scratch negative in
+        // maintenance-workers.test.ts decoded (2026-09-18).
+        volumes: type({
+          name: "'workspace'",
+          emptyDir: { medium: "'Memory'", sizeLimit: 'string', '+': 'reject' },
+          '+': 'reject',
+        })
+          .or({
+            name: "'runner'",
+            emptyDir: { medium: "'Memory'", sizeLimit: 'string', '+': 'reject' },
+            '+': 'reject',
+          })
           .or({ name: "'bundle'", configMap: { name: 'string', '+': 'reject' }, '+': 'reject' })
           .array()
           .exactlyLength(3),
@@ -166,6 +179,8 @@ const RunState = type({
   scenario: "'complete' | 'exhaust-memory' | 'exhaust-disk'",
   holdSeconds: 'number.integer >= 0',
   bundleConfigMap: 'string',
+  // kube-system's namespace UID when the run was last started: a new UID means a new cluster.
+  clusterUid: 'string>0',
   'detail?': 'string',
   '+': 'reject',
 });
@@ -216,6 +231,15 @@ async function createJob(kubectl: Kubectl, job: BoundedJob): Promise<void> {
   }
 }
 
+/** The UID of kube-system: it changes only when the cluster itself is recreated. */
+async function clusterIdentity(kubectl: Kubectl): Promise<string> {
+  const uid = (
+    await kubectl(['get', 'namespace', 'kube-system', '--output=jsonpath={.metadata.uid}'])
+  ).trim();
+  if (uid.length === 0) throw new Error('kube-system has no UID; cannot identify the cluster');
+  return uid;
+}
+
 async function ensureBundle(kubectl: Kubectl, bundle: Uint8Array): Promise<string> {
   const name = bundleConfigMapName(bundle);
   const existing = await kubectl([
@@ -247,6 +271,7 @@ export async function dispatchRun(
   if (known !== undefined) {
     throw new Error(`Duplicate start refused: run ${request.runId} is already ${known.state}`);
   }
+  const clusterUid = await clusterIdentity(kubectl);
   const bundleConfigMap = await ensureBundle(kubectl, request.bundle);
   await createJob(kubectl, renderSyntheticJob(template, { ...request, bundleConfigMap }));
   const updated = {
@@ -259,6 +284,7 @@ export async function dispatchRun(
         scenario: request.scenario,
         holdSeconds: request.holdSeconds,
         bundleConfigMap,
+        clusterUid,
       },
     },
   };
@@ -275,9 +301,11 @@ const JobStatus = type({
 });
 
 /**
- * Move one dispatched run forward from what the cluster reports. A Job that vanished (its
- * cluster was recreated) is started again under the same run id until {@link maximumAttempts},
- * then the run fails loudly; the cluster never decides a run's outcome by forgetting it.
+ * Move one dispatched run forward from what the cluster reports. A Job that vanished because
+ * its cluster was recreated (kube-system has a new UID) is started again under the same run id
+ * until {@link maximumAttempts}; a Job that vanished from the same cluster is a failed run
+ * whose outcome is unknown, never a restart. After recording an outcome the authority deletes
+ * the Job; the cluster never decides a run's outcome by forgetting it.
  */
 export async function reconcileRun(
   kubectl: Kubectl,
@@ -300,7 +328,12 @@ export async function reconcileRun(
   ]);
   let next: typeof run;
   if (observed.trim().length === 0) {
-    if (run.attempts >= maximumAttempts) {
+    const clusterUid = await clusterIdentity(kubectl);
+    if (clusterUid === run.clusterUid) {
+      // Proof: with this branch removed, the same-cluster negative restarted a run whose Job
+      // had been deleted after it completed (maintenance-workers.test.ts, 2026-09-18).
+      next = { ...run, state: 'failed', detail: 'outcome unknown: Job absent on the same cluster' };
+    } else if (run.attempts >= maximumAttempts) {
       next = { ...run, state: 'failed', detail: `Job lost ${String(run.attempts)} times` };
     } else {
       const bundleConfigMap = await ensureBundle(kubectl, bundle);
@@ -313,7 +346,7 @@ export async function reconcileRun(
           bundleConfigMap,
         }),
       );
-      next = { ...run, attempts: run.attempts + 1, bundleConfigMap };
+      next = { ...run, attempts: run.attempts + 1, bundleConfigMap, clusterUid };
     }
   } else {
     const job = JobStatus(JSON.parse(observed));
@@ -327,6 +360,16 @@ export async function reconcileRun(
   }
   const updated = { runs: { ...journal.runs, [runId]: next } };
   await writeJournal(journalPath, updated);
+  if (next.state !== 'dispatched' && observed.trim().length > 0) {
+    await kubectl([
+      'delete',
+      'job',
+      `synthetic-${runId}`,
+      '--namespace=workers',
+      '--ignore-not-found',
+      '--wait=true',
+    ]);
+  }
   return updated;
 }
 

@@ -22,6 +22,7 @@ const bundle = new TextEncoder().encode('bundle bytes');
 interface EditableTemplate {
   spec: {
     backoffLimit?: number;
+    ttlSecondsAfterFinished?: number;
     podReplacementPolicy?: string;
     template: {
       spec: {
@@ -67,6 +68,10 @@ describe('the committed synthetic Job template', () => {
       withSpec(source, (spec) => {
         spec.template.spec.volumes[0] = { name: 'workspace', hostPath: { path: '/' } };
       }),
+      withSpec(source, (spec) => {
+        spec.template.spec.volumes[0] = { name: 'workspace', emptyDir: { sizeLimit: '64Mi' } };
+      }),
+      withSpec(source, (spec) => (spec.ttlSecondsAfterFinished = 3600)),
     ];
     for (const job of loosened) expect(() => decodeSyntheticTemplate(job)).toThrow(/unbounded/);
   });
@@ -102,9 +107,11 @@ describe('the committed synthetic Job template', () => {
 function fakeCluster() {
   const jobs = new Map<string, Record<string, unknown>>();
   const calls: string[][] = [];
+  const identity = { uid: 'cluster-1' };
   const respond = (arguments_: readonly string[], stdin?: string): string => {
     calls.push([...arguments_]);
     const [verb, kind, name] = arguments_;
+    if (verb === 'get' && kind === 'namespace') return identity.uid;
     if (verb === 'get' && kind === 'configmap') return '';
     if (verb === 'create' && stdin !== undefined) {
       const object = JSON.parse(stdin) as { kind: string; metadata: { name: string } };
@@ -134,7 +141,7 @@ function fakeCluster() {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   };
-  return { jobs, calls, kubectl };
+  return { jobs, calls, kubectl, identity };
 }
 
 describe('the synthetic run authority', () => {
@@ -170,11 +177,26 @@ describe('the synthetic run authority', () => {
     const { template, journal, cluster, request } = await setup();
     await dispatchRun(cluster.kubectl, template, journal, request);
     cluster.jobs.clear();
+    cluster.identity.uid = 'cluster-2';
     const second = await reconcileRun(cluster.kubectl, template, journal, 'drill-1', bundle);
     expect(second.runs['drill-1']).toMatchObject({ state: 'dispatched', attempts: 2 });
     cluster.jobs.clear();
+    cluster.identity.uid = 'cluster-3';
     const third = await reconcileRun(cluster.kubectl, template, journal, 'drill-1', bundle);
     expect(third.runs['drill-1']).toMatchObject({ state: 'failed', attempts: 2 });
+  });
+
+  it('reports an unknown outcome, never a restart, for a Job gone from the same cluster', async () => {
+    const { template, journal, cluster, request } = await setup();
+    await dispatchRun(cluster.kubectl, template, journal, request);
+    cluster.jobs.clear();
+    const reconciled = await reconcileRun(cluster.kubectl, template, journal, 'drill-1', bundle);
+    expect(reconciled.runs['drill-1']).toMatchObject({
+      state: 'failed',
+      attempts: 1,
+      detail: 'outcome unknown: Job absent on the same cluster',
+    });
+    expect(cluster.calls.filter(([verb]) => verb === 'create').length).toBe(1 + 1);
   });
 
   it('records completion and failure from the Job, and cancellation before deletion', async () => {
@@ -185,6 +207,7 @@ describe('the synthetic run authority', () => {
       (await reconcileRun(cluster.kubectl, template, journal, 'drill-1', bundle)).runs['drill-1']
         .state,
     ).toBe('complete');
+    expect(cluster.jobs.has('synthetic-drill-1')).toBe(false);
     await dispatchRun(cluster.kubectl, template, journal, { ...request, runId: 'drill-2' });
     cluster.jobs.set('synthetic-drill-2', {
       metadata: { uid: 'u' },
