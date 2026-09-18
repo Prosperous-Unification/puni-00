@@ -36,7 +36,8 @@ end. `--keep` leaves them in place for inspection.
 ## The transaction
 
 ```text
-validate identity/admission → acquire Lease → persist intent → suspend WBS Flux unit
+validate identity/admission → acquire Lease → persist intent → admit rollback + candidate digests
+→ suspend WBS Flux unit
 → close writes → drain gateway → stop backend, prove no writer
 → capture migrations + VACUUM INTO snapshot (integrity_check, sha256) → migration Job
 → backend ready → gateway/frontend/MCP ready → smoke Job → persist release record
@@ -54,11 +55,22 @@ validate identity/admission → acquire Lease → persist intent → suspend WBS
   `podReplacementPolicy: Failed`, and a crashed run reuses the Job it already created. After
   a migration, the coordinator checks the applied set against the captured plan, not against
   Job completion.
+- **Lease.** The holder is `<transaction>#<process>`. The Lease is renewed before every step
+  and on a heartbeat, and lapses after 20 s (local) or 120 s (staging/prod) without renewal.
+  A second coordinator is refused while the holder is live. A restarted coordinator waits
+  for its dead predecessor's Lease to lapse, then takes it over. It never takes over another
+  transaction's Lease. Terminal failures park the Lease for an operator or recovery.
+- **Admission.** Before any backend pod starts, the coordinator writes F6's `solverImages`
+  list with the rollback and candidate digests.
 - **Before writes reopen**, any failure rolls back. The coordinator stops the writer, checks
   that the `down.sql` hashes match what capture recorded, runs
   `migrate-down-cli --to=<baseline>`, checks that the applied set equals the captured one,
   restores the old digests, smoke-tests them, and only then reopens writes. A restart before `smoke-passed`
   rolls back. From `smoke-passed` on, a restart finishes the release.
+- **Flux after rollback.** Flux resumes only onto `flux.previousRevision`. If the deploy
+  repository already serves the failed release, the run ends at `flux-revert-required`. The
+  old release is then serving with writes open and Flux suspended. The report names the
+  revert and the exact resume command.
 - **A failed rollback** ends at `rollback-failed`. Writes stay fenced, Flux stays suspended
   and the Lease stays held. The report prints the journal path, the captured migration set,
   the snapshot, and the exact manual command, for example

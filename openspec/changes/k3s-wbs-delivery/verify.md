@@ -90,6 +90,33 @@ Observed live as a refusal only, with no removal fault injected: the foreign Lea
 `acquire-lease`. Two checks were neither fault-injected nor exercised: release-record drift
 in `observeCluster`, and writers still present before `rolloutBackend`.
 
+## Phase-review follow-up (2026-09-18, `7d3173c6`)
+
+Fixes: rollback resumes Flux only onto `flux.previousRevision`, and otherwise ends
+`flux-revert-required` (review item 1). The Lease holder is `<transaction>#<process>`, with a
+heartbeat, expiry and a claim before the first write (item 2). The writer guard runs before
+every schema Job (item 3). The coordinator writes F6's `solverImages` (merged F6 `f8265dc7`),
+and the lab's policy patch is gone (item 4).
+
+| Command                                                                             | SHA                                            | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run tool-deploy:lint` / `typecheck` / `test --skip-nx-cache`               | tree committed as `7d3173c6`                   | exit 0 / 0 / 0; test 176 pass, 0 fail (k8s: 85)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `bun tools/tool-deploy/src/k8s/lab.ts` (locked `K3D`/`KUBECTL`, full image rebuild) | HEAD `b82e7ac8` + tree committed as `7d3173c6` | exit 0, 35 assertions, cluster/registry and lab images deleted. Committed F6 policy without patches: the exact dir was admitted, alternate paths and a digest outside `solverImages` were refused, and the coordinator wrote `solverImages` = `v1,unhealthy`. Health failure rolled back (writer max 1 over 297 samples). After SIGKILL at `migrated`, the rerun logged `waiting 18312ms for …#211660d6 to lapse`, took the Lease over and rolled back (max 1 over 118). The additive upgrade was promoted (max 1 over 60). Two same-request `deploy:k3s --apply` processes started together: one promoted v3; the other waited 19.9 s, then was refused with "Lease is still renewed by …" before any mutation (max 1 over 54). |
+
+R5 fault injections for the fixes (each guard removed, the named test observed failing, then
+restored):
+
+| Check                                   | Injected fault                               | Test observed failing                                                                                                                                                 |
+| --------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rollback resumes only onto previous rev | guard removed                                | `keeps Flux suspended when the source already serves the failed release` (fake re-applied the failed digests)                                                         |
+| Rollback resumes only onto previous rev | resume onto `desiredRevision` (the old code) | `rolls back with Flux onto the previous revision only`                                                                                                                |
+| Live Lease never displaced              | liveness branch disabled                     | `refuses a second live coordinator for the same request`, `refuses while a live coordinator of another …`, `refuses to resume a transaction whose live coordinator …` |
+| Claim before first journal write        | record before claim                          | `refuses to resume a transaction whose live coordinator still renews the Lease` (journal overwritten)                                                                 |
+| Renew before each step                  | renewal removed                              | `stops when another process takes the Lease` (migrate ran after the takeover)                                                                                         |
+| Writer guard on every schema Job        | guard removed in `runJob`                    | `refuses every schema Job while a writer runs: migrate / observeDownMigrations / rollbackSchema / capture` (fake kubectl logged `create`)                             |
+| Admission params belong to this cluster | running-backend check removed                | `refuses admission parameters that do not approve the running backend`                                                                                                |
+| Coordinator writes `solverImages`       | `admit-images` write skipped                 | `admits the candidate and rollback digests before any backend pod starts` (fake admission denied capture)                                                             |
+
 ## Not verified, with prepared next steps
 
 - **Solver in the Ubuntu VM lab** (real solve, socket replacement and reconnect, refusal of
@@ -100,12 +127,13 @@ in `observeCluster`, and writers still present before `rolloutBackend`.
   `bunx nx run tool-fleet:lab -- up --lab-id f8-solver --profile platform --ssh-public-key … --ssh-private-key …`,
   then install `deploy/solver-supervisor/wbs-solver-supervisor.service` with its runtime
   directory `/run/puni/solver`, label the node `puni.dev/capability-product=true`, apply F6
-  policy with the approved-set change, bootstrap as `lab.ts` does, and run
+  policy, bootstrap as `lab.ts` does, and run
   `deploy:k3s --apply` plus an optimize request against a seeded project.
-- **The F6 approved-set change** is proven only as a lab patch (`APPROVED_SET_PATCH`). The
-  platform track has to adopt it in `infra/platform/policy/trusted-workloads.yaml`.
-- **Flux suspend/resume and GitRepository revision checks** are unit-tested with the fake
-  only. The lab has no Flux (`flux: null`, local).
+- **Flux vs. the coordinator over `solverImages`.** Platform Flux reconciles the same
+  ConfigMap the coordinator writes. F6/F11 must keep Flux from reverting `data.solverImages`
+  mid-release. The lab has no Flux, so this is not observed.
+- **Flux suspend/resume, the GitRepository revision checks and `flux-revert-required`**
+  are unit-tested with the fake only (its resume applies the manifests of the served revision). The lab has no Flux (`flux: null`, local).
 - **Hetzner CSI access mode (RWO vs RWOP), OIDC auth smoke (401 for anonymous), and
   staging/prod apply** are plan-only in F8 and belong to F11.
 - **The MCP production image** has no Dagger target. The lab Dockerfile is not a production
