@@ -1,0 +1,14 @@
+# One source-run dev environment in the trusted `puni-forge` namespace. It does not build on
+# `../../base`: like `deploy/dev-src/compose.yml`, one forge Pod runs every tier from a mounted
+# worktree under watchers. `tool-devsync:dev-env` renders this overlay and binds the slug,
+# worktree, image digest and URLs (`tools/tool-devsync/src/k3s/dev-environment.ts`); it refuses
+# any other kind or a second Pod. A change here is a recreate, not a restart.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: puni-forge
+resources:
+  - pod.yaml
+  - service.yaml
+  - ingress.yaml
+  - storage.yaml
+  - network-policy.yaml

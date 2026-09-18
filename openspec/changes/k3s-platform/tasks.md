@@ -20,5 +20,11 @@
   - [ ] Recovery-secret escrow executed and verified on a second machine; `backup.yml` converged on real servers.
   - [ ] Volume-threshold and OTel-network-block drills on production-like storage; h3 monitoring retirement evidence.
 - [ ] F9 — Preserve source-run development on k3s per [F9](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f9--source-run-development-and-localhost-experience).
+  - [x] k3d profiles `app`, `platform`, `fleet` in `tool-fleet:lab`: locked k3s image, loopback-only ports, per-lab contexts, owner-only Git-ignored state, label-scoped `down`, resource refusal naming the smaller profile (live on k3d, 2026-09-18).
+  - [x] `tool-devsync:dev-env`: one worktree, slug and forge Pod under the F6 forge admission; realpath, owner, repository, duplicate-slug and wrong-cluster refusals; solver runtime directory mount; in-place restart on `RESTART_PATHS`; recreate on image or overlay change; independent database (live).
+  - [x] HTTP and headless-Chromium checks of HMR, gateway WebSocket, local auth, API, MCP URLs and restarts after lockfile and config changes; fresh-clone walkthrough from `docs/infra/local.md` (live).
+  - [ ] Measure `platform` and `fleet` with the full platform graph and replace the 16/24 GiB planning thresholds; only the Flux-installed `fleet` shell was measured.
+  - [ ] Per-environment namespaces: the forge admission matches the namespace name `puni-forge`, so environments share it and are separated by labels and NetworkPolicy. A namespace-label match in `infra/platform/policy` would allow one namespace each.
+  - [ ] The real Ubuntu VM host-setup check (`tool-fleet:lab --lab-id`) belongs to the VM lab track and is not part of this evidence.
 - [ ] F10 — Execute cold recovery and routine maintenance drills per [F10](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f10--recovery-and-routine-maintenance).
 - [ ] F12 — Finish the tested operator handoff per [F12](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f12--finish-the-operator-handoff).
