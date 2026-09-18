@@ -132,17 +132,29 @@ export class SupervisorOneAttemptChannel implements SupervisorAttemptChannel {
     }
   }
 
+  /**
+   * Reads the start frame. A k3s pod cannot learn its container id, so its backend claims its
+   * pod name (HOSTNAME); `peerCallerAlias` is that name as reported by the container runtime for
+   * the authenticated peer, and only that exact claim is bound to the peer's full id.
+   */
   async readStart(
-    context: Omit<SupervisorStartDecodeContext, 'maxInputBytes'>,
+    context: Omit<SupervisorStartDecodeContext, 'maxInputBytes'> & {
+      readonly peerCallerAlias?: string;
+    },
   ): Promise<SupervisorStartFrame> {
     if (this.#phase !== 'start') throw defect('start frame was already read');
-    const raw = await this.#readLine();
+    const { peerCallerAlias, ...decodeContext } = context;
+    const line = await this.#readLine();
+    const raw =
+      line === undefined
+        ? undefined
+        : bindPodCallerClaim(line, decodeContext.peerCallerId, peerCallerAlias);
     if (raw === undefined) throw defect('EOF before start frame');
     if (this.#buffer.byteLength !== 0) {
       throw defect('unexpected bytes before started reply');
     }
     const frame = decodeSupervisorStartFrame(raw, {
-      ...context,
+      ...decodeContext,
       maxInputBytes: this.#maximum,
     });
     this.#phase = 'decision';
@@ -189,4 +201,20 @@ export class SupervisorOneAttemptChannel implements SupervisorAttemptChannel {
   send(frame: SupervisorReplyFrame): Promise<void> {
     return this.#write(`${JSON.stringify(frame)}\n`);
   }
+}
+
+function bindPodCallerClaim(raw: string, peerCallerId: string, alias: string | undefined): string {
+  if (alias === undefined) return raw;
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+  if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) return raw;
+  const frame = decoded as Record<string, unknown>;
+  // Proof: solver-supervisor-channel.test.ts claims another pod's name and a pod name without a
+  // runtime alias; substituting any claim here made both decode as the authenticated peer.
+  if (frame['callerId'] !== alias) return raw;
+  return JSON.stringify({ ...frame, callerId: peerCallerId });
 }

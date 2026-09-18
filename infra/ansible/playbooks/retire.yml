@@ -108,12 +108,14 @@
       tags: [always]
 
     - name: Map every surviving etcd voter to one exact Kubernetes node
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' etcd-map '{{ puni_kube_context }}'
-          '{{ puni_etcd_member_name }}' '{{ puni_actual_etcd_voters.stdout }}'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - etcd-map
+          - '{{ puni_kube_context }}'
+          - '{{ puni_etcd_member_name }}'
+        stdin: '{{ puni_actual_etcd_voters.stdout }}'
       delegate_to: localhost
       become: false
       register: puni_surviving_etcd_nodes
@@ -168,13 +170,13 @@
     # Proof: four distinct healthy member IDs pass for seven voters while three fail; duplicate
     # Kubernetes annotations are rejected by the mapping task before this count.
     - name: Require a freshly healthy surviving majority of distinct etcd voters
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' etcd-majority '{{ puni_actual_etcd_voters.stdout }}'
-          '{{ puni_surviving_etcd_health.results | to_json }}'
-          '{{ puni_minimum_surviving_control_planes | int }}'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - etcd-majority
+          - '{{ puni_minimum_surviving_control_planes | int }}'
+        stdin: "{{ {'voters': puni_actual_etcd_voters.stdout | from_json, 'probes': puni_surviving_etcd_health.results} | to_json }}"
       delegate_to: localhost
       become: false
       changed_when: false
@@ -189,12 +191,14 @@
     # Proof: the healthy-survivor probe failed with jq exit 5 when the floor entry replaced the
     # nodes document in scope; binding the input as $nodes makes the same production filter pass.
     - name: Require live Ready capacity for every cluster capability floor
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' floors '{{ puni_kube_context }}' '{{ puni_node_name }}'
-          '{{ puni_required_capability_floors | to_json }}'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - floors
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
+          - '{{ puni_required_capability_floors | to_json }}'
       delegate_to: localhost
       become: false
       changed_when: false
@@ -215,22 +219,26 @@
       tags: [always]
 
     - name: Refuse unmanaged, local-state, forge, singleton database, and hostPath workloads
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' workloads '{{ puni_kube_context }}' '{{ puni_node_name }}'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - workloads
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
       delegate_to: localhost
       become: false
       changed_when: false
       tags: [preflight]
 
     - name: Refuse PVCs backed by local or target-affined persistent volumes
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' local-volumes '{{ puni_kube_context }}' '{{ puni_node_name }}'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - local-volumes
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
       delegate_to: localhost
       become: false
       changed_when: false
@@ -242,6 +250,33 @@
       delegate_to: localhost
       become: false
       tags: [cordon]
+
+    # Reviewed exception to the generic drain's emptyDir refusal: only the k3s-bundled
+    # kube-system metrics-server, whose emptyDir is a cache, is moved first. Its namespace and
+    # label are exact; no other pod loses emptyDir data and the drain below keeps its refusal.
+    # Proof: without this step the live QEMU lab agent retirement stopped at the drain with
+    # "cannot delete Pods with local storage: kube-system/metrics-server-…".
+    - name: Move the reviewed emptyDir system pods off the node
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --context
+          - '{{ puni_kube_context }}'
+          - --namespace
+          - kube-system
+          - delete
+          - pod
+          - --selector
+          - k8s-app=metrics-server
+          - --field-selector
+          - 'spec.nodeName={{ puni_node_name }}'
+          - --wait=true
+          - --timeout=2m
+      delegate_to: localhost
+      become: false
+      register: puni_system_pod_move
+      changed_when: "'deleted' in puni_system_pod_move.stdout"
+      tags: [drain]
 
     - name: Drain while respecting disruption budgets and local storage refusal
       ansible.builtin.command:
@@ -262,13 +297,22 @@
     # Proof: a Pending workload followed by an empty attachment list previously returned exit 0;
     # errexit now preserves the first failed required check.
     - name: Require workloads healthy elsewhere and all volume attachments detached
-      ansible.builtin.shell:
-        cmd: >-
-          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' detached '{{ puni_kube_context }}' '{{ puni_node_name }}'
-      args:
-        executable: /bin/bash
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ playbook_dir }}/../scripts/cluster-checks.py'
+          - detached
+          - '{{ puni_kube_context }}'
+          - '{{ puni_node_name }}'
       delegate_to: localhost
       become: false
+      register: puni_workloads_detached
+      # Rescheduled pods need time to become Ready; the wait is bounded and then refuses.
+      # Proof: without it the live QEMU lab retirement refused while the rescheduled
+      # metrics-server was still starting on the surviving agent.
+      until: puni_workloads_detached.rc == 0
+      retries: 36
+      delay: 5
       changed_when: false
       tags: [detach]
 

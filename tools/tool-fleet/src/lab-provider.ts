@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
@@ -29,8 +30,9 @@ const PRODUCTION_FLEETS = ['infra/fleet/desired.yaml', 'infra/fleet/examples/pro
  * @throws Error naming the first production trait found.
  */
 export function requireLabFleet(fleet: Fleet, fleetPath: string, root: string): void {
-  const absolute = resolve(fleetPath);
-  if (PRODUCTION_FLEETS.some((path) => absolute === join(root, path))) {
+  // Compare real paths so a symlink or `..` spelling of production desired state is refused too.
+  const absolute = realpathOrSelf(resolve(fleetPath));
+  if (PRODUCTION_FLEETS.some((path) => absolute === realpathOrSelf(join(root, path)))) {
     // Proof: disabling this refusal made `is never selectable for a production fleet` fail: the
     // production discover CLI accepted infra/fleet/desired.yaml with --lab-state.
     throw new Error(`The lab provider is never selectable for production fleet ${fleetPath}`);
@@ -45,8 +47,19 @@ export function requireLabFleet(fleet: Fleet, fleetPath: string, root: string): 
   }
   for (const node of fleet.nodes) {
     if (node.provider.kind !== 'ssh') {
+      // Proof: disabling this refusal made the hcloud-node case in lab-provider.test.ts accept a
+      // fleet whose node is a cloud server.
       throw new Error(`The lab provider is never selectable for hcloud node ${node.id}`);
     }
+  }
+}
+
+function realpathOrSelf(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return path;
+    throw new Error(`Cannot resolve fleet path ${path}`, { cause });
   }
 }
 
@@ -81,21 +94,6 @@ export async function observeLabProvider(source: LabProviderSource): Promise<Lab
   };
 }
 
-/** Decode the lab provider inventory captured in a discovery source response. */
-export function decodeLabProviderInventory(stdout: string): LabProviderInventory {
-  const input: unknown = JSON.parse(stdout);
-  if (
-    typeof input !== 'object' ||
-    input === null ||
-    !('running' in input) ||
-    !Array.isArray(input.running) ||
-    !input.running.every((name): name is string => typeof name === 'string')
-  ) {
-    throw new Error('Lab provider inventory is malformed');
-  }
-  return { running: input.running };
-}
-
 /**
  * The controlled SSH-fact command for one lab node. It reuses the production discover playbook
  * with the lab's discovery inventory, which pins user, key, and host key for every lab machine.
@@ -118,9 +116,13 @@ export function labSshDiscoveryArguments(
 
 /** Read the lab's discovery inventory host names, used to refuse fleet nodes it cannot reach. */
 export async function readLabDiscoveryHosts(source: LabProviderSource): Promise<readonly string[]> {
-  const input: unknown = JSON.parse(
-    await readFile(join(source.stateDirectory, 'discovery-inventory.json'), 'utf8'),
-  );
+  const path = join(source.stateDirectory, 'discovery-inventory.json');
+  let input: unknown;
+  try {
+    input = JSON.parse(await readFile(path, 'utf8'));
+  } catch (cause) {
+    throw new Error(`Lab discovery inventory ${path} is unreadable or malformed JSON`, { cause });
+  }
   const all = isRecord(input) ? input['all'] : undefined;
   const hosts = isRecord(all) ? all['hosts'] : undefined;
   if (!isRecord(hosts)) {

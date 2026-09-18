@@ -64,6 +64,7 @@ describe('serveSupervisorConnection', () => {
           order.push('cgroup');
           return Promise.resolve(`0::/system.slice/docker-${CALLER_ID}.scope\n`);
         },
+        inspectPod: () => Promise.reject(new Error('no pod peer in this fixture')),
         inspect: (id) => {
           order.push('inspect');
           return Promise.resolve({ id, name: 'wbs-dev-src', image: 'wbs-dev-src:1' });
@@ -99,6 +100,7 @@ describe('serveSupervisorConnection', () => {
       {
         credentials: () => ({ pid: 4242, uid: 1000, gid: 1000 }),
         cgroup: () => Promise.resolve(`0::/system.slice/docker-${CALLER_ID}.scope\n`),
+        inspectPod: () => Promise.reject(new Error('no pod peer in this fixture')),
         inspect: (id) => Promise.resolve({ id, name: 'wbs-dev-src', image: 'wbs-dev-src:1' }),
         run: (frame) => {
           runCallerId = frame.callerId;
@@ -128,6 +130,7 @@ describe('serveSupervisorConnection', () => {
         {
           credentials: () => ({ pid: 4242, uid: 1000, gid: 1000 }),
           cgroup: () => Promise.resolve(`0::/system.slice/docker-${CALLER_ID}.scope\n`),
+          inspectPod: () => Promise.reject(new Error('no pod peer in this fixture')),
           inspect: (id) => Promise.resolve({ id, name: 'wbs-dev-src', image: 'wbs-dev-src:1' }),
           run: () => {
             runs += 1;

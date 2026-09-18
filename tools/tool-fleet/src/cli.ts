@@ -12,6 +12,7 @@ import {
   decodeObservation,
   readToolchain,
 } from './contracts';
+import { requireLabFleet } from './lab-provider';
 import {
   decodeOperationPlan,
   type OperationPlan,
@@ -525,6 +526,20 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
     throw new Error(`Required observation at ${observationPath} is malformed JSON`, { cause });
   }
   const fleet = decodeFleet(fleetInput);
+  if (
+    isRecordValue(observationInput) &&
+    Array.isArray(observationInput['sources']) &&
+    observationInput['sources'].some(
+      (source: unknown) =>
+        isRecordValue(source) &&
+        typeof source['name'] === 'string' &&
+        source['name'].startsWith('lab-provider:'),
+    )
+  ) {
+    // Proof: without this refusal a lab observation planned against infra/fleet/desired.yaml in
+    // the lab-provider production CLI negative.
+    requireLabFleet(fleet, fleetPath, join(import.meta.dir, '../../..'));
+  }
   const observation = decodeObservation(observationInput);
   if (request.kind === 'destroy') await requireRetirementReceipt(outputPath, fleet, request);
   const replacementFence =
@@ -586,6 +601,9 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
         replacement.oldProviderIdentity,
         `cluster:${replacement.clusterId}`,
         `fence:${replacement.fenceId}`,
+        ...(replacement.kubernetesNodeUid === undefined
+          ? []
+          : [`kubernetes:${replacement.kubernetesNodeUid}`]),
       ],
       effects: replacement.steps,
     });
@@ -753,4 +771,8 @@ export async function runTerragruntDestroyPlan(
     requireFlag(flags, '--output'),
   );
   process.stdout.write(`${JSON.stringify(evidence)}\n`);
+}
+
+function isRecordValue(input: unknown): input is Record<string, unknown> {
+  return typeof input === 'object' && input !== null && !Array.isArray(input);
 }

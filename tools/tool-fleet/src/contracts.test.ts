@@ -79,7 +79,15 @@ const validToolchain = {
       arch: 'amd64',
     },
     age: { version: 'v1.0.0', url: 'https://example.test/age', sha256, os: 'linux', arch: 'amd64' },
+    solverBun: {
+      version: '1.4.2',
+      url: 'https://example.test/bun',
+      sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
   },
+  hostPackages: { dockerIo: '29.1.3-0ubuntu3~24.04.2' },
   terraform: {
     hcloudProvider: {
       version: '1.0.0',
@@ -189,6 +197,20 @@ describe('readToolchain', () => {
     expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
       /sops/,
     );
+  });
+
+  it('rejects a missing solver Bun lock and an unpinned host package', async () => {
+    const { solverBun: _removed, ...binaries } = validToolchain.binaries;
+    expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
+      /solverBun/,
+    );
+    const { hostPackages: _packages, ...withoutPackages } = validToolchain;
+    expect(readToolchain(await writeToolchain(withoutPackages))).rejects.toThrow(/hostPackages/);
+    expect(
+      readToolchain(
+        await writeToolchain({ ...validToolchain, hostPackages: { dockerIo: 'latest' } }),
+      ),
+    ).rejects.toThrow(/dockerIo/);
   });
 
   it('rejects a missing SQLite backup runner image lock', async () => {

@@ -133,7 +133,7 @@ const command = process.argv.slice(2).join(' ');
 const args = process.argv.slice(2);
 const groups = JSON.parse(require('node:fs').readFileSync(args[args.indexOf('--inventory') + 1], 'utf8')).all.children;
 const hosts = Object.keys(command.includes('join.yml') ? groups.k3s_agents.hosts : groups.k3s_bootstrap_servers.hosts);
-const changed = command.includes('validate-enrollment.yml') ? 2 : 0;
+const changed = command.includes('validate-enrollment.yml') ? 3 : 0;
 process.stdout.write('PLAY RECAP\\n' + hosts.map((host) => host + ' : ok=20 changed=' + changed + ' unreachable=0 failed=0').join('\\n') + '\\n');
 `,
   );
@@ -257,6 +257,7 @@ describe('the rootless QEMU lab provider', () => {
         'workers',
       ],
       ['status', '--provider', 'libvirt', '--lab-id', 'r', '--profile', 'workers'],
+      ['status', '--lab-id', 'r', '--profile', 'ha'],
       ['fence', '--provider', 'qemu', '--lab-id', 'r', '--profile', 'workers'],
       [
         'fence',
@@ -284,6 +285,72 @@ describe('the rootless QEMU lab provider', () => {
     ]) {
       expect(() => parseLabRequest(arguments_)).toThrow(/fleet lab/i);
     }
+  });
+
+  it('delivers hub frames to live peers past absent peer ports', async () => {
+    const base = 47_600 + (process.pid % 300) * 10;
+    const pidFile = join(await mkdtemp(join(tmpdir(), 'fleet-hub-')), 'hub.pid');
+    const hub = Bun.spawn(
+      [
+        process.execPath,
+        join(repositoryRoot, 'tools/tool-fleet/src/lab-hub.ts'),
+        '--port',
+        String(base),
+        '--peers',
+        [1, 2, 3, 4, 5, 6].map((offset) => String(base + offset)).join(','),
+        '--pid-file',
+        pidFile,
+      ],
+      { stdio: ['ignore', 'ignore', 'ignore'] },
+    );
+    try {
+      while (!(await Bun.file(pidFile).exists())) await Bun.sleep(20);
+      const received = new Map<number, number>();
+      const receiver = (port: number) =>
+        Bun.udpSocket({
+          hostname: '127.0.0.1',
+          port,
+          socket: {
+            data() {
+              received.set(port, (received.get(port) ?? 0) + 1);
+            },
+          },
+        });
+      // Forwarding order is 1, 2, 4, 5, 6; the refusal from absent port 1 surfaces on the send to 2.
+      const sender = await receiver(base + 3);
+      const last = await receiver(base + 2);
+      for (let frame = 0; frame < 5; frame += 1) {
+        sender.send('frame', base, '127.0.0.1');
+        await Bun.sleep(30);
+      }
+      await Bun.sleep(100);
+      // Proof: without the hub's retry this received 0 frames.
+      expect(received.get(base + 2)).toBe(5);
+      sender.close();
+      last.close();
+    } finally {
+      hub.kill();
+    }
+  });
+
+  it('plans the three-server ha profile', () => {
+    const request = parseLabRequest([
+      'status',
+      '--provider',
+      'qemu',
+      '--lab-id',
+      'r',
+      '--profile',
+      'ha',
+    ]);
+    expect(
+      planLabOperation({ ...request, action: 'up' }, []).commands.map(({ arguments: a }) =>
+        a.at(1),
+      ),
+    ).toEqual(['puni-vm-r-ha-server-1', 'puni-vm-r-ha-server-2', 'puni-vm-r-ha-server-3']);
+    expect(planQemuMachine('/s', 'puni-vm-r-ha-', 'puni-vm-r-ha-server-3').privateAddress).toBe(
+      '10.55.0.16',
+    );
   });
 
   it('derives distinct network identities only for lab roles', () => {

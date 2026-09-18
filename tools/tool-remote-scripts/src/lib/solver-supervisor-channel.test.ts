@@ -66,6 +66,21 @@ const context = {
 };
 
 describe('SupervisorOneAttemptChannel', () => {
+  it('binds a k3s pod caller claim only to the runtime-reported pod name', async () => {
+    const podClaim = `${JSON.stringify({ ...START, callerId: 'wbs-backend-6bbbdbc995-r7rqz' })}\n`;
+    const aliased = { ...context, peerCallerAlias: 'wbs-backend-6bbbdbc995-r7rqz' };
+    expect(await channel(chunks(podClaim), []).readStart(aliased)).toEqual(START);
+    // Proof: substituting any claim (not only the exact alias) made the other-pod claim decode.
+    for (const [frame, ctx] of [
+      [`${JSON.stringify({ ...START, callerId: 'wbs-backend-other' })}\n`, aliased],
+      [podClaim, context],
+    ] as const) {
+      expect((await errorOf(channel(chunks(frame), []).readStart(ctx))).message).toMatch(
+        /callerId/,
+      );
+    }
+  });
+
   it('reads a fragmented start, one decision, one kill, and newline-framed replies', async () => {
     const writes: string[] = [];
     const value = channel(

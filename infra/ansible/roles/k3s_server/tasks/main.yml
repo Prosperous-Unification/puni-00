@@ -92,3 +92,31 @@
     state: started
     enabled: true
     daemon_reload: true
+
+- name: Flush server restarts before creating fleet-owned API objects
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the local API before creating fleet-owned API objects
+  ansible.builtin.command:
+    argv: [k3s, kubectl, get, --raw, /readyz]
+  register: puni_k3s_readyz
+  until: puni_k3s_readyz.rc == 0
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Read the fleet operation namespace
+  ansible.builtin.command:
+    argv: [k3s, kubectl, get, namespace, puni-system, -o, name]
+  register: puni_system_namespace
+  changed_when: false
+  failed_when: puni_system_namespace.rc != 0 and 'NotFound' not in puni_system_namespace.stderr
+
+# tool-fleet apply serializes membership operations with a Lease in puni-system; the server role
+# owns the namespace so a freshly bootstrapped cluster can be operated on without a manual step.
+# Proof: the live F5 retirement on a fresh QEMU lab failed to create its Lease ("namespaces
+# puni-system not found") before this task existed.
+- name: Create the fleet operation namespace
+  ansible.builtin.command:
+    argv: [k3s, kubectl, create, namespace, puni-system]
+  when: puni_system_namespace.rc != 0

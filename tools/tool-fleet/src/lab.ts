@@ -25,7 +25,8 @@ import {
 } from './lab-qemu';
 
 type LabAction = 'up' | 'down' | 'status' | 'spare' | 'fence' | 'tunnel';
-type LabProfile = 'platform' | 'workers';
+/** `ha` is three embedded-etcd servers for control-plane retirement drills (qemu only). */
+type LabProfile = 'platform' | 'workers' | 'ha';
 type LabProviderKind = 'multipass' | 'qemu';
 
 export interface LabRequest {
@@ -91,7 +92,7 @@ interface LabProvider {
 }
 
 const LAB_ID = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
-const LAB_MEMBER = /^(?:server-1|agent-[12]|spare-1)$/;
+const LAB_MEMBER = /^(?:server-[123]|agent-[12]|spare-1)$/;
 const MULTIPASS_VERSION = '1.16.4';
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
 const CLOUD_INIT_ARGUMENT = '__PUNI_CLOUD_INIT__';
@@ -158,9 +159,9 @@ export function parseLabRequest(arguments_: readonly string[]): LabRequest {
     throw new Error(`Fleet lab id is invalid: ${labId ?? 'missing'}`);
   }
   const profile = flags.get('--profile');
-  if (profile !== 'platform' && profile !== 'workers') {
+  if (profile !== 'platform' && profile !== 'workers' && profile !== 'ha') {
     // Proof: accepting an unknown profile left machine count and cluster role undefined.
-    throw new Error(`Fleet lab profile must be platform or workers: ${profile ?? 'missing'}`);
+    throw new Error(`Fleet lab profile must be platform, workers, or ha: ${profile ?? 'missing'}`);
   }
   const provider = flags.get('--provider') ?? 'multipass';
   if (provider !== 'multipass' && provider !== 'qemu') {
@@ -197,6 +198,11 @@ export function parseLabRequest(arguments_: readonly string[]): LabRequest {
     // Proof: disabling this refusal made the qemu request-decoding test accept `--member prod-db`.
     throw new Error(`Fleet lab member is invalid: ${member}`);
   }
+  if (profile === 'ha' && provider !== 'qemu') {
+    // Proof: the ha profile's extra server roles exist only in the QEMU address plan; the
+    // request-decoding test refuses `--profile ha` for Multipass.
+    throw new Error('Fleet lab profile ha is supported only by the qemu provider');
+  }
   if (action === 'fence' && provider !== 'qemu') {
     // Only the provider that observes its process exit may issue power-off evidence.
     // Proof: disabling this refusal made the qemu request-decoding test accept a Multipass fence.
@@ -221,6 +227,7 @@ function labPrefix(request: LabRequest): string {
 }
 
 function expectedNames(prefix: string, profile: LabProfile): readonly string[] {
+  if (profile === 'ha') return [`${prefix}server-1`, `${prefix}server-2`, `${prefix}server-3`];
   const agents = profile === 'platform' ? 1 : 2;
   return [
     `${prefix}server-1`,
@@ -843,7 +850,7 @@ async function writeLabState(
       puni_machine_id: machineId,
       puni_private_interface: privateInterface,
       puni_node_capabilities: machine.name.includes('-server-')
-        ? request.profile === 'workers'
+        ? request.profile !== 'platform'
           ? ['control-plane']
           : ['control-plane', 'product', 'ingress']
         : request.profile === 'workers'
@@ -854,6 +861,9 @@ async function writeLabState(
   const serverName = server.name;
   const agentNames = machines
     .filter(({ name }) => name.includes('-agent-'))
+    .map(({ name }) => name);
+  const joinServerNames = machines
+    .filter(({ name }) => name.includes('-server-') && name !== serverName)
     .map(({ name }) => name);
   const inventory = {
     all: {
@@ -889,7 +899,9 @@ async function writeLabState(
       },
       children: {
         k3s_bootstrap_servers: { hosts: { [serverName]: hosts[serverName] } },
-        k3s_join_servers: { hosts: {} },
+        k3s_join_servers: {
+          hosts: Object.fromEntries(joinServerNames.map((name) => [name, hosts[name]])),
+        },
         k3s_agents: {
           hosts: Object.fromEntries(agentNames.map((name) => [name, hosts[name]])),
         },
@@ -958,14 +970,16 @@ async function converge(
   const serverNames = machines
     .filter(({ name }) => name.endsWith('-server-1'))
     .map(({ name }) => name);
+  // join.yml configures join servers and agents; the ha profile has only join servers.
   const agentNames = machines
-    .filter(({ name }) => name.includes('-agent-'))
+    .filter(({ name }) => name.includes('-agent-') || /-server-[23]$/.test(name))
     .map(({ name }) => name);
   const validationRunId = randomBytes(8).toString('hex');
   for (const playbook of playbooks) {
     const expectedHosts = playbook === 'join.yml' ? agentNames : serverNames;
+    // Validation changes: fresh probe Jobs, the receiver cleanup, and on workers the scheduling proof.
     const expectedChanges =
-      playbook === 'validate-enrollment.yml' ? (profile === 'workers' ? 2 : 1) : 0;
+      playbook === 'validate-enrollment.yml' ? (profile === 'workers' ? 3 : 2) : 0;
     const outcome = await requireSuccess('docker', [
       'run',
       '--rm',

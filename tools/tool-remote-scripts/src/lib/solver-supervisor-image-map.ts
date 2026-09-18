@@ -1,7 +1,13 @@
 import type { BackendContainerIdentity } from './solver-supervisor-docker-output';
 
 const DIGEST_PINNED_IMAGE = /^[^\s@]+@sha256:[0-9a-f]{64}$/;
-const CALLER_NAMES = ['be-01-blue', 'be-01-green', 'wbs-dev-src'] as const;
+// `k8s_wbs-solver_backend` is the k3s backend pod container (see parsePodContainerIdentity).
+const CALLER_NAMES = [
+  'be-01-blue',
+  'be-01-green',
+  'wbs-dev-src',
+  'k8s_wbs-solver_backend',
+] as const;
 const RULE_KEYS = ['callerName', 'callerImage', 'solverImage'] as const;
 
 export interface SupervisorImageRule {
@@ -47,6 +53,8 @@ function decodeRule(value: unknown, index: number): SupervisorImageRule {
   if (callerName === 'wbs-dev-src') {
     if (callerImage !== null) throw defect('wbs-dev-src callerImage must be null');
   } else if (typeof callerImage !== 'string' || !DIGEST_PINNED_IMAGE.test(callerImage)) {
+    // Proof: accepting a null callerImage let the k3s pod caller rule in
+    // solver-supervisor-image-map.test.ts decode without an exact backend digest.
     throw defect(`rule ${String(index)} callerImage is not digest-pinned`);
   }
   return { callerName, callerImage, solverImage };

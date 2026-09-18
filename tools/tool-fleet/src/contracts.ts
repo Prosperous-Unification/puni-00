@@ -72,8 +72,15 @@ const ToolchainSchema = type({
     // of reject on 2026-09-18; age shares the same required BinaryLock boundary.
     sops: BinaryLock,
     age: BinaryLock,
+    // Bun that runs the host-owned WBS solver supervisor (infra/ansible/roles/solver).
+    // Proof: making solverBun optional made the same missing-lock negative resolve.
+    solverBun: BinaryLock,
     '+': 'reject',
   },
+  // Ubuntu packages installed at an exact version by host roles.
+  // Proof: making dockerIo optional made the missing-host-package production-reader negative
+  // resolve instead of reject.
+  hostPackages: { dockerIo: /^[0-9][0-9A-Za-z.+~:-]+$/, '+': 'reject' },
   terraform: {
     hcloudProvider: {
       version: exactVersion,
@@ -378,7 +385,7 @@ const ObservationSchema = type({
 });
 
 const DiscoverySourceSchema = type(
-  /^(?:provider|kubernetes-nodes|kubernetes-pvcs|kubernetes-pvs|kubernetes-volumeattachments):[^/\s]+$|^ssh-facts:[^/\s]+\/[^/\s]+$/,
+  /^(?:provider|lab-provider|kubernetes-nodes|kubernetes-pvcs|kubernetes-pvs|kubernetes-volumeattachments):[^/\s]+$|^ssh-facts:[^/\s]+\/[^/\s]+$/,
 );
 const ObservedNodeStateSchema = type(
   "'enrolled' | 'discovered-unenrolled' | 'missing' | 'ready' | 'not-ready' | 'retiring'",
@@ -490,11 +497,16 @@ export function decodeObservation(input: unknown): Observation {
       }
     }
     for (const cluster of detailed.clusters) {
+      // A lab observation names its provider source `lab-provider:` so no plan can mistake it
+      // for cloud inventory (see requireLabObservation).
+      const providerSource = sourceNames.has(`lab-provider:${cluster.id}`)
+        ? `lab-provider:${cluster.id}`
+        : `provider:${cluster.id}`;
       const requiredSources =
         cluster.state === 'not-bootstrapped'
-          ? [`provider:${cluster.id}`]
+          ? [providerSource]
           : [
-              `provider:${cluster.id}`,
+              providerSource,
               `kubernetes-nodes:${cluster.id}`,
               `kubernetes-pvcs:${cluster.id}`,
               `kubernetes-pvs:${cluster.id}`,
@@ -601,6 +613,7 @@ export function decodeFleetObservation(input: unknown): FleetObservation {
   const discoverySource = (name: string): DiscoverySource => {
     for (const prefix of [
       'provider:',
+      'lab-provider:',
       'kubernetes-nodes:',
       'kubernetes-pvcs:',
       'kubernetes-pvs:',

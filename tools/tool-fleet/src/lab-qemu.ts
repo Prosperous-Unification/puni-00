@@ -71,6 +71,8 @@ const MACHINE_INDEX: ReadonlyMap<string, number> = new Map([
   ['agent-1', 2],
   ['agent-2', 3],
   ['spare-1', 4],
+  ['server-2', 5],
+  ['server-3', 6],
 ]);
 const SSH_PORT = 2222;
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { access, chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -53,18 +54,76 @@ describe('planRetirement', () => {
     expect(playbook).toContain('state: absent');
     expect(playbook).not.toContain('--force');
     expect(playbook).not.toContain('--delete-emptydir-data');
+    const moved = (
+      parse(playbook) as {
+        tasks: { name: string; 'ansible.builtin.command'?: { argv?: string[] } }[];
+      }[]
+    )[0]?.tasks.find((task) => task.name === 'Move the reviewed emptyDir system pods off the node');
+    // Only the exact kube-system metrics-server pods on the target node are moved.
+    expect(moved?.['ansible.builtin.command']?.argv).toEqual([
+      'kubectl',
+      '--context',
+      '{{ puni_kube_context }}',
+      '--namespace',
+      'kube-system',
+      'delete',
+      'pod',
+      '--selector',
+      'k8s-app=metrics-server',
+      '--field-selector',
+      'spec.nodeName={{ puni_node_name }}',
+      '--wait=true',
+      '--timeout=2m',
+    ]);
 
     const plays = parse(playbook) as {
       tasks: {
         name: string;
         'ansible.builtin.shell'?: { cmd: string };
+        'ansible.builtin.command'?: { argv?: string[]; stdin?: string };
       }[];
     }[];
+    const tasks = plays[0]?.tasks ?? [];
     const shell = (name: string): string => {
-      const command = plays[0]?.tasks.find((task) => task.name === name)?.['ansible.builtin.shell']
-        ?.cmd;
+      const command = tasks.find((task) => task.name === name)?.['ansible.builtin.shell']?.cmd;
       if (command === undefined) throw new Error(`Missing retirement shell task ${name}`);
-      return command.replaceAll('{{ playbook_dir }}', join(root, 'infra/ansible/playbooks'));
+      return command;
+    };
+    // Controller-side checks never go through a shell and never template remote data into argv.
+    const checkTasks = tasks.filter((task) => JSON.stringify(task).includes('cluster-checks.py'));
+    expect(checkTasks.length).toBe(6);
+    for (const task of checkTasks) {
+      expect(task['ansible.builtin.shell']).toBeUndefined();
+      expect(JSON.stringify(task['ansible.builtin.command']?.argv)).not.toMatch(/stdout|results/);
+    }
+    const render = (template: string, values: Readonly<Record<string, string>>): string =>
+      template.replace(/\{\{ ([^}]+?) \}\}/g, (_match, expression: string) => {
+        const value = new Map(Object.entries(values)).get(expression);
+        if (value === undefined) throw new Error(`Unrendered test expression ${expression}`);
+        return value;
+      });
+    const values = {
+      playbook_dir: join(root, 'infra/ansible/playbooks'),
+      puni_kube_context: 'workers',
+      puni_node_name: 'target-node',
+      puni_etcd_member_name: 'target',
+      'puni_minimum_surviving_control_planes | int': '3',
+      'puni_required_capability_floors | to_json': '{"execution":1}',
+    };
+    const check = (
+      name: string,
+      stdin: string | undefined,
+      path: string,
+    ): ReturnType<typeof Bun.spawnSync> => {
+      const argv = tasks.find((task) => task.name === name)?.['ansible.builtin.command']?.argv;
+      if (argv === undefined) throw new Error(`Missing retirement check ${name}`);
+      return Bun.spawnSync(
+        argv.map((argument) => render(argument, values)),
+        {
+          ...(stdin === undefined ? {} : { stdin: Buffer.from(stdin) }),
+          env: { ...process.env, PATH: `${path}:${process.env['PATH'] ?? ''}` },
+        },
+      );
     };
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-shell-'));
     const kubectl = join(directory, 'kubectl');
@@ -79,17 +138,24 @@ fi
 `,
     );
     await chmod(kubectl, 0o700);
-    const detach = Bun.spawnSync(
-      [
-        '/bin/bash',
-        '-c',
-        shell('Require workloads healthy elsewhere and all volume attachments detached'),
-      ],
-      {
-        env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
-      },
+    const detach = check(
+      'Require workloads healthy elsewhere and all volume attachments detached',
+      undefined,
+      directory,
     );
     expect(detach.exitCode).not.toBe(0);
+    // The floor check runs from the playbook's own argv; a live run once dropped its floors.
+    await writeFile(
+      kubectl,
+      `#!/bin/bash\nprintf '%s\\n' '{"items":[{"metadata":{"name":"target-node","labels":{"puni.dev/capability-execution":"true"}},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}'\n`,
+    );
+    const floors = check(
+      'Require live Ready capacity for every cluster capability floor',
+      undefined,
+      directory,
+    );
+    expect(String(floors.stderr)).toContain('execution would keep 0 Ready nodes');
+    expect(floors.exitCode).toBe(1);
 
     const members = {
       members: [
@@ -126,18 +192,16 @@ fi
         },
       },
     }));
-    const mappingCommand = shell('Map every surviving etcd voter to one exact Kubernetes node')
-      .replace("'{{ puni_kube_context }}'", "'workers'")
-      .replace("'{{ puni_etcd_member_name }}'", "'target'")
-      .replace("'{{ puni_actual_etcd_voters.stdout }}'", `'${voters}'`);
     const runMapping = async (nodes: readonly (typeof voterNodes)[number][]) => {
       await writeFile(
         kubectl,
         `#!/bin/bash\nprintf '%s\\n' '${JSON.stringify({ items: nodes })}'\n`,
       );
-      return Bun.spawnSync(['/bin/bash', '-c', mappingCommand], {
-        env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
-      });
+      return check(
+        'Map every surviving etcd voter to one exact Kubernetes node',
+        voters,
+        directory,
+      );
     };
     expect((await runMapping(voterNodes)).exitCode).toBe(0);
     const firstNode = voterNodes[0];
@@ -155,25 +219,27 @@ fi
         rc: position < healthyCount ? 0 : 22,
         puni_surviving_etcd_node: { memberId: String(position + 2) },
       }));
-    const quorumCommand = shell(
-      'Require a freshly healthy surviving majority of distinct etcd voters',
-    )
-      .replace("'{{ puni_actual_etcd_voters.stdout }}'", `'${voters}'`)
-      .replace("'{{ puni_minimum_surviving_control_planes | int }}'", '3');
+    // Real registered results carry the quoted command and remote stderr; neither may execute.
+    const sentinel = join(directory, 'pwned');
     const runQuorum = (healthyCount: number) =>
-      Bun.spawnSync(
-        [
-          '/bin/bash',
-          '-c',
-          quorumCommand.replace(
-            "'{{ puni_surviving_etcd_health.results | to_json }}'",
-            `'${JSON.stringify(probes(healthyCount))}'`,
-          ),
-        ],
-        { env: process.env },
+      check(
+        'Require a freshly healthy surviving majority of distinct etcd voters',
+        JSON.stringify({
+          voters: JSON.parse(voters) as unknown,
+          probes: probes(healthyCount).map((probe) => ({
+            ...probe,
+            cmd: `set -euo pipefail; status="$(curl --data '{}' https://127.0.0.1:2382)"`,
+            stderr: `'; touch ${sentinel} #`,
+            stdout: `$(touch ${sentinel})`,
+          })),
+        }),
+        directory,
       );
     expect(runQuorum(4).exitCode).toBe(0);
     expect(runQuorum(3).exitCode).not.toBe(0);
+    // Proof: the previous shell task with `'{{ … .results | to_json }}'` failed with a bash syntax
+    // error on these quoted results; argv plus stdin passes them as data only.
+    expect(existsSync(sentinel)).toBe(false);
     await writeFile(
       curl,
       `#!/bin/bash

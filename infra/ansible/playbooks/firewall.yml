@@ -1,0 +1,10 @@
+---
+# Refresh the private-network firewall on existing members before another node enrolls. The
+# enrolled address set comes from the reviewed enrollment variables; everything else is per host.
+- name: Refresh the k3s firewall on existing cluster members
+  hosts: all
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - role: network
