@@ -220,6 +220,11 @@
       "path": "openspec/changes/automatic-dev-solver-binding/verify.md",
       "reason": "historical change verification",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-17-personal-package-adoption.md",
+      "reason": "forward plan naming the shared-failures project it creates",
+      "excuses": ["nx-selector"]
     }
   ]
 }

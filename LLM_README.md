@@ -121,4 +121,6 @@ Harness prototype: `tools/harness-example/src/harness.ts`; `bunx nx run harness-
 
 Delivery planning: [Twilight Bureaucrat and dynamic k3s fleet](docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md), building on [the infrastructure proposal](docs/plans/2026-09-15-infra-evolution-plan.md).
 
+Package adoption: [caught-object-report-json, application-exception, and di-bag across all projects](docs/superpowers/plans/2026-09-17-personal-package-adoption.md).
+
 Conventions: pure planners + thin IO shell; strict types; comments say **why** and what was verified; never print secrets.
