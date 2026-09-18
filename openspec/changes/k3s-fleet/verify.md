@@ -491,3 +491,127 @@ Elasticsearch exporter), and alerting when workers telemetry stops arriving.
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache`
 exited 0 after these repairs with 189 tests, 827 expect() calls, lint, typecheck
 and platform validation; `bunx nx format:check --all` exited 0.
+
+## Rootless QEMU lab and F3/F5 live drills (2026-09-18, worktree `change/tbf-vm`)
+
+Host: no root, `/dev/kvm` usable, QEMU 8.2.2 (`1:8.2.2+ds-0ubuntu1.18`) extracted at
+`/tmp/puni-qemu/root` (`--qemu-prefix`), Ubuntu 24.04 image `release-20260911` SHA-256
+`612b2c0c…7354`, controller `fleet-controller@sha256:58926be2…`. At most three 2 GiB VMs ran at
+once; every VM this run created was deleted (`lab down`, empty `qemu/` state), and `pgrep`
+found no leftover QEMU, hub, or tunnel process. Two VMs from an earlier agent
+(`puni-f3-platform`, `puni-f3-agent`, started 2026-09-17) were left untouched.
+
+### F3 (helper run at `b570f499`, drills on the resulting three-node worker lab)
+
+- `bunx nx run tool-fleet:lab -- up --provider qemu --qemu-prefix … --lab-id f3 --profile workers …`
+  from empty state: exit 0 in 6m40s. The helper booted three VMs, converged bootstrap, join and
+  validation, and passed its stable second pass (`requireStableRecap`: bootstrap and join
+  `changed=0`, validation `changed=2`). Manual reruns printed `server-1 ok=35 changed=0`,
+  `agent-1/agent-2 ok=34 changed=0`.
+- Reboot persistence: agent-1 rebooted (boot_id `a64a1131…` → `4dab5779…`);
+  `puni-k3s-firewall` enabled+active, `inet puni_k3s` loaded, `k3s-agent` active, node Ready.
+- Firewall-startup refusal: an invalid line appended to the rendered nft file, then reboot:
+  firewall `failed`, `k3s-agent` `inactive` ("Dependency failed … result 'dependency'"), node
+  NotReady. Fault: `Requires=` → `Wants=` on the VM, same broken rules, reboot: `k3s-agent`
+  active with no `puni_k3s` table and the node Ready. `join.yml --limit agent-1` restored the
+  unit and rules (`changed=5`, both restart handlers), node Ready.
+- Changed-policy activation: server-only bootstrap with enrolled set `{.11,.12}` ran
+  `Restart fleet firewall`; the live set became `{.11,.12}` and agent-2's API connection failed
+  (curl 7) while agent-1's connected. Fault: notification removed from the candidate task and the
+  full set applied: file listed `.13`, live set stayed `{.11,.12}`. Restored and rerun: live set
+  back to all three; full bootstrap/join rerun at `changed=0`; agent-2 Ready.
+- Platform profile: `up --lab-id f8 --profile platform` at `dee87bcc` exit 0 in 4m02s.
+
+Faults the live runs found and fixed (each observed failing first):
+
+| Fault                                                                                          | Fix                                         |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `ssh_genkeytypes: []` failed cloud-init schema; `cloud-init status --wait` exit 2 stopped `up` | `[ed25519]` with the injected host key      |
+| `Bun.udpSocket` hub died on ECONNREFUSED from the absent spare port; MTU probes failed         | `node:dgram` hub ignoring only ECONNREFUSED |
+| Learning hub left a silent VM unreachable by ARP after a hub restart                           | every declared peer receives every frame    |
+| `up` on running VMs never restarted a dead hub                                                 | `ensureNetwork()` before readiness          |
+| `validate-enrollment.yml` `kubectl wait` exited NotFound 10 s before the last agent registered | bounded registration wait first             |
+
+### F5 (production `discover`/`plan`/`apply`, `--lab-state` provider, SSH-provider fleet)
+
+Fleet: cluster `workers`, `execution: 1`, API at the lab tunnel; kubeconfig from the lab.
+All plans were planned from fresh observations; `apply` ran through the locked controller.
+
+- Retire agent-1 (hosting `f5-service` and a completed Job): plan `6daffde6…`, apply exit 0
+  after the fixes below; journal `complete`, receipt `state: retired`, enrollment exclusion
+  written. `f5-service` rescheduled to agent-2; Node removed; `k3s-agent` disabled and inactive.
+  Rebooting the retired VM (boot_id changed) left `k3s-agent` inactive and the Node absent.
+  Re-applying the same plan exited 0 (completed journal, no new effect).
+- Last capability: with agent-1 gone, `plan --operation retire --node …agent-2` exited 1:
+  "Retirement would violate required capability execution: 0 < 1".
+- Vanished node: `lab fence --member agent-2` (SIGKILL, evidence `pid 187024 powered-off`).
+  Discovery: agent-2 `['missing','not-ready']`, identity from `kubernetes-nodes`, no SSH read.
+  `plan --operation replace` with a fence receipt from that evidence: `3dedcbe7…`; the same
+  receipt against `server-1` was refused ("names another provider identity"). Apply exit 0:
+  exclusion plus `replacement-authorized` (`fenceState: powered-off`); re-apply exit 0.
+- Replacement: `lab spare` created `spare-1` (machine ID `89f4d243…`, distinct from agent-2's
+  `196f5639…`). Enrollment plan `e6617909…` applied exit 0; spare Ready with no taints; a
+  new Job completed on it; `f5-service` was evicted from the dead node at the 300 s toleration
+  and ran on spare-1. Re-apply exit 0.
+- Control-plane loss: `lab fence --member server-1`; the tunnel exited and `discover` exited 1
+  (`kubernetes-nodes:workers … connection refused`) and wrote no observation, so no plan could
+  be made. Recovery is the F10 restore; not rehearsed here.
+
+Production faults found by these drills and fixed (each failed live first):
+
+| Fault                                                                                | Fix and proof                                                                                 |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `discover` passed `pvs`/`pvcs` to kubectl ("doesn't have a resource type")           | resource names; `lab-provider.test.ts` fails with `pvs` restored                              |
+| Controller forwards `SSH_AUTH_SOCK`; sshd "Too many authentication failures"         | `IdentitiesOnly=yes` in lab SSH args                                                          |
+| Lease `acquireTime` rejected: millisecond ISO is not MicroTime (BadRequest)          | MicroTime; fake API in `production-apply.test.ts` rejects the old format (6 tests failed)     |
+| `puni-system` namespace absent on a fresh cluster; Lease create needs it             | created by hand in the lab (assumed platform-owned)                                           |
+| `retire.yml` templated the etcd probe `delegate_to` for an agent before `when`       | empty loop when the mapping is skipped                                                        |
+| Controller image has no `jq`; every localhost retirement/upgrade check exited 127    | `infra/ansible/scripts/cluster-checks.py`; four faults each failed `cluster-checks.test.ts`   |
+| Agent retirement tried to stop the not-found `k3s.service` stub (firewall `Before=`) | not-found units count as absent                                                               |
+| Enrollment accepted only the target, but validation runs on the bootstrap server     | cluster servers allowed, other agents refused; removing the clause failed the enrollment test |
+| `join.yml`'s empty server play printed "no hosts matched"; enrollment refused        | exact target recap decides when a host is expected                                            |
+
+Observed operator steps outside the adapters (open design gaps):
+
+- The k3s bundled `metrics-server` uses `emptyDir`; the generic drain refused it, as designed.
+  The pod was deleted by hand so it rescheduled off the cordoned node.
+- Enrolling a node never reconverges existing nodes' firewalls. The server was re-bootstrapped
+  with the new enrolled set before enrollment (a live changed-policy activation).
+- Replacement does not remove the dead Node; its pod stayed `Terminating` there until manual
+  cleanup would be needed.
+- `validate-enrollment.yml` leaves an owner-less `puni-f3-validation/receiver` pod that the
+  retirement workload check refuses; it was deleted by hand in the F8 lab.
+
+### R5 proofs for the lab code (each fault failed the named test, then was restored)
+
+| Check                                                | Fault                     | Test                                                                                      |
+| ---------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| Image checksum (cached / downloaded)                 | comparison disabled       | `refuses a cached cloud image…` / `downloads an absent image…`                            |
+| QEMU build                                           | exit code only            | `refuses a QEMU build other than the locked one`                                          |
+| Lock schema                                          | schema refusal disabled   | `refuses an absent, malformed, or checksum-free lock`                                     |
+| Role-derived identity                                | default index             | `derives distinct network identities only for lab roles`                                  |
+| Pid ownership                                        | pid file trusted alone    | `creates, converges, fences, and deletes only exact owned machines` (bystander signalled) |
+| Fence of a stopped machine                           | refusal disabled          | same test, second fence                                                                   |
+| Provider / prefix / member / Multipass fence parsing | each refusal disabled     | `decodes qemu requests only with their exact required inputs`                             |
+| Kubeconfig shape                                     | server comparison dropped | `refuses a kubeconfig that does not address the local admin endpoint`                     |
+| Lab provider production refusal (path, endpoint)     | each disabled             | `is never selectable for a production fleet`                                              |
+| Lab node ownership                                   | disabled                  | `refuses a fleet node the lab does not own`                                               |
+| Observed absence skips SSH                           | skip removed              | `reports a machine the lab provider saw stop as missing…`                                 |
+
+Not fault-injected: the hub's peer-list refusal, bounded process-exit waits, and QEMU
+post-daemonize liveness.
+
+### Checks
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache` exited 0
+(228 tests) before the final documentation commit; `bunx nx format:check --all` exited 0.
+
+### Still open (prepared commands)
+
+- F4 remote HTTP backend and a paid hcloud node: `tool-fleet:terragrunt-plan` and `apply` as in
+  `infra/terraform/README.md`, with backend credentials and `HCLOUD_TOKEN`.
+- Hetzner CSI RWO/RWOP and MTU on the real private network; provider firewall.
+- HA control-plane removal and serial upgrade: needs at least three servers plus an agent,
+  more than the three-VM budget here.
+- PDB-blocked drain, local-PV and singleton SQLite drain refusals as live cases.
+- Multipass provider live run on a host with root: `tool-fleet:lab -- up --lab-id … --profile workers …`.

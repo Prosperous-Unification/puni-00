@@ -138,3 +138,45 @@ restored):
   staging/prod apply** are plan-only in F8 and belong to F11.
 - **The MCP production image** has no Dagger target. The lab Dockerfile is not a production
   path.
+
+## F8 solver in the Ubuntu VM lab (2026-09-18, worktree `change/tbf-vm`)
+
+Lab: rootless QEMU platform profile (`tool-fleet:lab -- up --provider qemu --lab-id f8 --profile
+platform`, exit 0 at `dee87bcc`); product-capable `server-1`, observability agent. Role:
+`infra/ansible/roles/solver` via `playbooks/solver.yml` (commit `47f4986e`), Bun 1.4.2
+(`bun-linux-x64.zip` SHA-256 `36368fae…a913`), bundle from `bunx nx run tool-remote-scripts:build`
+(SHA-256 `2fe2ddb9…b696`). What ran is a minimal backend, stated precisely: a Deployment in
+`wbs-solver` shaped like `deploy/k8s/wbs/base/backend.yaml` (service account, controller label,
+product node selector, uid 10001, Restricted security context, `/run/puni/solver` Directory
+hostPath at `/run/wbs-solver`) running `docker.io/oven/bun@sha256:d888c0ae…` with a probe that
+connects to the socket every 5 s. The real WBS backend image was not deployed.
+
+| Step                                                                                                                                          | Result                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Solver play on the observability agent                                                                                                        | exit 2 at the first assertion; nothing installed                                                                                                                                                                                     |
+| Solver play with a one-byte-different bundle SHA-256                                                                                          | refused before copy; no user or package on the node                                                                                                                                                                                  |
+| Solver play on server-1                                                                                                                       | first run exposed `become_user` needing a sudo password (fixed: `systemctl --user -M`); then exit 0; rerun `changed=0`                                                                                                               |
+| Runtime link                                                                                                                                  | `/run/puni/solver -> /run/user/10001/wbs-solver`, socket `srwxrwxr-x wbs-solver`                                                                                                                                                     |
+| Admission (F6 policy applied with `kubectl apply -k infra/platform/policy`, `solverImages` set to the probe digest), server-side Pod dry-runs | exact `/run/puni/solver` admitted; `/run/puni`, `/run/user/10001/wbs-solver`, `/run/puni/solver/supervisor.sock`, `/var/run/docker.sock`, `/` denied ("exact directory root"); other digest denied ("approved backend image digest") |
+| Pod on server-1 connects                                                                                                                      | reached socket inode 48; supervisor logged "connection refused: supervisor peer cgroup: no full Docker container id found"                                                                                                           |
+| Socket replacement                                                                                                                            | supervisor restart: inode 48 → 50; the running pod's next attempt used inode 50 and reached the new listener (pid 9986)                                                                                                              |
+| Node reboot                                                                                                                                   | link recreated by tmpfiles, supervisor active via linger, pod restarted and reached new inode 37                                                                                                                                     |
+| Node removal while the pod runs                                                                                                               | retirement workload check (`cluster-checks.py workloads`) exit 1 "wbs-solver/wbs-backend… needs a maintenance transaction"; exit 0 after scaling the backend to 0                                                                    |
+
+Faults found along the way: the F6 policy's `solverImages` regex rejects `name:tag@digest`
+(the bun lock uses a tag), so the digest-only form is required; Restricted container fields
+(`runAsNonRoot`, `seccompProfile`) are required per container, not only per pod.
+
+Not verified, with the reason:
+
+- **A real solve from a k3s pod is blocked by the supervisor.** It identifies peers only by a
+  Docker cgroup (`solver-supervisor-peer-cgroup.ts`); the k3s pod's cgroup is
+  `…/cri-containerd-900f7bfb….scope`, so every pod connection is refused, approved or not. The
+  supervisor also drives solver containers through the Docker CLI, so the role installs
+  `docker.io` next to k3s containerd. A containerd/Kubernetes peer identity in
+  `tools/tool-remote-scripts` is needed before the backend can solve in k3s.
+- **"Refusal of an unapproved workload"** is observed only in that general form; the
+  supervisor could not distinguish approved and unapproved k3s pods.
+- **Solver state transfer** has no mechanism; scaling the backend to zero stood in for it.
+- A Docker-peer solve (`be-01-blue` container on the node) was not attempted: 1.6 GB image
+  and 2 GiB VM memory.
