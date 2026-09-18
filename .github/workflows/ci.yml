@@ -556,6 +556,22 @@ jobs:
           path: nx-gate.log
           if-no-files-found: error
 
+      # The packed suite holds the end-to-end package admission and malicious-candidate matrix. It
+      # needs only the tarball it packs, a loopback registry and bubblewrap: no credentials and no
+      # registry beyond 127.0.0.1. It runs whenever Tool Wiki is in scope, which Nx derives from
+      # the twilight-bureaucrat test inputs (trusted-wiki.yml, infra/ci/bureaucrat, bin wrappers).
+      - name: Provision bubblewrap for the packed package suite
+        if: steps.gate_mode.outputs.tool_wiki == 'run'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          bwrap --die-with-parent --new-session --ro-bind / / --dev /dev --proc /proc true
+
+      - name: Twilight Bureaucrat packed package suite
+        if: steps.gate_mode.outputs.tool_wiki == 'run'
+        run: bunx nx run twilight-bureaucrat:test:package --skip-nx-cache --output-style=stream
+
       - name: Solver image smoke
         run: bunx nx run wbs-be-01:solver-image-smoke
 
