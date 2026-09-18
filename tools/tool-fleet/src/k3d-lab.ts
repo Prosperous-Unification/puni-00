@@ -528,19 +528,6 @@ async function bootstrapCluster(
 }
 
 async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {
-  try {
-    await createLab(root, request, tools);
-  } catch (cause) {
-    // Partial resources carry the lab label, so the ordinary teardown removes exactly them.
-    throw new Error(
-      `k3d lab ${request.labId} up failed; remove what it created with ` +
-        `\`bunx nx run tool-fleet:lab -- down --id ${request.labId} --profile ${request.profile}\``,
-      { cause },
-    );
-  }
-}
-
-async function createLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {
   const profile = PROFILES[request.profile];
   requireProfileResources(request.profile, await hostCapacity());
   const names = labNamesOf(request.labId);
@@ -589,87 +576,101 @@ async function createLab(root: string, request: K3dLabRequest, tools: LabTools):
     planned.push({ role, name, apiPort, configPath });
   }
 
-  const started = Date.now();
-  await run('docker', [
-    'network',
-    'create',
-    '--label',
-    `${LAB_LABEL}=${request.labId}`,
-    names.network,
-  ]);
-  await run('docker', [
-    'run',
-    '--detach',
-    '--name',
-    names.registry,
-    '--label',
-    `${LAB_LABEL}=${request.labId}`,
-    '--network',
-    names.network,
-    '--publish',
-    '127.0.0.1::5000',
-    '--restart',
-    'unless-stopped',
-    registryImage,
-  ]);
-  const published = (await run('docker', ['port', names.registry, '5000/tcp'])).trim();
-  const registryPort = Number(published.split('\n')[0]?.split(':').at(-1));
-  if (!Number.isInteger(registryPort) || !published.startsWith('127.0.0.1:')) {
-    throw new Error(`Lab registry is not published on loopback only: ${published}`);
-  }
+  // Every refusal above leaves Docker untouched. From here on, a failure leaves lab-labelled
+  // resources that the ordinary teardown removes exactly.
+  try {
+    const started = Date.now();
+    await run('docker', [
+      'network',
+      'create',
+      '--label',
+      `${LAB_LABEL}=${request.labId}`,
+      names.network,
+    ]);
+    await run('docker', [
+      'run',
+      '--detach',
+      '--name',
+      names.registry,
+      '--label',
+      `${LAB_LABEL}=${request.labId}`,
+      '--network',
+      names.network,
+      '--publish',
+      '127.0.0.1::5000',
+      '--restart',
+      'unless-stopped',
+      registryImage,
+    ]);
+    const published = (await run('docker', ['port', names.registry, '5000/tcp'])).trim();
+    const registryPort = Number(published.split('\n')[0]?.split(':').at(-1));
+    if (!Number.isInteger(registryPort) || !published.startsWith('127.0.0.1:')) {
+      throw new Error(`Lab registry is not published on loopback only: ${published}`);
+    }
 
-  const clusters: K3dLabRecord['clusters'][number][] = [];
-  for (const { role, name, apiPort, configPath } of planned) {
-    // `platform`/`fleet` hand ingress to the Flux-owned Traefik DaemonSet (`infra/platform/networking`).
-    const replaced =
-      profile.flux && role === 'platform'
-        ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
-        : [];
-    // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
-    // user's default kubeconfig and current context untouched.
-    await run(tools.k3d, ['cluster', 'create', '--config', configPath, ...replaced], {
-      environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
+    const clusters: K3dLabRecord['clusters'][number][] = [];
+    for (const { role, name, apiPort, configPath } of planned) {
+      // `platform`/`fleet` hand ingress to the Flux-owned Traefik DaemonSet (`infra/platform/networking`).
+      const replaced =
+        profile.flux && role === 'platform'
+          ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
+          : [];
+      // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
+      // user's default kubeconfig and current context untouched.
+      await run(tools.k3d, ['cluster', 'create', '--config', configPath, ...replaced], {
+        environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
+      });
+      const kubeconfig = join(state, `${name}.kubeconfig`);
+      await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), {
+        mode: 0o600,
+      });
+      clusters.push({
+        name,
+        role,
+        clusterId: `${role}-local`,
+        context: `k3d-${name}`,
+        kubeconfig,
+        apiPort,
+      });
+    }
+    for (const cluster of clusters) {
+      await bootstrapCluster(root, tools, request.labId, cluster, profile.flux);
+    }
+    const record: K3dLabRecord = {
+      schemaVersion: 1,
+      labId: request.labId,
+      profile: request.profile,
+      network: names.network,
+      registry: { host: names.registry, hostPort: registryPort },
+      httpPort,
+      worktreeRoot,
+      solverRuntime,
+      clusters,
+    };
+    await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, {
+      mode: 0o600,
     });
-    const kubeconfig = join(state, `${name}.kubeconfig`);
-    await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), { mode: 0o600 });
-    clusters.push({
-      name,
-      role,
-      clusterId: `${role}-local`,
-      context: `k3d-${name}`,
-      kubeconfig,
-      apiPort,
-    });
+    console.log(
+      [
+        `k3d lab ${request.labId} (${request.profile}) up in ${String(Math.round((Date.now() - started) / 1000))}s`,
+        ...clusters.map(
+          (cluster) =>
+            `  ${cluster.role}: kubectl --kubeconfig ${cluster.kubeconfig} --context ${cluster.context} get nodes`,
+        ),
+        `  registry: 127.0.0.1:${String(registryPort)} (in cluster ${names.registry}:5000)`,
+        `  ingress: http://<slug>.localhost:${String(httpPort)}/ (loopback only)`,
+        ...(profile.flux
+          ? ['  Flux is installed; reconcile the platform graph as docs/infra/local.md describes.']
+          : []),
+      ].join('\n'),
+    );
+  } catch (cause) {
+    throw new Error(
+      `k3d lab ${request.labId} up failed after creating resources; remove them with ` +
+        `\`bunx nx run tool-fleet:lab -- down --id ${request.labId} --profile ${request.profile}\``,
+      { cause },
+    );
   }
-  for (const cluster of clusters) {
-    await bootstrapCluster(root, tools, request.labId, cluster, profile.flux);
-  }
-  const record: K3dLabRecord = {
-    schemaVersion: 1,
-    labId: request.labId,
-    profile: request.profile,
-    network: names.network,
-    registry: { host: names.registry, hostPort: registryPort },
-    httpPort,
-    worktreeRoot,
-    solverRuntime,
-    clusters,
-  };
-  await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
-  console.log(
-    [
-      `k3d lab ${request.labId} (${request.profile}) up in ${String(Math.round((Date.now() - started) / 1000))}s`,
-      ...clusters.map(
-        (cluster) =>
-          `  ${cluster.role}: kubectl --kubeconfig ${cluster.kubeconfig} --context ${cluster.context} get nodes`,
-      ),
-      `  registry: 127.0.0.1:${String(registryPort)} (in cluster ${names.registry}:5000)`,
-      `  ingress: http://<slug>.localhost:${String(httpPort)}/ (loopback only)`,
-      ...(profile.flux
-        ? ['  Flux is installed; reconcile the platform graph as docs/infra/local.md describes.']
-        : []),
-    ].join('\n'),
-  );
 }
 
 async function downLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {
@@ -681,7 +682,12 @@ async function downLab(root: string, request: K3dLabRequest, tools: LabTools): P
       environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
     });
   }
-  if (teardown.registry !== undefined) await run('docker', ['rm', '--force', teardown.registry]);
+  // `--volumes` removes the registry's anonymous storage volume with it.
+  // Proof: without it, the live f9-other teardown left its registry volume dangling (2026-09-18);
+  // with it, the f9-dev teardown left none.
+  if (teardown.registry !== undefined) {
+    await run('docker', ['rm', '--force', '--volumes', teardown.registry]);
+  }
   if (teardown.network !== undefined) await run('docker', ['network', 'rm', teardown.network]);
   await rm(state, { recursive: true, force: true });
   console.log(
