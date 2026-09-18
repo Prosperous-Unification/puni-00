@@ -1,5 +1,7 @@
 # WBS deployment on k3s
 
+Operator commands and what has been tested: [infrastructure operator guide](README.md).
+
 The WBS release on k3s is one journaled transaction run by the coordinator in
 `tools/tool-deploy/src/k8s/`. Flux keeps reconciling the platform the whole time. Only the
 named WBS Kustomization is suspended, and only for the length of the transaction. The
@@ -22,7 +24,7 @@ bunx nx run tool-deploy:deploy:k3s -- --request <request.json> --journal <dir>/r
 bunx nx run tool-deploy:deploy:k3s -- --request <request.json> --journal <dir>/release.json --apply  # run or resume
 bunx nx run tool-deploy:test:k3s                                                                     # disposable k3d rehearsal
 bunx nx run tool-deploy:rehearse:cutover                                                             # Compose → k3d cutover rehearsal
-bunx nx run tool-deploy:descriptor -- seal --candidate <release.json> --admission <admission.json> --gate-run <run.json> --out <descriptor.json>
+bunx nx run tool-deploy:descriptor -- seal --candidate <release.json> --admission <admission.json> --gate-run <run.json> --out <descriptor.json> --repository <clone> --main-ref <ref>
 ```
 
 Staging and prod do not take a hand-written request. `deploy:k3s` builds it from a sealed

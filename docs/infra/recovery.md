@@ -1,5 +1,7 @@
 # Backup and recovery
 
+Operator commands and what has been tested: [infrastructure operator guide](README.md).
+
 Each store has its own consistent path. A filesystem copy of a live database
 never replaces its application-consistent snapshot.
 
