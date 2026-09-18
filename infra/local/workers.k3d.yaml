@@ -1,0 +1,40 @@
+# Worker cluster of the k3d `fleet` profile: one server that schedules no activity
+# attempts and two agents (ADR 0028). Rendered by `tools/tool-fleet/src/k3d-lab.ts`.
+# It mounts no worktree or solver directory: the forge runs only on the platform cluster.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: ${CLUSTER_NAME}
+servers: 1
+agents: 2
+image: ${K3S_IMAGE}
+network: ${NETWORK}
+kubeAPI:
+  hostIP: 127.0.0.1
+  hostPort: '${API_PORT}'
+registries:
+  config: |
+    mirrors:
+      "${REGISTRY_HOST}:5000":
+        endpoint:
+          - http://${REGISTRY_HOST}:5000
+options:
+  k3d:
+    wait: true
+    timeout: 240s
+  k3s:
+    extraArgs:
+      - arg: --node-taint=puni.dev/control-plane-only=true:NoSchedule
+        nodeFilters: [server:*]
+    nodeLabels:
+      - label: puni.dev/capability-control-plane=true
+        nodeFilters: [server:*]
+      - label: puni.dev/capability-execution=true
+        nodeFilters: [agent:*]
+  kubeconfig:
+    updateDefaultKubeconfig: false
+    switchCurrentContext: false
+  runtime:
+    labels:
+      - label: puni.dev/lab-id=${LAB_ID}
+        nodeFilters: [server:*, agent:*, loadbalancer]

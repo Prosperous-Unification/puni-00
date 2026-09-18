@@ -123,6 +123,7 @@ function checkRun(exitCode = 0): CheckRun {
     exitCode,
     stdout: new TextEncoder().encode('ok\n'),
     stderr: new Uint8Array(),
+    measured: { stdout: new TextEncoder().encode('ok\n'), stderr: new Uint8Array() },
     stdoutPath: '/work/checks/check.fixture.module.stdout',
     stderrPath: '/work/checks/check.fixture.module.stderr',
   };

@@ -140,8 +140,9 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      # Proof: moving the candidate checkout ahead of this step failed consumer-bootstrap.test.ts's
-      # ordering assertion; its malicious matrix runs this block with candidate bytes present anyway.
+      # Proof: moving the candidate checkout ahead of this step failed the CI-gated
+      # gate-entrypoints.test.ts ordering test (`Expected: < 4, Received: 6`); the packed
+      # consumer-bootstrap.test.ts matrix runs this block with candidate bytes present anyway.
       - name: Bootstrap trusted package
         id: bootstrap
         run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat" "$RUNNER_TEMP/twilight-bureaucrat" >> "$GITHUB_OUTPUT"

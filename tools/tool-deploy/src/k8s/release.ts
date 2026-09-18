@@ -30,6 +30,12 @@ export interface FluxUnit {
   gitRepository: string;
   /** The deploy-repository commit whose manifests pin {@link ReleaseRequest.release}. */
   desiredRevision: string;
+  /**
+   * The deploy-repository commit whose manifests pin {@link ReleaseRequest.expectedCurrent}.
+   * Rollback resumes Flux only onto a source at this revision; resuming onto
+   * `desiredRevision` would re-roll the failed release over the restored one.
+   */
+  previousRevision: string;
 }
 
 export interface ReleaseRequest {
@@ -53,6 +59,7 @@ export const FORWARD_PHASES = [
   'validated',
   'lease-acquired',
   'intent-persisted',
+  'images-admitted',
   'flux-suspended',
   'writes-closed',
   'gateway-drained',
@@ -86,17 +93,25 @@ export const TERMINAL_PHASES = [
   'rolled-back',
   'rollback-failed',
   'recovery-required',
+  'flux-revert-required',
 ] as const;
 
 export type ForwardPhase = (typeof FORWARD_PHASES)[number];
 export type RollbackPhase = (typeof ROLLBACK_PHASES)[number];
-export type ReleasePhase = ForwardPhase | RollbackPhase | 'rollback-failed' | 'recovery-required';
+/**
+ * `flux-revert-required`: the previous release is restored, verified and serving with writes
+ * open, but the WBS Flux source is not at `previousRevision`, so Flux stays suspended until an
+ * operator reverts the deploy repository and resumes it.
+ */
+export type ReleasePhase =
+  ForwardPhase | RollbackPhase | 'rollback-failed' | 'recovery-required' | 'flux-revert-required';
 
 const ALL_PHASES: ReadonlySet<string> = new Set<string>([
   ...FORWARD_PHASES,
   ...ROLLBACK_PHASES,
   'rollback-failed',
   'recovery-required',
+  'flux-revert-required',
 ]);
 
 export function isReleasePhase(value: unknown): value is ReleasePhase {
@@ -156,6 +171,7 @@ export type StepKind =
   | 'validate'
   | 'acquire-lease'
   | 'persist-intent'
+  | 'admit-images'
   | 'suspend-flux'
   | 'close-writes'
   | 'drain-gateway'
@@ -188,6 +204,7 @@ const FORWARD_STEPS: readonly ReleaseStep[] = [
   { kind: 'validate', reaches: 'validated' },
   { kind: 'acquire-lease', reaches: 'lease-acquired' },
   { kind: 'persist-intent', reaches: 'intent-persisted' },
+  { kind: 'admit-images', reaches: 'images-admitted' },
   { kind: 'suspend-flux', reaches: 'flux-suspended' },
   { kind: 'close-writes', reaches: 'writes-closed' },
   { kind: 'drain-gateway', reaches: 'gateway-drained' },
@@ -261,6 +278,9 @@ export function assertRequest(request: ReleaseRequest): void {
   if (request.flux !== null && !SHA.test(request.flux.desiredRevision)) {
     throw new Error('flux.desiredRevision must be a full 40-hex commit');
   }
+  if (request.flux !== null && !SHA.test(request.flux.previousRevision)) {
+    throw new Error('flux.previousRevision must be a full 40-hex commit');
+  }
 }
 
 export interface ObservedCluster {
@@ -290,16 +310,25 @@ export function assertObservedCluster(request: ReleaseRequest, observed: Observe
         releaseIdOf(request.expectedCurrent),
     );
   }
-  for (const image of [request.release.images.backend, request.expectedCurrent.images.backend]) {
-    // Proof: `refuses a backend digest admission would deny` reached the stop-writer step
-    // before this check; now it refuses before any mutation.
-    if (!observed.approvedBackendImages.includes(image)) {
-      throw new Error(
-        `trusted-workload admission does not approve ${image}; both the candidate and the ` +
-          'rollback backend digest must be approved before writes close',
-      );
-    }
+  // Proof: `refuses admission parameters that do not approve the running backend` reached the
+  // admit-images write before this check; now it refuses before any mutation.
+  if (!observed.approvedBackendImages.includes(request.expectedCurrent.images.backend)) {
+    throw new Error(
+      `trusted-workload admission does not approve the running backend ` +
+        `${request.expectedCurrent.images.backend}; these admission parameters belong to ` +
+        'some other deployment',
+    );
   }
+}
+
+/**
+ * The `solverImages` list F6's trusted-workload admission reads for this release: the rollback
+ * digest and the candidate, one entry when they are the same image.
+ */
+export function admittedBackendImages(request: ReleaseRequest): readonly string[] {
+  const rollback = request.expectedCurrent.images.backend;
+  const candidate = request.release.images.backend;
+  return rollback === candidate ? [rollback] : [rollback, candidate];
 }
 
 export function initialState(request: ReleaseRequest): ReleaseState {
@@ -391,6 +420,12 @@ export function planRelease(request: ReleaseRequest, state: ReleaseState): reado
     throw new Error(
       `release ${state.releaseId} failed its rollback; writes stay fenced. ` +
         `Finish it by hand: ${state.failure?.manualCommand ?? '(no command recorded)'}`,
+    );
+  }
+  if (state.phase === 'flux-revert-required') {
+    throw new Error(
+      `release ${state.releaseId} rolled back but WBS Flux stays suspended until the deploy ` +
+        `repository is reverted: ${state.failure?.manualCommand ?? '(no command recorded)'}`,
     );
   }
   if (state.phase === 'recovery-required' || state.phase === 'lease-released') return [];
@@ -492,4 +527,67 @@ export function assertRestoredSet(capture: MigrationCapture, applied: readonly s
         `capture recorded [${expected.join(', ')}]`,
     );
   }
+}
+
+/** The coordination Lease as the cluster reports it. */
+export interface ObservedLease {
+  /** `<transactionId>#<run>`: the transaction and the one process that holds it. */
+  holder: string;
+  renewedAtMs: number;
+  durationSeconds: number;
+  /** Terminal phase that parked the Lease with no live holder, or `null` while one runs. */
+  parked: string | null;
+  /** Journal path the holder recorded when it created the Lease. */
+  journal: string | null;
+}
+
+/** What one coordinator process asks of the Lease. */
+export interface LeaseClaim {
+  holder: string;
+  /** Transaction recorded in this process's journal, or `null` when no journal exists yet. */
+  journalTransaction: string | null;
+  journalPath: string;
+}
+
+export type LeaseDecision =
+  { kind: 'create' } | { kind: 'held' } | { kind: 'takeover' } | { kind: 'wait'; ms: number };
+
+export function transactionOf(holder: string): string {
+  return holder.split('#')[0];
+}
+
+/**
+ * Whether this process may hold the Lease. A live holder (renewed within its duration and not
+ * parked) is never displaced: a second process for the same transaction waits once for it to
+ * expire, anything else is refused. A lapsed Lease is taken over only by the transaction it
+ * belongs to, or, when no journal exists yet, by a coordinator using the journal the dead
+ * holder named (it died before persisting intent, so it changed nothing).
+ */
+export function decideLease(
+  observed: ObservedLease | null,
+  claim: LeaseClaim,
+  nowMs: number,
+): LeaseDecision {
+  if (observed === null) return { kind: 'create' };
+  if (observed.holder === claim.holder) return { kind: 'held' };
+  const holderTransaction = transactionOf(observed.holder);
+  const remainingMs = observed.renewedAtMs + observed.durationSeconds * 1000 - nowMs;
+  const live = observed.parked === null && remainingMs > 0;
+  const ours =
+    holderTransaction === claim.journalTransaction ||
+    (claim.journalTransaction === null && observed.journal === claim.journalPath);
+  // Proof: accepting any holder of the same release let `refuses a second live coordinator for
+  // the same request` run two interleaved coordinators until liveness was required here.
+  if (live) {
+    if (ours) return { kind: 'wait', ms: remainingMs };
+    throw new Error(
+      `Lease is held by live coordinator ${observed.holder} (journal ${String(observed.journal)}); ` +
+        `it expires in ${String(Math.ceil(remainingMs / 1000))}s unless renewed`,
+    );
+  }
+  if (ours) return { kind: 'takeover' };
+  throw new Error(
+    `Lease is held by ${observed.holder} (${observed.parked ?? 'expired'}, journal ` +
+      `${String(observed.journal)}); inspect that journal and delete the Lease by hand`,
+  );
 }

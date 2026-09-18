@@ -79,6 +79,8 @@ spec:
           tag: v3.14.0-distroless
           sha: 50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a
         retention: 15d
+        # Receives workers-cluster host metrics from the platform collector.
+        enableRemoteWriteReceiver: true
         retentionSize: 8GB
         serviceMonitorSelectorNilUsesHelmValues: false
         podMonitorSelectorNilUsesHelmValues: false

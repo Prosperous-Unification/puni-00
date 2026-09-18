@@ -56,7 +56,11 @@ export function boundsFor(
   environment: ReleaseRequest['environment'],
 ): Pick<
   KubectlSettings,
-  'rolloutTimeoutSeconds' | 'jobTimeoutSeconds' | 'drainTimeoutMs' | 'anonymousProjectsStatus'
+  | 'rolloutTimeoutSeconds'
+  | 'jobTimeoutSeconds'
+  | 'drainTimeoutMs'
+  | 'anonymousProjectsStatus'
+  | 'leaseDurationSeconds'
 > {
   if (environment === 'local') {
     return {
@@ -64,6 +68,7 @@ export function boundsFor(
       jobTimeoutSeconds: 300,
       drainTimeoutMs: 10_000,
       anonymousProjectsStatus: 200,
+      leaseDurationSeconds: 20,
     };
   }
   return {
@@ -71,6 +76,7 @@ export function boundsFor(
     jobTimeoutSeconds: 1800,
     drainTimeoutMs: 300_000,
     anonymousProjectsStatus: 401,
+    leaseDurationSeconds: 120,
   };
 }
 
@@ -95,6 +101,7 @@ export async function main(args: readonly string[], root: string): Promise<void>
   await assertKubectl(kubectl, lockedKubectlVersion(root));
   const stateDir = dirname(journalPath);
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+  const bounds = boundsFor(request.environment);
   const effects = kubectlEffects({
     kubectl,
     kubeconfig: flag(args, '--kubeconfig'),
@@ -105,11 +112,17 @@ export async function main(args: readonly string[], root: string): Promise<void>
     log: (line) => {
       console.log(line);
     },
-    ...boundsFor(request.environment),
+    ...bounds,
   });
-  const final = await executeRelease(request, journal, effects, (line) => {
-    console.log(line);
-  });
+  const final = await executeRelease(
+    request,
+    journal,
+    effects,
+    (line) => {
+      console.log(line);
+    },
+    { heartbeatMs: bounds.leaseDurationSeconds * 250 },
+  );
   console.log(`release ${final.releaseId} promoted`);
 }
 

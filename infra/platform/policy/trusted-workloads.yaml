@@ -8,6 +8,13 @@ spec:
     apiVersion: v1
     kind: ConfigMap
   matchConstraints:
+    # Only the trusted namespaces evaluate this policy, so an absent parameter ConfigMap
+    # (parameterNotFoundAction: Deny) cannot block pods in kube-system, flux-system or elsewhere.
+    # Proof: with the parameter deleted on a live k3d cluster, the policy without this selector
+    # denied a kube-system pod and with it admitted that pod while still denying wbs-solver.
+    namespaceSelector:
+      matchExpressions:
+        - { key: puni.dev/trusted-hostpath, operator: Exists }
     resourceRules:
       - apiGroups: ['']
         apiVersions: [v1]
@@ -40,6 +47,13 @@ spec:
     # Proof: replacing list membership with `solverImages.contains(container.image)` admitted
     # solver-digest-prefix.yaml in a live server-side dry-run on 2026-09-18; restoring it denied it
     # while solver-allowed.yaml and solver-rollback-allowed.yaml stayed admitted.
+    # Proof: a tag-only entry in solverImages still admitted solver-allowed.yaml before this
+    # parameter-format check; with it, the same pod was denied on 2026-09-18.
+    - expression: >-
+        object.metadata.namespace != 'wbs-solver' ||
+        params.data.solverImages.split(',').all(image,
+          image.matches('^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'))
+      message: every solverImages entry must be a digest-pinned image reference
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||
         (object.spec.containers.all(container, container.image in params.data.solverImages.split(',')) &&
@@ -266,3 +280,36 @@ spec:
     namespace: wbs-solver
     parameterNotFoundAction: Deny
   validationActions: [Deny, Audit]
+---
+# The trusted policy above selects namespaces by label, so removing the label from a trusted
+# namespace would silently exempt it. This policy keeps the label on both namespaces.
+# Proof: with this binding deleted, removing the wbs-solver label succeeded on a live k3d cluster
+# on 2026-09-18; with it, the removal and a wrong puni-forge value were denied.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: puni-trusted-namespace-label
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [namespaces]
+  validations:
+    - expression: >-
+        !(object.metadata.name in ['wbs-solver', 'puni-forge']) ||
+        (has(object.metadata.labels) &&
+         'puni.dev/trusted-hostpath' in object.metadata.labels &&
+         object.metadata.labels['puni.dev/trusted-hostpath'] ==
+           (object.metadata.name == 'wbs-solver' ? 'solver' : 'source'))
+      message: trusted namespaces must keep their puni.dev/trusted-hostpath label
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: puni-trusted-namespace-label
+spec:
+  policyName: puni-trusted-namespace-label
+  validationActions: [Deny]

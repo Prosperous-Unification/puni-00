@@ -53,7 +53,8 @@
         "{workspaceRoot}/tsconfig.base.json",
         "{workspaceRoot}/apps/wbs/be-01/drizzle/**/*",
         "{workspaceRoot}/apps/**/Dockerfile",
-        "{workspaceRoot}/deploy/dev-src/Dockerfile"
+        "{workspaceRoot}/deploy/dev-src/Dockerfile",
+        "{workspaceRoot}/deploy/k8s/wbs/overlays/dev/**/*"
       ],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts",
@@ -97,6 +98,13 @@
           "shellcheck -s bash bin/dev.sh bin/dev-ports.sh bin/dev-deploy.sh bin/dev-be-probe.sh bin/dev-mcp-preflight.sh bin/dev-mcp-probe.sh bin/dev-poll.sh bin/dev-poll-sync.sh"
         ],
         "parallel": false
+      }
+    },
+    "dev-env": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/k3s/dev-environment.ts"
       }
     }
   }

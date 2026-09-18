@@ -1,0 +1,11 @@
+# The environment's independent database. It survives Pod recreation and is deleted by
+# `dev-env down`.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dev-environment-data
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests: { storage: 1Gi }

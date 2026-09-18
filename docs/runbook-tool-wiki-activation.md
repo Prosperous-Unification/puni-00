@@ -247,11 +247,23 @@ integrity of `twilight-bureaucrat@0.1.0` exists only after publication. In order
    refuses re-entry (exit 70). `bin/tool-wiki-lint.sh` stays the launcher source until the
    exhaustive-corpus freeze lets it move into the package; only then does the route take its name.
 
-**Upgrade.** Bump the pin, re-lock, prepare and publish an activation from the new package, set the
-variables, then merge the pin. Merging the pin first makes every admission refuse by name.
-**Old-version recovery.** Revert `infra/ci/bureaucrat/{package.json,bun.lock}` to the version the
-selected activation names, or set `admission` back to `archive-launcher`; both take effect for pull
-requests opened against the reverted base.
+**Every pull request is judged by its base's pin against the currently selected activation.** A
+pull request that changes the pin is therefore admitted under the old pin, and a base whose pin
+differs from the selected activation refuses every admission by name until the variables change.
+
+**Upgrade.** Bump the pin and re-lock in a pull request; it is admitted under the old, still
+matching pair, so merge it. From the merged commit, install the new package, prepare and publish an
+activation from it, then set the three variables. Between the merge and the variable change every
+admission refuses with `activation was prepared from another toolkit`; keep that window short and
+merge nothing else during it.
+
+**Old-version recovery.** Repair any base/activation mismatch through the variables, never through a
+pull request: a pull request opened against a mismatched base is refused by the same check it
+would fix. Point the variables at an activation prepared from the version the base pins (the
+previous archive, if the base still pins it). To go back to an older package, merge the pin revert
+while the variables still match the current pin, then select an activation from the older package.
+Setting `admission` back to `archive-launcher` follows the same rule: merge it while admission still
+passes.
 
 ## Final binding and recovery
 

@@ -2,7 +2,7 @@
  * Real local k3s rehearsal of the WBS release transaction on a disposable k3d cluster pinned to
  * the locked k3s image. It builds lab images with Docker, pushes them only to a lab registry,
  * bootstraps v1, inserts a row, then proves: admission of the exact solver directory and
- * refusal of alternate host paths; refusal while admission approves only one backend digest;
+ * refusal of alternate host paths and of digests outside F6's `solverImages` list;
  * rollback of an induced health failure; rollback after the coordinator is SIGKILLed mid
  * rollout; a successful additive upgrade; and at most one writer pod throughout.
  *
@@ -170,6 +170,8 @@ interface LabImages {
   v1: ReleaseIdentity;
   v2: ReleaseIdentity;
   broken: ReleaseIdentity;
+  /** v2 plus a label only: a new digest with no schema change, for the concurrency run. */
+  v3: ReleaseIdentity;
 }
 
 async function images(port: number, sourceSha: string): Promise<LabImages> {
@@ -187,6 +189,11 @@ async function images(port: number, sourceSha: string): Promise<LabImages> {
   await build('wbs-be-01:f8-v2-unhealthy', join(lab, 'backend-unhealthy.Dockerfile'), lab, {
     BASE: 'wbs-be-01:f8-v2',
   });
+  await sh(
+    ['docker', 'build', '-q', '-t', 'wbs-be-01:f8-v3', '-'],
+    'FROM wbs-be-01:f8-v2\nLABEL dev.puni.lab=v3\n',
+    600_000,
+  );
   const shared = {
     gateway: await publish('wbs-gw-01:f8-v1', 'wbs-gw-01', port),
     frontend: await publish('wbs-fe-01:f8-v1', 'wbs-fe-01', port),
@@ -200,21 +207,9 @@ async function images(port: number, sourceSha: string): Promise<LabImages> {
     v1: identity(await publish('wbs-be-01:f8-v1', 'wbs-be-01', port)),
     v2: identity(await publish('wbs-be-01:f8-v2', 'wbs-be-01', port)),
     broken: identity(await publish('wbs-be-01:f8-v2-unhealthy', 'wbs-be-01', port)),
+    v3: identity(await publish('wbs-be-01:f8-v3', 'wbs-be-01', port)),
   };
 }
-
-/** Lab-only form of the F6 change F8 needs: approve a comma-separated set of backend digests. */
-const APPROVED_SET_PATCH = JSON.stringify([
-  {
-    op: 'replace',
-    path: '/spec/validations/2/expression',
-    value:
-      "object.metadata.namespace != 'wbs-solver' || " +
-      "(object.spec.containers.all(container, container.image in params.data.solverImage.split(',')) && " +
-      "(!has(object.spec.initContainers) || object.spec.initContainers.all(container, container.image in params.data.solverImage.split(','))) && " +
-      "(!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container, container.image in params.data.solverImage.split(','))))",
-  },
-]);
 
 async function approve(images: readonly string[]): Promise<void> {
   await k([
@@ -225,7 +220,7 @@ async function approve(images: readonly string[]): Promise<void> {
     'puni-trusted-workload',
     '--type=merge',
     '-p',
-    JSON.stringify({ data: { solverImage: images.join(',') } }),
+    JSON.stringify({ data: { solverImages: images.join(',') } }),
   ]);
 }
 
@@ -498,7 +493,7 @@ async function main(): Promise<void> {
     const labImages = await images(port, sourceSha);
     writeFileSync(join(state, 'images.json'), JSON.stringify(labImages, null, 2));
     log(`images ${JSON.stringify(labImages)}`);
-    const { v1, v2, broken } = labImages;
+    const { v1, v2, broken, v3 } = labImages;
     await platform();
     const uid = (
       await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
@@ -514,31 +509,15 @@ async function main(): Promise<void> {
       rolloutTimeoutSeconds: 90,
       jobTimeoutSeconds: 180,
       drainTimeoutMs: 5000,
+      leaseDurationSeconds: 20,
       log,
     };
 
-    // F6 verbatim: exactly one approved backend digest.
+    // Bootstrap is not a release: seed F6's list with the one v1 digest it runs.
     await approve([v1.images.backend]);
     await bootstrap(v1, settings);
     await insertProject('f8-row-before');
     assert((await projectNames()).includes('f8-row-before'), 'row inserted through the v1 API');
-
-    log('proof: F6 verbatim admission cannot approve candidate and rollback digests together');
-    const single = executeRelease(
-      requestFor(v2, v1, uid),
-      fileJournal(join(state, 'refused.json')),
-      kubectlEffects(settings),
-      log,
-    );
-    const refused = await single.then(
-      () => null,
-      (e: unknown) => e,
-    );
-    assert(
-      refused instanceof Error && refused.message.includes('does not approve'),
-      'the coordinator refused before any mutation',
-    );
-    assert(await writesOpen(), 'writes stayed open after the admission refusal');
 
     log(
       'proof: exact runtime directory admitted, alternate host paths and unapproved images refused',
@@ -561,23 +540,7 @@ async function main(): Promise<void> {
     const unapproved = await admits(v2.images.backend, '/run/puni/solver');
     assert(
       !unapproved.admitted && unapproved.message.includes('approved backend image digest'),
-      'unapproved backend digest refused under F6 verbatim',
-    );
-
-    // Proposed F6 change: approve the candidate and rollback digests as a set.
-    await k([
-      'patch',
-      'validatingadmissionpolicy',
-      'puni-trusted-hostpath',
-      '--type=json',
-      '-p',
-      APPROVED_SET_PATCH,
-    ]);
-    await approve([v1.images.backend, v2.images.backend, broken.images.backend]);
-    const stillRefused = await admits(v1.images.backend, '/run/puni');
-    assert(
-      !stillRefused.admitted,
-      'alternate host path still refused under the approved-set policy',
+      'a backend digest outside solverImages refused by the committed F6 policy',
     );
 
     log('scenario 1: induced health failure rolls back before writes reopen');
@@ -597,6 +560,21 @@ async function main(): Promise<void> {
       `release ended rolled-back`,
     );
     if (failed instanceof ReleaseFailedError) log(failed.message);
+    const admitted = (
+      await k([
+        '-n',
+        'wbs-solver',
+        'get',
+        'configmap',
+        'puni-trusted-workload',
+        '-o',
+        'jsonpath={.data.solverImages}',
+      ])
+    ).trim();
+    assert(
+      admitted === `${v1.images.backend},${broken.images.backend}`,
+      'the coordinator wrote solverImages as the rollback and candidate digests',
+    );
     await expectRestored(v1, ['f8-row-before']);
     assert(
       seen.max <= 1,
@@ -673,29 +651,55 @@ async function main(): Promise<void> {
       seen.max <= 1,
       `at most one writer pod during the upgrade (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
     );
-    log('proof: a Lease held by another release refuses a second coordinator');
-    const foreign = {
-      apiVersion: 'coordination.k8s.io/v1',
-      kind: 'Lease',
-      metadata: { name: 'wbs-release', namespace: 'wbs-solver' },
-      spec: { holderIdentity: 'another-release' },
-    };
-    await k(['create', '-f', '-'], JSON.stringify(foreign));
-    const second = await executeRelease(
-      requestFor(v1, v2, uid),
-      fileJournal(join(state, 'second.json')),
-      kubectlEffects(settings),
-      log,
-    ).then(
-      () => null,
-      (e: unknown) => e,
+    log('scenario 4: two coordinators with the same request and journal start together');
+    const concurrentRequest = join(state, 'concurrent-request.json');
+    const concurrentJournal = join(state, 'concurrent.json');
+    writeFileSync(concurrentRequest, JSON.stringify(requestFor(v3, v2, uid)));
+    const concurrentCli = [
+      'bun',
+      join(ROOT, 'tools/tool-deploy/src/k8s/deploy-k3s.ts'),
+      '--request',
+      concurrentRequest,
+      '--journal',
+      concurrentJournal,
+      '--kubectl',
+      kubectl,
+      '--kubeconfig',
+      join(state, 'kubeconfig'),
+      '--apply',
+    ];
+    writers = watchWriters();
+    const [first, second] = await Promise.all([
+      run(concurrentCli, null, 900_000),
+      run(concurrentCli, null, 900_000),
+    ]);
+    seen = await writers.stop();
+    for (const [name, result] of [
+      ['first', first],
+      ['second', second],
+    ] as const) {
+      log(
+        `${name} coordinator exit ${String(result.exitCode)}:\n${(result.stdout + result.stderr).trim()}`,
+      );
+    }
+    const outputs = [first, second].map((r) => r.stdout + r.stderr);
+    assert(
+      outputs.filter((o) => o.includes('promoted')).length === 1,
+      'exactly one of the two same-request coordinators promoted',
     );
     assert(
-      second instanceof Error && second.message.includes('held by another-release'),
-      'the second coordinator was refused at acquire-lease',
+      outputs.filter((o) => /held by live coordinator|still renewed by/.test(o)).length === 1,
+      'the other was refused by the live Lease before any mutation',
     );
-    assert(await writesOpen(), 'writes stayed open after the Lease refusal');
-    await k(['-n', 'wbs-solver', 'delete', 'lease', 'wbs-release']);
+    assert(
+      JSON.stringify(await runningImages()) === JSON.stringify(v3.images),
+      'the cluster runs the one promoted release',
+    );
+    assert((await projectNames()).includes('f8-row-after-promotion'), 'rows survived');
+    assert(
+      seen.max <= 1,
+      `at most one writer pod with two coordinators (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
+    );
     log('all lab assertions passed');
   } finally {
     if (keep)

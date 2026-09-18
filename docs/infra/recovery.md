@@ -3,13 +3,13 @@
 Each store has its own consistent path. A filesystem copy of a live database
 never replaces its application-consistent snapshot.
 
-| Store                  | Path                                                         | Schedule      | Retention                       |
-| ---------------------- | ------------------------------------------------------------ | ------------- | ------------------------------- |
-| WBS SQLite             | `sqlite-backup` CronJob: `VACUUM INTO`, verify, versioned S3 | hourly at :17 | bucket versioning and lifecycle |
-| Elasticsearch logs     | SLM `puni-daily` to repository `puni-snapshots`              | daily 01:30   | 365 d, at least 7, at most 400  |
-| etcd (k3s state)       | k3s `etcd-snapshot` to S3, configured by the `backup` role   | `0 */6 * * *` | 28 snapshots per server         |
-| Other PVCs (registry)  | Velero file-system backup with Kopia                         | daily 02:00   | 720 h                           |
-| Platform configuration | Git plus the recovery secrets below                          | every commit  | Git history                     |
+| Store                  | Path                                                         | Schedule      | Retention                                                       |
+| ---------------------- | ------------------------------------------------------------ | ------------- | --------------------------------------------------------------- |
+| WBS SQLite             | `sqlite-backup` CronJob: `VACUUM INTO`, verify, versioned S3 | hourly at :17 | noncurrent versions expire after 30 d; current objects are kept |
+| Elasticsearch logs     | SLM `puni-daily` to repository `puni-snapshots`              | daily 01:30   | 365 d, at least 7, at most 400                                  |
+| etcd (k3s state)       | k3s `etcd-snapshot` to S3, configured by the `backup` role   | `0 */6 * * *` | 28 snapshots per server                                         |
+| Other PVCs (registry)  | Velero file-system backup with Kopia                         | daily 02:00   | 720 h                                                           |
+| Platform configuration | Git plus the recovery secrets below                          | every commit  | Git history                                                     |
 
 ## Recovery secrets
 
@@ -33,6 +33,32 @@ The `backup` role refuses to configure snapshots until
 token is not escrowed. Escrow for the other secrets is an operator checklist
 item: before first production use, restore one value of each from escrow on a
 machine that never saw the original and compare fingerprints.
+
+## Bucket lifecycle
+
+Every backup bucket has versioning and one lifecycle rule: noncurrent versions
+expire after 30 days. Current objects are pruned only by each tool's own
+retention (SLM, Velero TTL, the k3s snapshot count); the SQLite prefix keeps
+every current generation until an operator prunes it. The local rehearsal
+store applies the rule in its bucket Job. For production, apply and read back
+the same rule on each primary bucket once:
+
+```sh
+cat > lifecycle.json <<'JSON'
+{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},
+  "NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}
+JSON
+aws s3api put-bucket-versioning --endpoint-url https://hel1.your-objectstorage.com \
+  --bucket puni-sqlite --versioning-configuration Status=Enabled
+aws s3api put-bucket-lifecycle-configuration --endpoint-url https://hel1.your-objectstorage.com \
+  --bucket puni-sqlite --lifecycle-configuration file://lifecycle.json
+aws s3api get-bucket-lifecycle-configuration --endpoint-url https://hel1.your-objectstorage.com \
+  --bucket puni-sqlite
+```
+
+Whether Hetzner Object Storage honours `NoncurrentVersionExpiration` has not
+been observed; read the configuration back and list object versions after 31
+days before relying on it.
 
 ## Off-region copy
 
