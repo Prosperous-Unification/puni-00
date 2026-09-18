@@ -1,4 +1,3 @@
-import { createSocket } from 'node:dgram';
 import { writeFileSync } from 'node:fs';
 
 /**
@@ -40,22 +39,43 @@ function readHubArguments(arguments_: readonly string[]): {
 
 const hub = readHubArguments(process.argv.slice(2));
 const peers = new Set(hub.peers);
-// A declared peer that is not running (never created, fenced) has a closed port, which the kernel
-// reports back as ECONNREFUSED on the next receive. Forwarding only to peers that had spoken since
-// a hub restart left a silent VM unreachable by ARP, so every declared peer receives every frame.
-const socket = createSocket('udp4');
-socket.on('message', (frame, sender) => {
-  if (sender.address !== '127.0.0.1' || !peers.has(sender.port)) return;
-  for (const peer of peers) {
-    if (peer !== sender.port) socket.send(frame, peer, '127.0.0.1');
-  }
-});
-socket.on('error', (cause) => {
-  // Proof: rethrowing ECONNREFUSED killed the live lab hub on the absent spare's port, and every
-  // private-network MTU probe between the three VMs then failed.
-  if ('code' in cause && cause.code === 'ECONNREFUSED') return;
+
+/** An absent peer (never created, fenced) is a modeled state; any other failure stops the hub. */
+function ignoreAbsentPeer(cause: unknown): void {
+  if (cause instanceof Error && 'code' in cause && cause.code === 'ECONNREFUSED') return;
   throw cause;
+}
+
+// Every declared peer receives every frame: forwarding only to peers that had spoken left a silent
+// VM unreachable by ARP after a hub restart. A closed peer port makes the kernel report
+// ECONNREFUSED, synchronously or on the socket.
+// Proof: the live three-server lab (absent agent ports between live servers) lost all private
+// traffic: a send after an absent peer threw that peer's ECONNREFUSED and the frame for the live
+// server-3 was never sent (hub debug log `sync-err 44746`). Retrying once delivers it.
+await Bun.udpSocket({
+  hostname: '127.0.0.1',
+  port: hub.port,
+  socket: {
+    data(socket, frame, senderPort, senderAddress) {
+      if (senderAddress !== '127.0.0.1' || !peers.has(senderPort)) return;
+      for (const peer of peers) {
+        if (peer === senderPort) continue;
+        // A refusal thrown here belongs to the previous datagram (an absent peer), and this
+        // datagram was not sent; one retry sends it.
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            socket.send(frame, peer, '127.0.0.1');
+            break;
+          } catch (cause) {
+            ignoreAbsentPeer(cause);
+          }
+        }
+      }
+    },
+    // Bun passes the error as the handler's only argument, with the socket as `this`.
+    error(cause: unknown) {
+      ignoreAbsentPeer(cause);
+    },
+  },
 });
-socket.bind(hub.port, '127.0.0.1', () => {
-  writeFileSync(hub.pidFile, `${String(process.pid)}\n`, { mode: 0o600 });
-});
+writeFileSync(hub.pidFile, `${String(process.pid)}\n`, { mode: 0o600 });
