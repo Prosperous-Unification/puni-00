@@ -1,5 +1,7 @@
 # Only the ingress controller reaches a dev environment; one environment cannot call another's
 # tiers. Egress stays open for `bun install` after a lockfile change.
+# Proof: from dev-alpha, a request to dev-beta's pod IP failed to connect; after deleting
+# dev-beta's policy the same request answered 200, and `up` restored the refusal (k3d, 2026-09-18).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -11,6 +11,7 @@ import {
   decodeRunningEnvironments,
   digestRecreateInputs,
   type EnvironmentBinding,
+  existingPodFingerprint,
   findForgeCluster,
   FORGE_NAMESPACE,
   type LabRecord,
@@ -449,6 +450,18 @@ describe('decodeRunningEnvironments', () => {
     expect(() =>
       decodeRunningEnvironments(JSON.stringify({ items: [{ metadata: { name: 'x' } }] })),
     ).toThrow('lacks its environment identity');
+  });
+});
+
+describe('existingPodFingerprint', () => {
+  it('reads the first listed Pod, so up can tell keep from recreate', async () => {
+    const pod = bindEnvironment(await renderOverlay(), BINDING).find(
+      (object) => object['kind'] === 'Pod',
+    ) as { metadata: { annotations: Record<string, string> } };
+    expect(existingPodFingerprint(JSON.stringify({ items: [pod] }))).toBe(
+      pod.metadata.annotations['puni.dev/pod-spec'],
+    );
+    expect(existingPodFingerprint(JSON.stringify({ items: [] }))).toBeUndefined();
   });
 });
 

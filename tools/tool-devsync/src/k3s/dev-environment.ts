@@ -319,13 +319,34 @@ function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === 'object' && input !== null && !Array.isArray(input);
 }
 
+/** Read a nested JSON value; numeric keys index arrays. Absent at any step is `undefined`. */
 function field(object: unknown, ...path: readonly string[]): unknown {
   let current: unknown = object;
   for (const key of path) {
-    if (!isRecord(current)) return undefined;
-    current = current[key];
+    if (Array.isArray(current) && /^\d+$/.test(key)) current = current[Number(key)] as unknown;
+    else if (isRecord(current)) current = current[key];
+    else return undefined;
   }
   return current;
+}
+
+/**
+ * The bound-spec fingerprint of the environment's existing Pod in a `kubectl get pods -o json`
+ * list, or `undefined` when none exists. `up` recreates the Pod only when this differs.
+ */
+export function existingPodFingerprint(podList: string): string | undefined {
+  const fingerprint = field(
+    JSON.parse(podList),
+    'items',
+    '0',
+    'metadata',
+    'annotations',
+    POD_SPEC_ANNOTATION,
+  );
+  if (fingerprint !== undefined && typeof fingerprint !== 'string') {
+    throw new Error('the existing forge Pod carries a malformed spec fingerprint');
+  }
+  return fingerprint;
 }
 
 function recordAt(object: ManifestObject, ...path: readonly string[]): Record<string, unknown> {
@@ -638,8 +659,8 @@ async function connect(root: string, clusterName: string): Promise<Cluster> {
     'json',
   ]);
   if (field(JSON.parse(marker), 'metadata', 'labels', LAB_LABEL) !== record.labId) {
-    // Proof: skipping this comparison let a kubeconfig that reached another lab's cluster
-    // proceed to admission changes, in the live wrong-cluster negative (F9 verify).
+    // Proof: with this comparison removed, `status` against a marker relabelled to another lab
+    // printed the environment instead of refusing (live k3d, 2026-09-18).
     throw new Error(
       `${clusterName}'s kubeconfig reaches a cluster that lab ${record.labId} does not own`,
     );
@@ -672,6 +693,8 @@ async function readAdmissionParameters(cluster: Cluster): Promise<AdmissionParam
       'json',
     ]),
   );
+  // Proof: with this comparison removed, `up` patched parameters that had lost the lab label
+  // instead of refusing (live k3d, 2026-09-18).
   if (field(configMap, 'metadata', 'labels', LAB_LABEL) !== cluster.record.labId) {
     throw new Error(
       'wbs-solver/puni-trusted-workload is not owned by this lab; outside a lab, forge roots and ' +
@@ -713,9 +736,15 @@ async function publishForgeImage(
 ): Promise<string> {
   const context = join(worktree, 'deploy/dev-src');
   const local = `puni-dev-environment:${cluster.record.labId}`;
+  // BuildKit attestations carry build timestamps, so with them every rebuild of an unchanged
+  // Dockerfile pushes a new digest. The forge admits one image and `up` compares digests.
+  // Proof: without these two flags, rerunning `up` on an unchanged worktree pushed a new digest
+  // and recreated the running Pod on k3d (2026-09-18); with them two builds shared one digest.
   await run('docker', [
     'build',
     '--quiet',
+    '--provenance=false',
+    '--sbom=false',
     '-f',
     join(context, 'Dockerfile'),
     '-t',
@@ -803,14 +832,7 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
     '-o',
     'json',
   ]);
-  const current = field(
-    JSON.parse(existing),
-    'items',
-    '0',
-    'metadata',
-    'annotations',
-    POD_SPEC_ANNOTATION,
-  );
+  const current = existingPodFingerprint(existing);
   if (current !== undefined && current !== wanted) {
     console.log(`[dev-env] ${podName}: recreate inputs or bound spec changed; recreating the Pod`);
     await cluster.kubectl([
@@ -852,6 +874,22 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
   const cluster = await connect(root, request.cluster);
   const running = await runningEnvironments(cluster);
   const environment = running.find((candidate) => candidate.slug === request.slug);
+  // Ownership of the admission parameters is checked before anything is deleted, so a refused
+  // teardown leaves the environment whole rather than running roots behind.
+  // Proof: with the read after the deletes, a live `down` against parameters without the lab
+  // label deleted dev-beta and then refused, leaving its root admitted (2026-09-18).
+  const parameters =
+    environment === undefined
+      ? undefined
+      : nextAdmissionParameters(
+          await readAdmissionParameters(cluster),
+          {
+            kind: 'stop',
+            slug: request.slug,
+            roots: [environment.worktreeNodePath, SOLVER_NODE_PATH],
+          },
+          running,
+        );
   const selector = `${SLUG_LABEL}=${request.slug},${LAB_LABEL}=${cluster.record.labId}`;
   await cluster.kubectl([
     'delete',
@@ -871,22 +909,10 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
     selector,
     '--wait=true',
   ]);
-  if (environment !== undefined) {
-    await writeAdmissionParameters(
-      cluster,
-      nextAdmissionParameters(
-        await readAdmissionParameters(cluster),
-        {
-          kind: 'stop',
-          slug: request.slug,
-          roots: [environment.worktreeNodePath, SOLVER_NODE_PATH],
-        },
-        running,
-      ),
-    );
-  }
+  if (parameters !== undefined) await writeAdmissionParameters(cluster, parameters);
   console.log(
-    `[dev-env] ${request.slug}: deleted its Pod, Service, Ingress, NetworkPolicy and database volume`,
+    `[dev-env] ${request.slug}: deleted its Pod, Service, Ingress, NetworkPolicy and database volume` +
+      (environment === undefined ? ' (no running Pod; admitted roots left unchanged)' : ''),
   );
 }
 
