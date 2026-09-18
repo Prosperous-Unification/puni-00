@@ -98,6 +98,34 @@
         "command": "bun tools/tool-fleet/src/entrypoint.ts apply"
       }
     },
+    "recover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/recover.ts"
+      }
+    },
+    "health": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/health.ts"
+      }
+    },
+    "maintenance": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/maintenance.ts"
+      }
+    },
+    "synthetic": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/maintenance-workers.ts"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "cache": false,
