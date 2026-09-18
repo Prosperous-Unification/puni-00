@@ -212,7 +212,10 @@ Before merging `9088797e`, the suite showed 15 failures on this branch; three we
 (`tool-deploy:test` reading `ci.yml`, the overlays and be-01 without declaring them) and were
 cleared by the `tool-deploy` test inputs. After the merge two more were F11's and are fixed:
 `cutover-rehearsal.ts` spelled the tier union itself (`b4e302cb`), and the index checker could
-not resolve the then-untracked `cutover-plan.md`. The final count is recorded below.
+not resolve the then-untracked `cutover-plan.md`. At `577c1b4d`: `tool-devsync` 216 pass 0 fail,
+`tool-deploy` 233/0, `tool-fleet` 204/0, and `gate-entrypoints.test.ts` (with the target's
+`TOOL_WIKI_TRUSTED_NODE_MODULES`) 57/0. The cutover rehearsal ran at `e75a4e1f`; `b4e302cb` only
+changed a type annotation in it.
 
 ### Not verified, with prepared next steps
 
