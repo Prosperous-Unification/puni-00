@@ -439,6 +439,33 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "docs/assistant/work-view-prototype-A.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-B.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-C.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
         "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
         "format": "application/gzip",
         "consumer": "infra/platform/networking/cert-manager.yaml",
