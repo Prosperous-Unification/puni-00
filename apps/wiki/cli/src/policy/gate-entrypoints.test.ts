@@ -1257,7 +1257,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     // Proof: the admission job checked out this repository at the activation version to get the
     // launcher and ran `bun install` for its runtime — which no consumer repository can reproduce.
     // These five were watched failing against that workflow text before it was rewritten.
-    expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(1);
+    // Two checkouts since P5: the candidate and the sparse base-owned package bootstrap, whose
+    // ordering `consumer-bootstrap.test.ts` pins.
+    expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
     expect(trustedCi).not.toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
     expect(trustedCi).not.toContain('bun install');
     expect(trustedCi).not.toContain('TOOL_WIKI_TRUSTED_NODE_MODULES');
