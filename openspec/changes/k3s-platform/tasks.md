@@ -2,7 +2,20 @@
 
 - [ ] F3 — Prove Ubuntu host and k3s convergence per [F3](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f3--set-up-hosts-and-bootstrap-k3s-immediately).
 - [ ] F6 — Install Flux-owned platform resources and admission boundaries per [F6](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f6--install-the-platform-with-explicit-ownership).
+  - [x] Locked Flux, chart archives and image digests; staged graph with dependency gating (k3d, 2026-09-17/18).
+  - [x] Trusted solver/forge admission, Restricted namespaces, default-deny network drills; candidate and rollback solver digests.
+  - [x] Live SOPS decryption and missing-key refusal; live wrong-cluster kubeconfig refusal.
+  - [x] Complete cluster-specific Flux source graph reconciled from an immutable Git commit on k3d.
+  - [x] Local test registry with TLS and htpasswd auth, digest-preserving migration copy, read-only offline GC and pull after restart.
+  - [ ] Production registry adoption: node containerd trust, private endpoint and migration from the existing registry. Prepared: `registry/production`, `platform-registry.ts copy`; next: encrypt `registry-ca` and `registry-auth`, add `registries.yaml` to the k3s roles, copy images, repoint pulls.
+  - [ ] Staging ACME issuance for the two hostnames. Prepared: `letsencrypt-staging`; next: a reviewed `platform-dns.ts plan`, applied by hand, then a staging Certificate.
+  - [ ] Production Flux bootstrap with the read-only deploy key and hcloud storage on real hosts.
 - [ ] F7 — Bring up observability and layered backups per [F7](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f7--bring-up-elastic-metrics-logging-and-backups).
+  - [x] ECK/Elasticsearch/Kibana, kube-prometheus-stack, blackbox, OTel with persistent queue and redaction, ILM and SLM, sized and placed by capability (k3d).
+  - [x] Drills: log injection, failing endpoint and dead-man delivery, Elasticsearch outage count, Elastic restore under a new name, broken backup credentials, SQLite known-row and migration restore, Velero Kopia restore, etcd S3 snapshot.
+  - [ ] Real recipients and dead-man service in `alertmanager-puni`; production buckets with versioning, object lock and the off-region `rclone copy`.
+  - [ ] Recovery-secret escrow executed and verified on a second machine; `backup.yml` converged on real servers.
+  - [ ] Volume-threshold and OTel-network-block drills on production-like storage; h3 monitoring retirement evidence.
 - [ ] F9 — Preserve source-run development on k3s per [F9](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f9--source-run-development-and-localhost-experience).
 - [ ] F10 — Execute cold recovery and routine maintenance drills per [F10](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f10--recovery-and-routine-maintenance).
 - [ ] F12 — Finish the tested operator handoff per [F12](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f12--finish-the-operator-handoff).

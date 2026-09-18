@@ -45,3 +45,41 @@ Cold recovery SHALL start without the original cluster and prove both platform r
 - **GIVEN** backups but no k3s token or SOPS recovery key
 - **WHEN** cold recovery starts
 - **THEN** it refuses before empty rebootstrap can replace production state
+
+### Requirement: A stage never reconciles against another cluster
+
+Every Flux stage SHALL use its own cluster kubeconfig and SHALL wait for a target stage that verifies the cluster's bootstrap marker.
+
+#### Scenario: Kubeconfig names another cluster
+
+- **GIVEN** a cluster graph whose kubeconfig reaches a cluster without that graph's marker
+- **WHEN** Flux reconciles the target stage
+- **THEN** the target stage fails and no dependent stage applies anything to that cluster
+
+#### Scenario: Decryption key is missing
+
+- **GIVEN** a cluster graph and no `sops-age` Secret
+- **WHEN** Flux reconciles
+- **THEN** no stage applies and no platform namespace or HelmRelease is created
+
+### Requirement: Backups are consistent per store and prove their restore
+
+Each store SHALL be backed up through its own consistent mechanism, and every restore SHALL verify content before it can replace data.
+
+#### Scenario: SQLite restore differs from its report
+
+- **GIVEN** a SQLite backup report and object bytes, integrity or migrations that differ from it
+- **WHEN** the restore runs
+- **THEN** it fails without creating the target database
+
+#### Scenario: Backup credentials are broken
+
+- **GIVEN** object storage credentials that the store rejects
+- **WHEN** a scheduled SQLite backup runs
+- **THEN** the Job fails and a backup alert reaches the configured receiver
+
+#### Scenario: Elasticsearch is unavailable
+
+- **GIVEN** log producers running while Elasticsearch is stopped for less than the queue capacity
+- **WHEN** Elasticsearch returns
+- **THEN** every produced event is searchable once and a backlog alert fired during the outage
