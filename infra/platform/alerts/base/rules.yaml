@@ -36,7 +36,8 @@ spec:
     - name: puni-backups
       rules:
         - alert: PuniBackupJobFailed
-          expr: kube_job_status_failed{job_name=~"(sqlite-backup|elastic-snapshots).*"} > 0
+          # A Job's terminal Failed condition; retried pods of a Job that later completes do not count.
+          expr: kube_job_failed{condition="true", job_name=~"(sqlite-backup|elastic-snapshots).*"} == 1
           labels: { severity: critical }
           annotations:
             summary: 'Backup job {{ $labels.namespace }}/{{ $labels.job_name }} failed'
