@@ -8,3 +8,4 @@ resources:
   - ../prometheus
   - ../otel
   - telemetry.yaml
+  - otlp-ingress.yaml

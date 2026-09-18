@@ -205,6 +205,12 @@ export interface CheckRun {
   readonly exitCode: number;
   readonly stdout: Uint8Array;
   readonly stderr: Uint8Array;
+  /**
+   * The streams whose summary measures skipped work: the direct skip probe's when one ran,
+   * otherwise the check's own. `stdout`/`stderr` concatenate every invocation as evidence, and
+   * Nx may forward the same Bun summary the probe prints, so they would count it twice.
+   */
+  readonly measured: { readonly stdout: Uint8Array; readonly stderr: Uint8Array };
   readonly stdoutPath: string;
   readonly stderrPath: string;
 }
@@ -703,11 +709,14 @@ function skipChannelOf(expectedConfiguration: unknown): SkipChannel {
  */
 export function observedSkips(run: CheckRun, channel: SkipChannel): string[] {
   if (channel === 'none') return [];
-  const plain = `${new TextDecoder().decode(run.stdout)}\n${new TextDecoder().decode(run.stderr)}`
-    // Bun colours its summary, so the counts sit inside SGR escapes. The escape character is
-    // built from its code point: a literal one in a regex is a lint error, and eslint constant-
-    // folds the string form too.
-    .replaceAll(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '');
+  // Proof: measuring the concatenated evidence streams counted the Nx-forwarded summary and the
+  // probe's own as `bun test: 1 skip, bun test: 1 skip` (2026-09-18).
+  const plain =
+    `${new TextDecoder().decode(run.measured.stdout)}\n${new TextDecoder().decode(run.measured.stderr)}`
+      // Bun colours its summary, so the counts sit inside SGR escapes. The escape character is
+      // built from its code point: a literal one in a regex is a lint error, and eslint constant-
+      // folds the string form too.
+      .replaceAll(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '');
   return [...plain.matchAll(/^\s*(\d+)\s+(skip|todo)\b/gm)]
     .filter(([, count]) => Number(count) > 0)
     .map(([, count, kind]) => `bun test: ${count} ${kind}`);

@@ -2,7 +2,7 @@
 
 Ansible installs k3s and bootstraps Flux. Flux then owns every long-lived
 platform object through one ordered graph per cluster. Do not apply the platform
-manifests from Ansible or by hand.
+manifests from Ansible or by hand. Platform clusters reconcile these stages:
 
 | Stage           | Path under `infra/platform/`       | Waits for        |
 | --------------- | ---------------------------------- | ---------------- |
@@ -16,6 +16,15 @@ manifests from Ansible or by hand.
 | `alerts`        | `alerts/<environment>`             | observability    |
 | `backup`        | `backup/<environment>`             | alerts           |
 
+Workers clusters carry only `control-plane` and `execution` nodes, so they reconcile
+`target`, `storage` and `policy` (both after target), `secrets`, and `telemetry`
+(`telemetry/<environment>`, after storage and secrets). The telemetry agent is an
+OTel DaemonSet that reads pod logs and host metrics and ships them over OTLP to the
+platform cluster's `otel-gateway` NodePort (30417); workers run no
+Elasticsearch, Kibana, Prometheus, ingress, registry or Velero. `tool-fleet:check`
+rejects any stage whose workloads select a capability the cluster purpose's nodes
+cannot carry.
+
 Every stage reconciles through its own `<cluster-id>-kubeconfig` Secret and
 decrypts with `sops-age`. A missing `sops-age` Secret fails the first stage, so no
 controller or privileged workload runs. The `target` stage health-checks the
@@ -25,7 +34,10 @@ stops there and every later stage reports its dependency as not ready.
 `alerts` is separate because PrometheusRule and Probe need the CRDs that the
 `observability` stage installs. `tool-fleet:check` binds this graph, every
 native kustomization's resource list, every chart archive and image digest, and
-every plain workload image to `infra/versions/toolchain.json`.
+every plain workload image to `infra/versions/toolchain.json`. It also derives the
+Secrets each cluster's graph consumes and requires `secrets/<cluster-id>/` to list
+each one as a SOPS file or declare it in `externally-provided.json` (`operator` for
+production, `rehearsal` for local test values), with nothing missing or stale.
 
 Run `infra/ansible/playbooks/platform.yml` against the bootstrap server with the
 exact cluster ID, toolchain-locked Flux URL/version/checksum, immutable Git commit,
@@ -68,6 +80,31 @@ kubectl auth can-i create pods -n puni-forge --as=ordinary --as-group=system:aut
 kubectl auth can-i impersonate serviceaccounts/dev-environment-controller -n puni-forge --as=ordinary --as-group=system:authenticated
 kubectl auth can-i create pods -n puni-forge --as=system:serviceaccount:puni-forge:dev-environment-controller
 ```
+
+The trusted-hostpath policy matches only namespaces labelled
+`puni.dev/trusted-hostpath`; a second policy stops `wbs-solver` and `puni-forge`
+from losing that label. Its binding denies when the parameter ConfigMap is absent
+(`parameterNotFoundAction: Deny`), so a missing parameter blocks only trusted
+pods, never `kube-system` or `flux-system`. Every `solverImages` entry must be a
+digest-pinned reference; a tag entry denies every solver pod.
+
+### Trusted image ownership
+
+Flux creates ConfigMap `wbs-solver/puni-trusted-workload` once
+(`kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`) and never updates it afterwards.
+The WBS release coordinator owns it from then on. Its contract:
+
+- Write only `data.solverImages` on `puni-trusted-workload` in `wbs-solver`, as one
+  or two distinct `registry/repository@sha256:<64 hex>` references separated by a
+  comma with no spaces: the candidate first, then the rollback digest.
+- Read the ConfigMap back and require the exact value before creating a solver pod;
+  admission denies any pod whose image is not an entry, and denies every solver pod
+  if an entry is not digest-pinned.
+- Never delete the ConfigMap. If it is absent, admission denies every trusted pod
+  until Flux recreates it from Git with the reviewed initial digests.
+
+Changing `forgeImage` or `forgeWorktreeRoots` after creation is therefore an
+explicit operation: patch the live ConfigMap in the same change that updates Git.
 
 The ephemeral-container subresource needs an existing Pod. Create the approved
 solver fixture only on a cluster where its product-capability selector is
@@ -132,7 +169,9 @@ no age private key is committed.
 ## Registry
 
 `registry/base` serves Distribution 2.8.3 over TLS with htpasswd authentication
-and a separate plain-HTTP debug port (5001) for health probes. `registry/local`
+and a separate plain-HTTP debug port (5001) for health probes. NetworkPolicy
+`registry-ingress` admits 5000 from anywhere and 5001 only from the
+`observability` namespace and the kubelet on the node. `registry/local`
 issues a disposable CA and certificate through cert-manager.
 `registry/production` issues `registry.puni.internal` from the escrowed
 `registry-ca` Secret, so a rebuild keeps the chain that nodes and Dagger trust.
@@ -184,7 +223,12 @@ Kibana; kube-prometheus-stack runs Prometheus (15 d, 8 GB), Alertmanager,
 kube-state-metrics and node-exporter on port 9101, because Traefik's
 host-network metrics entry point owns 9100 on ingress nodes. The OTel
 collector DaemonSet reads `/var/log/pods` with checkpoints and a persistent
-sending queue under `/var/lib/puni-otelcol`, redacts credential shapes in the
+sending queue under `/var/lib/puni-otelcol` and no host ports. It runs as UID 0
+with only `DAC_READ_SEARCH`, because k3s writes pod logs as `root:root 0640` and
+a non-root UID receives no effective capabilities. NetworkPolicy `otlp-ingress`
+admits OTLP from pods in the cluster and, through `otel-gateway`, from the private
+network only (`10.1.0.0/16` in production). The collector also receives workers'
+host metrics and remote-writes them to Prometheus. It redacts credential shapes in the
 log body, and writes the `logs-puni.otel-<environment>` data stream. Its
 `logs-otel@custom` component template applies ILM `puni-logs` (rollover 1 d or
 10 GB, delete after 30 d), zero replicas and a 500-field mapping limit that

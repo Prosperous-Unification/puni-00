@@ -89,9 +89,17 @@ spec:
             - -ec
             - |
               mc alias set store http://object-store.puni-backup.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              # Replaced versions expire after 30 days; current objects follow each tool's retention.
+              echo '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}' > /tmp/lifecycle.json
               for bucket in puni-velero puni-es-snapshots puni-sqlite puni-etcd; do
                 mc mb --ignore-existing "store/$bucket"
                 mc version enable "store/$bucket"
+                mc ilm import "store/$bucket" < /tmp/lifecycle.json
+                # The image has no grep; a shell pattern checks the rule read back from the store.
+                case "$(mc ilm export "store/$bucket")" in
+                  *'"NoncurrentVersionExpiration":{"NoncurrentDays":30}'*) ;;
+                  *) echo "store/$bucket lifecycle rule missing" >&2; exit 1 ;;
+                esac
               done
           env:
             - { name: MC_CONFIG_DIR, value: /tmp/mc }

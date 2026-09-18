@@ -4,6 +4,17 @@ import { describe, expect, it } from 'bun:test';
 
 import { copyImage } from './platform-registry';
 
+/** Await `promise` and return its rejection, so assertions after it observe the settled state. */
+async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw error;
+  }
+  throw new Error('Expected the operation to reject');
+}
+
 const manifestType = 'application/vnd.docker.distribution.manifest.v2+json';
 
 function digestOf(bytes: Uint8Array): string {
@@ -110,9 +121,10 @@ describe('copyImage', () => {
     try {
       const { layerDigest } = seedImage(source);
       source.blobs.set(layerDigest, new TextEncoder().encode('corrupted'));
-      expect(copyImage({ url: source.url }, { url: target.url }, 'wbs/be-01', '1')).rejects.toThrow(
-        /does not match its digest/,
-      );
+      expect(
+        (await rejectionOf(copyImage({ url: source.url }, { url: target.url }, 'wbs/be-01', '1')))
+          .message,
+      ).toMatch(/does not match its digest/);
       expect(target.blobs.has(layerDigest)).toBe(false);
     } finally {
       await source.server.stop(true);
@@ -125,9 +137,10 @@ describe('copyImage', () => {
     const target = fakeRegistry({ rewriteManifestDigest: true });
     try {
       seedImage(source);
-      expect(copyImage({ url: source.url }, { url: target.url }, 'wbs/be-01', '1')).rejects.toThrow(
-        /Target stored wbs\/be-01:1 as sha256:0+/,
-      );
+      expect(
+        (await rejectionOf(copyImage({ url: source.url }, { url: target.url }, 'wbs/be-01', '1')))
+          .message,
+      ).toMatch(/Target stored wbs\/be-01:1 as sha256:0+/);
     } finally {
       await source.server.stop(true);
       await target.server.stop(true);

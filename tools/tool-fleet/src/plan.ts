@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import operationPlanSchema from '@infra/fleet-operation-plan-schema' with { type: 'json' };
+import operationPlanSchema from '@tools/fleet-operation-plan-schema' with { type: 'json' };
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 
 import type { Capability, Fleet, FleetNode, Observation } from './contracts';

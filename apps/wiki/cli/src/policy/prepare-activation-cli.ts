@@ -289,6 +289,7 @@ function runCheck(
     exitCode: skipProbe?.exitCode ?? invocation.exitCode,
     stdout,
     stderr,
+    measured: skipProbe ?? invocation,
     stdoutPath: writeBytes(join(work, 'checks', `${check.checkId}.stdout`), stdout),
     stderrPath: writeBytes(join(work, 'checks', `${check.checkId}.stderr`), stderr),
   };

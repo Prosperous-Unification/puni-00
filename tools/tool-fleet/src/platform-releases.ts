@@ -222,6 +222,7 @@ const KubePrometheusStackValues = type({
     prometheusSpec: {
       image: HexShaImage,
       retention: 'string>0',
+      enableRemoteWriteReceiver: 'true',
       retentionSize: 'string>0',
       serviceMonitorSelectorNilUsesHelmValues: 'false',
       podMonitorSelectorNilUsesHelmValues: 'false',
@@ -297,7 +298,7 @@ const SecretVolume = type({
   '+': 'reject',
 });
 const OtelValues = type({
-  fullnameOverride: "'otel-collector'",
+  fullnameOverride: "'otel-collector' | 'otel-agent'",
   mode: "'daemonset'",
   image: ImageValues,
   command: { name: "'otelcol-contrib'", '+': 'reject' },
@@ -322,9 +323,22 @@ const OtelValues = type({
     'readOnly?': 'boolean',
     '+': 'reject',
   }).array(),
-  ports: type({ '[string]': { enabled: 'boolean', '+': 'reject' } }),
-  service: { enabled: 'true', '+': 'reject' },
-  serviceMonitor: {
+  // The chart renders a hostPort for every OTLP port unless it is 0, and those ports would be
+  // reachable from outside the cluster on every node.
+  // Proof: dropping `hostPort: 0` from the collector values rendered hostPort 4317/4318, and the
+  // production validator's host-port negative rejected it on 2026-09-18.
+  ports: {
+    otlp: { enabled: 'boolean', hostPort: '0', '+': 'reject' },
+    'otlp-http': { enabled: 'boolean', hostPort: '0', '+': 'reject' },
+    'jaeger-compact': { enabled: 'false', '+': 'reject' },
+    'jaeger-thrift': { enabled: 'false', '+': 'reject' },
+    'jaeger-grpc': { enabled: 'false', '+': 'reject' },
+    zipkin: { enabled: 'false', '+': 'reject' },
+    metrics: { enabled: 'true', '+': 'reject' },
+    '+': 'reject',
+  },
+  service: { enabled: 'boolean', '+': 'reject' },
+  'serviceMonitor?': {
     enabled: 'true',
     metricsEndpoints: type({ port: "'metrics'", '+': 'reject' }).array().exactlyLength(1),
     '+': 'reject',
@@ -397,6 +411,13 @@ const hcloudCsiReferences = (values: unknown) => {
 const elasticsearchReferences = (values: unknown) => {
   const parsed = decode('elasticsearch', ElasticsearchValues, values);
   return elasticReferences('elasticsearch', parsed.version, parsed.image);
+};
+
+const otelReferences = (values: unknown) => {
+  const parsed = decode('otel-collector', OtelValues, values);
+  return {
+    collector: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
+  };
 };
 
 const veleroReferences = (values: unknown) => {
@@ -537,12 +558,14 @@ export const platformReleases: readonly PlatformRelease[] = [
     lock: 'opentelemetryCollector',
     path: 'observability/otel/collector.yaml',
     chart: 'charts/opentelemetry-collector-0.173.1.tgz',
-    imageReferences(values) {
-      const parsed = decode('otel-collector', OtelValues, values);
-      return {
-        collector: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
-      };
-    },
+    imageReferences: otelReferences,
+  },
+  {
+    name: 'otel-agent',
+    lock: 'opentelemetryCollector',
+    path: 'telemetry/agent/agent.yaml',
+    chart: 'charts/opentelemetry-collector-0.173.1.tgz',
+    imageReferences: otelReferences,
   },
   {
     name: 'velero',

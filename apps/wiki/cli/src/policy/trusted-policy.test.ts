@@ -1344,10 +1344,20 @@ describe('trusted policy production CLI', () => {
       join(fixture.repository, 'tsconfig.json'),
       `${JSON.stringify({ compilerOptions: { module: 'ESNext' }, include: ['src/**/*.ts'] })}\n`,
     );
+    // Relationship extraction refuses a candidate without an Nx workspace before it resolves
+    // README selectors, so the fixture carries an empty one.
+    write(join(fixture.repository, 'nx.json'), '{}\n');
     write(
       join(fixture.repository, 'README.md'),
       indexSource(
-        ['exemptions.json', 'policy.json', 'src/app.ts', 'tsconfig.json', 'validator.ts'],
+        [
+          'exemptions.json',
+          'nx.json',
+          'policy.json',
+          'src/app.ts',
+          'tsconfig.json',
+          'validator.ts',
+        ],
         ['selector.does-not-exist'],
       ),
     );
@@ -1859,9 +1869,11 @@ describe('trusted policy production CLI', () => {
         join(fixture.repository, 'tsconfig.json'),
         `${JSON.stringify({ compilerOptions: { module: 'ESNext' }, include: ['src/**/*.ts'] })}\n`,
       );
+      write(join(fixture.repository, 'nx.json'), '{}\n');
       const metadataSource = indexSource(
         [
           'exemptions.json',
+          'nx.json',
           'policy.json',
           'relationships.json',
           'src/app.ts',

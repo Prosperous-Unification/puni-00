@@ -3,6 +3,10 @@ kind: ConfigMap
 metadata:
   name: puni-trusted-workload
   namespace: wbs-solver
+  annotations:
+    # Flux creates this ConfigMap once; the WBS release coordinator owns data.solverImages
+    # afterwards (docs/infra/platform.md). Deleting it from Git prunes it and admission denies.
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
 data:
   # Candidate and rollback backend digests; the WBS release transaction rewrites this list.
   solverImages: registry.puni.test/wbs-be@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,registry.puni.test/wbs-be@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

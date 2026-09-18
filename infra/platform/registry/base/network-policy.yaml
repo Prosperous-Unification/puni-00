@@ -1,0 +1,23 @@
+# Pulls and pushes use the TLS port. The plain-HTTP debug port serves only health, for the
+# kubelet readiness probe (node addresses) and the blackbox probe in observability.
+# Proof: on k3d on 2026-09-18, 5001 was open from an unrelated namespace without this policy and
+# closed with it, while the registry stayed Ready and observability still reached 5001.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-ingress
+  namespace: puni-registry
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - { protocol: TCP, port: 5000 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - { protocol: TCP, port: 5001 }

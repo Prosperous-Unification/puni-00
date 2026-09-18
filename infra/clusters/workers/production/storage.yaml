@@ -18,6 +18,6 @@ spec:
     secretRef:
       name: sops-age
   dependsOn:
-    - name: controllers
+    - name: target
   wait: true
   timeout: 10m
