@@ -29,7 +29,7 @@ authorization. Commands below reference inputs as shell variables.
 | Ingress address            | `INPUT` `$NEW_IP`: the platform node's public IPv4 (Traefik `websecure`)                                                                                                          |
 | DNS                        | `wbs.bulletpoints.club` A record at GoDaddy (manual): current value `INPUT` `$OLD_IP` (h2puni), target `$NEW_IP`, TTL lowered to 60 s at least one old TTL before the window      |
 | Backup identities          | Pre-cutover export `h2puni:/home/puni1/wbs/cutover-$STAMP/wbs-export.sqlite` plus its `export-report.json` (SHA-256), copied off-host to `INPUT` `$OFFSITE`; host copy of `data/` |
-| Rollback boundary          | The DNS switch (step 9). See below                                                                                                                                                |
+| Rollback boundary          | The DNS switch (step 10). See below                                                                                                                                               |
 | Expected write downtime    | Rehearsed fence-to-served on k3s: see verify.md (about a minute locally). Production estimate 15-30 minutes, dominated by image pulls, PVC attach and the smoke                   |
 | Expected read availability | Reads keep working through the fenced old edge until the switch; after it, DNS propagation (TTL 60 s)                                                                             |
 
@@ -53,7 +53,7 @@ authorization. Commands below reference inputs as shell variables.
 
 ## Procedure
 
-Every step names its check. A failed check before step 9 means **abort** (below). Commands run
+Every step names its check. A failed check before step 10 means **abort** (below). Commands run
 from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unless marked
 `[operator]`, which runs where the production kubeconfig is.
 
@@ -90,11 +90,42 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
    report's newest migration equals `docker run --rm -v /home/puni1/wbs/data:/data -e DB_PATH=/data/wbs.db "$OLD_BE_IMAGE" bun run src/migrate-status-cli.ts`.
    Copy `cutover-$STAMP/` off-host to `$OFFSITE` and compare SHA-256 there.
 
-6. **Restore into the PVC** (`restore-into-pvc`) `[operator]`. Render the prod overlay with the
-   descriptor's digests (`renderOverlay`, as `deploy:k3s` does), set `wbs-backend` replicas to 0,
-   apply it, then:
+6. **Suspend Flux and stage the export** `[operator]`. Copy `cutover-$STAMP/` from h2puni to
+   the operator host and compare its SHA-256 with `export-report.json` before anything touches
+   the cluster: `scp -r h2puni:/home/puni1/wbs/cutover-$STAMP . && sha256sum cutover-$STAMP/wbs-export.sqlite`.
+   Then keep Flux from applying WBS objects while the restore runs (review M5):
 
    ```sh
+   flux --context "$CTX" suspend kustomization wbs -n flux-system
+   kubectl --context "$CTX" -n flux-system get kustomization wbs -o jsonpath='{.spec.suspend}'   # true
+   ```
+
+   **Seed the certificate** (review M4). Only HTTP-01 issuers exist, and HTTP-01 for
+   `wbs.bulletpoints.club` cannot succeed while DNS still points at h2puni, so the Ingress would
+   serve no valid certificate at the switch. Copy Caddy's live certificate into the Secret the
+   Ingress names, so cert-manager only renews it after the switch:
+
+   ```sh
+   ssh h2puni 'docker exec wbs-caddy-1 sh -c "cat /data/caddy/certificates/*/wbs.bulletpoints.club/wbs.bulletpoints.club.crt"' > tls.crt
+   ssh h2puni 'docker exec wbs-caddy-1 sh -c "cat /data/caddy/certificates/*/wbs.bulletpoints.club/wbs.bulletpoints.club.key"' > tls.key
+   openssl x509 -in tls.crt -noout -subject -enddate   # CN wbs.bulletpoints.club, > 14 days left
+   kubectl --context "$CTX" -n wbs create secret tls wbs-tls --cert=tls.crt --key=tls.key
+   shred -u tls.key
+   ```
+
+   (DNS-01 through a GoDaddy solver would avoid the copy; it needs a GoDaddy API credential in
+   the cluster, which the platform does not have. Recorded as the alternative, not taken.)
+
+7. **Restore into the PVC** (`restore-into-pvc`) `[operator]`. Render the prod overlay with the
+   descriptor's digests, set `wbs-backend` replicas to 0, apply it, then restore:
+
+   ```sh
+   bun tools/tool-deploy/src/k8s/cutover-cli.ts release-manifests --descriptor descriptor.json \
+     --environment prod --kubectl "$KUBECTL" > release.yaml
+   # edit release.yaml: Deployment wbs-backend spec.replicas 0; then
+   kubectl --context "$CTX" apply -f release.yaml
+   kubectl --context "$CTX" -n wbs-solver patch configmap puni-trusted-workload --type=merge \
+     -p "{\"data\":{\"solverImages\":\"$NEW_BE_IMAGE\"}}"
    bun tools/tool-deploy/src/k8s/cutover-cli.ts restore-job --image "$NEW_BE_IMAGE" \
      --export-report cutover-$STAMP/export-report.json | kubectl --context "$CTX" create -f -
    POD=$(kubectl --context "$CTX" -n wbs-solver get pod -l job-name=wbs-cutover-restore -o name)
@@ -108,27 +139,53 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
 
    The Job refuses a SHA-256 mismatch (deleting the bytes) and an existing `/data/wbs.sqlite`;
    `verify-restore` requires identical bytes, migrations and row counts and owner UID 10001.
-   Write `solverImages` to the new backend digest before the Job (F6 contract).
 
-7. **Start the new tiers** (`start-tiers`) `[operator]`: scale `wbs-backend` to 1, wait for
-   `rollout status` of all four Deployments, and write the release record so later releases
-   start from it (`kubectlEffects(...).persistRelease`, as the rehearsal does). Commit the same
-   manifests to the deploy repository and resume Flux on that revision.
-8. **Smoke with a host override** (`smoke-host-override`) `[operator]`:
+8. **Start the new tiers** (`start-tiers`) `[operator]`, then record the release and hand the
+   manifests to Flux, in this order:
+
+   ```sh
+   kubectl --context "$CTX" -n wbs-solver scale deployment wbs-backend --replicas=1
+   for d in wbs-solver/wbs-backend wbs/wbs-gateway wbs/wbs-frontend wbs/wbs-mcp; do
+     kubectl --context "$CTX" -n "${d%/*}" rollout status "deployment/${d#*/}" --timeout=600s
+   done
+   bun tools/tool-deploy/src/k8s/cutover-cli.ts release-record --descriptor descriptor.json \
+     | kubectl --context "$CTX" apply -f -
+   # deploy repository clone: the same manifests, replicas as rendered (1)
+   bun tools/tool-deploy/src/k8s/cutover-cli.ts release-manifests --descriptor descriptor.json \
+     --environment prod --kubectl "$KUBECTL" > "$DEPLOY_REPO/clusters/prod/wbs/release.yaml"
+   git -C "$DEPLOY_REPO" add clusters/prod/wbs/release.yaml
+   git -C "$DEPLOY_REPO" commit -m "wbs: cutover release $(jq -r .sourceSha descriptor.json)"
+   git -C "$DEPLOY_REPO" push origin HEAD:main
+   flux --context "$CTX" reconcile source git wbs-deploy -n flux-system
+   flux --context "$CTX" resume kustomization wbs -n flux-system
+   kubectl --context "$CTX" -n flux-system get kustomization wbs -o jsonpath='{.status.lastAppliedRevision}'
+   ```
+
+   Check: the last applied revision is the pushed commit and every Deployment still runs the
+   descriptor's digests (Flux applied the same manifests).
+
+9. **Smoke with a host override** (`smoke-host-override`) `[operator]`:
    `curl --resolve wbs.bulletpoints.club:443:$NEW_IP https://wbs.bulletpoints.club/` (200) and
    `/api/projects` (401 anonymous under OIDC), then an OIDC login in a browser
    with the host override, one edit, a WebSocket reconnect/replay, `/mcp`, and one solve.
-9. **Switch traffic** (`switch-traffic`) `[operator]`: prepare the DNS change as a reviewed plan,
-   then apply it at GoDaddy by hand:
-   `bun tools/tool-fleet/src/platform-dns.ts plan bulletpoints.club current.json desired.json`.
-   Check: `dig +short wbs.bulletpoints.club @1.1.1.1` returns `$NEW_IP`; production health,
-   auth, edits, WebSocket reconnect/replay, MCP and a solve pass on k3s.
-10. **Retarget backups** and verify one backup/restore cycle (docs/infra/recovery.md). Keep the
+   Check also that the certificate is served and ready:
+   `kubectl --context "$CTX" -n wbs get secret wbs-tls -o jsonpath='{.type}'` is
+   `kubernetes.io/tls`, `curl -v --resolve wbs.bulletpoints.club:443:$NEW_IP https://wbs.bulletpoints.club/ 2>&1 | grep 'subject:'`
+   names `wbs.bulletpoints.club` with no verification error, and after step 10
+   `kubectl --context "$CTX" -n wbs get certificate wbs-tls -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'`
+   is `True` once cert-manager has taken the Secret over.
+
+10. **Switch traffic** (`switch-traffic`) `[operator]`: prepare the DNS change as a reviewed plan,
+    then apply it at GoDaddy by hand:
+    `bun tools/tool-fleet/src/platform-dns.ts plan bulletpoints.club current.json desired.json`.
+    Check: `dig +short wbs.bulletpoints.club @1.1.1.1` returns `$NEW_IP`; production health,
+    auth, edits, WebSocket reconnect/replay, MCP and a solve pass on k3s.
+11. **Retarget backups** and verify one backup/restore cycle (docs/infra/recovery.md). Keep the
     old Compose stack stopped, not removed, until then; propose its retirement through F5.
 
 ## Rollback boundary
 
-Before step 9 no user write has reached k3s, so the old deployment is the system of record and
+Before step 10 no user write has reached k3s, so the old deployment is the system of record and
 rollback is local to h2puni:
 
 ```sh
@@ -137,11 +194,21 @@ docker start be-01-$COLOR gw-01-$COLOR
 docker exec wbs-caddy-1 caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Then scale the k3s WBS Deployments to 0 and delete the PVC contents before any retry (the
-restore Job refuses a non-empty target). The rehearsal performs exactly this rollback and then
+Then, on k3s, stop Flux from re-creating what the rollback removes (it may have been resumed
+in step 8), scale the WBS Deployments to 0, and empty the PVC before any retry (the restore Job
+refuses a non-empty target):
+
+```sh
+flux --context "$CTX" suspend kustomization wbs -n flux-system
+kubectl --context "$CTX" -n wbs-solver scale deployment wbs-backend --replicas=0
+kubectl --context "$CTX" -n wbs scale deployment wbs-gateway wbs-frontend wbs-mcp --replicas=0
+kubectl --context "$CTX" -n wbs-solver delete configmap wbs-release
+```
+
+Revert the deploy-repository commit from step 8 before Flux is resumed again. The rehearsal performs exactly this rollback and then
 writes through the old edge again.
 
-After step 9, users write to k3s. Rolling back to Compose would drop those writes, so it is not
+After step 10, users write to k3s. Rolling back to Compose would drop those writes, so it is not
 offered: failures are handled by the F8 transaction (`recovery-required`, a new request with
 `recovers=`) and restores from the F7 backups. A DNS revert within the first minutes is only safe
 while the k3s side has accepted no write; check `event_log` count against the export report

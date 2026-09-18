@@ -92,8 +92,12 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
 
   it('gives credentials only to the protected deploy job, which checks out main only', () => {
     for (const [name, job] of Object.entries(jobs)) {
-      const text = JSON.stringify(job);
       if (name === 'deploy') continue;
+      // `describe` reads registry labels with a read-only credential and runs main's code only.
+      const text = JSON.stringify(job).replaceAll(
+        name === 'describe' ? 'secrets.REGISTRY_READ_AUTH' : '\u0000',
+        '',
+      );
       expect(job['runs-on'], name).toBe('ubuntu-latest');
       expect(job.environment, name).toBeUndefined();
       expect(text, name).not.toContain('secrets.');
@@ -147,6 +151,13 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     expect(execute(guard, { DISPATCH_REF: 'refs/heads/main' }).code).toBe(0);
   });
 
+  it('refuses a malformed recovery input (production run block)', () => {
+    const guard = step(jobs['resolve'], 'Validate the recovery input').run ?? '';
+    expect(execute(guard, { RECOVERS: 'latest' }).code).toBe(78);
+    expect(execute(guard, { RECOVERS: '' }).code).toBe(0);
+    expect(execute(guard, { RECOVERS: 'abcdef012345-abcdef012345' }).code).toBe(0);
+  });
+
   it('refuses admission on the archive-launcher route (production run block)', () => {
     const runnerTemp = scratchSync('deploy-k3s-admit-');
     roots.push(runnerTemp);
@@ -160,5 +171,30 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     expect(refused.code).toBe(78);
     expect(refused.stderr).toContain('requires the installed-package route');
     expect(existsSync(join(runnerTemp, 'twilight-bureaucrat/admission.json'))).toBe(false);
+  });
+});
+
+describe('the puni-deploy runner job-started hook', () => {
+  const hook = join(ROOT, 'infra/ci/deploy-runner/job-started.sh');
+  const allowed = 'owner/repo/.github/workflows/deploy-k3s.yml@refs/heads/main';
+  const start = (env: Record<string, string>) =>
+    execute(`bash ${hook}`, { PUNI_DEPLOY_REPOSITORY: 'owner/repo', ...env });
+
+  it('starts only deploy-k3s.yml from main of the configured repository', () => {
+    expect(start({ GITHUB_WORKFLOW_REF: allowed }).code).toBe(0);
+    for (const ref of [
+      'owner/repo/.github/workflows/infra-check.yml@refs/pull/7/merge',
+      'owner/repo/.github/workflows/deploy-k3s.yml@refs/heads/feature',
+      'fork/repo/.github/workflows/deploy-k3s.yml@refs/heads/main',
+    ]) {
+      const refused = start({ GITHUB_WORKFLOW_REF: ref });
+      expect(refused.code, ref).toBe(1);
+      expect(refused.stderr).toContain('puni-deploy runs only');
+    }
+    expect(start({}).code).toBe(1);
+  });
+
+  it('refuses to run without the runner-side repository setting', () => {
+    expect(execute(`bash ${hook}`, { GITHUB_WORKFLOW_REF: allowed }).code).not.toBe(0);
   });
 });

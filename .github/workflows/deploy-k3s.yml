@@ -38,6 +38,14 @@ on:
         description: 'prod: required identity of the staged descriptor; staging: optional expected identity'
         type: string
         required: false
+      recovers:
+        description: 'only for a recovery request: the recovery-required release id this replaces'
+        type: string
+        required: false
+      allow_downgrade:
+        description: 'prod: allow promoting an ancestor of the running source'
+        type: boolean
+        default: false
       apply:
         description: 'run the transaction; unchecked prints the plan only'
         type: boolean
@@ -69,6 +77,18 @@ jobs:
           set -euo pipefail
           if [[ "$DISPATCH_REF" != refs/heads/main ]]; then
             printf 'deploy-k3s runs only from refs/heads/main, not %s\n' "$DISPATCH_REF" >&2
+            exit 78
+          fi
+
+      # Proof: deploy-k3s-workflow.test.ts runs this block with RECOVERS=latest and observes exit
+      # 78; deploy-k3s.ts validates the same value again (parseRecovers).
+      - name: Validate the recovery input
+        env:
+          RECOVERS: ${{ inputs.recovers }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$RECOVERS" && ! "$RECOVERS" =~ ^[0-9a-f]{12}-[0-9a-f]{12}$ ]]; then
+            printf 'recovers must be a release id, not %s\n' "$RECOVERS" >&2
             exit 78
           fi
 
@@ -144,10 +164,6 @@ jobs:
             exit 78
           }
 
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-
       # The same selection checks as trusted-wiki.yml's provisioning step (whose suite proves
       # them); a copy, because a deployment admits against the same external authority.
       - name: Provision immutable external activation
@@ -213,9 +229,16 @@ jobs:
         with:
           ref: ${{ github.sha }}
           path: trusted-base
-          sparse-checkout: infra/ci/bureaucrat/
+          sparse-checkout: |
+            infra/ci/bureaucrat/
+            .bun-version
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      # The runtime the activation and package were produced with, from main (review m4).
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: trusted-base/.bun-version
 
       - name: Bootstrap trusted package
         id: bootstrap
@@ -263,9 +286,11 @@ jobs:
     outputs:
       descriptor_sha256: ${{ steps.descriptor.outputs.sha256 }}
     steps:
+      # Full history: the source must be on origin/main (review M1).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -305,6 +330,8 @@ jobs:
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           EXPECTED_SHA256: ${{ inputs.descriptor_sha256 }}
+          # Read-only registry credential: the image labels bind every digest to the source.
+          PUNI_REGISTRY_AUTH: ${{ secrets.REGISTRY_READ_AUTH }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/descriptor"
@@ -313,13 +340,15 @@ jobs:
               --candidate "$RUNNER_TEMP/candidate/release.json" \
               --admission "$RUNNER_TEMP/admission/admission.json" \
               --gate-run "$RUNNER_TEMP/gate-run.json" \
-              --out "$RUNNER_TEMP/descriptor/descriptor.json" > "$RUNNER_TEMP/sha256"
+              --out "$RUNNER_TEMP/descriptor/descriptor.json" \
+              --repository "$GITHUB_WORKSPACE" --main-ref origin/main > "$RUNNER_TEMP/sha256"
           else
             cp "$RUNNER_TEMP/candidate/descriptor.json" "$RUNNER_TEMP/descriptor/descriptor.json"
             bun tools/tool-deploy/src/k8s/descriptor-cli.ts check \
               --descriptor "$RUNNER_TEMP/descriptor/descriptor.json" \
               --admission "$RUNNER_TEMP/admission/admission.json" \
-              --gate-run "$RUNNER_TEMP/gate-run.json" > "$RUNNER_TEMP/sha256"
+              --gate-run "$RUNNER_TEMP/gate-run.json" \
+              --repository "$GITHUB_WORKSPACE" --main-ref origin/main > "$RUNNER_TEMP/sha256"
           fi
           sha256=$(<"$RUNNER_TEMP/sha256")
           if [[ -n "$EXPECTED_SHA256" && "$sha256" != "$EXPECTED_SHA256" ]]; then
@@ -344,10 +373,11 @@ jobs:
       actions: read
     steps:
       # Trusted code only: this run's own main commit. The candidate exists here solely as image
-      # digests inside the descriptor.
+      # digests inside the descriptor. Full history for the downgrade check (review m2).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -372,10 +402,12 @@ jobs:
           KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
           DEPLOY_REPO_SSH_KEY: ${{ secrets.DEPLOY_REPO_SSH_KEY }}
           DEPLOY_REPO_URL: ${{ vars.PUNI_DEPLOY_REPO_URL }}
+          DEPLOY_REPO_KNOWN_HOSTS: ${{ vars.PUNI_DEPLOY_REPO_KNOWN_HOSTS }}
           STATE: ${{ vars.PUNI_DEPLOY_STATE }}
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           set -euo pipefail
+          : "${DEPLOY_REPO_KNOWN_HOSTS:?environment variable PUNI_DEPLOY_REPO_KNOWN_HOSTS is not configured}"
           : "${KUBECONFIG_B64:?environment secret KUBECONFIG_B64 is not configured}"
           : "${DEPLOY_REPO_SSH_KEY:?environment secret DEPLOY_REPO_SSH_KEY is not configured}"
           : "${DEPLOY_REPO_URL:?environment variable PUNI_DEPLOY_REPO_URL is not configured}"
@@ -383,7 +415,8 @@ jobs:
           umask 077
           printf '%s' "$KUBECONFIG_B64" | base64 --decode > "$RUNNER_TEMP/kubeconfig"
           printf '%s\n' "$DEPLOY_REPO_SSH_KEY" > "$RUNNER_TEMP/deploy-key"
-          ssh_command="ssh -i $RUNNER_TEMP/deploy-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          printf '%s\n' "$DEPLOY_REPO_KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          ssh_command="ssh -i $RUNNER_TEMP/deploy-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
           printf 'GIT_SSH_COMMAND=%s\n' "$ssh_command" >> "$GITHUB_ENV"
           clone="$STATE/$ENVIRONMENT/deploy-repo"
           if [[ ! -d "$clone/.git" ]]; then
@@ -398,13 +431,18 @@ jobs:
           STATE: ${{ vars.PUNI_DEPLOY_STATE }}
           DESCRIPTOR_SHA256: ${{ needs.describe.outputs.descriptor_sha256 }}
           APPLY: ${{ inputs.apply }}
+          RECOVERS: ${{ inputs.recovers }}
+          ALLOW_DOWNGRADE: ${{ inputs.allow_downgrade }}
           KUBECTL: ${{ vars.PUNI_KUBECTL }}
+          PUNI_REGISTRY_AUTH: ${{ secrets.REGISTRY_READ_AUTH }}
         run: |
           set -euo pipefail
           : "${CLUSTER_UID:?environment variable PUNI_CLUSTER_UID is not configured}"
           : "${KUBECTL:?environment variable PUNI_KUBECTL (the locked kubectl path) is not configured}"
           mode=()
           if [[ "$APPLY" == true ]]; then mode=(--apply); fi
+          if [[ -n "$RECOVERS" ]]; then mode+=(--recovers "$RECOVERS"); fi
+          if [[ "$ALLOW_DOWNGRADE" == true ]]; then mode+=(--allow-downgrade); fi
           bun tools/tool-deploy/src/k8s/deploy-k3s.ts \
             --descriptor "$RUNNER_TEMP/descriptor/descriptor.json" \
             --descriptor-sha256 "$DESCRIPTOR_SHA256" \
@@ -420,4 +458,4 @@ jobs:
 
       - name: Remove credentials
         if: always()
-        run: rm -f "$RUNNER_TEMP/kubeconfig" "$RUNNER_TEMP/deploy-key"
+        run: rm -f "$RUNNER_TEMP/kubeconfig" "$RUNNER_TEMP/deploy-key" "$RUNNER_TEMP/known_hosts"

@@ -13,13 +13,16 @@ import {
   restoreEnvironment,
   type SqliteReport,
 } from './cutover';
-import { backendTaskJob, run } from './execute';
+import { parseDescriptor, releaseIdentityOf } from './descriptor';
+import { backendTaskJob, releaseRecord, renderOverlay, run } from './execute';
 
 const USAGE = [
   'usage: cutover-cli fenced-site --site <host> --backend <container:3100> --frontend <container:80>',
   '       cutover-cli export --image <be digest ref> --data <dir> --db <file> --out <new dir> --known <json>',
   '       cutover-cli restore-job --image <be digest ref> --export-report <export-report.json>',
   '       cutover-cli verify-restore --export-report <export-report.json> --logs <restore job logs>',
+  '       cutover-cli release-manifests --descriptor <descriptor.json> --environment staging|prod [--kubectl <path>]',
+  '       cutover-cli release-record --descriptor <descriptor.json>',
 ].join('\n');
 
 function required(args: readonly string[], name: string): string {
@@ -96,6 +99,25 @@ export async function main(args: readonly string[]): Promise<string> {
       `PUNI_SQLITE_REPORT ${readFileSync(required(args, '--export-report'), 'utf8')}`,
     );
     return JSON.stringify(restoreJob(required(args, '--image'), report), null, 2);
+  }
+  if (command === 'release-manifests' || command === 'release-record') {
+    const descriptor = parseDescriptor(
+      JSON.parse(readFileSync(required(args, '--descriptor'), 'utf8')) as unknown,
+    );
+    const identity = releaseIdentityOf(descriptor);
+    if (command === 'release-record') return JSON.stringify(releaseRecord(identity), null, 2);
+    const environment = required(args, '--environment');
+    if (environment !== 'staging' && environment !== 'prod') {
+      throw new Error(`--environment must be staging or prod, got ${environment}`);
+    }
+    const kubectlIndex = args.indexOf('--kubectl');
+    return renderOverlay(
+      {
+        kubectl: kubectlIndex === -1 ? 'kubectl' : required(args, '--kubectl'),
+        overlay: resolve(import.meta.dir, '../../../../deploy/k8s/wbs/overlays', environment),
+      },
+      identity,
+    );
   }
   if (command === 'verify-restore') {
     const exported = parseSqliteReport(

@@ -53,7 +53,8 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
 → suspend WBS Flux unit
 → close writes → drain gateway → stop backend, prove no writer
 → capture migrations + VACUUM INTO snapshot (integrity_check, sha256) → migration Job
-→ backend ready → gateway/frontend/MCP ready → smoke Job → persist release record
+→ backend ready → gateway/frontend/MCP ready → smoke Job
+→ publish desired deploy revision (Flux) + persist release record
 → reopen writes → reconcile desired revision → resume Flux → release Lease
 ```
 
@@ -108,28 +109,37 @@ solver runtime has been transferred to another node.
 ## Release descriptor and promotion
 
 A release descriptor is the immutable unit staging proves and production promotes. It holds the
-source SHA, one digest-pinned image per tier (be/gw/fe from Dagger's
-`dist/tool-dagger/release.json` in the self-hosted registry, MCP from its own publish), the `ci`
-run whose `gate` and `pixels` jobs passed on that SHA, and the P5 package and activation
-identities. `sealDescriptor` joins every tier digest to the trusted `admission.json` through
-`requireDeploymentAdmission` (`@tools/bureaucrat-consumer`); a launcher report, an admission for
-another commit, a tag instead of a digest, or a failed gate or browser job seals nothing. Its
-identity is the SHA-256 of its canonical JSON.
+source SHA, one digest-pinned image per tier, the `ci` run whose `gate` and `pixels` jobs passed
+on that SHA, and the P5 package and activation identities. The staging candidate is Dagger's
+`dist/tool-dagger/release.json` (`be`, `gw`, `fe`) plus an `mcp` entry of the same shape; every
+entry's `sha` must equal the source. Dagger labels each image `WBS_SHA`, and `descriptor-cli`
+(staging seal, prod re-check) and `deploy:k3s` read that label by digest from the registry and
+require the source commit, so the digests themselves, not a claim about them, are bound to the
+commit admission certified. The gate run must be a push to `main`, and the source must be on
+`origin/main`'s history. `sealDescriptor` joins every tier digest to the trusted `admission.json`
+through `requireDeploymentAdmission` (`@tools/bureaucrat-consumer`); a launcher report, an
+admission for another commit, a tag instead of a digest, or a failed gate or browser job seals
+nothing. Its identity is the SHA-256 of its canonical JSON.
 
 `deploy:k3s --descriptor` then:
 
 - re-admits: the admission record from this run must name the descriptor's exact package and
   activation, so an activation changed since staging blocks production;
 - for prod, requires `<state>/staging/proofs/<sha256>.json`, written only when a staging
-  promotion of the same descriptor reached `lease-released`, with identical digests per tier;
-  production never rebuilds;
+  promotion of the same descriptor reached `lease-released`, with identical digests per tier,
+  at most `--max-proof-age-days` (14) old; production never rebuilds, and refuses a source that
+  is an ancestor of the running one unless `--allow-downgrade`;
 - refuses a state directory that is relative, missing, not owner-only (0700) or owned by
   another user; journals, generated requests, descriptors and staging proofs live there;
 - reads the cluster UID and current release record, prepares (without pushing) a
   deploy-repository commit pinning the release, and builds the request; a resumed journal
   reuses the request it recorded and refuses a different cluster or admission;
-- pushes that commit only in `reconcile-desired`, only while the WBS Flux unit reports
-  suspended, and only from `flux.previousRevision` (a branch moved by someone else is refused).
+- keeps the prepared commit at `refs/wbs/desired/<release>` and pushes it in `persist-release`,
+  before writes reopen, only while the WBS Flux unit reports suspended, and only from
+  `flux.previousRevision` (a branch moved by someone else is refused); a failed push rolls back
+  or ends `flux-revert-required`, never `recovery-required`;
+- `--recovers <release id>` (dispatch input `recovers`) turns the run into the recovery
+  request for a `recovery-required` release.
 
 ## CI/CD
 
@@ -144,15 +154,28 @@ and `apply` (default false, which plans):
 | ----------- | -------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
 | `resolve`   | `ubuntu-latest`            | `GITHUB_TOKEN` read                        | refuses any ref but main; names the source (prod: the staging run's descriptor)        |
 | `admission` | `ubuntu-latest`            | none                                       | base-owned package bootstrap, then candidate checkout, `admit.sh`; uploads `admission` |
-| `describe`  | `ubuntu-latest`            | `GITHUB_TOKEN` read                        | main's code seals (staging) or re-checks (prod) against the `ci` run; uploads it       |
+| `describe`  | `ubuntu-latest`            | `GITHUB_TOKEN` read, `REGISTRY_READ_AUTH`  | main's code seals (staging) or re-checks (prod) against the `ci` run; uploads it       |
 | `deploy`    | `self-hosted, puni-deploy` | environment secrets, protected environment | main's code only; `deploy:k3s --descriptor`, journal in `vars.PUNI_DEPLOY_STATE`       |
 
 Candidate code runs only in `admission`, on an ephemeral runner, after the trusted package is
-installed. The admission route must be `installed-package`; the `archive-launcher` route
-writes no `admission.json` and is refused. Environment setup outside Git: `staging` and `prod`
-environments with required reviewers and deployment branch `main`; secrets `KUBECONFIG_B64`,
-`DEPLOY_REPO_SSH_KEY`; variables `PUNI_DEPLOY_STATE` (the persistent 0700 directory on the
-runner), `PUNI_DEPLOY_REPO_URL`, `PUNI_CLUSTER_UID`, `PUNI_KUBECTL` (the locked kubectl).
+installed, with main's `.bun-version`. The admission route must be `installed-package`; the
+`archive-launcher` route writes no `admission.json` and is refused.
+
+Setup outside Git, all required:
+
+- GitHub environments `staging` and `prod`: required reviewers, deployment branch `main`.
+  Environment secrets `KUBECONFIG_B64`, `DEPLOY_REPO_SSH_KEY`, `REGISTRY_READ_AUTH`
+  (`user:password`, read-only); variables `PUNI_DEPLOY_STATE` (the persistent 0700 directory on
+  the runner), `PUNI_DEPLOY_REPO_URL`, `PUNI_DEPLOY_REPO_KNOWN_HOSTS` (the deploy host's pinned
+  `known_hosts` lines), `PUNI_CLUSTER_UID`, `PUNI_KUBECTL` (the locked kubectl). Repository
+  secret `REGISTRY_READ_AUTH` for `describe`.
+- The `puni-deploy` runner in its own runner group, restricted to this repository and to the
+  workflow `.github/workflows/deploy-k3s.yml@refs/heads/main` (runner group "selected
+  workflows"). Because any workflow file can name the runner's labels, the runner also installs
+  the checked-in hook: in the runner's `.env`, set
+  `ACTIONS_RUNNER_HOOK_JOB_STARTED=<absolute path>/infra/ci/deploy-runner/job-started.sh` from a
+  root-owned copy of `main`, and `PUNI_DEPLOY_REPOSITORY=<owner>/<repo>`. The hook fails every
+  job whose `GITHUB_WORKFLOW_REF` is not `<owner>/<repo>/.github/workflows/deploy-k3s.yml@refs/heads/main`.
 
 ## What is and is not proven
 

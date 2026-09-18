@@ -61,7 +61,8 @@
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
         "{workspaceRoot}/.github/workflows/infra-check.yml",
-        "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts"
+        "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts",
+        "{workspaceRoot}/infra/ci/deploy-runner/**/*"
       ],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts",

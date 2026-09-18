@@ -1519,16 +1519,7 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
       settings.log(logs.trim());
     },
     async persistRelease(identity) {
-      const record = {
-        apiVersion: 'v1',
-        kind: 'ConfigMap',
-        metadata: { name: OBJECTS.releaseRecord, namespace: backend },
-        data: {
-          releaseId: releaseIdOf(identity),
-          sourceSha: identity.sourceSha,
-          images: JSON.stringify(identity.images),
-        },
-      };
+      const record = releaseRecord(identity, backend);
       await kubectl(['apply', '-f', '-'], JSON.stringify(record));
     },
     async publishDesired(request) {
@@ -1639,4 +1630,24 @@ export async function publishRevision(
   if (pushed.exitCode !== 0) {
     throw new Error(`publishing ${desired} failed: ${pushed.stderr.trim()}`);
   }
+}
+
+/**
+ * The `wbs-release` ConfigMap `persistRelease` writes: what later releases take as the running
+ * release, and whose `sourceSha` the backup CronJob records. The cutover writes it once by hand.
+ */
+export function releaseRecord(
+  identity: ReleaseIdentity,
+  namespace = 'wbs-solver',
+): Record<string, unknown> {
+  return {
+    apiVersion: 'v1',
+    kind: 'ConfigMap',
+    metadata: { name: OBJECTS.releaseRecord, namespace },
+    data: {
+      releaseId: releaseIdOf(identity),
+      sourceSha: identity.sourceSha,
+      images: JSON.stringify(identity.images),
+    },
+  };
 }
