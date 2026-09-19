@@ -123,11 +123,48 @@ describe('durable dev poller', () => {
     expect(poller).toContain('read_served_commit');
     expect(poller).toContain('if [ "${served:-}" != "$remote_sha" ]');
     expect(poller).toContain('LAST_SYNCED="$STATE/last-synced"');
+    expect(poller).toContain('git remote get-url origin');
     const loader = await readFile(
       new URL('../../../bin/dev-poll-sync.sh', import.meta.url),
       'utf8',
     );
     expect(loader).toContain('"${SYNC_ARGS[@]}"');
+  });
+
+  it('refuses an unexpected origin before fetching', async () => {
+    const root = await scratchAsync('wbs-dev-poller-origin-');
+    const source = join(root, 'src');
+    const state = join(root, 'state');
+    const installed = join(root, 'bin');
+    const commands = join(root, 'commands');
+    const observations = join(root, 'observations');
+    await mkdir(source, { recursive: true });
+    await mkdir(state, { recursive: true });
+    await mkdir(installed, { recursive: true });
+    await mkdir(commands, { recursive: true });
+    await writeFile(join(installed, 'bun-version'), '1.3.14\n');
+    await writeFile(
+      join(commands, 'git'),
+      `#!/usr/bin/env bash
+if [ "$1" = remote ]; then printf '%s\\n' 'https://github.com/Prosperous-Unification/wbs-tool-v1.git'; exit 0; fi
+printf 'fetch-reached\\n' >> "$OBSERVATIONS"
+`,
+    );
+    await chmod(join(commands, 'git'), 0o755);
+
+    const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
+    const result = await command(['bash', script], {
+      PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+      WBS_DEV_SRC: source,
+      WBS_DEV_BIN: installed,
+      WBS_DEV_BUN_VERSION_FILE: join(installed, 'bun-version'),
+      WBS_DEV_STATE: state,
+      WBS_DEV_LOG: join(root, 'deploy.log'),
+      OBSERVATIONS: observations,
+    });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain('expected https://github.com/Prosperous-Unification/puni-00.git');
+    expect(await Bun.file(observations).exists()).toBe(false);
   });
 
   // Proof: dropping the HTTP-status check makes the 503-with-commit case pass wrongly.
@@ -192,6 +229,7 @@ describe('durable dev poller', () => {
       `#!/usr/bin/env bash
 set -eu
 case "$1" in
+  remote) printf '%s\\n' "$EXPECTED_ORIGIN" ;;
   fetch) exit 0 ;;
   rev-parse)
     if [ "$2" = HEAD ]; then cat "$HEAD_FILE"; else cat "$REMOTE_FILE"; fi ;;
@@ -235,6 +273,8 @@ fi
       WBS_DEV_LOG: log,
       WBS_DEV_PROOF_RETRY_SECONDS: '0',
       WBS_DEV_REHEARSAL: '1',
+      WBS_DEV_EXPECTED_ORIGIN: 'https://example.invalid/puni-00.git',
+      EXPECTED_ORIGIN: 'https://example.invalid/puni-00.git',
       HEAD_FILE: headFile,
       REMOTE_FILE: remoteFile,
       REMOTE_SHA: targetSha,
@@ -283,6 +323,7 @@ fi
       `#!/usr/bin/env bash
 set -eu
 case "$1" in
+  remote) printf '%s\\n' "$EXPECTED_ORIGIN" ;;
   fetch) exit 0 ;;
   rev-parse)
     if [ "$2" = HEAD ]; then cat "$HEAD_FILE"; else printf '%s\\n' "$REMOTE_SHA"; fi ;;
@@ -321,6 +362,8 @@ esac
       WBS_DEV_LOG: join(root, 'deploy.log'),
       WBS_DEV_PROOF_RETRY_SECONDS: '0',
       WBS_DEV_REHEARSAL: '1',
+      WBS_DEV_EXPECTED_ORIGIN: 'https://example.invalid/puni-00.git',
+      EXPECTED_ORIGIN: 'https://example.invalid/puni-00.git',
       HEAD_FILE: headFile,
       LOADER_COUNT: loaderCount,
       REMOTE_SHA: targetSha,

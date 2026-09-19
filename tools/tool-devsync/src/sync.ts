@@ -76,6 +76,15 @@ function canonicalPath(path: string): string {
 /** Resolves deploy inputs and fences every rehearsal away from live dev. */
 export function devSyncPathsOf(options: Partial<DevSyncPaths> = {}): DevSyncPaths {
   const rehearsal = options.rehearsal ?? false;
+  const supplied = [options.sourcePath, options.containerName, options.statePath].filter(
+    (value) => value !== undefined,
+  ).length;
+  if (supplied !== 0 && supplied !== 3) {
+    throw new Error('custom dev sync inputs require source, container and state together');
+  }
+  if (supplied === 3 && !rehearsal) {
+    throw new Error('custom dev sync inputs require rehearsal mode');
+  }
   const sourcePath = canonicalPath(options.sourcePath ?? LIVE_DEV_SOURCE);
   const statePath = canonicalPath(options.statePath ?? LIVE_DEV_STATE);
   const containerName = options.containerName ?? LIVE_DEV_CONTAINER;

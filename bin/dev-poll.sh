@@ -11,6 +11,7 @@ CONTAINER=${WBS_DEV_CONTAINER:-wbs-dev-src}
 LOG=${WBS_DEV_LOG:-/home/puni1/wbs-dev/logs/deploy.log}
 STATE=${WBS_DEV_STATE:-/home/puni1/wbs-dev/state}
 REHEARSAL=${WBS_DEV_REHEARSAL:-0}
+EXPECTED_ORIGIN=${WBS_DEV_EXPECTED_ORIGIN:-https://github.com/Prosperous-Unification/puni-00.git}
 LOCK="$STATE/poll.lock"
 LAST_PROVEN="$STATE/last-proven"
 LAST_SYNCED="$STATE/last-synced"
@@ -31,7 +32,7 @@ read_served_commit() {
 }
 
 poll_main() {
-  local BUN_VERSION local_sha remote_sha last_proven last_synced served attempt proven_tmp synced_tmp
+  local BUN_VERSION actual_origin local_sha remote_sha last_proven last_synced served attempt proven_tmp synced_tmp
   local -a sync_args
   if ! read -r BUN_VERSION < "$BUN_VERSION_FILE"; then
     echo "refusing: missing managed Bun version file at $BUN_VERSION_FILE; reinstall the poller pair per docs/runbook-dev-deploy.md" >&2
@@ -45,6 +46,11 @@ poll_main() {
   flock -n 9 || return 0
 
   cd "$SRC"
+  actual_origin=$(git remote get-url origin)
+  if [ "$actual_origin" != "$EXPECTED_ORIGIN" ]; then
+    echo "refusing: origin is $actual_origin; expected $EXPECTED_ORIGIN" >&2
+    return 1
+  fi
   git fetch -q origin main
   local_sha=$(git rev-parse HEAD)
   remote_sha=$(git rev-parse refs/remotes/origin/main)

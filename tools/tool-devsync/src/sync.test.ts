@@ -680,6 +680,16 @@ describe('dev-sync rehearsal inputs', () => {
   });
 
   it('requires all three custom inputs and forwards only a fully fenced rehearsal', () => {
+    expect(() => devSyncPathsOf({ sourcePath: '/tmp/source', rehearsal: true })).toThrow(
+      'source, container and state together',
+    );
+    expect(() =>
+      devSyncPathsOf({
+        sourcePath: '/tmp/source',
+        containerName: 'scratch-dev',
+        statePath: '/tmp/state',
+      }),
+    ).toThrow('require rehearsal mode');
     expect(() =>
       parseDevSyncInvocation(['a'.repeat(40), '--source', '/tmp/source', '--rehearsal']),
     ).toThrow('source, container and state together');

@@ -15,7 +15,7 @@
 
 ## 3. Cut over (attended)
 
-- [ ] 3.1 On h2puni: back up the crontab and record the current remote; `git -C /home/puni1/wbs-dev/src remote set-url origin https://github.com/Prosperous-Unification/puni-00.git`; fetch. The next tick deploys puni-00 `main` through the new `bin/dev-poll.sh` and proves it. Rollback: restore the old remote URL; the poller resumes from wbs-tool-v1.
+- [ ] 3.1 On h2puni: back up the crontab and record the current remote; stage the new `bin/dev-poll.sh` beside `/home/puni1/wbs-dev/bin/poll.sh`, then take `state/poll.lock` and atomically install it so the external poller cannot be reset with the checkout; `git -C /home/puni1/wbs-dev/src remote set-url origin https://github.com/Prosperous-Unification/puni-00.git`; fetch. The next tick deploys puni-00 `main` through the installed poller and proves it. Rollback: restore the old poller and remote URL; the poller resumes from wbs-tool-v1.
 - [x] 3.2 `LLM_README.md` deploy section names puni-00.
 
 ## 4. Close
