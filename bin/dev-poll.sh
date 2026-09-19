@@ -88,7 +88,7 @@ poll_main() {
       set +e
       git show "$remote_sha:bin/dev-poll-sync.sh" |
         bash -s -- "$SRC" "$BIN" "$BUN" "$remote_sha" "$BUN_VERSION" "${sync_args[@]}"
-      sync_rc=${PIPESTATUS[1]}
+      sync_rc=$?
       set -e
       if [ "$sync_rc" -ne 0 ]; then
         if [ "$(git rev-parse HEAD)" = "$remote_sha" ] &&
