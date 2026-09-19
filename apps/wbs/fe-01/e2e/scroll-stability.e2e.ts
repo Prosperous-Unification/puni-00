@@ -104,12 +104,11 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
   for (;;) {
     const chunk = await session.send('IO.read', { handle: stream });
     raw += chunk.data;
-    if (chunk.eof === true) break;
+    if (chunk.eof) break;
   }
   await session.send('IO.close', { handle: stream });
-  const events = (
-    JSON.parse(raw) as { traceEvents?: { name?: string; dur?: number }[] }
-  ).traceEvents ?? [];
+  const events =
+    (JSON.parse(raw) as { traceEvents?: { name?: string; dur?: number }[] }).traceEvents ?? [];
   const durationMs = (name: string) =>
     events
       .filter((event) => event.name === name)
