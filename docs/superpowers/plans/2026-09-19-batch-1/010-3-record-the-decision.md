@@ -576,16 +576,13 @@ Everything outside the thirteen paths of section 5. In particular:
 | `docs/superpowers/specs/` and `docs/superpowers/plans/`  | The source designs are read, never corrected here. A defect in one is reported.      |
 | `docs/superpowers/plans/2026-09-19-batch-1/README.md`    | The ownership table is the planner's.                                                |
 
-## 13. How to run this packet: one session, two checkpoints
+## 13. Dispatch boundary
 
-The second review found no mandatory split: thirteen documentation files and no compiled code. But two places are worth a planner's eyes before the next stretch is written, because everything after them is copied from what they settle.
+Dispatch this documentation packet as one slice named `whole`. Execute Steps 0–10, format with Step 11, run both negative proofs in section 8, and run the executor checks in section 10. Append the observed evidence to both verification records, format the owned files again, and rerun the format check and strict validation before Step 12.
 
-| Checkpoint | After   | What the planner reads before saying go on                                                                                                                                              |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A          | Step 5  | The ADR, the six glossary edits and the service-taxonomy delta spec — above all the inventory integrity requirement, because packet 020.8 stops without it, and the K2 type-only split. |
-| B          | Step 12 | Both proofs with their saved patches and failing output, the count against B, and the pending list.                                                                                     |
+Step 12 is the sole checkpoint: stop and report for planner review and commit. There is no intermediate checkpoint after Step 5.
 
-If the session runs out of room, checkpoint A is the cut: `service-taxonomy` complete and handed over, `test-axes` as a second slice from the reviewed predecessor. Wave 2's 020.8 depends only on the first.
+If execution ends early, report PARTIAL with the missing artifacts, proofs and checks identified. Do not describe `service-taxonomy` as complete or ready for packet 020.8 until its artifacts and proof have been reviewed and committed.
 
 ## Review disposition
 
@@ -636,3 +633,7 @@ All eleven findings were correct and all eleven were fixed in revision 2. The se
 - **The anchored `-t` filter.** The hazard is real in general and does not bite here: `tools/tool-devsync/src/adr-index.test.ts` has no `describe`, so the joined name is the bare title. Observed on Bun 1.4.2: the anchored pattern printed `1 pass`, `0 fail`, `Ran 1 test across 1 file` and exited 0, and a deliberately wrong pattern printed `error: regex "^no such test$" matched 0 tests` and exited **1**. Section 10 now states the expected count, and `matched 0 tests` is stop condition 2 rather than something the exit status is trusted to catch.
 - **`OPENSPEC_TELEMETRY=0` on every invocation.** Done, on all ten. The telemetry host and the opt-out precedence are recorded in section 3 from the package's own source.
 - **The launcher pre-installs OpenSpec into the attempt root.** Adopted: `--offline` and the pinned temporary directory are gone, and so is any fallback branch. What replaces them is a cheap Step 0 check of the pre-install's `package.json`, because a half-finished pre-install fails in a way that repeats and worsens. The correction to revision 3's claim is written out above, under the second review.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES
+
+One blocking finding, correct, applied by the planner by hand: section 13 offered a checkpoint after Step 5 that the launcher cannot honour (one named slice per attempt, stdin closed) and called `service-taxonomy` complete before its design, tasks, verification record and negative proof existed. Section 13 is now the reviewer's replacement text: one slice, one checkpoint at Step 12.

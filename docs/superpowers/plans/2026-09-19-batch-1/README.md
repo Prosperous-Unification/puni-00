@@ -210,4 +210,6 @@ Expected: the second command prints one line. If it prints nothing, stop.
 
 **Negative proofs with a restore.** Before injecting a fault into a tracked file, copy the passing version aside. After observing the failure, restore the exact bytes and compare them with the copy, then rerun the passing check. Clean up before reporting an unexpected result.
 
+**Saving a mutation patch.** `diff` exits 1 when the files differ, which is exactly what an injected fault must produce, so under `set -e` a bare `diff` stops the shell and `|| true` hides a real error. Accept exactly status 1: `if diff -u passing mutated >"$TMPDIR/evidence/name.patch"; then echo "nothing was injected" >&2; exit 1; else test $? -eq 1; fi`. Status 0 voids the proof; any other status is an evidence failure. Wherever a packet shows a bare `diff` or `diff ... || true` for a patch, use this form instead. Likewise never read a test's status through `tee`: redirect its output to the evidence file and capture its own exit status.
+
 **Expected results.** Every command in a packet states what success looks like: the exit status and the line or count to look for.

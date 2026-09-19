@@ -28,24 +28,25 @@ registry, one test file and one verification record.
 directory is read-only (executor preamble rule 1). So each part ends by leaving its changes in the
 working tree and reporting the "ready to commit" file list and commit subject printed at the end of
 that part. The planner reviews, commits, and only then dispatches the next part, which starts from
-that committed predecessor. An executor who finds a later part's file already present, or a
-predecessor's file absent, stops and reports.
+that committed predecessor. Stop if a file scheduled to be created by a later part already exists. This condition excludes
+existing files scheduled only for modification. Required predecessor artifacts must be present.
 
 **Rules that override anything below** (executor preamble):
 
 - Never change the clone's Git state: no `add`, no `commit`, no branch, no `stash`, no `restore`.
   `git status`, `diff`, `log`, `grep`, `ls-files`, `show` are fine. Git operations **inside the
-  temporary fixture repositories these tests create under the task's own `/tmp` directory are
+  temporary fixture repositories these tests create under the task's own temporary directory are
   required** by the tests and are not the clone's state.
-- Restore a mutated tracked file by copying a pre-mutation copy back from the task's `/tmp`
+- Restore a mutated tracked file by copying a pre-mutation copy back from the task's temporary
   directory and confirming with `cmp`. Never `git checkout` or `git restore`.
 - Prefix every Nx command with `NX_DAEMON=false`. dconf warnings are harmless.
 - Before any command that may fetch a tool, export
   `BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`. A tool that cannot be fetched blocks the task:
   stop and report.
-- All repository paths in this packet are relative to **your** clone. At the start of each part run
-  `repo_root=$(pwd -P)` and `task_tmp=$(mktemp -d /tmp/rule-model-XXXXXX)`. Never change directory
-  into another checkout. Run directory-changing commands in a subshell, as written below.
+- All repository paths in this packet are relative to **your** clone. Use the preparation block for
+  the dispatched part. Keep the launcher-provided `TMPDIR` unchanged. All scratch files and backups
+  belong beneath it; mutation patches and failing output belong in `$TMPDIR/evidence`. Never change
+  directory into another checkout. Run directory-changing commands in a subshell, as written below.
 - Verification is split (preamble rule 4a). You run the focused tests this packet names, the type
   check, lint, the build, the format check and OpenSpec validation. The planner runs anything that
   needs staged files or Git writes into the clone. The host gate cannot run here: report it as not
@@ -996,8 +997,17 @@ extractor read that declaration, which is how part 3 produces a real unresolved 
 
 ### 1.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d /tmp/rule-model-XXXXXX)`;
-      `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`. Expected: both paths print.
+- [ ] Run:
+
+  ```sh
+  repo_root=$(pwd -P)
+  task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")
+  export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"
+  printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
+  ```
+
+  Expected: both paths print, and `task_tmp` is beneath the launcher's `TMPDIR`.
+
 - [ ] Confirm the starting point: `git -C "$repo_root" status --porcelain` shows no file from this
       packet's file plan. Expected: none present. If any is, stop and report.
 
@@ -1137,7 +1147,9 @@ Then stop and hand over. Do not start part 2.
 
 ### 1.8 Part 1 stop conditions
 
-1. Any file from parts 2 to 4 already exists, or a file this part must create already exists.
+1. A file this part must create already exists, or `apps/wiki/cli/src/rules/rule-policy.ts`, which
+   Part 2 creates, already exists. Existing files scheduled for modification in later parts are
+   expected.
 2. The `readBlob` extraction changes any existing test's result.
 3. `lint:source` reports something that cannot be fixed without a suppression.
 4. The OpenSpec validation block fails and the cause is not in this change's own artifacts.
@@ -1152,7 +1164,7 @@ Starts from the committed part 1.
 
 ### 2.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d /tmp/rule-model-XXXXXX)`;
+- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`;
       `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`.
 - [ ] Confirm part 1 landed: apps/wiki/cli/src/rules/rule.ts, registry.ts, check.ts and
       rules.test.ts exist, and `explain MOD-INDEX` prints its record:
@@ -1669,7 +1681,7 @@ Starts from the committed part 2. Every remaining mutation finishes here.
 
 ### 3.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d /tmp/rule-model-XXXXXX)`;
+- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`;
       `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`.
 - [ ] Confirm part 2 landed by running the focused command of section 1.5. Expected: 12 pass.
 
@@ -1919,7 +1931,7 @@ Starts from the committed part 3.
 
 ### 4.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d /tmp/rule-model-XXXXXX)`;
+- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`;
       `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`.
 - [ ] Confirm part 3 landed by running the focused command of section 1.5. Expected: 17 pass.
 
@@ -2237,3 +2249,7 @@ Two limits of this revision, stated rather than hidden:
 - **The `twilight-bureaucrat:test` target was not run.** The executor sandbox cannot run whole
   targets that write Git objects into the clone (preamble rule 4a); each part names the focused
   suites it runs instead, and the target is listed for planner verification.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES, part 1 only
+
+Both blocking findings were correct and the planner applied the reviewer's text by hand. Every preparation block now creates its scratch directory beneath the launcher's `TMPDIR` instead of directly under `/tmp`, and prints the two paths it promised to print. The stop condition "any file from parts 2 to 4 already exists" was true on the baseline, because later parts modify files that exist today; it now names only files a part must create. Notes about parts 2 to 4 are carried to those parts' own dispatch reviews.
