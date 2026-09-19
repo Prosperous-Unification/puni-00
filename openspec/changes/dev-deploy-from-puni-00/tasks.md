@@ -1,18 +1,23 @@
-## 1. Diagnose the unreadable health check
+## 0. Before implementation
 
-- [ ] 1.1 On h2puni, read what `docker exec wbs-dev-src curl -s http://127.0.0.1:3100/health` returns today (path, port, body shape) and why `read_served_commit`'s `"commit":"…"` pattern misses. Record the answer in `verify.md`.
-- [ ] 1.2 Test for `bin/dev-poll-sync.sh`'s served-commit reader against a fixture of the real body, plus unreadable and mismatched bodies. Fix the reader; make unreadable a non-zero exit. Negative with `Proof:`: restore the log-only branch and watch the exit-code assertion fail.
+- [ ] 0.1 Add **Checkout commit** to `CONTEXT.md`.
 
-## 2. Make puni-00's loader carry puni-00
+## 1. Diagnose and fix the proof (in `bin/dev-poll.sh`)
 
-- [ ] 2.1 Dry-run `bin/dev-poll-sync.sh` from a puni-00 tree into a scratch source directory on h2puni (never the live one): install and serve succeed with `apps/wiki` and Twilight tooling present. Fix anything the extra projects break.
+- [ ] 1.1 On h2puni, record what `docker exec wbs-dev-src curl -s -w '%{http_code}' http://127.0.0.1:3100/health` returns today and why `read_served_commit` yields nothing. Record in `verify.md`.
+- [ ] 1.2 Make the reader require HTTP 200, `status:"ok"`, one exact 40-hex `commit`. Tests execute the real `bin/dev-poll.sh` function against fixture bodies: ok, 503-with-commit, malformed, short SHA, mismatched. Negative with `Proof:`: drop the status check; the 503 fixture must pass wrongly and the test catch it.
+- [ ] 1.3 Durable `state/last-proven`; skip only when `HEAD == origin/main == last-proven`. Test drives two ticks through the real script with a stub fetch/sync/health: unreadable then matching. Negative: restore the early exit; the second tick must fail to prove.
 
-## 3. Cut over
+## 2. Isolate the deployer
 
-- [ ] 3.1 Commit the new host `poll.sh` text under `ops/h2puni/wbs-dev-poll.sh` with the source URL as a variable, reviewed with the rest of this change.
-- [ ] 3.2 Attended, on h2puni: back up `poll.sh` and crontab; `git -C /home/puni1/wbs-dev/src remote set-url origin https://github.com/Prosperous-Unification/puni-00.git`; fetch; install the new `poll.sh`. Next tick deploys puni-00 `main`; confirm health reports it. Rollback: restore both backups and the old remote URL.
-- [ ] 3.3 Update `LLM_README.md` (deploy section) and prod runbooks/`tool-deploy` defaults to name puni-00.
+- [ ] 2.1 `sync.ts`: source, container and state paths become arguments (defaults unchanged for the live poller); refuse a rehearsal whose paths resolve to live ones. Negative test per refusal with `Proof:`.
+- [ ] 2.2 Rehearse on h2puni from a puni-00 tree into a scratch source/container/state set: install and serve succeed with `apps/wiki` and Twilight tooling present. Fix anything they break.
+
+## 3. Cut over (attended)
+
+- [ ] 3.1 On h2puni: back up the crontab and record the current remote; `git -C /home/puni1/wbs-dev/src remote set-url origin https://github.com/Prosperous-Unification/puni-00.git`; fetch. The next tick deploys puni-00 `main` through the new `bin/dev-poll.sh` and proves it. Rollback: restore the old remote URL; the poller resumes from wbs-tool-v1.
+- [ ] 3.2 `LLM_README.md` deploy section names puni-00.
 
 ## 4. Close
 
-- [ ] 4.1 Merge one trivial puni-00 commit and watch dev serve it within two ticks; record timestamps in `verify.md`.
+- [ ] 4.1 Merge one trivial puni-00 commit; record fetch, reset and proof timestamps in `verify.md`.

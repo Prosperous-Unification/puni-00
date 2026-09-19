@@ -1,27 +1,21 @@
-## 1. Reproduce and attribute (no fix before this)
+## 0. Before implementation
 
-- [ ] 1.1 Add an e2e fixture that seeds plans of 50, 500 and 2,000 rows (every fifth name wraps) through the real API.
-- [ ] 1.2 Add `scroll-stability.e2e.ts` to the `pixels` job: scripted constant-rate wheel scroll down then up; per-frame samples of renderer first-visible row, panel first-visible row, and `scrollTop` of both faces; a performance trace for long tasks and frame intervals. Record the three sizes on current `main` in `verify.md`. Expect the stability and budget assertions to fail at 2,000 rows; if they do not, stop and report back, because the jitter is then elsewhere (browser, device, dev-mode React).
-- [ ] 1.3 Attribute: count `recordHeight` calls, React commits per frame (Profiler), `placeRows` time, anchor writes and scroll-link writes per frame from the same trace. Rank causes 1–4 from `proposal.md` by measured share. Tasks 2–5 run in that order, and any cause measured under 5% of frame time is dropped with its number recorded.
+- [ ] 0.1 Add **First visible row** to `CONTEXT.md`.
 
-## 2. Height readings: batched, prefix-summed
+## 1. Reproduce and attribute (blocking; lands and is reviewed alone)
 
-- [ ] 2.1 Unit: 2,000 rows, 40 rows measured in one frame produce one `setHeights` and one commit. Fails today. Batch `attachRow`/`ResizeObserver` readings into one rAF flush.
-- [ ] 2.2 Replace the per-reading `slice().reduce()` with a prefix-sum (Fenwick) index; anchor delta computed from it. Keep the "measured row above the viewport leaves the visible row anchored" proof green; add a negative (drop the delta) with a `Proof:`.
+- [ ] 1.1 e2e fixture seeding 50, 500 and 2,000-row plans through the real API, every fifth name wrapping.
+- [ ] 1.2 `scroll-stability.e2e.ts` in the `pixels` job: 1280×800, equal wheel steps for a fixed duration down then up (same duration at every size), per-frame first visible row of both faces from laid-out rects, and assertions that wrapped rows measure two lines. The stability and pairing assertions are expected to fail on current `main` at 2,000 rows. If they pass at every size, stop and report back to Dany with the recording: the jitter is elsewhere (browser, device, dev-mode React).
+- [ ] 1.3 Attribution from five repeated traces per size: `recordHeight` calls, React commits per frame (Profiler), `placeRows` time, anchor writes and scroll-link writes per frame, Gantt layout/paint share. Numbers go in `verify.md`. Rewrite section 2 from them, dropping any cause below 5% of frame time with its number, and send the rewritten tasks through one plan review before coding.
 
-## 3. One layout pass per frame
+## 2. Fixes (provisional order; replaced by 1.3)
 
-- [ ] 3.1 Compute `placeRows` once per heights/rowIds change and derive both `rows` and `rowLayout` from it; window by binary search. Unit test on call counts. Keep the "broad Find renders no more than…" budget proof.
+- [ ] 2.1 Batch height readings into one rAF flush; prefix-sum (Fenwick) offsets. Deterministic test: 40 readings → one commit, no full scan (spied). Keep the anchored-row proof; negative: per-reading commit restored, the commit-count test fails.
+- [ ] 2.2 One `placeRows` per heights/rowIds change, windowing by binary search; call-count test; keep the render-budget proof.
+- [ ] 2.3 After a renderer correction, realign the panel by the first visible row's id plus its within-row fraction, not by the renderer's pixel delta. Negative: apply the raw delta to the panel; the pairing scenario must fail.
+- [ ] 2.4 If 1.3 attributes the Gantt panel: file a separate `gantt-panel-windowing` change covering global indices, spacers, hidden labels, pinned focus/open rows and crossing links. No Gantt windowing in this change.
 
-## 4. Move both faces together
+## 3. Close
 
-- [ ] 4.1 When the anchor correction writes the renderer's `scrollTop`, apply the same delta to the Gantt panel in the same frame and mark both as echoes in `plan-scroll-link.ts`. e2e: the panel-matches-renderer scenario. Negative: remove the panel delta; the scenario must fail.
-
-## 5. Window the Gantt panel
-
-- [ ] 5.1 Window panel rows from the renderer's `rowLayout` (same ids, same offsets) with top/bottom spacers. Keep `gantt-panel.test.tsx`'s pairing invariants; add the mounted-row-count scenario.
-
-## 6. Close
-
-- [ ] 6.1 Re-run 1.2 at all three sizes; every spec scenario green; before/after numbers in `verify.md`.
-- [ ] 6.2 Gate with `bin/h2puni-gate.sh <sha>`; dev check by Dany on his own large plan.
+- [ ] 3.1 Re-run 1.2 and 1.3 at all three sizes; stability and pairing green; before/after numbers in `verify.md`.
+- [ ] 3.2 Gate with `bin/h2puni-gate.sh <sha>`; Dany checks his own large plan on dev.

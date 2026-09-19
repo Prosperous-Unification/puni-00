@@ -1,65 +1,64 @@
 ## Why
 
-An MCP caller whose authorization has failed stays "signed in" and stuck. Two
-paths, both observed in `apps/wbs/mcp-01/src`:
+An MCP caller whose authorization has failed stays connected and stuck
+(`apps/wbs/mcp-01/src`, read at `origin/main` 1eeacb0b):
 
-1. **Failed use.** When be-01 rejects the upstream access token behind a live
-   MCP session, `wbs-client.ts` turns the 401 into an MCP tool error ("sign in
-   again and retry") inside a successful MCP response. The client never sees
-   HTTP 401, keeps its token, and every later call fails the same way.
-2. **Failed login.** A callback that ends in `access_denied` (no `wbs:read`
-   group), an upstream error, or a failed exchange answers the browser with a
-   bare JSON body (`oauth.ts` `callback`). The MCP client is never told, and the
-   identity provider's session survives, so the retry silently reuses the same
-   refused account.
+1. **Failed use.** `caller-auth.ts` swaps the MCP token for the stored upstream
+   token and keeps no local session identity. When be-01 rejects that upstream
+   token, `wbs-client.ts` returns a tool error ("sign in again and retry") and
+   `server.ts` wraps it in a successful MCP result. The MCP session stays live,
+   so every later call fails the same way; nothing makes the client re-authorize.
+2. **Failed login.** In `oauth.ts` `callback`, a missing `wbs:read` answers the
+   browser with a bare JSON 400; exchange and upstream-verification exceptions
+   propagate as server errors. The MCP client is never told, and the provider
+   session survives, so a retry silently reuses the refused account.
 
 Dany, 2026-09-19: "unsuccessful login for MCP must automatically log you out."
 
 ## What Changes
 
-- A failed authenticated use ends the MCP session: mcp-01 deletes it (and, once
-  `mcp-token-refresh` lands, its refresh family) and answers **HTTP 401 with
-  `WWW-Authenticate: Bearer error="invalid_token"`** plus the existing
-  `resource_metadata`, so a conforming client discards its tokens and restarts
-  authorization without the user doing anything.
-- A failed login returns to the MCP client: callback failures after the client's
-  redirect URI is known redirect there with `error` (RFC 6749 §4.1.2.1) and the
-  original `state`, instead of a JSON dead end.
-- The next login after a failed one re-authenticates: the following authorize
-  for that browser sends `prompt=login` upstream. If provider discovery
-  advertises `end_session_endpoint`, the failure page also ends the provider
-  session.
+- Authentication carries the local MCP session identity (`jti`) alongside the
+  upstream token into every tool call.
+- A be-01 401 that is not the configured Basic edge challenge ends the MCP
+  session and returns a tool error saying the session ended. The MCP SDK cannot
+  turn a tool call into an HTTP 401, so the logout takes effect on the client's
+  next request, which receives `401` with `error="invalid_token"` and re-runs
+  authorization. (`mcp-token-refresh` later inserts one upstream refresh first.)
+- Failed logins return to the client: every failure after the pending
+  authorization is matched maps through one table to an RFC 6749 `error`,
+  redirects to the validated client URI with `state`, and revokes any provider
+  refresh token the refused login produced.
+- The next login after a failure re-authenticates: a separate signed,
+  short-lived marker cookie makes the next authorize send `prompt=login`.
 
 ## Non-Goals
 
-No token refresh (separate change `mcp-token-refresh`), no persistent storage,
-no change to the be-01 web login, no provider-specific logout code.
+No provider end-session (the client URI is not a provider-registered logout
+URI), no refresh, no persistence, no be-01 or fe-01 change.
 
 ## Constraints
 
-Keep `mcp-oidc-store` semantics (wrong-state callbacks never burn a live login).
-Never redirect to an unregistered URI: errors before the client and redirect URI
-are validated stay local. R5: an unreadable be-01 answer is a failure, not a
-pass.
+Keep `mcp-oidc-store` semantics. Never redirect to an unvalidated URI. R5 and
+production-path negatives for redirect safety and edge-challenge detection.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `mcp-session`: when an MCP caller's session ends and what the client is told.
+- `mcp-session`: when an MCP session ends and what the client is told.
 
 ## Domain Terms
 
-MCP session (new): the mcp-01 record behind one issued MCP access token. Add to
-`CONTEXT.md` in the design interview.
+MCP session, Reauthentication marker. Add to `CONTEXT.md` before
+implementation.
 
 ## Decisions Recorded
 
-Assumption A1 — "log you out" means both paths above; falsified if Dany meant
-only one. Assumption A2 — `prompt=login` is provider-agnostic enough; falsified
-if the production provider ignores it (then end-session becomes required).
+A1: "log you out" covers both paths. A2: the user's client re-authorizes after
+`401 invalid_token`; task 0.1 proves or falsifies this before any code.
 
 ## Impact
 
-mcp-01 `oauth.ts`, `http.ts`, `wbs-client.ts`, their tests; `CONTEXT.md`. No
-migration, no be-01 or fe-01 change. Depends on `mcp-oidc-store` landing first.
+mcp-01 `caller-auth.ts`, `http.ts`, `server.ts`, `wbs-client.ts`, `oauth.ts`;
+`libs/wbs/adapters/auth` `authorizationUrl` gains `prompt`. Depends on
+`mcp-oidc-store`.

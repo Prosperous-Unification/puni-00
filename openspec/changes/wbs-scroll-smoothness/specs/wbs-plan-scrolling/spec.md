@@ -1,42 +1,33 @@
 ## ADDED Requirements
 
-### Requirement: Scrolling a large plan keeps its rows in order under the reader
+### Requirement: Scrolling a large plan never moves rows backwards
 
-During a steady downward scroll of a plan with 2,000 rows, including rows whose names wrap, the index of the first fully visible row in the plan renderer SHALL never decrease between consecutive animation frames, and SHALL never jump by more than the rows the scroll delta covers plus one.
+With a fixed 1280×800 viewport and a 2,000-row plan in which every fifth row's name wraps to two measured lines, the first visible row of the plan renderer SHALL be non-decreasing across consecutive animation frames of a downward scroll, and non-increasing across an upward scroll. The first visible row is the lowest-index row whose bottom edge is below the renderer's top edge, computed from the rows' laid-out rectangles.
 
-#### Scenario: wheel scroll through unmeasured wrapped rows
+#### Scenario: downward scroll through unmeasured wrapped rows
 
-- **WHEN** the e2e probe scrolls a fresh 2,000-row plan (every fifth name wrapping to two lines) from top to bottom at a constant wheel rate
-- **THEN** the first visible row index is non-decreasing on every sampled frame
+- **WHEN** the probe scrolls a freshly opened plan downward in equal wheel steps for a fixed duration
+- **THEN** every sampled frame's first visible row index is greater than or equal to the previous frame's, and the wrapped rows report two-line heights
 
-#### Scenario: scrolling back up through rows measured on the way down
+#### Scenario: upward scroll through measured rows
 
-- **WHEN** the probe then scrolls back to the top
-- **THEN** the first visible row index is non-increasing on every sampled frame
+- **WHEN** the probe then scrolls upward for the same duration
+- **THEN** every sampled frame's first visible row index is less than or equal to the previous frame's
 
 ### Requirement: The Gantt panel stays on the renderer's row
 
-While either face scrolls, the Gantt panel's first visible row SHALL match the plan renderer's first visible row within one animation frame, including frames in which a row height correction moves the renderer.
+While either face scrolls, the Gantt panel's first visible row id SHALL equal the renderer's first visible row id by the next animation frame, including after a renderer height correction.
 
-#### Scenario: height correction during scroll
+#### Scenario: height correction during upward scroll
 
-- **WHEN** a row above the viewport gets its measured height while the reader scrolls
-- **THEN** the panel's first row equals the renderer's first row by the next frame
+- **WHEN** a row above the renderer's viewport gets a measured height different from its estimate while the reader scrolls upward
+- **THEN** by the next frame the panel's first visible row id equals the renderer's
 
-### Requirement: Large-plan scrolling stays inside the frame budget
+### Requirement: Height readings cost one commit per frame
 
-With 2,000 rows in Chromium on the CI runner, a scripted scroll SHALL produce no main-thread task longer than 50 ms and a 95th-percentile frame interval no worse than 1.5 times the same probe's 50-row baseline on the same run.
+However many rows report heights within one animation frame, the plan renderer SHALL apply them in one state commit, and computing a row's offset SHALL NOT scan every earlier row.
 
-#### Scenario: frame budget at 2,000 rows
+#### Scenario: forty rows measured at once
 
-- **WHEN** the probe records a performance trace of the scripted scroll at 50 and at 2,000 rows
-- **THEN** the 2,000-row run has no long task over 50 ms and its p95 frame interval is at most 1.5× the 50-row run's
-
-### Requirement: The Gantt panel draws only rows near its viewport
-
-The Gantt panel SHALL mount bars only for rows intersecting its viewport plus overscan, and SHALL keep the scroll height of the full plan.
-
-#### Scenario: large plan mounted
-
-- **WHEN** a 2,000-row plan is open with the panel visible
-- **THEN** the panel's mounted row count stays below 150 and its scroll height equals the full plan's
+- **WHEN** 40 newly mounted rows of a 2,000-row plan report heights in the same frame
+- **THEN** the heights state commits once, and the offset computation reads O(log n) index nodes per row
