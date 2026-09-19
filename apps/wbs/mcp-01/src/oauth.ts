@@ -65,9 +65,18 @@ interface Options {
   sessionLimit?: number;
   transactionLimit?: number;
   transactionLimitPerClient?: number;
+  routeEvidence?: (evidence: OAuthRouteEvidence) => void;
 }
 
 type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'>;
+
+export interface OAuthRouteEvidence {
+  method: string;
+  path: string;
+  status: number;
+  grant_type?: string;
+  registration_grant_types?: readonly string[];
+}
 
 /** In-memory public-client registration plus the browser half of the fronting AS. */
 export class InMemoryMcpOAuth implements McpOAuthHandler {
@@ -93,6 +102,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly activeClientTtlMs: number;
   private readonly grantLimit: number;
   private readonly sessionLimit: number;
+  private readonly routeEvidence: Options['routeEvidence'];
   constructor(
     config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
     private readonly upstream: UpstreamClient,
@@ -118,6 +128,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.activeClientTtlMs = Math.max(1, options.activeClientTtlMs ?? ACTIVE_CLIENT_TTL_MS);
     this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
+    this.routeEvidence = options.routeEvidence;
     this.pendingAuthorizations = new PendingAuthorizations({
       globalLimit: Math.max(1, options.transactionLimit ?? 1_000),
       now: this.now,
@@ -128,25 +139,37 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 
   async response(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url);
+    const evidenceRequest = this.routeEvidence === undefined ? undefined : request.clone();
+    let response: Response | undefined;
     if (url.pathname === new URL(`${this.issuer}/register`).pathname && request.method === 'POST') {
-      return await this.register(request);
+      response = await this.register(request);
+    } else if (
+      url.pathname === new URL(`${this.issuer}/authorize`).pathname &&
+      request.method === 'GET'
+    ) {
+      response = await this.authorize(url);
+    } else if (url.pathname === new URL(this.callbackUrl).pathname && request.method === 'GET') {
+      response = await this.callback(request, url);
+    } else if (
+      url.pathname === new URL(`${this.issuer}/token`).pathname &&
+      request.method === 'POST'
+    ) {
+      response = await this.token(request);
+    } else if (
+      url.pathname === new URL(`${this.issuer}/revoke`).pathname &&
+      request.method === 'POST'
+    ) {
+      response = await this.revoke(request);
+    } else if (
+      url.pathname === new URL(`${this.issuer}/jwks`).pathname &&
+      request.method === 'GET'
+    ) {
+      response = Response.json({ keys: [this.publicJwk()] });
     }
-    if (url.pathname === new URL(`${this.issuer}/authorize`).pathname && request.method === 'GET') {
-      return await this.authorize(url);
+    if (response !== undefined && evidenceRequest !== undefined) {
+      this.routeEvidence?.(await routeEvidenceOf(evidenceRequest, url.pathname, response.status));
     }
-    if (url.pathname === new URL(this.callbackUrl).pathname && request.method === 'GET') {
-      return await this.callback(request, url);
-    }
-    if (url.pathname === new URL(`${this.issuer}/token`).pathname && request.method === 'POST') {
-      return await this.token(request);
-    }
-    if (url.pathname === new URL(`${this.issuer}/revoke`).pathname && request.method === 'POST') {
-      return await this.revoke(request);
-    }
-    if (url.pathname === new URL(`${this.issuer}/jwks`).pathname && request.method === 'GET') {
-      return Response.json({ keys: [this.publicJwk()] });
-    }
-    return undefined;
+    return response;
   }
 
   async verify(token: string): Promise<JwtClaims> {
@@ -494,6 +517,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 export function mcpOAuthFromEnv(
   config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
   env: Readonly<Record<string, string | undefined>>,
+  routeEvidence?: (evidence: OAuthRouteEvidence) => void,
 ): InMemoryMcpOAuth {
   let client: BrowserOidcClient | undefined;
   const get = () => (client ??= browserOidcClientFromEnv(env));
@@ -509,9 +533,32 @@ export function mcpOAuthFromEnv(
     {
       groupsClaim: env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups',
       groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
+      routeEvidence,
       verifyUpstream,
     },
   );
+}
+
+async function routeEvidenceOf(
+  request: Request,
+  path: string,
+  status: number,
+): Promise<OAuthRouteEvidence> {
+  const evidence: OAuthRouteEvidence = { method: request.method, path, status };
+  if (path.endsWith('/register')) {
+    const body: unknown = await request.json().catch(() => undefined);
+    if (isObject(body) && Array.isArray(body['grant_types'])) {
+      evidence.registration_grant_types = body['grant_types'].slice(0, 10).map(evidenceGrantType);
+    }
+  } else if (path.endsWith('/token')) {
+    const grantType = stringField(await request.formData(), 'grant_type');
+    if (grantType !== undefined) evidence.grant_type = evidenceGrantType(grantType);
+  }
+  return evidence;
+}
+
+function evidenceGrantType(value: unknown): string {
+  return value === 'authorization_code' || value === 'refresh_token' ? value : 'other';
 }
 
 function stringField(form: FormData, name: string): string | undefined {
