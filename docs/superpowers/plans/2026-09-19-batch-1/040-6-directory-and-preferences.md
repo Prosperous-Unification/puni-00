@@ -991,6 +991,8 @@ branches, do not merge anything, do not run `git add`, `git commit`, `git checko
       moved: `test -f apps/wbs/fe-01/src/modules/plan-writer/plan-writer.feature.ts && echo present`
       → expect `present`. Absent means packet 040.3 has not been integrated into this clone:
       **stop and report**.
+- [ ] `test -f openspec/changes/service-taxonomy/proposal.md && echo present` → expect `present`.
+      Absent means packet 010.3 has not been integrated into this clone: **stop and report**.
 - [ ] Read the pin. The bare symbol appears three times in that file — the type member, the
       computation and the literal — so anchor the pattern to the pin itself:
 
@@ -999,19 +1001,16 @@ rg -n '^[[:space:]]*applicationLibraryToolReadmes: [0-9]+,$' \
   tools/tool-devsync/src/repo-namespacing-handoff.test.ts
 ```
 
-      Expected: exactly one line, reading `applicationLibraryToolReadmes: 20,` (the line number may
-      differ). **If it reads 19, 040.3 has not been integrated: stop and report.** Any other number
-      means a third lane has moved it: stop and report. `grep -nE` with the same pattern is
-      equivalent if `rg` is unavailable.
+      Expected: exactly one line. Record the single numeric assertion it returns as **N**; this is
+      a second, weaker signal, after the artifact checks above, not a substitute for them. Absence
+      or ambiguity — zero or more than one matching line — is a stop condition. `grep -nE` with the
+      same pattern is equivalent if `rg` is unavailable.
 
 - [ ] `grep -c "src/modules/" apps/wbs/fe-01/vitest.node-suites.ts` → expect at least `1`, the
       entry 040.3 added. `0` means 040.3 has not been integrated: stop and report.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → expect exit 0. Record the `Test Files`
-      and `Tests` lines. **These recorded numbers, not the planner's, are what every later
-      comparison uses.**
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → expect exit 0. This target prints **two**
-      summaries, a `TZ=UTC` one and a `TZ=Pacific/Auckland` one. Record both `Test Files` and both
-      `Tests` lines.
+- [ ] The planner records whole-frontend baselines (`wbs-fe-01:test:unit` and `wbs-fe-01:test`)
+      before dispatch, from the pre-dispatch clone. The executor does not run either whole target;
+      it is reported as pending planner verification at each checkpoint.
 - [ ] `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/directory/directory-page.test.tsx)`
       → expect exit 0. Record `Test Files` and `Tests`. **This is the oracle's baseline.**
 - [ ] `git status --short` → expect no modification to any file in section 5. Unrelated
@@ -1142,14 +1141,16 @@ bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts \
       The four tests this packet runs by name are **top-level `test(...)` calls with no enclosing
       `describe`** in that file (verified: lines 409, 420, 442 and 538), so an anchored bare title
       is the full joined name and matches. Expected: **exactly 1 test runs** and it **fails**, its
-      diff naming `applicationLibraryToolReadmes` with received `22` against expected `20`. Record
-      the message. **A run that matches 0 tests is a stop condition**, not a pass: Bun reports
-      success on an empty selection.
+      diff naming `applicationLibraryToolReadmes` with received N+2 against expected N — this
+      packet adds two READMEs, so the pin moves by exactly two. Record the message. **A run that
+      matches 0 tests is a stop condition**, not a pass: Bun reports success on an empty selection.
+      Stop if the increase is not exactly two, or another pinned field changed.
 
-- [ ] Change the value to `22` and add a comment in the existing house style directly above it:
+- [ ] Change the value to N+2 and add a comment in the existing house style directly above it,
+      using the observed numbers:
 
 ```ts
-// Re-pinned 20 -> 22 for `apps/wbs/fe-01/src/modules/directory/README.md` and
+// Re-pinned N -> N+2 for `apps/wbs/fe-01/src/modules/directory/README.md` and
 // `apps/wbs/fe-01/src/modules/directory-management/README.md`, the directory's two module
 // indexes, which the sweep must cover like any application README.
 ```
@@ -1591,7 +1592,7 @@ test('a rename is trimmed, sent, and its caller told before the refetch', async 
   let atRefetch = -1;
   const draft = counter();
   api.listPeople = () => {
-    atRefetch = draft.ran();
+    if (atRefetch === -1) atRefetch = draft.ran();
     return Promise.resolve([KAT]);
   };
 
@@ -1760,32 +1761,37 @@ test('a second refusal against a confirmed cascade is raised, not confirmed', as
 });
 ```
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → expect the run to **fail**, reporting
-      that `./directory.resource` and `./directory-management.feature` cannot be resolved. Record
-      the message. Do not go on until you have seen it.
+- [ ] `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --config vitest.node.config.ts src/modules/directory/directory.resource.test.ts src/modules/directory-management/directory-management.feature.test.ts)`
+      → expect the run to **fail collection**, reporting that `./directory.resource` and
+      `./directory-management.feature` cannot be resolved. Record the message. Do not go on until
+      you have seen it. The whole `wbs-fe-01:test:unit` target is not run here; it is reported as
+      pending planner verification.
 
 ### Step 5 — The two services
 
 - [ ] Write `apps/wbs/fe-01/src/modules/directory/directory.resource.ts` and
       `apps/wbs/fe-01/src/modules/directory-management/directory-management.feature.ts` exactly as
       section 6 gives them, with the three verbatim proof comments placed as section 6 says.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → expect exit 0, with `Test Files` two
-      above step 0's number and `Tests` twenty-four above it.
+- [ ] `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --config vitest.node.config.ts src/modules/directory/directory.resource.test.ts src/modules/directory-management/directory-management.feature.test.ts)`
+      → exit 0, exactly two passing files and twenty-four passing tests. The whole
+      `wbs-fe-01:test:unit` target is not run here; it is reported as pending planner verification.
 
 ### Slice 1 completion checklist — checkpoint A
 
 Stop here and report. Do not start step 6 until the planner has reviewed and committed.
 
 - [ ] `$TMPDIR` recorded, `$TMPDIR/evidence` created, and nothing written outside the clone and it.
-- [ ] Step 0's four baselines recorded, the 040.3 artifact found, and the pin read `20` at entry.
-- [ ] The eight files of steps 2, 4 and 5 exist: `store.ts`, both contracts, both READMEs, the
-      fake, and the two services. `vitest.node-suites.ts` gained exactly two lines and the pin
-      moved 20 to 22 with a house-style comment.
+- [ ] Step 0's two baselines (HEAD and the oracle) recorded, both the 040.3 and the 010.3
+      prerequisite artifacts found, and the pin read N at entry.
+- [ ] The ten files of steps 2, 4 and 5 exist: `store.ts`, both contracts, both READMEs, the fake,
+      both unit suites, and the two services. `vitest.node-suites.ts` gained exactly two lines and
+      the pin moved N to N+2 with a house-style comment.
 - [ ] The red observation of step 4 was recorded before either service existed.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` is `+2` files and `+24` tests against step 0.
+- [ ] The focused suite run of step 5 reports exactly two passing files and twenty-four passing
+      tests. The whole `test:unit` delta against step 0 is pending planner verification.
 - [ ] `directory-page.tsx` is **untouched** in this slice.
-- [ ] The report names the eight paths plus the two modified files, and the commit subject
-      `refactor(wbs-fe): add the directory resource and feature services`. Nothing was staged or
+- [ ] The report names the ten files plus the two modified files (twelve paths), and the commit
+      subject `refactor(wbs-fe): add the directory resource and feature services`. Nothing was staged or
       committed.
 
 ### Slice 2 — composition, the React adapter, the page, and the proofs
@@ -1929,11 +1935,12 @@ done
 
 ### Step 9 — Whole frontend
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → exit 0, `Test Files` two above step 0's
-      and `Tests` twenty-four above it.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → exit 0. Compare **both** summaries with step
-      0's. The UTC summary is two files and twenty-four tests above it; the Auckland summary is
-      identical, because this packet adds no zoned suite. Any other difference is a stop condition.
+- [ ] Report whole-target verification (`wbs-fe-01:test:unit`, `wbs-fe-01:test`) as pending planner
+      verification. The executor does not run either whole target here. At checkpoint B the
+      planner runs both, uncached, against the pre-dispatch baseline: `test:unit` is two files and
+      twenty-four tests above step 0's; the `test` UTC summary is two files and twenty-four tests
+      above it; the Auckland summary is identical, because this packet adds no zoned suite. Any
+      other difference is a stop condition.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:build` → exit 0.
 
 ### Step 10 — OpenSpec validation
@@ -1958,9 +1965,11 @@ rm -f -- "$report"
 
 ### Step 11 — Hand over, do not commit
 
-- [ ] `git status --short` → expect exactly the fifteen paths of section 5 as modified or
-      untracked, plus whatever other lanes already had in the tree, untouched. Record the list.
-- [ ] Report, under "Ready to commit", those fifteen paths and the subject
+- [ ] `git status --short` → expect exactly this slice's own three paths of section 5 —
+      `composition.ts`, `use-directory-management.ts` and `directory-page.tsx` — as modified or
+      untracked, plus whatever other lanes already had in the tree, untouched. Slice 1's twelve
+      paths are already committed by the planner and do not appear here. Record the list.
+- [ ] Report, under "Ready to commit", those three paths and the subject
       `refactor(wbs-fe): extract the directory into a resource and a feature service`, with a body
       carrying step 0's baselines, step 9's counts, and every proof of section 8 with the exact
       failure line seen.
@@ -1983,9 +1992,10 @@ This packet is done when every line is true. Nothing here is a judgement call.
 - [ ] Slice 1's checklist is still true, and its commit is the base of this slice.
 - [ ] The twelve new files exist, and the three modified files carry only the changes section 5
       names.
-- [ ] `test:unit` is `+2` files and `+24` tests against step 0.
+- [ ] The whole `test:unit` (+2 files/+24 tests) and `test` (UTC +2/+24, Auckland unchanged) deltas
+      against step 0 are confirmed by the planner, uncached, per step 9; the executor did not run
+      either whole target.
 - [ ] The directory page's own suite matches step 0's counts exactly, with no assertion edited.
-- [ ] `test`'s Auckland summary is identical to step 0's.
 - [ ] `typecheck`, `lint`, `build` and `format:check` all exit 0.
 - [ ] All **ten** negative proofs of section 8 were observed failing, restored, and rerun green,
       and each `Proof:` comment written describes what was actually seen.
@@ -1995,7 +2005,8 @@ This packet is done when every line is true. Nothing here is a judgement call.
 - [ ] The four named devsync checks were run; the whole target is reported as pending planner
       verification.
 - [ ] The host gate is reported as not run.
-- [ ] The fifteen paths and the commit subject are in the report; nothing was staged or committed.
+- [ ] This slice's own three paths and the commit subject are in the report — the packet's fifteen
+      paths total, twelve already committed at checkpoint A — and nothing was staged or committed.
 
 ## 8. Negative proofs
 
@@ -2079,11 +2090,10 @@ have to be reworded to fit, stop and report (stop condition 2).
    exemption covers it. The proof is the unedited oracle.
 2. **The architecture** — the four kinds, the direction rules, F1, F2 and the module layout — is
    decided in the [code organization design](../../specs/2026-09-19-code-organization-design.md)
-   and owned by the architectural `service-taxonomy` change, which **does not exist today** and
-   which packet 010.3 creates. **010.3 integrated is a prerequisite of this packet** alongside
-   040.3: check for `openspec/changes/service-taxonomy/proposal.md` in step 0, and if it is absent,
-   report that in the final report and carry on — the code is unaffected, but the evidence has
-   nowhere to be filed yet.
+   and owned by the architectural `service-taxonomy` change, which packet 010.3 creates.
+   **Integrated 010.3 and 040.3 are prerequisites.** The planner verifies their reviewed commits
+   are ancestors of the dispatch base. Before any edits, the executor checks for
+   `openspec/changes/service-taxonomy/proposal.md`, per step 0; absence means **stop and report**.
 3. **Evidence goes in the executor's report, not in another lane's file.**
    `openspec/changes/service-taxonomy/verify.md` is created by 010.3 and appended to by 020.8; it
    is not in this packet's file plan and the executor must not write to it. The planner appends
@@ -2101,11 +2111,10 @@ changing what a person sees — stop and report. That is a new change with its o
 
 | Command                                                                                          | Expected                                                                                       |
 | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit`                                                | Exit 0. `Test Files` +2 and `Tests` +24 against step 0.                                        |
+| The focused node-tier suite command of steps 4 and 5                                             | Step 4 fails collection; step 5 exits 0 with exactly two passing files and twenty-four tests.  |
 | `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/directory/directory-page.test.tsx)` | Exit 0, **exactly** step 0's counts, assertions unedited.                                      |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                | Exit 0, no diagnostic.                                                                         |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                     | Exit 0, no warning.                                                                            |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:test`                                                     | Exit 0. UTC summary +2 files and +24 tests; Auckland summary identical to step 0's.            |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                    | Exit 0.                                                                                        |
 | The four named devsync checks in step 8                                                          | Each `1 pass`, `0 fail`, or a failure naming only other packets' documents, recorded verbatim. |
 | `NX_DAEMON=false bunx nx format:check --all`                                                     | Exit 0, or failures naming only files outside section 5, reported and left alone.              |
@@ -2114,12 +2123,14 @@ changing what a person sees — stop and report. That is a new change with its o
 
 ### What the planner runs afterwards, and the executor reports as pending
 
-| Command                                                          | Why the executor cannot run it                                                          |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `git add` of the fifteen paths, then the commit                  | The clone's Git directory is read-only here.                                            |
-| `NX_DAEMON=false bunx nx run tool-devsync:test`                  | Its index checker runs `git write-tree` and `git add --update` against this clone.      |
-| `bin/h2puni-gate.sh <sha>`                                       | The host gate cannot run on this machine.                                               |
-| Appending this packet's evidence to `service-taxonomy/verify.md` | That file belongs to 010.3 and then 020.8; the planner appends after integrating 020.8. |
+| Command                                                             | Why the executor cannot run it                                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `git add` of the fifteen paths across both slices, then the commits | The clone's Git directory is read-only here.                                                                                          |
+| `NX_DAEMON=false bunx nx run tool-devsync:test`                     | Its index checker runs `git write-tree` and `git add --update` against this clone.                                                    |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit`, uncached         | Counts are relative; the planner checks the delta against its pre-dispatch baseline, not the executor. Expect `+2` files/`+24` tests. |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:test`, uncached              | Same reason. Expect UTC `+2` files/`+24` tests; Auckland unchanged.                                                                   |
+| `bin/h2puni-gate.sh <sha>`                                          | The host gate cannot run on this machine.                                                                                             |
+| Appending this packet's evidence to `service-taxonomy/verify.md`    | That file belongs to 010.3 and then 020.8; the planner appends after integrating 020.8.                                               |
 
 **What none of it proves.** Nothing runs the browser level: `e2e` is not run here and no behaviour
 change requires it. Nothing proves rules F1, K2, K3 or K4 mechanically — the kind-suffix lint is
@@ -2140,8 +2151,9 @@ is a successful outcome.
 3. A negative injection in section 8 does not produce the named failure, or produces it in a test
    other than the named one. There is no exemption: all ten are run.
 4. The directory page's own suite reports counts different from step 0's, in either direction.
-5. The pin does not read `20` at step 0, or the count after adding two READMEs is not `22`.
-6. `NX_DAEMON=false bunx nx run wbs-fe-01:test` fails in a file this packet did not touch, or its
+5. The anchored pin search at step 0 is absent or ambiguous, or the count after adding two READMEs
+   is not exactly N+2.
+6. The planner's whole-target verification fails in a file this packet did not touch, or the
    Auckland summary moves.
 7. `app-router.tsx`, `DirectoryApi` or `httpDirectoryApi` appears to need an edit. None of them
    does: the page's props are unchanged.
@@ -2281,3 +2293,26 @@ was checked against the README and the repository.
 | Contract: counts are relative to the packet's own start                                     | Already true.                                                                                                                                                                                        | Unchanged; every expectation in sections 7 and 10 is "+n against step 0".                                                                              |
 
 Nothing in this round was rejected.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): dispatch after fixes, applied
+
+Verdict: DISPATCH AFTER FIXES — the required ordering proof stayed green under the prescribed
+mutation, and the declared 010.3 prerequisite had no matching check in step 0. The planner applied
+both by hand: proof 8's mutation in `a rename is trimmed, sent, and its caller told before the
+refetch` now guards `atRefetch` with `if (atRefetch === -1) atRefetch = draft.ran();` so the second,
+post-refetch read no longer overwrites the first observed value; and step 0 now runs
+`test -f openspec/changes/service-taxonomy/proposal.md`, stopping and reporting on its absence,
+matching section 9's own prerequisite language. The planner also brought this packet in line with
+the execution contract's relative-count rule and with the whole-target pattern already fixed in
+[040.6b](040-6b-preferences.md): steps 0, 4, 5 and 9, both checkpoint checklists, and the
+verification tables no longer have the executor run the whole `wbs-fe-01:test:unit` or
+`wbs-fe-01:test` target — the executor runs the two directory suites through a focused Vitest
+command for the collection-failure and exact two-file/twenty-four-test observations, and both
+whole-target deltas are reported as pending planner verification. The README pin is recorded as N
+at step 0 rather than demanded as the absolute value 20, and step 3 requires the pin to fail at
+exactly N+2 (this packet adds two READMEs) rather than the absolute 22, with the matching stop
+condition updated. Two non-blocking corrections were also applied by hand: checkpoint A's "eight
+files" wording now reads "ten files", including the two suites steps 4 created; and step 11's
+hand-over, and checkpoint B's checklist, now expect slice 2's own three paths in `git status
+--short` rather than the packet's full fifteen, since slice 1's twelve are already committed by the
+time slice 2 runs. These fixes are in place before slice 2 is dispatched.

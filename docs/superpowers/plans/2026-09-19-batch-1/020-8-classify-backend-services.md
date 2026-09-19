@@ -216,11 +216,8 @@ Counts are relative. Nothing is edited here.
 ```sh
 mkdir -p "$TMPDIR/evidence"
 cat > "$TMPDIR/queue.ts" <<'TS'
-import {
-  listServiceCandidates,
-  listSuffixDeclaredFiles,
-  readKinds,
-} from './tools/tool-devsync/src/service-kinds';
+const { listServiceCandidates, listSuffixDeclaredFiles, readKinds } =
+  await import(`${process.cwd()}/tools/tool-devsync/src/service-kinds.ts`);
 
 const root = process.cwd();
 const candidates = await listServiceCandidates(root);
@@ -228,8 +225,17 @@ const declared = await listSuffixDeclaredFiles(root);
 let classified = new Set<string>();
 try {
   classified = new Set((await readKinds(root)).map((entry) => entry.path));
-} catch (absent) {
-  console.error(`no policy yet: ${String(absent)}`);
+} catch (failure) {
+  if (
+    !process.argv.includes('--allow-absent-policy') ||
+    !(failure instanceof Error) ||
+    !(failure.cause instanceof Error) ||
+    !('code' in failure.cause) ||
+    failure.cause.code !== 'ENOENT'
+  ) {
+    throw failure;
+  }
+  console.error('no policy yet');
 }
 const left = candidates.filter((path) => !classified.has(path));
 const stale = [...classified].filter((path) => !candidates.includes(path));
@@ -242,8 +248,12 @@ for (const path of stale) console.error(`stale: ${path}`);
 TS
 ```
 
-      In slice A the module does not exist yet, so this script is written and not run. From slice B
-      on, run it from the repository root with `bun "$TMPDIR/queue.ts"`.
+      In slice A the module does not exist yet, so this script is written and not run. Run both
+      this script and slice B's shim script from the repository root; neither script runs in
+      slice A. From slice B on, run this one with `bun "$TMPDIR/queue.ts"`. Only slice B's initial
+      baseline run, before `kinds.json` exists, uses
+      `bun "$TMPDIR/queue.ts" --allow-absent-policy`; every subsequent invocation, including later
+      slices' Step 0, omits the flag. All other read or validation failures stop execution.
       Expected on the first run: `candidates 95, classified 0, left 95, stale 0, suffix-declared 0`
       on stderr, and 95 paths on stdout. **Record your own numbers; the 95 is the planner's
       observation on 2026-09-19, not a pin.** `stale` above zero at any point is a stop condition.
@@ -795,7 +805,8 @@ entries and re-sorts. Never remove another slice's entry.
 
 ```sh
 cat > "$TMPDIR/shims.ts" <<'TS'
-import { listServiceCandidates } from './tools/tool-devsync/src/service-kinds';
+const { listServiceCandidates } =
+  await import(`${process.cwd()}/tools/tool-devsync/src/service-kinds.ts`);
 
 const shim = /^\s*export\s+(?:\*|\{[^}]*\}|type\s+\{[^}]*\})\s+from\s+'([^']+)';?\s*$/;
 let count = 0;
@@ -914,9 +925,13 @@ test('no entry classifies a file that already declares its kind by suffix', asyn
       the repository's document rules: no pre-move root spellings, and every local link resolves.
 
 - [ ] **F6. Append to `openspec/changes/service-taxonomy/verify.md`,** beneath the headings 010.3
-      wrote, with real output: every command from section 10 with its exit status and decisive
-      line, every fault from section 8 with the failure actually observed, the queue script's final
-      numbers, and the note that the Nx cache experiment is pending planner verification.
+      wrote. Append only commands, outcomes and faults observed during this attempt: every command
+      from section 10 with its exit status and decisive line, every slice F fault from section 8
+      with the failure actually observed, and the queue script's final numbers. Mark slice A's
+      command and mutation evidence as pending planner transcription; do not reconstruct earlier
+      output from `Proof:` comments. Before accepting slice F, the planner appends that evidence
+      from the retained slice A report and patch/log artifacts, identifying the originating
+      attempt. Note the Nx cache experiment as pending planner verification.
 
 - [ ] **F7. Type check, lint, format, validate.**
 
@@ -988,13 +1003,9 @@ you created in an earlier slice as much as to tracked ones.
 | F     | Remove `rationale` from one non-shim entry                                                                              | `every entry that is not a re-export shim states its rationale`, naming that path                                                                                                            |
 | F     | Change one entry's `path` to end in `.resource.ts`                                                                      | `no entry classifies a file that already declares its kind by suffix` **and** the completeness case                                                                                          |
 
-**Two faults that do not work, and why the packet says so.** Changing a `resource` entry's kind to
-`repository` leaves all four real-tree cases green — observed on 2026-09-20 — because it moves no
-path and `repository` requires no extra field. And weakening the completeness `toEqual` to
-`toBeDefined` is not a failure to observe: it is a **paired** experiment run once, in slice F, and
-it is optional. Delete an entry and watch the real assertion fail; weaken the assertion and watch
-the same fault pass; restore both and watch it fail again. Record all three outcomes. It proves the
-comparison is load-bearing; it is not a row that "must fail".
+Changing a resource entry to repository is not a usable fault: it preserves completeness and
+satisfies the required-field checks. Use the mandatory deletion and stale-entry proofs above. Do
+not weaken the completeness assertion.
 
 **The Nx cache experiment is planner-only.** Narrowing it to `bun test` would stop testing Nx
 caching at all. Section 10 states it.
@@ -1150,3 +1161,18 @@ carrying a rationale that `entriesMissingRationale` requires mechanically.
 One correction runs the other way, against the first review's arithmetic, and is kept in section 3:
 36 of the 45 backend files are re-export-only and nine hold code of their own, and two of those
 nine also re-export, so a textual shim count and an implementation count are not complements.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): dispatch, slice A ready
+
+The verdict is DISPATCH: slice A can proceed once reviewed 010.3 is merged, and the four blocking
+corrections apply only to slices B through F, which must not be dispatched before those
+corrections land. The planner applied all four by hand: both temporary scripts resolve
+`service-kinds.ts` through an absolute `process.cwd()` dynamic import instead of a path relative to
+`$TMPDIR`; the queue script's catch block rethrows every policy failure except an absent-policy run
+made under an explicit `--allow-absent-policy` flag, restricted to slice B's own first invocation;
+the optional resource-to-repository fault is removed from section 8 as unusable, leaving the
+mandatory deletion and stale-entry proofs as the load-bearing evidence; and F6 now marks slice A's
+command and mutation evidence as pending planner transcription rather than assuming a slice F
+executor can see an earlier attempt's report. These fixes are in place before slices B through F are
+dispatched. No non-blocking note in this review was a one-line unambiguous change, so none were
+applied; they remain open findings for the planner.

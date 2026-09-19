@@ -462,14 +462,22 @@ Expected: exit 0. Reference point from 2026-09-19: **249** hit lines and totals 
 
 ### Reloading the run directory in a later slice
 
-A later slice may start in a fresh shell. Reload with `run="$TMPDIR/110-5"`; the files are still there. If `$run/baseline/history.sha256` is missing because the attempt's temporary root was recreated, the executor may re-record it **only** after proving the protected files are untouched:
+A later slice starts in a fresh shell, and the launcher creates a new `$TMPDIR` on every invocation, including `--resume`, so `$TMPDIR/110-5` does not exist yet at the start of B, C or D. Before dispatching B, C or D, the planner supplies the absolute path to the preserved checkpoint-A `110-5` run directory — the launcher currently archives only `$TMPDIR/evidence`, so the planner must preserve the complete run directory after A. Copy that directory into this attempt's `$TMPDIR/110-5` before editing, and verify that its baseline files and guard scripts exist. **Never regenerate the original baseline**: a manifest taken from a tree that has already been edited would launder the very edit it should have caught.
 
 ```sh
 set -euo pipefail
-git status --porcelain -- $(tr '\n' ' ' < "$TMPDIR/110-5/baseline/protected-pathspecs.txt")
+preserved=${PRESERVED_RUN_DIR:?planner-supplied path to the preserved checkpoint-A 110-5 run directory required}
+test -d "$preserved"
+cp -a "$preserved" "$TMPDIR/110-5"
+run="$TMPDIR/110-5"
+test -f "$run/baseline/history.sha256"
+test -f "$run/baseline/owned.txt"
+test -f "$run/baseline/requirement-table.sha256"
+test -x "$run/bin/history-guard.sh"
+test -x "$run/bin/audit.sh"
 ```
 
-Expected: no output, meaning nothing protected has changed in this clone, so a fresh manifest is still the original one. Any output is a stop condition: report it and ask the planner for the preserved baseline directory.
+Expected: exit 0, every test passing. If `$PRESERVED_RUN_DIR` is unset, the preserved directory is unavailable, or any of these files is missing, stop: report it and ask the planner for the preserved run directory rather than reconstructing the baseline from the current tree.
 
 ### Checkpoint A — The control-plane change
 
@@ -541,7 +549,7 @@ that meaning. Historical evidence, research notes and verification records keep 
 original wording, in which a bare "Twilight" means Twilight Dash.
 ```
 
-- [ ] **D4.** In `docs/superpowers/plans/2026-09-19-twilight-rename.md`, tick the Task 2, 3 and 4 checkboxes and add the date 2026-09-20 to each task's Deliverable line. Change nothing else in that file.
+- [ ] **D4.** In `docs/superpowers/plans/2026-09-19-twilight-rename.md`, for Task 2, 3 and 4: tick the task's own checkbox and append the date 2026-09-20 to that same checkbox line. Date only a checkbox line the executor is actually ticking — never a separate non-checkbox Deliverable line, since checkpoint D5's guard requires every changed line to carry a checkbox. Leave any verification checkbox for a check still pending unchecked. Change nothing else in that file.
 - [ ] **D5.** Run the negative proofs of section 9, then checkpoint D's completion checklist.
 
 **Checkpoint D completion checklist**
@@ -576,7 +584,7 @@ Expected: the last command prints nothing and the pipeline exits 0. Every change
 
 Two guards protect this packet's work. Each is proved by injecting a fault into the exact input the guard reads, so a passing guard means something. Both run in checkpoint D, after the audit is clean, so the "before" and "after" states are both green.
 
-**Restore discipline for both.** Save the passing bytes under `$TMPDIR`, write the mutation as a patch under `$TMPDIR/evidence/`, save the failing output beside it, restore by copying the bytes back, and prove the restore with `cmp`. Never restore from Git. Run the expected failure in a subshell with the status captured, so `set -e` cannot skip the restore.
+**Restore discipline for both.** Save the passing bytes under `$TMPDIR/evidence/110-5`, write the mutation as a patch there, and save the failing output beside it. **Immediately after capturing the failure statuses**, restore by copying the passing bytes back and prove the restore with `cmp`, **before** asserting either captured status or inspecting the diagnostic output. Never restore from Git. Run the expected failure in a subshell with the status captured, so `set -e` cannot skip the restore. Scripts and baseline inputs stay under `$TMPDIR/110-5`; only the proof evidence — passing copies, patches, manifests and failing output — goes under `$TMPDIR/evidence/110-5`.
 
 ### Proof 1 — the audit guard fails on a surviving identifier
 
@@ -585,22 +593,24 @@ The fault goes into a real, owned, tracked file that the guard reads. `openspec/
 ```sh
 set -euo pipefail
 run="$TMPDIR/110-5"
+evidence="$TMPDIR/evidence/110-5"
+mkdir -p "$evidence"
 target=openspec/changes/twilight-control-plane/design.md
-cp "$target" "$run/evidence/proof1.passing"
+cp "$target" "$evidence/proof1.passing"
 printf '\nThe runtime library is `libs/twilight-runtime`.\n' >> "$target"
 set +e
-diff -u "$run/evidence/proof1.passing" "$target" > "$run/evidence/proof1.patch"; d=$?
-bash "$run/bin/audit.sh" "$PWD" "$run/baseline/audit-a.txt" > "$run/evidence/proof1.failing-output" 2>&1; s=$?
+diff -u "$evidence/proof1.passing" "$target" > "$evidence/proof1.patch"; d=$?
+bash "$run/bin/audit.sh" "$PWD" "$run/baseline/audit-a.txt" > "$evidence/proof1.failing-output" 2>&1; s=$?
 set -e
+cp "$evidence/proof1.passing" "$target"
+cmp "$evidence/proof1.passing" "$target"
 test "$d" -eq 1
 test "$s" -eq 1
-grep -n 'libs/twilight-runtime' "$run/evidence/proof1.failing-output"
-cp "$run/evidence/proof1.passing" "$target"
-cmp "$run/evidence/proof1.passing" "$target"
+grep -n 'libs/twilight-runtime' "$evidence/proof1.failing-output"
 bash "$run/bin/audit.sh" "$PWD" "$run/baseline/audit-a.txt"
 ```
 
-Expected, in order: the patch is written and `diff` reports a difference; the guard exits **1**; its saved output contains a line ending `design.md:<n>:The runtime library is \`libs/twilight-runtime\`.`; the restore compares equal; the guard prints `audit clean: 0 planned identifiers in 7 files` and exits 0. Record the exact failing line.
+Expected, in order: the patch is written and the guard's failing output is captured; the restore, performed immediately afterward, compares equal; only then does the block assert that `diff` reported a difference and the guard exited **1**, and that its saved output contains a line ending `design.md:<n>:The runtime library is \`libs/twilight-runtime\`.`; the guard then prints `audit clean: 0 planned identifiers in 7 files` and exits 0 on the restored tree. Record the exact failing line.
 
 Corroboration, already collected: `$run/baseline/audit-before.txt` is the same guard failing on the unedited tree, with 97 lines on 2026-09-19. Step 0 asserts that failure, so the guard is known to fail on the production read path before any fault is invented.
 
@@ -611,34 +621,36 @@ The protected files are outside every lane in this packet, so the fault goes int
 ```sh
 set -euo pipefail
 run="$TMPDIR/110-5"
+evidence="$TMPDIR/evidence/110-5"
+mkdir -p "$evidence"
 fixture="$run/history-fixture"
 rm -rf "$fixture"
 mkdir -p "$fixture/docs/twilight-structure/evidence" "$fixture/openspec/changes/x"
 ( cd "$fixture" && git init -q && git config user.email executor@example.invalid && git config user.name executor )
 printf 'observed 2026-09-06\n' > "$fixture/docs/twilight-structure/evidence/note.md"
 printf '# verify\n' > "$fixture/openspec/changes/x/verify.md"
-printf '%s\n' docs/twilight-structure/evidence '*verify.md' > "$run/evidence/fixture-pathspecs.txt"
-bash "$run/bin/history-guard.sh" "$fixture" "$run/evidence/fixture-pathspecs.txt" > "$run/evidence/proof2.before"
-test "$(wc -l < "$run/evidence/proof2.before")" -eq 2
-cp "$fixture/docs/twilight-structure/evidence/note.md" "$run/evidence/proof2.passing"
+printf '%s\n' docs/twilight-structure/evidence '*verify.md' > "$evidence/fixture-pathspecs.txt"
+bash "$run/bin/history-guard.sh" "$fixture" "$evidence/fixture-pathspecs.txt" > "$evidence/proof2.before"
+test "$(wc -l < "$evidence/proof2.before")" -eq 2
+cp "$fixture/docs/twilight-structure/evidence/note.md" "$evidence/proof2.passing"
 printf 'edited\n' >> "$fixture/docs/twilight-structure/evidence/note.md"
 set +e
-diff -u "$run/evidence/proof2.passing" "$fixture/docs/twilight-structure/evidence/note.md" > "$run/evidence/proof2.patch"; d=$?
-bash "$run/bin/history-guard.sh" "$fixture" "$run/evidence/fixture-pathspecs.txt" > "$run/evidence/proof2.after"
-diff -u "$run/evidence/proof2.before" "$run/evidence/proof2.after" > "$run/evidence/proof2.failing-output"; s=$?
+diff -u "$evidence/proof2.passing" "$fixture/docs/twilight-structure/evidence/note.md" > "$evidence/proof2.patch"; d=$?
+bash "$run/bin/history-guard.sh" "$fixture" "$evidence/fixture-pathspecs.txt" > "$evidence/proof2.after"
+diff -u "$evidence/proof2.before" "$evidence/proof2.after" > "$evidence/proof2.failing-output"; s=$?
 set -e
+cp "$evidence/proof2.passing" "$fixture/docs/twilight-structure/evidence/note.md"
+cmp "$evidence/proof2.passing" "$fixture/docs/twilight-structure/evidence/note.md"
 test "$d" -eq 1
 test "$s" -eq 1
-grep -n 'evidence/note.md' "$run/evidence/proof2.failing-output"
-cp "$run/evidence/proof2.passing" "$fixture/docs/twilight-structure/evidence/note.md"
-cmp "$run/evidence/proof2.passing" "$fixture/docs/twilight-structure/evidence/note.md"
-bash "$run/bin/history-guard.sh" "$fixture" "$run/evidence/fixture-pathspecs.txt" > "$run/evidence/proof2.restored"
-diff -u "$run/evidence/proof2.before" "$run/evidence/proof2.restored"
+grep -n 'evidence/note.md' "$evidence/proof2.failing-output"
+bash "$run/bin/history-guard.sh" "$fixture" "$evidence/fixture-pathspecs.txt" > "$evidence/proof2.restored"
+diff -u "$evidence/proof2.before" "$evidence/proof2.restored"
 ```
 
-Expected, in order: the fixture manifest has **2** lines; the comparison after the mutation exits **1** and names `docs/twilight-structure/evidence/note.md` on both a `-` and a `+` line; the restore compares equal; the final comparison exits 0 with no output. The planner was able to run this exact sequence on 2026-09-20 and saw those results.
+Expected, in order: the fixture manifest has **2** lines; the comparison after the mutation is captured; the restore, performed immediately afterward, compares equal; only then does the block assert that the captured comparison exited **1** and named `docs/twilight-structure/evidence/note.md` on both a `-` and a `+` line; the final comparison against the restored tree exits 0 with no output. The planner was able to run this exact sequence on 2026-09-20 and saw those results.
 
-No `Proof:` comment is added anywhere, because this packet changes no source file. The evidence is `$TMPDIR/evidence/`, which the planner copies out of the temporary root.
+No `Proof:` comment is added anywhere, because this packet changes no source file. The evidence is `$TMPDIR/evidence/110-5`, which the planner copies out of the temporary root.
 
 ## 10. Verification
 
@@ -824,7 +836,7 @@ The block runs offline: `OPENSPEC_TELEMETRY=0` stops 1.12.0's telemetry post and
 
 The executor's Git directory is read-only. There is nothing to stage and nothing to commit.
 
-- [ ] `git status --short` → expect exactly this checkpoint's owned paths as modified, plus whatever other lanes already had in the tree, untouched. Record the list.
+- [ ] `git status --short --untracked-files=all` → expect exactly this checkpoint's owned paths as modified, plus whatever other lanes already had in the tree, untouched. Record the list.
 - [ ] Report under "Ready to commit" the checkpoint's file list and its subject line from section 8, with a body carrying step 0's recorded numbers, this checkpoint's guard results, and any negative proof observed.
 - [ ] Do not run `git add`, `git commit`, `git checkout -b`, `git stash` or `git restore`. They fail here, and the planner commits after reviewing the diff.
 
@@ -859,3 +871,19 @@ The second Codex review of 2026-09-19 and the high-effort grill of the same date
 
 - **Second review, "Recommended cut points", split into four packets.** Confirmed as a size problem: the ownership list is 7,472 lines and 73,317 words. It is answered with the four checkpoints of section 8, cut on the review's own boundaries, because an executor is dispatched one reviewed slice at a time and a separate packet file is not this task's to create. If the planner still wants four files, the checkpoints are the cut lines.
 - **First review, Critical 3, the rename plan's own weak validation block.** The rename plan's Task 3 still carries the loose `.summary.totals.failed == 0 and .summary.totals.passed > 0` predicate that `bin/h2puni-gate-steps.sh` documents as admitting three malformed reports. This packet uses the gate contract and does not propagate the weaker block, but it does not rewrite that block either: section 5.2 confines this packet to the rename plan's checkboxes, and changing its verification text is outside Tasks 2 to 4. Recorded for the plan's owner.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH, checkpoint A only
+
+Checkpoint A has no blocking problem and may proceed now. The reload procedure for later slices
+could not actually recover the preserved scripts and baseline, because the launcher issues a fresh
+`$TMPDIR` on every invocation including `--resume`; the planner rewrote it by hand into a copy-and
+verify step against a planner-supplied preserved directory, with a stop if that directory is
+unavailable. Checkpoint D's two negative-proof blocks wrote evidence to `$run/110-5/evidence`,
+which the launcher never archives, and asserted unexpected results before restoring the mutated
+file; the planner rewrote both blocks by hand to write under `$TMPDIR/evidence/110-5` and to
+restore with `cp` and verify with `cmp` immediately after capturing the failure statuses, before
+any status assertion or diagnostic grep. The non-blocking D4 conflict, between dating a
+non-checkbox Deliverable line and the checkbox-only diff guard, was also resolved by hand: D4 now
+dates only the checkbox lines it ticks and leaves pending verification boxes unchecked. All of
+these findings land in checkpoints B through D, which are not dispatched yet, so they were fixed
+before those checkpoints' own dispatch rather than after.

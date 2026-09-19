@@ -714,14 +714,14 @@ rg -n '^[[:space:]]*applicationLibraryToolReadmes: [0-9]+,$' \
   tools/tool-devsync/src/repo-namespacing-handoff.test.ts
 ```
 
-      Expected: exactly one line reading `applicationLibraryToolReadmes: 22,`. **20 means part 1
-      has not been integrated; 19 means 040.3 has not.** Any other number means a third lane moved
-      it. In every one of those cases, stop and report. `grep -nE` with the same pattern is
-      equivalent.
+      After checking the prerequisite artifacts above, record the single numeric assertion this
+      search returns as **N**; the prerequisite artifacts are what establish integration, not this
+      number. Absence or ambiguity — zero or more than one matching line — is a stop condition.
+      `grep -nE` with the same pattern is equivalent.
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → exit 0. Record `Test Files` and `Tests`.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → exit 0. Record **both** summaries' `Test
-Files` and `Tests` lines: a `TZ=UTC` one and a `TZ=Pacific/Auckland` one.
+- [ ] The planner records whole-frontend baselines (`wbs-fe-01:test:unit` and `wbs-fe-01:test`)
+      before dispatch, from the pre-dispatch clone. The executor does not run either whole target;
+      it is reported as pending planner verification at each checkpoint.
 - [ ] `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx src/lib/theme.test.ts src/index-bootstrap.test.ts src/components/wbs/plan-layout.test.tsx src/components/wbs/gantt-panel.test.tsx src/components/wbs/project-settings-modal.test.tsx)`
       → exit 0. Record `Test Files` and `Tests`. **These six are the oracle**; only the project
       page's count may move, by exactly `+1`.
@@ -741,6 +741,18 @@ Files` and `Tests` lines: a `TZ=UTC` one and a `TZ=Pacific/Auckland` one.
 - [ ] `mkdir -p apps/wbs/fe-01/src/modules/preferences`
 - [ ] Write `contract.ts`, `preference-keys.ts`, `browser-storage.repository.ts` and
       `fake-browser-storage.ts` exactly as section 6 gives them.
+- [ ] Before adding the README, run the pin test by name and require exactly one passing test,
+      confirming the count still reads the **N** step 0 recorded:
+
+```sh
+bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts \
+  -t '^every legacy source occurrence and relevant text family is pinned$'
+```
+
+      **A run that matches 0 tests is a stop condition**, not a pass: Bun reports success on an
+      empty selection. If this run does not pass, or reports a number other than N, stop and
+      report.
+
 - [ ] Write `apps/wbs/fe-01/src/modules/preferences/README.md` with this content:
 
 ```markdown
@@ -810,14 +822,16 @@ bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts \
       The four tests this packet runs by name are **top-level `test(...)` calls with no enclosing
       `describe`** in that file (verified: lines 409, 420, 442 and 538), so an anchored bare title
       is the full joined name and matches. Expected: **exactly 1 test runs** and it **fails**,
-      naming `applicationLibraryToolReadmes` with received `23` against expected `22`. Record the
-      message. **A run that matches 0 tests is a stop condition**, not a pass: Bun reports success
-      on an empty selection.
+      naming `applicationLibraryToolReadmes` with received N+1 against expected N — this packet
+      adds one README, so the pin moves by exactly one. Record the message. **A run that matches 0
+      tests is a stop condition**, not a pass: Bun reports success on an empty selection. Stop if
+      the increase is not exactly one, or another pinned field changed.
 
-- [ ] Change the value to `23` and add a comment in the existing house style directly above it:
+- [ ] Change the value to N+1 and add a comment in the existing house style directly above it,
+      using the observed numbers:
 
 ```ts
-// Re-pinned 22 -> 23 for `apps/wbs/fe-01/src/modules/preferences/README.md`, the preferences
+// Re-pinned N -> N+1 for `apps/wbs/fe-01/src/modules/preferences/README.md`, the preferences
 // module index, which the sweep must cover like any application README.
 ```
 
@@ -1018,16 +1032,19 @@ test('the production preferences can be built with no browser store present', ()
 });
 ```
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → expect the run to **fail**, reporting
-      that `./preferences.resource`, `./preferences.feature` and `./composition` cannot be
-      resolved. Record the message. Do not go on until you have seen it.
+- [ ] `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --config vitest.node.config.ts src/modules/preferences/preferences.resource.test.ts src/modules/preferences/preferences.feature.test.ts src/modules/preferences/composition.test.ts)`
+      → expect the run to **fail collection**, reporting that `./preferences.resource`,
+      `./preferences.feature` and `./composition` cannot be resolved. Record the message. Do not go
+      on until you have seen it. The whole `wbs-fe-01:test:unit` target is not run here; it is
+      reported as pending planner verification.
 
 ### Step 4 — The resource, the feature, and the composition
 
 - [ ] Write `preferences.resource.ts`, `preferences.feature.ts` and `composition.ts` exactly as
       section 6 gives them.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → exit 0, `Test Files` three above step
-      0's and `Tests` fifteen above it.
+- [ ] `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --config vitest.node.config.ts src/modules/preferences/preferences.resource.test.ts src/modules/preferences/preferences.feature.test.ts src/modules/preferences/composition.test.ts)`
+      → exit 0, exactly three passing files and fifteen passing tests. The whole
+      `wbs-fe-01:test:unit` target is not run here; it is reported as pending planner verification.
 
 ### Step 5 — The adapter's own suite
 
@@ -1045,26 +1062,27 @@ test('the production preferences can be built with no browser store present', ()
 
 - [ ] Rewrite `apps/wbs/fe-01/src/lib/remembered.ts` exactly as section 6 gives it. Nothing else
       in the app changes in this step.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → exit 0, with both summaries equal to step 0's
-      plus this packet's own three fast-tier suites and one jsdom suite in the UTC run, and the
-      Auckland summary unchanged.
+- [ ] Rerun step 0's six-suite oracle command → exit 0, with all six suites and their test counts
+      unchanged from step 0. The whole `wbs-fe-01:test` target is not run here; it is reported as
+      pending planner verification.
 
 ### Slice 1 completion checklist — checkpoint A
 
 Stop here and report. Do not start step 7 until the planner has reviewed and committed.
 
 - [ ] `$TMPDIR` recorded, `$TMPDIR/evidence` created, nothing written outside the clone and it.
-- [ ] Step 0's baselines recorded, both prerequisite artifacts found, and the pin read `22`.
-- [ ] The nine files of steps 2 to 5 exist: the README, the contract, the key registry, the
+- [ ] Step 0's baselines recorded, both prerequisite artifacts found, and the pin read N.
+- [ ] The twelve files of steps 2 to 5 exist: the README, the contract, the key registry, the
       adapter, the fake, the resource, the feature, the composition, and the four suites.
-      `vitest.node-suites.ts` gained exactly three lines and the pin moved 22 to 23.
+      `vitest.node-suites.ts` gained exactly three lines and the pin moved N to N+1.
 - [ ] The red observation of step 3 was recorded before the resource existed.
-- [ ] `test:unit` is `+3` files and `+15` tests against step 0, and the adapter's jsdom suite
-      passes with three tests.
+- [ ] The focused suite run of step 4 reports exactly three passing files and fifteen passing
+      tests, and the adapter's jsdom suite passes with three tests. The whole `test:unit` delta
+      against step 0 is pending planner verification.
 - [ ] `test-tiers.test.ts` passes: three suites in the fast tier, the adapter's in the jsdom tier.
 - [ ] `apps/wbs/fe-01/src/lib/remembered.ts` delegates, and **no screen has changed yet**: none of
       the four delivery callers, and not `remembered-layout.ts`, is touched in this slice.
-- [ ] The report names the ten paths and the commit subject
+- [ ] The report names the fifteen paths (twelve created, three modified) and the commit subject
       `refactor(wbs-fe): add the preferences module behind the remembered factory`. Nothing was
       staged or committed.
 
@@ -1228,12 +1246,12 @@ done
 
 ### Step 10 — Whole frontend
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → exit 0, `Test Files` +3 and `Tests` +15
-      against step 0.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → exit 0. The UTC summary is +4 files and +19
-      tests against step 0 — the three fast-tier suites and the adapter's suite all run in this
-      target, plus the one case added to the project page. The Auckland summary is identical to
-      step 0's. Any other difference is a stop condition.
+- [ ] Report whole-target verification (`wbs-fe-01:test:unit`, `wbs-fe-01:test`) as pending planner
+      verification. The executor does not run either whole target here. At checkpoint B the
+      planner runs both, uncached, against the pre-dispatch baseline: `test:unit` is +3 files/+15
+      tests; the `test` UTC summary is +4 files and +19 tests — the three fast-tier suites and the
+      adapter's suite all run in this target, plus the one case added to the project page; the
+      Auckland summary is identical to step 0's. Any other difference is a stop condition.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:build` → exit 0.
 
 ### Step 11 — OpenSpec validation
@@ -1257,9 +1275,11 @@ rm -f -- "$report"
 
 ### Step 12 — Hand over, do not commit
 
-- [ ] `git status --short` → expect exactly the twenty-one paths of section 5, plus whatever other
-      lanes already had in the tree, untouched. Record the list.
-- [ ] Report, under "Ready to commit", those twenty-one paths and the subject
+- [ ] `git status --short` → expect exactly this slice's own six paths of section 5 — the four
+      delivery callers, `project-page.test.tsx` and `remembered-layout.ts` — as modified, plus
+      whatever other lanes already had in the tree, untouched. Slice 1's fifteen paths are already
+      committed by the planner and do not appear here. Record the list.
+- [ ] Report, under "Ready to commit", those six paths and the subject
       `refactor(wbs-fe): put every browser storage key behind the preferences module`, with a body
       carrying step 0's baselines, step 10's counts, and every proof of section 8 with the exact
       failure line seen.
@@ -1277,10 +1297,11 @@ rm -f -- "$report"
 - [ ] Slice 1's checklist is still true, and its commit is the base of this slice.
 - [ ] The twelve new files exist, and the nine modified files carry only the changes section 5
       names.
-- [ ] `test:unit` is `+3` files and `+15` tests against step 0.
+- [ ] The whole `test:unit` (+3 files/+15 tests) and `test` (UTC +4/+19, Auckland unchanged) deltas
+      against step 0 are confirmed by the planner, uncached, per step 10; the executor did not run
+      either whole target.
 - [ ] The six oracle suites pass with step 0's counts, except the project page's `Tests`, which is
       exactly `+1`, and no existing assertion was edited.
-- [ ] `test`'s Auckland summary is identical to step 0's.
 - [ ] `test-tiers.test.ts` passes: the adapter's suite is in the jsdom tier and the other three are
       in the fast tier.
 - [ ] `typecheck`, `lint`, `build` and `format:check` all exit 0.
@@ -1295,8 +1316,8 @@ rm -f -- "$report"
       `apps/wbs/fe-01/src/components/wbs/use-plan-filter.ts` line 136. Any call is a stop.
 - [ ] The four named devsync checks were run; the whole target is pending planner verification.
 - [ ] The host gate is reported as not run.
-- [ ] The twenty-one paths and the commit subject are in the report; nothing was staged or
-      committed.
+- [ ] This slice's own six paths and the commit subject are in the report — the packet's twenty-one
+      paths total, fifteen already committed at checkpoint A — and nothing was staged or committed.
 
 ## 8. Negative proofs
 
@@ -1379,12 +1400,11 @@ If the extraction turns out to need a behaviour change, stop and report.
 
 | Command                                                                | Expected                                                                                       |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit`                      | Exit 0. `Test Files` +3 and `Tests` +15 against step 0.                                        |
+| The focused node-tier suite command of steps 3 and 4                   | Step 3 fails collection; step 4 exits 0 with exactly three passing files and fifteen tests.    |
 | The six-suite oracle command in step 0                                 | Exit 0, step 0's counts, with the project page's `Tests` exactly +1.                           |
 | `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/test-tiers.test.ts)` | Exit 0. The fast-tier list and the files agree.                                                |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                      | Exit 0, no diagnostic.                                                                         |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                           | Exit 0, no warning.                                                                            |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:test`                           | Exit 0. UTC +4 files and +19 tests; Auckland identical to step 0's.                            |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:build`                          | Exit 0.                                                                                        |
 | The storage sweep in the completion checklist                          | Only the one prose comment; no call outside the preferences module and the pre-paint script.   |
 | The four named devsync checks in step 8                                | Each `1 pass`, `0 fail`, or a failure naming only other packets' documents, recorded verbatim. |
@@ -1394,12 +1414,14 @@ If the extraction turns out to need a behaviour change, stop and report.
 
 ### What the planner runs afterwards, and the executor reports as pending
 
-| Command                                                          | Why the executor cannot run it                                                     |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `git add` of the twenty-one paths, then the commit               | The clone's Git directory is read-only here.                                       |
-| `NX_DAEMON=false bunx nx run tool-devsync:test`                  | Its index checker runs `git write-tree` and `git add --update` against this clone. |
-| `bin/h2puni-gate.sh <sha>`                                       | The host gate cannot run on this machine.                                          |
-| Appending this packet's evidence to `service-taxonomy/verify.md` | That file belongs to 010.3 and then 020.8.                                         |
+| Command                                                          | Why the executor cannot run it                                                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `git add` of the twenty-one paths, then the commit               | The clone's Git directory is read-only here.                                                                                          |
+| `NX_DAEMON=false bunx nx run tool-devsync:test`                  | Its index checker runs `git write-tree` and `git add --update` against this clone.                                                    |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit`, uncached      | Counts are relative; the planner checks the delta against its pre-dispatch baseline, not the executor. Expect `+3` files/`+15` tests. |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:test`, uncached           | Same reason. Expect UTC `+4` files/`+19` tests; Auckland unchanged.                                                                   |
+| `bin/h2puni-gate.sh <sha>`                                       | The host gate cannot run on this machine.                                                                                             |
+| Appending this packet's evidence to `service-taxonomy/verify.md` | That file belongs to 010.3 and then 020.8.                                                                                            |
 
 **What none of it proves.** Nothing runs the browser level: `e2e` is not run here. Nothing proves
 that a reader's _existing_ browser data survives an upgrade — only that the names and bytes this
@@ -1418,7 +1440,8 @@ check, which the batch assumptions defer.
 4. **Any stored key name or stored byte format would have to change.** Readers have this data in
    their browsers; this is a stop, not a judgement call.
 5. The oracle's counts differ from step 0's by anything other than the project page's `+1`.
-6. The pin does not read `22` at step 0, or the count after adding one README is not `23`.
+6. The anchored pin search at step 0 is absent or ambiguous, or the count after adding the
+   README is not exactly N+1.
 7. `test-tiers.test.ts` fails naming one of this packet's suites. Do not edit `DOM_EVIDENCE` or
    `INDIRECT_DOM_SUITES`: both are outside the file plan.
 8. The document checks ask for anything other than a plain README.
@@ -1548,3 +1571,21 @@ Folded in after the batch README gained its "Execution contract" and new standar
 
 Nothing in this round was rejected. One deviation from an instruction remains, recorded as
 finding 1: this packet does not import the shared store contract, because it holds no snapshot.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): dispatch after fixes, applied
+
+Verdict: DISPATCH AFTER FIXES — slice 1 had two conflicts with the execution contract, and no
+further dispatch blocker turned up in the preferences logic itself. The planner applied both fixes
+by hand: steps 0, 3, 4 and 6, checkpoint A's checklist, step 10, checkpoint B's checklist, and the
+verification tables no longer have the executor run the whole `wbs-fe-01:test:unit` or
+`wbs-fe-01:test` target — the executor now runs the three preferences suites through a focused
+Vitest command for both the collection-failure observation and the exact three-file/fifteen-test
+green count, reruns the unchanged six-suite oracle in step 6, and reports both whole-target deltas
+as pending planner verification at each checkpoint. The README pin is now recorded as N at step 0
+rather than demanded as the absolute value 22, step 2 requires the pin to fail at exactly N+1
+rather than the absolute 23, and stop condition 6 was updated to match. The planner also applied
+two non-blocking corrections by hand: checkpoint A's stale "nine files"/"ten paths" wording is now
+"twelve files"/"fifteen paths", matching section 5's own count, and step 12's hand-over now expects
+slice 2's own six paths in `git status --short` rather than the packet's full twenty-one, since
+slice 1's fifteen are already committed by the time slice 2 runs. These fixes are in place before
+slice 2 is dispatched.

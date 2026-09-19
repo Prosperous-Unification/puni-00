@@ -848,7 +848,7 @@ done
 ```sh
 set -euo pipefail
 report=$(mktemp)
-bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
 jq -s -e '
   length == 1 and
   (.[0] | type == "object") and
@@ -866,7 +866,7 @@ rm -f -- "$report"
 This executor's Git directory is read-only, so there is nothing to stage and nothing to commit.
 Leave the work in the working tree and hand the planner what it needs to commit it.
 
-- [ ] `git status --short` → expect exactly the seven paths of section 5 as modified or untracked,
+- [ ] `git status --short --untracked-files=all` → expect exactly the seven paths of section 5 as modified or untracked,
       plus whatever other lanes already had in the tree, which stays untouched. Record the list.
 - [ ] Report, under "Ready to commit": the seven paths, and the subject
       `refactor(wbs-fe): extract the plan writer from the plan read hook`, with a body that carries
@@ -890,8 +890,8 @@ to be watched failing on a production path before its `Proof:` comment is truste
 Markdown table splits into extra cells and silently displaces every column after it.
 
 **Restore discipline, for every entry.** Copy the passing file aside first
-(`cp <file> /tmp/<name>.passing`), inject, run, record, then restore the exact bytes and
-`diff <file> /tmp/<name>.passing` to prove the restore, then rerun the command and see it pass
+(`cp <file> "$TMPDIR/<name>.passing"`), inject, run, record, then restore the exact bytes and
+`diff <file> "$TMPDIR/<name>.passing"` to prove the restore, then rerun the command and see it pass
 again. Clean up before reporting anything unexpected.
 
 **Where the pairings come from, exactly.** Two kinds of statement appear below, and they are not
@@ -1050,20 +1050,20 @@ it('refuses a completed gesture whose feed owner was replaced under it', async (
 - **Mutation.** In `plan-writer.feature.ts`, delete the `if (!isCurrent()) return 'refused';` that
   sits between `const completed = write.completedResources();` and the reread.
 - **Command.** C, then A.
-- **Expected failure.** Under C,
-  `refuses a completed gesture whose feed owner was replaced under it` fails twice over:
-  `expected 'landed' to be 'refused'` and `expected [ [ 'tree' ] ] to deeply equal []`. Under A,
-  `plan-read-and-write.test.tsx` still passes 88 of 88 — record that too, because it is the
-  coverage gap in the open.
+- **Expected failure.** Under C, `refuses a completed gesture whose feed owner was replaced under
+it` fails at `expect(outcome).toBe('refused')`, reporting received `landed` versus expected
+  `refused`. The following reread assertion is not reached during this failing run; retain it
+  unchanged. Under A, record the actual passing summary and compare it with the unmutated run.
+  After restoring, rerun C and A green.
 - **Then, and only then, rewrite the stale comment.** The comment moved in step 4 says the fault
   was watched in `does not announce an old arrangement in its busy replacement`. That is no longer
   true. Replace it with what was actually seen, in the repository's own form, for example:
 
 ```ts
-// Proof: this line deleted, `refuses a completed gesture whose feed owner was
-// replaced under it` failed on `expected 'landed' to be 'refused'` and on
-// `expected [ [ 'tree' ] ] to deeply equal []`. The production suite stayed green at
-// 88 of 88, which is the coverage gap this test closes. Watched, 2026-09-20.
+// Proof: deleting this guard made `refuses a completed gesture whose feed owner
+// was replaced under it` fail with received `landed` versus expected `refused`.
+// The following reread assertion was not reached during that failing run.
+// Watched, <actual observation date>.
 ```
 
 - **If the injection does not fail**, stop and report. Do not delete the guard, do not keep the old
@@ -1281,6 +1281,9 @@ the defect this packet already had to repair once.
 The checkpoints are cut where a wrong decision is cheapest to undo and where the next stretch
 depends on the previous one being right.
 
+Dispatch checkpoint 1 explicitly as "Steps 0–4 only; stop after Step 4," which is checkpoint A
+below. Preserve its baseline report and evidence references for subsequent attempts.
+
 | Checkpoint | After   | What the planner reads before saying go on                                                                                                                                              |
 | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A          | Step 4  | The contract, both unit tests, the moved service, and the recorded red-then-green. If the contract is wrong, everything after it is wasted; this is the cheapest place to find out.     |
@@ -1337,3 +1340,16 @@ Nothing in the second review was rejected. The one place this packet goes beyond
 suggested the new unit test assert `refused` and no reread, and the packet also records that
 `plan-read-and-write.test.tsx` stays at 88 of 88 under the same mutation, because that number is
 the coverage gap in the open and belongs in the proof comment's evidence.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH, checkpoint 1 only
+
+Checkpoint 1 (Steps 0–4) has no blocking problem and may proceed now. Proof 6's expected-failure
+text and its example `Proof:` comment claimed both assertions of the new test would fail, but the
+first assertion throws, so the reread assertion is never reached; the planner rewrote both by hand
+to name the single reached assertion and to state that the reread assertion is retained unchanged
+though unreached. The planner also applied the non-blocking fixes by hand: the fixed
+`/tmp/<name>.passing` examples in section 8 now read `"$TMPDIR/<name>.passing"`, the OpenSpec
+invocation in Step 12 now carries `OPENSPEC_TELEMETRY=0`, section 13 now states that checkpoint 1
+is "Steps 0–4 only; stop after Step 4," and the handoff `git status --short` in Step 13 now passes
+`--untracked-files=all`. The blocking finding belongs to checkpoint 2, which is not dispatched
+yet, so it was fixed before that checkpoint's own dispatch rather than after.
