@@ -138,7 +138,7 @@ bunx @fission-ai/openspec@1.12.0 validate --all --json |
 
 ### Task 4: Reword decisions and current plans
 
-**Files:** modify `docs/adr/0027-planning-commits-are-the-transaction-boundary.md`, `docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md`, `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`, `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`, `docs/superpowers/plans/2026-09-17-k3s-fleet.md`, `infra/README.md`.
+**Files:** modify `docs/adr/0027-planning-commits-are-the-transaction-boundary.md`, `docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md`, `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`, `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`, `docs/superpowers/plans/2026-09-17-k3s-fleet.md`, `docs/infra/README.md`.
 
 - [ ] An accepted ADR keeps its decision text. Add one dated line under its status naming the owning tool: ADR 0027 belongs to Twilight Navigator's planning contract and ADR 0028 to Twilight Dash's worker pool.
 - [ ] In the fleet documents, state once that the fleet and its delivery tooling are Twilight Dash's, and leave task identifiers and evidence links unchanged.
