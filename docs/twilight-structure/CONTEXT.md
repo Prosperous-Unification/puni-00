@@ -1,13 +1,39 @@
 # Twilight Structure
 
 The software factory context in `puni-00`. Its vocabulary describes the work
-of creating and delivering software through the factory.
+of creating and delivering software through the factory. How the names below fit
+together is explained in [names and boundaries](names.md).
 
 ## Language
 
+**Prosperous Unification**:
+The company that owns the product, the tool suite and this monorepo. Short form PUNI.
+_Avoid_: Vesper Shipyards as a company name
+
+**Vesper Shipyards**:
+The code name of the customer-facing product: the software factory service that builds and
+delivers software for clients, running on Twilight Structure.
+_Avoid_: Twilight, the factory, as a product name
+
 **Twilight Structure**:
-The software factory service that helps build the other software in this monorepo.
-Its repository name is `twilight-structure`.
+The suite of tools the product runs on: Twilight Navigator, Twilight Dash and Twilight
+Bureaucrat. Short form twist. Until 2026-09-19 this term named the factory service itself.
+_Avoid_: Using it for the product or for the execution runtime
+
+**Twilight Navigator**:
+The human-facing planning tool of the suite: it turns a person's request into code structure
+and a plan for execution. Short form twin.
+_Avoid_: Planner, secretary
+
+**Twilight Dash**:
+The execution tool of the suite: it runs, builds, tests, deploys, generates code and operates
+environments. Short form twid.
+_Avoid_: Twilight Structure, control plane, as the tool's name
+
+**Twilight Bureaucrat**:
+The rules tool of the suite: it judges whether an artifact conforms, from a Git revision and
+recorded evidence alone, and holds templates and structure. Short form twib.
+_Avoid_: Tool Wiki, wiki CLI
 
 **Personal phase**:
 The first product phase, intended for Dany's own use of the assistant and

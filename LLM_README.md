@@ -2,10 +2,10 @@
 
 The integrated upstream PR set merged in [upstream PR #391](https://github.com/Prosperous-Unification/wbs-tool-v1/pull/391).
 
-**puni-00** — company monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md): SDLC pilot and delivery plan.
+**puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Bureaucrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
-`wiki-cli` (`apps/wiki/cli`, `product:wiki`) is the separately released module-wiki validator.
+`twilight-bureaucrat` (`apps/wiki/cli`, `product:twilight-bureaucrat`) is Twilight Bureaucrat, the separately released rules and module-wiki validator.
 
 Three facts explain most decisions:
 
@@ -121,6 +121,8 @@ Harness prototype: `tools/harness-example/src/harness.ts`; `bunx nx run harness-
 
 Delivery planning: [Twilight Bureaucrat and dynamic k3s fleet](docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md), building on [the infrastructure proposal](docs/plans/2026-09-15-infra-evolution-plan.md).
 
-Package adoption: [caught-object-report-json, application-exception, and di-bag across all projects](docs/superpowers/plans/2026-09-17-personal-package-adoption.md).
+Package adoption: [caught-object-report-json, application-exception, and di-bag across all projects](docs/superpowers/plans/2026-09-17-personal-package-adoption.md); read its 2026-09-19 amendment first.
+
+Code organization: [four service kinds, modules, frontend rules and test axes](docs/superpowers/specs/2026-09-19-code-organization-design.md), with its [rollout plan](docs/superpowers/plans/2026-09-19-code-organization-rollout.md) and the [Twilight Bureaucrat rules design](docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md). Naming: [rename plan](docs/superpowers/plans/2026-09-19-twilight-rename.md).
 
 Conventions: pure planners + thin IO shell; strict types; comments say **why** and what was verified; never print secrets.
