@@ -109,10 +109,10 @@ export function createPlanWriter({
           return 'refused';
         }
         const completed = write.completedResources();
-        // Proof: returning `landed` without checking the captured owner made
-        // an old Arrange completion toast into its busy replacement. Watched
-        // in `does not announce an old arrangement in its busy replacement`,
-        // 2026-09-13.
+        // Proof: deleting this guard made `refuses a completed gesture whose feed owner
+        // was replaced under it` fail with received `landed` versus expected `refused`.
+        // The following reread assertion was not reached during that failing run.
+        // Watched, 2026-09-20.
         if (!isCurrent()) return 'refused';
         if (completed.length > 0) await rereadResources(completed);
         // A covering read may renew the coordinator for the same reader, so
