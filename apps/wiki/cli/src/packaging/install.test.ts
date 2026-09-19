@@ -214,7 +214,7 @@ describe('packed Twilight Bureaucrat installation', () => {
     expect(manifest).toMatchObject({
       name: 'twilight-bureaucrat',
       version: '0.1.0',
-      bin: { 'twilight-bureaucrat': 'dist/bin.mjs' },
+      bin: { 'twilight-bureaucrat': 'dist/bin.mjs', twib: 'dist/bin.mjs' },
     });
     const installedFiles = listFiles(installed);
     expect(installedFiles).toContain('dist/toolkit/prepare-relocation-activation.mjs');
@@ -224,6 +224,21 @@ describe('packed Twilight Bureaucrat installation', () => {
     const version = invoke(executable, ['--version'], consumer);
     expect(version.exitCode, version.stderr.toString()).toBe(0);
     expect(version.stdout.toString()).toBe('0.1.0\n');
+    // Proof: removing the `twib` entry from the manifest and repacking failed the `toMatchObject`
+    // manifest expectation; renaming node_modules/.bin/twib aside failed the existence assertion;
+    // clearing its executable bit aborted the test with `EACCES: permission denied, posix_spawn`
+    // thrown out of `run`, before the exit-status assertion; and replacing it with a launcher
+    // printing 9.9.9 failed the output assertion (2026-09-20). Each was restored and rerun green.
+    const shortCommand = join(consumer, 'node_modules/.bin/twib');
+    const fullCommand = join(consumer, 'node_modules/.bin/twilight-bureaucrat');
+    expect(existsSync(shortCommand), 'the installer did not link the short command').toBe(true);
+    expect(existsSync(fullCommand), 'the installer did not link the full command').toBe(true);
+    const shortRun = run([shortCommand, '--version'], consumer, sanitizedEnvironment(consumer));
+    expect(shortRun.exitCode, shortRun.stderr.toString()).toBe(0);
+    expect(shortRun.stdout.toString()).toBe('0.1.0\n');
+    const fullRun = run([fullCommand, '--version'], consumer, sanitizedEnvironment(consumer));
+    expect(fullRun.exitCode, fullRun.stderr.toString()).toBe(0);
+    expect(fullRun.stdout.toString()).toBe(shortRun.stdout.toString());
     const offlineVersion = run([process.execPath, executable, '--version'], consumer, {
       ...sanitizedEnvironment(consumer),
       BUN_CONFIG_REGISTRY: 'http://127.0.0.1:1',
