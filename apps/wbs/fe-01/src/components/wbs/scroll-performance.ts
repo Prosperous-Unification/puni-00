@@ -39,11 +39,7 @@ export function recordScrollProbe(
   if (duration !== null && started !== null) active[duration] += performance.now() - started;
 }
 
-export const recordWbsScrollCommit: ProfilerOnRenderCallback = (
-  _id,
-  _phase,
-  actualDuration,
-) => {
+export const recordWbsScrollCommit: ProfilerOnRenderCallback = (_id, _phase, actualDuration) => {
   const active = probe();
   if (active === undefined) return;
   active.reactCommits += 1;

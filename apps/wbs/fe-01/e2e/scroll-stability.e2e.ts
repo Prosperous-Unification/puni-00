@@ -104,7 +104,8 @@ test.describe('large-plan scroll stability', () => {
         wrapped.boundingBox(),
         oneLine.boundingBox(),
       ]);
-      if (wrappedBox === null || oneLineBox === null) throw new Error('seeded rows have no geometry');
+      if (wrappedBox === null || oneLineBox === null)
+        throw new Error('seeded rows have no geometry');
       expect(wrappedBox.height, 'every fifth name wraps to two lines').toBeGreaterThan(
         oneLineBox.height * 1.5,
       );
