@@ -63,12 +63,14 @@ prod SSH key, registry credentials and the `ghp_` PAT. A `PreToolUse` guard ther
 git push && ./bin/dev-deploy.sh     # from h1claw, seconds
 ```
 
-One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout via
-`bun run dev`. **For application code the watchers are the deploy** — nothing is built, pushed
-or restarted. The lockfile, migrations, and config read once at startup trigger a restart; a
-changed `compose.yml` or `Dockerfile` fails the deploy with the command that applies it. Dev
-has **no edge password** since 2026-08-06 — be-01 and gw-01 guard themselves, and account
-registration is open to the internet.
+One container, `wbs-dev-src`, runs all three tiers from a bind-mounted puni-00 checkout via
+`bun run dev`. The h2puni poller follows puni-00 `main`, records a commit as deployed only after
+`/health` proves that checkout commit, and retries proof on later ticks until it succeeds. **For
+application code the watchers are the deploy** — nothing is built, pushed or restarted. The
+lockfile, migrations, and config read once at startup trigger a restart; a changed `compose.yml`
+or `Dockerfile` fails the deploy with the command that applies it. Dev has **no edge password**
+since 2026-08-06 — be-01 and gw-01 guard themselves, and account registration is open to the
+internet.
 
 **Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.**
 

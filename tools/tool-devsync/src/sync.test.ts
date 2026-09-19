@@ -619,12 +619,35 @@ describe('dev supervisor', () => {
 
 describe('dev-sync rehearsal inputs', () => {
   it.each([
-    ['source', { sourcePath: LIVE_DEV_SOURCE, containerName: 'scratch-dev', statePath: '/tmp/scratch-state' }],
-    ['container', { sourcePath: '/tmp/scratch-source', containerName: LIVE_DEV_CONTAINER, statePath: '/tmp/scratch-state' }],
-    ['state', { sourcePath: '/tmp/scratch-source', containerName: 'scratch-dev', statePath: LIVE_DEV_STATE }],
+    [
+      'source',
+      {
+        sourcePath: LIVE_DEV_SOURCE,
+        containerName: 'scratch-dev',
+        statePath: '/tmp/scratch-state',
+      },
+    ],
+    [
+      'container',
+      {
+        sourcePath: '/tmp/scratch-source',
+        containerName: LIVE_DEV_CONTAINER,
+        statePath: '/tmp/scratch-state',
+      },
+    ],
+    [
+      'state',
+      {
+        sourcePath: '/tmp/scratch-source',
+        containerName: 'scratch-dev',
+        statePath: LIVE_DEV_STATE,
+      },
+    ],
   ])('refuses a rehearsal whose %s resolves to live dev', (_label, paths) => {
     // Proof: each assertion runs before sync can issue a git or Docker command.
-    expect(() => devSyncPathsOf({ ...paths, rehearsal: true })).toThrow('must not resolve to live dev');
+    expect(() => devSyncPathsOf({ ...paths, rehearsal: true })).toThrow(
+      'must not resolve to live dev',
+    );
   });
 
   it('requires all three custom inputs and forwards only a fully fenced rehearsal', () => {

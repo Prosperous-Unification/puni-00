@@ -80,7 +80,9 @@ export function devSyncPathsOf(options: Partial<DevSyncPaths> = {}): DevSyncPath
   const statePath = canonicalPath(options.statePath ?? LIVE_DEV_STATE);
   const containerName = options.containerName ?? LIVE_DEV_CONTAINER;
   if (!sourcePath.startsWith('/') || !statePath.startsWith('/') || containerName === '') {
-    throw new Error('dev sync source, container and state inputs must be non-empty absolute values');
+    throw new Error(
+      'dev sync source, container and state inputs must be non-empty absolute values',
+    );
   }
   if (
     rehearsal &&
@@ -580,10 +582,7 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
   const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);
 
   await $`git -C ${paths.sourcePath} fetch --quiet origin`;
-  await deploySolverTarget(
-    sha,
-    solverTargetDependencies({ sourceRepository: paths.sourcePath }),
-  );
+  await deploySolverTarget(sha, solverTargetDependencies({ sourceRepository: paths.sourcePath }));
 
   // The reset is only believed once HEAD says so. `git reset` on a SHA the
   // fetch did not deliver fails, but a partially applied reset would otherwise
@@ -676,7 +675,9 @@ if (import.meta.main) {
   try {
     invocation = parseDevSyncInvocation(process.argv.slice(2));
   } catch (error) {
-    console.error(`usage: bun sync.ts <sha> [--source PATH --container NAME --state PATH --rehearsal]\n${String(error)}`);
+    console.error(
+      `usage: bun sync.ts <sha> [--source PATH --container NAME --state PATH --rehearsal]\n${String(error)}`,
+    );
     process.exit(1);
   }
 
