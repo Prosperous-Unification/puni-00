@@ -940,8 +940,12 @@ Each exits 0 before the injection.
 - **Mutation.** In `plan-writer.feature.ts`, add `readRefreshOwner()?.getSnapshot();` as the first
   statement of `run`.
 - **Command.** C.
-- **Expected failure.** `rereads the completed prefix of a gesture a later request refuses` fails
-  with `the plan writer called getSnapshot on the feed owner`.
+- **Expected failure.** Both tests of `plan-writer.test.ts` fail with
+  `the plan writer called getSnapshot on the feed owner`:
+  `rereads the completed prefix of a gesture a later request refuses` and
+  `refuses a completed gesture whose feed owner was replaced under it`. Both build the same
+  throwing feed owner, and the mutation runs at the top of every gesture, so it necessarily reaches
+  both. Observed by the second checkpoint 2 attempt's predecessor on 2026-09-20.
 - **Why.** The fake feed owner in the new suite throws from every member, which is the assertion
   that the writer reads the owner for identity only.
 
@@ -1230,9 +1234,12 @@ Stop and report rather than improvising when any of these happens.
    no behaviour; if it seems to need one, the extraction is wrong.
 2. A `Proof:` comment has no home in the new file, or its test no longer exists. A proof comment is
    never deleted without its test.
-3. A negative injection in section 8 does not produce the named failure, or produces it in a test
-   other than the named one. There is no exemption: every one of the thirteen proofs is run,
-   proof 6 included.
+3. A negative injection in section 8 does not produce the named failure in the named test. There
+   is no exemption: every one of the thirteen proofs is run, proof 6 included. A fault that also
+   fails **other** tests is not a stop: a broken guard often breaks several readers. Save the whole
+   failing output, list every additional failing test by name in the report beside the proof, and
+   go on. It is a stop only when the named test passes, fails with a different message, or when the
+   failure comes from the mutation not compiling.
 4. `wbs-table.tsx` appears to need an edit. It should not: `usePlanRead`'s parameters and return
    value are unchanged.
 5. `apps/wbs/fe-01/src/lib/local-write.ts` appears to need a move. It does not in this packet —
@@ -1362,3 +1369,7 @@ yet, so it was fixed before that checkpoint's own dispatch rather than after.
 ### First attempt, 2026-09-20: stopped at step 0, and what changed
 
 The first checkpoint 1 attempt stopped correctly at step 0 with no file changed: `wbs-fe-01:test:unit` exited 1. The planner reproduced it under the same sandbox. Three tests in two files (`playwright-config.test.ts` and `src/components/wbs/short-date.test.ts`) call `execFileSync('bun', ...)` from Node, and the sandbox answers `spawnSync bun EPERM`; outside the sandbox all 554 pass. The executor now runs the unit tier without those two files (observed in the sandbox: 32 files, 534 tests, exit 0), and both whole targets are the planner's, measured against the baseline recorded at `42ec9e95`. No test was edited or skipped in the repository; the exclusion exists only on the executor's command line.
+
+### Checkpoint 2, first attempt, 2026-09-20: stopped at proof 1, and what changed
+
+Steps 5 to 7 were done and green (typecheck, lint, format check, the oracle at 3 files and 157 tests). Proof 1 then failed both tests of the new suite with the named message, and the executor stopped on stop condition 3, which forbade a failure in any test other than the named one. The executor was right and the packet was wrong: both tests build the same throwing feed owner, so the mutation cannot reach one without the other. Proof 1 now names both tests. Stop condition 3 now requires the named failure and records additional failing tests instead of stopping on them, because a fault that breaks more than its named reader is still a fault the named test caught.
