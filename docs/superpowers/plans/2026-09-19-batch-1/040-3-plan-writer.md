@@ -388,15 +388,19 @@ The packet compares counts afterwards, so the counts have to exist first. Nothin
 step.
 
 - [ ] `git rev-parse HEAD` → record the starting revision; every count below belongs to it.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → expect exit 0. Record the `Test Files`
-      and `Tests` lines. **These recorded numbers, not the planner's, are what every later
-      comparison uses.** For orientation only, the planner saw `34 passed (34)` and
-      `554 passed (554)` at `1eeacb0b` on 2026-09-19; a different number means the revision moved
-      and is not by itself a problem.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → expect exit 0. This target runs **two**
-      suites — a `TZ=UTC` run and a `TZ=Pacific/Auckland` run against `vitest.zoned.config.ts` — so
-      it prints **two** summaries. Record both `Test Files` and both `Tests` lines. The planner did
-      not run this target; see Unknown 2.
+- [ ] Run the **sandbox unit command** (batch README, "Frontend tests inside the sandbox"):
+      `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts --exclude playwright-config.test.ts --exclude src/components/wbs/short-date.test.ts)`
+      → expect exit 0. Record the `Test Files` and `Tests` lines. **These recorded numbers are what
+      every later comparison of this command uses.** For orientation only, the planner saw
+      `32 passed (32)` and `534 passed (534)` inside the sandbox at `42ec9e95` on 2026-09-20. Do
+      not run `wbs-fe-01:test:unit`: three of its tests spawn `bun` from Node, which the sandbox
+      refuses with `EPERM`, so that target cannot pass here. The first attempt stopped on exactly
+      that.
+- [ ] Do not run `wbs-fe-01:test`. It takes seven minutes, prints **two** summaries — a `TZ=UTC`
+      run and a `TZ=Pacific/Auckland` run against `vitest.zoned.config.ts` — and includes the same
+      spawning tests. The planner recorded its baseline outside the sandbox at `42ec9e95` on
+      2026-09-20: `test:unit` 34 files and 554 tests; `test` UTC 107 files and 2781 tests, Auckland
+      2 files and 3 tests. Report both whole targets as pending planner verification.
 - [ ] Read the pin. The bare symbol name appears three times in that file — the type member, the
       computation and the literal pin — so anchor the pattern to the pin itself:
 
@@ -831,13 +835,14 @@ done
 
 ### Step 11 — Whole frontend
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` → expect exit 0, with the `Test Files`
-      count equal to step 0's plus one and the `Tests` count equal to step 0's plus two.
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:test` → expect exit 0. Compare **both** summaries
-      against the two recorded in step 0. The UTC summary is one file and two tests above step 0's
-      — the new suite runs in that target too. The `TZ=Pacific/Auckland` summary is identical to
-      step 0's: this packet adds no `.zoned.test.ts` file. Any other difference is a stop
-      condition.
+- [ ] Run the sandbox unit command from step 0 → expect exit 0, with the `Test Files` count equal
+      to step 0's plus one and the `Tests` count equal to step 0's plus two.
+- [ ] Do not run `wbs-fe-01:test:unit` or `wbs-fe-01:test`; report both as pending planner
+      verification. The planner runs them outside the sandbox and expects, against the recorded
+      baseline: `test:unit` one file and two tests up; the UTC summary of `test` one file and two
+      tests up, because the new suite runs in that target too; the `TZ=Pacific/Auckland` summary
+      unchanged, because this packet adds no `.zoned.test.ts` file. Any other difference is a stop
+      condition for the planner.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:build` → expect exit 0.
 
 ### Step 12 — OpenSpec validation
@@ -924,8 +929,8 @@ changes:
 # command B
 (cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 \
   src/components/wbs/plan-table.test.tsx)
-# command C
-NX_DAEMON=false bunx nx run wbs-fe-01:test:unit
+# command C: the sandbox unit command of step 0, not the wbs-fe-01:test:unit target
+(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts --exclude playwright-config.test.ts --exclude src/components/wbs/short-date.test.ts)
 ```
 
 Each exits 0 before the injection.
@@ -1190,17 +1195,17 @@ Every row states the exit status and the line or count that says it worked.
 
 ### What the executor runs
 
-| Command                                                                                                                                                                                                                 | Expected                                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit`                                                                                                                                                                       | Exit 0. `Test Files` one above step 0's number and `Tests` two above it.                                                |
-| `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 src/components/wbs/plan-read-and-write.test.tsx src/components/wbs/plan-table.test.tsx src/components/wbs/plan-chart-seam.test.tsx)` | Exit 0. `Test Files 3 passed (3)` and `Tests 157 passed (157)`, assertions unedited.                                    |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                                                                                                       | Exit 0, no diagnostic printed.                                                                                          |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                                                                                                            | Exit 0, no unused-import error.                                                                                         |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:test`                                                                                                                                                                            | Exit 0. Two summaries: the UTC one is one file and two tests above step 0's; the Auckland one is identical to step 0's. |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                                           | Exit 0.                                                                                                                 |
-| The four named devsync checks in step 10                                                                                                                                                                                | Each `1 pass`, `0 fail`, or a failure naming only other packets' documents, recorded verbatim.                          |
-| `NX_DAEMON=false bunx nx format:check --all`                                                                                                                                                                            | Exit 0, or failures naming only files outside this packet's seven, which are reported and left alone.                   |
-| The OpenSpec block in step 12                                                                                                                                                                                           | One JSON report printed and the block exits 0.                                                                          |
+| Command                                                                                                                                                                                                                 | Expected                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts --exclude playwright-config.test.ts --exclude src/components/wbs/short-date.test.ts)`                                                             | Exit 0. `Test Files` one above step 0's number and `Tests` two above it. The `wbs-fe-01:test:unit` and `wbs-fe-01:test` targets are the planner's.                |
+| `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 src/components/wbs/plan-read-and-write.test.tsx src/components/wbs/plan-table.test.tsx src/components/wbs/plan-chart-seam.test.tsx)` | Exit 0. `Test Files 3 passed (3)` and `Tests 157 passed (157)`, assertions unedited.                                                                              |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                                                                                                       | Exit 0, no diagnostic printed.                                                                                                                                    |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                                                                                                            | Exit 0, no unused-import error.                                                                                                                                   |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:test` and `wbs-fe-01:test:unit` — **planner only**, outside the sandbox                                                                                                          | Exit 0. `test:unit` and the UTC summary of `test` are each one file and two tests above the planner's recorded baseline; the Auckland summary is identical to it. |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                                           | Exit 0.                                                                                                                                                           |
+| The four named devsync checks in step 10                                                                                                                                                                                | Each `1 pass`, `0 fail`, or a failure naming only other packets' documents, recorded verbatim.                                                                    |
+| `NX_DAEMON=false bunx nx format:check --all`                                                                                                                                                                            | Exit 0, or failures naming only files outside this packet's seven, which are reported and left alone.                                                             |
+| The OpenSpec block in step 12                                                                                                                                                                                           | One JSON report printed and the block exits 0.                                                                                                                    |
 
 ### What the planner runs afterwards, and the executor reports as pending
 
@@ -1237,8 +1242,8 @@ Stop and report rather than improvising when any of these happens.
 6. The new suite fails in the node tier with a browser reference error. Do not move it to the DOM
    tier and do not edit `src/test-tiers.test.ts`: both are outside the file plan, and the move
    would make negative proofs 1 and 6 unrunnable. Stop; the planner decides. See Unknown 1.
-7. `NX_DAEMON=false bunx nx run wbs-fe-01:test` fails in a file this packet did not touch, or its
-   Auckland summary moves.
+7. The sandbox unit command fails in a file this packet did not touch. (The planner applies the
+   same condition to the two whole targets, and to a moved Auckland summary.)
 8. Making `busy` a store contract (rule F2) starts to look necessary. It is not, and it cannot be
    done here: `use-plan-dependencies.ts` shares the same setter.
 9. Anything requires editing a file listed in section 12.
@@ -1353,3 +1358,7 @@ invocation in Step 12 now carries `OPENSPEC_TELEMETRY=0`, section 13 now states 
 is "Steps 0–4 only; stop after Step 4," and the handoff `git status --short` in Step 13 now passes
 `--untracked-files=all`. The blocking finding belongs to checkpoint 2, which is not dispatched
 yet, so it was fixed before that checkpoint's own dispatch rather than after.
+
+### First attempt, 2026-09-20: stopped at step 0, and what changed
+
+The first checkpoint 1 attempt stopped correctly at step 0 with no file changed: `wbs-fe-01:test:unit` exited 1. The planner reproduced it under the same sandbox. Three tests in two files (`playwright-config.test.ts` and `src/components/wbs/short-date.test.ts`) call `execFileSync('bun', ...)` from Node, and the sandbox answers `spawnSync bun EPERM`; outside the sandbox all 554 pass. The executor now runs the unit tier without those two files (observed in the sandbox: 32 files, 534 tests, exit 0), and both whole targets are the planner's, measured against the baseline recorded at `42ec9e95`. No test was edited or skipped in the repository; the exclusion exists only on the executor's command line.

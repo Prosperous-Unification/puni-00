@@ -1345,7 +1345,8 @@ work. **Never write `|| true`, `; echo exit=$?` or anything else that turns a re
 into exit zero.**
 
 ```sh
-FAST='NX_DAEMON=false bunx nx run wbs-fe-01:test:unit'
+# The sandbox unit command (batch README, "Frontend tests inside the sandbox"), not the test:unit target.
+FAST='(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts --exclude playwright-config.test.ts --exclude src/components/wbs/short-date.test.ts)'
 ORACLE='(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/wbs/project-page.test.tsx src/lib/theme.test.ts src/components/wbs/gantt-panel.test.tsx)'
 ```
 
