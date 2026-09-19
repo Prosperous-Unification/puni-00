@@ -31,4 +31,4 @@ At `2026-09-19T21:26:13Z`, h2puni rehearsed exact head `bab79f35286d5a4a4be62943
 
 ## Gate note
 
-The first full exact-head h2puni gate at `19c960cc51e56c84f5f5e62edd48c1e630f95137` was invalidated by the still-active wbs-tool-v1 poller moving the shared live checkout during the gate. OpenSpec validation had passed 99/99 before Prettier reported many paths disappearing. The cutover procedure must stop that race, then the exact final head gets a fresh full gate.
+The first full exact-head h2puni gate at `19c960cc51e56c84f5f5e62edd48c1e630f95137` was invalidated by the still-active wbs-tool-v1 poller moving the shared live checkout during the gate. OpenSpec validation had passed 99/99 before Prettier reported many paths disappearing. Every later full gate runs in an isolated h2puni worktree, so the live poller cannot move its checkout.

@@ -75,9 +75,10 @@ poll_main() {
     fi
 
     if [ "$local_sha" != "$remote_sha" ] || [ "$last_synced" != "$remote_sha" ]; then
-      if [ "$local_sha" = "$remote_sha" ] && [ "$last_synced" != "$remote_sha" ]; then
-        echo "--- retrying incomplete sync from ${last_synced:0:7}"
+      if [ "$local_sha" != "$last_synced" ]; then
+        echo "--- restoring incomplete sync to ${last_synced:0:7}"
         git reset --hard --quiet "$last_synced"
+        local_sha=$last_synced
       fi
       sync_args=()
       if [ "$REHEARSAL" = 1 ]; then
