@@ -116,7 +116,7 @@ describe('durable dev poller', () => {
     expect(poller).toContain('git show "$remote_sha:bin/dev-poll-sync.sh"');
     expect(poller).not.toContain('"$BIN/dev-poll-sync.sh"');
     expect(poller).not.toContain('"$SRC/tools/tool-devsync/src/sync.ts"');
-    expect(poller).toContain('BUN=/home/puni1/wbs-dev/bin/bun');
+    expect(poller).toContain('BUN=${WBS_DEV_BUN:-/home/puni1/wbs-dev/bin/bun}');
     expect(poller).not.toContain('/wbs-dark/');
     expect(poller).toContain('git rev-parse refs/remotes/origin/main');
     expect(poller).not.toContain('git rev-parse FETCH_HEAD');

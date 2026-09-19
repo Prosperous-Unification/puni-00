@@ -327,9 +327,9 @@ describe('dev supervisor', () => {
 
   it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
     const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
-    const fetchAt = source.indexOf('git -C ${SRC} fetch --quiet origin');
-    const targetAt = source.indexOf('await deploySolverTarget(sha, solverTargetDependencies());');
-    const proofAt = source.indexOf('git -C ${SRC} rev-parse HEAD', targetAt);
+    const fetchAt = source.indexOf('git -C ${paths.sourcePath} fetch --quiet origin');
+    const targetAt = source.indexOf('await deploySolverTarget(');
+    const proofAt = source.indexOf('git -C ${paths.sourcePath} rev-parse HEAD', targetAt);
 
     expect(fetchAt).toBeGreaterThan(-1);
     expect(targetAt).toBeGreaterThan(fetchAt);
