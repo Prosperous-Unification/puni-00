@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { type CDPSession, expect, type Page, test } from '@playwright/test';
 
 import { painted, seedRenderingPlan } from './rendering-fixture';
 
@@ -19,6 +19,7 @@ interface FrameSample {
   gantt: string;
   tableCut: number;
   ganttCut: number;
+  counters: ProbeCounters;
 }
 
 const EMPTY_PROBE: ProbeCounters = {
@@ -57,12 +58,16 @@ async function sampleFrame(page: Page): Promise<FrameSample> {
     };
     const table = first(frame, 'tr[data-row-id]', heading.getBoundingClientRect().bottom);
     const gantt = first(panel, '[data-gantt-label]', axis.getBoundingClientRect().bottom);
+    const counters = (window as typeof window & { __wbsScrollProbe?: ProbeCounters })
+      .__wbsScrollProbe;
+    if (counters === undefined) throw new Error('scroll probe instrumentation is absent');
     return {
       at: performance.now(),
       table: table.row.dataset['rowId'] ?? '',
       gantt: gantt.row.dataset['ganttLabel'] ?? '',
       tableCut: table.cut,
       ganttCut: gantt.cut,
+      counters: structuredClone(counters),
     };
   });
 }
@@ -81,9 +86,48 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
   return samples;
 }
 
+async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
+  await session.send('Tracing.start', {
+    categories: 'devtools.timeline',
+    transferMode: 'ReturnAsStream',
+  });
+  const value = await action();
+  const completed = new Promise<string>((resolve, reject) => {
+    session.once('Tracing.tracingComplete', ({ stream }: { stream?: string }) => {
+      if (stream === undefined) reject(new Error('Chromium trace has no stream'));
+      else resolve(stream);
+    });
+  });
+  await session.send('Tracing.end');
+  const stream = await completed;
+  let raw = '';
+  for (;;) {
+    const chunk = await session.send('IO.read', { handle: stream });
+    raw += chunk.data;
+    if (chunk.eof === true) break;
+  }
+  await session.send('IO.close', { handle: stream });
+  const events = (
+    JSON.parse(raw) as { traceEvents?: { name?: string; dur?: number }[] }
+  ).traceEvents ?? [];
+  const durationMs = (name: string) =>
+    events
+      .filter((event) => event.name === name)
+      .reduce((total, event) => total + (event.dur ?? 0) / 1_000, 0);
+  return {
+    value,
+    timeline: {
+      layoutMs: durationMs('Layout'),
+      paintMs: durationMs('Paint'),
+      updateLayoutTreeMs: durationMs('UpdateLayoutTree'),
+    },
+  };
+}
+
 test.use({ viewport: { width: 1280, height: 800 }, video: 'on' });
 
 test.describe('large-plan scroll stability', () => {
+  test.describe.configure({ timeout: 10 * 60_000 });
   test.skip(process.env['WBS_SCROLL_PROBE'] !== '1', 'opt-in five-trace attribution probe');
 
   for (const rows of [50, 500, 2_000]) {
@@ -106,8 +150,11 @@ test.describe('large-plan scroll stability', () => {
       ]);
       if (wrappedBox === null || oneLineBox === null)
         throw new Error('seeded rows have no geometry');
-      expect(wrappedBox.height, 'every fifth name wraps to two lines').toBeGreaterThan(
+      expect(wrappedBox.height, 'every fifth name wraps to at least two lines').toBeGreaterThan(
         oneLineBox.height * 1.5,
+      );
+      expect(wrappedBox.height, 'every fifth name wraps to exactly two lines').toBeLessThan(
+        oneLineBox.height * 2.5,
       );
 
       const session = await page.context().newCDPSession(page);
@@ -120,8 +167,11 @@ test.describe('large-plan scroll stability', () => {
         await painted(page);
         await resetProbe(page);
         const before = await session.send('Performance.getMetrics');
-        const down = await scrollTrace(page, 1);
-        const up = await scrollTrace(page, -1);
+        const traced = await timelineTrace(session, async () => ({
+          down: await scrollTrace(page, 1),
+          up: await scrollTrace(page, -1),
+        }));
+        const { down, up } = traced.value;
         const after = await session.send('Performance.getMetrics');
         const counters = await page.evaluate(() => {
           const active = (window as typeof window & { __wbsScrollProbe?: ProbeCounters })
@@ -142,6 +192,7 @@ test.describe('large-plan scroll stability', () => {
           down,
           up,
           counters,
+          timeline: traced.timeline,
           metrics: metrics([
             'TaskDuration',
             'ScriptDuration',

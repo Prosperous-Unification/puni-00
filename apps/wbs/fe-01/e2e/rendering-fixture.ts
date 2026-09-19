@@ -63,7 +63,7 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
       name:
         `Row ${String(start + offset).padStart(4, '0')}` +
         ((size.wrappedEvery ?? 0) > 0 && (start + offset + 1) % (size.wrappedEvery ?? 1) === 0
-          ? ' whose deliberately long name wraps onto a second measured line'
+          ? ' whose name wraps onto line two'
           : start + offset === size.rows - 1
             ? ' z'
             : ''),
