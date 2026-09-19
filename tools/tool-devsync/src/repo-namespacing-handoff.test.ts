@@ -685,7 +685,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `539a2b35...` here after merging wbs-tool-v1 through 73e00574 failed on the
     // observed digest below at the same 257 occurrences and no unclassified entries; upstream's
     // local-solver moves shifted classified contexts only (2026-09-18).
-    digest: 'b664193f2d1c25a53123af04b884d9f6be706b64769aaa9291a651b7574dc1da',
+    digest: '25601def24c33b16c6ab68baa48f0bd9147b900876256c54cd0f00d50e7d09b3',
     occurrences: 257,
     unclassified: [],
   });
