@@ -163,7 +163,9 @@ printf 'fetch-reached\\n' >> "$OBSERVATIONS"
       OBSERVATIONS: observations,
     });
     expect(result.code).not.toBe(0);
-    expect(result.stderr).toContain('expected https://github.com/Prosperous-Unification/puni-00.git');
+    expect(result.stderr).toContain(
+      'expected https://github.com/Prosperous-Unification/puni-00.git',
+    );
     expect(await Bun.file(observations).exists()).toBe(false);
   });
 
