@@ -52,8 +52,8 @@ import { InlineMarkdown } from './inline-markdown';
 import { markerRulesAreTooDense } from './marker-rule-density';
 import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
-import { shortIsoDate } from './short-date';
 import { recordGanttScrollCommit } from './scroll-performance';
+import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor } from './table-frame';
 import { nameWords, numberWords, rowWords } from './work-item-words';
 
