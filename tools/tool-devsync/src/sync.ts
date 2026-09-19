@@ -82,12 +82,17 @@ export function devSyncPathsOf(options: Partial<DevSyncPaths> = {}): DevSyncPath
   if (supplied !== 0 && supplied !== 3) {
     throw new Error('custom dev sync inputs require source, container and state together');
   }
-  if (supplied === 3 && !rehearsal) {
-    throw new Error('custom dev sync inputs require rehearsal mode');
-  }
   const sourcePath = canonicalPath(options.sourcePath ?? LIVE_DEV_SOURCE);
   const statePath = canonicalPath(options.statePath ?? LIVE_DEV_STATE);
   const containerName = options.containerName ?? LIVE_DEV_CONTAINER;
+  const suppliedLiveTuple =
+    supplied === 3 &&
+    sourcePath === canonicalPath(LIVE_DEV_SOURCE) &&
+    containerName === LIVE_DEV_CONTAINER &&
+    statePath === canonicalPath(LIVE_DEV_STATE);
+  if (supplied === 3 && !rehearsal && !suppliedLiveTuple) {
+    throw new Error('custom dev sync inputs require rehearsal mode');
+  }
   if (!sourcePath.startsWith('/') || !statePath.startsWith('/') || containerName === '') {
     throw new Error(
       'dev sync source, container and state inputs must be non-empty absolute values',

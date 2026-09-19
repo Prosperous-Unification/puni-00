@@ -715,6 +715,12 @@ describe('dev-sync rehearsal inputs', () => {
       rehearsal: true,
     });
   });
+
+  it('accepts the normalized live tuple passed from the production lock parent', () => {
+    const invocation = parseDevSyncInvocation(['a'.repeat(40)]);
+    expect(() => devSyncPathsOf(invocation.paths)).not.toThrow();
+    expect(devSyncPathsOf(invocation.paths)).toEqual(invocation.paths);
+  });
 });
 
 describe('dev-sync lock diagnostics', () => {
