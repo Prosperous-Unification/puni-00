@@ -48,11 +48,7 @@ export const recordWbsScrollCommit: ProfilerOnRenderCallback = (_id, _phase, act
   active.reactCommitMs += actualDuration;
 };
 
-export const recordGanttScrollCommit: ProfilerOnRenderCallback = (
-  _id,
-  _phase,
-  actualDuration,
-) => {
+export const recordGanttScrollCommit: ProfilerOnRenderCallback = (_id, _phase, actualDuration) => {
   const active = probe();
   if (active === undefined) return;
   active.ganttCommits += 1;

@@ -19,11 +19,11 @@ attachment in the failed test's `trace.zip`.
 Medians below are across five traces. Durations cover one down/up repeat.
 “Mismatch frames” means the table and Gantt exposed different first-row ids.
 
-| Rows | Frames sampled | Max frame gap | p95 gap | Mismatch frames | React commits | React commit time | `placeRows` time | Paint | Layout |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 50 | 121 | 70.9 ms | 47.4 ms | 16 | 60 | 495.9 ms | 0.3 ms | 394.6 ms | 148.9 ms |
-| 500 | 37 | 186.6 ms | 160.3 ms | 0 | 293 | 12,165.8 ms | 3.6 ms | 3,036.7 ms | 1,316.3 ms |
-| 2,000 | 25 | 311.4 ms | 277.9 ms | 0 | profiling run exceeded 600 s | not completed | 10.0 ms | 3,239.1 ms | 1,838.9 ms |
+|  Rows | Frames sampled | Max frame gap |  p95 gap | Mismatch frames |                React commits | React commit time | `placeRows` time |      Paint |     Layout |
+| ----: | -------------: | ------------: | -------: | --------------: | ---------------------------: | ----------------: | ---------------: | ---------: | ---------: |
+|    50 |            121 |       70.9 ms |  47.4 ms |              16 |                           60 |          495.9 ms |           0.3 ms |   394.6 ms |   148.9 ms |
+|   500 |             37 |      186.6 ms | 160.3 ms |               0 |                          293 |       12,165.8 ms |           3.6 ms | 3,036.7 ms | 1,316.3 ms |
+| 2,000 |             25 |      311.4 ms | 277.9 ms |               0 | profiling run exceeded 600 s |     not completed |          10.0 ms | 3,239.1 ms | 1,838.9 ms |
 
 The 2,000-row non-profiler figures are medians from five complete traces; its
 profiler run itself timed out after ten minutes, after the same harness completed
