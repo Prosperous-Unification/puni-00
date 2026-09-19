@@ -246,7 +246,8 @@ test.describe('large-plan scroll stability', () => {
       const session = await page.context().newCDPSession(page);
       await session.send('Performance.enable');
       const traces = [];
-      for (let repeat = 0; repeat < 5; repeat += 1) {
+      const repeats = Number(process.env['WBS_SCROLL_REPEATS'] ?? '5');
+      for (let repeat = 0; repeat < repeats; repeat += 1) {
         await page.locator('[data-table-frame]').evaluate((node) => {
           node.scrollTop = 0;
         });
@@ -318,6 +319,16 @@ test.describe('large-plan scroll stability', () => {
       const frameGaps = traces
         .flatMap((trace) => [trace.down, trace.up])
         .flatMap((run) => run.slice(1).map((sample, index) => sample.at - run[index].at));
+      if (process.env['WBS_SCROLL_SUMMARY'] === '1')
+        console.log(
+          `WBS_SCROLL_SUMMARY ${JSON.stringify({
+            rows,
+            repeats,
+            counters: traces.map((trace) => trace.counters),
+            worstPairingRows: Math.max(...pairingErrors),
+            worstFrameGapMs: Math.max(...frameGaps),
+          })}`,
+        );
       expect(violations, 'equal wheel steps never reverse the visible row').toEqual([]);
       expect(
         Math.max(...pairingErrors),
