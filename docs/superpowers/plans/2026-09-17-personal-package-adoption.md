@@ -12,6 +12,49 @@
 
 **Status:** Proposed plan, requested on 2026-09-17; implementation has not started. “All projects” means complete coverage by role, including explicit dispositions where a package does not apply. User scope amendment: do not adopt DI Bag in the React frontend for now; retain frontend reporting work. Other proposed designs remain subject to review.
 
+## Amendment, 2026-09-19: read before executing
+
+This plan was written against older package versions and an older scope. It is kept as the
+record of that day. Rewrite slices 1 and 2 before executing anything; the facts below replace
+the matching statements further down.
+
+- **Versions.** The registry now carries `di-bag` 0.4.0, `application-exception` 0.5.0 and
+  `caught-object-report-json` 11.0.1. A probe on Bun 1.4.2 against those registry artifacts
+  passed, and both repository compilers type-checked it. Bun installs a single copy of the
+  report library.
+- **The shared reporting module shrinks.** The libraries now provide what this plan had the
+  repository build: one call returns both reports under one occurrence identifier, redaction
+  is a reusable policy of key and pattern rules, and one byte budget bounds the whole
+  diagnostic report, context included. The `ReportPolicy` interface and the deterministic
+  drop-order requirement below are obsolete. The module keeps four things: the limits, the
+  sensitive key list, a policy builder from caller-owned secrets, and a never-throw wrapper.
+- **The wrapper is still required.** A revoked Proxy as a cause still makes reporting throw on
+  11.0.1, reproduced through the two-report call. Redaction transforms receive raw containers,
+  so use key and pattern rules only.
+- **Build options once.** The library caches one report maker per options object and policy.
+  Create both as module constants, never per call.
+- **Reports carry a fingerprint now.** Add it to the log schema in the same change as the
+  serializer.
+- **DI Bag gained what this plan worked around.** Sync and async factory helpers replace the
+  acquisition-mode options in the examples below, and a factory can hand partially acquired
+  resources to the bag, which removes the caveat that a throwing factory cleans up after
+  itself.
+- **The frontend exclusion is reversed.** Dany decided on 2026-09-19 that the frontend gets a
+  service layer and three DI Bag lifetimes. The
+  [code organization design](../specs/2026-09-19-code-organization-design.md) and its
+  [rollout plan](2026-09-19-code-organization-rollout.md) own that work; the "user scope
+  amendment" in the status line below no longer holds.
+- **The compiler prerequisite is already met.** The pinned classic compiler alias resolves an
+  actual 6.0.3 compiler.
+- **The project inventory is stale.** The workspace has 35 projects; the fleet tool is missing
+  from the coverage table.
+- **Recommended order.** Reporting first as one vertical: the observability serializer and log
+  schema, the backend's unexpected-error boundary, then the MCP server. Then backend startup
+  ownership. Defer the portable core rewiring and the all-tools sweep until the report format
+  has held for a release or two; it changed twice in two days.
+- **Browser proof is partial.** The Vite 8.2.2 bundle built and ran in a Node sandbox with
+  Node's globals hidden. It has not run in Chromium.
+
 ## Intent
 
 **Problem.** The workspace has 34 Nx projects, hand-built service graphs, and several unrelated ways to turn caught values into text. Its WBS logger accepts only `Error`; its serialized error shape and declared log schema disagree. The three owner-maintained packages are published but absent from workspace dependencies.

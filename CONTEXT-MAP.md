@@ -4,7 +4,10 @@
 
 - [WBS](CONTEXT.md): work breakdown structures and their planning model.
 - [Twilight Structure](docs/twilight-structure/CONTEXT.md): the software factory
-  for building and delivering software in the monorepo.
+  for building and delivering software in the monorepo. The product's code name is
+  Vesper Shipyards; Twilight Structure is the tool suite it runs on, made of Twilight
+  Navigator, Twilight Dash and Twilight Bureaucrat. See
+  [names and boundaries](docs/twilight-structure/names.md).
 - [Personal assistant](docs/assistant/CONTEXT.md): the secretary and agents the
   person interacts with across requests of any kind. Future possibilities live
   in [parked ideas](docs/assistant/ideas.md).
@@ -18,7 +21,8 @@
   contact while the person can talk directly to a worker. Relevant changes from
   those conversations remain shared with the secretary.
 - **Twilight Structure → WBS**: WBS is the chosen planning interface. Twilight
-  executes accepted planning revisions and returns attributable progress.
+  Navigator plans through it; Twilight Dash executes accepted planning revisions and
+  returns attributable progress.
 - **Client repository → WBS**: per-repository Backlog.md is the chosen target
   planning backend, replacing SQLite planning storage after the WBS refactors
   land. The adapter, migration, and ownership contract are still proposed.
