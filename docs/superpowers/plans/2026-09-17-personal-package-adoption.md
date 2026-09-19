@@ -8,15 +8,16 @@
 
 **Tech stack:** Bun, Nx, TypeScript, Elysia, React/Vite, Pino, SQLite, and the three published packages.
 
-**Spec:** The proposed behavior is defined below. Existing constraints come from [core extraction](../../../openspec/specs/core-lib-extraction/spec.md), [HTTP endpoint contracts](../../../openspec/specs/http-endpoint-port/spec.md), and [AGENTS.md](../../../AGENTS.md). Create the OpenSpec implementation packets in slice 1 before changing behavior.
+**Spec:** The proposed behavior is defined below. Existing constraints come from [core extraction](../../../openspec/specs/core-lib-extraction/spec.md), [HTTP endpoint contracts](../../../openspec/specs/http-endpoint-port/spec.md), and [AGENTS.md](../../../AGENTS.md). Create each OpenSpec change before its first implementation: reporting in slice 2, composition in slice 4, and completion in slice 7. Slice 1 installs dependencies and corrects this document and opens none.
 
 **Status:** Proposed plan, requested on 2026-09-17; implementation has not started. “All projects” means complete coverage by role, including explicit dispositions where a package does not apply. User scope amendment: do not adopt DI Bag in the React frontend for now; retain frontend reporting work. Other proposed designs remain subject to review.
 
 ## Amendment, 2026-09-19: read before executing
 
 This plan was written against older package versions and an older scope. It is kept as the
-record of that day. Rewrite slices 1 and 2 before executing anything; the facts below replace
-the matching statements further down.
+record of that day. Slices 1 and 2, the published baseline, the reporting contract and the
+project inventory were rewritten on 2026-09-20 by work item 020.1; the rest of the plan below
+still predates this amendment, and the facts here replace the matching statements in it.
 
 - **Versions.** The registry now carries `di-bag` 0.4.0, `application-exception` 0.5.0 and
   `caught-object-report-json` 11.0.1. A probe on Bun 1.4.2 against those registry artifacts
@@ -57,7 +58,7 @@ the matching statements further down.
 
 ## Intent
 
-**Problem.** The workspace has 34 Nx projects, hand-built service graphs, and several unrelated ways to turn caught values into text. Its WBS logger accepts only `Error`; its serialized error shape and declared log schema disagree. The three owner-maintained packages are published but absent from workspace dependencies.
+**Problem.** The workspace has 35 Nx projects, hand-built service graphs, and several unrelated ways to turn caught values into text. Its WBS logger accepts only `Error`; its serialized error shape and declared log schema disagree. The three owner-maintained packages are published but absent from workspace dependencies.
 
 **Outcome.** Every runtime boundary has a deliberate reporting policy; failures that need typed context use owner-local exception kinds; backend, portable-core, and resource-owning tool graphs use DI Bag with explicit ownership. React keeps its current dependency-passing and lifecycle mechanisms. Every Nx project has a recorded adoption disposition, including the Python solver and pure libraries. New projects cannot silently escape that accounting.
 
@@ -67,60 +68,76 @@ the matching statements further down.
 
 ## Published baseline and compatibility
 
-Inspected on 2026-09-17 against workspace commit `c02944ffb7aaf2caa95676ca53a3cd4a7da4353c`. Versions below came from the public registry, then their exact archives were inspected; GitHub `main` is not the installation source.
+Inspected on 2026-09-19 against the published registry artifacts and their exact archives, whose README, CHANGELOG, `docs/agent/api-card.md` and type declarations were read; GitHub `main` is not the installation source. The 2026-09-17 inspection of 9.0.1 / 0.3.0 / 0.3.0 is recorded under "Evidence gathered while writing this plan" and is superseded here.
 
-| Package                                                                                 | Exact baseline | Verified surface                                                                                                                                              | Consequence for this repo                                                                                                                                                |
-| --------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [caught-object-report-json](https://registry.npmjs.org/caught-object-report-json/9.0.1) | `9.0.1`        | `makeCorj`, `CorjMaker`, `restoreExpectedValues`; unknown caught values, nested causes, depth/child/size limits                                               | Use for diagnostic serialization. Compact reports can omit `message` and constructor fields; consumers must understand that representation.                              |
-| [application-exception](https://registry.npmjs.org/application-exception/0.3.0)         | `0.3.0`        | `defineException`, `isTypedException`, `toDiagnosticReport`, `toPublicReport`, `decodePublicReport`                                                           | Own typed failures locally. Public policies select disclosed content; diagnostics contain substantially more information. Depends on CORJ `^9.0.1` and `nanoid ^3.3.19`. |
-| [di-bag](https://registry.npmjs.org/di-bag/0.3.0)                                       | `0.3.0`        | `createBuilder`, `register`, `build`, `buildModule`, `verifyGraph`, `fromFactory`, `withDisposal`, `buildAndStart`, `resolve`, `fork`, `createScope`, `close` | Compose explicit factories, preserve resource lifetimes, and use portable acquisition modes. Zero runtime dependencies.                                                  |
+| Package                                                                                  | Exact baseline | Verified surface                                                                                                                                                                                                                                                       | Consequence for this repo                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [caught-object-report-json](https://registry.npmjs.org/caught-object-report-json/11.0.1) | `11.0.1`       | `makeCorj`, `makeCorjArray`, `CorjMaker`, `restoreExpectedValues`; report format `corj/v0.14`, `occurrence_id` and `fingerprint` on by default, one `maxReportSize` over the whole report                                                                              | Use for diagnostic serialization. Compact reports can omit `message` and constructor fields; consumers must understand that representation. No runtime dependencies.                    |
+| [application-exception](https://registry.npmjs.org/application-exception/0.5.0)          | `0.5.0`        | `defineException`, `isTypedException`, `isTrustedException`, `createTrustRealm`, `createRedactionPolicy`, `toDiagnosticReport`, `toPublicReport`, `toReports`, `decodePublicReport`                                                                                    | Own typed failures locally. Public policies select disclosed content; diagnostics contain substantially more. Depends on CORJ `^11.0.1` and `nanoid ^3.3.19`; `nanoid` moves to 3.3.19. |
+| [di-bag](https://registry.npmjs.org/di-bag/0.4.0)                                        | `0.4.0`        | `DiBag.createBuilder`, `register`, `build`, `buildModule`, `installModule`, `verifyGraph`, `fromFactory`, `fromSyncFactory`, `fromAsyncFactory`, `withDisposal`, `withLifetime`, `buildAndStart`, `resolve`, `fork`, `createScope`, `close`; `factoryCtx.pushDisposer` | Compose explicit factories and preserve resource lifetimes with portable factory helpers. Zero runtime dependencies.                                                                    |
 
-Primary documentation: [CORJ](https://github.com/dany-fedorov/caught-object-report-json), [application-exception](https://github.com/dany-fedorov/application-exception), [DI Bag](https://github.com/dany-fedorov/di-bag). The package archive README and declarations were used to check the signatures in this plan.
+Primary documentation: [CORJ](https://github.com/dany-fedorov/caught-object-report-json), [application-exception](https://github.com/dany-fedorov/application-exception), [DI Bag](https://github.com/dany-fedorov/di-bag).
 
 Compatibility work precedes production adoption:
 
-- DI Bag documents classic TypeScript **6.0.3** as its floor and tests native **7.0.2**. This repo already uses native 7.0.2 for `tsc`, but exposes classic 6.0.2 to compiler-API consumers through `typescript: npm:@typescript/typescript6@6.0.2`. Move that alias to 6.0.3 and verify ESLint and wiki extraction/release fixtures. Do not replace the two-compiler arrangement.
+- The classic compiler prerequisite is already met. DI Bag documents classic TypeScript **6.0.3** as its floor and tests native **7.0.2**. This repo uses native 7.0.2 for `tsc` and exposes the compiler API through `typescript: npm:@typescript/typescript6@6.0.2`, whose `require('typescript').version` is **6.0.3**. Do not bump the alias and do not replace the two-compiler arrangement.
 - CORJ and application-exception publish CommonJS. Verify Bun import interoperability and the actual Vite/browser bundle, including nanoid's browser resolution. A Bun import does not prove browser execution.
-- Use `di-bag`, not `di-bag/node`, in portable code. Browsers have no automatic native-Promise classifier: register synchronous providers with `acquisitionMode: 'raw'` and asynchronous providers with `acquisitionMode: 'nativePromise'`. An async provider still exposes a `Promise<T>` to its consumers.
-- `build()` does not eagerly run every provider or establish readiness. Explicitly acquire required startup services before reporting ready. A synchronous provider that partially acquires resources must clean them up itself if it throws before returning an owned value.
+- Use `di-bag`, not `di-bag/node`, in portable code. Register synchronous providers with `DiBag.fromSyncFactory` and asynchronous ones with `DiBag.fromAsyncFactory`: both fix the acquisition mode by name, so a graph built from them runs on a host without `process.getBuiltinModule` and needs no classifier. An async provider still exposes a `Promise<T>` to its consumers, and a Promise that is itself the service keeps `fromFactory(create, { acquisitionMode: 'raw' })`.
+- `build()` does not eagerly run every provider or establish readiness. Explicitly acquire required startup services before reporting ready. A factory that acquires a resource before it can return hands it to the bag with `factoryCtx.pushDisposer`; pushed disposers run exactly once, last first, at once if the factory throws.
 - `verifyGraph() satisfies void` is a compile-time composition check, not runtime proof that every dependency exists or that no cycle can execute. Exercise runtime graph failures too. `di-bag-graph` is a separate package and is outside this three-package plan.
-- For primitive throws, two report calls otherwise produce separate occurrence IDs. Create the diagnostic once and pass its `occurrence_id` to `toPublicReport`.
-- CORJ's size bound covers its report. Application-exception adds context and reporting failures outside that budget; impose and test a bound on the final serialized record as well.
+- Capture both reports with one `toReports` call. It resolves the occurrence id once and shares it, so `diagnostic.occurrence_id === public.occurrence_id` holds for thrown primitives too, and it validates every option bag before building either report rather than returning half a pair.
+- `corj: { maxReportSize }` bounds the whole diagnostic report, `context` and `reporting_errors` included: over budget CORJ drops `context` whole and sets `context_omitted: 'max_size'`, then drops `reporting_errors`, and only then trims error content, never `occurrence_id`, `fingerprint` or `v`. One budget replaces the two this plan used to specify; the floor is 512 bytes.
+- Redaction is one reusable policy. `keys` and `paths` skip properties, so an excluded getter never runs but its text survives elsewhere; `patterns` and `transform` scrub text wherever it appears. Use key and pattern rules only: a `transform` receives raw containers, and a 0.4-era `transform` keyed on `path` or `stage` silently matches nothing on 0.5.
+- Reporting can still throw. A revoked `Proxy` as a cause made `toReports` throw on 11.0.1, observed through the two-report call, so every production reporting call sits behind the never-throw wrapper below.
+- Build the options and the policy once, as module constants. The library caches one report maker per options object and policy; creating either per call throws that away.
 
 ## Proposed integration contract
 
 ### Reporting
 
-Add `libs/shared/domain/failures` as `shared-failures`, alias `@shared/failures`, tagged `scope:shared`, `ring:domain`, `runtime:isomorphic`, `product:shared`. Like `shared-validation`, it contains framework-free transformations, not a logger, process hook, container, or product-specific exception catalogue. It introduces one additional project; the migration inventory must then cover 35.
+Add `libs/shared/domain/failures` as `shared-failures`, alias `@shared/failures`, tagged `scope:shared`, `ring:domain`, `runtime:isomorphic`, `product:shared`. Like `shared-validation`, it contains framework-free transformations, not a logger, process hook, container, or product-specific exception catalogue. It introduces one additional project; the migration inventory must then cover 36.
+
+The libraries now do what this plan once had the repository build: one call returns both reports under one occurrence identifier, redaction is a reusable policy of key and pattern rules, and one byte budget bounds the whole diagnostic report, context included. The module therefore keeps only the four things the libraries cannot decide for this repository — the limits, the sensitive key list, a policy builder over caller-owned secrets, and a never-throw wrapper.
 
 Its public surface is:
 
 ```ts
-import type { DiagnosticReport, PublicReport } from 'application-exception';
+import type { AppexCorjOptions, CapturedReports, RedactionPolicy } from 'application-exception';
 
-export interface FailureReports {
-  readonly diagnostic: DiagnosticReport;
-  readonly public: PublicReport;
-}
+/** The one options bag every reporting call shares. Built once; never per call. */
+export const FAILURE_REPORT_LIMITS: AppexCorjOptions;
 
-export interface ReportPolicy {
-  readonly redactValues: readonly string[];
-}
+/** Property names skipped in both reports, matched case-insensitively wherever they appear. */
+export const SENSITIVE_KEYS: readonly string[];
 
-export function reportFailure(caught: unknown, policy: ReportPolicy): FailureReports;
+/** A reusable policy over the secrets the calling boundary owns. Built once at startup. */
+export function createFailureRedaction(secrets: readonly string[]): RedactionPolicy;
+
+/**
+ * Both reports of one failure, or a visible refusal when reporting itself failed.
+ * Reporting loss is modeled, never silent, and never a successful operation.
+ */
+export type FailureReporting =
+  | { readonly reported: true; readonly reports: CapturedReports }
+  | { readonly reported: false; readonly occurrenceId: string; readonly reason: string };
+
+export function reportFailure(
+  caught: unknown,
+  options: { readonly redact: RedactionPolicy; readonly context?: unknown },
+): FailureReporting;
 ```
 
-This is a proposed interface, not existing code. `reportFailure` calls `toDiagnosticReport` once, applies the policy, and correlates `toPublicReport` using that diagnostic's occurrence ID. Use CORJ's exported types/default restoration for consumers and its serializer for standalone diagnostic-only boundaries; do not serialize the same caught value repeatedly just to use both packages.
+This is a proposed interface, not existing code. `reportFailure` makes one `toReports` call with `FAILURE_REPORT_LIMITS` as each bag's `corj` and the given policy as each bag's `redact`, and returns `reported: false` with a fixed terminal reason if that call throws, without invoking the reporter again.
 
 Reporting requirements:
 
-1. Configure diagnostic traversal to 16,384 UTF-8 bytes, depth 4, and 16 children. Cap the final diagnostic JSON at 32,768 UTF-8 bytes, including occurrence ID and any package reporting errors. After projection/redaction, drop optional diagnostic fields and children in a deterministic order until within the cap, setting `truncated: true`; preserve `v` and `occurrence_id`. Validate the final object against the installed diagnostic schema. Do not slice JSON text.
-2. Redact sensitive keys recursively, case-insensitively: `authorization`, `cookie`, `set-cookie`, `password`, `token`, `access_token`, `refresh_token`, `secret`, `jwtKey`, and `internalAuthSecret`. Also replace non-empty configured secret values wherever they appear in strings, including stacks, `as_string`, `as_json`, and reporting-error text. Callers supply the secrets they own; never attach whole config, requests, or environment objects. Unknown embedded secrets cannot be guaranteed detectable, so arbitrary request payloads are excluded by construction.
-3. Send only selected public reports to user/agent audiences. Apply the secret policy to the selected public fields too, then validate the public schema; a mistaken public-details selector must not bypass redaction. Unknown exceptions use the package's generic public policy. Browser consoles and agent transcripts are disclosure boundaries too; server diagnostics go only to the operator sink. There is no new browser telemetry endpoint in this plan.
-4. Expected inspection failures become the package's visible `reporting_errors`/truncation fields. This models diagnostic loss, not successful execution of the failed operation. Reporter configuration errors and sink failures must not become silent success. Preserve the original failure if reporting also fails, using a minimal fixed terminal message and a failing outcome without recursively invoking the reporter.
+1. `FAILURE_REPORT_LIMITS` is `{ maxReportSize: 32_768, maxDepth: 4, maxChildren: 16, inspection: 'no-invoke' }`. The single budget covers the whole report including `occurrence_id`, `fingerprint`, context and reporting errors; there is no second final-size pass and nothing slices JSON text. `inspection: 'no-invoke'` is what keeps a throwing getter from running during a report. Validate the final object against the installed diagnostic schema.
+2. `SENSITIVE_KEYS` is `authorization`, `cookie`, `set-cookie`, `password`, `token`, `access_token`, `refresh_token`, `secret`, `jwtKey`, `internalAuthSecret`, passed as the policy's `keys`. Keys skip properties, which hides the value but not its text elsewhere, so `createFailureRedaction` additionally compiles each caller-owned secret into a global `patterns` rule that scrubs it from messages, stacks, `as_string`, `as_json`, `context` and `reporting_errors`. Callers supply only the secrets they own; never attach whole config, request or environment objects. Unknown embedded secrets cannot be guaranteed detectable, so arbitrary request payloads are excluded by construction. A policy that throws fails closed: the value becomes the replacement and the diagnostic report records a `stage: 'redact'` reporting error.
+3. Send only selected public reports to user/agent audiences. The policy applies to the public report too, and it sees only what the kind's `public.details` selector returned, so a mistaken selector cannot bypass redaction; validate the public schema after it. Unknown exceptions get `INTERNAL_ERROR` and a generic message. Browser consoles and agent transcripts are disclosure boundaries too; server diagnostics go only to the operator sink. There is no new browser telemetry endpoint in this plan.
+4. Expected inspection failures become the package's visible `reporting_errors` and truncation fields. This models diagnostic loss, not successful execution of the failed operation. Reporter configuration errors and sink failures must not become silent success. `reported: false` preserves the original failure and reports the loss; it never retries reporting and never becomes a success.
 5. Report an unexpected failure once at its owning boundary. Lower layers may add typed context and rethrow; they do not each emit a duplicate record. Keep cancellation and normal loading/empty/refusal states in their existing control flow.
 
-The logging migration retains the Pino envelope (`level`, `time`, `msg`, service and correlation fields) and changes `err` to the sanitized diagnostic report. Update `log-schema.ts` in the same slice. Do not manufacture legacy `name/message/stack` fields from possibly omitted compact values.
+The logging migration retains the Pino envelope (`level`, `time`, `msg`, service and correlation fields) and changes `err` to the sanitized diagnostic report. Update `log-schema.ts` in the same slice, adding `fingerprint` beside `occurrence_id`: both reports carry one now, and a schema that omits it drops a retry signal. Do not manufacture legacy `name/message/stack` fields from possibly omitted compact values.
 
 ### Typed failures
 
@@ -197,7 +214,7 @@ Resource rules:
 | `wbs-gw-01`                      | `apps/wbs/gw-01`                               | R/E/D: startup, backend failures, socket/presence ownership; preserve WS codes.                                                            |
 | `wbs-mcp-01`                     | `apps/wbs/mcp-01`                              | R/E/D: tool-call boundary and startup; preserve tool envelopes and caller identity.                                                        |
 | `wbs-fe-01`                      | `apps/wbs/fe-01`                               | R/E: safe fault reporting and existing refusal states. D not applicable now; keep props, factories, hooks, and typed React/router context. |
-| `wiki-cli`                       | `apps/wiki/cli`                                | R/E/D at CLI dispatch/resource ownership; preserve stdout formats, trusted closure, and release/activation refusals.                       |
+| `twilight-bureaucrat`            | `apps/wiki/cli`                                | R/E/D at CLI dispatch/resource ownership; preserve stdout formats, trusted closure, and release/activation refusals.                       |
 | `wbs-core`                       | `libs/wbs/application/core`                    | E/D at typed operational failures and `compose.ts`; R via injected logger/caller, no global sink.                                          |
 | `wbs-conformance`                | `libs/wbs/application/conformance`             | Exercise D replacements/ownership and E propagation in conformance; no production reporter.                                                |
 | `wbs-observability`              | `libs/wbs/adapters/observability`              | R: replace serializer and log schema together; logger construction supplied by application D roots.                                        |
@@ -222,6 +239,7 @@ Resource rules:
 | `tool-compose`                   | `tools/tool-compose`                           | R/E at command boundary; rendering stays pure, D only in command IO composition.                                                           |
 | `tool-dev-setup`                 | `tools/dev`                                    | R/E/D at setup/solver command wiring; preserve explicit configuration failures.                                                            |
 | `tool-devsync`                   | `tools/tool-devsync`                           | R/E/D at sync process ownership; also owns project coverage and import-policy proofs.                                                      |
+| `tool-fleet`                     | `tools/tool-fleet`                             | R/E/D at fleet command and host-connection boundaries; a host it cannot reach is a failing command, never a skipped one.                   |
 | `tool-git-hooks`                 | `tools/tool-git-hooks`                         | R/E at hook/install exits; use command-local D where there are injected IO resources, keep tiny checks ordinary functions.                 |
 | `tool-workflows`                 | `tools/tool-workflows`                         | R/E at generation/check CLI; pure generation stays ordinary functions, D at IO boundary only.                                              |
 | `tool-observability-stack`       | `tools/tool-observability-stack`               | R/E at validator boundary and update consumers of `err`; YAML dashboards are not DI graphs.                                                |
@@ -236,49 +254,69 @@ Complete each slice with a focused failing test, minimal implementation, passing
 
 ### 1. Freeze scope, package versions, and executable acceptance criteria
 
-**Files:** `package.json`, `bun.lock`, `tools/tool-devsync/src/toolchain-pins.test.ts`; new `tools/tool-devsync/src/package-adoption.ts` and `package-adoption.test.ts`; relevant wiki compiler fixtures in `apps/wiki/cli/src/policy/{release.test.ts,relocation-fixtures.ts}`. Inventory reading uses existing `tools/tool-devsync/workspace-projects.mjs`.
+**Files:** `package.json`, `bun.lock`, `tools/tool-devsync/src/toolchain-pins.test.ts`; new `tools/tool-devsync/src/package-adoption.ts` and `package-adoption.test.ts`. Inventory reading uses existing `tools/tool-devsync/workspace-projects.mjs`.
 
-- [ ] Create three ordered `sdd-lean` OpenSpec packets: `adopt-failure-reporting` (slices 1–3), `adopt-di-composition` (slices 4–6), and `complete-package-adoption` (slices 7–8). Each has `proposal.md` (intent ≤400 words), delta `specs/`, `tasks.md`, `verify.md`, and `design.md` for its technical shape. Use the design interview to resolve any objections to this proposal. This planning-only document does not itself change behavior and uses R4's docs exemption.
-- [ ] Encode scenarios for all requirements above: unknown/primitive failures, secret exclusion, limits, protocol preservation, portable graph execution, readiness, ownership, transaction isolation, tool exits, and complete project coverage. Keep general programming terms out of `CONTEXT.md`; the glossary format excludes them. Any newly resolved product term belongs there immediately.
-- [ ] Add an inventory keyed by Nx project name with three dispositions: `direct`, `via-caller` (naming the owning boundary), or `not-applicable` (with reason). The test compares exact project sets using `readProjects`; a new project, stale entry, or missing package disposition fails. This measures coverage, not successful adoption: completion additionally needs each boundary's behavioral evidence.
-- [ ] Prove the inventory check by adding an unclassified fixture project and by removing its set comparison. Test unreadable/malformed inventory separately from missing project disposition. Include inventory inputs in `tool-devsync`'s Nx cache inputs.
-- [ ] Install the exact versions and supported classic compiler alias using Bun:
+- [ ] Install the exact versions using Bun. There is no compiler alias bump: the installed alias already answers the compiler API with 6.0.3.
 
 ```sh
-bun add --exact caught-object-report-json@9.0.1 application-exception@0.3.0 di-bag@0.3.0
-bun add --dev --exact 'typescript@npm:@typescript/typescript6@6.0.3'
-bunx nx run tool-devsync:test --skip-nx-cache
-bunx nx run twilight-bureaucrat:typecheck
+bun add --exact di-bag@0.4.0 application-exception@0.5.0 caught-object-report-json@11.0.1
+NX_DAEMON=false bunx nx run tool-devsync:typecheck
+NX_DAEMON=false bunx nx run twilight-bureaucrat:build
 ```
 
-- [ ] Verify the lock resolves a compatible CORJ for application-exception and one application-exception identity per bundle; a duplicate package copy can invalidate `isTypedException`/constructor assumptions. Keep npm registry URLs and the `npm:` alias syntax; never run npm as a task runner.
+- [ ] Hold the pins in `toolchain-pins.test.ts`, asserting the exact manifest versions and that `bun.lock` carries exactly one `caught-object-report-json` key at 11.0.1. Prove both by mutation: a caret on one pin, a lockfile-only edit of that version, and installing `application-exception` 0.4.0, whose `caught-object-report-json ^10` cannot share the pinned copy.
+- [ ] Prove the installation as well as the lockfile text, with two separate probes so that each failure is reachable: one asserts the three resolved versions and imports them, the other asserts that the root and `application-exception` resolve the same `caught-object-report-json` path. A duplicate copy invalidates `isTypedException` and constructor assumptions, and a lockfile key cannot say what the runtime loaded. Keep npm registry URLs and the `npm:` alias syntax; never run npm as a task runner.
+- [ ] Add an inventory keyed by Nx project name with three dispositions: `direct`, `via-caller` (naming the owning boundary), or `not-applicable` (with reason). The test compares exact project sets using `readProjects`; a new project, stale entry, or missing package disposition fails. This measures coverage, not successful adoption: completion additionally needs each boundary's behavioral evidence. The set is the 35 current projects plus `shared-failures`, which is 36 once slice 2 lands.
+- [ ] Prove the inventory check by adding an unclassified fixture project and by removing its set comparison. Test unreadable/malformed inventory separately from missing project disposition. Confirm `tool-devsync`'s Nx cache inputs cover the inventory file behaviourally, by mutating it under a warm cache; that proof needs a passing run of the whole target, so it belongs to whoever can stage files.
+- [ ] Encode scenarios for all requirements above: unknown/primitive failures, secret exclusion, limits, protocol preservation, portable graph execution, readiness, ownership, transaction isolation, tool exits, and complete project coverage. Keep general programming terms out of `CONTEXT.md`; the glossary format excludes them. Any newly resolved product term belongs there immediately.
+- [ ] Create no OpenSpec change in this slice. Installing unused dependencies, holding pins and correcting this document change no observable behavior, contract, migration, deploy safety or architecture, and use R4's docs exemption. Each change is created at the start of the slice that first implements under it, as the opening "Spec" paragraph now says: `adopt-failure-reporting` at the start of slice 2, because that slice adds an Nx project, an alias and an exported contract; `adopt-di-composition` at the start of slice 4; `complete-package-adoption` at the start of slice 7. Each has `proposal.md` (intent ≤400 words), delta `specs/`, `tasks.md`, `verify.md`, and `design.md` for its technical shape.
 
-**Deliverable:** three reviewable OpenSpec packets, locked dependencies, supported compiler tooling, and exhaustive project accounting. Package changes needing upstream work remain blocked by a named required release; never vendor a workaround silently.
+**Deliverable:** locked dependencies at 0.4.0 / 0.5.0 / 11.0.1, a proved single resolved copy of the report library, and exhaustive project accounting. No OpenSpec change is owed by this slice; slices 2, 4 and 7 each open their own. Package changes needing upstream work remain blocked by a named required release; never vendor a workaround silently.
 
 ### 2. Build and prove the shared reporting policy
 
 **Create:** `libs/shared/domain/failures/{project.json,tsconfig.json,tsconfig.lib.json,tsconfig.spec.json}`, `src/{index.ts,report-failure.ts,report-failure.test.ts}`; alias in `tsconfig.base.json`. Mirror `shared-validation`'s project structure and test/typecheck/lint targets. Put symbol behavior and limits in JSDoc.
 
-- [ ] Implement the `FailureReports`/`ReportPolicy` interface above. Keep report transformation free of Pino, Node/Bun globals, network, and filesystem access. Require secret policy explicitly; an empty list is appropriate only where the caller owns no secrets.
-- [ ] Start with this acceptance case, then add policy/limit tests through the same production function:
+- [ ] Open the `adopt-failure-reporting` OpenSpec change before writing any file of this slice. It covers slices 2 and 3: a new Nx project, a new alias and a new exported reporting contract are architecture and contract under R4, whether or not an application caller has adopted them yet. Its delta spec states the reporting behaviour this slice and the next must exhibit, and its `verify.md` collects both slices' observations.
+- [ ] Start with these two acceptance cases, watch them fail against an empty module, then implement `FAILURE_REPORT_LIMITS`, `SENSITIVE_KEYS`, `createFailureRedaction` and `reportFailure` as the contract above defines them:
 
 ```ts
 import { expect, test } from 'bun:test';
-import { reportFailure } from './report-failure';
 
-test('correlates primitive failure without publishing its contents', () => {
-  const reports = reportFailure('private-marker', { redactValues: ['private-marker'] });
-  expect(reports.public.occurrence_id).toBe(reports.diagnostic.occurrence_id);
-  expect(reports.public.code).toBe('INTERNAL_ERROR');
-  expect(JSON.stringify(reports)).not.toContain('private-marker');
+import { createFailureRedaction, reportFailure } from './report-failure';
+
+test('correlates a primitive failure without publishing its contents', () => {
+  const redact = createFailureRedaction(['private-marker']);
+  const reporting = reportFailure('private-marker leaked', { redact });
+
+  expect(reporting.reported).toBe(true);
+  if (!reporting.reported) return;
+  const { diagnostic, public: disclosed } = reporting.reports;
+  expect(disclosed.occurrence_id).toBe(diagnostic.occurrence_id);
+  expect(disclosed.code).toBe('INTERNAL_ERROR');
+  expect(JSON.stringify(reporting.reports)).not.toContain('private-marker');
+});
+
+test('a cause that cannot be inspected is reported as reporting loss, not as a throw', () => {
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  const reporting = reportFailure(new Error('boom', { cause: proxy }), {
+    redact: createFailureRedaction([]),
+  });
+
+  // `toReports` throws on a revoked Proxy: `Array.isArray cannot be called on a Proxy that
+  // has been revoked`. The boundary must still learn that the operation failed.
+  expect(reporting.reported).toBe(false);
 });
 ```
 
-- [ ] Cover `Error.cause`, ordered `AggregateError`, circular objects, `undefined`, `null`, BigInt, throwing getters/proxies, long Unicode strings, sensitive nested keys, secrets inside stack/message strings, and package inspection failures. Validate diagnostic/public schemas after redaction and truncation. Never claim output bounds isolate a nonterminating getter or hook.
-- [ ] Add integration tests for secret-bearing config/HTTP/CLI fixtures at their actual call sites in later slices. Remove redaction, correlation, and the final-size check separately; record which production test fails for each mutation.
-- [ ] Verify with `bunx nx run shared-failures:test --skip-nx-cache`, `shared-failures:typecheck`, and `shared-failures:lint`. Add a browser execution fixture to the portable test path; Vite build success alone is insufficient.
+- [ ] Keep report transformation free of Pino, Node/Bun globals, network, and filesystem access. Require the secret policy explicitly; an empty list is appropriate only where the caller owns no secrets.
+- [ ] Build `FAILURE_REPORT_LIMITS` and each boundary's policy as constants, never per call: the library caches one report maker per options object and policy.
+- [ ] Cover `Error.cause`, ordered `AggregateError`, circular objects, `undefined`, `null`, BigInt, throwing getters, revoked proxies, long Unicode strings, sensitive nested keys, secrets inside stack and message strings, and package inspection failures. Assert the budget behaviour by its visible fields — `context_omitted`, `reporting_errors_omitted`, `truncated` — rather than by byte arithmetic. Validate diagnostic and public schemas after redaction and truncation. Never claim output bounds isolate a nonterminating getter or hook.
+- [ ] Add integration tests for secret-bearing config/HTTP/CLI fixtures at their actual call sites in later slices. Remove the key rules, the pattern rules, the shared `toReports` call and the never-throw wrapper separately; record which production test fails for each mutation in the change's `verify.md`.
+- [ ] Verify with `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`, `shared-failures:typecheck`, and `shared-failures:lint`. Add a browser execution fixture to the portable test path; Vite build success alone is insufficient.
 
-**Deliverable:** one reporting policy reusable by WBS, wiki, and infrastructure without cross-product imports.
+**Deliverable:** one reporting policy reusable by WBS, wiki, and infrastructure without cross-product imports, under an OpenSpec change opened before its first file.
 
 ### 3. Adopt reporting and selected typed failures in WBS
 
@@ -353,9 +391,9 @@ test('correlates primitive failure without publishing its contents', () => {
 - [ ] Migrate wiki and harness operational exception kinds with their classifiers. Wiki report/attestation JSON and trust checks stay unchanged. Harness diagnostics must not become raw model input, authorize retries, or count as a successful agent run.
 - [ ] Prove the wiki's rebuilt standalone bundle runs without the workspace dependency tree using its release tests. Update trusted module closure only where the actual bundler leaves runtime imports; do not assume adding a root dependency makes it available to an activation bundle. Do not release/activate as part of this implementation test.
 - [ ] Keep Python solver wire schemas unchanged; its Bun host wraps local process/parse failures, records diagnostics, and preserves solver refusal/cancellation dispositions. Run `wbs-solver-py:test` and the supervisor tests for this boundary.
-- [ ] Populate every inventory disposition with implementation paths and tests, including retained native/control-flow error types. No entry may say merely “audited” or “later”. Run the touched projects' existing `test`, `typecheck`, and `lint` targets, and `build` only where declared. Use `wiki-cli:lint:source` for source lint; preserve the separate trusted wiki lint gate.
+- [ ] Populate every inventory disposition with implementation paths and tests, including retained native/control-flow error types. No entry may say merely “audited” or “later”. Run the touched projects' existing `test`, `typecheck`, and `lint` targets, and `build` only where declared. Use `twilight-bureaucrat:lint:source` for source lint; preserve the separate trusted wiki lint gate.
 
-**Deliverable:** all 34 baseline projects plus `shared-failures` have complete dispositions backed by code and behavioral tests; packaged tools remain standalone and fail correctly.
+**Deliverable:** all 35 baseline projects plus `shared-failures` have complete dispositions backed by code and behavioral tests; packaged tools remain standalone and fail correctly.
 
 ### 8. Enforce, verify, and hand off
 
