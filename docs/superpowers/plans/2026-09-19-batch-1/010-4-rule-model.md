@@ -40,9 +40,10 @@ existing files scheduled only for modification. Required predecessor artifacts m
 - Restore a mutated tracked file by copying a pre-mutation copy back from the task's temporary
   directory and confirming with `cmp`. Never `git checkout` or `git restore`.
 - Prefix every Nx command with `NX_DAEMON=false`. dconf warnings are harmless.
-- Before any command that may fetch a tool, export
-  `BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`. A tool that cannot be fetched blocks the task:
-  stop and report.
+- Do not set `BUN_INSTALL_CACHE_DIR`. The launcher has already installed the OpenSpec command into
+  this attempt's `TMPDIR` from Bun's ordinary cache, which you can read; pointing the cache at an
+  empty directory makes `bunx` try to download everything again, and there is no network. A tool
+  that tries to download blocks the task: stop and report.
 - All repository paths in this packet are relative to **your** clone. Use the preparation block for
   the dispatched part. Keep the launcher-provided `TMPDIR` unchanged. All scratch files and backups
   belong beneath it; mutation patches and failing output belong in `$TMPDIR/evidence`. Never change
@@ -1002,7 +1003,6 @@ extractor read that declaration, which is how part 3 produces a real unresolved 
   ```sh
   repo_root=$(pwd -P)
   task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")
-  export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"
   printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
   ```
 
@@ -1164,8 +1164,7 @@ Starts from the committed part 1.
 
 ### 2.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`;
-      `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`.
+- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`.
 - [ ] Confirm part 1 landed: apps/wiki/cli/src/rules/rule.ts, registry.ts, check.ts and
       rules.test.ts exist, and `explain MOD-INDEX` prints its record:
 
@@ -1681,8 +1680,7 @@ Starts from the committed part 2. Every remaining mutation finishes here.
 
 ### 3.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`;
-      `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`.
+- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`.
 - [ ] Confirm part 2 landed by running the focused command of section 1.5. Expected: 12 pass.
 
 ### 3.2 Tests first
@@ -1931,8 +1929,7 @@ Starts from the committed part 3.
 
 ### 4.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`;
-      `export BUN_INSTALL_CACHE_DIR="$task_tmp/bun-cache"`.
+- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`.
 - [ ] Confirm part 3 landed by running the focused command of section 1.5. Expected: 17 pass.
 
 ### 4.2 The installed binary
@@ -2253,3 +2250,7 @@ Two limits of this revision, stated rather than hidden:
 ### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES, part 1 only
 
 Both blocking findings were correct and the planner applied the reviewer's text by hand. Every preparation block now creates its scratch directory beneath the launcher's `TMPDIR` instead of directly under `/tmp`, and prints the two paths it promised to print. The stop condition "any file from parts 2 to 4 already exists" was true on the baseline, because later parts modify files that exist today; it now names only files a part must create. Notes about parts 2 to 4 are carried to those parts' own dispatch reviews.
+
+### Part 1, first attempt, 2026-09-20: stopped before any edit, and what changed
+
+The attempt stopped correctly at step 1.2 with no repository file changed: `bunx` tried to download the OpenSpec command although the launcher had installed it. The packet caused that. Its preparation block exported `BUN_INSTALL_CACHE_DIR` to an empty directory under the scratch root, so Bun could no longer see the cache the launcher had warmed, and the attempt has no network. The export is removed from every part's preparation. Packets 010.5 and 010.3 ran the same command successfully without it.
