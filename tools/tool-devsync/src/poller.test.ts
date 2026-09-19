@@ -123,7 +123,10 @@ describe('durable dev poller', () => {
     expect(poller).toContain('read_served_commit');
     expect(poller).toContain('if [ "${served:-}" != "$remote_sha" ]');
     expect(poller).toContain('LAST_SYNCED="$STATE/last-synced"');
-    const loader = await readFile(new URL('../../../bin/dev-poll-sync.sh', import.meta.url), 'utf8');
+    const loader = await readFile(
+      new URL('../../../bin/dev-poll-sync.sh', import.meta.url),
+      'utf8',
+    );
     expect(loader).toContain('"${SYNC_ARGS[@]}"');
   });
 
