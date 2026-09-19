@@ -4,7 +4,8 @@
   "description": "Module knowledge and trusted repository admission toolkit",
   "type": "module",
   "bin": {
-    "twilight-bureaucrat": "dist/bin.mjs"
+    "twilight-bureaucrat": "dist/bin.mjs",
+    "twib": "dist/bin.mjs"
   },
   "files": [
     "dist/",
