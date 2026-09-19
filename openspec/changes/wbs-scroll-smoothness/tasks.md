@@ -1,6 +1,6 @@
 ## 0. Before implementation
 
-- [ ] 0.1 Add **First visible row** to `CONTEXT.md`.
+- [x] 0.1 Add **First visible row** to `CONTEXT.md`.
 
 ## 1. Reproduce and attribute (blocking; lands and is reviewed alone)
 
