@@ -10,6 +10,7 @@ import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-prepar
 import {
   assertDevSolverSourceCompatible,
   assertMcpEnv,
+  deployRehearsalTarget,
   deploySolverTarget,
   devSolverMappingOf,
   devSyncFailureMessage,
@@ -618,6 +619,34 @@ describe('dev supervisor', () => {
 });
 
 describe('dev-sync rehearsal inputs', () => {
+  it('resets an unchanged solver target without calling any live host seam', async () => {
+    const resets: string[] = [];
+    await deployRehearsalTarget('b'.repeat(40), {
+      currentSha: () => Promise.resolve('a'.repeat(40)),
+      changedPaths: () => Promise.resolve([]),
+      reset: (sha) => {
+        resets.push(sha);
+        return Promise.resolve();
+      },
+    });
+    expect(resets).toEqual(['b'.repeat(40)]);
+  });
+
+  it('refuses solver-changing rehearsal targets before reset', async () => {
+    let reset = false;
+    await expect(
+      deployRehearsalTarget('b'.repeat(40), {
+        currentSha: () => Promise.resolve('a'.repeat(40)),
+        changedPaths: () => Promise.resolve(['apps/wbs/be-01/Dockerfile']),
+        reset: () => {
+          reset = true;
+          return Promise.resolve();
+        },
+      }),
+    ).rejects.toThrow('rehearsal refuses solver compatibility changes');
+    expect(reset).toBe(false);
+  });
+
   it.each([
     [
       'source',

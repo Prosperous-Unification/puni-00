@@ -63,9 +63,11 @@ prod SSH key, registry credentials and the `ghp_` PAT. A `PreToolUse` guard ther
 git push && ./bin/dev-deploy.sh     # from h1claw, seconds
 ```
 
-One container, `wbs-dev-src`, runs all three tiers from a bind-mounted puni-00 checkout via
-`bun run dev`. The h2puni poller follows puni-00 `main`, records a commit as deployed only after
-`/health` proves that checkout commit, and retries proof on later ticks until it succeeds. **For
+One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout via
+`bun run dev`. **Pending the attended repository cutover in
+`openspec/changes/dev-deploy-from-puni-00`,** the h2puni poller will follow puni-00 `main`, record a
+commit as deployed only after `/health` proves that checkout commit, and retry incomplete sync or
+proof work on later ticks until it succeeds. **For
 application code the watchers are the deploy** — nothing is built, pushed or restarted. The
 lockfile, migrations, and config read once at startup trigger a restart; a changed `compose.yml`
 or `Dockerfile` fails the deploy with the command that applies it. Dev has **no edge password**

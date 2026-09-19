@@ -285,6 +285,27 @@ async function solverCompatibilityObjectIdAt(
   }
 }
 
+export interface RehearsalTargetDependencies {
+  currentSha(): Promise<string>;
+  changedPaths(from: string, to: string): Promise<readonly string[]>;
+  reset(sourceSha: string): Promise<void>;
+}
+
+/** Keeps rehearsals off every live solver host/state seam. */
+export async function deployRehearsalTarget(
+  sourceSha: string,
+  dependencies: RehearsalTargetDependencies,
+): Promise<void> {
+  const deployedSha = await dependencies.currentSha();
+  const changed = await dependencies.changedPaths(deployedSha, sourceSha);
+  if (changed.length > 0) {
+    throw new Error(
+      `rehearsal refuses solver compatibility changes (${changed.join(', ')}); use the live attended deploy path`,
+    );
+  }
+  await dependencies.reset(sourceSha);
+}
+
 export interface SolverTargetDependencies {
   currentSha(): Promise<string>;
   changedPaths(from: string, to: string): Promise<readonly string[]>;
@@ -582,7 +603,12 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
   const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);
 
   await $`git -C ${paths.sourcePath} fetch --quiet origin`;
-  await deploySolverTarget(sha, solverTargetDependencies({ sourceRepository: paths.sourcePath }));
+  const targetDependencies = solverTargetDependencies({ sourceRepository: paths.sourcePath });
+  if (paths.rehearsal) {
+    await deployRehearsalTarget(sha, targetDependencies);
+  } else {
+    await deploySolverTarget(sha, targetDependencies);
+  }
 
   // The reset is only believed once HEAD says so. `git reset` on a SHA the
   // fetch did not deliver fails, but a partially applied reset would otherwise

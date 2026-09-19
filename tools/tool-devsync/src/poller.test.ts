@@ -122,6 +122,9 @@ describe('durable dev poller', () => {
     expect(poller).not.toContain('git rev-parse FETCH_HEAD');
     expect(poller).toContain('read_served_commit');
     expect(poller).toContain('if [ "${served:-}" != "$remote_sha" ]');
+    expect(poller).toContain('LAST_SYNCED="$STATE/last-synced"');
+    const loader = await readFile(new URL('../../../bin/dev-poll-sync.sh', import.meta.url), 'utf8');
+    expect(loader).toContain('"${SYNC_ARGS[@]}"');
   });
 
   // Proof: dropping the HTTP-status check makes the 503-with-commit case pass wrongly.
@@ -228,6 +231,7 @@ fi
       WBS_DEV_STATE: state,
       WBS_DEV_LOG: log,
       WBS_DEV_PROOF_RETRY_SECONDS: '0',
+      WBS_DEV_REHEARSAL: '1',
       HEAD_FILE: headFile,
       REMOTE_FILE: remoteFile,
       REMOTE_SHA: targetSha,
@@ -250,6 +254,86 @@ fi
       'health',
       'health',
       'health',
+    ]);
+  });
+
+  it('re-runs sync instead of proving a checkout left by a failed sync', async () => {
+    const root = await scratchAsync('wbs-dev-poller-sync-retry-');
+    const source = join(root, 'src');
+    const state = join(root, 'state');
+    const installed = join(root, 'bin');
+    const commands = join(root, 'commands');
+    const headFile = join(root, 'head');
+    const loaderCount = join(root, 'loader-count');
+    const observations = join(root, 'observations');
+    const oldSha = 'a'.repeat(40);
+    const targetSha = 'b'.repeat(40);
+    await mkdir(source, { recursive: true });
+    await mkdir(state, { recursive: true });
+    await mkdir(installed, { recursive: true });
+    await mkdir(commands, { recursive: true });
+    await writeFile(join(installed, 'bun-version'), '1.3.14\n');
+    await writeFile(headFile, `${oldSha}\n`);
+    await writeFile(loaderCount, '0\n');
+    await writeFile(
+      join(commands, 'git'),
+      `#!/usr/bin/env bash
+set -eu
+case "$1" in
+  fetch) exit 0 ;;
+  rev-parse)
+    if [ "$2" = HEAD ]; then cat "$HEAD_FILE"; else printf '%s\\n' "$REMOTE_SHA"; fi ;;
+  reset)
+    printf '%s\\n' "$4" > "$HEAD_FILE"
+    printf 'reset\\n' >> "$OBSERVATIONS" ;;
+  show)
+    cat <<'LOADER'
+#!/usr/bin/env bash
+count=$(cat "$LOADER_COUNT")
+count=$((count + 1))
+printf '%s\\n' "$count" > "$LOADER_COUNT"
+printf '%s\\n' "$REMOTE_SHA" > "$HEAD_FILE"
+printf 'sync\\n' >> "$OBSERVATIONS"
+[ "$count" -gt 1 ]
+LOADER
+    ;;
+  *) exit 64 ;;
+esac
+`,
+    );
+    await writeFile(
+      join(commands, 'docker'),
+      '#!/usr/bin/env bash\nprintf "{\\"status\\":\\"ok\\",\\"commit\\":\\"%s\\"}\\n200\\n" "$REMOTE_SHA"\n',
+    );
+    await chmod(join(commands, 'git'), 0o755);
+    await chmod(join(commands, 'docker'), 0o755);
+    const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
+    const env = {
+      PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+      WBS_DEV_SRC: source,
+      WBS_DEV_BIN: installed,
+      WBS_DEV_BUN: join(installed, 'bun'),
+      WBS_DEV_BUN_VERSION_FILE: join(installed, 'bun-version'),
+      WBS_DEV_STATE: state,
+      WBS_DEV_LOG: join(root, 'deploy.log'),
+      WBS_DEV_PROOF_RETRY_SECONDS: '0',
+      WBS_DEV_REHEARSAL: '1',
+      HEAD_FILE: headFile,
+      LOADER_COUNT: loaderCount,
+      REMOTE_SHA: targetSha,
+      OBSERVATIONS: observations,
+    };
+
+    expect((await command(['bash', script], env)).code).not.toBe(0);
+    expect((await readFile(join(state, 'last-synced'), 'utf8')).trim()).toBe(oldSha);
+    expect(await Bun.file(join(state, 'last-proven')).exists()).toBe(false);
+    expect((await command(['bash', script], env)).code).toBe(0);
+    expect((await readFile(join(state, 'last-synced'), 'utf8')).trim()).toBe(targetSha);
+    expect((await readFile(join(state, 'last-proven'), 'utf8')).trim()).toBe(targetSha);
+    expect((await readFile(observations, 'utf8')).trim().split('\n')).toEqual([
+      'sync',
+      'reset',
+      'sync',
     ]);
   });
 
