@@ -540,6 +540,8 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // classified tool-dagger main changed the pinned occurrence count/digest and failed this test.
   // Proof: changing solver-orphan-fixture.Dockerfile line 4 to `COPY apps/be-01/...` failed with
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
+  // Re-pinned after dev-poll made its live source default injectable for isolated rehearsal;
+  // the classified occurrence count and categories remain unchanged (2026-09-19).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
       'current recursive selector': 31,
@@ -683,7 +685,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `539a2b35...` here after merging wbs-tool-v1 through 73e00574 failed on the
     // observed digest below at the same 257 occurrences and no unclassified entries; upstream's
     // local-solver moves shifted classified contexts only (2026-09-18).
-    digest: 'c6f0ee2fc904b62aca11eda7d94bb96ee78dbf061a145910bea077f4a51f8f4b',
+    digest: '21680a0295c0fc17361cf0850cc794ffc4561b10c746a4c0d4c722d453e8b409',
     occurrences: 257,
     unclassified: [],
   });
