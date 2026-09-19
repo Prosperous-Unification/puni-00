@@ -32,3 +32,14 @@ At `2026-09-19T21:26:13Z`, h2puni rehearsed exact head `bab79f35286d5a4a4be62943
 ## Gate note
 
 The first full exact-head h2puni gate at `19c960cc51e56c84f5f5e62edd48c1e630f95137` was invalidated by the still-active wbs-tool-v1 poller moving the shared live checkout during the gate. OpenSpec validation had passed 99/99 before Prettier reported many paths disappearing. Every later full gate runs in an isolated h2puni worktree, so the live poller cannot move its checkout.
+
+## Attended cutover and successor proof
+
+- At `2026-09-19T22:23:20Z`, the old crontab, origin URL and installed poller pair were backed up under `/home/puni1/wbs-dev/state/cutover-20260919T222320Z`.
+- At `2026-09-19T22:23:21Z`, the new pair was atomically installed while holding `state/poll.lock`, origin changed from `https://github.com/Prosperous-Unification/wbs-tool-v1.git` to `https://github.com/Prosperous-Unification/puni-00.git`, and `origin/main` fetched `3f2aa197f5eb709e840110ba956009a9393683b8`.
+- The first live tick failed before reset because the lock child re-normalized the exact production tuple as custom input. Dev remained safely at `73e0057401c44a78d4170ade9cd4a0f8bb3fca9e`; repair PR 13 added a regression test and retained rejection of every non-live custom tuple.
+- The repaired successor `5c61ccf6406abcfaaaea4f140ea3e85166882709` was fetched on the `2026-09-19T22:56:01Z` tick, reset and recorded in `last-synced` at `2026-09-19T22:56:13.680091234Z`, then recorded in `last-proven` at `2026-09-19T22:56:34.088210349Z`.
+- At `2026-09-19T22:56:34Z`, an independent observation returned HTTP 200 with `{"status":"ok","commit":"5c61ccf6406abcfaaaea4f140ea3e85166882709"}`; `HEAD`, `origin/main`, `last-synced`, and `last-proven` all matched.
+- Exact-head repair proof on h2puni: **73 passed, 0 failed, 221 assertions**, followed by focused ESLint with no errors. The affected CI project passed; the run's only failures were five unrelated Twilight Bureaucrat production-CLI tests exceeding their fixed 5-second/20-second timeout limits.
+
+**Proof:** The first failed tick did not advance either durable marker. The repaired successor came from the target commit's streamed loader, advanced `last-synced` only after sync returned zero, and advanced `last-proven` only after exact HTTP/JSON/commit equality.
