@@ -13,9 +13,14 @@ import {
   deploySolverTarget,
   devSolverMappingOf,
   devSyncFailureMessage,
+  devSyncPathsOf,
+  LIVE_DEV_CONTAINER,
+  LIVE_DEV_SOURCE,
+  LIVE_DEV_STATE,
   LOCK_BUSY_EXIT_CODE,
   MCP_ENV,
   needsRestart,
+  parseDevSyncInvocation,
   preflightSolver,
   RECREATE_PATHS,
   requireSolverImageInHost,
@@ -609,6 +614,39 @@ describe('dev supervisor', () => {
 
     expect(changedPathReads).toBe(2);
     expect(hostImage).toBe(DEV_IMAGE);
+  });
+});
+
+describe('dev-sync rehearsal inputs', () => {
+  it.each([
+    ['source', { sourcePath: LIVE_DEV_SOURCE, containerName: 'scratch-dev', statePath: '/tmp/scratch-state' }],
+    ['container', { sourcePath: '/tmp/scratch-source', containerName: LIVE_DEV_CONTAINER, statePath: '/tmp/scratch-state' }],
+    ['state', { sourcePath: '/tmp/scratch-source', containerName: 'scratch-dev', statePath: LIVE_DEV_STATE }],
+  ])('refuses a rehearsal whose %s resolves to live dev', (_label, paths) => {
+    // Proof: each assertion runs before sync can issue a git or Docker command.
+    expect(() => devSyncPathsOf({ ...paths, rehearsal: true })).toThrow('must not resolve to live dev');
+  });
+
+  it('requires all three custom inputs and forwards only a fully fenced rehearsal', () => {
+    expect(() =>
+      parseDevSyncInvocation(['a'.repeat(40), '--source', '/tmp/source', '--rehearsal']),
+    ).toThrow('source, container and state together');
+    const invocation = parseDevSyncInvocation([
+      'a'.repeat(40),
+      '--source',
+      '/tmp/source',
+      '--container',
+      'scratch-dev',
+      '--state',
+      '/tmp/state',
+      '--rehearsal',
+    ]);
+    expect(invocation.paths).toEqual({
+      sourcePath: '/tmp/source',
+      containerName: 'scratch-dev',
+      statePath: '/tmp/state',
+      rehearsal: true,
+    });
   });
 });
 

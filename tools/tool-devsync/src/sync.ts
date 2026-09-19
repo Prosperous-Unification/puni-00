@@ -26,7 +26,8 @@
  * is to vendor it into the archived tree (`tools/`, `libs/`) so the extraction
  * carries it -- not to reintroduce a borrowed install from the pinned checkout.
  */
-import { resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 import {
   SOLVER_SUPERVISOR_BUN,
@@ -47,14 +48,50 @@ import {
 
 export { SOLVER_COMPATIBILITY_PATHS };
 
-const SRC = '/home/puni1/wbs-dev/src';
-const CONTAINER = 'wbs-dev-src';
-const LOCK = '/home/puni1/wbs-dev/state/devsync.lock';
+export const LIVE_DEV_SOURCE = '/home/puni1/wbs-dev/src';
+export const LIVE_DEV_CONTAINER = 'wbs-dev-src';
+export const LIVE_DEV_STATE = '/home/puni1/wbs-dev/state';
+const SRC = LIVE_DEV_SOURCE;
 const CONFIG_MAX_BYTES = 256 * 1024;
 const PREPARATION_STATE_MAX_BYTES = 64 * 1024;
 const DIGEST_PINNED_IMAGE = /^[^\s@]+@sha256:[0-9a-f]{64}$/;
 const TARGET_ROOT = resolve(import.meta.dir, '../../..');
 export const LOCK_BUSY_EXIT_CODE = 75;
+
+export interface DevSyncPaths {
+  sourcePath: string;
+  containerName: string;
+  statePath: string;
+  rehearsal: boolean;
+}
+
+function canonicalPath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/** Resolves deploy inputs and fences every rehearsal away from live dev. */
+export function devSyncPathsOf(options: Partial<DevSyncPaths> = {}): DevSyncPaths {
+  const rehearsal = options.rehearsal ?? false;
+  const sourcePath = canonicalPath(options.sourcePath ?? LIVE_DEV_SOURCE);
+  const statePath = canonicalPath(options.statePath ?? LIVE_DEV_STATE);
+  const containerName = options.containerName ?? LIVE_DEV_CONTAINER;
+  if (!sourcePath.startsWith('/') || !statePath.startsWith('/') || containerName === '') {
+    throw new Error('dev sync source, container and state inputs must be non-empty absolute values');
+  }
+  if (
+    rehearsal &&
+    (sourcePath === canonicalPath(LIVE_DEV_SOURCE) ||
+      statePath === canonicalPath(LIVE_DEV_STATE) ||
+      containerName === LIVE_DEV_CONTAINER)
+  ) {
+    throw new Error('rehearsal inputs must not resolve to live dev source, container or state');
+  }
+  return { sourcePath, containerName, statePath, rehearsal };
+}
 
 export interface DevSolverMapping {
   sourceSha: string;
@@ -347,6 +384,7 @@ export interface DevSyncLockOptions {
   flockPath?: string;
   lockPath?: string;
   scriptPath?: string;
+  paths?: DevSyncPaths;
 }
 
 /** Runs the production child invocation under the deploy lock. */
@@ -365,12 +403,24 @@ export async function runDevSyncLock(
   // /usr/local/bin/bun the child resolved to.
   const bunPath = options.bunPath ?? process.execPath;
   const flockPath = options.flockPath ?? 'flock';
-  const lockPath = options.lockPath ?? LOCK;
+  const paths = options.paths ?? devSyncPathsOf();
+  const lockPath = options.lockPath ?? join(paths.statePath, 'devsync.lock');
   const scriptPath = options.scriptPath ?? import.meta.path;
+  const pathArgs = paths.rehearsal
+    ? [
+        '--source',
+        paths.sourcePath,
+        '--container',
+        paths.containerName,
+        '--state',
+        paths.statePath,
+        '--rehearsal',
+      ]
+    : [];
   // Proof: removing `-E 75` failed the production-invocation test's exact argv
   // assertion: Expected began "-E", "75"; Received began "-n", devsync.lock.
   const run =
-    await $`${flockPath} -E ${LOCK_BUSY_EXIT_CODE} -n ${lockPath} ${bunPath} ${scriptPath} --locked ${sha}`.nothrow();
+    await $`${flockPath} -E ${LOCK_BUSY_EXIT_CODE} -n ${lockPath} ${bunPath} ${scriptPath} --locked ${sha} ${pathArgs}`.nothrow();
   return run.exitCode;
 }
 
@@ -499,51 +549,64 @@ export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
 }
 
 /** sha256 of a file, or of a directory's recursive listing plus contents. */
-async function hashPath(path: string): Promise<string> {
+async function hashPath(sourcePath: string, path: string): Promise<string> {
   try {
     const out =
-      await $`sh -c ${`cd ${SRC} && find ${path} -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum`}`.text();
+      await $`sh -c ${`cd ${sourcePath} && find ${path} -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum`}`.text();
     return out.split(' ')[0] ?? '';
   } catch {
     return '';
   }
 }
 
-async function fingerprint(paths: readonly string[] = RESTART_PATHS): Promise<Fingerprint> {
-  const entries = await Promise.all(paths.map(async (p) => [p, await hashPath(p)] as const));
+async function fingerprint(
+  sourcePath: string,
+  paths: readonly string[] = RESTART_PATHS,
+): Promise<Fingerprint> {
+  const entries = await Promise.all(
+    paths.map(async (path) => [path, await hashPath(sourcePath, path)] as const),
+  );
   return Object.fromEntries(entries);
 }
 
-export async function sync(sha: string, options: { mcpEnvPath?: string } = {}): Promise<void> {
-  await assertMcpEnv(options.mcpEnvPath);
-  const before = await fingerprint();
-  const containerBefore = await fingerprint(RECREATE_PATHS);
+export interface DevSyncOptions extends Partial<DevSyncPaths> {
+  mcpEnvPath?: string;
+}
 
-  await $`git -C ${SRC} fetch --quiet origin`;
-  await deploySolverTarget(sha, solverTargetDependencies());
+export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
+  const paths = devSyncPathsOf(options);
+  await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
+  const before = await fingerprint(paths.sourcePath);
+  const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);
+
+  await $`git -C ${paths.sourcePath} fetch --quiet origin`;
+  await deploySolverTarget(
+    sha,
+    solverTargetDependencies({ sourceRepository: paths.sourcePath }),
+  );
 
   // The reset is only believed once HEAD says so. `git reset` on a SHA the
   // fetch did not deliver fails, but a partially applied reset would otherwise
   // be reported as the requested deploy.
-  const head = (await $`git -C ${SRC} rev-parse HEAD`.text()).trim();
+  const head = (await $`git -C ${paths.sourcePath} rev-parse HEAD`.text()).trim();
   if (!head.startsWith(sha) && !sha.startsWith(head)) {
     throw new Error(`reset did not land: asked for ${sha}, HEAD is ${head}`);
   }
 
-  const after = await fingerprint();
+  const after = await fingerprint(paths.sourcePath);
 
   if (needsRestart(before, after)) {
     const moved = RESTART_PATHS.filter((p) => before[p] !== after[p]);
     console.log(`[dev-sync] restart required, changed: ${moved.join(', ') || 'unknown'}`);
-    await $`docker exec ${CONTAINER} bun install --frozen-lockfile`;
-    await $`docker restart ${CONTAINER}`;
+    await $`docker exec ${paths.containerName} bun install --frozen-lockfile`;
+    await $`docker restart ${paths.containerName}`;
   } else {
     console.log('[dev-sync] code only: watchers pick it up, nothing restarted');
   }
 
   console.log(`[dev-sync] dev now at ${head}`);
 
-  const containerAfter = await fingerprint(RECREATE_PATHS);
+  const containerAfter = await fingerprint(paths.sourcePath, RECREATE_PATHS);
   const containerMoved = RECREATE_PATHS.filter((p) => containerBefore[p] !== containerAfter[p]);
   if (containerMoved.length > 0) {
     throw new Error(
@@ -556,26 +619,77 @@ export async function sync(sha: string, options: { mcpEnvPath?: string } = {}): 
   }
 }
 
-if (import.meta.main) {
-  const args = process.argv.slice(2);
-  const locked = args[0] === '--locked';
-  const sha = locked ? args[1] : args[0];
+export interface DevSyncInvocation {
+  sha: string;
+  locked: boolean;
+  paths: DevSyncPaths;
+}
 
-  if (!sha) {
-    console.error('usage: bun sync.ts <sha>');
+/** Parses the production default or one fully explicit fenced rehearsal. */
+export function parseDevSyncInvocation(args: readonly string[]): DevSyncInvocation {
+  const remaining = [...args];
+  const locked = remaining[0] === '--locked';
+  if (locked) remaining.shift();
+  const sha = remaining.shift();
+  if (!sha) throw new Error('missing target SHA');
+
+  let sourcePath: string | undefined;
+  let containerName: string | undefined;
+  let statePath: string | undefined;
+  let rehearsal = false;
+  while (remaining.length > 0) {
+    const flag = remaining.shift();
+    if (flag === '--rehearsal') {
+      rehearsal = true;
+      continue;
+    }
+    const value = remaining.shift();
+    if (!value) throw new Error(`missing value for ${String(flag)}`);
+    if (flag === '--source') sourcePath = value;
+    else if (flag === '--container') containerName = value;
+    else if (flag === '--state') statePath = value;
+    else throw new Error(`unknown dev sync option: ${String(flag)}`);
+  }
+  const supplied = [sourcePath, containerName, statePath].filter(
+    (value): value is string => value !== undefined,
+  );
+  if (supplied.length !== 0 && supplied.length !== 3) {
+    throw new Error('rehearsal requires source, container and state together');
+  }
+  if (supplied.length === 3 && !rehearsal) {
+    throw new Error('custom dev sync inputs require --rehearsal');
+  }
+  return {
+    sha,
+    locked,
+    paths: devSyncPathsOf({
+      ...(sourcePath === undefined ? {} : { sourcePath }),
+      ...(containerName === undefined ? {} : { containerName }),
+      ...(statePath === undefined ? {} : { statePath }),
+      rehearsal,
+    }),
+  };
+}
+
+if (import.meta.main) {
+  let invocation: DevSyncInvocation;
+  try {
+    invocation = parseDevSyncInvocation(process.argv.slice(2));
+  } catch (error) {
+    console.error(`usage: bun sync.ts <sha> [--source PATH --container NAME --state PATH --rehearsal]\n${String(error)}`);
     process.exit(1);
   }
 
-  if (locked) {
+  if (invocation.locked) {
     // Already inside flock: this is the real run.
-    await sync(sha);
+    await sync(invocation.sha, invocation.paths);
   } else {
     // Two overlapping runs can interleave their fetch, reset, install and
     // restart, leaving dev on one SHA with another SHA's dependencies. flock
     // makes the whole sequence exclusive; -n fails fast rather than queueing a
     // deploy whose operator has stopped watching. The dedicated conflict exit
     // keeps a child failure from being mislabeled as lock contention.
-    const exitCode = await runDevSyncLock(sha);
+    const exitCode = await runDevSyncLock(invocation.sha, { paths: invocation.paths });
     if (exitCode !== 0) {
       console.error(devSyncFailureMessage(exitCode));
     }
