@@ -11,6 +11,7 @@ import {
   wholeDaysCovering,
 } from '@wbs/domain/workday';
 import {
+  memo,
   type PointerEvent as ReactPointerEvent,
   Profiler,
   useCallback,
@@ -54,7 +55,7 @@ import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
 import { recordGanttScrollCommit } from './scroll-performance';
 import { shortIsoDate } from './short-date';
-import { hierarchyIndentFor } from './table-frame';
+import { hierarchyIndentFor, PLAN_TERMINAL_ALLOWANCE } from './table-frame';
 import { nameWords, numberWords, rowWords } from './work-item-words';
 
 export { rowWords } from './work-item-words';
@@ -2739,13 +2740,13 @@ export function ganttSvgFileName(now: Date): string {
  * @throws GanttDataError out of {@link layOutGantt} when the payload's slices
  * name something the payload has not got. See there.
  */
-export function GanttPanel(props: GanttProps) {
+export const GanttPanel = memo(function GanttPanel(props: GanttProps) {
   return (
     <Profiler id="gantt-panel" onRender={recordGanttScrollCommit}>
       <GanttPanelContent {...props} />
     </Profiler>
   );
-}
+});
 
 function GanttPanelContent({
   plan,
@@ -5169,22 +5170,26 @@ function GanttChart({
           !fullScreen && heightPx === null && 'max-h-[40vh]',
         )}
         style={
-          fullScreen || heightPx === null
+          fullScreen
             ? undefined
             : {
-                height: heightPx,
-                // The same bound the height was already clamped to, stated to
-                // the browser as well: `height` comes from a room measured on a
-                // render that has been laid out, and this is what holds the
-                // frame between a column changing and the observer that
-                // re-measures it saying so. No floor beside it — the clamp is
-                // the floor, and a `min-height` here would be a line whose
-                // removal nothing could see.
-                //
-                // Proof: with `'80vh'` restored here, `the panel's ceiling is
-                // its column, not the window` failed on `expected '80vh' to be
-                // '488px'`. Watched 2026-08-29.
-                maxHeight: roomPx ?? '100%',
+                ...(heightPx === null
+                  ? {}
+                  : {
+                      height: heightPx,
+                      // The same bound the height was already clamped to, stated to
+                      // the browser as well: `height` comes from a room measured on a
+                      // render that has been laid out, and this is what holds the
+                      // frame between a column changing and the observer that
+                      // re-measures it saying so. No floor beside it — the clamp is
+                      // the floor, and a `min-height` here would be a line whose
+                      // removal nothing could see.
+                      //
+                      // Proof: with `'80vh'` restored here, `the panel's ceiling is
+                      // its column, not the window` failed on `expected '80vh' to be
+                      // '488px'`. Watched 2026-08-29.
+                      maxHeight: roomPx ?? '100%',
+                    }),
               }
         }
         onScroll={(scrollEvent) => {
@@ -5708,6 +5713,16 @@ function GanttChart({
             </div>
           </div>
         </div>
+
+        {/* The table keeps this trailing room for open pickers. Giving the chart
+            the same terminal extent lets either face drive the last row/fraction
+            without its follower clamping. A child, not panel padding: padding
+            would consume the chart's visible height under border-box sizing. */}
+        <div
+          aria-hidden="true"
+          data-gantt-terminal-allowance
+          style={{ height: PLAN_TERMINAL_ALLOWANCE }}
+        />
 
         {/*
           The bottom edge of a panel with chart still under it, said in a way

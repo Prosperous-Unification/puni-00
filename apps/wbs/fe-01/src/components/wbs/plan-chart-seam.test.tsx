@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -655,6 +655,57 @@ describe('what a keystroke costs the chart', () => {
    * built inline, as it was — watched failing on `expected 1 to be +0`
    * (2026-09-02).
    */
+  itDom('does not commit the chart for 120 compositor-only table scroll frames', async () => {
+    await planWithTheChartOpen();
+
+    const frame = screen.getByRole('table').parentElement;
+    if (!(frame instanceof HTMLElement)) throw new Error('no table frame rendered');
+    Object.defineProperties(frame, {
+      clientHeight: { configurable: true, value: 320 },
+      clientWidth: { configurable: true, value: 800 },
+    });
+    const queued: FrameRequestCallback[] = [];
+    const animationFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        queued.push(callback);
+        return queued.length;
+      });
+    window.__wbsScrollProbe = {
+      recordHeightCalls: 0,
+      recordHeightMs: 0,
+      placeRowsCalls: 0,
+      placeRowsMs: 0,
+      reactCommits: 0,
+      reactCommitMs: 0,
+      ganttCommits: 0,
+      ganttCommitMs: 0,
+      anchorWrites: 0,
+      scrollLinkWrites: 0,
+    };
+    try {
+      for (let input = 1; input <= 120; input += 1) {
+        frame.scrollTop = input;
+        fireEvent.scroll(frame);
+        const callback = queued.shift();
+        if (callback === undefined) throw new Error(`scroll input ${String(input)} queued no frame`);
+        act(() => {
+          callback(performance.now());
+        });
+      }
+      expect(window.__wbsScrollProbe.ganttCommits).toBe(0);
+
+      // A real chart input still crosses the memo boundary and redraws it.
+      const scale = document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]');
+      if (scale === null) throw new Error('no chart scale control');
+      fireEvent.change(scale, { target: { value: '12' } });
+      expect(window.__wbsScrollProbe.ganttCommits).toBeGreaterThan(0);
+    } finally {
+      animationFrame.mockRestore();
+      delete window.__wbsScrollProbe;
+    }
+  });
+
   itDom('does not lay the chart out again for a gesture that changes no bar', async () => {
     await planWithTheChartOpen();
 

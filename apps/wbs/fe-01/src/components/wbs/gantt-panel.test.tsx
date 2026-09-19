@@ -57,6 +57,7 @@ import type * as InitialsModule from './initials';
 import { initialsOf } from './initials';
 import { createPointedRows } from './pointed-row-store';
 import type * as ShortDateModule from './short-date';
+import { PLAN_TERMINAL_ALLOWANCE, TABLE_FRAME } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -6198,6 +6199,13 @@ describe('the height the panel is drawn at', () => {
     const panel = panelAt(400);
     expect(panel.style.height).toBe('400px');
     expect(panel.classList.contains('max-h-[40vh]')).toBe(false);
+  });
+
+  itDom('has the table’s reachable terminal extent', () => {
+    const panel = panelAt(400);
+    const allowance = panel.querySelector<HTMLElement>('[data-gantt-terminal-allowance]');
+    expect(allowance?.style.height).toBe(PLAN_TERMINAL_ALLOWANCE);
+    expect(allowance?.style.height).toBe(TABLE_FRAME.paddingBottom);
   });
 
   itDom('the panel’s ceiling is its column, not the window', () => {

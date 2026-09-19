@@ -155,6 +155,63 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
 
 test.use({ viewport: { width: 1280, height: 800 }, video: 'on' });
 
+test('50-row plan reaches matching terminal positions from either face', async ({ page }) => {
+  const seeded = await seedRenderingPlan(page, {
+    rows: 50,
+    steps: 2,
+    density: 'sparse',
+    wrappedEvery: 5,
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  await expect(page.locator('[data-gantt-label]')).toHaveCount(50);
+
+  const positions = async () =>
+    page.evaluate(() => {
+      const first = (port: Element, selector: string, edge: number) => {
+        const row = [...port.querySelectorAll<HTMLElement>(selector)].find(
+          (candidate) => candidate.getBoundingClientRect().bottom > edge + 1,
+        );
+        if (row === undefined) return { id: '', cut: 0 };
+        const box = row.getBoundingClientRect();
+        return { id: row.dataset['rowId'] ?? row.dataset['ganttLabel'] ?? '', cut: (edge - box.top) / box.height };
+      };
+      const table = document.querySelector<HTMLElement>('[data-table-frame]');
+      const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
+      const heading = table?.querySelector('thead th')?.getBoundingClientRect().bottom;
+      const axis = panel?.querySelector<HTMLElement>('[data-gantt-axis]')?.getBoundingClientRect().bottom;
+      if (table === null || panel === null || heading === undefined || axis === undefined)
+        throw new Error('the two plan faces have no measurable headings');
+      return {
+        table: first(table, 'tr[data-row-id]', heading),
+        gantt: first(panel, '[data-gantt-label]', axis),
+      };
+    });
+  const indexes = new Map(seeded.ids.map((id, index) => [id, index]));
+
+  for (const driver of ['[data-table-frame]', '[data-gantt-panel]'] as const) {
+    for (const terminal of ['end', 'start'] as const) {
+      for (let settle = 0; settle < 3; settle += 1) {
+        await page.locator(driver).evaluate((node, edge) => {
+          node.scrollTop = edge === 'end' ? node.scrollHeight : 0;
+          node.dispatchEvent(new Event('scroll'));
+        }, terminal);
+        await painted(page);
+      }
+      const driverGap = await page.locator(driver).evaluate((node, edge) =>
+        edge === 'end' ? node.scrollHeight - node.clientHeight - node.scrollTop : node.scrollTop,
+      terminal);
+      expect(driverGap, `${driver} driver does not roll back at ${terminal}`).toBeLessThanOrEqual(1);
+      const paired = await positions();
+      const mismatch = Math.abs(
+        (indexes.get(paired.table.id) ?? -1) + paired.table.cut -
+          ((indexes.get(paired.gantt.id) ?? -1) + paired.gantt.cut),
+      );
+      expect(mismatch, `${driver} leaves mismatched faces at ${terminal}`).toBeLessThanOrEqual(0.1);
+    }
+  }
+});
+
 test.describe('large-plan scroll stability', () => {
   test.describe.configure({ timeout: 10 * 60_000 });
   test.skip(process.env['WBS_SCROLL_PROBE'] !== '1', 'opt-in five-trace attribution probe');

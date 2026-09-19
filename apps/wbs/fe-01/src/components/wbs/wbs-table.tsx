@@ -1574,6 +1574,56 @@ export function WbsTable({
     priorityBands,
     startFloor,
   });
+  const pickGanttDayPx = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onPickDayPx']>
+  >(
+    (picked) => {
+      setGanttDayPx(picked);
+      rememberGanttDayPx(projectId, picked);
+    },
+    [projectId, setGanttDayPx],
+  );
+  const pickGanttLabels = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onPickLabelsShown']>
+  >(
+    (shown) => {
+      setGanttLabelsShown(shown);
+      rememberGanttLabels(projectId, shown);
+    },
+    [projectId, setGanttLabelsShown],
+  );
+  const createGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onCreateMarker']>
+  >(
+    (marker) => {
+      void runMarkerWrite(() => api.createCalendarMarker(projectId, marker));
+    },
+    [api, projectId, runMarkerWrite],
+  );
+  const renameGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onRenameMarker']>
+  >(
+    (markerId, name) => {
+      void runMarkerWrite(() => api.renameCalendarMarker(projectId, markerId, name));
+    },
+    [api, projectId, runMarkerWrite],
+  );
+  const recolorGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onRecolorMarker']>
+  >(
+    (markerId, color) => {
+      void runMarkerWrite(() => api.recolorCalendarMarker(projectId, markerId, color));
+    },
+    [api, projectId, runMarkerWrite],
+  );
+  const deleteGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onDeleteMarker']>
+  >(
+    (markerId) => {
+      void runMarkerWrite(() => api.deleteCalendarMarker(projectId, markerId));
+    },
+    [api, projectId, runMarkerWrite],
+  );
   /**
    * One row's Start sentence, worked out once however many readers and commits
    * ask while its span and chart floor remain unchanged.
@@ -2630,16 +2680,10 @@ export function WbsTable({
             dayPx={ganttDayPx}
             // Stored where it is set and nowhere else, exactly as a let-go drag
             // is: opening a project must not write to it.
-            onPickDayPx={(picked) => {
-              setGanttDayPx(picked);
-              rememberGanttDayPx(projectId, picked);
-            }}
+            onPickDayPx={pickGanttDayPx}
             labelsShown={ganttLabelsShown}
             // Stored where it is set and nowhere else, as the rung beside it is.
-            onPickLabelsShown={(shown) => {
-              setGanttLabelsShown(shown);
-              rememberGanttLabels(projectId, shown);
-            }}
+            onPickLabelsShown={pickGanttLabels}
             onPickRow={goToRow}
             // The panel reports which row the pointer or a bar's focus is
             // on, straight into the store it also lights from — no state of
@@ -2657,18 +2701,10 @@ export function WbsTable({
             // can agree. Rename and recolour stay **two** callbacks because
             // be-01 refuses a `PATCH` body naming both.
             markers={markers}
-            onCreateMarker={(marker) => {
-              void runMarkerWrite(() => api.createCalendarMarker(projectId, marker));
-            }}
-            onRenameMarker={(markerId, name) => {
-              void runMarkerWrite(() => api.renameCalendarMarker(projectId, markerId, name));
-            }}
-            onRecolorMarker={(markerId, color) => {
-              void runMarkerWrite(() => api.recolorCalendarMarker(projectId, markerId, color));
-            }}
-            onDeleteMarker={(markerId) => {
-              void runMarkerWrite(() => api.deleteCalendarMarker(projectId, markerId));
-            }}
+            onCreateMarker={createGanttMarker}
+            onRenameMarker={renameGanttMarker}
+            onRecolorMarker={recolorGanttMarker}
+            onDeleteMarker={deleteGanttMarker}
             // The panel lends the toolbar its own `.svg` downloader while it is
             // mounted, and takes it back when it is not: the file is a clone of
             // the live drawing, so only the panel can make one.

@@ -28,6 +28,12 @@ interface FrameViewport {
   widthPx: number;
 }
 
+/** Whether two slices mount the same logical window. Pixel offsets are intentionally ignored. */
+function sameWindow(left: ViewportSlice, right: ViewportSlice): boolean {
+  if (left.entries.length !== right.entries.length) return false;
+  return left.entries.every((entry, index) => entry.id === right.entries[index]?.id);
+}
+
 interface PlanViewport {
   rows: ViewportSlice;
   rowLayout: readonly ViewportEntry[];
@@ -161,13 +167,50 @@ export function usePlanViewport({
       setFrame((current) => {
         const scrollTop = frameNode.scrollTop;
         const scrollLeft = frameNode.scrollLeft;
-        return current.measured &&
-          current.scrollTop === scrollTop &&
-          current.scrollLeft === scrollLeft &&
+        if (
+          current.measured &&
           current.heightPx === heightPx &&
           current.widthPx === widthPx
-          ? current
-          : { measured: true, scrollTop, scrollLeft, heightPx, widthPx };
+        ) {
+          const pinnedRowIds = new Set(pinnedCells.map((cell) => cell.rowId));
+          const pinnedColumnIds = new Set(pinnedCells.map((cell) => cell.columnId));
+          const currentRows = viewportRows({
+            rowIds,
+            heights: heightReadings.current,
+            estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
+            scrollTop: current.scrollTop,
+            viewportHeight: current.heightPx,
+            overscanPx: ROW_OVERSCAN_PX,
+            pinnedIds: pinnedRowIds,
+          });
+          const nextRows = viewportRows({
+            rowIds,
+            heights: heightReadings.current,
+            estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
+            scrollTop,
+            viewportHeight: heightPx,
+            overscanPx: ROW_OVERSCAN_PX,
+            pinnedIds: pinnedRowIds,
+          });
+          const currentColumns = viewportColumns({
+            columns,
+            scrollLeft: current.scrollLeft,
+            viewportWidth: current.widthPx,
+            overscanPx: COLUMN_OVERSCAN_PX,
+            pinnedIds: pinnedColumnIds,
+          });
+          const nextColumns = viewportColumns({
+            columns,
+            scrollLeft,
+            viewportWidth: widthPx,
+            overscanPx: COLUMN_OVERSCAN_PX,
+            pinnedIds: pinnedColumnIds,
+          });
+          if (sameWindow(currentRows, nextRows) && sameWindow(currentColumns, nextColumns)) {
+            return current;
+          }
+        }
+        return { measured: true, scrollTop, scrollLeft, heightPx, widthPx };
       });
     };
     const scheduleRead = (): void => {
@@ -184,7 +227,7 @@ export function usePlanViewport({
       observer?.disconnect();
       if (scheduledFrame !== null) cancelAnimationFrame(scheduledFrame);
     };
-  }, [enabled, frameRef]);
+  }, [columns, enabled, frameRef, pinnedCells, rowIds]);
 
   const rows = useMemo(
     () =>
