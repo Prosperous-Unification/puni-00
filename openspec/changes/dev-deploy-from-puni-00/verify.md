@@ -25,6 +25,10 @@ Focused gate on h2puni at `fd28a6356664e411e717eb2fcf2c0cc1f4d359a4`:
 
 **Proof:** Each live-path rehearsal case calls only `devSyncPathsOf`; a missing refusal would reach the assertion without any Git or Docker seam available.
 
+## Isolated rehearsal
+
+At `2026-09-19T21:26:13Z`, h2puni rehearsed exact head `bab79f35286d5a4a4be629432539915a64c39165` from a standalone puni-00 clone with its own source, `task555-dev-src` container, data, and state. The scratch container had no live solver socket mount. `bun install --frozen-lockfile` completed with the repository's apps/wiki and Twilight packages present. The explicit `sync.ts ... --source ... --container task555-dev-src --state ... --rehearsal` invocation reported code-only pickup and `/health` returned `{"status":"ok","commit":"bab79f35286d5a4a4be629432539915a64c39165"}` before and after sync.
+
 ## Gate note
 
 The first full exact-head h2puni gate at `19c960cc51e56c84f5f5e62edd48c1e630f95137` was invalidated by the still-active wbs-tool-v1 poller moving the shared live checkout during the gate. OpenSpec validation had passed 99/99 before Prettier reported many paths disappearing. The cutover procedure must stop that race, then the exact final head gets a fresh full gate.

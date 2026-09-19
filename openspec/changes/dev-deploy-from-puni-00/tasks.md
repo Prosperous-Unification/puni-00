@@ -11,7 +11,7 @@
 ## 2. Isolate the deployer
 
 - [x] 2.1 `sync.ts`: source, container and state paths become arguments (defaults unchanged for the live poller); refuse a rehearsal whose paths resolve to live ones. Negative test per refusal with `Proof:`.
-- [ ] 2.2 Rehearse on h2puni from a puni-00 tree into a scratch source/container/state set: install and serve succeed with `apps/wiki` and Twilight tooling present. Fix anything they break.
+- [x] 2.2 Rehearse on h2puni from a puni-00 tree into a scratch source/container/state set: install and serve succeed with `apps/wiki` and Twilight tooling present. Fix anything they break.
 
 ## 3. Cut over (attended)
 

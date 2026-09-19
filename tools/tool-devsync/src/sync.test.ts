@@ -634,16 +634,21 @@ describe('dev-sync rehearsal inputs', () => {
 
   it('refuses solver-changing rehearsal targets before reset', async () => {
     let reset = false;
-    await expect(
-      deployRehearsalTarget('b'.repeat(40), {
+    let failure: unknown;
+    try {
+      await deployRehearsalTarget('b'.repeat(40), {
         currentSha: () => Promise.resolve('a'.repeat(40)),
         changedPaths: () => Promise.resolve(['apps/wbs/be-01/Dockerfile']),
         reset: () => {
           reset = true;
           return Promise.resolve();
         },
-      }),
-    ).rejects.toThrow('rehearsal refuses solver compatibility changes');
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('rehearsal refuses solver compatibility changes');
     expect(reset).toBe(false);
   });
 
