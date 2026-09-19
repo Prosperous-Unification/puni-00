@@ -173,7 +173,8 @@ Every merge commit and dependency edge is in the ledger. A packet is backed out 
 
 ```sh
 set -euo pipefail
-report=$(mktemp)
+mkdir -p "$TMPDIR/evidence"
+report=$(mktemp "$TMPDIR/evidence/openspec-validation.XXXXXX.json")
 OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
 jq -s -e '
   length == 1 and
@@ -181,10 +182,9 @@ jq -s -e '
   (.[0].summary.totals.failed | type == "number" and floor == . and . == 0) and
   (.[0].summary.totals.passed | type == "number" and floor == . and . > 0)
 ' "$report" >/dev/null
-rm -f -- "$report"
 ```
 
-Expected: the validator prints one JSON report, and the block exits zero.
+Expected: the validator prints one JSON report, and the block exits zero. The report stays under `$TMPDIR/evidence` as evidence. Do not delete it: the executor's command guard rejects `rm -f` before the block runs at all, which every attempt up to 2026-09-20 hit. Where a packet's own copy of this block still ends in `rm -f -- "$report"`, run this version instead.
 
 **Creating an OpenSpec change.** The command's default schema is `spec-driven`, not this repository's. Always pass the schema and check the generated metadata file:
 
