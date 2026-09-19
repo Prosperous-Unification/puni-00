@@ -9,14 +9,18 @@ guarantee one. MCP runs only on dev, one process, restarted by every dev sync.
 ## Decisions
 
 1. **Store.** bun:sqlite file owned by mcp-01, migrated by mcp-01 at startup.
-   `mcp_family(family_id, client_id, subject, scope, upstream_access_ct,
-   upstream_refresh_ct, upstream_expires_at, idle_expires_at,
-   absolute_expires_at, revoked_at, lease_owner, lease_until, version)`,
-   `mcp_session(jti, family_id, expires_at)`,
-   `mcp_refresh(token_digest, family_id, consumed_at, expires_at)`.
-   Our tokens are stored as SHA-256 digests only. *Rejected:* persisted key
+   Tables:
+   - `mcp_family`: `family_id`, `client_id`, `subject`, `scope`,
+     `upstream_access_ct`, `upstream_refresh_ct`, `upstream_expires_at`,
+     `idle_expires_at`, `absolute_expires_at`, `revoked_at`, `lease_owner`,
+     `lease_until`, `version`.
+   - `mcp_session`: `jti`, `family_id`, `expires_at`.
+   - `mcp_refresh`: `token_digest`, `family_id`, `consumed_at`, `expires_at`.
+
+   Our tokens are stored as SHA-256 digests only. _Rejected:_ persisted key
    without a store (families lost on restart); sessions in be-01 (couples
    deploys, gives mcp-01 write access to the product database).
+
 2. **Keys.** `MCP_SIGNING_KEY_CURRENT` (+ optional `_PREVIOUS`), mirroring
    be-01's `JWT_SIGNING_KEY_CURRENT`; `kid` = JWK thumbprint; JWKS lists both;
    verification accepts both. `MCP_STORE_KEY_CURRENT` (+ optional `_PREVIOUS`).

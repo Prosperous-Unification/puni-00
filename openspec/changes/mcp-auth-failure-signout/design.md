@@ -19,15 +19,16 @@ runs, so a tool cannot produce HTTP 401.
    an upstream rejection.
 3. **Callback failure table** (after `consume` matched):
 
-   | Cause | `error` |
-   |---|---|
-   | provider returned `error=` | same code if RFC 6749 §4.1.2.1, else `server_error` |
-   | exchange threw | `server_error` |
-   | upstream verification threw | `access_denied` |
-   | no `wbs:read` | `access_denied` |
+   | Cause                       | `error`                                             |
+   | --------------------------- | --------------------------------------------------- |
+   | provider returned `error=`  | same code if RFC 6749 §4.1.2.1, else `server_error` |
+   | exchange threw              | `server_error`                                      |
+   | upstream verification threw | `access_denied`                                     |
+   | no `wbs:read`               | `access_denied`                                     |
 
    A refused login that yielded a provider refresh token revokes it before
    redirecting.
+
 4. **Reauthentication marker.** The browser-binding cookie is cleared on
    failure, so the marker is its own cookie: HMAC-signed with a per-process key,
    `Max-Age=300`, no identity inside, single-use. `authorize` consumes it and
