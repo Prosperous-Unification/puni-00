@@ -73,6 +73,17 @@ ranges, including the table frame's 13rem picker allowance.
 
 The plan and delta spec now target window publication and matching terminal
 extent with production-path negatives and positive boundary controls.
-Implementation remains blocked until a dedicated Gantt Profiler separates its
-commit/time share from the whole-table numbers and the conditional Gantt task
-is selected or dropped from that evidence.
+The follow-up exact-head trace at `20a27d9f` completed five 500-row repeats on
+h2puni. Their final counters were 313/12,142.4/11,303.2, 292/10,802.0/10,113.4,
+293/10,963.7/10,242.6, 285/10,590.4/9,910.0, and
+294/12,284.8/11,405.7 for WBS commits/WBS commit ms/Gantt commit ms. Medians are
+293 commits, 10,963.7 ms total React commit time and 10,242.6 ms inside the
+Gantt subtree: one Gantt commit per WBS commit and 93.4% of React commit time.
+Task 2.2 therefore remains in scope; Gantt windowing remains out.
+
+Focused h2puni lint is green at `20a27d9f`; the expected-red browser probe
+completed in 5.0 minutes and failed only its existing 50 ms frame-gap assertion
+(241.6 ms observed). The full gate at `98629c19` proved TASK-558 formatting,
+OpenSpec validation, typecheck, build and unit tests; it also exposed the probe
+lint now fixed at `20a27d9f` and two unrelated `tool-devsync` baseline failures
+(the managed-Bun literal and namespacing digest). No local build or autotest ran.
