@@ -39,8 +39,7 @@ const EMPTY_PROBE: ProbeCounters = {
 
 async function resetProbe(page: Page): Promise<void> {
   await page.evaluate((empty) => {
-    (window as typeof window & { __wbsScrollProbe?: ProbeCounters }).__wbsScrollProbe =
-      structuredClone(empty);
+    window.__wbsScrollProbe = structuredClone(empty);
   }, EMPTY_PROBE);
 }
 
@@ -68,17 +67,17 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
       if (heading === null || axis === null)
         throw new Error('scroll probe cannot see both plan headings');
       const first = (port: HTMLElement, selector: string, boundary: number) => {
-        const rows = port.querySelectorAll<HTMLElement>(selector);
+        const rows = Array.from(port.querySelectorAll<HTMLElement>(selector));
         let low = 0;
         let high = rows.length;
         while (low < high) {
           const middle = Math.floor((low + high) / 2);
-          const row = rows.item(middle);
-          if (row !== null && row.getBoundingClientRect().bottom > boundary + 1) high = middle;
+          const row = rows.at(middle);
+          if (row !== undefined && row.getBoundingClientRect().bottom > boundary + 1) high = middle;
           else low = middle + 1;
         }
-        const row = rows.item(low);
-        if (row === null) throw new Error(`scroll probe found no ${selector}`);
+        const row = rows.at(low);
+        if (row === undefined) throw new Error(`scroll probe found no ${selector}`);
         const rowBox = row.getBoundingClientRect();
         return { row, cut: (boundary - rowBox.top) / rowBox.height };
       };
@@ -204,8 +203,7 @@ test.describe('large-plan scroll stability', () => {
         const { down, up } = traced.value;
         const after = await session.send('Performance.getMetrics');
         const counters = await page.evaluate(() => {
-          const active = (window as typeof window & { __wbsScrollProbe?: ProbeCounters })
-            .__wbsScrollProbe;
+          const active = window.__wbsScrollProbe;
           if (active === undefined) throw new Error('scroll probe instrumentation is absent');
           return active;
         });

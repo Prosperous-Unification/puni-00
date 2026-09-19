@@ -10,9 +10,9 @@ import {
   lastWorkdayOf,
   wholeDaysCovering,
 } from '@wbs/domain/workday';
-import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   Profiler,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
