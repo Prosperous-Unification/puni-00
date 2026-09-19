@@ -5,6 +5,11 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 
 ## Language
 
+### Checkout commit
+
+The commit the dev source tree on disk is at. It describes the checkout being served,
+not the commit captured when a process or container first started.
+
 ### WBS
 
 **Project**:

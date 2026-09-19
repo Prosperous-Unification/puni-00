@@ -10,12 +10,18 @@ import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-prepar
 import {
   assertDevSolverSourceCompatible,
   assertMcpEnv,
+  deployRehearsalTarget,
   deploySolverTarget,
   devSolverMappingOf,
   devSyncFailureMessage,
+  devSyncPathsOf,
+  LIVE_DEV_CONTAINER,
+  LIVE_DEV_SOURCE,
+  LIVE_DEV_STATE,
   LOCK_BUSY_EXIT_CODE,
   MCP_ENV,
   needsRestart,
+  parseDevSyncInvocation,
   preflightSolver,
   RECREATE_PATHS,
   requireSolverImageInHost,
@@ -322,9 +328,9 @@ describe('dev supervisor', () => {
 
   it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
     const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
-    const fetchAt = source.indexOf('git -C ${SRC} fetch --quiet origin');
-    const targetAt = source.indexOf('await deploySolverTarget(sha, solverTargetDependencies());');
-    const proofAt = source.indexOf('git -C ${SRC} rev-parse HEAD', targetAt);
+    const fetchAt = source.indexOf('git -C ${paths.sourcePath} fetch --quiet origin');
+    const targetAt = source.indexOf('await deploySolverTarget(');
+    const proofAt = source.indexOf('git -C ${paths.sourcePath} rev-parse HEAD', targetAt);
 
     expect(fetchAt).toBeGreaterThan(-1);
     expect(targetAt).toBeGreaterThan(fetchAt);
@@ -609,6 +615,105 @@ describe('dev supervisor', () => {
 
     expect(changedPathReads).toBe(2);
     expect(hostImage).toBe(DEV_IMAGE);
+  });
+});
+
+describe('dev-sync rehearsal inputs', () => {
+  it('resets an unchanged solver target without calling any live host seam', async () => {
+    const resets: string[] = [];
+    await deployRehearsalTarget('b'.repeat(40), {
+      currentSha: () => Promise.resolve('a'.repeat(40)),
+      changedPaths: () => Promise.resolve([]),
+      reset: (sha) => {
+        resets.push(sha);
+        return Promise.resolve();
+      },
+    });
+    expect(resets).toEqual(['b'.repeat(40)]);
+  });
+
+  it('refuses solver-changing rehearsal targets before reset', async () => {
+    let reset = false;
+    let failure: unknown;
+    try {
+      await deployRehearsalTarget('b'.repeat(40), {
+        currentSha: () => Promise.resolve('a'.repeat(40)),
+        changedPaths: () => Promise.resolve(['apps/wbs/be-01/Dockerfile']),
+        reset: () => {
+          reset = true;
+          return Promise.resolve();
+        },
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('rehearsal refuses solver compatibility changes');
+    expect(reset).toBe(false);
+  });
+
+  it.each([
+    [
+      'source',
+      {
+        sourcePath: LIVE_DEV_SOURCE,
+        containerName: 'scratch-dev',
+        statePath: '/tmp/scratch-state',
+      },
+    ],
+    [
+      'container',
+      {
+        sourcePath: '/tmp/scratch-source',
+        containerName: LIVE_DEV_CONTAINER,
+        statePath: '/tmp/scratch-state',
+      },
+    ],
+    [
+      'state',
+      {
+        sourcePath: '/tmp/scratch-source',
+        containerName: 'scratch-dev',
+        statePath: LIVE_DEV_STATE,
+      },
+    ],
+  ])('refuses a rehearsal whose %s resolves to live dev', (_label, paths) => {
+    // Proof: each assertion runs before sync can issue a git or Docker command.
+    expect(() => devSyncPathsOf({ ...paths, rehearsal: true })).toThrow(
+      'must not resolve to live dev',
+    );
+  });
+
+  it('requires all three custom inputs and forwards only a fully fenced rehearsal', () => {
+    expect(() => devSyncPathsOf({ sourcePath: '/tmp/source', rehearsal: true })).toThrow(
+      'source, container and state together',
+    );
+    expect(() =>
+      devSyncPathsOf({
+        sourcePath: '/tmp/source',
+        containerName: 'scratch-dev',
+        statePath: '/tmp/state',
+      }),
+    ).toThrow('require rehearsal mode');
+    expect(() =>
+      parseDevSyncInvocation(['a'.repeat(40), '--source', '/tmp/source', '--rehearsal']),
+    ).toThrow('source, container and state together');
+    const invocation = parseDevSyncInvocation([
+      'a'.repeat(40),
+      '--source',
+      '/tmp/source',
+      '--container',
+      'scratch-dev',
+      '--state',
+      '/tmp/state',
+      '--rehearsal',
+    ]);
+    expect(invocation.paths).toEqual({
+      sourcePath: '/tmp/source',
+      containerName: 'scratch-dev',
+      statePath: '/tmp/state',
+      rehearsal: true,
+    });
   });
 });
 
