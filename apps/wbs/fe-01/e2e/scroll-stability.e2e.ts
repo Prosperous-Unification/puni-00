@@ -64,10 +64,17 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
       if (heading === null || axis === null)
         throw new Error('scroll probe cannot see both plan headings');
       const first = (port: HTMLElement, selector: string, boundary: number) => {
-        const row = [...port.querySelectorAll<HTMLElement>(selector)].find(
-          (candidate) => candidate.getBoundingClientRect().bottom > boundary + 1,
-        );
-        if (row === undefined) throw new Error(`scroll probe found no ${selector}`);
+        const rows = port.querySelectorAll<HTMLElement>(selector);
+        let low = 0;
+        let high = rows.length;
+        while (low < high) {
+          const middle = Math.floor((low + high) / 2);
+          const row = rows.item(middle);
+          if (row !== null && row.getBoundingClientRect().bottom > boundary + 1) high = middle;
+          else low = middle + 1;
+        }
+        const row = rows.item(low);
+        if (row === null) throw new Error(`scroll probe found no ${selector}`);
         const rowBox = row.getBoundingClientRect();
         return { row, cut: (boundary - rowBox.top) / rowBox.height };
       };
