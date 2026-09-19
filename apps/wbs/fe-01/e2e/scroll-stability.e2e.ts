@@ -44,10 +44,12 @@ async function sampleFrame(page: Page): Promise<FrameSample> {
   return page.evaluate(() => {
     const frame = document.querySelector<HTMLElement>('[data-table-frame]');
     const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
-    const heading = frame?.querySelector<HTMLElement>('thead th');
-    const axis = panel?.querySelector<HTMLElement>('[data-gantt-axis]');
-    if (frame === null || panel === null || heading === null || axis === null)
+    if (frame === null || panel === null)
       throw new Error('scroll probe cannot see both plan faces');
+    const heading = frame.querySelector<HTMLElement>('thead th');
+    const axis = panel.querySelector<HTMLElement>('[data-gantt-axis]');
+    if (heading === null || axis === null)
+      throw new Error('scroll probe cannot see both plan headings');
     const first = (port: HTMLElement, selector: string, boundary: number) => {
       const row = [...port.querySelectorAll<HTMLElement>(selector)].find(
         (candidate) => candidate.getBoundingClientRect().bottom > boundary + 1,
