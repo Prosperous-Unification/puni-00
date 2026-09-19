@@ -11,8 +11,8 @@ import {
   wholeDaysCovering,
 } from '@wbs/domain/workday';
 import {
-  Profiler,
   type PointerEvent as ReactPointerEvent,
+  Profiler,
   useCallback,
   useEffect,
   useMemo,
