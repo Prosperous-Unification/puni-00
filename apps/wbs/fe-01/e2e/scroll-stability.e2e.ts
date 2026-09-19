@@ -9,6 +9,8 @@ interface ProbeCounters {
   placeRowsMs: number;
   reactCommits: number;
   reactCommitMs: number;
+  ganttCommits: number;
+  ganttCommitMs: number;
   anchorWrites: number;
   scrollLinkWrites: number;
 }
@@ -29,6 +31,8 @@ const EMPTY_PROBE: ProbeCounters = {
   placeRowsMs: 0,
   reactCommits: 0,
   reactCommitMs: 0,
+  ganttCommits: 0,
+  ganttCommitMs: 0,
   anchorWrites: 0,
   scrollLinkWrites: 0,
 };

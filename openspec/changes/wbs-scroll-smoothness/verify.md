@@ -61,3 +61,18 @@ pairing, 500 rows stalls to 220.1 ms, and the 2,000-row profiled run exceeds the
 Dependency-integrity trust remains gated: the maintained checker refuses the
 repository's three tracked nested `package.json` files, so these are
 development measurements, not a terminal green gate.
+
+## Rewritten-plan review
+
+Sol (`openai/gpt-5.6-sol`) and Gemini (Antigravity CLI) reviewed section 2 at
+the probe head before implementation. Both requested changes: the old
+height-batching requirement contradicted the measured cutoff, and the existing
+scroll link already aligns by row id and within-row fraction. The 50-row defect
+is instead the shorter follower clamping against unequal terminal scroll
+ranges, including the table frame's 13rem picker allowance.
+
+The plan and delta spec now target window publication and matching terminal
+extent with production-path negatives and positive boundary controls.
+Implementation remains blocked until a dedicated Gantt Profiler separates its
+commit/time share from the whole-table numbers and the conditional Gantt task
+is selected or dropped from that evidence.

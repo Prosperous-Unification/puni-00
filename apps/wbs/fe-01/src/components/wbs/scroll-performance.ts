@@ -7,6 +7,8 @@ export interface WbsScrollProbe {
   placeRowsMs: number;
   reactCommits: number;
   reactCommitMs: number;
+  ganttCommits: number;
+  ganttCommitMs: number;
   anchorWrites: number;
   scrollLinkWrites: number;
 }
@@ -44,4 +46,15 @@ export const recordWbsScrollCommit: ProfilerOnRenderCallback = (_id, _phase, act
   if (active === undefined) return;
   active.reactCommits += 1;
   active.reactCommitMs += actualDuration;
+};
+
+export const recordGanttScrollCommit: ProfilerOnRenderCallback = (
+  _id,
+  _phase,
+  actualDuration,
+) => {
+  const active = probe();
+  if (active === undefined) return;
+  active.ganttCommits += 1;
+  active.ganttCommitMs += actualDuration;
 };

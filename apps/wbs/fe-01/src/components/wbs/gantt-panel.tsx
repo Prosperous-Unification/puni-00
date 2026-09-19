@@ -11,7 +11,15 @@ import {
   wholeDaysCovering,
 } from '@wbs/domain/workday';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  Profiler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -45,6 +53,7 @@ import { markerRulesAreTooDense } from './marker-rule-density';
 import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
 import { shortIsoDate } from './short-date';
+import { recordGanttScrollCommit } from './scroll-performance';
 import { hierarchyIndentFor } from './table-frame';
 import { nameWords, numberWords, rowWords } from './work-item-words';
 
@@ -2730,7 +2739,15 @@ export function ganttSvgFileName(now: Date): string {
  * @throws GanttDataError out of {@link layOutGantt} when the payload's slices
  * name something the payload has not got. See there.
  */
-export function GanttPanel({
+export function GanttPanel(props: GanttProps) {
+  return (
+    <Profiler id="gantt-panel" onRender={recordGanttScrollCommit}>
+      <GanttPanelContent {...props} />
+    </Profiler>
+  );
+}
+
+function GanttPanelContent({
   plan,
   startDate,
   scheduleError,

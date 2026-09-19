@@ -21,15 +21,15 @@ jitter.
 
 1. A reproduction and attribution probe, landed first and reviewed on its own
    numbers.
-2. Fixes only for causes the probe attributes, each with a deterministic
-   regression test. Candidates, in the order the static reading suggests:
-   batched height readings with a prefix-sum layout; one layout pass per frame;
-   realigning the Gantt panel by row identity plus within-row fraction after a
-   renderer correction.
+2. A Gantt-scoped commit trace before deciding whether its subtree is part of
+   the measured cause, then fixes only for attributed causes: publish changed
+   viewport windows instead of raw scroll offsets, and give both faces enough
+   terminal scroll range to align the same row and within-row fraction.
 3. The stability outcomes below as the acceptance bar.
 
-Gantt windowing is out of this change; it becomes its own change only if the
-probe attributes cause 4.
+Height batching and a prefix-sum row index are out of this change because both
+measured below the 5% cutoff. Gantt isolation or windowing remains conditional
+on its component-scoped trace.
 
 ## Non-Goals
 
