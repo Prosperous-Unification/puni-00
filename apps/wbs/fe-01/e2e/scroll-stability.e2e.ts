@@ -96,14 +96,13 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
     .poll(() =>
       page.evaluate(
         () =>
-          (window as typeof window & { __wbsScrollFramesDone?: boolean })
-            .__wbsScrollFramesDone ?? false,
+          (window as typeof window & { __wbsScrollFramesDone?: boolean }).__wbsScrollFramesDone ??
+          false,
       ),
     )
     .toBe(true);
   return page.evaluate(
-    () =>
-      (window as typeof window & { __wbsScrollFrames?: FrameSample[] }).__wbsScrollFrames ?? [],
+    () => (window as typeof window & { __wbsScrollFrames?: FrameSample[] }).__wbsScrollFrames ?? [],
   );
 }
 
