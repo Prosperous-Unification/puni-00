@@ -40,52 +40,71 @@ async function resetProbe(page: Page): Promise<void> {
   }, EMPTY_PROBE);
 }
 
-async function sampleFrame(page: Page): Promise<FrameSample> {
-  return page.evaluate(() => {
-    const frame = document.querySelector<HTMLElement>('[data-table-frame]');
-    const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
-    if (frame === null || panel === null)
-      throw new Error('scroll probe cannot see both plan faces');
-    const heading = frame.querySelector<HTMLElement>('thead th');
-    const axis = panel.querySelector<HTMLElement>('[data-gantt-axis]');
-    if (heading === null || axis === null)
-      throw new Error('scroll probe cannot see both plan headings');
-    const first = (port: HTMLElement, selector: string, boundary: number) => {
-      const row = [...port.querySelectorAll<HTMLElement>(selector)].find(
-        (candidate) => candidate.getBoundingClientRect().bottom > boundary + 1,
-      );
-      if (row === undefined) throw new Error(`scroll probe found no ${selector}`);
-      const box = row.getBoundingClientRect();
-      return { row, cut: (boundary - box.top) / box.height };
-    };
-    const table = first(frame, 'tr[data-row-id]', heading.getBoundingClientRect().bottom);
-    const gantt = first(panel, '[data-gantt-label]', axis.getBoundingClientRect().bottom);
-    const counters = (window as typeof window & { __wbsScrollProbe?: ProbeCounters })
-      .__wbsScrollProbe;
-    if (counters === undefined) throw new Error('scroll probe instrumentation is absent');
-    return {
-      at: performance.now(),
-      table: table.row.dataset['rowId'] ?? '',
-      gantt: gantt.row.dataset['ganttLabel'] ?? '',
-      tableCut: table.cut,
-      ganttCut: gantt.cut,
-      counters: structuredClone(counters),
-    };
-  });
-}
-
 async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]> {
   const box = await page.locator('[data-table-frame]').boundingBox();
   if (box === null) throw new Error('scroll probe table has no geometry');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  const samples: FrameSample[] = [];
-  const deadline = Date.now() + 1_200;
-  while (Date.now() < deadline) {
+  await page.evaluate(() => {
+    type ObservedWindow = typeof window & {
+      __wbsScrollProbe?: ProbeCounters;
+      __wbsScrollFrames?: FrameSample[];
+      __wbsScrollFramesDone?: boolean;
+    };
+    const observed = window as ObservedWindow;
+    observed.__wbsScrollFrames = [];
+    observed.__wbsScrollFramesDone = false;
+    const deadline = performance.now() + 1_200;
+    const capture = () => {
+      const frame = document.querySelector<HTMLElement>('[data-table-frame]');
+      const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
+      if (frame === null || panel === null)
+        throw new Error('scroll probe cannot see both plan faces');
+      const heading = frame.querySelector<HTMLElement>('thead th');
+      const axis = panel.querySelector<HTMLElement>('[data-gantt-axis]');
+      if (heading === null || axis === null)
+        throw new Error('scroll probe cannot see both plan headings');
+      const first = (port: HTMLElement, selector: string, boundary: number) => {
+        const row = [...port.querySelectorAll<HTMLElement>(selector)].find(
+          (candidate) => candidate.getBoundingClientRect().bottom > boundary + 1,
+        );
+        if (row === undefined) throw new Error(`scroll probe found no ${selector}`);
+        const rowBox = row.getBoundingClientRect();
+        return { row, cut: (boundary - rowBox.top) / rowBox.height };
+      };
+      const table = first(frame, 'tr[data-row-id]', heading.getBoundingClientRect().bottom);
+      const gantt = first(panel, '[data-gantt-label]', axis.getBoundingClientRect().bottom);
+      if (observed.__wbsScrollProbe === undefined)
+        throw new Error('scroll probe instrumentation is absent');
+      observed.__wbsScrollFrames?.push({
+        at: performance.now(),
+        table: table.row.dataset['rowId'] ?? '',
+        gantt: gantt.row.dataset['ganttLabel'] ?? '',
+        tableCut: table.cut,
+        ganttCut: gantt.cut,
+        counters: structuredClone(observed.__wbsScrollProbe),
+      });
+      if (performance.now() < deadline) requestAnimationFrame(capture);
+      else observed.__wbsScrollFramesDone = true;
+    };
+    requestAnimationFrame(capture);
+  });
+  for (let step = 0; step < 60; step += 1) {
     await page.mouse.wheel(0, direction * 96);
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
-    samples.push(await sampleFrame(page));
+    await page.waitForTimeout(16);
   }
-  return samples;
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __wbsScrollFramesDone?: boolean })
+            .__wbsScrollFramesDone ?? false,
+      ),
+    )
+    .toBe(true);
+  return page.evaluate(
+    () =>
+      (window as typeof window & { __wbsScrollFrames?: FrameSample[] }).__wbsScrollFrames ?? [],
+  );
 }
 
 async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
