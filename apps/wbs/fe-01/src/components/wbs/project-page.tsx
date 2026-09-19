@@ -1,4 +1,5 @@
 import {
+  Profiler,
   type ReactNode,
   useCallback,
   useEffect,
@@ -28,6 +29,7 @@ import {
 } from './saved-plans-panel';
 import { useToasts } from './toasts';
 import { usePlanImport } from './use-plan-import';
+import { recordWbsScrollCommit } from './scroll-performance';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
@@ -1151,7 +1153,8 @@ export function ProjectPage({
           </p>
         )}
         {selected !== null && (
-          <WbsTable
+          <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
+            <WbsTable
             // Each project owns its rows and transient editor state.
             // Proof: omitting this key left “Departed project row” in Name010
             // in `starts a created project without the previous project’s row anchors`.
@@ -1171,7 +1174,8 @@ export function ProjectPage({
             // same answer `renderer` above gives — one hook, one store, so the
             // header's arm and this one are complementary and never both.
             savedPlansShelf={savedPlanShelf}
-          />
+            />
+          </Profiler>
         )}
       </main>
     </>

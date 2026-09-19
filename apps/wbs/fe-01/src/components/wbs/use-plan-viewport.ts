@@ -9,6 +9,7 @@ import {
   viewportRows,
   type ViewportSlice,
 } from './plan-viewport';
+import { recordScrollProbe, scrollProbeStart } from './scroll-performance';
 
 /** The vertical allowance published in the measured-rendering budget. */
 export const ROW_OVERSCAN_PX = 300;
@@ -75,6 +76,7 @@ export function usePlanViewport({
 
   const recordHeight = useCallback(
     (rowId: string, heightPx: number) => {
+      const started = scrollProbeStart();
       if (heightPx <= 0) return;
       const current = heightReadings.current;
       const previousHeight = current.get(rowId) ?? ESTIMATED_ROW_HEIGHT_PX;
@@ -92,6 +94,7 @@ export function usePlanViewport({
       next.set(rowId, heightPx);
       heightReadings.current = next;
       setHeights(next);
+      recordScrollProbe('recordHeightCalls', 'recordHeightMs', started);
     },
     [frameRef],
   );
@@ -108,6 +111,7 @@ export function usePlanViewport({
     // leaves the visible row anchored` failed on `Expected: > 2046 · Received:
     // 2046`. Watched in Chromium, 2026-09-08.
     frameNode.scrollTop += adjustmentPx;
+    recordScrollProbe('anchorWrites');
   }, [frameRef, heights]);
 
   useLayoutEffect(() => {

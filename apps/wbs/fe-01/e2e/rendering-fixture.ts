@@ -8,6 +8,7 @@ export interface RenderingSize {
   rows: number;
   steps: number;
   density: 'sparse' | 'dense';
+  wrappedEvery?: number;
 }
 
 /** A flat DAG with a declared, independently verified edge count. */
@@ -59,7 +60,14 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
       ...(offset === 0
         ? { afterId: ids.at(-1) ?? null }
         : { afterRef: `row${String(offset - 1)}` }),
-      name: `Row ${String(start + offset).padStart(4, '0')}${start + offset === size.rows - 1 ? ' z' : ''}`,
+      name:
+        `Row ${String(start + offset).padStart(4, '0')}` +
+        ((size.wrappedEvery ?? 0) > 0 &&
+        (start + offset + 1) % (size.wrappedEvery ?? 1) === 0
+          ? ' whose deliberately long name wraps onto a second measured line'
+          : start + offset === size.rows - 1
+            ? ' z'
+            : ''),
     }));
     const answer = fixtureSuccess(
       'postApiProjectsByIdCommands',
