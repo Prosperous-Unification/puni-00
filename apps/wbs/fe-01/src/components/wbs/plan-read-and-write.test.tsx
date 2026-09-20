@@ -2839,7 +2839,7 @@ itDom('estimate refreshes only tree without a socket', async () => {
       realistic: 5,
       pessimistic: 6,
     });
-    expect(screen.getByText('· 5')).toBeInTheDocument();
+    expect(document.querySelector('[data-folded-final]')?.textContent).toBe('5');
   });
   expect(reads).toEqual(['tree']);
 });

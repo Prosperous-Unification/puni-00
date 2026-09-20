@@ -7,6 +7,7 @@ import { recordCalls } from '@/testing/record-calls';
 
 import { STEP_FINAL_HINT } from './column-hints';
 import { initialsOf } from './initials';
+import { QUIET_TRIO_PX } from './plan-columns/estimates';
 import type * as TableFrameModule from './table-frame';
 import { WbsTable } from './wbs-table';
 
@@ -823,19 +824,26 @@ describe('assigning from a folded step’s cell with @', () => {
 });
 
 describe('one cell for the whole trio', () => {
+  const quiet = `${String(QUIET_TRIO_PX)}px`;
+
   /** The folded step's cell: holds the trio shorthand, takes `o/r/p`. */
   const combinedCell = (number: string, step = 'Dev') =>
     screen.getByLabelText<HTMLInputElement>(`${step} estimate for ${number}`);
 
   /**
-   * The muted figure beside that cell, or null where the cell says it already.
+   * The folded cell's main reading — the step's result — or null where there
+   * is none: an unestimated step, or an unfolded one whose own figure says it.
    *
    * By its own attribute rather than by reading the whole cell: the assignee's
    * initials sit in the same box, and a text assertion over both would pass on
    * a figure that had moved into the wrong span.
    */
   const foldedFinal = (number: string, stepId = 'step-dev') =>
-    rowFor(number).querySelector(`[data-folded-final="${stepId}"]`);
+    rowFor(number).querySelector<HTMLElement>(`[data-folded-final="${stepId}"]`);
+
+  /** The parent's rolled-up trio span, or null on a leaf. */
+  const rolledTrio = (number: string, stepId = 'step-dev') =>
+    rowFor(number).querySelector<HTMLElement>(`[data-rolled-trio="${stepId}"]`);
 
   /** Types shorthand into the folded cell and leaves it, the way a person does. */
   const typeCombined = (number: string, value: string) => {
@@ -899,7 +907,7 @@ describe('one cell for the whole trio', () => {
     typeCombined('010', '2/3/10');
 
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('· 4');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
     expect(combinedCell('010').value).toBe('2/3/10');
   });
@@ -913,7 +921,7 @@ describe('one cell for the whole trio', () => {
     typeCombined('010', '2/3/10');
 
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('· 4');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
     // The plan's own total, unchanged by any of this: one step, one leaf.
     expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('4');
@@ -929,9 +937,10 @@ describe('one cell for the whole trio', () => {
     // assertions below are satisfied before the round trip and say nothing
     // until it has happened.
     //
-    // Proof: `finalSaysMore` widened to `final !== ''`, this failed on
-    // `expected <span …(2)></span> to be null` — the cell reading `5 · 5`.
-    // Watched 2026-08-29.
+    // The rule reversed on 2026-09-20: the result is drawn and the repeated
+    // trio is what goes quiet. Proof: dropping `trioRepeatsResult ?
+    // 'transparent' :` from the box's rest arm made this fail on `expected
+    // 'var(--muted-foreground)' to be 'transparent'`. Watched 2026-09-20.
     await oneRow();
 
     typeCombined('010', '5');
@@ -940,7 +949,8 @@ describe('one cell for the whole trio', () => {
       expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
     });
     expect(combinedCell('010').value).toBe('5');
-    expect(foldedFinal('010')).toBeNull();
+    expect(foldedFinal('010')?.textContent).toBe('5');
+    expect(combinedCell('010').style.color).toBe('transparent');
   });
 
   itDom('keeps the stored figure beside a cell holding a refused entry', async () => {
@@ -961,14 +971,14 @@ describe('one cell for the whole trio', () => {
     await oneRow();
     typeCombined('010', '2/3/10');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('· 4');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     const cell = typeCombined('010', '9/9/');
 
     expect(cell.value).toBe('9/9/');
     expect(cell).toHaveAttribute('aria-invalid', 'true');
-    expect(foldedFinal('010')?.textContent).toBe('· 4');
+    expect(foldedFinal('010')?.textContent).toBe('4');
   });
 
   itDom('copies one row’s cell into another and lands the same estimate', async () => {
@@ -989,7 +999,7 @@ describe('one cell for the whole trio', () => {
     await screen.findByLabelText('Name of 020');
     typeCombined('010', '2/3/10');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('· 4');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     typeCombined('020', combinedCell('010').value);
@@ -1065,7 +1075,7 @@ describe('one cell for the whole trio', () => {
       // `2/3/8` is PERT 3.7, which is none of the three numbers typed — the
       // figure appearing beside the cell is what says the trio landed, since
       // the cell itself holds the same characters either way.
-      expect(foldedFinal('010')?.textContent).toBe('· 3.7');
+      expect(foldedFinal('010')?.textContent).toBe('3.7');
     });
     expect(written).toHaveLength(1);
   });
@@ -1268,7 +1278,140 @@ describe('one cell for the whole trio', () => {
         '2/3/10',
       );
     });
-    expect(foldedFinal('010')?.textContent).toBe('· 4');
+    expect(foldedFinal('010')?.textContent).toBe('4');
+  });
+
+  itDom('quiets the trio while the cell is not being typed in', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('3.7');
+    });
+
+    const cell = combinedCell('010');
+    expect(cell.style.fontSize).toBe(quiet);
+    expect(cell.style.fontWeight).toBe('400');
+    expect(cell.style.color).toBe('var(--muted-foreground)');
+  });
+
+  itDom('gives the trio back its strength on focus and quiets it again on blur', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('3.7');
+    });
+
+    fireEvent.focus(combinedCell('010'));
+    expect(combinedCell('010').style.fontSize).toBe('inherit');
+    expect(combinedCell('010').style.fontWeight).toBe('600');
+
+    fireEvent.blur(combinedCell('010'));
+    expect(combinedCell('010').style.fontSize).toBe(quiet);
+    expect(combinedCell('010').style.fontWeight).toBe('400');
+  });
+
+  itDom('leaves a refused trio at full strength, because a complaint may not recede', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/10');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('4');
+    });
+
+    const cell = typeCombined('010', '9/9/');
+
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(cell.style.fontSize).toBe('inherit');
+  });
+
+  itDom('quiets a parent’s rolled-up trio exactly as a leaf’s', async () => {
+    const api = await oneRow();
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    typeCombined('010.1', '2/3/10');
+    await waitFor(() => {
+      expect(api.rows.find((row) => row.id === 'w2')?.estimates['step-dev']).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('4');
+    });
+
+    expect(rolledTrio('010')?.style.fontSize).toBe(quiet);
+    expect(rolledTrio('010')?.style.fontWeight).toBe('400');
+    expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
+  });
+
+  itDom('hides a parent’s rolled-up trio when it repeats the result', async () => {
+    const api = await oneRow();
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    typeCombined('010.1', '5');
+    await waitFor(() => {
+      expect(api.rows.find((row) => row.id === 'w2')?.estimates['step-dev']).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('5');
+    });
+
+    // Proof: dropping `trioRepeatsResult ? 'transparent' :` from the
+    // rolled-up span made this fail on `expected 'var(--muted-foreground)'
+    // to be 'transparent'`. Watched 2026-09-20.
+    expect(rolledTrio('010')?.textContent).toBe('5');
+    expect(rolledTrio('010')?.style.color).toBe('transparent');
+  });
+
+  itDom('draws the result in the row’s own type, with tabular numerals', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('3.7');
+    });
+
+    // The positive — that this is *the row's* size and ink — is a computed
+    // style and only Chromium can answer it (`e2e/layout.spec.ts`, the wide
+    // case). What jsdom can hold is that the span declares none of its own, so
+    // the wrapper's weight and colour reach it and a complaint recolours it.
+    // Proof: separately restoring `fontSize: 10`, `fontWeight: 'normal'` and
+    // `color: 'var(--muted-foreground)'`, then removing
+    // `fontVariantNumeric`, failed on `expected '10px' to be ''`, `expected
+    // 'normal' to be ''`, `expected 'var(--muted-foreground)' to be ''` and
+    // `expected '' to be 'tabular-nums'`. Watched 2026-09-20.
+    const figure = foldedFinal('010');
+    expect(figure?.style.fontVariantNumeric).toBe('tabular-nums');
+    expect(figure?.style.fontSize).toBe('');
+    expect(figure?.style.fontWeight).toBe('');
+    expect(figure?.style.color).toBe('');
+  });
+
+  itDom('leaves an unestimated folded cell empty', async () => {
+    await oneRow();
+
+    // Proof: dropping `final !== ''` from `showsResult` made this fail on
+    // `expected <span …(2)></span> to be null`. Watched 2026-09-20.
+    expect(combinedCell('010').value).toBe('');
+    expect(foldedFinal('010')).toBeNull();
+  });
+
+  itDom('draws no result beside an unfolded step’s own figure', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('3.7');
+    });
+
+    unfoldStep('Dev');
+
+    expect(foldedFinal('010')).toBeNull();
+    expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toBe('3.7');
   });
 
   itDom('is a cell of the keyboard grid, so a column can be typed down', async () => {
@@ -1368,7 +1511,7 @@ describe('one cell for the whole trio', () => {
     // was refused before the boxes said something else.
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(combinedCell('010').value).toBe('1/2/3');
-    expect(foldedFinal('010')?.textContent).toBe('· 2');
+    expect(foldedFinal('010')?.textContent).toBe('2');
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'false');
   });
 

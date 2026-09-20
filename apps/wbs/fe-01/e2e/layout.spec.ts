@@ -1162,6 +1162,13 @@ test.describe('the table, measured by a browser', () => {
           // is the assertion the change exists for: a trio nobody can read is
           // the figure-only cell again with more characters in it.
           clipped: box.scrollWidth - box.clientWidth,
+          boxType: getComputedStyle(box).fontSize,
+          boxFocused: document.activeElement === box,
+          figureType: getComputedStyle(figure).fontSize,
+          rowType: getComputedStyle(cell).fontSize,
+          figureInk: getComputedStyle(figure).color,
+          rowInk: getComputedStyle(cell).color,
+          figureNumerals: getComputedStyle(figure).fontVariantNumeric,
           estimated: rows[0].getBoundingClientRect().height,
           bare: rows[1].getBoundingClientRect().height,
         };
@@ -1178,10 +1185,12 @@ test.describe('the table, measured by a browser', () => {
       expect(measured.cell.width).toBe(104);
       expect(findOverrun(measured.cell, measured.box)).toBe(undefined);
       expect(findOverrun(measured.cell, measured.figure)).toBe(undefined);
-      // Proof: the figure drawn at the row's own 13px rather than the table's
-      // 10px caption size, this failed on the wide case — `the trio does not
-      // fit the box beside its figure — Expected: <= 0, Received: 8`. Watched
-      // in Chromium, 2026-08-30, and it is why the figure is set small.
+      // Proof: this measurement was taken on 2026-08-30 with the sizes the
+      // other way round: the figure at the row's own 13px and the trio at the
+      // table's 10px caption size failed on the wide case — `the trio does not
+      // fit the box beside its figure — Expected: <= 0, Received: 8`. Since
+      // 2026-09-20 the trio is set at the caption size and the result at the
+      // row's, and this assertion is what holds the new budget.
       expect(
         measured.clipped,
         'the trio does not fit the box beside its figure',
@@ -1198,10 +1207,10 @@ test.describe('the table, measured by a browser', () => {
     };
 
     const seeded = await measure();
-    // `· 4` and not `· 3.7` since `estimate-weights-and-rounding`: PERT over
+    // `4` and not `3.7` since `estimate-weights-and-rounding`: PERT over
     // `2/3/8` is 22/6 = 3.667 and the default rule charges `ceil` per step, so
     // what the cell says is a whole number of days.
-    expect(seeded.said).toBe('· 4');
+    expect(seeded.said).toBe('4');
     holdsItsContents(seeded);
 
     // The widest trio this column has been asked to hold in anger: `20/24/30`,
@@ -1215,15 +1224,42 @@ test.describe('the table, measured by a browser', () => {
     // The trio is still the eight characters this cell is judged on, so the
     // case is the same case; what changed is that the figure now costs two
     // glyphs rather than four, which is slack this assertion gains rather than
-    // spends.
+    // spends. Since 2026-09-20 the result carries no leading separator and is
+    // set at the row's type while the trio is set at the caption size, so the
+    // budget is spent the other way round and the assertion below is what
+    // decides whether that was affordable.
     const estimate = page.getByLabel('Dev estimate for 010');
     await estimate.fill('20/24/30');
     await estimate.blur();
-    await expect(page.locator('[data-folded-final]').first()).toHaveText('· 25');
+    await expect(page.locator('[data-folded-final]').first()).toHaveText('25');
 
     const wide = await measure();
-    expect(wide.said).toBe('· 25');
+    expect(wide.said).toBe('25');
     holdsItsContents(wide);
+    // At rest means at rest: `typing` is what decides the box's size, so a
+    // measurement taken while the box still had the focus would be measuring
+    // the focused arrangement and calling it the resting one.
+    // A precondition of the measurement and not a check on the cell, so no
+    // production fault belongs to it. What it catches was seen while planning:
+    // a staffed cell measured straight after the assignee picker's Add, which
+    // keeps the focus on purpose, reported `focused=true boxType=13px`
+    // (2026-09-20).
+    expect(wide.boxFocused, 'the resting state is only the resting state unfocused').toBe(false);
+    // Proof: with the box's rest arm deleted in estimates.tsx (the spread
+    // replaced by `{ fontSize: 'inherit', fontWeight: 600 }`), this failed on
+    // `Expected: "10px" · Received: "13px"`. Watched in Chromium, 2026-09-20.
+    expect(wide.boxType).toBe('10px');
+    // The result is the row's reading and not an annotation: same size, same
+    // ink, and numerals that line up down the column.
+    // Proof: `fontSize: 10` put back on the result span failed the first on
+    // `Expected: "13px" · Received: "10px"`; the muted colour put back failed
+    // the second on `Expected: "oklch(0.129 0.042 264.695)" · Received:
+    // "oklch(0.554 0.046 257.417)"`; `fontVariantNumeric` removed failed the
+    // third on `Expected: "tabular-nums" · Received: "normal"`. Each watched in
+    // Chromium and restored byte for byte, 2026-09-20.
+    expect(wide.figureType).toBe(wide.rowType);
+    expect(wide.figureInk).toBe(wide.rowInk);
+    expect(wide.figureNumerals).toBe('tabular-nums');
   });
 
   test('a toolbar panel closes when the pointer goes down outside it', async ({ page }) => {
@@ -1390,8 +1426,8 @@ test.describe('the table, measured by a browser', () => {
     // The round trip, not the keystroke: a parent's cell changes only once
     // be-01 has answered with the roll-up (`estimate-triple-visible`'s
     // lesson — wait on something only the answer can produce).
-    await expect(parentFigure).toHaveText('· 4');
-    await expect(leafFigure).toHaveText('· 4');
+    await expect(parentFigure).toHaveText('4');
+    await expect(leafFigure).toHaveText('4');
 
     const parentBox = await parentFigure.boundingBox();
     const leafBox = await leafFigure.boundingBox();
