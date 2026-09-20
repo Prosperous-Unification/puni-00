@@ -15,6 +15,138 @@ This packet has two parts. Sections 3 and 4 are the planning-stage desk research
 with a source URL and the retrieval date for every external claim. Sections 6 to 11 are the
 hands-on evaluation a medium-tier model executes to turn those findings into a decision.
 
+## Dispatch amendment, 2026-09-20: two actors, one preparation checkpoint
+
+These instructions are controlling and supersede any conflicting text below, including section
+13's historical dispositions.
+
+### Who does what
+
+The executor owns refreshed desk research in sections 2–4; preparation portions of steps 1–4, 6,
+9–11 and 15–17; every script, fixture, Dockerfile and configuration needed for the experiment;
+step 18's initial note; and section 10's applicable repository checks. It does not start
+application servers, access Docker, run browser flows or execute container experiments.
+
+The planner owns daemon/browser preflight; all serving and runtime portions of steps 5 and 7–14;
+step 16's migration experiment; container cleanup in step 19; and appending actual observations
+and the final recommendation. The original numerical order is superseded by the experiment order
+below.
+
+Use `$WORK="$TMPDIR/emdash-handoff"` and keep proof output under `$TMPDIR/evidence`. Create the
+note before experiments, with recommendation "Blocked — pending planner experiment." Runtime rows
+remain unobserved until the planner supplies evidence. Preserve all preparation artifacts on
+success, failure and stop.
+
+The planner dispatches the committed amendment as slice `prepare`, with `--network --preserve
+emdash-handoff`. Before execution, it verifies the preserved directory and reviews all scripts,
+not merely the repository diff. Preparation completion is not experiment completion.
+
+Research may contact `registry.npmjs.org`, `github.com`, `api.github.com`,
+`raw.githubusercontent.com`, `codeload.github.com`, `release-assets.githubusercontent.com`,
+`docs.emdashcms.com`, `docs.astro.build` and `bun.com`. Use unauthenticated public requests, not
+authenticated `gh`. No npm, pnpm or yarn fallback is authorized. Keep `BUN_INSTALL_CACHE_DIR`
+unset and obey the preamble's temporary-file and telemetry rules.
+
+### Cleanup
+
+Replace the supplied cleanup script. The executor writes and syntax-checks it but never installs
+its trap or executes it.
+
+The planner installs cleanup before creating resources. Runtime experiments use containers;
+cleanup never signals host PIDs. Record each created resource's identifier and exact run label.
+Before removal, verify both against the ledger; an ownership mismatch stops cleanup with an
+error.
+
+Remove containers, volumes and networks only from that ledger. Remove images only through
+recorded run-specific tags, without force and with `--no-prune`; never remove image IDs, shared
+base/helper images, or global caches. Never run a prune command. Do not use privileged
+containers, host networking, host PID namespaces, Docker-socket mounts or arbitrary host bind
+mounts. [Docker image removal semantics](https://docs.docker.com/reference/cli/docker/image/rm/)
+
+Cleanup preserves `$WORK` and `$TMPDIR/evidence`, reports failures, and can run twice safely.
+Disable traps before explicit final cleanup. Capture expected nonzero statuses explicitly rather
+than allowing `set -e` to terminate before evidence is recorded. All host-published ports bind to
+`127.0.0.1`; a container may listen on `0.0.0.0` internally.
+
+### Experiment order and the immutable image
+
+**Experiment order.** Finish the selected submission implementation and plugin configuration
+before the final image build. Keep local plugins inside the declared build context. Supply a
+`.dockerignore` excluding host dependencies, build output, databases, uploads, Git metadata and
+credential files. Freeze the final dependency lockfile after all additions; record the scaffolder
+version, template commit and source hashes. The planner resolves and records base/helper image
+digests before building.
+
+Build the final application once and record its full image ID. Use that ID, not its mutable tag,
+for H1, H3, H4 and H5. Any application rebuild restarts those proofs with fresh volumes.
+
+Initialize a fresh labelled volume through that image. After setup but before creating markers,
+save the baseline SQLite backup needed by section 8 row 1. Then create the entry, uploaded media
+and submission through this container. Save their identifiers, media checksum and exact database
+readback queries.
+
+Run egress, replacement and recovery against this image and its mounted database. Never use the
+host development database as evidence. Query storage through labelled containers, not Docker's
+host volume directory.
+
+Prove replacement using a new container ID on the original volume; prove the negative using the
+same image without that volume. Restore the online backup and uploads into a separate fresh
+volume and verify content, media bytes, fresh sign-in and a new write. Exercise the pre-marker
+backup negative separately, then restore the passing backup and rerun green. Give concurrent
+instances distinct ports and measure each before stopping it.
+
+### Proof contracts
+
+Generated scripts must implement these proof contracts rather than copy the defective command
+blocks:
+
+- Use a bounded egress probe implemented with the image's Node runtime and propagate its exit
+  status. Run the identical probe successfully with egress enabled, observe a connectivity
+  failure under denial, then succeed after restoration. Missing executables, invalid commands,
+  certificate failures and HTTP errors are not evidence of isolation. Under denial, all four H3
+  legs must succeed; an unavailable admin edit leaves H3 blocked.
+- Resolve plugin registration, authentication, form creation, submission envelopes and readback
+  queries against pinned source. For the currently cited [forms
+  schema](https://raw.githubusercontent.com/emdash-cms/emdash/main/packages/plugins/forms/src/schemas.ts),
+  submit `{"formId":"…","data":{"name":"…","email":"…","request":"…"}}`. Assert the pinned
+  handler's actual rejection contract and unchanged storage; do not infer acceptance from HTTP
+  status alone. Use synthetic local credentials and a dedicated browser profile.
+- Test the sandbox without its runner before enabling the runner. Keep this comparison separate
+  from the final persistence artifact.
+- For the selected submission path, include malformed/incomplete-input assertions and an injected
+  storage failure proving no successful acknowledgement and no inserted record; restore and
+  rerun the positive case.
+- Add H2's missing-licence negative against a copied inventory. Save the failing audit, restore
+  the inventory and rerun it. Perform the claim audit's negative on a scratch copy containing an
+  unsupported claim.
+- S4 requires a disposable database with pending migrations, unchanged migration state after a
+  request in manual mode, then explicit migration and a successful migration check using the
+  matching build manifest. Silence on an already-migrated database proves neither migration
+  policy nor deterministic rebuilding. [Migration
+  contract](https://docs.emdashcms.com/deployment/core-migrations/)
+
+Save expected outcomes separately from observed outputs. Unsupported procedures produce a
+PARTIAL preparation report; they must not be replaced with guessed APIs or fabricated
+observations. No hard requirement passes without its observed positive, negative and restoration
+evidence.
+
+### Encryption claims are disputed
+
+The historical encryption and key-loss claims in sections 3.2, 3.6 and 13 are disputed and must
+not be copied as verified facts. Current documentation describes format validation without
+stored-data encryption. Inspect the selected release's implementation and distinguish
+documentation, source inspection and runtime observations. Until resolved, confidentiality and
+key-loss behaviour remain unknown. [EmDash Node deployment
+guide](https://docs.emdashcms.com/deployment/nodejs/)
+
+Do not read existing credential files or extract values from `.env`. If the pinned configuration
+needs an evaluation key, generate a fresh synthetic value using its verified procedure and pass
+it without printing or preserving it in public evidence.
+
+Correcting these explicitly disputed planning claims during desk research is permitted; record
+the source and retrieval date. Runtime contradictions still follow the experiment's stop
+conditions.
+
 ## 1. Goal and non-goals
 
 **Goal.** Decide, with observed evidence, whether the Prosperous Unification website (a landing
@@ -166,6 +298,9 @@ published_at: "desc" } })` and links each entry as `/posts/${post.id}`, and `src
   stored in the database... Restoring the database without a referenced key leaves the
   corresponding settings unreadable." The adversarial review reported different wording on this
   page; see unknown 12 and section 13.
+  [Superseded by the dispatch amendment: this is disputed, not verified. Current documentation
+  describes format validation without stored-data encryption; do not copy this bullet as a
+  verified fact until the pinned release's implementation is inspected.]
 - Scheduler: "The built-in scheduler runs only while a Node.js process is running... Keep at
   least one Node.js process running continuously in production." Source as above.
 - Containers: the upstream repository has a root `Dockerfile`, a `.dockerignore` and a
@@ -234,9 +369,10 @@ published_at: "desc" } })` and links each entry as `/posts/${post.id}`, and `src
     the executor's temporary space, outside this repository and never committed, so it changes
     nothing this repository ships. Section 7 nevertheless uses Bun for scaffolding, dependency
     installation and scripts, both because it is the house tool and because it tests soft
-    requirement S1 for free. Where a Bun command fails, that failure is a recorded finding, and
-    falling back to the upstream-documented npm command inside the throwaway directory is
-    itself recorded as a finding for Dany, never presented as permitted.
+    requirement S1 for free. No npm, pnpm or yarn fallback is authorized for the evaluation
+    either. Where Bun cannot do something, that is a recorded finding for Dany, not a fallback:
+    the executor records the exact command and the complete Bun error and stops that path rather
+    than reaching for npm, pnpm or yarn.
   - _Whether a product in this repository may ship a container image containing a Node runtime._
     **Decided by Dany on 2026-09-20: yes.** "Running specialized software written for Node on Node
     is fine." The rule governs this repository's own toolchain, not the runtime a third-party
@@ -331,6 +467,8 @@ Source: `https://raw.githubusercontent.com/emdash-cms/emdash/main/docs/src/conte
   damaged database, replace it with the verified backup, restore the runtime keys and any
   required media objects, and start the matching application version. Verify sign-in, public
   content, an encrypted plugin setting, an edit, and a media read before reopening traffic."
+  [Superseded by the dispatch amendment: "an encrypted plugin setting" and "the runtime keys" are
+  disputed, not verified; see the encryption note in 3.2 and section 13.]
 - **Inference:** this is the same single-writer shape as WBS `be-01` in the infra plan
   (one replica, `Recreate`, `ReadWriteOncePod`, hourly `VACUUM INTO` pulls). The existing
   SQLite backup pipeline is the natural fit; `sqlite3 .backup` or `VACUUM INTO` replaces the
@@ -488,7 +626,8 @@ operated: the long-running scheduler process, migration mode, the encryption key
 ## Node and Bun
 
 <What was observed under each runtime, and which package-manager commands were used where and
-why, including any npm fallback and that it is flagged for Dany rather than permitted.>
+why. No npm, pnpm or yarn fallback is authorized; where Bun could not do something, name that
+as a finding for Dany, not a fallback.>
 
 ## The plugin sandbox off Cloudflare
 
@@ -555,7 +694,7 @@ silently failing or silently passing the row.
 | S2  | Memory fits a website budget | Step 14: container memory from `docker stats --no-stream` on the run's own container, and separately the server process RSS from `ps` inside that container. | 1.0 GB, **proposed by this packet**. The infra plan's 1.0 GB row is "Novel prod or staging"; no website budget exists yet, so this number is a proposal for Dany, not a quoted allocation. |
 | S3  | Clean termination            | Step 14: `docker stop -t 30`, then the exit code and `OOMKilled` from `docker inspect`, then a SQLite integrity check on the volume.                         | Exit before the timeout with a non-137 code, and an `ok` integrity check. Elapsed time alone proves nothing, because Docker sends SIGKILL after the timeout.                               |
 | S4  | Deterministic deploys        | Step 16: set migration mode to `manual`, run the documented migrate command, start the server, and confirm the first request applies no migration.           | The first request logs no migration. If migration mode cannot be forced, record it as a condition.                                                                                         |
-| S5  | Image size                   | Step 8: `docker image ls` for the run's own tag.                                                                                                             | 1.0 GB compressed-on-disk, proposed. Larger is a condition about pull time, not a reject.                                                                                                  |
+| S5  | Image size                   | Step 8: `docker image ls` for the run's own tag.                                                                                                             | 1.0 GB cumulative image size, proposed, not compressed transfer size. Larger is a condition about pull time, not a reject.                                                                 |
 | S6  | Update cost                  | Step 17: count the `emdash@` release entries between the pinned version and the current one, and how many are marked Breaking.                               | More than two Breaking entries per month is a condition requiring a named update owner.                                                                                                    |
 
 ## 7. Steps
@@ -590,6 +729,8 @@ which command reads it.
   docker volume ls -q --filter "label=puni.eval=$RUN_ID" | xargs -r docker volume rm
   docker network ls -q --filter "label=puni.eval=$RUN_ID" | xargs -r docker network rm
   docker image ls -q --filter "label=puni.eval=$RUN_ID" | xargs -r docker image rm -f
+  # [Superseded by the dispatch amendment: cleanup removes images only by recorded run-specific
+  # tag, without force and with --no-prune, never by image ID.]
   rm -rf -- "$WORK"
   SH
   chmod +x "$WORK/cleanup.sh"
@@ -627,6 +768,8 @@ which command reads it.
     change a Node version on a shared host.
   - `docker info` succeeds, which proves daemon access; `docker --version` alone does not.
     If it fails, stop and report H1, S2, S3 and S5 as blocked.
+    [Superseded by the dispatch amendment: the executor does not access Docker at all; this
+    preflight, including `docker info`, belongs to the planner before the container steps.]
   - `sqlite3`, `curl` and `python3` are present. A missing tool blocks the steps that use it
     and is reported, per `AGENTS.md`.
   - `git status --short` output is saved as the baseline. The working tree already carries
@@ -647,11 +790,11 @@ which command reads it.
   Expected: a `site` directory with `astro.config.mjs`, `package.json`, `src`, `seed`, and a
   gitignored `.env` holding a generated `EMDASH_ENCRYPTION_KEY`.
   Pass: `test -f "$WORK/site/astro.config.mjs" && test -f "$WORK/site/.env"` exits 0.
-  Fail: if `bunx create-emdash@latest` fails, record the complete error, then retry once. If
-  it fails again, run the upstream-documented `npm create emdash@latest site -- --template
-node:starter --pm npm --yes` inside `$WORK` only, and record in `$WORK/findings.md`, under
-  the heading "npm fallback used", the exact command, the Bun error it replaced, and the note
-  that this is a finding for Dany under section 3.3, not a permitted practice.
+  Fail: if `bunx create-emdash@latest` fails, record the complete error, then retry once. If it
+  fails again, record in `$WORK/findings.md`, under the heading "Bun scaffold failed", the exact
+  command and the complete error, and stop this step. No npm, pnpm or yarn fallback is
+  authorized for the evaluation, per section 3.3 and the dispatch amendment; this is a recorded
+  finding for Dany, not a fallback.
   Then pin and record, all into `$WORK/pinned-versions.txt`:
 
   ```sh
@@ -882,6 +1025,10 @@ node:starter --pm npm --yes` inside `$WORK` only, and record in `$WORK/findings.
     -d "{\"name\":\"$ENTRY_MARKER\",\"email\":\"eval@example.invalid\",\"request\":\"Evaluation submission for $RUN_ID\"}"
   ```
 
+  [Superseded by the dispatch amendment: this flat body does not match the pinned forms schema.
+  Submit `{"formId":"…","data":{"name":"…","email":"…","request":"…"}}` instead, and assert the
+  pinned handler's actual rejection contract rather than inferring acceptance from HTTP status.]
+
   Expected: a 2xx status and the submission listed under the form's submissions in the admin.
   Pass H4 candidate: the marker is visible in the admin list and in
   `sqlite3 "$WORK/site/data/data.db" ".tables"`-discoverable storage; record the exact table
@@ -1062,6 +1209,10 @@ node:starter --pm npm --yes` inside `$WORK` only, and record in `$WORK/findings.
       nothing about migrations.
       Pass S4: no migration on first request. Fail: record that migration mode could not be
       forced; that becomes a named condition about deploys, not a reject.
+      [Superseded by the dispatch amendment: silence on an already-migrated database proves
+      neither migration policy nor deterministic rebuilding. Use a disposable database with
+      pending migrations, observe unchanged migration state in manual mode, then run an explicit
+      migration and a successful migration check against the matching build manifest.]
 
 - [ ] **Step 17. Update cost, for S6.** Count the `emdash@` release entries published after the
       pinned version and how many carry a **Breaking** marker:
@@ -1090,6 +1241,8 @@ node:starter --pm npm --yes` inside `$WORK` only, and record in `$WORK/findings.
       Expected: no resource carrying this run's label remains, and no other resource was touched.
       Pass: all four filters are empty. The repository is left with exactly one added file
       relative to step 2's baseline.
+      [Superseded by the dispatch amendment: container cleanup in this step belongs to the
+      planner, and preparation artifacts under `$WORK` are preserved for handoff, not deleted.]
 
 ## 8. Negative proofs
 
@@ -1167,8 +1320,8 @@ cleanup first:
   method, or supply a Cloudflare credential.
 - Any command would bind a port to an address other than `127.0.0.1`, or would remove a Docker
   resource not carrying `label=puni.eval=$RUN_ID`.
-- The scaffolder fails twice with both Bun and the recorded npm fallback; the evaluation cannot
-  be done from memory.
+- The scaffolder fails twice under Bun; no npm, pnpm or yarn fallback is authorized, and the
+  evaluation cannot be done from memory.
 - A dependency in step 15's inventory is missing licence metadata or is not permissive.
 - An observation contradicts section 3 **behaviourally** — a documented mechanism behaves
   differently, an option does not exist, a quoted contract is wrong. Record both and report.
@@ -1266,6 +1419,10 @@ unreadable" sentences. Neither says secrets remain plaintext or that the variabl
 format. The packet's quotations stand. Because the review read something different, unknown 12
 now requires the executor to record the docs shipped with the pinned release and forbids the
 note from asserting confidentiality of stored plugin secrets on documentation alone.
+[Superseded by the dispatch amendment: the third review found the currently retrieved deployment
+guide describes format validation without stored-data encryption. This disposition's rejection
+does not stand; treat the encryption and key-loss claims as disputed, not verified, per the
+amendment's "Encryption claims are disputed" section.]
 
 **Important 4, mutable sources undermine the baseline — partly fixed, one point rejected.**
 Fixed: step 3 now pins and records the scaffolded `emdash`, `astro` and adapter versions plus the
@@ -1338,3 +1495,18 @@ may not recommend one until it has been researched.
 not apply here: `https://registry.npmjs.org/@emdash-cms/plugin-forms` and
 `raw.githubusercontent.com` both resolved and returned content from this shell on 2026-09-19,
 which is how the forms version and the Turnstile handler were confirmed.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES
+
+The verdict is dispatch after fixes: only the preparation slice dispatches once the amendments
+above are in place, and the packet as it stood still failed the immutable-image persistence
+requirement while attributing every container observation to a single actor. The controlling
+split is executor-prepares and planner-runs-containers: the executor produces refreshed desk
+research, scripts, fixtures, Dockerfiles and configuration, and never touches Docker, servers or
+browser flows, while the planner performs every serving, container and cleanup step from those
+reviewed scripts. The second hold reason, persistence on one immutable image, was **not** met by
+the packet's old text — steps 7–14 built the image before the application was finished and wrote
+across separate volumes and databases — and is now specified by the "Experiment order and the
+immutable image" section of the amendment above. Preparation completing is not the experiment
+completing: the note the executor writes carries the recommendation "Blocked — pending planner
+experiment" until the planner has actually run the container steps and supplied the observations.
