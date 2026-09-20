@@ -60,32 +60,38 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
     observed.__wbsScrollFrames = [];
     observed.__wbsScrollFramesDone = false;
     const deadline = performance.now() + 1_200;
+    const frame = document.querySelector<HTMLElement>('[data-table-frame]');
+    const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
+    if (frame === null || panel === null)
+      throw new Error('scroll probe cannot see both plan faces');
+    const heading = frame.querySelector<HTMLElement>('thead th');
+    const axis = panel.querySelector<HTMLElement>('[data-gantt-axis]');
+    if (heading === null || axis === null)
+      throw new Error('scroll probe cannot see both plan headings');
+    // The complete Gantt list is stable for this read. Re-querying and copying
+    // 2,000 labels on every sampled frame made the observer itself allocate
+    // hundreds of thousands of entries and introduced counter-free GC stalls.
+    const ganttRows = Array.from(panel.querySelectorAll<HTMLElement>('[data-gantt-label]'));
+    const first = (rows: readonly HTMLElement[], boundary: number) => {
+      let low = 0;
+      let high = rows.length;
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        const row = rows.at(middle);
+        if (row !== undefined && row.getBoundingClientRect().bottom > boundary + 1) high = middle;
+        else low = middle + 1;
+      }
+      const row = rows.at(low);
+      if (row === undefined) throw new Error('scroll probe found no row');
+      const rowBox = row.getBoundingClientRect();
+      return { row, cut: (boundary - rowBox.top) / rowBox.height };
+    };
     const capture = () => {
-      const frame = document.querySelector<HTMLElement>('[data-table-frame]');
-      const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
-      if (frame === null || panel === null)
-        throw new Error('scroll probe cannot see both plan faces');
-      const heading = frame.querySelector<HTMLElement>('thead th');
-      const axis = panel.querySelector<HTMLElement>('[data-gantt-axis]');
-      if (heading === null || axis === null)
-        throw new Error('scroll probe cannot see both plan headings');
-      const first = (port: HTMLElement, selector: string, boundary: number) => {
-        const rows = Array.from(port.querySelectorAll<HTMLElement>(selector));
-        let low = 0;
-        let high = rows.length;
-        while (low < high) {
-          const middle = Math.floor((low + high) / 2);
-          const row = rows.at(middle);
-          if (row !== undefined && row.getBoundingClientRect().bottom > boundary + 1) high = middle;
-          else low = middle + 1;
-        }
-        const row = rows.at(low);
-        if (row === undefined) throw new Error(`scroll probe found no ${selector}`);
-        const rowBox = row.getBoundingClientRect();
-        return { row, cut: (boundary - rowBox.top) / rowBox.height };
-      };
-      const table = first(frame, 'tr[data-row-id]', heading.getBoundingClientRect().bottom);
-      const gantt = first(panel, '[data-gantt-label]', axis.getBoundingClientRect().bottom);
+      // Table rows are virtualized and may be replaced between frames; unlike
+      // the complete Gantt list, this bounded list must be read afresh.
+      const tableRows = Array.from(frame.querySelectorAll<HTMLElement>('tr[data-row-id]'));
+      const table = first(tableRows, heading.getBoundingClientRect().bottom);
+      const gantt = first(ganttRows, axis.getBoundingClientRect().bottom);
       if (observed.__wbsScrollProbe === undefined)
         throw new Error('scroll probe instrumentation is absent');
       observed.__wbsScrollFrames?.push({
