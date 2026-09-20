@@ -559,7 +559,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       // Re-pinned 20 -> 22 for `apps/wbs/fe-01/src/modules/directory/README.md` and
       // `apps/wbs/fe-01/src/modules/directory-management/README.md`, the directory's two module
       // indexes, which the sweep must cover like any application README.
-      applicationLibraryToolReadmes: 22,
+      // Re-pinned 22 -> 23 for `apps/wbs/fe-01/src/modules/preferences/README.md`, the preferences
+      // module index, which the sweep must cover like any application README.
+      applicationLibraryToolReadmes: 23,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
