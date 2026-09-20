@@ -7624,6 +7624,8 @@ describe('the waits the filter left undrawn', () => {
         scheduleError={null}
         generation={0}
         heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
         pointed={pointed}
       />,
     );
@@ -7635,6 +7637,8 @@ describe('the waits the filter left undrawn', () => {
         scheduleError={null}
         generation={0}
         heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
         pointed={pointed}
       />,
     );
