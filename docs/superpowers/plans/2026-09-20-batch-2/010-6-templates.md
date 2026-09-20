@@ -14,43 +14,42 @@ Batch rules, the execution contract and the standard blocks are in
 copying them, except where it must show an exact command. The batch 1
 [results](../2026-09-19-batch-1/RESULTS.md) list the defects that stopped real attempts.
 
-**Revision 2, 2026-09-20**, after the first Codex review refused revision 1. What changed:
-verification is now driven by the constraints the registry states, imports are parsed rather than
-matched, the single-kind rule applies to a standalone file, every check has a named negative, the
-slices are ordered test first, and every count is relative. The disposition of every finding is the
-last section.
-
-Every interface in section 6 was written into a copy of `apps/wiki/cli/src` under the planner's
-temporary directory, type-checked with the repository's own compiler options, Prettier-checked with
-the repository's configuration, and run against real Git fixtures **and** against this repository's
-four frontend modules. Every output quoted in section 3 was observed on 2026-09-20. Nothing was
-written into the repository.
+**Revision 3, 2026-09-20**, after a second review refused revision 2. Every slice of this revision
+was **rehearsed end to end in a throwaway worktree cut from this branch**: each slice's red run, its
+green run, its type check, its lint and its format check were executed, and **every fault in
+section 8 was compiled and watched failing its named test**. The counts, the failing lines and the
+red-run surprises below are observations, not predictions. The disposition of every finding of both
+reviews is the last section.
 
 ## 0. How this packet is executed
 
-### 0.0 Dispatch prerequisite, for the planner
+### 0.0 Dispatch
 
-`puni-plan/exec/run-executor.sh` builds the packet path as
-`docs/superpowers/plans/2026-09-19-batch-1/<packet>.md` and names the clone's branch
-`batch-1/<packet>`; read on 2026-09-20, both are literal. This packet lives under
-`docs/superpowers/plans/2026-09-20-batch-2/`, so the launcher exits 69 (`packet missing in clone`)
-before it dispatches anything. **The planner updates the launcher to take the batch directory, or
-dispatches with an equivalent command, and records the exact command that worked before calling
-this packet executable.** No slice below can fix this; it is not the executor's problem to solve.
+The launcher takes the batch: `--batch batch-2` resolves the packet directory
+`docs/superpowers/plans/2026-09-20-batch-2`, the clone root `/home/df/wd/puni/batch-2`, the branch
+prefix `batch-2/` and the temporary root `/tmp/puni-batch2` (read from
+`puni-plan/exec/run-executor.sh` on 2026-09-20). The planner dispatches each slice with:
+
+```sh
+puni-plan/exec/run-executor.sh 010-6-templates slice-1 <base-commit> --batch batch-2
+```
+
+substituting the slice label and the base commit of the reviewed predecessor, and records the exact
+command it ran with the attempt. Nothing else about the launcher is this packet's business.
 
 ### 0.1 The six slices
 
 Strictly in order, never in parallel. Each is one dispatch: the executor does that slice and stops,
 the planner reviews and commits, the next slice starts from that commit.
 
-| Slice                                                            | Delivers                                                                         |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [1](#slice-1--openspec-change-registry-list-and-show)            | The OpenSpec change, the template model, three kind templates, `list`, `show`    |
-| [2](#slice-2--verifying-one-file-against-its-template)           | The candidate shell, the file-scope constraint handlers, `template verify`       |
-| [3](#slice-3--the-negatives-for-the-shell-and-the-file-handlers) | Twelve watched faults for what slice 2 added                                     |
-| [4](#slice-4--the-module-template)                               | The module template, the module-scope handlers, delegation to the kind templates |
-| [5](#slice-5--the-negatives-for-the-module-handlers)             | Nine watched faults for what slice 4 added                                       |
-| [6](#slice-6--readme-record-and-format)                          | The README section, the verification record, the final checks                    |
+| Slice                                                            | Delivers                                                                         | Tests it adds |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------- |
+| [1](#slice-1--openspec-change-registry-list-and-show)            | The OpenSpec change, the template model, three kind templates, `list`, `show`    | 4             |
+| [2](#slice-2--verifying-one-file-against-its-template)           | The candidate shell, the file-scope constraint handlers, `template verify`       | 16            |
+| [3](#slice-3--the-negatives-for-the-shell-and-the-file-handlers) | Fifteen watched faults for what slices 1 and 2 added                             | none          |
+| [4](#slice-4--the-module-template)                               | The module template, the module-scope handlers, delegation to the kind templates | 9             |
+| [5](#slice-5--the-negatives-for-the-module-handlers)             | Nine watched faults for what slice 4 added                                       | none          |
+| [6](#slice-6--readme-record-and-format)                          | The README section, the verification record, the final checks                    | none          |
 
 Slices 2 and 3 are one reviewable unit, and so are 4 and 5: a proof slice carries the negatives for
 the checks its predecessor added, and **the planner does not merge a check whose proof slice has not
@@ -82,21 +81,24 @@ below that disagrees.
 - **Scratch lives only under `TMPDIR`**:
   `task_tmp=$(mktemp -d "${TMPDIR:?}/templates-XXXXXX")`; evidence under `$TMPDIR/evidence`.
 - **Never mask a status.** No `|| true`, no `|| echo`. Where a command's failure is an expected
-  outcome, capture its status and compare it, as section 1.1 does.
+  outcome, capture its status and compare it, as section 0.6 does.
 - **A test that spawns a process more than twice carries an explicit timeout.** Bun's default is
   5 seconds and the h2puni gate timed out a five-run test at 5,025 ms. Every test in this packet
   that starts Git or the command line carries `30_000`, including the ones that look short: the
   fixture helper alone spawns Git six times. Those arguments are part of the code. Do not drop them.
 - **Counts are relative.** Every count this packet states is "the number you recorded at the start
-  of this slice, plus this slice's own additions". Absolute totals elsewhere move under other
-  packets and under main; never pin one.
+  of this slice, plus this slice's own additions". The planner's rehearsal observed 4, then 20, then
+  29 template tests on a clone of this branch; treat those as expected deltas of 4, 16 and 9, never
+  as absolutes.
 - **Line numbers are not anchors.** Where this packet cites a line it is evidence from 2026-09-20,
-  not a coordinate: find the code by its text. The batch 1 branch has since taken a merge from main
-  that moved several files.
-- **This packet adds no Nx target.** A new test-running target name would have to carry the
-  `CLAUDECODE=0` and `AGENT=0` defaults that `tools/tool-devsync/src/workspace-targets.test.ts`
-  requires; every test here runs under the existing `twilight-bureaucrat:test` target, so nothing
-  there changes. If a slice finds itself wanting a new target, that is a stop.
+  not a coordinate: find the code by its text.
+- **This packet adds no Nx target and no README file.** A new test-running target name would have to
+  carry the `CLAUDECODE=0` and `AGENT=0` defaults that
+  `tools/tool-devsync/src/workspace-targets.test.ts` requires; every test here runs under the
+  existing `twilight-bureaucrat:test` target. No Markdown file is created either, so the application
+  README coverage count in `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` — whether
+  packet 110.6 has already replaced that pin with a derived value or not — has nothing to move.
+  Wanting a new target or a new README is a stop.
 
 ### 0.3 Running one named test
 
@@ -109,8 +111,9 @@ pattern unanchored, exactly as each proof states it:
   -t '<joined pattern>')
 ```
 
-Expected while green: `1 pass`, `0 fail`, and `Ran 1 test across 1 file.` A run reporting
-`Ran 0 tests` or `matched 0 tests` proves nothing: **stop and report**.
+Every pattern in section 8 was run this way during the rehearsal and selected **exactly one** test:
+the output reads `1 pass` or `1 fail` with the rest `filtered out`. A run reporting `Ran 0 tests` or
+`matched 0 tests` proves nothing: **stop and report**.
 
 ### 0.4 Injecting a fault, saving it, and what counts as a stop
 
@@ -118,9 +121,10 @@ For every proof, in this order:
 
 1. `cp <file> "$task_tmp/"` — the passing bytes.
 2. Edit the file to inject exactly the named fault.
-3. **Compile it**: `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck` must exit 0. A
-   mutation that does not compile proves nothing and is a stop; every fault in section 8 was
-   compiled with the repository's own options on 2026-09-20.
+3. **Compile it**: `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck` must exit 0. Every
+   fault in section 8 was compiled this way during the rehearsal. **If it does not compile, restore
+   the saved bytes first, `cmp` them, and only then stop and report**: an unrestored mutation must
+   never be left on the tree, not even for a stop.
 4. Save the mutation as a patch, accepting exactly status 1:
 
    ```sh
@@ -136,6 +140,10 @@ For every proof, in this order:
 7. Copy the saved bytes back, `cmp` them, rerun the named test green.
 8. Only then write the adjacent `Proof:` comment, with the real date, describing what you saw.
 
+**Restore before every early exit.** Whatever the surprise — a mutation that will not compile, a
+test that passes under its fault, a different message, an unrelated failure — copy the saved bytes
+back and `cmp` them before writing the report.
+
 **A fault that also fails other tests is not a stop.** Record which ones. It is a stop only when the
 named test **passes** under the fault, fails with a **different** message than this packet predicts,
 or the mutation does not compile.
@@ -146,13 +154,33 @@ or the mutation does not compile.
   `apps/wiki/cli/src/policy/trust.ts` walks `cli.ts`'s import closure, and this packet's three new
   files join it. Checked on 2026-09-20: no test pins that identity as a literal —
   `pilot-policy.test.ts`, `trusted-policy.test.ts` and `gate-entrypoints.test.ts` all recompute it
-  by calling `resolveValidatorArtifactPaths` themselves. Expect no test failure from the added
-  files. An activation provisioned **outside** this clone must be prepared again; that is the
-  planner's question.
+  by calling `resolveValidatorArtifactPaths` themselves. The rehearsal ran the whole
+  `twilight-bureaucrat:build` target with the new files in place and it succeeded. An activation
+  provisioned **outside** the clone must be prepared again; that is the planner's question.
 - **There are two dispatchers.** `apps/wiki/cli/src/cli.ts` routes the validator's commands;
   `apps/wiki/cli/src/bin.ts` keeps the installed binary's own allow-list and help text. A command
   added to only one of them is invisible to the installed package, which is why slice 1 writes the
   installed-binary assertions before it touches either file.
+
+### 0.6 The preparation block every slice runs
+
+Every slice begins with **this** block, and with nothing else from another slice's preparation. The
+absence checks that belong to slice 1 alone are in section 1.1 and are **not** part of this block:
+after slice 1, `src/templates/` exists and `cli.ts` routes `template`, which is the point.
+
+```sh
+repo_root=$(pwd -P)
+task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/templates-XXXXXX")
+mkdir -p "$TMPDIR/evidence"
+printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
+(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
+  bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)
+```
+
+Expected: both paths print, `task_tmp` is beneath the launcher's `TMPDIR`, and the rule suite exits 0. **Write its test count down**: this packet adds no rule test, so that count must not move in any
+slice. The rehearsal observed 19 there; yours is whatever your base commit carries.
+
+Each slice then records its own starting counts, which its own preparation section names.
 
 ## 1. Goal and non-goals
 
@@ -195,14 +223,14 @@ file under `apps/wbs` is edited, so no service gains a declaration tag here.
 
 ## 3. Verified facts
 
-Checked in the worktree on 2026-09-20. Facts 13 to 29 were **observed by running** section 6's code
-in a copy of `apps/wiki/cli/src` outside the repository, with `@shared/validation` resolved through
-the workspace's own path mapping.
+Checked in the worktree on 2026-09-20. Facts 13 to 33 were **observed by executing this packet**
+in a throwaway worktree cut from this branch, with the repository's own Nx targets, Bun test runner,
+TypeScript options, ESLint configuration and Prettier configuration.
 
 1. Nx project `twilight-bureaucrat`, `sourceRoot` `apps/wiki/cli/src`. Its `test` target runs
    `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../tools/test/scratch/preload.ts`
    with `cwd` `apps/wiki/cli`. `src/packaging/build.test.ts` is **not** excluded, so the executor
-   can run it.
+   can run it; the rehearsal ran it in 19 seconds, 2 tests.
 2. `runCli(argv)` in cli.ts dispatches on `args[0]` **and** exact `args.length`, and ends by
    throwing `unknown command: <name>` with a usage line listing every command word. `template`
    appears in neither dispatcher today.
@@ -211,7 +239,8 @@ the workspace's own path mapping.
 4. **No test pins cli.ts's usage string or bin.ts's help text as a whole.** `build.test.ts` asserts
    `toContain('unknown command')` and `toContain` of two help lines; `install.test.ts` asserts
    `toContain('twilight-bureaucrat validate-record')`; `trusted-policy.test.ts` asserts
-   `toContain('usage: twilight-bureaucrat')`. Adding one word and one help line breaks none.
+   `toContain('usage: twilight-bureaucrat')`. The rehearsal added one word and one help line and
+   `build.test.ts` passed.
 5. `readCandidate(root, request)` returns `{ selection, entries, untracked }` with entries
    `{ path, mode, blob }`. `resolveCandidateRoot` resolves a caller's interior directory to the Git
    worktree root. `readCandidateBlob(repository, blob, path)` reads one selected blob by its object
@@ -223,10 +252,9 @@ the workspace's own path mapping.
 7. Those modules carry `contract.ts`, kind files suffixed `.feature.ts`, `.resource.ts` and
    `.repository.ts`, tests beside them, and — in `directory-management` — a `view/` directory. None
    carries `module.ts`, `check.ts` or `tsconfig.json`.
-8. **`di-bag` 0.4.0 is installed**, pinned at the repository root by packet 020.1 and present in
-   `bun.lock`. What is true of these modules is that **they have not adopted it**: no `module.ts`,
-   no bag, and the preferences README still says DI Bag is not installed. Assumption A7 is written
-   to adoption, not to installation.
+8. **`di-bag` 0.4.0 is installed**, pinned at the repository root and present in `bun.lock`. What is
+   true of these modules is that **they have not adopted it**: no `module.ts`, no bag, and the
+   preferences README still says DI Bag is not installed. Assumption A7 is written to adoption.
 9. **No Markdown file under `apps/wbs/fe-01` carries a `module-index` comment**, and `fe-01` has no
    README of its own. The frontend module READMEs are therefore not wiki indexes today;
    `read-indexes.ts` ignores a README without the envelope. Assumption A9 records the consequence.
@@ -239,28 +267,36 @@ the workspace's own path mapping.
 11. `docs/code-organization/README.md` records the convention for a service that does **not**
     declare its kind by suffix: an entry in `kinds.json` naming its `capability` or its `term`.
     There is no convention yet for a suffixed one; assumption A1 introduces it.
-12. This packet adds no README, no tsconfig and no Nx target, so the devsync pins over application
-    READMEs, depth-sensitive configuration files and target defaults do not move. All of those
-    tests live in `tool-devsync:test`, which is planner-only.
-13. **Observed.** `bunx tsc` over section 6's three files, with the repository's
-    `tsconfig.base.json` options (`strict`, `noPropertyAccessFromIndexSignature`,
-    `isolatedModules`), printed nothing, in both the slice 2 state and the slice 4 state.
-14. **Observed.** `bunx prettier --check` with the repository's `.prettierrc.json` reported
-    `All matched files use Prettier code style!` for all three files, in both states.
-15. **Observed, slice 2 state.** `template list` printed the three kind templates in identifier
-    order, `feature-service`, `repository`, `resource-service`, each with `"version":"1.0.0"`, exit
-    0; `template show module` printed
-    `unknown template: module (registered: feature-service, repository, resource-service)`, exit 1.
-16. **Observed, slice 4 state.** `template list` printed four identifiers,
-    `feature-service, module, repository, resource-service`, exit 0.
-17. **Observed.** `template show nope` printed `unknown template: nope (registered: …)` to stderr,
-    exit 1, and `template summon` printed the usage line, exit 1.
-18. **Observed.** A fixture module — README with the four sections, `contract.ts`,
-    `widget.feature.ts` with `// @capability widget-editing`, `store.repository.ts` with
-    `// @port ./contract#WidgetPort`, `store.repository.test.ts`, `widget.feature.test.ts` and
-    `view/use-widget.ts` — verified `{"conforms":true,"findings":[]}`, exit 0, against both the
-    `module` and the `repository` templates.
-19. **Observed, against this repository at `HEAD`.** `template verify module committed . HEAD apps/wbs/fe-01/src/modules/<module>`
+12. This packet adds no README, no tsconfig and no Nx target, so no devsync pin moves (section 0.2).
+13. **Observed, slice 1.** With the test file present and no source, the four registry tests failed
+    0 to 4. With the dispatcher route removed, `bun run src/cli.ts template list` printed
+    `unknown command: template`. With section 6's slice 1 files and the two dispatcher edits in
+    place, the same four tests passed, `twilight-bureaucrat:typecheck` and
+    `twilight-bureaucrat:lint:source` both succeeded, and Prettier reported all files already
+    formatted.
+14. **Observed, slice 2.** With slice 2's tests appended and slice 1's `verify.ts` still in place,
+    the file ran **5 pass, 15 fail**. The fifth pass is
+    `refuses an unknown candidate selection kind`: the slice 1 writer already refuses every shape
+    that is not `list` or `show` with the same usage line, so that test cannot discriminate until
+    P23 mutates `candidateRequest`. Section 2.2 states this, so it is not a surprise to stop on.
+15. **Observed, slice 2.** With section 6.5's `verify.ts`, the file ran **20 pass, 0 fail**;
+    typecheck, source lint and Prettier all clean.
+16. **Observed, slice 4.** With slice 4's nine tests appended and the two authorized edits made, and
+    slice 2's source still in place, the file ran **18 pass, 11 fail**: the nine module tests, plus
+    `lists every registered template in identifier order` and
+    `refuses an unregistered template identifier and names every registered template`, which change
+    because registering the module template changes both the listing and the refusal's registered
+    list. With section 6.7's additions the file ran **29 pass, 0 fail**.
+17. **Observed.** After slice 4, `twilight-bureaucrat:typecheck`, `twilight-bureaucrat:lint:source`,
+    `twilight-bureaucrat:build` and `nx format:check --all` all succeeded, `src/packaging/build.test.ts`
+    passed 2 of 2 with slice 1's assertions, and `src/rules/rules.test.ts` was unchanged at 19.
+18. **Observed.** `template show nope` printed
+    `unknown template: nope (registered: …)` to stderr, exit 1; `template summon` printed the usage
+    line, exit 1; `template verify feature-service bogus …` printed the usage line, exit 1, with
+    empty stdout.
+19. **Observed.** The conforming fixture module verified `{"conforms":true,"findings":[]}`, exit 0,
+    against both the `module` and the `repository` templates.
+20. **Observed, against this repository at `HEAD`.** `template verify module committed . HEAD apps/wbs/fe-01/src/modules/<module>`
     reported exactly one class of finding per module and nothing else:
 
     | Module                 | Findings                                                                                      |
@@ -270,68 +306,80 @@ the workspace's own path mapping.
     | `plan-writer`          | `feature.capability` on `plan-writer.feature.ts`                                              |
     | `preferences`          | `repository.port`, `feature.capability` and `resource.term`, one each on its three kind files |
 
-    Each message is `file states 0 @<tag> tags, expected exactly 1`. Every other requirement —
-    index, its sections, the contract, the kind file, the single kind, the test, the layout, the
-    repository's sibling test, and every forbidden import — passed on all four real modules.
+    Each message is `file states 0 @<tag> tags, expected exactly 1`. Every other requirement passed
+    on all four real modules, the whole-file parse boundary of fact 23 included.
 
-20. **Observed, the import scanner.** `new Bun.Transpiler({ loader: 'ts' }).scanImports` reports
-    `import './a.repository';` (a side-effect import) and `export * from './f.repository';`, ignores
+21. **Observed, the import scanner.** `new Bun.Transpiler({ loader: 'ts' }).scanImports` reports
+    `import './a.repository';` and `export * from './f.repository';`, ignores
     `// import { x } from './b.repository';` and the same text inside a string literal, reports a
-    dynamic `import('./e.repository')`, **elides a purely type-only `import type … from './d.repository'`**,
-    and **throws** on source that does not parse (`Expected string but found ";"`). A regular
-    expression over `from '…'`, which revision 1 used, got the first three of those wrong.
-21. **Observed.** With the scanner in place, a feature whose file carries a side-effect import of
-    `./store.repository`, a commented-out import and an import inside a string produced exactly one
-    finding: `the file imports ./store.repository, which declares the repository kind`.
-22. **Observed.** A repository adapter importing `./widget.resource` produced
-    `repository.no-service-import`, and a resource importing `./widget.feature` produced
-    `resource.no-feature-import`.
-23. **Observed.** A file not parsing produced
-    `cannot scan the imports of src/modules/widget/widget.feature.ts: Expected string but found ";"`,
-    exit 1.
+    dynamic `import('./e.repository')`, **elides a purely type-only import**, and **throws** on
+    source that does not parse.
+22. **Observed, the declaration scanner.** A feature whose only `// @capability` text sits inside a
+    template literal and inside a block comment states **zero** declarations: the verification
+    reports `file states 0 @capability tags, expected exactly 1`. A regular expression over the raw
+    source counted both, which is the revision 2 defect; `lineComments` walks the source instead.
+23. **Observed, the parse boundary.** Every selected TypeScript file is parsed when it is decoded,
+    so a module whose `contract.ts` and whose test file contain `export const = ;` is refused with
+    `cannot scan the imports of src/modules/widget/contract.ts: Failed to scan imports`, exit 1,
+    empty stdout. In revision 2, which parsed only the files a constraint read, that module
+    verified `conforms: true`.
 24. **Observed.** `template verify resource-service …` against `widget.feature.resource.ts` produced
-    **two** findings, `resource.one-kind` (`file name declares feature and resource`) and
-    `resource.term`. Revision 1, which had no single-kind constraint in file scope, accepted that
-    file with `conforms: true`; that hole is closed.
-25. **Observed.** `template verify feature-service …` against `contract.ts` produced
-    `feature.suffix` (`file name does not end in .feature.ts`) and `feature.capability`.
-26. **Observed, module scope.** A bare module produced, in order, `module.readme`, `module.contract`,
+    two findings, `resource.one-kind` and `resource.term`; `template verify feature-service …`
+    against `contract.ts` produced `feature.suffix` and `feature.capability`.
+25. **Observed, module scope.** A bare module produced, in order, `module.readme`, `module.contract`,
     `module.kind-file` and `module.test`; a README with its last section removed produced
-    `the index omits ## Checks`; a file at `widget/inner/deep.ts` produced
-    `the file sits neither in the module directory nor in view`; a second file named
-    `widget.feature.resource.ts` produced `module.one-kind`; and a module whose feature file lost
-    its tag produced the delegated `feature.capability` finding.
-27. **Observed, the boundaries.** An absent subject printed
-    `subject selects no candidate file: src/modules/nope`; `template verify feature-service … <a directory>`
-    printed `template feature-service verifies one file; … is not one`; an absolute subject printed
-    `subject must be a candidate-relative path: /etc/passwd`; `template verify module bogus …`
-    printed the usage line; a non-UTF-8 file printed `candidate file … is not UTF-8`; and a
-    verification with findings printed its record to stdout **and** exited 1, while a conforming one
-    exited 0.
-28. **Observed, the pure evaluator.** A hand-made template with one `declares-one` requirement
-    produced exactly that one finding; the same template with an empty requirement list produced
+    `the index omits ## Checks`; a README with no level one title produced `the index omits its
+title`; a file at `widget/inner/deep.ts` produced `the file sits neither in the module
+directory nor in view`; a second file named `widget.feature.resource.ts` produced
+    `module.one-kind`; and a module whose feature file lost its tag produced the delegated
+    `feature.capability` finding.
+26. **Observed, the boundaries.** An absent subject printed `subject selects no candidate file: …`;
+    a file template pointed at a directory printed `template feature-service verifies one file; …
+is not one`; an absolute subject printed `subject must be a candidate-relative path:
+/etc/passwd`; a non-UTF-8 file printed `candidate file … is not UTF-8`; a verification with
+    findings printed its record to stdout **and** exited 1, while a conforming one exited 0.
+27. **Observed, the pure evaluator.** A hand-made template with one `declares-one` requirement
+    produced exactly that finding; the same template with an empty requirement list produced
     `conforms: true`; and a file template stating a `required-file` constraint threw
     `template requirement probe.module states a required-file constraint, which no file artifact can satisfy`.
-    Verification therefore reads the registry's constraints and nothing else.
-29. **Observed, the corrected forbidden-import fault.** `([] as FileKind[]).includes(forbidden)`
-    compiles — the bare `[].includes(forbidden)` of revision 1 did **not**: `TS2345`, `FileKind` is
-    not assignable to `never` — and makes the finding of fact 21 vanish, leaving `conforms: true`
-    and exit 0.
+28. **Observed.** The two pure tests import `verifyArtifact` with `await import('./verify')` inside
+    the test body. A static `import { verifyArtifact } from './verify'` makes Bun refuse the whole
+    file before any test runs while slice 1's module exports only `writeTemplateCommand`, which
+    would make slice 2's red run impossible to read.
+29. **Observed.** Every fault in section 8 was applied to the state its slice runs on, compiled with
+    `twilight-bureaucrat:typecheck`, run with its `-t` pattern — each selected exactly one test —
+    observed failing, restored by copying back and `cmp`, and rerun green.
+30. **Observed, the two faults the second review rejected.** `refuseScope` is annotated `never`, so
+    `return [];` alone is `TS2322`; the prescribed fault changes the annotation to
+    `TemplateFinding[]` **and** the body, which compiles. `const absent = [];` is `TS7034`/`TS7005`
+    under `strict`; the prescribed fault is `const absent: string[] = [];`, which compiles.
+31. **Observed.** P11's fault needs `type FileKind` in verify.ts's `./template` import. Slice 2's
+    file does not import it and slice 4's does; the proof prescribes adding it for the mutation and
+    removing it again on restore.
+32. **Observed, the two predicted outcomes the second review corrected.** Under P7 the malformed
+    feature still produces the `feature.capability` finding and exit 1; what changes is that the
+    stderr refusal disappears, and the named test fails on
+    `Expected to contain: "cannot scan the imports of …" Received: ""`. Under P15 **both**
+    required-file findings vanish, `module.readme` and `module.contract`, and the named test fails
+    on the whole finding list.
+33. **Observed.** `tools/tool-devsync` was not touched and no Nx target was added; the rehearsal's
+    `nx format:check --all` over the whole repository exited 0.
 
 ## 4. Unknowns, and the assumptions recorded instead of asking
 
-| #   | Question                                                                            | Recorded assumption                                                                                                                                                                                                                                                                                                                             |
-| --- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | How a suffixed service names its capability, term or port machine-readably          | One **line comment** per file: `// @capability <id>`, `// @term <term>`, `// @port <specifier>`, stated exactly once. A JSDoc tag is impossible without editing the root ESLint configuration (fact 10), and `kinds.json` is the convention for files **without** a suffix (fact 11).                                                           |
-| A2  | Whether the templates ship as files or as data                                      | As data: each template carries its skeleton and its constraints inline in TypeScript. No Markdown or TypeScript template file is added, so no document check or README pin moves (fact 12).                                                                                                                                                     |
-| A3  | Whether a template finding has a mode                                               | No. Templates carry no policy: a finding is a finding, `conforms` is false, the command exits 1. Modes belong to the rule model, which 010.7 extends.                                                                                                                                                                                           |
-| A4  | Whether `template verify` certifies                                                 | No. `certifies: false`, for the same reason a B0 verdict does not: it binds no evidence, no authority and no validator identity.                                                                                                                                                                                                                |
-| A5  | How a consumer overrides or pins a template                                         | Deferred, as the design's open item 2 says. `version` is printed by `list` and `show` so a policy can pin it later; nothing reads it yet.                                                                                                                                                                                                       |
-| A6  | Whether these requirements are the real K1 to K9 rules                              | No. They are template conformance over the bytes of one artifact; the authoritative K rules read the import graph and are 010.7's. Each requirement's `rules` field names the rule it partly serves, and each statement is written to what the bytes can show.                                                                                  |
-| A7  | Whether the module template should require `module.ts`, `check.ts`, `tsconfig.json` | Not yet. `di-bag` is installed (fact 8) but **no module in the repository has adopted it**, so requiring its wiring would refuse every real module. They join the template as a version bump when the first module adopts DI Bag.                                                                                                               |
-| A8  | Whether the real modules should be made to conform                                  | No. This packet edits no file under `apps/wbs`. Their missing declaration tags are a finding for the frontend packets, and slice 4's last test pins that observation so it cannot drift silently.                                                                                                                                               |
-| A9  | Whether the module README skeleton carries `module-index` metadata                  | **No, and the delta spec says so.** No frontend module README carries the envelope today (fact 9); prescribing it would make the template's own output non-conforming to the repository and put a second index authority under `fe-01`. It joins the template when the frontend gains a module index boundary, which is the wiki design's work. |
-| A10 | Whether a type-only import of a repository is caught                                | No. The transpiler elides it (fact 20), so `imports-no-kind` cannot see it. The requirement is stated as "states no import", and the type-level dependency is left to 010.7's graph rule. Written into the delta spec as a stated limit, not hidden.                                                                                            |
+| #   | Question                                                                            | Recorded assumption                                                                                                                                                                                                                                                                  |
+| --- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | How a suffixed service names its capability, term or port machine-readably          | One **line comment** per file: `// @capability <id>`, `// @term <term>`, `// @port <specifier>`, stated exactly once and counted only when it is a real line comment (fact 22). A JSDoc tag is impossible without editing the root ESLint configuration (fact 10).                   |
+| A2  | Whether the templates ship as files or as data                                      | As data: each template carries its skeleton and its constraints inline in TypeScript. No Markdown or TypeScript template file is added, so no document check or README pin moves (fact 12).                                                                                          |
+| A3  | Whether a template finding has a mode                                               | No. Templates carry no policy: a finding is a finding, `conforms` is false, the command exits 1. Modes belong to the rule model, which 010.7 extends.                                                                                                                                |
+| A4  | Whether `template verify` certifies                                                 | No. `certifies: false`, for the same reason a B0 verdict does not: it binds no evidence, no authority and no validator identity.                                                                                                                                                     |
+| A5  | How a consumer overrides or pins a template                                         | Deferred, as the design's open item 2 says. `version` is printed by `list` and `show` so a policy can pin it later; nothing reads it yet.                                                                                                                                            |
+| A6  | Whether these requirements are the real K1 to K9 rules                              | No. They are template conformance over the bytes of one artifact; the authoritative K rules read the import graph and are 010.7's. Each requirement's `rules` field names the rule it partly serves.                                                                                 |
+| A7  | Whether the module template should require `module.ts`, `check.ts`, `tsconfig.json` | Not yet. `di-bag` is installed (fact 8) but **no module in the repository has adopted it**, so requiring its wiring would refuse every real module. They join the template as a version bump when the first module adopts DI Bag.                                                    |
+| A8  | Whether the real modules should be made to conform                                  | No. This packet edits no file under `apps/wbs`. Their missing declaration tags are a finding for the frontend packets, and slice 4's last test pins that observation so it cannot drift silently.                                                                                    |
+| A9  | Whether the module README skeleton carries `module-index` metadata                  | **No, and the delta spec says so.** No frontend module README carries the envelope today (fact 9); prescribing it would make the template's own output non-conforming to the repository and put a second index authority under `fe-01`.                                              |
+| A10 | Whether a type-only import of a repository is caught                                | No. The transpiler elides it (fact 21), so `imports-no-kind` cannot see it. The requirement is stated as "states no import", and the type-level dependency is left to 010.7's graph rule. Written into the delta spec as a stated limit.                                             |
+| A11 | Whether the declaration scanner models regular-expression literals                  | No. `lineComments` skips strings, template literals and block comments; two adjacent slashes inside a regular-expression character class would start a comment for it. No declaration depends on that case, the alternative is a full parser, and the JSDoc of the function says so. |
 
 ## 5. File plan, and what this packet does not own
 
@@ -342,8 +390,8 @@ the workspace's own path mapping.
 | openspec/changes/twilight-bureaucrat-templates/specs/bureaucrat-templates/spec.md | 1                                                     | The nine requirements of section 9.                                      |
 | openspec/changes/twilight-bureaucrat-templates/tasks.md                           | 1 creates, every slice ticks its own                  | The six slices, each naming its tests and its negatives.                 |
 | openspec/changes/twilight-bureaucrat-templates/verify.md                          | 1 creates, every slice fills its own rows             | The proof table of section 8 and the commands record.                    |
-| apps/wiki/cli/src/templates/template.ts                                           | 1 creates, 4 extends, 3 adds a proof comment          | The template model, its constraints and its pure readers.                |
-| apps/wiki/cli/src/templates/registry.ts                                           | 1 creates, 4 extends                                  | The templates, their skeletons, their constraints, and `selectTemplate`. |
+| apps/wiki/cli/src/templates/template.ts                                           | 1 creates, 4 extends the union, 3 adds proof comments | The template model, its constraints and its pure readers.                |
+| apps/wiki/cli/src/templates/registry.ts                                           | 1 creates, 4 adds the module template                 | The templates, their skeletons, their constraints, and `selectTemplate`. |
 | apps/wiki/cli/src/templates/verify.ts                                             | 1 creates, 2 and 4 extend, 3 and 5 add proof comments | The command writers, the candidate shell, the constraint handlers.       |
 | apps/wiki/cli/src/templates/templates.test.ts                                     | 1 creates, 2 and 4 extend                             | Every template test.                                                     |
 | apps/wiki/cli/src/cli.ts                                                          | 1                                                     | One route block and one word in the usage line. Nothing else.            |
@@ -370,15 +418,15 @@ So the two packets share exactly one file.
 | `openspec/changes/twilight-bureaucrat-kind-rules/` | 010.7's evidence. This packet writes nothing there, and nothing in `openspec/changes/service-taxonomy/`.                                                                                                                                 |
 
 **If 010.7 landed first**, the two dispatchers are unchanged by it and only the README carries its
-`## Rules` edits: keep them and append below. If `src/templates/` already exists or cli.ts's usage
-string already contains `template`, **stop and report**: this packet's work is already on the tree.
+`## Rules` edits: keep them and append below.
 
 ### 5.2 Other batch 2 neighbours
 
-020.2 (shared failures), 020.7 (backend startup), 040.1 (Chromium proof), 040.4 (plan feed),
-110.1 (test axes) and 110.6 (retire upstream sync) touch no file in section 5. 040.4 may add a new
-frontend module; slice 4's observation test names `apps/wbs/fe-01/src/modules/directory` only, which
-040.4 does not touch. `docs/code-organization/kinds.json` belongs to 020.8 and is not edited here.
+020.2, 020.7, 040.1, 040.4, 110.1 and 110.6 touch no file in section 5. 110.6 lands first and may
+replace the application README coverage pin in `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`
+with a derived value; either way this packet adds no README, so there is nothing to move
+(section 0.2). 040.4 may add a frontend module; slice 4's observation test names
+`apps/wbs/fe-01/src/modules/directory` only. `docs/code-organization/kinds.json` belongs to 020.8.
 
 ## 6. Interfaces
 
@@ -391,19 +439,23 @@ what Twilight Bureaucrat verifies.
 
 The verifier has **one handler per constraint kind and reads nothing else**. It iterates the
 template's own requirement list, so a template that drops a requirement drops its check and one that
-states a requirement gains it (fact 28). A requirement whose constraint the artifact's scope cannot
-satisfy — a module-only constraint on a file template — is a **refusal**, not a silent pass: a
-registry mistake has to be loud.
+states a requirement gains it (fact 27). A requirement whose constraint the artifact's scope cannot
+satisfy — a module-only constraint on a file template — is a **refusal**, not a silent pass.
 
-Verification is **pure over bytes**. It reads a candidate revision through the same `readCandidate`
-and `readCandidateBlob` the rule adapters use, parses imports with the transpiler `trust.ts` already
-uses, and judges only what the bytes of one artifact show. It is deliberately **narrower** than
+Verification is **pure over bytes**, and it refuses what it cannot read: every selected TypeScript
+file is decoded as UTF-8 and parsed when it is read, before any constraint looks at it (fact 23).
+Declarations are read from real line comments, not from text that merely looks like one (fact 22).
+Imports are parsed with the transpiler `trust.ts` already uses. It is deliberately **narrower** than
 K1 to K9 (assumptions A6 and A10): it resolves no import to a module and reads no type graph.
 
 A verification never certifies (`certifies: false`) and carries no mode: a finding refuses the
 artifact and the command exits 1.
 
 ### 6.2 apps/wiki/cli/src/templates/template.ts — slice 1 creates this, slice 4 extends the union
+
+Slice 1 writes this file exactly, except that the constraint union ends at `'sibling-test'`; the six
+module members and the trailing `;` are slice 4's edit (section 6.7). Everything else, `lineComments`
+included, lands in slice 1 and is not touched again.
 
 ```ts
 /** The artifact kinds Twilight Bureaucrat holds a template for in slice B5. */
@@ -427,7 +479,13 @@ export type TemplateConstraint =
   | { readonly kind: 'one-kind-per-file' }
   | { readonly kind: 'declares-one'; readonly tag: string }
   | { readonly kind: 'imports-no-kind'; readonly kinds: readonly FileKind[] }
-  | { readonly kind: 'sibling-test' };
+  | { readonly kind: 'sibling-test' }
+  | { readonly kind: 'required-file'; readonly path: string }
+  | { readonly kind: 'index-sections'; readonly path: string; readonly sections: readonly string[] }
+  | { readonly kind: 'kind-file-present' }
+  | { readonly kind: 'test-present' }
+  | { readonly kind: 'files-stay-in-module'; readonly allowedDirectories: readonly string[] }
+  | { readonly kind: 'kind-files-follow-their-template' };
 
 /**
  * One file a template prescribes. `content` is the skeleton Twilight Dash instantiates; it carries
@@ -539,22 +597,79 @@ export function importSpecifiers(text: string, path: string): string[] {
 }
 
 /**
- * Every value a declaration tag states in the file, one per matching line.
+ * Every line comment in the source, found by walking it rather than matching it.
+ *
+ * Strings, template literals and block comments are skipped, so `@capability` inside one of them is
+ * not a declaration. A regular expression over the raw source counted those, observed on
+ * 2026-09-20. The walk does not model regular-expression literals: two adjacent slashes inside one,
+ * which only a character class can produce, would start a comment here. Nothing in a declaration
+ * depends on that case, and the alternative is a full parser.
+ */
+export function lineComments(text: string): string[] {
+  const comments: string[] = [];
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '/' && text[index + 1] === '/') {
+      const newline = text.indexOf('\n', index);
+      const stop = newline === -1 ? text.length : newline;
+      comments.push(text.slice(index, stop));
+      index = stop;
+      continue;
+    }
+    if (char === '/' && text[index + 1] === '*') {
+      const end = text.indexOf('*/', index + 2);
+      index = end === -1 ? text.length : end + 2;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      index = endOfQuoted(text, index, char);
+      continue;
+    }
+    index += 1;
+  }
+  return comments;
+}
+
+/** The index just past the quoted run that starts at `start`, or the end of the source. */
+function endOfQuoted(text: string, start: number, quote: string): number {
+  let index = start + 1;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '\\') {
+      index += 2;
+      continue;
+    }
+    if (char === quote) return index + 1;
+    if (quote !== '`' && char === '\n') return index;
+    index += 1;
+  }
+  return text.length;
+}
+
+/**
+ * Every value a declaration tag states, one per line comment that is exactly the declaration.
  *
  * The tag is a line comment, `// @capability plan-editing`, and deliberately not a JSDoc tag:
  * `jsdoc/check-tag-names` refuses an unknown tag inside a JSDoc block, observed on 2026-09-20 as
  * `Invalid JSDoc tag name "capability"`. A line comment is a declaration, not symbol knowledge, so
- * it belongs beside the module index comment rather than in the JSDoc rule R3 governs.
+ * it belongs beside the module index comment rather than in the JSDoc rule R3 governs. Only a real
+ * line comment counts: see {@link lineComments}.
  */
 export function taggedValues(text: string, tag: string): string[] {
+  const declaration = new RegExp(`^//[ \\t]*@${tag}[ \\t]+(\\S+)$`);
   const values: string[] = [];
-  const tagLine = new RegExp(`^[ \\t]*//[ \\t]*@${tag}[ \\t]+(\\S+)[ \\t]*$`, 'gm');
-  for (const match of text.matchAll(tagLine)) values.push(match[1]);
+  for (const comment of lineComments(text)) {
+    const match = declaration.exec(comment.trimEnd());
+    if (match !== null) values.push(match[1]);
+  }
   return values;
 }
 ```
 
-### 6.3 apps/wiki/cli/src/templates/registry.ts — slice 1 creates this, slice 4 adds the module template
+### 6.3 apps/wiki/cli/src/templates/registry.ts — the slice 1 version, complete
+
+Slice 4 inserts the module template into this file (section 6.7) and changes nothing else.
 
 ```ts
 import type { Template } from './template';
@@ -768,13 +883,12 @@ The repository template ships **three** files, the port contract included, becau
 table calls the repository artifact "a port and an adapter with a conformance test" and the adapter
 skeleton imports `<Name>Port` from `./contract`. Verification does **not** require a sibling
 `contract.ts` for an adapter: a backend adapter's port lives with the framework-free core, not
-beside it, and a requirement that refused those would be wrong. The generated pair keeps them
-together; the verifier judges only what it can see.
+beside it. The generated pair keeps them together; the verifier judges only what it can see.
 
 ### 6.4 apps/wiki/cli/src/templates/verify.ts — the slice 1 version, complete
 
 Slice 1 ships a working `list` and `show` and no stub: `verify` is not an action yet and falls to
-the usage refusal.
+the usage refusal, which is why the selection-kind test of fact 14 passes before slice 2's code.
 
 ```ts
 import { registeredTemplates, selectTemplate } from './registry';
@@ -973,15 +1087,25 @@ function directoryOf(path: string): string {
   return separator === -1 ? '' : path.slice(0, separator);
 }
 
+/**
+ * The text of one selected file, refusing bytes this judge cannot read.
+ *
+ * Every selected TypeScript file is parsed here, whether or not a constraint reads its imports, so
+ * a malformed support file, contract or test refuses the artifact instead of passing unexamined.
+ * @throws Error naming the file when its bytes are not UTF-8 or its source does not parse.
+ */
 function decodeArtifact(repository: string, blob: string, path: string): string {
   if (!path.endsWith('.ts') && !path.endsWith('.md')) return '';
   const bytes = readCandidateBlob(repository, blob, path);
+  let text: string;
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`candidate file ${path} is not UTF-8: ${detail}`, { cause });
   }
+  if (path.endsWith('.ts')) importSpecifiers(text, path);
+  return text;
 }
 
 export interface TemplateVerifyRequest {
@@ -1080,8 +1204,7 @@ export function writeTemplateCommand(argv: readonly string[]): void {
 ```
 
 The `template.subject === 'directory'` branches in the shell are written now and exercised in slice
-4: no directory template is registered until then, so they are unreachable and the file-subject
-refusal above is what a caller meets.
+4: no directory template is registered until then.
 
 ### 6.6 The two dispatcher edits — slice 1
 
@@ -1099,11 +1222,11 @@ if ((args.length === 2 || args.length === 3 || args.length === 7) && args[0] ===
 ```
 
 Three argument counts because one command word carries three actions; the writer refuses every
-other shape with the usage line, so no unknown action reaches a template.
+other shape with the usage line.
 
 In the same file's final `throw`, the usage string lists the command words separated by `|`. Insert
 the single word `template` between the words `explain` and `validate-policy-activation`, keeping
-every other word exactly as it is, including any word packet 010.7 or another lane has added.
+every other word exactly as it is, including any word another lane has added.
 
 In `apps/wiki/cli/src/bin.ts`, add the entry `'template',` to the `validatorCommands` set
 immediately after the `'check',` entry, and add one line to the `help` template literal immediately
@@ -1128,8 +1251,9 @@ with:
   | { readonly kind: 'kind-files-follow-their-template' };
 ```
 
-**registry.ts.** Add the two skeletons, the section list and the module template above
-`const featureTemplate`:
+**registry.ts.** Insert this block immediately **before** `const templates: readonly Template[] = [`,
+and change that list to
+`const templates: readonly Template[] = [featureTemplate, moduleTemplate, repositoryTemplate, resourceTemplate];`:
 
 ```ts
 const ModuleReadme = `# <Name>
@@ -1238,11 +1362,9 @@ const moduleTemplate: Template = {
 };
 ```
 
-and change the registry list to
-`const templates: readonly Template[] = [featureTemplate, moduleTemplate, repositoryTemplate, resourceTemplate];`.
-
 **verify.ts.** Add the module scope beside `FileScope`, widen `refuseScope` and
-`requirementFindings`, add the module handlers, and give `verifyArtifact` its directory branch:
+`requirementFindings`, add the module handlers, and give `verifyArtifact` its directory branch. The
+complete set of additions, in the order they appear in the finished file:
 
 ```ts
 /** One module directory and everything under it. */
@@ -1256,7 +1378,9 @@ export interface ModuleScope {
 export type ArtifactScope = FileScope | ModuleScope;
 ```
 
-`refuseScope`'s parameter becomes `scope: ArtifactScope`; nothing else in it changes.
+`refuseScope`'s parameter becomes `scope: ArtifactScope`; nothing else in it changes. `type FileKind`
+joins the `./template` import list. After `fileFindings`, and before the `requirementFindings`
+comment:
 
 ```ts
 function moduleFindings(
@@ -1357,26 +1481,17 @@ if (template.subject === 'directory') {
 }
 ```
 
-`FileKind` joins the `./template` import list. A file whose name declares two kinds is skipped by
-the delegation branch and reported by `module.one-kind` instead, so no module file is judged against
-the wrong template.
+A file whose name declares two kinds is skipped by the delegation branch and reported by
+`module.one-kind` instead, so no module file is judged against the wrong template.
 
 ## Slice 1 — OpenSpec change, registry, `list` and `show`
 
 ### 1.1 Preparation
 
-- [ ] Run:
-
-  ```sh
-  repo_root=$(pwd -P)
-  task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/templates-XXXXXX")
-  mkdir -p "$TMPDIR/evidence"
-  printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
-  ```
-
-  Expected: both paths print, and `task_tmp` is beneath the launcher's `TMPDIR`.
-
-- [ ] Confirm the starting point, without masking any status:
+- [ ] Run section 0.6's preparation block. Expected: the paths print and the rule suite passes;
+      record its count.
+- [ ] Run **slice 1's own absence checks**, which no later slice repeats, because after this slice
+      both are expected to be present:
 
   ```sh
   if [ -e "$repo_root/apps/wiki/cli/src/templates" ]; then
@@ -1388,13 +1503,9 @@ the wrong template.
     status=$?
     test "$status" -eq 1 || { echo "grep failed with $status" >&2; exit "$status"; }
   fi
-  (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
-    bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)
   ```
 
-  Expected: the first two checks are silent, `grep` exits 1 for "no match" and any other status
-  stops, and the rule suite exits 0. **Write its test count down**: this packet adds no rule test,
-  so that count must not move in any slice.
+  Expected: silence. `grep` exits 1 for "no match"; any other status stops.
 
 ### 1.2 The OpenSpec change
 
@@ -1426,28 +1537,28 @@ the wrong template.
     src/packaging/build.test.ts)
   ```
 
-  Expected: the four template tests fail because `template` is not a command, and the packaging test
-  fails on its new `--help` assertion. **Record both failing lines**: they are the evidence that the
-  installed dispatcher's test preceded the dispatcher.
+  Expected, observed in the rehearsal: the four template tests fail — `template` is not a command,
+  so the command line prints `unknown command: template` — and the packaging test fails on its new
+  `--help` assertion. **Record both failing lines**: they are the evidence that the installed
+  dispatcher's test preceded the dispatcher.
 
 ### 1.4 Implementation
 
-- [ ] Create apps/wiki/cli/src/templates/template.ts, exactly section 6.2.
+- [ ] Create apps/wiki/cli/src/templates/template.ts, exactly section 6.2, **with the constraint
+      union ending at `| { readonly kind: 'sibling-test' };`**. The six module members are slice 4's.
 - [ ] Create apps/wiki/cli/src/templates/registry.ts, exactly section 6.3.
 - [ ] Create apps/wiki/cli/src/templates/verify.ts, exactly section 6.4.
 - [ ] Make the two dispatcher edits of section 6.6.
-- [ ] Rerun the two focused files. Expected: the four template tests pass, and the packaging file
-      passes. Record the packaging file's own count for comparison inside this slice only.
+- [ ] Rerun the two focused files. Expected: 4 template tests pass, packaging passes.
 
 ### 1.5 Negative proof
 
-| #   | Check                                         | Fault                                                 | Test that must fail                                                               |
+| #   | Check                                         | Fault                                                 | Named test                                                                        |
 | --- | --------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
 | P1  | `selectTemplate`'s unknown-identifier refusal | Return `registeredTemplates()[0]` instead of throwing | `refuses an unregistered template identifier and names every registered template` |
 
-Under the fault the command exits 0 and prints the `feature-service` record. Follow section 0.4
-exactly, compile the mutation before running the test, and write the `Proof:` comment adjacent to
-the restored guard only after observing the failure.
+Observed in the rehearsal: the command exits 0 and the test fails with `Expected: 1 Received: 0`.
+Follow section 0.4 exactly.
 
 ### 1.6 Slice 1's test file
 
@@ -1573,14 +1684,14 @@ expect(unknownTemplate.stderr.toString()).toContain('unknown template: NO-SUCH-T
 ```
 
 The listing assertion is `toContain`, not an exact list, so slice 4's fourth template does not
-disturb it.
+disturb it; the rehearsal ran this file green in both states.
 
 ### 1.8 Slice 1 verification, record and formatting
 
 | Command                                                                                                    | Expected                                                  |
 | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | The two focused files of section 1.3                                                                       | Exit 0; 4 template tests pass; the packaging file passes. |
-| The rule suite of section 1.1                                                                              | Exit 0; the recorded count, unchanged.                    |
+| The rule suite of section 0.6                                                                              | Exit 0; the recorded count, unchanged.                    |
 | `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                | Exit 0; `Successfully ran target typecheck`.              |
 | `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                              | Exit 0, no warnings.                                      |
 | `bunx prettier --write` over **this slice's own files**, then `NX_DAEMON=false bunx nx format:check --all` | Both exit 0. Never a repository-wide write.               |
@@ -1588,8 +1699,8 @@ disturb it.
 
 - [ ] Tick **only slice 1's** boxes in tasks.md, and write this slice's commands, statuses and
       decisive lines, plus P1's observed failure, into verify.md.
-- [ ] Run `git status --short --untracked-files=all` and check it against section 1.9's list before
-      handing over. A path that is not on that list is a stop.
+- [ ] Run `git status --short --untracked-files=all` and compare it with section 1.9's list. A path
+      that is not on that list is a stop.
 
 Pending planner verification, named in the report: the whole `twilight-bureaucrat:test`,
 `twilight-bureaucrat:test:package` and `tool-devsync:test` targets, and `bin/h2puni-gate.sh`.
@@ -1611,10 +1722,8 @@ Then stop and hand over. Do not start slice 2.
 
 ### 1.10 Slice 1 stop conditions
 
-Each is **false** on the tree this slice starts from, checked on 2026-09-20.
-
-1. `apps/wiki/cli/src/templates/` exists, or cli.ts's usage string already contains `template`.
-2. The rule suite's count moves from the section 1.1 baseline.
+1. Either absence check of section 1.1 is true.
+2. The rule suite's count moves from the section 0.6 baseline.
 3. `lint:source` reports something that cannot be fixed without a suppression.
 4. The OpenSpec validation block fails for a reason outside this change's own artifacts.
 5. The 400-word intent cap cannot be met.
@@ -1627,54 +1736,63 @@ Starts from the committed slice 1. Read section 0 in full first.
 
 ### 2.1 Preparation
 
-- [ ] Section 1.1's preparation block, then:
+- [ ] Run section 0.6's block. **Do not run slice 1's absence checks**: `src/templates/` exists now
+      and `cli.ts` routes `template`, by design.
+- [ ] Record two baselines:
 
   ```sh
   (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
-    bun test --preload ../../../tools/test/scratch/preload.ts src/templates/templates.test.ts)
+    bun test --preload ../../../tools/test/scratch/preload.ts src/templates/templates.test.ts \
+    src/inventory/read-candidate.test.ts)
   ```
 
-  Expected: exit 0, 4 pass. **Record that count**; this slice adds **13 or 14** tests — 14 if the
-  compiler accepts the last one, 13 if it moves to slice 5, as section 2.6 explains — so it ends at
-  the recorded count plus that many, and the report says which.
+  Expected: exit 0. Write down **both** counts: the templates file (4 in the rehearsal) and the
+  candidate-reader file, which this slice must leave unchanged. This slice adds **16** template
+  tests, so the templates file ends at its recorded count plus 16.
 
 ### 2.2 Tests first
 
 - [ ] Append section 2.6's helpers and its two describe blocks to
       apps/wiki/cli/src/templates/templates.test.ts. Merge the new imports into the file's existing
       import block at the top; never leave an `import` in the middle of the file.
-- [ ] Run the focused file. Expected: the 4 slice 1 tests pass and every new one fails — the CLI
-      ones on the usage refusal, because `verify` is not an action, and the pure ones because
-      `verifyArtifact` is not exported yet. Record one failing line of each kind.
+- [ ] Run the focused templates file. Expected, observed in the rehearsal: **5 pass, 15 fail**. The
+      five that pass are the four slice 1 tests **and** `refuses an unknown candidate selection
+kind`, because slice 1's writer already refuses every shape that is not `list` or `show` with
+      the same usage line; that test only starts to discriminate under P23. Anything else passing is
+      a stop. Record one failing line of a CLI test and one of a pure test.
 
 ### 2.3 Implementation
 
 - [ ] Replace apps/wiki/cli/src/templates/verify.ts with **exactly** section 6.5.
-- [ ] Rerun the focused file. Expected: the recorded count plus this slice's additions, 0 fail.
+- [ ] Rerun the focused templates file. Expected: the recorded count plus 16, 0 fail.
 - [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice introduces the
       file's types, so the type check belongs to it. Expected: exit 0.
 
 ### 2.4 Slice 2 verification, record and formatting
 
-Section 1.8's table, with the focused templates file at the recorded count plus this slice's
-additions, plus:
+Section 1.8's table, with the focused templates file at the recorded count plus 16 and the
+candidate-reader file at its own recorded count, and with these steps, which are this slice's own:
 
-| Command                                                                                                        | Expected                                      |
-| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `(cd "$repo_root/apps/wiki/cli" && … bun test … src/inventory/read-candidate.test.ts src/rules/rules.test.ts)` | Exit 0; both suites at their recorded counts. |
-
-- [ ] Tick only slice 2's boxes; write this slice's commands and results into verify.md.
-- [ ] Format this slice's own files, run the repository-wide format check, then check
-      `git status --short --untracked-files=all` against section 2.7.
+- [ ] Tick **only slice 2's** boxes in tasks.md and write this slice's commands, statuses and
+      decisive lines into verify.md, leaving every earlier slice's rows as they are.
+- [ ] Format this slice's own files, run `NX_DAEMON=false bunx nx format:check --all`, then compare
+      `git status --short --untracked-files=all` with section 2.7's list.
 
 ### 2.5 Slice 2 stop conditions
 
-1. The slice 1 tests do not pass before any edit.
-2. Any new test passes before the implementation lands: that would mean it tests nothing.
-3. The type check reports an error section 6.5 does not contain, which would mean the file was not
+1. The slice 1 tests do not pass before any edit, or more than the five named tests pass in the red
+   run.
+2. The type check reports an error section 6.5 does not contain, which would mean the file was not
    copied exactly.
 
 ### 2.6 Slice 2's helpers and tests
+
+The block below is written with its imports first for readability: **merge them into the file's
+existing import block at the top**. `join`, `Buffer`, `describe`, `expect` and `test` are already
+imported from slice 1; this block adds `node:fs`, `node:os`, `dirname` from `node:path` and
+`afterEach` from `bun:test`. The two pure tests use `await import('./verify')` **on purpose**: a
+static named import of `verifyArtifact` makes Bun refuse the whole file while slice 1's module does
+not export it, and the red run of section 2.2 would then run no test at all (fact 28).
 
 ```ts
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -1682,8 +1800,6 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 
 import { afterEach } from 'bun:test';
-
-import { verifyArtifact } from './verify';
 
 const scratchRoots: string[] = [];
 
@@ -1741,13 +1857,25 @@ const conformingRepository = `/** Raw access to the store. */
 export function store(): void {}
 `;
 
-/** A module directory that satisfies every requirement of every template. */
-function createConformingCandidate(): { repository: string; revision: string } {
-  const repository = mkdtempSync(join(tmpdir(), 'twilight-templates-'));
+function initFixture(prefix: string): string {
+  const repository = mkdtempSync(join(tmpdir(), prefix));
   scratchRoots.push(repository);
   runGit(repository, ['init', '--initial-branch=main']);
   runGit(repository, ['config', 'user.email', 'templates@example.test']);
   runGit(repository, ['config', 'user.name', 'Templates Fixture']);
+  return repository;
+}
+
+/** Commits whatever the test has just written and returns the new revision. */
+function commit(repository: string, message: string): string {
+  runGit(repository, ['add', '--all']);
+  runGit(repository, ['commit', '--message', message]);
+  return runGit(repository, ['rev-parse', 'HEAD']);
+}
+
+/** A module directory that satisfies every requirement of every template. */
+function createConformingCandidate(): { repository: string; revision: string } {
+  const repository = initFixture('twilight-templates-');
   write(repository, 'src/modules/widget/README.md', conformingReadme);
   write(
     repository,
@@ -1767,16 +1895,7 @@ function createConformingCandidate(): { repository: string; revision: string } {
     "import { test } from 'bun:test';\ntest('gesture', () => {});\n",
   );
   write(repository, 'src/modules/widget/view/use-widget.ts', 'export const view = 1;\n');
-  runGit(repository, ['add', '--all']);
-  runGit(repository, ['commit', '--message', 'fixture']);
-  return { repository, revision: runGit(repository, ['rev-parse', 'HEAD']) };
-}
-
-/** Commits whatever the test has just written and returns the new revision. */
-function commit(repository: string, message: string): string {
-  runGit(repository, ['add', '--all']);
-  runGit(repository, ['commit', '--message', message]);
-  return runGit(repository, ['rev-parse', 'HEAD']);
+  return { repository, revision: commit(repository, 'fixture') };
 }
 
 interface Verification {
@@ -1866,6 +1985,30 @@ describe('template verify, one file', () => {
         requirementId: 'feature.capability',
         path: 'src/modules/widget/widget.feature.ts',
         message: 'file states 2 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  test('counts a declaration tag only when it is a real line comment', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `const quoted = \`\n// @capability quoted-widget\n\`;\n/*\n// @capability commented-widget\n*/\nexport const sample = quoted;\n`,
+    );
+    const revision = commit(repository, 'tags that are not declarations');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
       },
     ]);
   }, 30_000);
@@ -1968,7 +2111,7 @@ describe('template verify, one file', () => {
       'src/modules/widget/widget.feature.resource.ts',
     );
     expect(invocation.exitCode).toBe(1);
-    expect(verificationOf(invocation).findings.map((item) => item.requirementId)).toEqual([
+    expect(verificationOf(invocation).findings.map((finding) => finding.requirementId)).toEqual([
       'resource.one-kind',
       'resource.term',
     ]);
@@ -1988,6 +2131,7 @@ describe('template verify, one file', () => {
     expect(stderrOf(invocation)).toContain(
       'cannot scan the imports of src/modules/widget/widget.feature.ts',
     );
+    expect(stdoutOf(invocation)).toBe('');
   }, 30_000);
 
   test('refuses a candidate file that is not UTF-8', () => {
@@ -2040,6 +2184,22 @@ describe('template verify, one file', () => {
       'template feature-service verifies one file; src/modules/widget is not one',
     );
   }, 30_000);
+
+  test('refuses an unknown candidate selection kind', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = runCli([
+      'template',
+      'verify',
+      'feature-service',
+      'bogus',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    ]);
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
+    expect(stdoutOf(invocation)).toBe('');
+  }, 30_000);
 });
 
 describe('the template record drives verification', () => {
@@ -2064,7 +2224,8 @@ describe('the template record drives verification', () => {
     ],
   } as const;
 
-  test('evaluates exactly the requirements the template states', () => {
+  test('evaluates exactly the requirements the template states', async () => {
+    const { verifyArtifact } = await import('./verify');
     expect(verifyArtifact(probeTemplate, probeFile.path, [probeFile], () => []).findings).toEqual([
       {
         requirementId: 'probe.tag',
@@ -2077,35 +2238,26 @@ describe('the template record drives verification', () => {
         .conforms,
     ).toBe(true);
   });
+
+  test('refuses a requirement whose constraint no file artifact can satisfy', async () => {
+    const { verifyArtifact } = await import('./verify');
+    const mismatched = {
+      ...probeTemplate,
+      requirements: [
+        {
+          id: 'probe.module',
+          statement: 'the probe carries an index',
+          rules: [],
+          constraint: { kind: 'required-file', path: 'README.md' },
+        },
+      ],
+    } as const;
+    expect(() => verifyArtifact(mismatched, probeFile.path, [probeFile], () => [])).toThrow(
+      'template requirement probe.module states a required-file constraint, which no file artifact can satisfy',
+    );
+  });
 });
 ```
-
-**One more pure test belongs with these, and may not compile yet.** It proves the scope refusal:
-
-```ts
-test('refuses a requirement whose constraint no file artifact can satisfy', () => {
-  const mismatched = {
-    ...probeTemplate,
-    requirements: [
-      {
-        id: 'probe.module',
-        statement: 'the probe carries an index',
-        rules: [],
-        constraint: { kind: 'required-file', path: 'README.md' },
-      },
-    ],
-  } as const;
-  expect(() => verifyArtifact(mismatched, probeFile.path, [probeFile], () => [])).toThrow(
-    'template requirement probe.module states a required-file constraint, which no file artifact can satisfy',
-  );
-});
-```
-
-The `required-file` member joins the constraint union only in slice 4, and the planner confirmed on
-2026-09-20 that it is absent from the slice 2 state. **Add this test inside the same describe block,
-run the type check, and if the compiler rejects the constraint literal, move the test to slice 5
-(section 5.1) and say so in the report.** Either way its watched fault is P13, in slice 5. Do not
-widen the union early to make it compile: that is slice 4's edit.
 
 ### 2.7 Ready to commit
 
@@ -2124,42 +2276,44 @@ each fault, watches the named test fail, restores, and writes the adjacent `Proo
 
 ### 3.1 Preparation
 
-- [ ] Section 1.1's block, then the focused templates file. Expected: the slice 2 count, unchanged.
-      Record it.
+- [ ] Run section 0.6's block, then the focused templates file. Expected: the slice 2 count,
+      unchanged. Record it.
 
 ### 3.2 The faults
 
-| #   | File        | Check                                | Fault                                                                                       | Named test                                                                      |
-| --- | ----------- | ------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| P2  | verify.ts   | The candidate-relative subject guard | Delete the `subject must be a candidate-relative path` throw                                | `refuses a subject that is not candidate-relative`                              |
-| P3  | verify.ts   | The empty-selection refusal          | Replace the `selected.length === 0` throw with `return verification(template, subject, [])` | `refuses a subject that selects nothing`                                        |
-| P4  | verify.ts   | The subject-kind refusal             | Replace the `mistaken` expression with `false`                                              | `refuses a file template pointed at a directory`                                |
-| P5  | verify.ts   | The refused-verification exit status | Delete `if (!verified.conforms) process.exitCode = 1;`                                      | `reports a file whose name lacks the kind suffix`                               |
-| P6  | verify.ts   | The UTF-8 boundary                   | Drop `{ fatal: true }` from the `TextDecoder`                                               | `refuses a candidate file that is not UTF-8`                                    |
-| P7  | template.ts | The import-scan boundary             | Return `[]` from the `catch` instead of throwing                                            | `refuses a file that does not parse`                                            |
-| P8  | verify.ts   | `name-suffix`                        | Return `[]` for the `name-suffix` case                                                      | `reports a file whose name lacks the kind suffix`                               |
-| P9  | verify.ts   | `one-kind-per-file`                  | Change `declaredKinds(file.path).length > 1` to `> 2` in `oneKindFindings`                  | `reports a standalone file whose name declares two kinds`                       |
-| P10 | verify.ts   | `declares-one`                       | Change `stated.length === 1` to `stated.length < 99`                                        | `reports a service that states two declaration tags`                            |
-| P11 | verify.ts   | `imports-no-kind`                    | Replace `declaredKinds(specifier)` with `([] as FileKind[])`                                | `reports a side-effect import of a repository and ignores comments and strings` |
-| P12 | verify.ts   | `sibling-test`                       | Return `[]` for the `sibling-test` case                                                     | `reports a repository adapter with no sibling test`                             |
-| P14 | verify.ts   | Requirement-driven evaluation        | Change `template.requirements.flatMap` to `template.requirements.slice(1).flatMap`          | `evaluates exactly the requirements the template states`                        |
+Each was compiled and watched failing during the rehearsal; the observed failure is quoted so a
+different one is recognisable as a stop.
 
-P11's mutation needs `FileKind` imported in verify.ts; add it to the `./template` import for the
-mutation and remove it again on restore. The bare `[].includes(forbidden)` does **not** compile
-(`TS2345`), which is why the cast is prescribed. Under P3 the refusal disappears and the command
-exits 0 with a conforming record; under P5 the observed exit status is 0 where 1 is expected; under
-P7 the refusal loses its path and the command reports a finding-free verification instead.
+| #   | File        | Check                                | Fault                                                                                                                                                                                                                                 | Named test                                                                      | Observed failure                                                                                                                           |
+| --- | ----------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| P2  | verify.ts   | The candidate-relative subject guard | Delete the `subject must be a candidate-relative path` throw                                                                                                                                                                          | `refuses a subject that is not candidate-relative`                              | `Expected to contain: "subject must be a candidate-relative path: /etc/passwd" Received: "subject selects no candidate file: /etc/passwd"` |
+| P3  | verify.ts   | The empty-selection refusal          | Replace the throw with `if (!mistaken) return verification(template, subject, []);` and keep the subject-kind throw for the other branch                                                                                              | `refuses a subject that selects nothing`                                        | `Expected: 1 Received: 0`                                                                                                                  |
+| P4  | verify.ts   | The subject-kind refusal             | Replace the whole `mistaken` initializer with `const mistaken = false;`                                                                                                                                                               | `refuses a file template pointed at a directory`                                | `Expected to contain: "template feature-service verifies one file; …" Received: "subject selects no candidate file: src/modules/widget"`   |
+| P5  | verify.ts   | The refused-verification exit status | Delete `if (!verified.conforms) process.exitCode = 1;`                                                                                                                                                                                | `reports a file whose name lacks the kind suffix`                               | `Expected: 1 Received: 0`                                                                                                                  |
+| P6  | verify.ts   | The UTF-8 boundary                   | Drop `{ fatal: true }` from the `TextDecoder`                                                                                                                                                                                         | `refuses a candidate file that is not UTF-8`                                    | `Expected to contain: "candidate file … is not UTF-8" Received: ""`                                                                        |
+| P7  | template.ts | The import-scan boundary             | Replace the `catch` body with `return [];`                                                                                                                                                                                            | `refuses a file that does not parse`                                            | `Expected to contain: "cannot scan the imports of …" Received: ""` — the capability finding and exit 1 remain, only the refusal disappears |
+| P8  | verify.ts   | `name-suffix`                        | Return `[]` for the `name-suffix` case                                                                                                                                                                                                | `reports a file whose name lacks the kind suffix`                               | `toEqual` fails: one of the two expected findings is missing                                                                               |
+| P9  | verify.ts   | `one-kind-per-file`                  | Change `declaredKinds(file.path).length > 1` to `> 2` in `oneKindFindings`                                                                                                                                                            | `reports a standalone file whose name declares two kinds`                       | `toEqual` fails: `resource.one-kind` is missing                                                                                            |
+| P10 | verify.ts   | `declares-one`                       | Change `stated.length === 1` to `stated.length < 99`                                                                                                                                                                                  | `reports a service that states two declaration tags`                            | `Expected: 1 Received: 0`                                                                                                                  |
+| P11 | verify.ts   | `imports-no-kind`                    | Replace `declaredKinds(specifier)` with `([] as FileKind[])`, **adding `type FileKind` to the `./template` import**, which slice 2's file does not yet have                                                                           | `reports a side-effect import of a repository and ignores comments and strings` | `Expected: 1 Received: 0`                                                                                                                  |
+| P12 | verify.ts   | `sibling-test`                       | Return `[]` for the `sibling-test` case                                                                                                                                                                                               | `reports a repository adapter with no sibling test`                             | `Expected: 1 Received: 0`                                                                                                                  |
+| P14 | verify.ts   | Requirement-driven evaluation        | Change `template.requirements.flatMap` to `template.requirements.slice(1).flatMap`                                                                                                                                                    | `evaluates exactly the requirements the template states`                        | `toEqual` fails: the single expected finding is missing                                                                                    |
+| P22 | verify.ts   | The unknown-action refusal           | Delete the final `throw new Error(Usage);` from `writeTemplateCommand`                                                                                                                                                                | `refuses an unknown template action`                                            | `Expected: 1 Received: 0`                                                                                                                  |
+| P23 | verify.ts   | The selection-kind refusal           | Replace the throw in `candidateRequest` with `return { kind: 'committed', revision };`                                                                                                                                                | `refuses an unknown candidate selection kind`                                   | `Expected: 1 Received: 0`                                                                                                                  |
+| P24 | template.ts | Line-comment declaration scanning    | Replace `taggedValues`' body with the multiline regular expression over the raw source: ``new RegExp(`^[ \t]*//[ \t]*@${tag}[ \t]+(\S+)[ \t]*$`, 'gm')`` and `for (const match of text.matchAll(declaration)) values.push(match[1]);` | `counts a declaration tag only when it is a real line comment`                  | `toEqual` fails: the expected `0 @capability tags` finding is absent, because the quoted and commented text were counted                   |
 
-P13, the scope refusal, is proven in slice 5, with the test that may move there (section 2.6).
+Bare `[].includes(forbidden)` does **not** compile (`TS2345`), which is why P11 casts. P11's import
+addition is part of the mutation: remove it again when restoring, and `cmp` proves you did.
 
 ### 3.3 Slice 3 verification, record and formatting
 
 - [ ] After every restore, rerun the whole focused file: the slice 2 count, 0 fail.
-- [ ] Run the type check, `lint:source`, this slice's Prettier write and the repository-wide format
-      check, and the OpenSpec validation block, as section 1.8 does.
-- [ ] Fill P2 to P12 and P14's `Observed failure` cells in verify.md with what you saw, tick slice
-      3's boxes, and check `git status --short --untracked-files=all`: exactly
-      apps/wiki/cli/src/templates/verify.ts, apps/wiki/cli/src/templates/template.ts,
+- [ ] Run the type check, `lint:source`, this slice's Prettier write and
+      `NX_DAEMON=false bunx nx format:check --all`, and the OpenSpec validation block.
+- [ ] Fill the `Observed failure` cells of P2 to P12, P14 and P22 to P24 in verify.md with what
+      **you** saw, tick slice 3's boxes, and leave every other row untouched.
+- [ ] Compare `git status --short --untracked-files=all` with: apps/wiki/cli/src/templates/verify.ts,
+      apps/wiki/cli/src/templates/template.ts,
       openspec/changes/twilight-bureaucrat-templates/tasks.md and
       openspec/changes/twilight-bureaucrat-templates/verify.md — the two source files because the
       required `Proof:` comments change them.
@@ -2171,7 +2325,7 @@ Commit subject: `test(bureaucrat): watch every file-scope template check fail`.
 ### 3.5 Slice 3 stop conditions
 
 1. Any named test passes under its fault, fails with a different message, or the mutation does not
-   compile.
+   compile — restore first, then report (section 0.4).
 2. The focused file's count differs from the slice 2 count at any point.
 
 ---
@@ -2182,40 +2336,51 @@ Starts from the committed slice 3.
 
 ### 4.1 Preparation
 
-- [ ] Section 1.1's block, then the focused templates file. Expected: the slice 2 count, unchanged.
-      **Record it**; this slice adds **8** tests, so it ends at that count plus 8.
+- [ ] Run section 0.6's block, then the focused templates file. Expected: the slice 2 count,
+      unchanged. **Record it**; this slice adds **9** tests, so it ends at that count plus 9.
 
-### 4.2 Tests first
+### 4.2 Tests first, including two authorized edits
 
-- [ ] Append section 4.6's describe block, 8 tests.
-- [ ] Make the one named edit to an existing test: in
-      `lists every registered template in identifier order`, the expected identifiers become
-      `['feature-service', 'module', 'repository', 'resource-service']` and the expected subjects
-      become `['file', 'directory', 'file', 'file']`. That is the only change to any existing test,
-      and the packet names it here because the preamble forbids every other kind.
-- [ ] Run the focused file. Expected: the 8 new tests fail, `lists every registered template` fails
-      on the new expectation, and everything else passes. Record the failing lines.
+- [ ] Append section 4.6's describe block: 9 tests.
+- [ ] Make the **two** edits this packet authorizes to existing tests, and no others. Registering a
+      fourth template changes both the listing and the refusal message, and the executor may not
+      leave either failing:
+  - in `lists every registered template in identifier order`, the expected identifiers become
+    `['feature-service', 'module', 'repository', 'resource-service']` and the expected subjects
+    become `['file', 'directory', 'file', 'file']`;
+  - in `refuses an unregistered template identifier and names every registered template`, the
+    expected substring becomes
+    `unknown template: NO-SUCH-TEMPLATE (registered: feature-service, module, repository, resource-service)`.
+- [ ] Run the focused file. Expected, observed in the rehearsal: **18 pass, 11 fail** — the nine new
+      tests and the two edited ones. Record the failing lines.
 
 ### 4.3 Implementation
 
 - [ ] Apply section 6.7's three additions, in order: the constraint union in template.ts, the module
       template in registry.ts, the module scope and its handlers in verify.ts.
-- [ ] Rerun the focused file. Expected: the recorded count plus 8, 0 fail.
+- [ ] Rerun the focused file. Expected: the recorded count plus 9, 0 fail.
 - [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice widens a
       discriminated union and a function's parameter type, so the type check belongs to it.
       Expected: exit 0.
+- [ ] Run the packaging file, whose listing assertion is `toContain` and must still pass with four
+      templates:
+
+  ```sh
+  (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
+    bun test --preload ../../../tools/test/scratch/preload.ts src/packaging/build.test.ts)
+  ```
+
+  Expected: exit 0, `0 fail`.
 
 ### 4.4 Slice 4 verification, record and formatting
 
-Section 1.8's table, with the focused templates file at the recorded count plus 8, plus the
-packaging file, whose listing assertion is `toContain` and must still pass with four templates:
+Section 1.8's table, with the focused templates file at the recorded count plus 9, plus these
+steps, which are this slice's own:
 
-```sh
-(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
-  bun test --preload ../../../tools/test/scratch/preload.ts src/packaging/build.test.ts)
-```
-
-Expected: exit 0, `0 fail`.
+- [ ] Tick **only slice 4's** boxes in tasks.md and write this slice's commands, statuses and
+      decisive lines into verify.md, leaving every earlier slice's rows as they are.
+- [ ] Format this slice's own files, run `NX_DAEMON=false bunx nx format:check --all`, then compare
+      `git status --short --untracked-files=all` with section 4.5's list.
 
 ### 4.5 Ready to commit
 
@@ -2246,11 +2411,7 @@ describe('template verify, one module', () => {
   }, 30_000);
 
   test('reports a module with no index, no contract, no kind file and no test', () => {
-    const repository = mkdtempSync(join(tmpdir(), 'twilight-templates-bare-'));
-    scratchRoots.push(repository);
-    runGit(repository, ['init', '--initial-branch=main']);
-    runGit(repository, ['config', 'user.email', 'templates@example.test']);
-    runGit(repository, ['config', 'user.name', 'Templates Fixture']);
+    const repository = initFixture('twilight-templates-bare-');
     write(repository, 'src/modules/bare/helper.ts', 'export const helper = 1;\n');
     const revision = commit(repository, 'a bare module');
     const invocation = verify('module', repository, revision, 'src/modules/bare');
@@ -2366,6 +2527,19 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
+  test('refuses a module whose contract does not parse', () => {
+    const { repository } = createConformingCandidate();
+    write(repository, 'src/modules/widget/contract.ts', 'export const = ;\n');
+    write(repository, 'src/modules/widget/widget.feature.test.ts', 'export const = ;\n');
+    const revision = commit(repository, 'a malformed contract and test');
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain(
+      'cannot scan the imports of src/modules/widget/contract.ts',
+    );
+    expect(stdoutOf(invocation)).toBe('');
+  }, 30_000);
+
   test("observes this repository's directory module at its committed revision", () => {
     const invocation = verify(
       'module',
@@ -2388,55 +2562,55 @@ describe('template verify, one module', () => {
 The last test is the production-path observation of assumption A8: the module conforms in every
 respect except the declaration tag this packet introduces. It reads `HEAD`, never the working tree,
 so uncommitted work in the clone cannot change its result. `join(import.meta.dir, '..', '..')` from
-`src/templates` is `apps/wiki/cli`, which `resolveCandidateRoot` resolves to the worktree root; any
-directory inside the worktree would do. **If this test reports a different finding set, the
-`directory` module changed: record it and stop, rather than editing the expectation.**
+`src/templates` is `apps/wiki/cli`, which `resolveCandidateRoot` resolves to the worktree root.
+**If this test reports a different finding set, the `directory` module changed: record it and stop,
+rather than editing the expectation.**
 
 ### 4.7 Slice 4 stop conditions
 
-1. Any new test passes before the implementation lands.
-2. The observation test's finding set differs from section 3's fact 19.
+1. Any new test passes before the implementation lands, or a test other than the eleven named in
+   section 4.2 fails in the red run.
+2. The observation test's finding set differs from section 3's fact 20.
 3. The type check reports an error section 6.7 does not contain.
 
 ---
 
 ## Slice 5 — the negatives for the module handlers
 
-Starts from the committed slice 4. Adds no test except the one that may have moved here from slice
-2, and changes no behaviour.
+Starts from the committed slice 4. Adds no test and changes no behaviour.
 
 ### 5.1 Preparation
 
-- [ ] Section 1.1's block, then the focused templates file. Expected: the slice 4 count, unchanged.
-      Record it.
-- [ ] If slice 2 moved `refuses a requirement whose constraint no file artifact can satisfy` here
-      (section 2.6), add it now inside the `the template record drives verification` describe block,
-      watch it pass — the handler and the union member both exist at this point — and note in the
-      report that it arrives one slice late and why. The count then ends at the recorded count plus
-      one.
+- [ ] Run section 0.6's block, then the focused templates file. Expected: the slice 4 count,
+      unchanged. Record it.
 
 ### 5.2 The faults
 
-| #   | Check                                    | Fault                                                                 | Named test                                                              |
-| --- | ---------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| P13 | The scope refusal                        | Return `[]` from `refuseScope` instead of throwing                    | `refuses a requirement whose constraint no file artifact can satisfy`   |
-| P15 | `required-file`                          | Return `[]` for the `required-file` case                              | `reports a module with no index, no contract, no kind file and no test` |
-| P16 | `index-sections`                         | Replace `absent` with an empty array                                  | `reports an index that omits one of its sections`                       |
-| P17 | `kind-file-present`                      | Return `[]` for the `kind-file-present` case                          | `reports a module with no index, no contract, no kind file and no test` |
-| P18 | `test-present`                           | Return `[]` for the `test-present` case                               | `reports a module with no index, no contract, no kind file and no test` |
-| P19 | `files-stay-in-module`                   | Replace the filter's body with `false`                                | `reports a file that sits below the module directory`                   |
-| P20 | The module wiring of `one-kind-per-file` | Pass `[]` instead of `files` to `oneKindFindings` in `moduleFindings` | `reports a module file that declares two kinds`                         |
-| P21 | Delegation to the kind templates         | Return `[]` for the `kind-files-follow-their-template` case           | `reports a kind file inside a module that breaks its own template`      |
+| #   | Check                                    | Fault                                                                                                                                                   | Named test                                                              | Observed failure                                                                                         |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| P13 | The scope refusal                        | Change `refuseScope`'s return annotation from `never` to `TemplateFinding[]` **and** its body to `return [];` — both, or it does not compile (`TS2322`) | `refuses a requirement whose constraint no file artifact can satisfy`   | `Received function did not throw`                                                                        |
+| P15 | `required-file`                          | Return `[]` for the `required-file` case                                                                                                                | `reports a module with no index, no contract, no kind file and no test` | `toEqual` fails with **both** `module.readme` and `module.contract` missing                              |
+| P16 | `index-sections`                         | Replace the `absent` initializer with `const absent: string[] = [];` — the untyped `const absent = [];` is `TS7034`/`TS7005`                            | `reports an index that omits one of its sections`                       | `Expected: 1 Received: 0`; `reports an index with no title` fails with it, which is recorded, not a stop |
+| P17 | `kind-file-present`                      | Return `[]` for that case                                                                                                                               | `reports a module with no index, no contract, no kind file and no test` | `toEqual` fails with `module.kind-file` missing                                                          |
+| P18 | `test-present`                           | Return `[]` for that case                                                                                                                               | `reports a module with no index, no contract, no kind file and no test` | `toEqual` fails with `module.test` missing                                                               |
+| P19 | `files-stay-in-module`                   | Replace the filter's condition with `segments.length > 3`                                                                                               | `reports a file that sits below the module directory`                   | `Expected: 1 Received: 0`                                                                                |
+| P20 | The module wiring of `one-kind-per-file` | Pass `[]` instead of `files` to `oneKindFindings` in `moduleFindings`                                                                                   | `reports a module file that declares two kinds`                         | `Expected: 1 Received: 0`                                                                                |
+| P21 | Delegation to the kind templates         | Insert `.slice(0, 0)` after `kindFilesOf(files)` in the delegation case                                                                                 | `reports a kind file inside a module that breaks its own template`      | `Expected: 1 Received: 0`                                                                                |
+| P25 | The whole-file parse boundary            | Delete `if (path.endsWith('.ts')) importSpecifiers(text, path);` from `decodeArtifact`                                                                  | `refuses a module whose contract does not parse`                        | `Expected: 1 Received: 0` — the module verifies as conforming                                            |
 
-P15, P17 and P18 all name the same test, which asserts the whole finding list: each fault removes
-exactly one entry from it, and the failing output names which. Record all three separately. P16 also
-fails `reports an index with no title`; record that as an extra failing test, not as a stop.
+P15, P17 and P18 name the same test, which asserts the whole finding list; each fault removes a
+different part of it, and the failing output names which. Record all three separately.
 
 ### 5.3 Slice 5 verification, record and formatting
 
-As section 3.3, with the slice 4 count, and with `git status --short --untracked-files=all` showing
-apps/wiki/cli/src/templates/verify.ts, tasks.md, verify.md, and — only if the moved test arrived
-here — apps/wiki/cli/src/templates/templates.test.ts.
+- [ ] After every restore, rerun the whole focused file: the slice 4 count, 0 fail.
+- [ ] Run the type check, `lint:source`, this slice's Prettier write and
+      `NX_DAEMON=false bunx nx format:check --all`, and the OpenSpec validation block.
+- [ ] Fill the `Observed failure` cells of **P13, P15 to P21 and P25** in verify.md with what you
+      saw, tick **slice 5's** boxes in tasks.md, and leave every earlier row untouched.
+- [ ] Compare `git status --short --untracked-files=all` with: apps/wiki/cli/src/templates/verify.ts,
+      openspec/changes/twilight-bureaucrat-templates/tasks.md and
+      openspec/changes/twilight-bureaucrat-templates/verify.md.
 
 ### 5.4 Ready to commit
 
@@ -2445,8 +2619,8 @@ Commit subject: `test(bureaucrat): watch every module-scope template check fail`
 ### 5.5 Slice 5 stop conditions
 
 1. Any named test passes under its fault, fails with a different message, or the mutation does not
-   compile.
-2. The focused file's count differs from the slice 4 count, except for the single moved test.
+   compile — restore first, then report.
+2. The focused file's count differs from the slice 4 count.
 
 ---
 
@@ -2459,7 +2633,7 @@ reconstruct a failing line from a `Proof:` comment in the source.
 
 ### 6.1 Preparation
 
-- [ ] Section 1.1's block, then:
+- [ ] Run section 0.6's block, then:
 
   ```sh
   (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
@@ -2472,8 +2646,8 @@ reconstruct a failing line from a `Proof:` comment in the source.
   fi
   ```
 
-  Expected: the focused file at the slice 5 count, and `grep` exiting 1 for "no match". Any other
-  status stops. This slice adds no test, so the count must not move.
+  Expected: the focused file at the slice 5 count, and `grep` exiting 1 for "no match". This slice
+  adds no test, so the count must not move.
 
 ### 6.2 The README
 
@@ -2481,12 +2655,14 @@ reconstruct a failing line from a `Proof:` comment in the source.
       saying: which four templates ship; that `template list` and `template show` print them and
       that Twilight Dash instantiates the same record Twilight Bureaucrat verifies; that each
       requirement carries the constraint that checks it, so a template stating no requirement checks
-      nothing; that `template verify` reads one artifact out of a Git revision, never certifies, and
-      exits 1 on a finding; that a service file declares its capability, glossary term or port in a
-      line comment, `// @capability <id>`, because an unknown JSDoc tag fails
-      `jsdoc/check-tag-names`; and that a type-only import and the module index envelope are stated
-      deferrals (assumptions A9 and A10). The README is this project's module index and its
-      memberships already carry the `src` directory prefix, so no membership changes.
+      nothing; that `template verify` reads one artifact out of a Git revision, parses every
+      TypeScript file it selects, never certifies, and exits 1 on a finding; that a service file
+      declares its capability, glossary term or port in a line comment, `// @capability <id>`,
+      because an unknown JSDoc tag fails `jsdoc/check-tag-names`, and that text that only looks like
+      one inside a string or a block comment does not count; and that a type-only import and the
+      module index envelope are stated deferrals (assumptions A9 and A10). The README is this
+      project's module index and its memberships already carry the `src` directory prefix, so no
+      membership changes.
 
 ### 6.3 The record
 
@@ -2519,8 +2695,9 @@ machine (preamble rule 5).
 source files join the validator's import closure and change the validator identity; no test pins
 that identity as a literal (section 0.5), but an activation prepared outside this clone must be
 prepared again. No template requirement is enforced anywhere in the gate: `template verify` is a
-command a caller runs, and nothing calls it yet. A type-only import and a missing module index
-envelope are outside what this slice checks, by assumptions A9 and A10.
+command a caller runs, and nothing calls it yet. A type-only import, a regular-expression literal
+containing two adjacent slashes, and a missing module index envelope are outside what this slice
+checks, by assumptions A9, A10 and A11.
 
 ### 6.5 Ready to commit
 
@@ -2528,8 +2705,6 @@ Commit subject: `docs(bureaucrat): describe the templates and record their verif
 
 Files: apps/wiki/cli/README.md, openspec/changes/twilight-bureaucrat-templates/tasks.md,
 openspec/changes/twilight-bureaucrat-templates/verify.md.
-
-`git status --short --untracked-files=all` at the end of this slice shows exactly those three paths.
 
 ### 6.6 Slice 6 stop conditions
 
@@ -2541,32 +2716,38 @@ openspec/changes/twilight-bureaucrat-templates/verify.md.
 
 ## 8. Negative proofs, all slices
 
-Every check this packet adds appears here exactly once. Each fault was compiled with the
-repository's own options on 2026-09-20.
+Every check this packet adds appears here exactly once. **Every fault below was applied, compiled
+with `twilight-bureaucrat:typecheck`, run with its `-t` pattern, watched failing its named test,
+restored and rerun green** during the planner's rehearsal on 2026-09-20; sections 3.2 and 5.2 quote
+what was observed.
 
-| #   | Slice | Check                                | Fault injected                           | Named test                                                                        |
-| --- | ----- | ------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------- |
-| P1  | 1     | Unknown template refusal             | Return the first registered template     | `refuses an unregistered template identifier and names every registered template` |
-| P2  | 3     | Candidate-relative subject guard     | Delete the guard                         | `refuses a subject that is not candidate-relative`                                |
-| P3  | 3     | Empty-selection refusal              | Return a finding-free verification       | `refuses a subject that selects nothing`                                          |
-| P4  | 3     | Subject-kind refusal                 | Replace `mistaken` with `false`          | `refuses a file template pointed at a directory`                                  |
-| P5  | 3     | Refused-verification exit status     | Delete `process.exitCode = 1`            | `reports a file whose name lacks the kind suffix`                                 |
-| P6  | 3     | UTF-8 boundary                       | Drop `{ fatal: true }`                   | `refuses a candidate file that is not UTF-8`                                      |
-| P7  | 3     | Import-scan boundary                 | Return `[]` from the `catch`             | `refuses a file that does not parse`                                              |
-| P8  | 3     | `name-suffix`                        | Return `[]` for that case                | `reports a file whose name lacks the kind suffix`                                 |
-| P9  | 3     | `one-kind-per-file`                  | `length > 2`                             | `reports a standalone file whose name declares two kinds`                         |
-| P10 | 3     | `declares-one`                       | `stated.length < 99`                     | `reports a service that states two declaration tags`                              |
-| P11 | 3     | `imports-no-kind`                    | `([] as FileKind[]).includes(forbidden)` | `reports a side-effect import of a repository and ignores comments and strings`   |
-| P12 | 3     | `sibling-test`                       | Return `[]` for that case                | `reports a repository adapter with no sibling test`                               |
-| P13 | 5     | Scope refusal                        | Return `[]` from `refuseScope`           | `refuses a requirement whose constraint no file artifact can satisfy`             |
-| P14 | 3     | Requirement-driven evaluation        | `template.requirements.slice(1)`         | `evaluates exactly the requirements the template states`                          |
-| P15 | 5     | `required-file`                      | Return `[]` for that case                | `reports a module with no index, no contract, no kind file and no test`           |
-| P16 | 5     | `index-sections`                     | Replace `absent` with an empty array     | `reports an index that omits one of its sections`                                 |
-| P17 | 5     | `kind-file-present`                  | Return `[]` for that case                | `reports a module with no index, no contract, no kind file and no test`           |
-| P18 | 5     | `test-present`                       | Return `[]` for that case                | `reports a module with no index, no contract, no kind file and no test`           |
-| P19 | 5     | `files-stay-in-module`               | Replace the filter's body with `false`   | `reports a file that sits below the module directory`                             |
-| P20 | 5     | Module wiring of `one-kind-per-file` | Pass `[]` instead of `files`             | `reports a module file that declares two kinds`                                   |
-| P21 | 5     | Delegation to the kind templates     | Return `[]` for that case                | `reports a kind file inside a module that breaks its own template`                |
+| #   | Slice | Check                                | Fault injected                                                     |
+| --- | ----- | ------------------------------------ | ------------------------------------------------------------------ |
+| P1  | 1     | Unknown template refusal             | Return the first registered template                               |
+| P2  | 3     | Candidate-relative subject guard     | Delete the guard                                                   |
+| P3  | 3     | Empty-selection refusal              | Return a finding-free verification for that branch                 |
+| P4  | 3     | Subject-kind refusal                 | `const mistaken = false;`                                          |
+| P5  | 3     | Refused-verification exit status     | Delete `process.exitCode = 1`                                      |
+| P6  | 3     | UTF-8 boundary                       | Drop `{ fatal: true }`                                             |
+| P7  | 3     | Import-scan boundary                 | `catch { return []; }`                                             |
+| P8  | 3     | `name-suffix`                        | Return `[]` for that case                                          |
+| P9  | 3     | `one-kind-per-file`                  | `length > 2`                                                       |
+| P10 | 3     | `declares-one`                       | `stated.length < 99`                                               |
+| P11 | 3     | `imports-no-kind`                    | `([] as FileKind[]).includes(forbidden)`, with the import it needs |
+| P12 | 3     | `sibling-test`                       | Return `[]` for that case                                          |
+| P13 | 5     | Scope refusal                        | `TemplateFinding[]` annotation and `return [];`                    |
+| P14 | 3     | Requirement-driven evaluation        | `template.requirements.slice(1)`                                   |
+| P15 | 5     | `required-file`                      | Return `[]` for that case                                          |
+| P16 | 5     | `index-sections`                     | `const absent: string[] = [];`                                     |
+| P17 | 5     | `kind-file-present`                  | Return `[]` for that case                                          |
+| P18 | 5     | `test-present`                       | Return `[]` for that case                                          |
+| P19 | 5     | `files-stay-in-module`               | `segments.length > 3`                                              |
+| P20 | 5     | Module wiring of `one-kind-per-file` | Pass `[]` instead of `files`                                       |
+| P21 | 5     | Delegation to the kind templates     | `.slice(0, 0)` before the delegation                               |
+| P22 | 3     | Unknown-action refusal               | Delete the writer's final `throw`                                  |
+| P23 | 3     | Selection-kind refusal               | Return `{ kind: 'committed', revision }` for an invalid kind       |
+| P24 | 3     | Line-comment declaration scanning    | Scan the raw source with a multiline regular expression            |
+| P25 | 5     | Whole-file parse boundary            | Delete the `.ts` parse in `decodeArtifact`                         |
 
 ## 9. OpenSpec
 
@@ -2581,19 +2762,21 @@ contain. This change adds a registry of four templates — module, feature-servi
 and repository — each carrying the skeleton a generator instantiates and the machine-readable
 constraints its output must satisfy, and three routes that list them, show one, and verify one
 artifact out of a Git revision. The verifier evaluates exactly the constraints the registry states
-and nothing else. Verification is pure, narrower than the direction rules by design, never
-certifies, and enforces nothing in the gate. A service file declares its capability, glossary term
-or port in a line comment, because an unknown JSDoc tag fails lint. Two limits are stated rather
-than hidden: a purely type-only import is invisible to the import scanner, and the module README
-skeleton carries no wiki index envelope, because no module in the repository has one yet.
-Non-goals: no rule, no mode, no policy field, no consumer override, no generation, and no edit to
-any existing service.
+and nothing else, decodes and parses every TypeScript file it selects before judging it, and reads
+declarations only from real line comments. Verification is pure, narrower than the direction rules
+by design, never certifies, and enforces nothing in the gate. A service file declares its
+capability, glossary term or port in a line comment, because an unknown JSDoc tag fails lint. Two
+limits are stated rather than hidden: a purely type-only import is invisible to the import scanner,
+and the module README skeleton carries no wiki index envelope, because no module in the repository
+has one yet. Non-goals: no rule, no mode, no policy field, no consumer override, no generation, and
+no edit to any existing service.
 
 **The nine requirements**, each with at least one scenario carrying real `GIVEN`, `WHEN` and `THEN`
 bullets:
 
 1. **The registry lists and shows templates.** Stable identifiers, a version and a subject kind; an
-   unregistered identifier is refused and every registered one is named.
+   unregistered identifier and an unknown action are refused, and every registered identifier is
+   named.
 2. **A template carries the skeleton a generator instantiates.** `show` prints the prescribed files
    with their content, so the generator and the validator read one record.
 3. **A template carries the constraints that check it.** Verification evaluates exactly the
@@ -2608,15 +2791,16 @@ bullets:
    its own.
 7. **A service names its domain owner.** A feature-service states exactly one capability, a
    resource-service exactly one glossary term, a repository adapter exactly one port, each once, in
-   a line comment; and a repository adapter has a test beside it.
+   a real line comment — text inside a string or a block comment is not a declaration — and a
+   repository adapter has a test beside it.
 8. **The template's direction checks refuse the forbidden import.** A feature importing a
    repository, a resource importing a feature and a repository importing either are reported, from
    parsed import syntax, including a side-effect import and excluding import text in a comment or a
    string. A purely type-only import is out of scope and the requirement states that limit.
 9. **Verification is bounded and honest.** It reads one revision, never certifies, exits 1 on a
    finding, and refuses an absent subject, a wrong subject kind, a path that is not
-   candidate-relative, a file that is not UTF-8 and a file that does not parse, rather than
-   defaulting any of them.
+   candidate-relative, an unknown selection kind, a file that is not UTF-8 and **any** selected
+   TypeScript file that does not parse, rather than defaulting any of them.
 
 ## 10. Out of lane
 
@@ -2627,8 +2811,7 @@ bullets:
   precisely so the root configuration does not change.
 - Any file under `apps/wbs/`: no service gains a tag in this packet (assumption A8).
 - `openspec/changes/service-taxonomy/`: 010.3 created it and no slice here writes to it.
-- `tools/tool-devsync/` and `nx.json`: no pin moves and no Nx target is added (fact 12 and
-  section 0.2).
+- `tools/tool-devsync/` and `nx.json`: no pin moves and no Nx target is added (section 0.2).
 
 ## Review dispositions
 
@@ -2662,3 +2845,32 @@ Two facts the coordinator supplied on 2026-09-20 are also carried: counts stay r
 has moved and batch 1 has taken that merge, and this packet adds **no** Nx target, so the
 `CLAUDECODE=0` and `AGENT=0` defaults that `workspace-targets.test.ts` requires of a test-running
 target are untouched (section 0.2).
+
+### Second review, 2026-09-20 (Codex gpt-6-astra, high effort): NOT READY
+
+This revision was **rehearsed slice by slice in a throwaway worktree cut from this branch**, which
+was removed afterwards. Every red run, green run, type check, lint, format check and fault below was
+executed there; the shared planning worktree was never used for execution.
+
+| Finding                                                               | Disposition            | What changed in the steps, the code and the tables                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1 the red run cannot register its tests (static import)              | **Fixed** (reproduced) | The two pure tests now use `await import('./verify')` inside the test body (§2.6, fact 28). Rehearsed: slice 2's red run reads 5 pass, 15 fail instead of refusing the file.                                                                                                                                                        |
+| C2 registering `module` breaks an assertion the executor may not edit | **Fixed** (reproduced) | §4.2 now authorizes and prescribes **two** edits — the listing expectation and the unknown-template message — and states the red run as 18 pass, 11 fail, which the rehearsal observed.                                                                                                                                             |
+| C3 P13's mutation cannot compile                                      | **Fixed** (reproduced) | `return [];` alone is `TS2322`. §5.2 prescribes changing the annotation to `TemplateFinding[]` **and** the body; compiled and watched failing with `Received function did not throw`. §8's claim is now "compiled during the rehearsal", per fault.                                                                                 |
+| C4 P16's mutation fails strict compilation                            | **Fixed** (reproduced) | `const absent = [];` is `TS7034`/`TS7005`. §5.2 prescribes `const absent: string[] = [];`, compiled and watched failing.                                                                                                                                                                                                            |
+| I1 the optional scope test is deterministically deferred              | **Fixed**              | The complete constraint union now lands in slice 1 (§6.2, §1.4), so the scope test compiles and fails in slice 2's red run. The compiler-dependent branch and the slice-5 arrival are gone; slice 2's addition is a fixed 16.                                                                                                       |
+| I2 declaration text in strings and block comments counts              | **Fixed** (reproduced) | `taggedValues` now reads real line comments through a new `lineComments` walk (§6.2). A new test, `counts a declaration tag only when it is a real line comment`, covers a template literal and a block comment; P24 is its watched fault. The regular-expression limit on regular-expression literals is assumption A11 and JSDoc. |
+| I3 malformed files pass the advertised parse boundary                 | **Fixed** (reproduced) | `decodeArtifact` now parses **every** selected TypeScript file (§6.5). A new module test, `refuses a module whose contract does not parse`, covers a malformed contract and test file; P25 is its watched fault. Requirement 9 states the widened promise.                                                                          |
+| I4 the proof inventory omits new refusals                             | **Fixed**              | P22 (unknown action) and P23 (invalid selection kind) join §8 and §3.2, with a new test for the selection kind. Both were compiled and watched failing.                                                                                                                                                                             |
+| I5 predicted mutation outcomes are inaccurate                         | **Fixed** (reproduced) | P7 now states that the capability finding and exit 1 remain and only the stderr refusal disappears; P15 now states that **both** required-file findings vanish. Facts 32 records the observed lines.                                                                                                                                |
+| I6 evidence and task updates remain ambiguous                         | **Fixed**              | §§2.4, 4.4 and 5.3 now carry their own explicit tick, record, format and `git status` steps instead of importing another slice's table wholesale.                                                                                                                                                                                   |
+| I7 an unscoped stop becomes true after slice 1                        | **Fixed**              | §0.6 is the reusable preparation block; the absence checks live only in §1.1, which says so, and every later slice's preparation references §0.6 alone.                                                                                                                                                                             |
+| I8 the launcher claim is stale                                        | **Fixed** (confirmed)  | §0.0 now gives the real invocation with `--batch batch-2` and requires the planner to record the command and base commit it used.                                                                                                                                                                                                   |
+| I9 an invalid mutation can be left installed                          | **Fixed**              | §0.4 now requires restoring and `cmp`-comparing before **every** early exit, compilation failure included.                                                                                                                                                                                                                          |
+| M1 an expected baseline was never recorded                            | **Fixed**              | §2.1 records the candidate-reader baseline as well as the templates baseline, and §2.4 compares both.                                                                                                                                                                                                                               |
+| M2 slice 5 has eight proofs, not nine                                 | **Fixed**              | Slice 5 now has exactly nine, P13, P15 to P21 and the new P25, and §0.1 says nine.                                                                                                                                                                                                                                                  |
+| M3 a supplied identifier violates R2                                  | **Fixed**              | `item` is renamed to `finding` in the standalone-kind test.                                                                                                                                                                                                                                                                         |
+
+Round-one findings the second review marked PARTLY are closed above: C1 by §0.0, C5 by P22 and P23,
+I5 by the six test-first slices and the two proof slices that add no test, and I8 by §§2.4, 4.4 and
+5.3. Nothing is left half-answered, and no slice was cut.

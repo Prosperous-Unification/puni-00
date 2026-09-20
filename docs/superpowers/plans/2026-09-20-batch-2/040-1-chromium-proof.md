@@ -21,7 +21,7 @@ Read them; this packet does not repeat them except where it must show an exact c
 ## 0. Dispatch
 
 The launcher supports this batch already — `--batch batch-2` maps to the clone root
-`/home/df/wd/puni/batch-2`, the branch prefix `batch-2/`, the temporary root `/tmp/punibatch2` and
+`/home/df/wd/puni/batch-2`, the branch prefix `batch-2/`, the temporary root `/tmp/puni-batch2` and
 the packet directory `docs/superpowers/plans/2026-09-20-batch-2`. The two attempts are:
 
 ```sh
@@ -31,8 +31,12 @@ the packet directory `docs/superpowers/plans/2026-09-20-batch-2`. The two attemp
 
 The second carries `--resume` because the clone from slice 1 is still there; without it the
 launcher refuses with exit 67. `<slice-1-commit>` is the commit the planner made from slice 1, so
-slice 2 starts from reviewed work rather than from an unreviewed tree. No `--network`: nothing
-here downloads. This packet adds no README, so the README coverage pin that 110.6 derives in
+slice 2 starts from reviewed work rather than from an unreviewed tree. With `--resume` the launcher
+does **not** check out `<slice-1-commit>`: it keeps the resumed clone's own HEAD, and only requires
+`<slice-1-commit>` to already exist as a commit in `/home/df/wd/puni/puni-00` before it will start.
+Confirm before dispatching slice 2 that both hold: the clone's HEAD is already the planner's slice-1
+commit, and `<slice-1-commit>` exists in `/home/df/wd/puni/puni-00`. No `--network`: nothing here
+downloads. This packet adds no README, so the README coverage pin that 110.6 derives in
 `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` is not this packet's business in either
 of its states.
 
@@ -944,3 +948,21 @@ the table below was run.
 | Important 3: F left disposal optional and correlation unproven        | Fixed       | E to I are now five mandatory planner proofs, one per assertion and one per field of the proof object. All were watched: redaction `- "disclosesTheSecret": false,` / `+ … true,`; disposal `- "disposed": Array [ "session",` / `+ … Array [],`; correlation `- "correlated": true,` / `+ … false,`. Correlation needed a measured detail: two `toReports`-equivalent calls over the **same** exception instance still correlate, because the instance carries the identifier, so the fault uses two instances.                                           |
 | Important 4: shared-failures ownership is wrong                       | Fixed       | Confirmed in `020-2-shared-failures.md`'s "Unknowns and what is left undone": no batch 2 packet proves that module in a browser. Section 1 and the plan's replacement bullet now say it stays unassigned.                                                                                                                                                                                                                                                                                                                                                  |
 | Minor 1: the timeout comment reverses the order                       | Fixed       | The comment now describes one budget covering the routed page, the build and the execution, without claiming an order.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH
+
+The verdict is DISPATCH: slice 1 has no blocking defect under the stated
+executor restrictions and planner review; this does not itself authorize
+slice 2 or the planner's browser slice. The review named no blocking problems
+for slice 1, so there was no blocking text to apply. Two non-blocking, dispatch-scoped
+corrections were applied by the planner by hand, before slice 2 and its
+dispatch command are used: section 0's temporary root is now `/tmp/puni-batch2`,
+not the wrong `/tmp/punibatch2`, and section 0 now says explicitly that
+`--resume` keeps the resumed clone's own HEAD rather than checking out
+`<slice-1-commit>`, and that the launcher only requires that commit to exist
+in `/home/df/wd/puni/puni-00`, so the planner must confirm both facts before
+dispatching slice 2. The remaining non-blocking notes — that externalization
+detection is environment-dependent, and that the planner should use an
+isolated stack for the whole browser suite because the Playwright config can
+otherwise reuse existing servers — are advisory rather than literal
+replacement text and were left for the planner to apply when running E to I.

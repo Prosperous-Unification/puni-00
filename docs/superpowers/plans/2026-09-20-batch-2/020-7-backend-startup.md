@@ -289,9 +289,11 @@ Counts are relative to what **you** record, never to section 3.5.
       bullets under a `#### Scenario:` heading — OpenSpec validates headings only, so vacuous
       bullets pass validation and fail review. 1. _Boot resolves only when its configured startup actions have finished._ WHEN `bootBe01`
       resolves, THEN the process is listening on its port, the configured schema step has run,
-      the fixed local identity exists where one was asked for, and the optimizer is started.
-      WHEN the schema is not healthy, THEN `/health` still answers 503 with the schema's own
-      word, exactly as it does today, and boot still resolves rather than refusing to start. 2. _A failure during startup releases what startup acquired._ WHEN the source cannot be
+      the fixed local identity exists where one was asked for, and the optimizer is started when
+      configured. WHEN the schema is not healthy but every other configured startup action
+      succeeds, THEN `/health` still answers 503 with the schema's own word, exactly as it does
+      today, and boot still resolves rather than refusing to start; an identity write or
+      migration failure still rejects boot. 2. _A failure during startup releases what startup acquired._ WHEN the source cannot be
       opened, THEN boot rejects and no listener of its own is left. WHEN the service graph cannot
       be composed, or the port is already held by an exclusive listener, or a step after the
       listener fails, THEN boot rejects with the original failure reachable through the cause
@@ -1203,3 +1205,23 @@ the worktree, each checkpoint against its own tree, and the four files restored 
 Carried in as well: main has moved, so every count here is relative and no line number is something
 the executor must match; this packet adds no Nx target and no README, so neither the
 `CLAUDECODE=0`/`AGENT=0` target default nor 110.6's coverage pin applies to it.
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH
+
+The verdict is DISPATCH: document-only slice A has no blocking defect under
+the stated launch configuration; this does not authorize slices B through E
+before their own separate reviews. The review named no blocking problems for
+slice A, so there was no blocking text to apply. The one non-blocking note
+with concrete, applicable wording was applied by the planner by hand, before
+slice A is dispatched: requirement 1's scenario in A3 now qualifies "the
+optimizer is started" with "when configured", and qualifies the unhealthy-schema
+resolution with "every other configured startup action succeeds", noting that
+an identity write or migration failure still rejects boot. The remaining
+non-blocking notes — that B and C's edits were only checked in read-only
+overlays, that slice C's tests do not establish the complete
+listener-to-optimizer-to-retention-to-source ordering, that the real-launch
+loopback preflight and socket/mutation/gate runs remain unverified, and that
+slice E needs earlier attempts' preserved evidence including A's validation
+output — are planner-side verification reminders rather than drop-in text, so
+none was applied; they carry forward to the planner's checks after B through
+E return.

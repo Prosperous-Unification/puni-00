@@ -986,16 +986,24 @@ Dispatched with `--resume` into B's clone. **This slice starts red.** Its step 0
      -t 'every routed current document resolves its local links and anchors') \
      >"$TMPDIR/evidence/links-after.txt" 2>&1 || status=$?
   printf 'links status=%s\n' "$status"
-  diff -u "$TMPDIR/evidence/links-before.txt" "$TMPDIR/evidence/links-after.txt" \
+  grep -E '^Ran 1 test across 1 file\.' "$TMPDIR/evidence/links-after.txt"
+  sed -E 's/\[[0-9]+\.[0-9]+ms\]/[<ms>]/g' "$TMPDIR/evidence/links-before.txt" \
+    >"$TMPDIR/evidence/links-before.notiming.txt"
+  sed -E 's/\[[0-9]+\.[0-9]+ms\]/[<ms>]/g' "$TMPDIR/evidence/links-after.txt" \
+    >"$TMPDIR/evidence/links-after.notiming.txt"
+  diff -u "$TMPDIR/evidence/links-before.notiming.txt" "$TMPDIR/evidence/links-after.notiming.txt" \
     || test $? -eq 1
   wc -l LLM_README.md
   ```
 
-  Expected: `links status=0` and no differences, because this case passed on 2026-09-20; and at
-  most 150 lines. If step 0b recorded a failure, the only acceptable outcome is the **same**
-  failure, naming the same file, which is another packet's document: record it and continue. A
-  failure naming any file of this packet, or any new entry in the diff, is a stop. Never edit
-  another packet's document.
+  Expected: `links status=0`, exactly one named test executed (the `Ran 1 test across 1 file.`
+  line), `0 fail`, and at most 150 lines in `LLM_README.md`. Preserve both raw outputs;
+  elapsed-time differences are expected and do not constitute changed diagnostics — the timing
+  bracket is stripped before diffing for exactly that reason. If step 0b recorded a failure, the
+  only acceptable outcome is either a green run here or the **same** named test failing solely on
+  the identical set of source/destination link diagnostics, naming the same file, which is another
+  packet's document: record it and continue. Stop on zero tests, any new or changed failing link
+  diagnostic, or any different failure cause. Never edit another packet's document.
 
 - [ ] C7. Verify the alias and the two files B1's manifest already satisfies:
 
@@ -1717,7 +1725,9 @@ Each is false on the tree this packet was written against, so meeting one means 
 - C3's observed row or file value is not exactly your step 0a number plus four, or the diff shows
   anything other than the project's four new configuration files.
 - C4 finds `occurrences` has moved.
-- C6's link case differs from step 0b's recording in any way other than being green.
+- C6 executes zero tests, introduces or changes a failing link diagnostic, or fails for a
+  different cause. Elapsed-time differences and a previously failing case becoming green are
+  allowed.
 - `shared-failures:lint` reports `@nx/enforce-module-boundaries`. A `ring:domain`,
   `product:shared` library importing npm packages should produce none; a boundary diagnostic means
   the tags are wrong.
@@ -1795,3 +1805,22 @@ targets, injecting each disputed mutation, then restoring the tree and proving i
 | M12. Launcher instructions are stale                        | Fixed       | Section 9 gives three exact invocations, including C's `--resume`.                                                                                                                                                                                                                                                     |
 | M13. The agent-variable prerequisite is unverifiable        | Fixed       | Confirmed absent from `nx.json` and from `workspace-targets.test.ts` today. Section 9 makes it a planner check with `--require-ancestor` or a `grep`, and notes B1 owes nothing either way because it declares only `test` and `test:unit`.                                                                            |
 | M14. The plan has no separate browser checkbox              | Fixed       | Confirmed: one checkbox combines both. H3 prescribes the exact split, ticking the verification half and leaving the browser half unticked and marked unassigned.                                                                                                                                                       |
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH
+
+The verdict is DISPATCH: slice A can run now, unconditionally. The only blocking
+finding was scoped to slice C's C6 step, and the planner applied it by hand:
+C6's script now strips Bun's `[NN.NNms]` timing brackets from both the before
+and after link-check outputs before diffing, so an elapsed-time-only
+difference no longer stops a correct run, and it asserts the `Ran 1 test
+across 1 file.` line directly instead of a raw byte-for-byte comparison. The
+matching prose, and section 10's C6 stop condition, were rewritten to the
+review's exact wording: zero tests, a new or changed failing link diagnostic,
+or a different failure cause are stops; elapsed-time differences and a
+previously failing case turning green are not. This C-scoped fix was made now,
+before slice C is dispatched, even though this review authorizes only slice A
+today. The three non-blocking notes (C2's patch reapplication, retiring a
+stale clone path before B/D–H, and section 9's packet exemption staying until
+C removes it) are planner-side verification and sequencing reminders, not
+one-line document edits, so none was applied; they are carried forward for the
+planner to check after the relevant slice returns.

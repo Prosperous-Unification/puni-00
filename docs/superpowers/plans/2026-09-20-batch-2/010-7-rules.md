@@ -2218,7 +2218,7 @@ made the production CLI report
   function createTrustedModules(): string {
     const modules = scratch('twilight-rules-modules-');
     symlinkSync(
-      join(import.meta.dir, '..', '..', '..', '..', 'node_modules', 'typescript'),
+      join(import.meta.dir, '..', '..', '..', '..', '..', 'node_modules', 'typescript'),
       join(modules, 'typescript'),
     );
     mkdirSync(join(modules, '@tanstack', 'react-query'), { recursive: true });
@@ -2238,7 +2238,7 @@ made the production CLI report
 
   `scratch` already registers the directory for the `afterEach` cleanup. `symlinkSync`, `mkdirSync`
   and `writeFileSync` come from the existing `node:fs` import; add `symlinkSync` if part C did not.
-  The four `..` segments walk from `apps/wiki/cli/src/rules` to the repository root; if that path does
+  The five `..` segments walk from `apps/wiki/cli/src/rules` to the repository root; if that path does
   not exist, stop and report rather than guessing.
 
 ### E.3 Tests first
@@ -2299,18 +2299,18 @@ plan and E.8 list all four.
 
 ### E.5 Negative proofs
 
-| #   | Fault                                                                       | Named test                                                        | Expected failing line                                                                                                                            |
-| --- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| E1  | K2's `forbidden` becomes `[]`                                               | `names a delivery component that imports a resource-service`      | `findings: []`                                                                                                                                   |
-| E2  | K5's `forbidden` becomes `['delivery']` only                                | `names a repository adapter that imports a resource-service`      | `findings: []`                                                                                                                                   |
-| E3  | In `sidewaysObservations`, make the module comparison always equal          | `names a feature that imports another module's feature`           | `findings: []`                                                                                                                                   |
-| E4  | In `sidewaysObservations`, make the module comparison always unequal        | `allows two files of one kind inside one module`                  | One finding where none was expected                                                                                                              |
-| E5  | In `reactObservations`, drop the `declaredPlain` disjunct                   | `names a store the policy declares plain TypeScript`              | `findings: []`                                                                                                                                   |
-| E6  | In `reactObservations`, drop the `ReactScopePrefix` test                    | `names a service that imports a scoped React package`             | `findings: []`                                                                                                                                   |
-| E7  | In `reactObservations`, drop the `source?.kind === 'delivery'` skip         | `exempts delivery from the framework boundary`                    | One finding where none was expected                                                                                                              |
-| E8  | Delete the loop body of `resolvePlainSelectors`, returning `{ ok: true }`   | `refuses a plain TypeScript selector the candidate does not hold` | Exit 0 and `unevaluated: []`                                                                                                                     |
-| E9  | Remove the `policy.plainTypeScriptPaths` disjunct from `assertPolicyInputs` | `refuses F1 when the policy declares no plain TypeScript paths`   | Stderr lacks `rule F1 needs policy.plainTypeScriptPaths`. The registry fallback still exits 1, so **the sentence is the proof, not the status**. |
-| E10 | In `graphRule`, hard-code `family` to `'relationships'`                     | `prints the registry record for a kind rule`                      | `explain F1` prints `family: "relationships"`, not `code-shape`                                                                                  |
+| #   | Fault                                                                                | Named test                                                        | Expected failing line                                                                                                                            |
+| --- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| E1  | K2's `forbidden` becomes `[]`                                                        | `names a delivery component that imports a resource-service`      | `findings: []`                                                                                                                                   |
+| E2  | K5's `forbidden` becomes `['delivery']` only                                         | `names a repository adapter that imports a resource-service`      | `findings: []`                                                                                                                                   |
+| E3  | In `sidewaysObservations`, make the module comparison always equal                   | `names a feature that imports another module's feature`           | `findings: []`                                                                                                                                   |
+| E4  | In `sidewaysObservations`, make the module comparison always unequal                 | `allows two files of one kind inside one module`                  | One finding where none was expected                                                                                                              |
+| E5  | In `reactObservations`, drop the `declaredPlain` disjunct                            | `names a store the policy declares plain TypeScript`              | `findings: []`                                                                                                                                   |
+| E6  | In `reactObservations`, drop the `ReactScopePrefix` test                             | `names a service that imports a scoped React package`             | `findings: []`                                                                                                                                   |
+| E7  | In `reactObservations`, drop the `source?.kind === 'delivery'` skip                  | `exempts delivery from the framework boundary`                    | One finding where none was expected                                                                                                              |
+| E8  | Delete the loop body of `resolvePlainSelectors`, returning `{ ok: true }`            | `refuses a plain TypeScript selector the candidate does not hold` | Exit 0 and `unevaluated: []`                                                                                                                     |
+| E9  | Remove the `policy.plainTypeScriptPaths` disjunct from `assertPolicyInputs`          | `refuses F1 when the policy declares no plain TypeScript paths`   | Stderr lacks `rule F1 needs policy.plainTypeScriptPaths`. The registry fallback still exits 1, so **the sentence is the proof, not the status**. |
+| E10 | In `plainTypeScriptRule`, change `family: 'code-shape'` to `family: 'relationships'` | `prints the registry record for a kind rule`                      | `explain F1` prints `family: "relationships"`, not `code-shape`                                                                                  |
 
 Every one of these runs the production CLI. **No proof in this packet is an in-process observation
 test**, which the earlier revision wrongly claimed was unavoidable for the scoped package.
@@ -2649,3 +2649,21 @@ slice B6. Part A now amends the owning requirement instead of adding a contrary 
 (U2); repository ports, unsuffixed services and undeclared stores are invisible (A1, A10); K7, K8, K9
 and touched-code ratcheting are out of scope with named homes; and no rule is adopted anywhere,
 because this repository has no rule policy (A4).
+
+### Third review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH
+
+The verdict is DISPATCH for part A, with no blocking defect; it does not
+authorize parts B through E before their own separate reviews. The review's
+"Blocking problems" section named none for part A, so there was no blocking
+text to apply. Two of the non-blocking notes for part E gave literal,
+unambiguous replacement text and were applied by the planner by hand, before
+part E is dispatched: E.2's `createTrustedModules` now walks five `..`
+segments to reach the repository root's `node_modules/typescript`, not four,
+which pointed at a nonexistent `apps/node_modules/typescript`; and E10's fault
+now mutates `plainTypeScriptRule`'s `family` from `'code-shape'` to
+`'relationships'` directly, since the previously specified `graphRule`
+mutation left F1's printed family unchanged. The remaining non-blocking notes
+— B9's separate-removal replay, C's in-process-versus-CLI proof distinction
+for C1–C3, E.3's stale `explain F1` red expectation, and §0.4's literal-output
+caution for A2/A3 — are advisory rather than drop-in text and were left for
+the executor and a later review to apply when B, C and E are dispatched.
