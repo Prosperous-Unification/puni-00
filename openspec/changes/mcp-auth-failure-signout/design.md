@@ -14,9 +14,9 @@ runs, so a tool cannot produce HTTP 401.
 2. **End on use, refuse on next request.** On an upstream rejection the tool
    handler calls `oauth.endSession(mcpSessionId)` before returning its error.
    Next request: `sessionOf` fails, `http.ts` answers 401 with
-   `error="invalid_token"`. Only a be-01 401 whose challenge is the configured
-   `WBS_BASIC_AUTH` Basic realm counts as the edge gate; any other challenge is
-   an upstream rejection.
+   `error="invalid_token"`. Any 401 carrying a Basic challenge counts as the
+   deployment edge gate, including when `WBS_BASIC_AUTH` is missing or wrong;
+   a missing challenge or Bearer challenge is an upstream rejection.
 3. **Callback failure table** (after `consume` matched):
 
    | Cause                       | `error`                                             |
@@ -31,8 +31,10 @@ runs, so a tool cannot produce HTTP 401.
 
 4. **Reauthentication marker.** The browser-binding cookie is cleared on
    failure, so the marker is its own cookie: HMAC-signed with a per-process key,
-   `Max-Age=300`, no identity inside, single-use. `authorize` consumes it and
-   passes `prompt=login` through `BrowserOidcClient.authorizationUrl`.
+   `Max-Age=300`, no identity inside, single-use, and held in a bounded server
+   store. `authorize` reserves it while obtaining the provider URL, restores it
+   if that lookup fails, and otherwise passes `prompt=login` through
+   `BrowserOidcClient.authorizationUrl`.
 
 ## Risks
 
