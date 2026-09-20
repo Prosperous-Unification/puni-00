@@ -1,6 +1,17 @@
 import { type ExpandedState } from '@tanstack/react-table';
 
 import { type Remembered, remembered } from '@/lib/remembered';
+import {
+  expansionKey,
+  ganttDayPxKey,
+  ganttHeightKey,
+  ganttLabelsKey,
+  hiddenColumnsKey,
+  linksResetShownKey,
+  MERMAID_SECTION_MODE_KEY,
+  savedViewsKey,
+  widthOverridesKey,
+} from '@/modules/preferences/preference-keys';
 
 import { type DayPx, GANTT_CEILING_PX, GANTT_MIN_PX, isDayPx } from './gantt-panel';
 import { isSectionMode, type SectionMode } from './plan-mermaid';
@@ -14,6 +25,18 @@ import {
 } from './table-frame';
 import { type FilterCriteria, NO_FILTER } from './tree-search';
 
+export {
+  expansionKey,
+  ganttDayPxKey,
+  ganttHeightKey,
+  ganttLabelsKey,
+  hiddenColumnsKey,
+  linksResetShownKey,
+  MERMAID_SECTION_MODE_KEY,
+  savedViewsKey,
+  widthOverridesKey,
+};
+
 /**
  * Where this browser remembers which of one project's branches are open.
  *
@@ -21,8 +44,6 @@ import { type FilterCriteria, NO_FILTER } from './tree-search';
  * Per browser, like the chosen project beside it (`project-page.tsx`): my
  * collapsing must not reshuffle anybody else's table.
  */
-export const expansionKey = (projectId: string): string => `wbs.expanded.${projectId}`;
-
 /** One project's expansion, judged by {@link isExpansion} — see {@link remembered}. */
 export const storedExpansion = (projectId: string): Remembered<ExpandedState> =>
   remembered(expansionKey(projectId), isExpansion);
@@ -78,8 +99,6 @@ export function rememberExpansion(projectId: string, expanded: ExpandedState): v
  * width is one reader's answer to how much of their screen a column deserves,
  * and be-01 is never told about it.
  */
-export const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${projectId}`;
-
 /**
  * One project's dragged widths, as **stored** — a record, not the `Map` the
  * table holds, because the two are different shapes and only one of them is
@@ -95,8 +114,6 @@ export const storedWidthOverrides = (projectId: string): Remembered<Record<strin
  * chart's share of the screen is one reader's answer, and be-01 is never told
  * about it.
  */
-export const ganttHeightKey = (projectId: string): string => `wbs.ganttHeight.${projectId}`;
-
 /**
  * One project's panel height, in bounds or not stored at all.
  *
@@ -162,8 +179,6 @@ export function rememberGanttHeight(projectId: string, heightPx: number): void {
  * from `wbs.ganttDetail`, which is one answer for the browser because turning
  * sixty elbows off is a statement about elbows.
  */
-export const ganttDayPxKey = (projectId: string): string => `wbs.ganttDayPx.${projectId}`;
-
 /** One project's day scale, judged against the same `DAY_SCALES` the control offers. */
 export const storedGanttDayPx = (projectId: string): Remembered<DayPx> =>
   remembered(ganttDayPxKey(projectId), isDayPx);
@@ -213,8 +228,6 @@ export function forgetGanttDayPx(projectId: string): void {
  * fortnight on a monitor give opposite answers, and neither is a preference
  * about names. It parts from `wbs.ganttDetail` where the scale does.
  */
-export const ganttLabelsKey = (projectId: string): string => `wbs.ganttLabels.${projectId}`;
-
 /**
  * Whether one project's chart draws its name column.
  *
@@ -271,8 +284,6 @@ export function forgetGanttLabels(projectId: string): void {
  * a status update wants them lane-coloured in every plan, and having to say so
  * again in the next one is the fault this remembers away.
  */
-export const MERMAID_SECTION_MODE_KEY = 'wbs.mermaidSectionMode';
-
 /** The Mermaid lane, judged against the modes `sectionOf` has a branch for. */
 export const storedMermaidSectionMode = remembered(MERMAID_SECTION_MODE_KEY, isSectionMode);
 
@@ -455,15 +466,11 @@ export function forgetWidthOverrides(projectId: string): void {
  * columns a reader wants on their screen is their answer, and be-01 is never
  * told about it.
  */
-export const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${projectId}`;
-
 /** One project's hide-list, judged by {@link isStringArray}. */
 export const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =>
   remembered(hiddenColumnsKey(projectId), isStringArray);
 
 /** A reset that showed Links survives reload without freezing the whole hide-list. */
-export const linksResetShownKey = (projectId: string): string => `wbs.linksResetShown.${projectId}`;
-
 export const storedLinksResetShown = (projectId: string): Remembered<true> =>
   remembered(linksResetShownKey(projectId), (value): value is true => value === true);
 
@@ -565,8 +572,6 @@ export interface SavedView {
  * and it must not appear in front of a different reader who opens the same
  * plan on their own machine.
  */
-export const savedViewsKey = (projectId: string): string => `wbs.views.${projectId}`;
-
 /**
  * One project's saved views, as a **list of anything** — each entry is judged
  * by {@link isSavedView} in {@link rememberedSavedViews}, which keeps the ones

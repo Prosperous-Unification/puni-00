@@ -1238,6 +1238,17 @@ describe('the chosen project survives a refresh', () => {
     expect(screen.queryByRole('button', { name: 'Rename project' })).toBeNull();
     expect(asked).toEqual([]);
   });
+
+  itDom('drops an empty remembered project and selects nothing', async () => {
+    localStorage.setItem('wbs.project', '');
+    pageWith(fakeProjects(TWO));
+
+    await waitFor(() => {
+      expect(localStorage.getItem('wbs.project')).toBeNull();
+    });
+    expect(picker().value).toBe('');
+    expect(screen.queryByRole('button', { name: 'Rename project' })).toBeNull();
+  });
 });
 
 describe('an entry says who owns it and when it was made', () => {
