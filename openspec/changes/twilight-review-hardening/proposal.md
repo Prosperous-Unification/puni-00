@@ -2,7 +2,7 @@
 
 The branch review found contradictory workflow instructions and missing runtime
 contracts for upgrades, revocation and expired workers. Future agents need one
-reproducible workflow and precise acceptance criteria before implementing Twilight.
+reproducible workflow and precise acceptance criteria before implementing Twilight Dash.
 
 ## What Changes
 
@@ -16,8 +16,8 @@ resolved activity settings and organization-owned pricing.
 
 ## Non-Goals
 
-Implementing the Twilight runtime, changing WBS storage, activating the Twilight
-default schema, or deploying, archiving, merging or publishing anything.
+Implementing the Twilight Dash runtime, changing WBS storage, activating Twilight
+Bureaucrat's default schema, or deploying, archiving, merging or publishing anything.
 
 ## Constraints
 
@@ -40,7 +40,7 @@ proposal; they do not claim its implementation or create duplicate requirements.
 
 ## Domain Terms
 
-Use the owning [Twilight glossary](../../../docs/twilight-structure/CONTEXT.md).
+Use the owning [Twilight Structure glossary](../../../docs/twilight-structure/CONTEXT.md).
 
 ## Impact
 

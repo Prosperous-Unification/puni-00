@@ -1,4 +1,4 @@
-# Twilight SDLC pilot design
+# Twilight Structure SDLC pilot design
 
 This is the design of the repository trial, not the runtime implementation.
 The [assumptions](../../../docs/twilight-structure/assumptions.md) record this
@@ -16,7 +16,7 @@ additional required artifacts. A non-trivial change carries `design.md`.
 
 The [stage guide](../../../docs/twilight-structure/sdlc-stages.md) owns the stage
 mapping. Its lifecycle policy is descriptive in this pilot. OpenSpec owns its
-artifact graph; a future `tool-twilight` compiler and BE transition operation will
+artifact graph; a future Twilight Dash compiler and BE transition operation will
 enforce content, approvals, budgets, and evidence. No prose file is an authority
 boundary. [Requirements and the wiki](../../../docs/twilight-structure/knowledge.md#requirements-and-the-wiki-the-boundary)
 records the settled split between contracts and knowledge.
