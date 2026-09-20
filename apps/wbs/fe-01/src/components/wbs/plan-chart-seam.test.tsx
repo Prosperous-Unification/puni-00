@@ -726,8 +726,9 @@ describe('what a keystroke costs the chart', () => {
         expect(ownerRenders.count).toBe(0);
         expect(window.__wbsScrollProbe.ganttCommits).toBe(0);
 
-        // A real plan-owner input is still observed by the render counter.
-        click('Actions for 010');
+        // A real plan-owner-only menu input is still observed by the render counter. The row's
+        // Actions column is intentionally unmounted at this narrow horizontal viewport.
+        click('Freeze #');
         expect(ownerRenders.count).toBeGreaterThan(0);
 
         // A real chart input still crosses the memo boundary and redraws it.

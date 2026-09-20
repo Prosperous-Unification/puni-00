@@ -8,7 +8,7 @@ import {
 } from './use-plan-viewport';
 
 describe('plan viewport', () => {
-  it('retains compositor offsets until a row or column publication boundary', () => {
+  it('retains compositor offsets until a row publication boundary', () => {
     expect([
       publicationOffset(0, ROW_PUBLICATION_STEP_PX),
       publicationOffset(96, ROW_PUBLICATION_STEP_PX),
@@ -27,7 +27,7 @@ describe('plan viewport', () => {
     expect(publicationOffset(-40, ROW_PUBLICATION_STEP_PX)).toBe(0);
   });
 
-  it('keeps the physical column offset while logical-window equality deduplicates publication', () => {
+  it('keeps the physical column offset while logical-slice equality deduplicates publication', () => {
     // CI run 35483045062 exposed this exact gap: scrollIntoView moved the frame to 150px,
     // but rounding that offset to zero left the visible not-before header without its body cell.
     expect(columnPublicationOffset(150)).toBe(150);
