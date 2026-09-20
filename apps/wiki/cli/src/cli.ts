@@ -18,6 +18,7 @@ import {
 } from './evidence/content-manifest';
 import { checkIndexes, checkRootMigration } from './indexes';
 import { type ClassifiedCandidate, classifyEntries } from './inventory/classify-entries';
+import { readCandidateBlob } from './inventory/read-blob';
 import { type CandidateRequest, readCandidate } from './inventory/read-candidate';
 import { extractRelationships } from './relationships';
 import {
@@ -84,22 +85,6 @@ function readSelectedCandidate(argv: string[]): void {
   process.stdout.write(`${JSON.stringify(readCandidate(repository, request))}\n`);
 }
 
-function readBlob(repository: string, blob: string, path: string): Uint8Array {
-  const invocation = Bun.spawnSync(['git', '-C', repository, 'cat-file', 'blob', blob], {
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
-  if (invocation.exitCode !== 0) {
-    // Proof: an injected exit 23 made artifact validation refuse
-    // `docs/review-evidence/second.v1.json: injected unreadable artifact` at this boundary.
-    const detail = invocation.stderr.toString('utf8').trim();
-    throw new Error(
-      `cannot read selected blob ${blob} for ${path}: ${detail.length === 0 ? `git exited ${String(invocation.exitCode)}` : detail}`,
-    );
-  }
-  return invocation.stdout;
-}
-
 function classifyCandidate(argv: string[]): void {
   const kind = argv[1];
   const repository = argv[2];
@@ -118,7 +103,7 @@ function classifyCandidate(argv: string[]): void {
     `${JSON.stringify({
       selection: candidate.selection,
       entries: classifyEntries(candidate.entries, policy, (blob, path) =>
-        readBlob(repository, blob, path),
+        readCandidateBlob(repository, blob, path),
       ),
       untracked: candidate.untracked,
       policyId: policy.policyId,
@@ -144,7 +129,7 @@ function classifySelectedCandidate(
     candidate: {
       selection: snapshot.selection,
       entries: classifyEntries(snapshot.entries, policy, (blob, path) =>
-        readBlob(repository, blob, path),
+        readCandidateBlob(repository, blob, path),
       ),
       untracked: snapshot.untracked,
       policyId: policy.policyId,
@@ -172,7 +157,7 @@ function writeArtifactValidation(argv: string[]): void {
   const graph = parseOrThrow(ArtifactGraph, readJson(graphPath));
   const classified = classifySelectedCandidate(kind, repository, revision, policyPath);
   const report = validateArtifacts(classified.candidate, graph, (blob, path) =>
-    readBlob(repository, blob, path),
+    readCandidateBlob(repository, blob, path),
   );
   process.stdout.write(`${JSON.stringify(report)}\n`);
 }
@@ -410,6 +395,11 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   if (args.length === 5 && args[0] === 'lint-ci') {
     return import('./policy/trust').then(({ writeCiLintCommand }) => {
       writeCiLintCommand(args, validatorEntryPaths());
+    });
+  }
+  if (args.length === 2 && args[0] === 'explain') {
+    return import('./rules/check').then(({ writeExplainCommand }) => {
+      writeExplainCommand(args);
     });
   }
   if (args.length === 4 && args[0] === 'validate-policy-activation') {
