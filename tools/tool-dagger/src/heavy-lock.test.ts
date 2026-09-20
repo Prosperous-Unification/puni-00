@@ -155,6 +155,19 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+/**
+ * The payload a lock holder runs: wait for the release file, but not forever.
+ *
+ * 2,400 polls of 50ms is two minutes, far past any case here, and `HEAVY_LOCK_TEST_PATIENCE`
+ * shortens it for the case that proves the bound. Exit 97 says the release never came.
+ */
+function holderWaitingFor(release: string): string {
+  return (
+    `polls=0; while [[ ! -e ${shellQuote(release)} ]]; do sleep 0.05; polls=$((polls + 1)); ` +
+    `if [[ "$polls" -ge "\${HEAVY_LOCK_TEST_PATIENCE:-2400}" ]]; then echo "release never came" >&2; exit 97; fi; done`
+  );
+}
+
 describe('with-heavy-lock', () => {
   it('rejects a colon-bearing shim at the contender environment boundary', () => {
     expect(() => contenderEnvironment('/tmp/wbs:shim', '/usr/bin:/bin', '/tmp')).toThrow(
@@ -193,6 +206,24 @@ describe('with-heavy-lock', () => {
     expect(lib).not.toContain('WBS_HEAVY_LOCK:-');
     expect(lib).toContain('/home/puni1/.cache/wbs-heavy-work.lock');
   });
+
+  // Proof: with the bound removed from `holderWaitingFor` (the loop as it was), this case timed
+  // out after 5000ms and Bun's runner reported `killed 1 dangling process` (2026-09-20). That kill
+  // is the step that never happens when the runner itself is killed, which is how the seven on
+  // h2puni outlived their test by 12 days.
+  it('a holder whose release never comes ends on its own', async () => {
+    const root = scratchSync('wbs-heavy-lock-lonely-');
+    roots.push(root);
+    const holder = Bun.spawn(
+      ['bash', '-c', holderWaitingFor(join(root, 'release-that-never-comes'))],
+      {
+        env: { ...process.env, HEAVY_LOCK_TEST_PATIENCE: '10' },
+        stderr: 'pipe',
+      },
+    );
+    expect(await holder.exited).toBe(97);
+    expect(await new Response(holder.stderr).text()).toContain('release never came');
+  }, 5_000);
 
   it('runs the requested command while the lock is free', () => {
     const root = scratchSync('wbs-heavy-lock-');
@@ -313,7 +344,11 @@ describe('with-heavy-lock', () => {
         // normally, which is what "when the holder releases it" means.
         'bash',
         '-c',
-        `while [[ ! -e ${shellQuote(release)} ]]; do sleep 0.05; done`,
+        // Bounded: if this test process is killed before its cleanup runs, nothing ever writes
+        // the release file. Seven such holders were found alive on h2puni after 12 days
+        // (2026-09-20), each polling for a file under a scratch root long since abandoned.
+        // Proof: see `a holder whose release never comes ends on its own` below.
+        holderWaitingFor(release),
       ],
       // Captured because the readiness wait below is the one place this case can
       // fail without saying why. `heavy-lock-lib.sh` names every refusal path in
