@@ -20,6 +20,28 @@ export const COLUMN_OVERSCAN_PX = 256;
 /** The measured one-line plan-row height used only until Chromium reports the row's own height. */
 export const ESTIMATED_ROW_HEIGHT_PX = 26.1875;
 
+/**
+ * How far compositor motion may travel before React publishes another row window.
+ *
+ * This remains smaller than the row overscan, so the previously published slice
+ * still extends beyond the visible frame throughout one bucket. Without this
+ * retention, a 96px wheel step changes an overscan edge on almost every input:
+ * the hook technically publishes only changed windows, but still commits once
+ * per wheel event because rows cross that moving edge.
+ */
+export const ROW_PUBLICATION_STEP_PX = 256;
+
+/** The matching retention bucket for horizontally windowed, unpinned columns. */
+export const COLUMN_PUBLICATION_STEP_PX = 192;
+
+/**
+ * Pins a compositor offset to the start of its retained publication bucket.
+ * Negative offsets are browser overscroll rather than a logical plan position.
+ */
+export function publicationOffset(offsetPx: number, stepPx: number): number {
+  return Math.floor(Math.max(0, offsetPx) / stepPx) * stepPx;
+}
+
 interface FrameViewport {
   measured: boolean;
   scrollTop: number;
@@ -165,8 +187,8 @@ export function usePlanViewport({
       const widthPx = frameNode.clientWidth;
       if (heightPx <= 0 || widthPx <= 0) return;
       setFrame((current) => {
-        const scrollTop = frameNode.scrollTop;
-        const scrollLeft = frameNode.scrollLeft;
+        const scrollTop = publicationOffset(frameNode.scrollTop, ROW_PUBLICATION_STEP_PX);
+        const scrollLeft = publicationOffset(frameNode.scrollLeft, COLUMN_PUBLICATION_STEP_PX);
         if (
           current.measured &&
           current.heightPx === heightPx &&

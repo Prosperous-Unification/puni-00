@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
 import { viewportColumns, viewportRows } from './plan-viewport';
+import {
+  COLUMN_PUBLICATION_STEP_PX,
+  publicationOffset,
+  ROW_PUBLICATION_STEP_PX,
+} from './use-plan-viewport';
 
 describe('plan viewport', () => {
+  it('retains compositor offsets until a row or column publication boundary', () => {
+    expect([
+      publicationOffset(0, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(96, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(255, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(256, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(511, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(512, ROW_PUBLICATION_STEP_PX),
+    ]).toEqual([0, 0, 0, 256, 256, 512]);
+    expect([
+      publicationOffset(191, COLUMN_PUBLICATION_STEP_PX),
+      publicationOffset(192, COLUMN_PUBLICATION_STEP_PX),
+    ]).toEqual([0, 192]);
+    expect(publicationOffset(-40, ROW_PUBLICATION_STEP_PX)).toBe(0);
+  });
+
   it('slices measured variable-height rows by viewport and overscan', () => {
     expect(
       viewportRows({
