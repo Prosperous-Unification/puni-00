@@ -331,7 +331,6 @@ function isRelevantSourceConfig(path: string): boolean {
 async function legacySourceOccurrences(): Promise<{
   categories: Record<string, number>;
   coverage: {
-    applicationLibraryToolReadmes: number;
     dockerfiles: string[];
     extensionlessScripts: boolean;
     policyJson: boolean;
@@ -387,11 +386,6 @@ async function legacySourceOccurrences(): Promise<{
   return {
     categories,
     coverage: {
-      applicationLibraryToolReadmes: (await currentDocuments()).filter(
-        (path) =>
-          path.endsWith('/README.md') &&
-          (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
-      ).length,
       dockerfiles: relevantPaths.filter((path) => {
         const basename = posix.basename(path);
         return basename === 'Dockerfile' || basename.endsWith('.Dockerfile');
@@ -481,6 +475,22 @@ test('every Dockerfile naming variant participates in source inventory', () => {
   expect(inventoried).toEqual(candidates);
 });
 
+test('the current-document sweep reaches every application, library and tool README', async () => {
+  const tracked = candidatePaths()
+    .filter((path) => /^(?:apps|libs|tools)\//.test(path) && path.endsWith('/README.md'))
+    .sort();
+  const swept = new Set(await currentDocuments());
+
+  // An empty enumeration would make the coverage assertion below vacuously true, which is
+  // the shape the pinned count used to rule out.
+  // Proof: making candidatePaths return [] failed this test with `Expected: > 0` and
+  // `Received: 0` (2026-09-20).
+  expect(tracked.length).toBeGreaterThan(0);
+  // Proof: removing the README term from currentDocuments failed this test with all 23
+  // application, library and tool README paths reported as missing (2026-09-20).
+  expect(tracked.filter((path) => !swept.has(path))).toEqual([]);
+});
+
 test('every alias has an allowed prefix and resolves to a tracked file', async () => {
   const base = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
     compilerOptions: { paths: Record<string, string[]> };
@@ -552,18 +562,6 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'test fixture or proof': 106,
     },
     coverage: {
-      // Re-pinned 17 -> 18 when `apps/wiki/consumer/README.md` landed: the consumer template's
-      // README is a real application README the sweep must cover, not an exemption.
-      // Re-pinned 18 -> 19 for `apps/wiki/cli/fixtures/consumer/README.md`, the packed-install
-      // consumer fixture's README, which the sweep must cover like any application README.
-      // Re-pinned 19 -> 20 for `apps/wbs/fe-01/src/modules/plan-writer/README.md`, the first
-      // frontend module index, which the sweep must cover like any application README.
-      // Re-pinned 20 -> 22 for `apps/wbs/fe-01/src/modules/directory/README.md` and
-      // `apps/wbs/fe-01/src/modules/directory-management/README.md`, the directory's two module
-      // indexes, which the sweep must cover like any application README.
-      // Re-pinned 22 -> 23 for `apps/wbs/fe-01/src/modules/preferences/README.md`, the preferences
-      // module index, which the sweep must cover like any application README.
-      applicationLibraryToolReadmes: 23,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
