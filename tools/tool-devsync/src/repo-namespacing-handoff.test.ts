@@ -700,7 +700,14 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // this branch's `d17f003c...` left neither right: the merged tree failed on the observed
     // digest below, again with the occurrence count and the unclassified list unchanged
     // (2026-09-20). Two lanes re-pinning one line-sensitive digest is a conflict by construction.
-    digest: '21a80db52be81d6875704adb862a00a7a379d4f5da6dd72a7d265c2edca8eb82',
+    // Proof: the `env` facts above were wrong and are gone again. Twilight Bureaucrat's static
+    // extractor merges a target default shallowly, so a target with its own `options` never shows
+    // the default's `options.env`, and the host gate failed `pins exact pre-index tuples and
+    // passes observe lint from external trust` on `fact check.core.test authority-selector
+    // mismatch`. With docs/wiki-policy/relationships*.json back to main's bytes, leaving
+    // `21a80db5...` here failed on the observed digest below, count and unclassified list
+    // unchanged (2026-09-20).
+    digest: '5a672eac90938e8483b2fbc000606a52b2d5a2ae2f8f256f66d77880dd077ac5',
     occurrences: 257,
     unclassified: [],
   });
