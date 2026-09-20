@@ -124,7 +124,7 @@ export function createPointedRows(): PointedRows {
     },
     setShownRows: (shown) => {
       shownRows = shown;
-      resolve();
+      if (!tablePointingSuspended) resolve();
     },
   };
 }

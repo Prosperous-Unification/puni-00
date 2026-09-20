@@ -96,6 +96,25 @@ describe('the pointed-row store', () => {
     expect(told).toEqual(['c']);
   });
 
+  it('does not leak a suspended row through the shown-row commit guard', () => {
+    const pointed = showing('a', 'b');
+    pointed.pointTable('a');
+    const told: (string | null)[] = [];
+    pointed.subscribe(() => told.push(pointed.pointedAt()));
+
+    pointed.suspendTablePointing();
+    pointed.pointTable('b');
+    // WbsTable pushes this after every viewport commit. It must not resolve the
+    // row whose pointer publication is suspended until the gesture settles.
+    pointed.setShownRows(new Set(['a', 'b']));
+    expect(pointed.pointedAt()).toBe('a');
+    expect(told).toEqual([]);
+
+    pointed.resumeTablePointing();
+    expect(pointed.pointedAt()).toBe('b');
+    expect(told).toEqual(['b']);
+  });
+
   it('tells a subscriber when the answer changes, and lets it leave', () => {
     const pointed = showing('a');
     const told: (string | null)[] = [];
