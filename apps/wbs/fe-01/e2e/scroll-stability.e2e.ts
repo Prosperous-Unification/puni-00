@@ -263,6 +263,18 @@ test.describe('large-plan scroll stability', () => {
           panel.style.visibility = 'hidden';
         });
       }
+      if (process.env['WBS_SCROLL_FAKE_FOLLOWER'] === '1') {
+        await page.locator('[data-gantt-panel]').evaluate((panel) => {
+          let syntheticTop = panel.scrollTop;
+          Object.defineProperty(panel, 'scrollTop', {
+            configurable: true,
+            get: () => syntheticTop,
+            set: (next: number) => {
+              syntheticTop = next;
+            },
+          });
+        });
+      }
       const wrapped = page.locator(`[data-name-input="${seeded.ids[4]}"]`);
       const oneLine = page.locator(`[data-name-input="${seeded.ids[3]}"]`);
       await expect(wrapped).toBeVisible();
