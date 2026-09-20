@@ -25,8 +25,8 @@
   - Proof: returning exchange and scope failures locally makes their validated-redirect assertions fail.
 - [x] 3.2 Single `failLogin(pending, cause)` implements the table and revokes a returned provider refresh token.
   - Proof: skipping revocation leaves the test's revoke list empty; redirecting an unmatched callback violates the existing no-`Location` case.
-- [x] 3.3 Reauthentication marker cookie + `prompt` in `BrowserOidcClient.authorizationUrl`. Tests: server-tracked marker → `prompt=login` once; replayed or same-length tampered marker ignored.
-  - Proof: omitting server-side consumption makes replay request `prompt=login`; accepting a modified marker makes the tamper assertion observe `prompt=login`.
+- [x] 3.3 Reauthentication marker cookie + `prompt` in `BrowserOidcClient.authorizationUrl`. Tests: bounded server-tracked marker → `prompt=login` once; replayed or same-length tampered marker ignored; provider discovery failure restores the reserved marker for retry.
+  - Proof: omitting server-side consumption makes replay request `prompt=login`; accepting a modified marker makes the tamper assertion observe `prompt=login`; consuming before a failed provider lookup makes the retry omit `prompt=login`.
 
 ## 4. Close
 

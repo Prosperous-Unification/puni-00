@@ -33,6 +33,7 @@ const MAX_AUTHORIZATION_QUERY_BYTES = 2_048;
 const MAX_STATE_BYTES = 512;
 const MAX_REDIRECT_URIS = 10;
 const MAX_REDIRECT_URI_BYTES = 512;
+const MAX_REAUTH_MARKERS = 1_000;
 
 type CallbackError =
   | 'access_denied'
@@ -369,17 +370,27 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     client.expiresAt = client.proven
       ? activeFlowExpiry
       : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
-    const asksForLogin = this.consumeReauthMarker(cookieOf(request, REAUTH_COOKIE));
-    const location = await this.upstream.authorizationUrl({
-      nonce,
-      redirectUri: this.callbackUrl,
-      state: upstreamState,
-      verifier,
-      ...(asksForLogin ? { prompt: 'login' as const } : {}),
-    });
+    const reauthMarker = this.takeReauthMarker(cookieOf(request, REAUTH_COOKIE));
+    let location: URL;
+    try {
+      location = await this.upstream.authorizationUrl({
+        nonce,
+        redirectUri: this.callbackUrl,
+        state: upstreamState,
+        verifier,
+        ...(reauthMarker === undefined ? {} : { prompt: 'login' as const }),
+      });
+    } catch (error) {
+      if (reauthMarker !== undefined && reauthMarker.expiresAt > this.now()) {
+        this.reauthMarkers.set(reauthMarker.markerId, reauthMarker.expiresAt);
+      }
+      throw error;
+    }
     return redirect(
       location.href,
-      asksForLogin ? [cookie(browserBinding), clearReauthCookie()] : cookie(browserBinding),
+      reauthMarker === undefined
+        ? cookie(browserBinding)
+        : [cookie(browserBinding), clearReauthCookie()],
     );
   }
 
@@ -475,22 +486,31 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   }
 
   private issueReauthCookie(): string {
+    this.cleanup();
+    if (this.reauthMarkers.size >= MAX_REAUTH_MARKERS) {
+      const oldest = this.reauthMarkers.keys().next().value;
+      if (oldest !== undefined) this.reauthMarkers.delete(oldest);
+    }
     const markerId = this.random();
     this.reauthMarkers.set(markerId, this.now() + TTL_MS);
     return reauthCookie(markerId, this.reauthKey);
   }
 
-  private consumeReauthMarker(marker: string | undefined): boolean {
-    if (marker === undefined) return false;
+  private takeReauthMarker(
+    marker: string | undefined,
+  ): { readonly markerId: string; readonly expiresAt: number } | undefined {
+    if (marker === undefined) return undefined;
     const separator = marker.lastIndexOf('.');
-    if (separator <= 0) return false;
+    if (separator <= 0) return undefined;
     const markerId = marker.slice(0, separator);
     const received = Buffer.from(marker.slice(separator + 1));
     const expected = Buffer.from(reauthMarker(markerId, this.reauthKey));
-    if (received.length !== expected.length || !timingSafeEqual(received, expected)) return false;
+    if (received.length !== expected.length || !timingSafeEqual(received, expected))
+      return undefined;
     const expiresAt = this.reauthMarkers.get(markerId);
+    if (expiresAt === undefined || expiresAt <= this.now()) return undefined;
     this.reauthMarkers.delete(markerId);
-    return expiresAt !== undefined && expiresAt > this.now();
+    return { markerId, expiresAt };
   }
 
   private async token(request: Request): Promise<Response> {

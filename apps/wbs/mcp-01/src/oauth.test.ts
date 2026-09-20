@@ -25,13 +25,14 @@ function fixture(
     transactionLimit?: number;
     transactionLimitPerClient?: number;
     random?: () => string;
+    authorizationUrl?: BrowserOidcClient['authorizationUrl'];
     exchange?: BrowserOidcClient['exchange'];
     verifyUpstream?: (token: string) => Promise<JwtClaims>;
     revoke?: BrowserOidcClient['revoke'];
     revocationFailure?: () => void;
   } = {},
 ) {
-  const { exchange, verifyUpstream, revoke, ...oauthOptions } = limits;
+  const { authorizationUrl, exchange, verifyUpstream, revoke, ...oauthOptions } = limits;
   let now = 1_700_000_000_000;
   const values = Array.from({ length: 20 }, (_, index) => `random-${String(index + 1)}`);
   const authorizationCalls: unknown[] = [];
@@ -40,7 +41,10 @@ function fixture(
   const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'> = {
     authorizationUrl: (input) => {
       authorizationCalls.push(input);
-      return Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`));
+      return (
+        authorizationUrl?.(input) ??
+        Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`))
+      );
     },
     exchange: (request, checks) => {
       exchangeCalls.push({ request, checks });
@@ -1024,6 +1028,44 @@ describe('InMemoryMcpOAuth', () => {
       new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
     );
     expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+  });
+
+  it('restores a reserved reauthentication marker when provider discovery fails', async () => {
+    let authorizationAttempts = 0;
+    const { authorizationCalls, oauth } = fixture({
+      authorizationUrl: (input) => {
+        authorizationAttempts += 1;
+        if (authorizationAttempts === 2) {
+          return Promise.reject(new Error('provider discovery unavailable'));
+        }
+        return Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`));
+      },
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?error=access_denied&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const marker = /(__Host-wbs_mcp_reauth=[^;,]+)/.exec(
+      failed?.headers.get('set-cookie') ?? '',
+    )?.[1];
+
+    const discoveryFailure = await oauth
+      .response(new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }))
+      .catch((error: unknown) => error);
+    expect(discoveryFailure).toBeInstanceOf(Error);
+    expect(String(discoveryFailure)).toContain('provider discovery unavailable');
+    await oauth.response(
+      new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
+    );
+    expect(authorizationCalls.at(-1)).toMatchObject({ prompt: 'login' });
   });
 
   it('still redirects when provider refresh-token revocation fails', async () => {

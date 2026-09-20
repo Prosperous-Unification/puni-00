@@ -156,14 +156,23 @@ export function buildRequest(
  * sent a real person hunting through the app for a fault one layer above it.
  * `WWW-Authenticate` is the discriminator: a proxy sets it, be-01 never does.
  */
-function refusal(tool: DerivedTool, response: Response, bodyText: string): ToolTextResult {
+function refusal(
+  tool: DerivedTool,
+  response: Response,
+  bodyText: string,
+  config: McpConfig,
+): ToolTextResult {
   const where = `${tool.method.toUpperCase()} ${tool.path}`;
   const trimmed = bodyText.trim();
 
   const challenge = response.headers.get('www-authenticate');
   if (response.status === 401 && challenge !== null && /^\s*Basic(?:\s|$)/i.test(challenge)) {
+    const remedy =
+      config.WBS_BASIC_AUTH === undefined
+        ? "Set WBS_BASIC_AUTH to the deployment's user:pass and restart mcp-01."
+        : 'Check that WBS_BASIC_AUTH matches the deployment gate credential and restart mcp-01.';
     throw new EdgeGate(
-      `${tool.name} was refused by the deployment's own gate, not by be-01: HTTP 401 with a WWW-Authenticate challenge on ${where}. The request never reached the API. Set WBS_BASIC_AUTH to the deployment's user:pass and restart mcp-01.`,
+      `${tool.name} was refused by the deployment's own gate, not by be-01: HTTP 401 with a WWW-Authenticate challenge on ${where}. The request never reached the API. ${remedy}`,
     );
   }
 
@@ -218,7 +227,7 @@ export async function callTool(
   });
 
   const bodyText = await response.text();
-  if (!response.ok) return refusal(tool, response, bodyText);
+  if (!response.ok) return refusal(tool, response, bodyText, config);
 
   if (bodyText.trim() === '') {
     return text(`${tool.name}: HTTP ${String(response.status)}, no content.`);

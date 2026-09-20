@@ -42,8 +42,9 @@ The evidence available without Dany's client is recorded before the implementati
   missing `WBS_BASIC_AUTH` setting caused it.
 - `oauth.test.ts`: returning provider failures locally loses the validated redirect,
   client state, and server-side single-use `prompt=login`; accepting a modified marker
-  makes the tamper assertion fail; skipping refresh-token revocation leaves the
-  recorded revoke list empty, while propagating a revoke outage loses the redirect.
+  makes the tamper assertion fail; consuming it before failed provider discovery makes
+  the retry omit `prompt=login`; skipping refresh-token revocation leaves the recorded
+  revoke list empty, while propagating a revoke outage loses the redirect.
 
 ## Remaining live check
 
