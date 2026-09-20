@@ -107,9 +107,11 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
     };
     requestAnimationFrame(capture);
   });
-  for (let step = 0; step < 60; step += 1) {
-    await page.mouse.wheel(0, direction * 96);
-    await page.waitForTimeout(16);
+  if (process.env['WBS_SCROLL_INPUT'] !== '0') {
+    for (let step = 0; step < 60; step += 1) {
+      await page.mouse.wheel(0, direction * 96);
+      await page.waitForTimeout(16);
+    }
   }
   await expect
     .poll(() =>
