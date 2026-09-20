@@ -2,7 +2,7 @@
 
 ### Requirement: Architectural design is evaluated before planning
 
-The Twilight fast-forward workflow MUST traverse design before declaring planning
+The Twilight Bureaucrat fast-forward workflow MUST traverse design before declaring planning
 ready. `design.md` MUST always exist for a `twilight-v1` change; a mechanically
 obvious change MUST record why no technical design is needed in that file's
 applicability section rather than in `tasks.md`. Verification MUST remain
@@ -89,11 +89,11 @@ file a human should edit instead, exactly once however many times generation run
 ### Requirement: The pinned CLI graph is checked by the merge gate
 
 The reproducibility gate MUST include a check that runs the pinned OpenSpec CLI
-against the Twilight schema in a disposable repository. That check MUST NOT be
+against the Twilight Bureaucrat schema in a disposable repository. That check MUST NOT be
 reachable only by a developer who sets an environment variable by hand.
 
 #### Scenario: The planning dependency is broken on a branch
 
-- **WHEN** the design dependency is removed from the Twilight schema
+- **WHEN** the design dependency is removed from the Twilight Bureaucrat schema
 - **THEN** a continuous-integration step running the pinned CLI fails, rather than
   the branch merging with a proof comment describing a check nothing ran

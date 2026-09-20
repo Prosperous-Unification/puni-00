@@ -1,8 +1,10 @@
 ## ADDED Requirements
 
+Twilight Dash owns the delivery-environments boundary described here.
+
 ### Requirement: Environments have explicit identity, assignment and lifecycle
 
-Twilight MUST model branch dev, dev-main, staging and production as distinct
+Twilight Dash MUST model branch dev, dev-main, staging and production as distinct
 environments. Every environment MUST expose its stable identity, owner, lifecycle,
 desired source or artifact, observed source or artifact, URL, health, freshness,
 capacity state and linked evidence. Environment lifecycle effects MUST pass normal
@@ -12,7 +14,7 @@ authority, capacity, fencing and reconciliation boundaries.
 
 - **GIVEN** two active feature branches have runnable work and admitted capacity
 - **WHEN** each requests a branch dev
-- **THEN** Twilight creates or binds distinct environment identities and routes each URL and observed revision to its assigned branch
+- **THEN** Twilight Dash creates or binds distinct environment identities and routes each URL and observed revision to its assigned branch
 
 #### Scenario: Branch-dev capacity is exhausted
 
@@ -205,7 +207,7 @@ coverage judgment and its unresolved findings block planning approval.
 
 ### Requirement: Scheduled development sweeps are source-bound observations
 
-Twilight MUST schedule a nightly interactive cloud-browser sweep for dev-main and every
+Twilight Dash MUST schedule a nightly interactive cloud-browser sweep for dev-main and every
 active branch dev in the personal phase. It MAY coalesce an unchanged environment
 instead of rerunning, but MUST record that disposition against the earlier matching
 report. A staging candidate MUST always receive its own immediate full interactive pass.

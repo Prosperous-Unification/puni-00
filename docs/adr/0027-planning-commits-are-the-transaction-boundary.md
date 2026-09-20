@@ -3,6 +3,8 @@
 **Status:** proposed, 2026-09-06. The spike named at the end accepts it or
 overturns it.
 
+**Ownership (2026-09-19):** The planning contract recorded here is Twilight Navigator's.
+
 A plan edit is published as an immutable Git tree on a per-repository planning
 ref, and that ref is advanced by one authorized broker with a compare-and-swap
 against the current accepted ref. The commit is the transaction boundary: readers

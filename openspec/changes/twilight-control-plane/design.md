@@ -1,4 +1,4 @@
-# Twilight control plane
+# Twilight Dash control plane
 
 Status: proposed architecture for staged implementation, 2026-09-06. The first
 increment (M1 in [tasks](tasks.md)) is the shared FE/BE/MCP execution loop. Read
@@ -18,9 +18,9 @@ authority, concurrent planning, integration and scaling contracts across service
 flowchart TD
   Person[Dany] --> OpenClaw[OpenClaw secretary and worker sessions]
   OpenClaw -- authorized software request --> API
-  FE[Twilight FE] --> API[Twilight BE: authorized operations]
-  MCP[Twilight MCP] --> API
-  API --> Compiler[Workflow compiler]
+  FE[Twilight Dash FE] --> API[Twilight Dash BE: authorized operations]
+  MCP[Twilight Dash MCP] --> API
+  API --> Compiler[Twilight Dash: workflow compiler and inspection]
   API --> Store[Durable store: runs, decisions, reservations, ledger, outbox]
   API --> Graph[LangGraph durable orchestration]
   Graph --> Restore[Workflow restore]
@@ -33,8 +33,9 @@ flowchart TD
   Worker -- brokered tool request --> Effects
   Effects --> External[Models, MCP servers, build and browser tools]
   Effects --> Environments[Branch dev, dev-main, staging and production adapters]
-  API --> Knowledge[Repo-scoped wiki and source operations]
-  API --> Planning[Planning port]
+  API --> Knowledge[Twilight Bureaucrat: repo-scoped wiki and source operations]
+  API --> Verification[Twilight Bureaucrat: verification operations]
+  API --> Planning[Twilight Navigator: planning port]
   Planning --> WBS[WBS service and UI]
   WBS --> Broker[Per-repo planning broker after refactors]
   Broker --> Repo[Client Nx repo: Backlog, WBS extension, specs, wiki]
@@ -43,28 +44,30 @@ flowchart TD
   Events --> MCP
 ```
 
-OpenClaw owns general conversation and session execution behind an adapter. Twilight
+OpenClaw owns general conversation and session execution behind an adapter. Twilight Dash
 owns software-delivery workflow execution, authority, durable work projection,
-environment state and evidence. WBS owns its planning semantics.
+environment state and evidence. Twilight Navigator owns the planning port, while WBS owns
+its planning semantics.
 Backlog.md and its versioned extension own planning persistence after the migration.
-OpenSpec owns requirements and artifact contracts. The wiki owns sourced explanations.
+Twilight Bureaucrat owns verification and knowledge operations over the requirements and
+artifact contracts in OpenSpec and the sourced explanations in the wiki.
 These are logical boundaries; the first service does not need a process per box.
 The worker has no path to the outside except a brokered request that passes
 through effect execution; egress and credential policy live in the coordinator.
 
 Proposed Nx units, created with the behaviour that first needs them:
 
-| Unit                      | Responsibility and dependencies                                                           |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `libs/twilight-contracts` | Validated commands, errors, events, configuration and adapter capability documents        |
-| `libs/twilight-domain`    | Pure transitions, authority predicates, finding dispositions, resource accounting         |
-| `libs/twilight-runtime`   | LangGraph/checkpointer, durable store, ACP and evidence adapters behind precise ports     |
-| `libs/twilight-assistant` | OpenClaw adapter, worker/assignment/session bindings, redacted searchable session corpus  |
-| `apps/twilight-be`        | Elysia authenticated operations, repository access, streams and orchestration composition |
-| `apps/twilight-fe`        | React/Vite run/configuration/decision views, focus brief, WBS integration                 |
-| `apps/twilight-mcp`       | Streamable HTTP MCP facade over the same BE operations and caller authority               |
-| `apps/twilight-worker`    | Isolated activity host; no access to control-plane credentials or policy writes           |
-| `tools/tool-twilight`     | Nx-driven compile, inspect and verify operations sharing the same libraries               |
+| Unit                                         | Responsibility and dependencies                                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `libs/twilight/domain/contracts`             | Validated commands, errors, events, configuration and adapter capability documents                         |
+| `libs/twilight-dash/domain/domain`           | Pure transitions, authority predicates, finding dispositions, resource accounting                          |
+| `libs/twilight-dash/adapters/runtime`        | LangGraph/checkpointer, durable store, ACP and evidence adapters behind precise ports                      |
+| `libs/twilight-navigator/adapters/assistant` | OpenClaw adapter, worker/assignment/session bindings, redacted searchable session corpus                   |
+| `apps/twilight-dash/be`                      | Elysia authenticated operations, repository access, streams and orchestration composition                  |
+| `apps/twilight-dash/fe`                      | React/Vite run/configuration/decision views, focus brief, WBS integration                                  |
+| `apps/twilight-dash/mcp`                     | Streamable HTTP MCP facade over the same BE operations and caller authority                                |
+| `apps/twilight-dash/worker`                  | Isolated activity host; no access to control-plane credentials or policy writes                            |
+| `apps/twilight-dash/cli`                     | Twilight Dash's Nx-driven compile, inspect and scaling operations; verification is `twilight-bureaucrat`'s |
 
 Do not import WBS app internals to obtain convenient code. Reuse existing shared
 auth/validation/observability only after reading its callers and tests and proving
@@ -74,7 +77,7 @@ pattern, not permission to reuse a process-wide token.
 ### Invariant ownership
 
 Four deep modules own the ordering that makes the runtime safe. They are internal
-boundaries in `twilight-runtime`, not services:
+boundaries in `twilight-dash-runtime`, not services:
 
 | Module              | Public operation                                                       | Invariants hidden from callers                                                                                                                                                                                                                          |
 | ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -109,7 +112,8 @@ unreadable required inputs, cycles, unsupported controls and a profile below the
 repository floor are compile errors.
 
 The mapping is versioned and contract-tested. This pilot's schema has no automatic
-enforcement; the first custom tool is the narrow compiler/verifier. Do not build a
+enforcement; Twilight Dash's command line provides the narrow compiler and inspection
+operations, while Twilight Bureaucrat provides scenario and artifact verification. Do not build a
 generic workflow language, a whole wiki database or a provider SDK before the
 compiler and the first durable loop show what is missing.
 
@@ -312,7 +316,7 @@ it establishes the authority every other operation checks.
 The [spec](specs/twilight/control-plane/spec.md) states what a human decision must
 be bound to and how single use behaves. The mechanism:
 
-- M1 uses `libs/auth`'s OIDC/JWKS primitives with a separately configured Twilight
+- M1 uses `libs/auth`'s OIDC/JWKS primitives with a separately configured Twilight Dash
   client and audience. The browser login is authorization code with PKCE, state and
   nonce validation and a durable server-side session on a hardened cookie (A30).
 - `POST /api/decision-tokens` requires that session, same-origin/CSRF checks and
@@ -327,7 +331,7 @@ be bound to and how single use behaves. The mechanism:
   receipt; a different command or different parameters is refused (A42).
 - The token may be handed to the authorized MCP client for that exact action.
   Agents never receive the browser cookie, local operator capability or the mint
-  capability. Twilight MCP
+  capability. Twilight Dash MCP
   verifies its own audience and never forwards that token to BE; it uses issuer
   token exchange or a service credential carrying the verified actor (A36).
 
@@ -363,9 +367,9 @@ transactional admission to pass races.
 
 [ADR 0028](../../../docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 selects K3s as the M1 worker substrate. The dogfood acceptance topology is one
-dedicated K3s server, tainted so it schedules no Twilight attempt Pods, and at
+dedicated K3s server, tainted so it schedules no Twilight Dash attempt Pods, and at
 least two K3s agent nodes. `h3mon` remains outside the cluster and observes it;
-`h4claw` hosts OpenClaw and Twilight's interactive control services and application
+`h4claw` hosts OpenClaw and Twilight Dash's interactive control services and application
 deployment, but is not a worker node. K3s server and agent identities, versions,
 container runtimes, host capacity and network endpoints are captured in acceptance
 evidence. M1 joins and drains existing nodes manually. Provisioning or removing a
@@ -410,7 +414,7 @@ empty pool or a clean exit.
 
 Cluster state is replaceable execution state. Durable workflow, authority, ledger,
 evidence, source and artifact records live outside K3s. Losing the K3s server pauses
-new launch/stop commands visibly; after declarative rebootstrap, Twilight reconciles
+new launch/stop commands visibly; after declarative rebootstrap, Twilight Dash reconciles
 recorded attempts before it admits replacements. Node readiness, allocatable and
 reserved resources, capability labels, Job/Pod state, reasoned scheduling failures,
 logs and telemetry gaps are correlated to run and attempt IDs and exported to
@@ -470,6 +474,8 @@ deduplication ([runtime findings](../../../docs/twilight-structure/research/runt
 
 A lease has an owner, a fencing token and a deadline. Expiry withdraws authority
 and proves nothing about whether the process, remote session or resource stopped.
+The lease migration remains an open design item: admission verdicts stay with Twilight
+Bureaucrat; lease acquisition, heartbeat and fencing move to Twilight Dash.
 Every brokered tool and effectful hook passes through `dispatchEffect`, which
 revalidates fence, lease, current authority and cancellation for the persisted
 intent inside one serialized coordinator boundary. That boundary ends at the
@@ -838,12 +844,12 @@ remain alongside actuals; profile-default changes are ordinary evaluated work re
 The assistant boundary is a port over pinned OpenClaw capabilities, not a second
 delivery coordinator. It creates and observes conversations, delegates to child
 sessions, retrieves permitted transcripts and requests cancellation. General work
-can end there. Software work crosses one authenticated Twilight operation and
+can end there. Software work crosses one authenticated Twilight Dash operation and
 receives durable request, run, assignment and session references; every later
-decision and effect uses Twilight authority. OpenClaw text and hook callbacks are
+decision and effect uses Twilight Dash authority. OpenClaw text and hook callbacks are
 untrusted observations and cannot widen an envelope.
 
-`Worker` is a stable Twilight presentation record. `Assignment` binds a piece of
+`Worker` is a stable Twilight Dash presentation record. `Assignment` binds a piece of
 work to that worker and one or more runtime sessions. A rename changes the worker's
 display revision only. Model, OpenClaw configured agent and session replacement are
 binding events, so history and permissions do not follow a mutable name.
@@ -952,17 +958,18 @@ Long-lived integration secrets stay in the secret store independent of trace
 retention, and credential values never enter evidence.
 
 The [client repository design](../../../docs/twilight-structure/client-repositories.md)
-owns the Backlog storage protocol and migration. The initial `PlanningPort` reads
+owns the Backlog storage protocol and migration. Twilight Navigator owns the initial
+`PlanningPort`, which reads
 the canonical task artifact with a revision; the later WBS adapter reads and edits
 Backlog-backed planning revisions. `PlanningPort.readPlan(reference: PlanRef)`
 includes plan and change identity, not only repository and revision. Completion
 updates are proposed until the planning owner accepts them; a worker cannot check
 its own task without the required evidence.
 
-WBS planning capacity and Twilight admission are different quantities. The
+WBS planning capacity and Twilight Dash admission are different quantities. The
 reconciliation contract is: a `WorkPlan` carries resource units per task in A12's
 vocabulary (human minutes, agent time, tokens, money, slots) beside WBS workdays;
-Twilight reserves against its pools from those units and writes measured usage back
+Twilight Dash reserves against its pools from those units and writes measured usage back
 as a progress receipt; no unit is converted into another implicitly. Task 2 owns
 the port shape and Task 9 the round trip through Backlog.
 
@@ -980,7 +987,7 @@ integration references, streams and jobs; client context is selected at the serv
 boundary before retrieval. Worker mounts, credentials, ports, databases and egress
 are isolated; a Git worktree alone is not isolation.
 
-Knowledge operations use attributable source notes, a contradiction queue and
+Twilight Bureaucrat's knowledge operations use attributable source notes, a contradiction queue and
 content manifests. Agent summaries are untrusted claims. Accepted facts link the
 requirement, decision or evidence they rest on and do not replace it. Compaction
 preserves lineage and incoming links and is evaluated with the same question set

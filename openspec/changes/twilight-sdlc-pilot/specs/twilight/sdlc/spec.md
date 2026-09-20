@@ -2,7 +2,7 @@
 
 ### Requirement: Opt-in artifact workflow
 
-The Twilight pilot SHALL use a named schema selected per change. Its artifact
+The Twilight Structure pilot SHALL use a named schema selected per change. Its artifact
 classes MUST be `proposal.md`, `specs/**/*.md`, `design.md`, `tasks.md` and
 post-work `verify.md`. `design.md` MUST exist before planning starts; for a
 mechanically obvious change it MUST carry an applicability statement recording why
@@ -33,7 +33,7 @@ unchanged by opting into the pilot.
 - **WHEN** intent, specifications, design and tasks exist and `verify.md` does not
 - **THEN** apply reports ready, while the handoff and archive obligation for
   `verify.md` stays stated in the verify artifact instruction until the future
-  `tool-twilight` verifier enforces it
+  Twilight Bureaucrat enforces it
 
 ### Requirement: Assumption-based discovery
 

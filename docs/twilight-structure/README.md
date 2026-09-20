@@ -3,9 +3,9 @@
 **Naming changed on 2026-09-19.** Twilight Structure now names the tool suite: Twilight
 Navigator plans, Twilight Dash executes and Twilight Bureaucrat holds the rules. The
 customer-facing product has the code name Vesper Shipyards. Read
-[names and boundaries](names.md) first. The documents indexed below predate the change; where
-they say "Twilight Structure" or "Twilight" for the running factory, they mean Twilight Dash.
-The [rename plan](../superpowers/plans/2026-09-19-twilight-rename.md) brings them into line.
+[names and boundaries](names.md) first. The documents indexed below use these names in
+that meaning. Historical evidence, research notes and verification records keep their
+original wording, in which a bare "Twilight" means Twilight Dash.
 
 The resolved product route lives in the
 [Wayfinder map](../../.scratch/twilight-structure/map.md). The

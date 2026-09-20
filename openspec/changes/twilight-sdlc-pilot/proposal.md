@@ -1,6 +1,6 @@
 ## Why
 
-Twilight's workflow is described across overlapping discovery documents, while
+Twilight Bureaucrat's workflow is described across overlapping discovery documents, while
 artifact existence can be mistaken for verified completion. We need to exercise
 one concrete SDLC before building the factory that will run it for users.
 
@@ -10,14 +10,14 @@ one concrete SDLC before building the factory that will run it for users.
   artifact classes, preserving explicit discovery, review, and delivery stages.
 - Exercise this work request through that workflow, recording assumptions,
   primary research, adversarial review, CLI probes, and observed limitations.
-- Refactor Twilight documentation into linked canonical pages and a small wiki
+- Refactor Twilight Structure documentation into linked canonical pages and a small wiki
   index. Include an optional focus profile informed by `i-have-adhd`.
 - Produce a scoped FE/BE/MCP implementation plan and dependency-ordered expansion
   backlog covering configurable policy, agents, resources, and knowledge.
 
 ## Non-Goals
 
-Implementing or deploying Twilight, changing WBS behavior, installing personal
+Implementing or deploying Twilight Dash, changing WBS behavior, installing personal
 skills, changing the default schema, or approving any production release.
 
 ## Constraints
@@ -42,7 +42,7 @@ None.
 
 Workflow definition, workflow run, stage, activity, assumption, approval,
 finding, verdict, evidence, capacity pool, budget, knowledge claim, focus brief.
-Definitions: [Twilight glossary](../../../docs/twilight-structure/CONTEXT.md).
+Definitions: [Twilight Structure glossary](../../../docs/twilight-structure/CONTEXT.md).
 
 ## Decisions Recorded
 

@@ -10,6 +10,8 @@
 
 **Spec:** [Delivery contract](../specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md).
 
+The fleet and its delivery tooling belong to Twilight Dash.
+
 ## Global constraints
 
 - k3s begins in the first infrastructure implementation stage. There is no Compose-first implementation phase.

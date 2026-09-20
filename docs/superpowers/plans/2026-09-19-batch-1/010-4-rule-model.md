@@ -54,6 +54,83 @@ existing files scheduled only for modification. Required predecessor artifacts m
   run.
 - Never loosen, skip or rewrite an existing test to get a green result.
 
+### 0.1 Sandbox facts every part depends on
+
+Each of these stopped a real attempt in this batch. They are not advice.
+
+- **The clone's `.git` is read-only.** `git add`, `git commit`, `git stash`, `git restore`,
+  `git checkout` all fail. Restore a mutated file only by copying back the pre-mutation copy you
+  saved under `"$task_tmp"` and confirming with `cmp`. Read-only Git (`status`, `diff`, `log`,
+  `grep`, `ls-files`, `show`) is fine. The temporary fixture repositories the tests create under
+  `TMPDIR` are not the clone: `git init`, `git add` and `git commit` inside them are required.
+- **Never set `BUN_INSTALL_CACHE_DIR`.** The launcher warmed the OpenSpec command into this
+  attempt's `TMPDIR` from Bun's ordinary cache. Repointing the cache makes `bunx` try to download,
+  and there is no network.
+- **Every OpenSpec command carries `OPENSPEC_TELEMETRY=0`** and must not download. If one tries to,
+  stop and report.
+- **The command guard rejects any command whose text contains `rm -f`**, before it runs. Never
+  delete a scratch file. Leave every report, patch and failing-output file under `$TMPDIR/evidence`.
+  Run the batch README's version of the OpenSpec validation block, which has no removal line.
+- **Prefix every Nx command with `NX_DAEMON=false`.** dconf warnings are harmless.
+- **Scratch lives only under `TMPDIR`**: `task_tmp=$(mktemp -d "${TMPDIR:?}/rule-model-XXXXXX")`.
+  Evidence lives under `$TMPDIR/evidence`. No fixed path elsewhere.
+
+### 0.2 Running one named test
+
+Bun's `-t` matches the describe name and the title **joined by a space**. An anchored bare title
+matches nothing and the run then reports success on zero tests. Every proof in this packet names the
+joined pattern; run it unanchored, exactly as written:
+
+```sh
+(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
+  bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts \
+  -t '<joined pattern>')
+```
+
+Expected while green: `1 pass`, `0 fail`, and a final line `Ran 1 test across 1 file.` A run whose
+output says `Ran 0 tests` or `matched 0 tests` proves nothing: **stop and report**, never treat it
+as a pass.
+
+### 0.3 Injecting a fault, saving it, and what counts as a stop
+
+For every proof, in this order:
+
+1. `cp <file> "$task_tmp/"` — the passing bytes.
+2. Edit the file to inject exactly the named fault.
+3. Save the mutation as a patch, accepting exactly status 1 (a bare `diff` under `set -e` stops the
+   shell, and `|| true` hides a real error):
+
+   ```sh
+   if diff -u "$task_tmp/<file>" "<file>" >"$TMPDIR/evidence/P<n>.patch"; then
+     echo "nothing was injected" >&2; exit 1
+   else test $? -eq 1; fi
+   ```
+
+4. Run the named test with its joined `-t` pattern, redirecting its output to
+   `$TMPDIR/evidence/P<n>.log` and capturing **its own** exit status. Never read a test's status
+   through `tee`.
+5. Record the decisive failing line.
+6. Copy the saved bytes back, `cmp` them, rerun the named test green.
+7. Only then write the adjacent `Proof:` comment, with the real date, describing what you saw.
+
+**A fault that also fails other tests is not a stop.** Record which ones. It is a stop only when
+the named test **passes** under the fault, fails with a **different** message than the one this
+packet predicts, or the mutation **does not compile**.
+
+### 0.4 Two standing facts about this package
+
+- **Planner-only checks.** The whole `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package`
+  and `tool-devsync:test` targets are the planner's: some of their tests write Git objects into the
+  clone. You run the focused files this packet names and list those targets under "Not verified" as
+  pending planner verification.
+- **A new source file changes the validator identity.** `resolveValidatorArtifactPaths` walks
+  cli.ts's import closure, so part 2's new `rules/rule-policy.ts` joins it. Checked on 2026-09-20:
+  no test in `apps/wiki/cli` pins that identity as a literal. `pilot-policy.test.ts:188`,
+  `trusted-policy.test.ts:541` and `gate-entrypoints.test.ts:494` all recompute it by calling
+  `resolveValidatorArtifactPaths` themselves, so they follow the new closure. Expect no test
+  failure from the added file. Only an activation provisioned **outside** this clone would have to
+  be prepared again, which is the planner's question, not yours.
+
 ## 1. Goal and non-goals
 
 **Goal.** Give Twilight Bureaucrat a rule model — `Rule`, `Finding`, `Verdict`, `RuleMode` — a
@@ -238,11 +315,11 @@ own rows.
 | openspec/changes/twilight-bureaucrat-rule-model/.openspec.yaml                 | 1                         | `schema: sdd-lean`, `created: 2026-09-19`.                                                                                                    |
 | openspec/changes/twilight-bureaucrat-rule-model/proposal.md                    | 1                         | Intent, 400 words maximum.                                                                                                                    |
 | openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md | 1                         | The eleven requirements of section 9.                                                                                                         |
-| openspec/changes/twilight-bureaucrat-rule-model/tasks.md                       | 1                         | The four parts, each naming its tests and negatives.                                                                                          |
-| openspec/changes/twilight-bureaucrat-rule-model/verify.md                      | 1 creates, 4 fills        | Commands, results, proof table.                                                                                                               |
-| apps/wiki/cli/src/rules/rule.ts                                                | 1                         | The rule model types and four pure functions.                                                                                                 |
-| apps/wiki/cli/src/rules/registry.ts                                            | 1                         | The four rules, `registeredRules`, `findRule`, `registeredIds`.                                                                               |
-| apps/wiki/cli/src/rules/check.ts                                               | 1 creates, 2 completes    | `explainRule` and the writers in part 1; `checkCandidate` in part 2.                                                                          |
+| openspec/changes/twilight-bureaucrat-rule-model/tasks.md                       | 1 creates, 2 to 4 tick    | The four parts, each naming its tests and negatives. Each later part ticks **only its own** boxes and corrects the counts they name.          |
+| openspec/changes/twilight-bureaucrat-rule-model/verify.md                      | 1 creates, 2 to 4 append  | The proof table and the commands record. Each part writes what it observed itself, in its own part's rows and its own commands subsection.    |
+| apps/wiki/cli/src/rules/rule.ts                                                | 1, 3                      | The rule model types and four pure functions; part 3 adds the `Proof:` comments for P13 and P19.                                              |
+| apps/wiki/cli/src/rules/registry.ts                                            | 1, 3                      | The four rules, `registeredRules`, `findRule`, `registeredIds`; part 3 adds the `Proof:` comments for P15 to P18.                             |
+| apps/wiki/cli/src/rules/check.ts                                               | 1, 2, 3                   | `explainRule` and the writers in part 1; `checkCandidate` in part 2; part 3 adds the `Proof:` comments for P14 and P22 and nothing else.      |
 | apps/wiki/cli/src/inventory/read-blob.ts                                       | 1                         | `readCandidateBlob`, moved from cli.ts's private `readBlob`, behaviour unchanged.                                                             |
 | apps/wiki/cli/src/rules/rules.test.ts                                          | 1 creates, 2 and 3 extend | Every rule test.                                                                                                                              |
 | apps/wiki/cli/src/cli.ts                                                       | 1 and 2                   | Part 1: use `readCandidateBlob`, add the two-argument `explain` route. Part 2: add the `check` route, widen `explain`, extend the usage line. |
@@ -631,6 +708,29 @@ export function writeExplainCommand(argv: readonly string[]): void {
 `selectRule` returns `Rule`; part 2 widens it to `RegisteredRule`, which is a subtype, so no part-1
 caller changes.
 
+**What part 1 actually landed, which parts 2 to 4 must match** (read from the committed tree on
+2026-09-20, not from this section):
+
+- `check.ts` imports `import { findRule, registeredIds } from './registry';` and
+  `import type { Rule, RuleMode } from './rule';`.
+- `selectRule` carries P1's observed proof comment **between** `const rule = findRule(ruleId);` and
+  the `if (rule === undefined)` guard. Leave it exactly where it is; part 2 edits around it.
+- `rules.test.ts` holds one describe, `explain production CLI`, with two tests:
+  `prints the registry record for a known rule` and
+  `refuses an unregistered rule identifier and names every registered rule`. The joined `-t`
+  patterns are therefore `explain production CLI prints the registry record for a known rule` and
+  `explain production CLI refuses an unregistered rule identifier and names every registered rule`.
+- `cli.ts` has the two-argument `explain` route, but its `unknown command` usage line does **not**
+  list `explain`. Part 2 adds both words to it.
+- `bin.ts` already lists `'explain'` in `validatorCommands` and carries the help line
+  `  twilight-bureaucrat explain <rule-id>`. Part 2 adds `'check'` and widens the `explain` line.
+- The delta spec holds the eleven requirements, and the four anchors registry.ts cites
+  (`#requirement-module-index-declarations`, `#requirement-module-index-direct-entry-limit`,
+  `#requirement-inventory-classification`, `#requirement-relationship-resolution`) all resolve.
+- `verify.md` holds the proof table with rows P1 to P19 and an empty `Observed failure` column, and
+  an empty `## Commands and results` heading. `tasks.md` holds four sections whose boxes are all
+  unticked.
+
 Part 1's route in cli.ts, inserted before the `validate-policy-activation` route:
 
 ```ts
@@ -646,7 +746,10 @@ and `'explain'` is added to bin.ts's `validatorCommands`, with the help line
 
 ### 6.7 Part 2's additions
 
-**apps/wiki/cli/src/policy/trust.ts**, appended before `loadTrustedPolicy`:
+**apps/wiki/cli/src/policy/trust.ts**, inserted immediately before
+`export function loadTrustedPolicy(` (line 513 on the part-1 tree). `realpathSync` is already
+imported at line 2, and `readStableArtifact` (line 279) and `assertExternal` (line 315) are already
+in scope; nothing else in the file changes.
 
 ```ts
 /**
@@ -955,9 +1058,33 @@ if ((args.length === 5 || args.length === 7) && args[0] === 'check') {
 }
 ```
 
-The usage line's command list gains `|check|explain` before its closing `>`. In bin.ts,
-`validatorCommands` gains `'check'`, and `help` gains
+In cli.ts's `unknown command` usage line, replace the exact substring
+
+```
+|lint-local|lint-ci|validate-policy-activation>
+```
+
+with
+
+```
+|lint-local|lint-ci|check|explain|validate-policy-activation>
+```
+
+Part 1 added the `explain` route without adding the word to this line; part 2 adds both.
+
+In bin.ts, `validatorCommands` gains `'check'` after `'explain'`, the existing help line
+`  twilight-bureaucrat explain <rule-id>` becomes
+`  twilight-bureaucrat explain <rule-id> [<repository> <rule-policy-json>]`, and a new help line is
+added above it:
 `  twilight-bureaucrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]`.
+No test pins the text of either dispatcher's usage or help string; checked on 2026-09-20,
+`build.test.ts:89` asserts only that an unknown command's stderr contains `unknown command`.
+
+**How an unusable policy is refused.** `readExternalArtifact` delegates to `readStableArtifact`,
+whose `openSync` failure becomes `cannot open rule policy <path>: <detail>`. An absent file and an
+existing but unreadable file are therefore refused by the same boundary and told apart by the
+detail: `ENOENT: no such file or directory` against `EACCES: permission denied`. Part 2's decoding
+test asserts both details, so neither case can be silently defaulted.
 
 ### 6.8 The rule policy document
 
@@ -1160,77 +1287,134 @@ Then stop and hand over. Do not start part 2.
 
 ## Part 2 — the policy boundary and `check`
 
-Starts from the committed part 1.
+Starts from the committed part 1, whose tree already carries the rules directory, the two-argument
+`explain` route and the eleven-requirement delta spec. Read section 0 in full first: it carries the
+sandbox rules, the named-test filter form and the fault procedure this part depends on.
 
 ### 2.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`.
-- [ ] Confirm part 1 landed: apps/wiki/cli/src/rules/rule.ts, registry.ts, check.ts and
-      rules.test.ts exist, and `explain MOD-INDEX` prints its record:
+- [ ] Run:
 
   ```sh
+  repo_root=$(pwd -P)
+  task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")
+  mkdir -p "$TMPDIR/evidence"
+  printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
+  ```
+
+  Expected: both paths print, and `task_tmp` is beneath the launcher's `TMPDIR`.
+
+- [ ] Confirm the starting tree is part 1's:
+
+  ```sh
+  ls "$repo_root/apps/wiki/cli/src/rules/"
   (cd "$repo_root/apps/wiki/cli" && bun run src/cli.ts explain MOD-INDEX)
   ```
 
-  Expected: exit 0 and a JSON object whose `id` is `MOD-INDEX`. If not, stop and report.
+  Expected: the listing names `check.ts`, `registry.ts`, `rule.ts` and `rules.test.ts`, and **does
+  not** name `rule-policy.ts`; the second command exits 0 and prints one JSON object whose `id` is
+  `MOD-INDEX`. If either differs, stop and report.
+
+- [ ] Record this part's baseline test count:
+
+  ```sh
+  (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
+    bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)
+  ```
+
+  Expected: exit 0, `2 pass`, `0 fail`. Write that number down. Every count below is **that
+  recorded baseline plus this part's own additions**, never a number this packet asserts from
+  outside the attempt.
 
 ### 2.2 Tests first
 
-- [ ] Append the fixture helpers and the ten tests of section 2.6 to
-      apps/wiki/cli/src/rules/rules.test.ts.
-- [ ] Run the focused command of section 1.5. Expected: the ten new tests fail; part 1's two still
-      pass. Record one failing line.
+- [ ] Append the fixture helpers and the **eleven** tests of section 2.6 to
+      apps/wiki/cli/src/rules/rules.test.ts, after part 1's block, which is not edited.
+- [ ] Run the focused command of section 2.1. Expected: the eleven new tests fail, because `check`
+      is not yet a command and `explain` still takes exactly two arguments, while part 1's two still
+      pass: `2 pass`, `11 fail`. Record one failing line.
 
 ### 2.3 Implementation
 
-- [ ] Add `readExternalArtifact` to apps/wiki/cli/src/policy/trust.ts (section 6.7).
-- [ ] Rename and export `resolveCandidateRoot` in apps/wiki/cli/src/inventory/read-candidate.ts and
-      update its single caller (fact 13).
+- [ ] Add `readExternalArtifact` to apps/wiki/cli/src/policy/trust.ts, immediately before
+      `export function loadTrustedPolicy(` (section 6.7).
+- [ ] Rename `resolveWorktreeRoot` to `resolveCandidateRoot` in
+      apps/wiki/cli/src/inventory/read-candidate.ts, export it, and update its single caller.
+      Before editing, run `git grep -n resolveWorktreeRoot -- apps/wiki/cli/src`. Expected:
+      exactly the definition and single caller in inventory/read-candidate.ts (lines 116 and 446
+      on 2026-09-20). Documentation references are excluded. Rename that definition and caller
+      only.
 - [ ] Create apps/wiki/cli/src/rules/rule-policy.ts (section 6.7).
-- [ ] Add part 2's code to apps/wiki/cli/src/rules/check.ts (section 6.7).
-- [ ] Add the `check` route to cli.ts, widen the `explain` route, extend the usage line; add
-      `'check'` to bin.ts's `validatorCommands` and its help line.
-- [ ] Rerun the focused command. Expected: all twelve tests pass.
+- [ ] Add part 2's code to apps/wiki/cli/src/rules/check.ts (section 6.7), leaving part 1's
+      `Proof:` comment inside `selectRule` exactly where part 1 put it.
+- [ ] Add the `check` route to cli.ts, widen the `explain` route to
+      `args.length === 2 || args.length === 4`, and replace the usage-line substring named in
+      section 6.7.
+- [ ] Add `'check'` to bin.ts's `validatorCommands` and edit the two help lines named in section
+      6.7.
+- [ ] Rerun the focused command. Expected: the recorded baseline plus eleven, that is `13 pass`,
+      `0 fail`.
+- [ ] Tick **only part 2's** boxes in openspec/changes/twilight-bureaucrat-rule-model/tasks.md and
+      correct the counts that section names to the numbers you observed: eleven new tests, thirteen
+      in the file, proofs P2 to P12 plus P20 and P21. Leave part 1's, part 3's and part 4's boxes
+      untouched and say in the report that part 1's boxes are still unticked.
 
 ### 2.4 Negative proofs
 
-Every row was checked against the observed behaviour of facts 31, 37 and 38.
+Thirteen faults, each injected, observed and restored by the procedure in section 0.3, each
+followed by its adjacent `Proof:` comment.
 
-| #   | Check                                                       | Fault                                                                                                          | Test that must fail, and how                                                                                                                                                                                                                                                      |
-| --- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P2  | `assertExternal` inside `readExternalArtifact`              | Delete that call in the new function only                                                                      | `refuses a rule policy inside the worktree even when the repository argument is interior` — the policy loads and the narrowed MOD-INDEX run exits 0                                                                                                                               |
-| P3  | `realpathSync(candidateRoot)` in `readExternalArtifact`     | In `checkCandidate`, pass `request.repository` instead of `candidateRoot`                                      | the same test — containment is then measured from the interior directory, so a policy at the worktree root passes, exit 0                                                                                                                                                         |
-| P4  | The mode-coverage loop in `loadRulePolicy`                  | Delete the final `for` loop                                                                                    | `refuses a policy that states no mode for a registered rule` — the narrowed run reaches `ruleMode`, which throws a different sentence; the `toContain` assertion fails                                                                                                            |
-| P5  | The unregistered-rule branch in `loadRulePolicy`            | Replace its condition with `false`                                                                             | `refuses a policy that names an unregistered rule` — observed: exit 0 with an allowed verdict (fact 37)                                                                                                                                                                           |
-| P6  | The duplicate-identifier branch                             | Delete it                                                                                                      | `refuses a policy that states a mode for one rule twice` — the last entry silently wins, exit 0                                                                                                                                                                                   |
-| P7  | The `mode === 'ratchet'` branch                             | Delete it                                                                                                      | `refuses ratchet until the adopted set exists` — exit 0                                                                                                                                                                                                                           |
-| P8  | `assertPolicyInputs`                                        | Make the function return immediately                                                                           | `refuses a selected rule whose policy input is absent` — the registry's own branch then reports `the rule policy carries no classification policy` as `unevaluated`, so the assertion on `rule INV-CLASSIFY needs policy.classificationPolicy, which the rule policy omits` fails |
-| P9  | The UTF-8, JSON and schema boundaries in `decodeRulePolicy` | Three separate injections: a non-fatal decoder; delete the `JSON.parse` try; drop `.onUndeclaredKey('reject')` | `refuses malformed, non-UTF-8, absent and undeclared-key policies distinctly` — one assertion fails per injection                                                                                                                                                                 |
-| P10 | The `--rule` flag validation in `writeCheckCommand`         | Accept any seventh argument as the identifier                                                                  | `refuses an unknown selection kind, an unknown flag and an unknown narrowed rule` — `--only MOD-INDEX` then runs MOD-INDEX and exits 0                                                                                                                                            |
-| P11 | `candidateRequest`'s selection-kind refusal                 | Treat any other word as `committed`                                                                            | the same test — `bogus` is read as a selection and the run continues                                                                                                                                                                                                              |
-| P12 | The `process.exitCode = 1` line in `writeCheckCommand`      | Delete the line                                                                                                | `refuses an unindexed candidate in every mode and exits 1` — the verdict is still correct, the exit status becomes 0                                                                                                                                                              |
+Every refusal test asserts its **diagnostic first and its exit status second**. That order is
+deliberate: P4, P8 and P11 all keep an exit status that still looks right while losing the sentence
+that names the fault, so a test that checked the status first would report nothing useful, or
+nothing at all.
 
-Each policy-boundary test narrows to `--rule MOD-INDEX`, which is what makes P4 to P7 observable:
-fact 37 showed that a run without `--rule` reaches `assertPolicyInputs` and exits 1 for an unrelated
-reason, hiding the mutation.
+| #   | Check and file                                                   | Fault                                                                                                                                      | Named test, as the joined `-t` pattern, and exactly what is observed                                                                                                                                                                                                                                                                                                                  | `Proof:` comment goes in                               |
+| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| P2  | `assertExternal` inside `readExternalArtifact`, policy/trust.ts  | Delete that call in the new function only                                                                                                  | `rule policy boundary refuses a rule policy inside the worktree even when the repository argument is interior` — the policy loads, the narrowed MOD-INDEX run prints an allowed verdict on stdout and exits 0, and the first assertion fails: `toContain` on `rule policy resolves inside selected candidate:` against an empty stderr                                                | trust.ts, beside the `assertExternal` call             |
+| P3  | The root passed to the policy loader, rules/check.ts             | In `checkCandidate`, pass `request.repository` instead of `candidateRoot` to `loadRulePolicy`                                              | the same test — containment is then measured from `<repository>/src`, so a policy at the worktree root counts as outside it, loads, and the run exits 0 with the same first assertion failing against an empty stderr                                                                                                                                                                 | check.ts, beside the `loadRulePolicy` call             |
+| P4  | The mode-coverage loop in `loadRulePolicy`, rules/rule-policy.ts | Delete the final `for (const rule of registeredRules())` loop                                                                              | `rule policy boundary refuses a policy that states no mode for a registered rule` — the omitted mode belongs to INV-CLASSIFY, which the narrowed run never selects, so `ruleMode` is never asked for it: the run prints an allowed MOD-INDEX verdict and exits 0, and the first assertion fails, `toContain` on `rule policy states no mode for INV-CLASSIFY` against an empty stderr | rule-policy.ts, beside the coverage loop               |
+| P5  | The unregistered-rule branch in `loadRulePolicy`                 | Replace its condition with `false`                                                                                                         | `rule policy boundary refuses a policy that names an unregistered rule` — exit 0 with an allowed verdict (fact 37); the diagnostic assertion fails against an empty stderr                                                                                                                                                                                                            | rule-policy.ts, beside that branch                     |
+| P6  | The duplicate-identifier branch in `loadRulePolicy`              | Delete it                                                                                                                                  | `rule policy boundary refuses a policy that states a mode for one rule twice` — the first entry silently wins (`ruleMode()` uses `.find()`), exit 0, empty stderr                                                                                                                                                                                                                     | rule-policy.ts, beside that branch                     |
+| P7  | The `mode === 'ratchet'` branch in `loadRulePolicy`              | Delete it                                                                                                                                  | `rule policy boundary refuses ratchet until the adopted set exists` — exit 0, empty stderr                                                                                                                                                                                                                                                                                            | rule-policy.ts, beside that branch                     |
+| P8  | `assertPolicyInputs`, rules/rule-policy.ts                       | Make the function return immediately                                                                                                       | `rule policy boundary refuses a selected rule whose policy input is absent` — the run still **exits 1**, because the registry's own branch then reports `the rule policy carries no classification policy` as unevaluated; the diagnostic assertion fails, `rule INV-CLASSIFY needs policy.classificationPolicy, which the rule policy omits` against an empty stderr                 | rule-policy.ts, inside `assertPolicyInputs`            |
+| P9  | The UTF-8, JSON and schema boundaries in `decodeRulePolicy`      | Three separate injections, restored between each: a non-fatal decoder; delete the `JSON.parse` try; drop `.onUndeclaredKey('reject')`      | `rule policy boundary refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly` — one assertion fails per injection, naming the boundary whose sentence disappeared                                                                                                                                                                                    | rule-policy.ts, one comment per boundary               |
+| P20 | The unusable-policy read in `loadRulePolicy`                     | Wrap the `readExternalArtifact` call in a `try` whose `catch` returns the bytes `{"schemaVersion":1,"policyId":"fallback","ruleModes":[]}` | the same test — malformed and non-UTF-8 still refuse, because those files exist and are readable, so the **unreadable** case is the first to fail: received stderr `rule policy states no mode for INV-CLASSIFY` instead of `cannot open rule policy <path>: EACCES`. The containment test also fails under this fault; record it and move on                                         | rule-policy.ts, beside the `readExternalArtifact` call |
+| P10 | The `--rule` flag validation in `writeCheckCommand`              | Accept any seventh argument as the identifier                                                                                              | `check production CLI refuses an unknown selection kind, an unknown flag and an unknown narrowed rule` — `--only MOD-INDEX` then runs MOD-INDEX and exits 0, so the flag assertion fails against an empty stderr after the selection-kind assertions have passed                                                                                                                      | check.ts, beside the flag guard                        |
+| P11 | `candidateRequest`'s selection-kind refusal, rules/check.ts      | Treat any other word as `committed`                                                                                                        | the same test — `bogus` is read as a selection, the unnarrowed run reaches `assertPolicyInputs` and exits 1 with `rule INV-CLASSIFY needs policy.classificationPolicy…`, so the first assertion fails: `usage: twilight-bureaucrat check <committed\|staged\|working>` is absent from that stderr                                                                                     | check.ts, inside `candidateRequest`                    |
+| P12 | The `process.exitCode = 1` line in `writeCheckCommand`           | Delete the line                                                                                                                            | `check production CLI refuses an unindexed candidate in every mode and exits 1` — the verdict is still correct, the exit status becomes 0, and `expect(observed.exitCode).toBe(1)` fails with `Received: 0`                                                                                                                                                                           | check.ts, beside the exit-code line                    |
+| P21 | The stated mode `explainRule` attaches, rules/check.ts           | Return `{ ...rule, policyId: policy.policyId }`, dropping `mode`                                                                           | `explain with a rule policy prints the policy identifier and the stated mode` — the printed record carries `policyId` and no `mode`, so the `toEqual` on the explanation fails naming the missing `mode: 'enforce'`                                                                                                                                                                   | check.ts, beside the policy branch of `explainRule`    |
+
+**P9 keeps three evidence pairs.** Use distinct evidence identifiers `P9-utf8`, `P9-json` and `P9-schema`. Substitute each identifier for `P<n>` in section 0.3's patch and log filenames. Preserve all three pairs, restore and compare passing bytes between injections, and record all three observed failures in P9's verification row. Never overwrite an earlier injection's evidence.
+
+Every policy-boundary test narrows to `--rule MOD-INDEX`. Fact 37 showed that a run without
+`--rule` reaches `assertPolicyInputs` and exits 1 for an unrelated reason, which would hide P4
+to P7.
+
+- [ ] After each proof, write its observed failing line into the `Observed failure` cell of its row
+      in openspec/changes/twilight-bureaucrat-rule-model/verify.md, and add rows for P20 and P21
+      beside them. Correct P4's and P9's `Fault injected` and `Test` cells to the text above: part 1
+      committed the older wording. Record only what this attempt saw.
 
 ### 2.5 Part 2 verification
 
-| Command                                                                                                                                                                                                                        | Expected                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| The focused command of section 1.5                                                                                                                                                                                             | Exit 0; 12 pass, 0 fail.                                                |
-| `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/inventory/read-candidate.test.ts src/policy/trusted-policy.test.ts)` | Exit 0. These cover the renamed worktree resolver and the trust module. |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                                    | Exit 0.                                                                 |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                                  | Exit 0, no warnings.                                                    |
+| Command                                                                                                                                                                                                                        | Expected exit status and decisive line                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The focused command of section 2.1                                                                                                                                                                                             | Exit 0; `13 pass`, `0 fail` — the recorded baseline of 2 plus this part's 11.                                                                                                                                                                  |
+| `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/inventory/read-candidate.test.ts src/policy/trusted-policy.test.ts)` | Exit 0; `56 pass`, `0 fail`. These cover the renamed worktree resolver and the trust module. This part adds no test to either file, so the number must not move. Measured on the part-1 tree on 2026-09-20: 56 tests across 2 files in 88.78s. |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                                    | Exit 0; `Successfully ran target typecheck`.                                                                                                                                                                                                   |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                                  | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                                                                                                                    |
+| The batch README's **OpenSpec validation** block                                                                                                                                                                               | Exit 0, one JSON report kept under `$TMPDIR/evidence`. This part edits verify.md and tasks.md, so it validates the change it edited.                                                                                                           |
 
-Pending planner verification: the whole `twilight-bureaucrat:test` target and the host gate.
+Pending planner verification, named as such in the report: the whole `twilight-bureaucrat:test`,
+`twilight-bureaucrat:test:package` and `tool-devsync:test` targets, and the host gate.
 
 ### 2.6 Part 2's helpers and tests
 
 Appended to apps/wiki/cli/src/rules/rules.test.ts.
 
 ```ts
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 
@@ -1413,10 +1597,12 @@ describe('rule policy boundary', () => {
       '--rule',
       'MOD-INDEX',
     ]);
-    expect(invocation.exitCode).toBe(1);
+    // The diagnostic is asserted before the status throughout this describe: the faults of
+    // section 2.4 lose the sentence while keeping a status that still looks right.
     expect(stderrOf(invocation)).toContain(
       `rule policy resolves inside selected candidate: ${inside}`,
     );
+    expect(invocation.exitCode).toBe(1);
   });
 
   test('refuses a policy that states no mode for a registered rule', () => {
@@ -1433,8 +1619,8 @@ describe('rule policy boundary', () => {
       '--rule',
       'MOD-INDEX',
     ]);
-    expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain('rule policy states no mode for INV-CLASSIFY');
+    expect(invocation.exitCode).toBe(1);
   });
 
   test('refuses a policy that names an unregistered rule', () => {
@@ -1452,8 +1638,8 @@ describe('rule policy boundary', () => {
       '--rule',
       'MOD-INDEX',
     ]);
-    expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain('rule policy names an unregistered rule: NO-SUCH-RULE');
+    expect(invocation.exitCode).toBe(1);
   });
 
   test('refuses a policy that states a mode for one rule twice', () => {
@@ -1471,8 +1657,8 @@ describe('rule policy boundary', () => {
       '--rule',
       'MOD-INDEX',
     ]);
-    expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain('rule policy states a mode for MOD-INDEX twice');
+    expect(invocation.exitCode).toBe(1);
   });
 
   test('refuses ratchet until the adopted set exists', () => {
@@ -1491,10 +1677,10 @@ describe('rule policy boundary', () => {
       '--rule',
       'MOD-INDEX',
     ]);
-    expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
       'rule policy sets INV-CLASSIFY to ratchet, which has no adopted set until slice B2',
     );
+    expect(invocation.exitCode).toBe(1);
   });
 
   test('refuses a selected rule whose policy input is absent', () => {
@@ -1509,39 +1695,53 @@ describe('rule policy boundary', () => {
       '--rule',
       'INV-CLASSIFY',
     ]);
-    expect(invocation.exitCode).toBe(1);
+    // Under P8 the run still exits 1, because the registry reports the missing input as
+    // unevaluated. Only this sentence tells the boundary from the fallback.
     expect(stderrOf(invocation)).toContain(
       'rule INV-CLASSIFY needs policy.classificationPolicy, which the rule policy omits',
     );
+    expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses malformed, non-UTF-8, absent and undeclared-key policies distinctly', () => {
+  test('refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly', () => {
     const { repository, revision } = createIndexedCandidate();
     const root = scratch('twilight-rules-bad-policy-');
     const malformed = join(root, 'malformed.json');
     writeFileSync(malformed, '{\n', 'utf8');
     const notUtf8 = join(root, 'not-utf8.json');
     writeFileSync(notUtf8, Buffer.from([0xff, 0xfe, 0x7b, 0x7d]));
+    const unreadable = writeRulePolicy(everyRuleObserving);
     const absent = join(root, 'absent.json');
     const undeclared = writeRulePolicy(everyRuleObserving, { unexpected: 1 });
     const run = (policyPath: string) =>
       runCli(['check', 'committed', repository, revision, policyPath, '--rule', 'MOD-INDEX']);
 
     const malformedInvocation = run(malformed);
-    expect(malformedInvocation.exitCode).toBe(1);
     expect(stderrOf(malformedInvocation)).toContain(`malformed rule policy JSON ${malformed}`);
+    expect(malformedInvocation.exitCode).toBe(1);
 
     const notUtf8Invocation = run(notUtf8);
-    expect(notUtf8Invocation.exitCode).toBe(1);
     expect(stderrOf(notUtf8Invocation)).toContain(`rule policy ${notUtf8} is not UTF-8`);
+    expect(notUtf8Invocation.exitCode).toBe(1);
+
+    chmodSync(unreadable, 0o000);
+    // A test process that can still read the file would prove nothing, so the fixture is
+    // checked before it is used. Running as root is the case this catches.
+    expect(() => readFileSync(unreadable, 'utf8')).toThrow();
+    const unreadableInvocation = run(unreadable);
+    chmodSync(unreadable, 0o600);
+    expect(stderrOf(unreadableInvocation)).toContain(
+      `cannot open rule policy ${unreadable}: EACCES`,
+    );
+    expect(unreadableInvocation.exitCode).toBe(1);
 
     const absentInvocation = run(absent);
+    expect(stderrOf(absentInvocation)).toContain(`cannot open rule policy ${absent}: ENOENT`);
     expect(absentInvocation.exitCode).toBe(1);
-    expect(stderrOf(absentInvocation)).toContain(`cannot open rule policy ${absent}`);
 
     const undeclaredInvocation = run(undeclared);
-    expect(undeclaredInvocation.exitCode).toBe(1);
     expect(stderrOf(undeclaredInvocation)).toContain('unexpected must be removed');
+    expect(undeclaredInvocation.exitCode).toBe(1);
   });
 });
 
@@ -1616,10 +1816,10 @@ describe('check production CLI', () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(everyRuleObserving);
     const badKind = runCli(['check', 'bogus', repository, revision, policyPath]);
-    expect(badKind.exitCode).toBe(1);
     expect(stderrOf(badKind)).toContain(
       'usage: twilight-bureaucrat check <committed|staged|working>',
     );
+    expect(badKind.exitCode).toBe(1);
 
     const badFlag = runCli([
       'check',
@@ -1630,8 +1830,8 @@ describe('check production CLI', () => {
       '--only',
       'MOD-INDEX',
     ]);
-    expect(badFlag.exitCode).toBe(1);
     expect(stderrOf(badFlag)).toContain('the only check flag is --rule <rule-id>: received --only');
+    expect(badFlag.exitCode).toBe(1);
 
     const badRule = runCli([
       'check',
@@ -1642,15 +1842,44 @@ describe('check production CLI', () => {
       '--rule',
       'NO-SUCH-RULE',
     ]);
-    expect(badRule.exitCode).toBe(1);
     expect(stderrOf(badRule)).toContain('unknown rule: NO-SUCH-RULE');
+    expect(badRule.exitCode).toBe(1);
+  });
+});
+
+describe('explain with a rule policy', () => {
+  test('prints the policy identifier and the stated mode', () => {
+    const { repository } = createIndexedCandidate();
+    const policyPath = writeRulePolicy(
+      everyRuleObserving.map((entry) =>
+        entry.ruleId === 'MOD-INDEX' ? { ...entry, mode: 'enforce' as const } : entry,
+      ),
+    );
+    const invocation = runCli(['explain', 'MOD-INDEX', repository, policyPath]);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(JSON.parse(stdoutOf(invocation)) as unknown).toEqual({
+      id: 'MOD-INDEX',
+      family: 'modules',
+      statement:
+        'Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.',
+      source:
+        'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md#requirement-module-index-declarations',
+      inputs: ['candidate.entries'],
+      policyId: 'rules.test.v1',
+      mode: 'enforce',
+    });
   });
 });
 ```
 
-`writeCompleteRulePolicy` is used by the `refuses a selected rule whose policy input is absent`
-test's counterpart in part 3; if `lint:source` reports it unused in part 2, move its definition into
-part 3's block. The same applies to any helper this part does not yet call.
+The eleven tests are seven in `rule policy boundary`, three in `check production CLI` and one in
+`explain with a rule policy`. Their joined `-t` patterns are the describe name, a space, then the
+title, as section 8 lists them.
+
+`writeCompleteRulePolicy` is used by part 3's tests, not by part 2's; if `lint:source` reports it
+unused here, move its definition into part 3's block. The same applies to any helper this part does
+not yet call. `chmodSync` and `readFileSync` are both used by part 2's decoding test, so both
+belong in this part's import line.
 
 ### 2.7 Ready to commit
 
@@ -1658,67 +1887,116 @@ Commit subject: `feat(bureaucrat): read rule modes from trusted policy and add c
 
 Files: apps/wiki/cli/src/rules/rule-policy.ts, apps/wiki/cli/src/rules/check.ts,
 apps/wiki/cli/src/rules/rules.test.ts, apps/wiki/cli/src/policy/trust.ts,
-apps/wiki/cli/src/inventory/read-candidate.ts, apps/wiki/cli/src/cli.ts, apps/wiki/cli/src/bin.ts.
+apps/wiki/cli/src/inventory/read-candidate.ts, apps/wiki/cli/src/cli.ts, apps/wiki/cli/src/bin.ts,
+openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
+openspec/changes/twilight-bureaucrat-rule-model/verify.md.
 
 Then stop and hand over. Do not start part 3.
 
 ### 2.8 Part 2 stop conditions
 
-1. Part 1's files are absent or `explain` does not answer.
-2. The `resolveWorktreeRoot` rename changes any existing test's result, or `git grep` finds a caller
-   other than the one at line 446.
-3. A policy-boundary test cannot be made to fail under its mutation. A proof that cannot fail is the
-   defect this repository exists to prevent: stop and report.
-4. A change is needed in apps/wiki/cli/package.json, apps/wiki/cli/src/packaging/install.test.ts or
+Each of these is false on this part's real starting tree, which is part 1 committed.
+
+1. apps/wiki/cli/src/rules/rule-policy.ts already exists, or any of apps/wiki/cli/src/rules/rule.ts,
+   registry.ts, check.ts and rules.test.ts is absent, or `explain MOD-INDEX` does not print its
+   record.
+2. The baseline run of section 2.1 does not report `2 pass`, `0 fail`.
+3. The rename changes an existing test's result, or the pre-edit search
+   `git grep -n resolveWorktreeRoot -- apps/wiki/cli/src` finds anything other than the definition
+   and single caller in inventory/read-candidate.ts.
+4. A policy-boundary test cannot be made to fail under its mutation, fails with a different message
+   than section 2.4 predicts, or the mutation does not compile. A proof that cannot fail is the
+   defect this repository exists to prevent: stop and report. A fault that additionally breaks
+   other tests is **not** a stop; record which ones and continue.
+5. A named-test run reports `Ran 0 tests` or `matched 0 tests`. Fix the joined pattern, and if it
+   still matches nothing, stop and report.
+6. A change is needed in apps/wiki/cli/package.json, apps/wiki/cli/src/packaging/install.test.ts or
    root CONTEXT.md. Other packets own all three.
 
 ---
 
 ## Part 3 — failure classification and the adapter proofs
 
-Starts from the committed part 2. Every remaining mutation finishes here.
+Starts from the committed part 2. Every remaining mutation finishes here. Read section 0 in full
+first.
 
 ### 3.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`.
-- [ ] Confirm part 2 landed by running the focused command of section 1.5. Expected: 12 pass.
+- [ ] Run:
+
+  ```sh
+  repo_root=$(pwd -P)
+  task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")
+  mkdir -p "$TMPDIR/evidence"
+  printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
+  ```
+
+  Expected: both paths print, and `task_tmp` is beneath the launcher's `TMPDIR`.
+
+- [ ] Confirm the starting tree is part 2's:
+
+  ```sh
+  ls "$repo_root/apps/wiki/cli/src/rules/"
+  (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
+    bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)
+  ```
+
+  Expected: the listing names `rule-policy.ts` as well as `check.ts`, `registry.ts`, `rule.ts` and
+  `rules.test.ts`; the test run exits 0 with `13 pass`, `0 fail`. Write that number down as this
+  part's baseline. If either differs, stop and report.
 
 ### 3.2 Tests first
 
-- [ ] Append the five tests of section 3.5 to apps/wiki/cli/src/rules/rules.test.ts.
-- [ ] Run the focused command. Expected: **all five pass immediately.** They are coverage of the
+- [ ] Append the **six** tests of section 3.5 to apps/wiki/cli/src/rules/rules.test.ts.
+- [ ] Run the focused command of section 3.1. Expected: **all six pass immediately**, giving the
+      recorded baseline plus six, that is `19 pass`, `0 fail`. They are coverage of the
       implementation parts 1 and 2 already delivered, not a request for new code. If one fails,
-      compare it with the observed output in facts 28 to 34 and stop and report rather than changing
-      the registry.
+      compare it with the observed output in facts 26 to 34 and stop and report rather than
+      changing the registry.
+- [ ] Tick **only part 3's** boxes in openspec/changes/twilight-bureaucrat-rule-model/tasks.md and
+      correct the counts that section names to the numbers you observed: six new tests, nineteen in
+      the file, proofs P13 to P19 plus P22.
 
 ### 3.3 Negative proofs
 
-| #   | Check                                                               | Fault                                                          | Test that must fail, and how                                                                                                        |
-| --- | ------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| P13 | `toFinding`'s effect mapping, rules/rule.ts                         | Return `effect: 'debt'` unconditionally                        | `turns direct-entry debt into a refusal under enforce` — the finding carries `debt` and the run exits 0                             |
-| P14 | The `unevaluated.length === 0` term in `checkCandidate`'s `allowed` | Delete the term                                                | `refuses a rule whose prerequisite failed, in observe mode` — the verdict reports `allowed: true` and exits 0                       |
-| P15 | `MOD-DIRECT-ENTRIES`'s `not-evaluated` branch, rules/registry.ts    | Return `{ kind: 'observed', observations: [] }`                | the same test — the verdict is allowed with no finding and no unevaluated entry                                                     |
-| P16 | `MOD-DIRECT-ENTRIES`'s `reviewDebt.map(...)`                        | Replace with `[]`                                              | `reports an index over the direct-entry limit with its exact counts` — `findings` is empty                                          |
-| P17 | The `classifyEntries` call in the `INV-CLASSIFY` adapter            | Return `[]` without calling it                                 | `refuses an unclassifiable entry in observe mode` — the verdict is allowed with an empty `unevaluated`                              |
-| P18 | `REL-EXTRACT`'s `unresolved.map(...)`                               | Replace the mapped list with an empty one                      | `reports a declared relationship that the candidate leaves unresolved` — observed under mutation: `"findings":[]`, exit 0 (fact 35) |
-| P19 | `evaluateWrapped`'s catch, rules/rule.ts                            | Return `{ kind: 'observed', observations: [] }` from the catch | `refuses an unclassifiable entry in observe mode` — the thrown violation disappears entirely and the verdict is allowed             |
+Eight faults, each injected, observed and restored by the procedure in section 0.3, each followed
+by its adjacent `Proof:` comment. Parts 1 and 2 changed no adapter, so every comment here lands in
+a file this part is authorized to touch for that purpose only: rules/rule.ts, rules/registry.ts and
+rules/check.ts.
+
+| #   | Check and file                                                              | Fault                                                                                                      | Named test, as the joined `-t` pattern, and exactly what is observed                                                                                                                                                                                                                                                   | `Proof:` comment goes in                       |
+| --- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| P13 | `toFinding`'s effect mapping, rules/rule.ts                                 | Return `effect: 'debt'` unconditionally                                                                    | `rule adapters over real candidates turns direct-entry debt into a refusal under enforce` — the finding carries `debt`, the verdict is allowed and the run exits 0, so `expect(invocation.exitCode).toBe(1)` fails with `Received: 0`                                                                                  | rule.ts, inside `toFinding`                    |
+| P14 | The `unevaluated.length === 0` term in `checkCandidate`, rules/check.ts     | Delete the term                                                                                            | `rule adapters over real candidates refuses a rule whose prerequisite failed, in observe mode` — the verdict reports `"allowed":true` and the run exits 0                                                                                                                                                              | check.ts, beside the `allowed` expression      |
+| P15 | `MOD-DIRECT-ENTRIES`'s `not-evaluated` branch, rules/registry.ts            | Return `{ kind: 'observed', observations: [] }`                                                            | the same test — the verdict is allowed with no finding and an empty `unevaluated`, exit 0                                                                                                                                                                                                                              | registry.ts, beside that branch                |
+| P16 | `MOD-DIRECT-ENTRIES`'s `reviewDebt.map(...)`, rules/registry.ts             | Replace it with `[]`                                                                                       | `rule adapters over real candidates reports an index over the direct-entry limit with its exact counts` — `findings` is empty, so the `toEqual` on the one expected finding fails                                                                                                                                      | registry.ts, beside the mapped list            |
+| P17 | The `classifyEntries` call in the `INV-CLASSIFY` adapter, rules/registry.ts | Return `[]` without calling it                                                                             | `rule adapters over real candidates refuses an unclassifiable entry in observe mode` — the verdict is allowed with an empty `unevaluated`, exit 0                                                                                                                                                                      | registry.ts, beside the `classifyEntries` call |
+| P18 | `REL-EXTRACT`'s `unresolved.map(...)`, rules/registry.ts                    | Replace the mapped list with an empty one                                                                  | `rule adapters over real candidates reports a declared relationship that the candidate leaves unresolved` — observed under mutation: `"findings":[]`, exit 0 (fact 35)                                                                                                                                                 | registry.ts, beside the mapped list            |
+| P19 | `evaluateWrapped`'s catch, rules/rule.ts                                    | Return `{ kind: 'observed', observations: [] }` from the catch                                             | `rule adapters over real candidates refuses an unclassifiable entry in observe mode` — the thrown violation disappears entirely and the verdict is allowed, exit 0                                                                                                                                                     | rule.ts, inside the catch                      |
+| P22 | The default rule selection in `checkCandidate`, rules/check.ts              | Select nothing when `--rule` is absent: `request.ruleId === undefined ? [] : [selectRule(request.ruleId)]` | `rule adapters over real candidates allows the canonical candidate under every registered rule` — the verdict prints `"ruleIds":[]` and `"allowed":true` and exits 0, so the `toEqual` on the four identifiers fails. A check that selects no rule and then allows the candidate is exactly the check that cannot fail | check.ts, beside the selection expression      |
 
 P18's fixture is the one thing the previous revision got wrong: an endpoint that is not a selected
 path throws before the unresolved list exists (fact 36), so the finding survived the mutation. The
-fixture in section 3.5 declares `status: 'unresolved'` with a reason and two **real** selected paths,
-and fact 35 records the mutation emptying `findings`.
+fixture in section 3.5 declares `status: 'unresolved'` with a reason and two **real** selected
+paths, and fact 35 records the mutation emptying `findings`.
+
+- [ ] After each proof, write its observed failing line into the `Observed failure` cell of its row
+      in openspec/changes/twilight-bureaucrat-rule-model/verify.md, and add a row for P22 beside
+      them. Record only what this attempt saw.
 
 ### 3.4 Part 3 verification
 
-| Command                                                                                                                                                                                                                 | Expected                                                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| The focused command of section 1.5                                                                                                                                                                                      | Exit 0; 17 pass, 0 fail.                                                                         |
-| `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/relationships/selectors.test.ts src/indexes/indexes.test.ts)` | Exit 0. Neither file is changed by this packet; this confirms the registry did not disturb them. |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                             | Exit 0.                                                                                          |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                           | Exit 0, no warnings.                                                                             |
+| Command                                                                                                                                                                                                                 | Expected exit status and decisive line                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| The focused command of section 3.1                                                                                                                                                                                      | Exit 0; `19 pass`, `0 fail` — the recorded baseline of 13 plus this part's 6.                                                                |
+| `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/relationships/selectors.test.ts src/indexes/indexes.test.ts)` | Exit 0, `0 fail`. Neither file is changed by this packet; record the pass count and compare it only with a run of the same command yourself. |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                             | Exit 0; `Successfully ran target typecheck`.                                                                                                 |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                           | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                  |
+| The batch README's **OpenSpec validation** block                                                                                                                                                                        | Exit 0, one JSON report kept under `$TMPDIR/evidence`. This part edits verify.md and tasks.md.                                               |
 
-The relationship tests need `TOOL_WIKI_TRUSTED_NODE_MODULES`, which the command above sets. Pending
-planner verification: the whole `twilight-bureaucrat:test` target and the host gate.
+The relationship tests need `TOOL_WIKI_TRUSTED_NODE_MODULES`, which the commands above set. Pending
+planner verification: the whole `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and
+`tool-devsync:test` targets, and the host gate.
 
 ### 3.5 Part 3's tests
 
@@ -1899,6 +2177,32 @@ describe('rule adapters over real candidates', () => {
       },
     ]);
   });
+
+  test('allows the canonical candidate under every registered rule', () => {
+    const { repository, revision } = createIndexedCandidate();
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving),
+    ]);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(0);
+    const verdict = verdictOf(invocation);
+    // Without `--rule` every registered rule runs. An empty `ruleIds` with `allowed: true` is the
+    // shape of a check that cannot fail, so the identifiers are asserted exactly.
+    expect(verdict.ruleIds).toEqual([
+      'INV-CLASSIFY',
+      'MOD-DIRECT-ENTRIES',
+      'MOD-INDEX',
+      'REL-EXTRACT',
+    ]);
+    expect(verdict.findings).toEqual([]);
+    expect(verdict.unevaluated).toEqual([]);
+    expect(verdict.allowed).toBe(true);
+    expect(verdict.certifies).toBe(false);
+    expect(verdict.policy).toBe('rules.test.v1');
+  });
 });
 ```
 
@@ -1906,38 +2210,97 @@ describe('rule adapters over real candidates', () => {
 
 Commit subject: `test(bureaucrat): prove every rule adapter over a real candidate`.
 
-Files: apps/wiki/cli/src/rules/rules.test.ts, plus apps/wiki/cli/src/rules/rule.ts and
-apps/wiki/cli/src/rules/registry.ts **only if** a proof's `Proof:` comment was added to them.
+Files: apps/wiki/cli/src/rules/rules.test.ts, apps/wiki/cli/src/rules/rule.ts,
+apps/wiki/cli/src/rules/registry.ts, apps/wiki/cli/src/rules/check.ts,
+openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
+openspec/changes/twilight-bureaucrat-rule-model/verify.md.
+
+The three source files are not optional. Every proof in section 3.3 requires an adjacent `Proof:`
+comment, and those comments land in exactly these files: rule.ts for P13 and P19, registry.ts for
+P15 to P18, check.ts for P14 and P22. Nothing else in those three files changes — no logic, no
+signature, no import. If the diff of any of them shows anything but added comments, stop and
+report.
 
 Then stop and hand over. Do not start part 4.
 
 ### 3.7 Part 3 stop conditions
 
-1. Any of the five tests fails before any mutation. The implementation is parts 1 and 2's; compare
-   with facts 28 to 34 and report rather than changing the registry.
-2. A `REL-EXTRACT` result names the TypeScript compiler or the Nx workspace rather than a candidate
-   relationship — for example `ts.readConfigFile is not a function` or
-   `Nx workspace configuration is absent`. That is an environment failure; report it with the
-   observed message (the assumption in ASSUMPTIONS.md says to stop).
-3. A mutation does not break its named test. Report it; do not weaken the test to match.
+Each of these is false on this part's real starting tree, which is part 2 committed.
+
+1. The baseline run of section 3.1 does not report `13 pass`, `0 fail`, or
+   apps/wiki/cli/src/rules/rule-policy.ts is absent.
+2. Any of the six new tests fails before any mutation. The implementation is parts 1 and 2's;
+   compare with facts 26 to 34 and report rather than changing the registry.
+3. A `REL-EXTRACT` or `INV-CLASSIFY` result names the TypeScript compiler, the Nx workspace or the
+   trusted modules rather than a candidate relationship or entry — for example
+   `ts.readConfigFile is not a function`, `Nx workspace configuration is absent` or
+   `trusted TypeScript runtime modules are not configured`. That is an environment failure, not a
+   rule failure; report it with the observed message and stop.
+4. A mutation does not break its named test, breaks it with a different message than section 3.3
+   predicts, or does not compile. Report it; do not weaken the test to match. A fault that
+   additionally breaks other tests is **not** a stop; record which ones and continue.
+5. A named-test run reports `Ran 0 tests` or `matched 0 tests`.
+6. A change is needed in any file outside the six listed in section 3.6.
 
 ---
 
 ## Part 4 — built executable, README and final verification
 
-Starts from the committed part 3.
+Starts from the committed part 3. Read section 0 in full first.
+
+**This part records only what it observes itself.** Parts 1 to 3 ran in their own clones, and their
+reports and evidence directories live **outside every repository**, under
+`/home/df/wd/puni/puni-plan/exec/logs/<attempt>/report.md` and
+`/home/df/wd/puni/puni-plan/exec/logs/<attempt>/evidence/`. This clone cannot read them, and no
+executor may invent them. So:
+
+- Fill the `Observed failure` cell of a proof row **only** when this attempt injected that fault and
+  watched the failure. Parts 2 and 3 filled their own rows before handing over; part 1 did not.
+- Write `pending planner transcription` into any cell still empty, and say in the report which rows
+  those are and why.
+- **Never reconstruct a failing line from a `Proof:` comment in the source.** A comment is a
+  summary someone else wrote; it is not observed output, and copying it into the record would make
+  the record unfalsifiable.
+- **Never re-inject an earlier part's fault to regenerate its evidence.** That is a different
+  attempt on a different tree; its output would not be the evidence the record claims.
 
 ### 4.1 Preparation
 
-- [ ] `repo_root=$(pwd -P)`; `task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")`.
-- [ ] Confirm part 3 landed by running the focused command of section 1.5. Expected: 17 pass.
+- [ ] Run:
+
+  ```sh
+  repo_root=$(pwd -P)
+  task_tmp=$(mktemp -d "${TMPDIR:?launcher must supply TMPDIR}/rule-model-XXXXXX")
+  mkdir -p "$TMPDIR/evidence"
+  printf 'repo_root=%s\ntask_tmp=%s\n' "$repo_root" "$task_tmp"
+  ```
+
+  Expected: both paths print, and `task_tmp` is beneath the launcher's `TMPDIR`.
+
+- [ ] Confirm the starting tree is part 3's:
+
+  ```sh
+  (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
+    bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)
+  if rg -n '^## Rules' "$repo_root/apps/wiki/cli/README.md"; then
+    echo 'Rules section already exists; stop.' >&2
+    exit 1
+  else
+    heading_status=$?
+    test "$heading_status" -eq 1
+  fi
+  ```
+
+  Expected: exit 0 with `19 pass`, `0 fail`; the heading check exits 0 only when the README is readable and the heading is absent, and any other result is a stop. Write the
+  test count down as this part's baseline: this part adds no rule test, so it must not move.
 
 ### 4.2 The installed binary
 
-- [ ] Add the three assertions of section 4.6 inside build.test.ts's existing
-      `builds the canonical executable for use outside the repository` test, after its
-      `validate-record` assertions. They reuse that test's `externalRoot`, `executable` and
-      `invoke`.
+- [ ] Add the assertions of section 4.6 inside build.test.ts's existing
+      `builds the canonical executable for use outside the repository` test, immediately after its
+      `validate-record` assertions and before its `lint` invocation. They reuse that test's
+      `externalRoot`, `executable` and `invoke`, and `mkdir` and `writeFile` are already imported at
+      the top of the file.
 - [ ] Run:
 
   ```sh
@@ -1945,52 +2308,75 @@ Starts from the committed part 3.
     bun test --preload ../../../tools/test/scratch/preload.ts src/packaging/build.test.ts)
   ```
 
-  Expected: exit 0. This is the only proof that the installed binary's allow-list carries both
-  new words. The Git fixture it creates lives under the test's own temporary directory, not in
-  this clone.
+  Expected: exit 0, `0 fail`. This is the only proof that the installed binary's allow-list and its
+  help text carry both new words, and that a refused verdict still reaches stdout. The Git fixtures
+  it creates live under the test's own temporary directory, never in this clone.
 
 ### 4.3 The README
 
 - [ ] Add a `## Rules` section to apps/wiki/cli/README.md saying what `check` and `explain` do, that
-      a verdict never certifies, that the rule policy lives outside the candidate's worktree, and
-      that in slice B0 a rule that cannot be evaluated disallows the verdict in every mode. Include
-      this sentence verbatim:
+      a verdict never certifies, that the rule policy is read from outside the candidate's Git
+      worktree, and that in slice B0 a rule that cannot be evaluated disallows the verdict in every
+      mode. Include this sentence verbatim:
 
   > The package installs two commands for the same program: `twilight-bureaucrat`, which
   > documentation uses, and the short form `twib`.
 
+  The README is this project's module index, and its memberships already carry the `src`
+  directory-prefix, so no membership changes and no other index is touched.
+
 ### 4.4 The record
 
-- [ ] Fill openspec/changes/twilight-bureaucrat-rule-model/verify.md with the real output of every
-      command in sections 1.5, 2.5, 3.4 and 4.5, and the proof table of section 8 with the failing
-      line observed for each of P1 to P19. State which checks were left to the planner and that the
-      host gate was not run.
+- [ ] Add a `### Part 4` subsection under `## Commands and results` in
+      openspec/changes/twilight-bureaucrat-rule-model/verify.md and paste the real output of every
+      command in section 4.5: the command, its exit status and its decisive line.
+- [ ] Check the proof table. Rows P2 to P12 and P20 to P22 were filled by the parts that observed
+      them. Write `pending planner transcription` into every cell that is still empty — at minimum
+      P1, which part 1 left blank — and add one sentence under the table saying that part 1's
+      observed output is in its attempt's log directory outside this repository and that the
+      planner transcribes it when committing.
+- [ ] State in verify.md which checks this attempt did not run and why: the whole
+      `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package`, `twilight-bureaucrat:pack` and
+      `tool-devsync:test` targets, and `bin/h2puni-gate.sh`.
+- [ ] Tick **only part 4's** boxes in openspec/changes/twilight-bureaucrat-rule-model/tasks.md and
+      correct the counts that section names. Report that part 1's boxes are still unticked and that
+      the planner decides them.
 
 ### 4.5 Part 4 verification
 
-| Command                                                                                                                                                                                                     | Expected                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts src/packaging/build.test.ts)` | Exit 0; 17 rule tests and the packaging suite pass.                                                                |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                 | Exit 0.                                                                                                            |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                               | Exit 0, no warnings.                                                                                               |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                                                                                                                                                     | Exit 0; `dist/bin.mjs` and `dist/toolkit/validator.mjs` are rebuilt.                                               |
-| `bunx prettier --write <the files this packet changed>` then `NX_DAEMON=false bunx nx format:check --all`                                                                                                   | Exit 0. Format only the files listed in section 5; report an unrelated failure, never rewrite another lane's file. |
-| The batch README's **OpenSpec validation** block                                                                                                                                                            | One JSON report; the block exits 0.                                                                                |
+| Command                                                                                                                                                                                                     | Expected exit status and decisive line                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts src/packaging/build.test.ts)` | Exit 0, `0 fail`. The rule count is the section 4.1 baseline, 19, unchanged; the packaging suite's own count is recorded and compared only with your own earlier run of section 4.2. |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                 | Exit 0; `Successfully ran target typecheck`.                                                                                                                                         |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                               | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                                                          |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                                                                                                                                                     | Exit 0; `dist/bin.mjs` and `dist/toolkit/validator.mjs` are rebuilt.                                                                                                                 |
+| `bunx prettier --write <only the files this packet changed>` then `NX_DAEMON=false bunx nx format:check --all`                                                                                              | Both exit 0. Format only files listed in section 5; a failure on another lane's file is reported, never fixed.                                                                       |
+| The batch README's **OpenSpec validation** block                                                                                                                                                            | Exit 0, one JSON report kept under `$TMPDIR/evidence`.                                                                                                                               |
 
-**Not run here, and why.** `twilight-bureaucrat:test` and `tool-devsync:test` as whole targets, and
-anything needing staged files or Git writes into this clone: preamble rule 4a, pending planner
-verification. `twilight-bureaucrat:pack` and `test:package`: they depend on `build` and duplicate
-the built-executable coverage now in build.test.ts; the planner runs them if packaging output
-changes. `bin/h2puni-gate.sh`: cannot run on this machine (preamble rule 5).
+**Not run here, and why.** `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and
+`tool-devsync:test` as whole targets, and anything needing staged files or Git writes into this
+clone: preamble rule 4a, pending planner verification. `twilight-bureaucrat:pack`: it depends on
+`build` and duplicates the built-executable coverage now in build.test.ts; the planner runs it if
+packaging output changes. `bin/h2puni-gate.sh`: cannot run on this machine (preamble rule 5).
 
 **What none of it proves.** No provisioned activation is configured in this clone, so nothing here
 exercises one; `twilight-bureaucrat:lint` reports `status: inactive` and exits 0 only while
-`TOOL_WIKI_REQUIRE_CERTIFIED` keeps its default `0` (fact 19). The four wrapped checks' own
-correctness is proven by their own suites, which this packet does not change.
+`TOOL_WIKI_REQUIRE_CERTIFIED` keeps its default `0` (fact 19). Part 2 added a source file to the
+validator's import closure, which changes the validator identity; no test pins that identity as a
+literal (section 0.4), but an activation prepared outside this clone must be prepared again. The
+four wrapped checks' own correctness is proven by their own suites, which this packet does not
+change.
 
 ### 4.6 Part 4's packaging assertions
 
 ```ts
+const ruleHelp = invoke(executable, ['--help'], externalRoot);
+expect(ruleHelp.exitCode, ruleHelp.stderr.toString()).toBe(0);
+expect(ruleHelp.stdout.toString()).toContain(
+  'twilight-bureaucrat check <committed|staged|working>',
+);
+expect(ruleHelp.stdout.toString()).toContain('twilight-bureaucrat explain <rule-id>');
+
 const explained = invoke(executable, ['explain', 'MOD-INDEX'], externalRoot);
 expect(explained.exitCode, explained.stderr.toString()).toBe(0);
 expect(JSON.parse(explained.stdout.toString()) as { id: string }).toMatchObject({
@@ -2054,9 +2440,23 @@ const allowed = invoke(
   externalRoot,
 );
 expect(allowed.exitCode, allowed.stderr.toString()).toBe(0);
+// An allowed verdict must be allowed for the stated reason: no finding and nothing unevaluated.
+// `allowed: true` alone would also accept a verdict that reported debt it had silently downgraded.
 expect(
-  JSON.parse(allowed.stdout.toString()) as { allowed: boolean; ruleIds: string[] },
-).toMatchObject({ allowed: true, ruleIds: ['MOD-INDEX'] });
+  JSON.parse(allowed.stdout.toString()) as {
+    allowed: boolean;
+    certifies: boolean;
+    findings: unknown[];
+    ruleIds: string[];
+    unevaluated: unknown[];
+  },
+).toMatchObject({
+  allowed: true,
+  certifies: false,
+  findings: [],
+  ruleIds: ['MOD-INDEX'],
+  unevaluated: [],
+});
 
 const refusedCandidate = join(externalRoot, 'refused');
 await mkdir(refusedCandidate);
@@ -2091,49 +2491,65 @@ still reaches stdout because `runValidator` forwards it first (bin.ts:67).
 Commit subject: `feat(bureaucrat): route the rule commands through the package and record the run`.
 
 Files: apps/wiki/cli/src/packaging/build.test.ts, apps/wiki/cli/README.md,
+openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
 openspec/changes/twilight-bureaucrat-rule-model/verify.md.
 
 Then stop and report. The packet is complete.
 
 ### 4.8 Part 4 stop conditions
 
-1. The built executable rejects `check` or `explain` as an unknown command: bin.ts's allow-list did
-   not receive both words in parts 1 and 2. Report rather than editing bin.ts here.
-2. `nx format:check --all` fails on a file this packet does not own. Report it; never reformat
+Each of these is false on this part's real starting tree, which is part 3 committed.
+
+1. The baseline run of section 4.1 does not report `19 pass`, `0 fail`, or apps/wiki/cli/README.md
+   already has a `## Rules` section.
+2. The built executable rejects `check` or `explain` as an unknown command, or `--help` does not
+   name both: bin.ts's allow-list or help text did not receive them in parts 1 and 2. Report rather
+   than editing bin.ts here, which is part 1's and part 2's file.
+3. The built allowed check prints a non-empty `findings` or `unevaluated` list. That is a real
+   difference between the built validator and the source one; report the printed verdict.
+4. `nx format:check --all` fails on a file this packet does not own. Report it; never reformat
    another lane's file.
-3. A change is needed in apps/wiki/cli/package.json or
+5. Filling verify.md would need output this attempt did not observe. Write
+   `pending planner transcription` instead and report it; never reconstruct it from a `Proof:`
+   comment or by re-injecting an earlier part's fault.
+6. A change is needed in apps/wiki/cli/package.json or
    apps/wiki/cli/src/packaging/install.test.ts. Packet 010.5 owns both.
 
 ---
 
 ## 8. Negative proofs, all parts
 
-Nineteen proofs. The part column says where each one is performed; none is deferred past its part.
+Twenty-two proofs. The part column says where each one is performed; none is deferred past its
+part. The test column gives the **joined** describe-plus-title pattern Bun's `-t` matches; run it
+unanchored and treat a zero-test run as a failure (section 0.2).
 
-| #   | Part | Check                                       | Fault                                   | Test                                                                                      |
-| --- | ---- | ------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| P1  | 1    | `selectRule`'s unknown-identifier refusal   | Return the first registered rule        | `refuses an unregistered rule identifier and names every registered rule`                 |
-| P2  | 2    | `assertExternal` in `readExternalArtifact`  | Delete the call                         | `refuses a rule policy inside the worktree even when the repository argument is interior` |
-| P3  | 2    | The worktree root passed to containment     | Pass the raw repository argument        | the same test                                                                             |
-| P4  | 2    | The mode-coverage loop                      | Delete the loop                         | `refuses a policy that states no mode for a registered rule`                              |
-| P5  | 2    | The unregistered-rule branch                | Condition to `false`                    | `refuses a policy that names an unregistered rule`                                        |
-| P6  | 2    | The duplicate-identifier branch             | Delete it                               | `refuses a policy that states a mode for one rule twice`                                  |
-| P7  | 2    | The ratchet branch                          | Delete it                               | `refuses ratchet until the adopted set exists`                                            |
-| P8  | 2    | `assertPolicyInputs`                        | Return immediately                      | `refuses a selected rule whose policy input is absent`                                    |
-| P9  | 2    | UTF-8, JSON and schema decoding             | Three injections                        | `refuses malformed, non-UTF-8, absent and undeclared-key policies distinctly`             |
-| P10 | 2    | The `--rule` flag validation                | Accept any seventh argument             | `refuses an unknown selection kind, an unknown flag and an unknown narrowed rule`         |
-| P11 | 2    | The selection-kind refusal                  | Treat any word as `committed`           | the same test                                                                             |
-| P12 | 2    | `process.exitCode = 1`                      | Delete the line                         | `refuses an unindexed candidate in every mode and exits 1`                                |
-| P13 | 3    | `toFinding`'s effect mapping                | Always `debt`                           | `turns direct-entry debt into a refusal under enforce`                                    |
-| P14 | 3    | The `unevaluated` term in `allowed`         | Delete the term                         | `refuses a rule whose prerequisite failed, in observe mode`                               |
-| P15 | 3    | `MOD-DIRECT-ENTRIES`'s not-evaluated branch | Return an empty observation list        | the same test                                                                             |
-| P16 | 3    | `MOD-DIRECT-ENTRIES`'s debt propagation     | Replace `reviewDebt.map(...)` with `[]` | `reports an index over the direct-entry limit with its exact counts`                      |
-| P17 | 3    | The `classifyEntries` call                  | Skip it                                 | `refuses an unclassifiable entry in observe mode`                                         |
-| P18 | 3    | `REL-EXTRACT`'s unresolved propagation      | Empty the mapped list                   | `reports a declared relationship that the candidate leaves unresolved`                    |
-| P19 | 3    | `evaluateWrapped`'s catch                   | Return an observed empty list           | `refuses an unclassifiable entry in observe mode`                                         |
+| #   | Part | Check                                       | Fault                                   | Test, as the joined `-t` pattern                                                                               |
+| --- | ---- | ------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| P1  | 1    | `selectRule`'s unknown-identifier refusal   | Return the first registered rule        | `explain production CLI refuses an unregistered rule identifier and names every registered rule`               |
+| P2  | 2    | `assertExternal` in `readExternalArtifact`  | Delete the call                         | `rule policy boundary refuses a rule policy inside the worktree even when the repository argument is interior` |
+| P3  | 2    | The worktree root passed to containment     | Pass the raw repository argument        | the same test                                                                                                  |
+| P4  | 2    | The mode-coverage loop                      | Delete the loop                         | `rule policy boundary refuses a policy that states no mode for a registered rule`                              |
+| P5  | 2    | The unregistered-rule branch                | Condition to `false`                    | `rule policy boundary refuses a policy that names an unregistered rule`                                        |
+| P6  | 2    | The duplicate-identifier branch             | Delete it                               | `rule policy boundary refuses a policy that states a mode for one rule twice`                                  |
+| P7  | 2    | The ratchet branch                          | Delete it                               | `rule policy boundary refuses ratchet until the adopted set exists`                                            |
+| P8  | 2    | `assertPolicyInputs`                        | Return immediately                      | `rule policy boundary refuses a selected rule whose policy input is absent`                                    |
+| P9  | 2    | UTF-8, JSON and schema decoding             | Three injections                        | `rule policy boundary refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly` |
+| P20 | 2    | The unusable-policy read                    | Fall back to an empty policy            | the same test                                                                                                  |
+| P10 | 2    | The `--rule` flag validation                | Accept any seventh argument             | `check production CLI refuses an unknown selection kind, an unknown flag and an unknown narrowed rule`         |
+| P11 | 2    | The selection-kind refusal                  | Treat any word as `committed`           | the same test                                                                                                  |
+| P12 | 2    | `process.exitCode = 1`                      | Delete the line                         | `check production CLI refuses an unindexed candidate in every mode and exits 1`                                |
+| P21 | 2    | The stated mode `explain` attaches          | Drop `mode` from the explanation        | `explain with a rule policy prints the policy identifier and the stated mode`                                  |
+| P13 | 3    | `toFinding`'s effect mapping                | Always `debt`                           | `rule adapters over real candidates turns direct-entry debt into a refusal under enforce`                      |
+| P14 | 3    | The `unevaluated` term in `allowed`         | Delete the term                         | `rule adapters over real candidates refuses a rule whose prerequisite failed, in observe mode`                 |
+| P15 | 3    | `MOD-DIRECT-ENTRIES`'s not-evaluated branch | Return an empty observation list        | the same test                                                                                                  |
+| P16 | 3    | `MOD-DIRECT-ENTRIES`'s debt propagation     | Replace `reviewDebt.map(...)` with `[]` | `rule adapters over real candidates reports an index over the direct-entry limit with its exact counts`        |
+| P17 | 3    | The `classifyEntries` call                  | Skip it                                 | `rule adapters over real candidates refuses an unclassifiable entry in observe mode`                           |
+| P18 | 3    | `REL-EXTRACT`'s unresolved propagation      | Empty the mapped list                   | `rule adapters over real candidates reports a declared relationship that the candidate leaves unresolved`      |
+| P19 | 3    | `evaluateWrapped`'s catch                   | Return an observed empty list           | `rule adapters over real candidates refuses an unclassifiable entry in observe mode`                           |
+| P22 | 3    | The default all-rules selection             | Select nothing without `--rule`         | `rule adapters over real candidates allows the canonical candidate under every registered rule`                |
 
 P17 and P19 share a test deliberately: they are two ways to lose the same refusal, and each must be
-observed on its own. The same is true of P14 and P15, and of P10 and P11.
+observed on its own. The same is true of P14 and P15, of P10 and P11, and of P9 and P20.
 
 ## 9. OpenSpec
 
@@ -2194,7 +2610,13 @@ each with at least one four-hashtag scenario. Requirements 7 to 10 must state th
     arrives with slice B4, as the design's open items already record. Scenario: `explain` with a
     policy prints the mode.
 
-**tasks.md** is the four parts, each naming its tests and negatives. **verify.md** is filled in part 4.
+**tasks.md** is the four parts, each naming its tests and negatives; each part ticks its own boxes
+and corrects the counts they name. **verify.md** is created in part 1 and filled by the part that
+observed each result: parts 2 and 3 write their own proof rows and commands as they go, and part 4
+adds its own and marks every cell it did not observe as pending planner transcription. Part 1's
+change was committed with the eleven requirements and the P1 to P19 proof table already in place,
+so parts 2 and 3 correct the P4 and P9 wording and append rows P20 to P22 rather than rewriting the
+table.
 
 Validate with the batch README's **OpenSpec validation** block. Do not archive the change.
 
@@ -2254,3 +2676,111 @@ Both blocking findings were correct and the planner applied the reviewer's text 
 ### Part 1, first attempt, 2026-09-20: stopped before any edit, and what changed
 
 The attempt stopped correctly at step 1.2 with no repository file changed: `bunx` tried to download the OpenSpec command although the launcher had installed it. The packet caused that. Its preparation block exported `BUN_INSTALL_CACHE_DIR` to an empty directory under the scratch root, so Bun could no longer see the cache the launcher had warmed, and the attempt has no network. The export is removed from every part's preparation. Packets 010.5 and 010.3 ran the same command successfully without it.
+
+### Revision for parts 2 to 4, 2026-09-20
+
+Part 1 is merged into `batch-1/integration` and is left here as the historical record; nothing above
+"Part 2" was rewritten except the reconciliation note in section 6.6, which states what part 1
+actually landed. Parts 2, 3 and 4 were rewritten so each can be dispatched alone, from the tree its
+predecessor's commit leaves behind.
+
+**The third review's notes, one by one.**
+
+- _Part 2, P4._ The reviewer was right that deleting the coverage loop does not reach the
+  diagnostic the packet predicted: the omitted mode belongs to INV-CLASSIFY, which a run narrowed to
+  `--rule MOD-INDEX` never selects, so `ruleMode` is never asked for it and the command exits 0
+  with an allowed verdict. The fix is in the test, not the fault. Every refusal test in
+  `rule policy boundary` now asserts its diagnostic before its exit status, so the observed failure
+  under P4 is the missing sentence `rule policy states no mode for INV-CLASSIFY` against an empty
+  stderr, with the allowed verdict on stdout as the second piece of evidence. The same reordering
+  rescues P8 and P11, which both keep an exit status of 1 under their faults and would otherwise
+  have been unobservable.
+- _Parts 2 to 3, existing but unreadable policy._ Part 2's decoding test is renamed
+  `refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly` and now
+  chmods a real policy to `0o000`, asserts the test process genuinely cannot read it, and requires
+  `cannot open rule policy <path>: EACCES` against the absent case's `…: ENOENT`. Its negative is
+  the new P20: falling back to an empty policy when the read fails, which is exactly the default
+  R5 forbids. The `readStableArtifact` message shape was read from
+  apps/wiki/cli/src/policy/trust.ts:279 and the EACCES behaviour was checked on this host.
+- _Parts 2 to 3, policy-aware `explain`._ Part 2 gains a third describe,
+  `explain with a rule policy`, with one test asserting the full record plus `policyId` and
+  `mode: 'enforce'`, which is requirement 11's scenario. Its negative is the new P21: return the
+  record with `policyId` but no `mode`. The fault was chosen so it still compiles and leaves no
+  unused binding, because the repository's compiler options set `strict` but not `noUnusedLocals`.
+- _Parts 2 to 3, an allowed all-rules invocation._ Part 3 gains a sixth test,
+  `allows the canonical candidate under every registered rule`, running `check` with no `--rule`
+  and the complete policy and asserting all four identifiers, empty findings, empty unevaluated,
+  `allowed: true` and `certifies: false`. Its negative is the new P22: select nothing when `--rule`
+  is absent, which prints `"ruleIds":[]` with `"allowed":true` — the shape of a check that cannot
+  fail.
+- _Part 3, file ownership against the proof comments._ Section 3.6 listed rule.ts and registry.ts as
+  optional and omitted check.ts, although P14 mutates `checkCandidate`. The list is now mandatory
+  and complete: rules.test.ts, rule.ts (P13, P19), registry.ts (P15 to P18), check.ts (P14, P22),
+  plus tasks.md and verify.md. Section 3.3 names the file each `Proof:` comment lands in, and
+  section 3.6 requires the diff of the three source files to contain added comments and nothing
+  else.
+- _Part 4, evidence._ Parts 1 to 3 run in separate clones and their reports and evidence live
+  outside every repository, under `/home/df/wd/puni/puni-plan/exec/logs/<attempt>/`. Part 4 cannot
+  read them, so it no longer claims to. Parts 2 and 3 now write their own observed failing lines
+  into verify.md as they go; part 4 writes only its own, writes `pending planner transcription` into
+  every cell still empty (P1 at minimum), and is forbidden both from reconstructing output from a
+  `Proof:` comment and from re-injecting an earlier part's fault. Part 4 stop condition 5 makes
+  that a stop rather than a judgement call.
+- _Part 4, the built allowed check._ The assertion now requires empty `findings`, empty
+  `unevaluated` and `certifies: false` beside `allowed: true` and `ruleIds: ['MOD-INDEX']`, and a
+  `--help` assertion proves the installed dispatcher names both new commands.
+
+**Sandbox facts baked into every part**, each of which stopped a real attempt in this batch: the
+clone's `.git` is read-only, so restoration is `cp` plus `cmp`; `BUN_INSTALL_CACHE_DIR` is never
+set; every OpenSpec command carries `OPENSPEC_TELEMETRY=0` and must not download; the command guard
+rejects any command containing `rm -f`, so no scratch file is ever deleted and the batch README's
+version of the validation block is the one to run; every Nx command carries `NX_DAEMON=false`;
+scratch lives only under `TMPDIR` and evidence under `$TMPDIR/evidence`; a mutation patch is saved
+with the README's `if diff …; then …; else test $? -eq 1; fi` form, never `|| true`, and a test's
+status is never read through `tee`. Section 0.3 also states what is and is not a stop: a fault that
+additionally breaks other tests is recorded and passed over, while a named test that passes, fails
+with a different message, or will not compile is a stop. Section 0.2 states the `-t` rule: Bun
+matches the describe name and the title joined, every proof names the joined pattern, and a run
+reporting `Ran 0 tests` is a stop.
+
+**Each part is now dispatchable alone.** Every part has its own preparation block, its own
+starting-tree confirmation, its own recorded baseline test count, its own file list, its own
+verification table with an expected exit status and decisive line, its own negative proofs with the
+file each `Proof:` comment belongs in, its own ready-to-commit list and commit subject, and its own
+stop conditions, every one of which is false on the tree that part really starts from. Counts are
+stated as the part's recorded baseline plus its own additions: 2 plus 11 for part 2, 13 plus 6 for
+part 3, and no rule-test change in part 4.
+
+**What was checked in the repository and contradicted the packet.**
+
+- `apps/wiki/cli/src/cli.ts`'s `unknown command` usage line does **not** list `explain`: part 1
+  added the route without the word. Part 2's instruction to "gain `|check|explain` before its
+  closing `>`" was too vague to execute, so section 6.7 now names the exact substring to replace.
+- `apps/wiki/cli/src/rules/check.ts` as committed already imports `RuleMode` and carries P1's
+  `Proof:` comment between `const rule = findRule(ruleId);` and the `if (rule === undefined)`
+  guard, which section 6.6's code block does not show. Part 2 is told to edit around it.
+- `bin.ts` already carries `'explain'` and the help line `twilight-bureaucrat explain <rule-id>`, so
+  part 2 adds `'check'` and widens the existing `explain` line rather than adding one.
+- No test pins the validator identity as a literal. `pilot-policy.test.ts:188`,
+  `trusted-policy.test.ts:541` and `gate-entrypoints.test.ts:494` all recompute it through
+  `resolveValidatorArtifactPaths`, so part 2's new `rules/rule-policy.ts` joins the closure without
+  breaking a test. Only an activation provisioned outside the clone needs preparing again.
+- No test pins either dispatcher's usage or help text; `build.test.ts:89` asserts only that stderr
+  contains `unknown command`.
+- `resolveWorktreeRoot` is still exactly one definition at read-candidate.ts:116 and one call at
+  line 446, as fact 13 says.
+- `openspec/changes/twilight-bureaucrat-rule-model/verify.md` already holds the P1 to P19 table with
+  an empty `Observed failure` column and an empty `## Commands and results` heading, and
+  `tasks.md`'s boxes are all unticked, including part 1's. Parts 2 to 4 tick only their own and
+  report part 1's as the planner's decision. The file plan rows for both files were corrected from
+  "part 1 only" and "part 4 fills".
+- Part 2's regression command was run on the part-1 tree on 2026-09-20:
+  `src/inventory/read-candidate.test.ts` and `src/policy/trusted-policy.test.ts` give 56 pass, 0
+  fail in 88.78s. That number is now the expected decisive line.
+- Section 11's old disposition row still says `BUN_INSTALL_CACHE_DIR` was "fixed" by pointing it at
+  the task directory. That row is history and is contradicted by the attempt note below it and by
+  section 0.1, which overrides it.
+
+### Dispatch review of part 2, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES
+
+Three findings, all correct, applied by the planner by hand. The `resolveWorktreeRoot` search matched this packet as well as the source, so its stop condition was true on the baseline; it is now scoped to `apps/wiki/cli/src`. P9's three injections shared one evidence filename and would have overwritten each other; they now have three identifiers. Part 4's heading check masked an unreadable README with `|| true`; it now accepts exactly status 1. One note was also applied: under P6's fault the first duplicate entry wins, not the last.

@@ -1,5 +1,7 @@
 ## ADDED Requirements
 
+Twilight Dash owns the control-plane boundary described here.
+
 ### Requirement: Bounded request-to-plan authoring
 
 The workbench MUST support creation, revision and adoption of intent, assumptions,
@@ -548,7 +550,7 @@ trigger producers MUST submit to the single admission authority.
 ### Requirement: K3s provides an expandable worker substrate
 
 M1 MUST run admitted activity attempts through a K3s-backed worker provisioner on
-an identified cluster with one dedicated server node that schedules no Twilight
+an identified cluster with one dedicated server node that schedules no Twilight Dash
 attempt Pods and at least two distinct agent nodes. Direct Kubernetes Jobs are the
 first provisioner implementation. Joining and draining existing nodes MUST be
 supported and observed in M1; creating or deleting VPS infrastructure is outside
@@ -565,11 +567,11 @@ or production credential. The selected runtime, network and credential-injection
 boundaries MUST be proved against the activity capability document; an unavailable
 control MUST refuse admission before Job creation.
 
-K3s Job, Pod and node states MUST be observations rather than Twilight admission,
+K3s Job, Pod and node states MUST be observations rather than Twilight Dash admission,
 effect, workspace-release or completion authority. Duplicate program starts MUST
 be tolerated through attempt fencing and idempotent reconciliation. A missing or
 unreadable K3s observation MUST remain unknown and retain affected holds. Cluster
-state MUST be reconstructible without losing Twilight's durable workflow,
+state MUST be reconstructible without losing Twilight Dash's durable workflow,
 authority, ledger, source, artifact or evidence records. Node and workload state,
 scheduling reasons, logs and telemetry gaps MUST be correlated to run and attempt
 identity and visible through FE, MCP and the configured external monitoring sink.
@@ -605,10 +607,10 @@ identity and visible through FE, MCP and the configured external monitoring sink
 
 #### Scenario: The K3s server is lost and reconstructed
 
-- **WHEN** the single M1 K3s server becomes unavailable while Twilight retains
+- **WHEN** the single M1 K3s server becomes unavailable while Twilight Dash retains
   nonterminal attempts, then the cluster is rebuilt from the pinned deployment
   inputs
-- **THEN** Twilight remains inspectable, visibly blocks new provisioning while the
+- **THEN** Twilight Dash remains inspectable, visibly blocks new provisioning while the
   cluster is unavailable, reconciles every recorded attempt before replacement,
   and loses no accepted decision, effect, ledger or evidence record
 
