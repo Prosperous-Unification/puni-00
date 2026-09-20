@@ -1278,7 +1278,8 @@ rm -f -- "$report"
 - [ ] `git status --short --untracked-files=all` → expect this slice's own six paths of section
       5 — the four delivery callers, `project-page.test.tsx` and `remembered-layout.ts` — as
       modified, **plus any slice 1 source file that gained a dated `Proof:` comment from section 8**,
-      changed by that comment only. Nothing else. Record the list and say which paths changed by
+      changed by that comment only, and `preference-keys.ts`, changed only by the builders' JSDoc
+      step 8 moves into it. Nothing else. Record the list and say which paths changed by
       comments only. (Packet 040.6 stopped here on 2026-09-20 because its hand-over forgot the
       proof comments.)
 - [ ] Report, under "Ready to commit", those paths and the subject
@@ -1438,8 +1439,12 @@ check, which the batch assumptions defer.
 1. Any assertion in an existing test has to change to make a suite pass. The one deliberate
    assertion change here is the README count pin.
 2. A `Proof:` comment would have to be reworded, or has no home, or its test no longer exists.
-3. A negative injection in section 8 does not produce the named failure, or produces it in a test
-   other than the named one. All eight are run.
+3. A negative injection in section 8 does not produce the named failure in the named test. All
+   eight are run. A fault that also fails **other** tests is not a stop: save the whole failing
+   output, list every additional failing test by name in the report beside the proof, and go on.
+   It is a stop only when a named test passes, fails with a different message, or the mutation does
+   not compile. (Proof 1 necessarily fails `bytes that will not parse are refused rather than
+thrown` as well as its two named tests: an unparseable value is also a refused key.)
 4. **Any stored key name or stored byte format would have to change.** Readers have this data in
    their browsers; this is a stop, not a judgement call.
 5. The oracle's counts differ from step 0's by anything other than the project page's `+1`.
@@ -1596,3 +1601,7 @@ slice 2 is dispatched.
 ### Slice 1, 2026-09-20: a type error the packet caused, found by the planner
 
 Slice 1 defers the type check to slice 2, so the executor could not see it: the planner's `wbs-fe-01:typecheck` on slice 1 failed at `remembered-layout.ts:462` and `:576`, `Remembered<string[]>` is not assignable to `Remembered<readonly string[]>`. This packet had prescribed the moved `Remembered<T>` interface with property-style members (`readonly write: (value: T) => void`), which are checked contravariantly; the original in `lib/remembered.ts` used method signatures, which are bivariant, and `remembered-layout.ts` relies on that. The planner restored the method signatures in the clone with a JSDoc saying why, and corrected the interface in this packet. Lesson for later packets: a slice that moves a type runs the type check in that slice.
+
+### Slice 2, first attempt, 2026-09-20: stopped at proof 1, and what changed
+
+Step 7 was done and step 8 mostly: the four delivery callers are moved, the project page gained its case, typecheck, lint, formatting and the four document checks passed. Proof 1 then failed its two named tests and a third, and the executor stopped on stop condition 3. That is the same packet defect packet 040.3 had: a fault that breaks one more reader than the two it names is still a fault the named tests caught. The condition now records extra failures instead of stopping on them, and the executor preamble says so for every packet. The attempt also left the builders' JSDoc unmoved, because the dispatch note allowed slice 1 files to change by proof comments only; step 8's move of that JSDoc into `preference-keys.ts` is part of this slice, and the hand-over expects it.
