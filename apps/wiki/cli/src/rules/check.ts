@@ -1,3 +1,4 @@
+import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
 import { checkIndexes } from '../indexes/check-indexes';
 import {
@@ -6,6 +7,7 @@ import {
   readCandidate,
   resolveCandidateRoot,
 } from '../inventory/read-candidate';
+import { extractRelationships } from '../relationships';
 import { resolveKinds } from './kinds';
 import { findRule, registeredIds, registeredRules } from './registry';
 import {
@@ -13,6 +15,7 @@ import {
   type IndexReport,
   reasonOf,
   type RegisteredRule,
+  type RelationshipReport,
   type Rule,
   type RuleMode,
   type RuleOutcome,
@@ -90,6 +93,23 @@ function readIndexOutcome(
   }
 }
 
+function readRelationshipOutcome(
+  repository: string,
+  candidate: CandidateSnapshot,
+  request: RelationshipRequest | undefined,
+): RuleOutcome<RelationshipReport> {
+  // The exact sentence slice B0's REL-EXTRACT produced; the rule keeps its message.
+  if (request === undefined) {
+    return { ok: false, reason: 'the rule policy carries no relationship request' };
+  }
+  try {
+    return { ok: true, report: extractRelationships(repository, candidate, request) };
+  } catch (cause) {
+    // Modeled recovery: extraction refuses by throwing, and a throw is a failure to evaluate.
+    return { ok: false, reason: reasonOf(cause) };
+  }
+}
+
 /** Runs every selected rule over one candidate and returns one verdict. Never certifies. */
 export function checkCandidate(request: CheckRequest): Verdict {
   const candidateRoot = resolveCandidateRoot(request.repository);
@@ -102,6 +122,15 @@ export function checkCandidate(request: CheckRequest): Verdict {
     request.ruleId === undefined ? registeredRules() : [selectRule(request.ruleId)];
   for (const rule of selected) assertPolicyInputs(policy, rule.id);
   const candidate = readCandidate(candidateRoot, request.candidate);
+  let relationshipOutcome: RuleOutcome<RelationshipReport> | undefined;
+  const relationships = (): RuleOutcome<RelationshipReport> => {
+    relationshipOutcome ??= readRelationshipOutcome(
+      candidateRoot,
+      candidate,
+      policy.relationshipRequest,
+    );
+    return relationshipOutcome;
+  };
   const context = {
     repository: candidateRoot,
     candidate,
@@ -114,6 +143,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
     ...(policy.sizeCeilings === undefined ? {} : { sizeCeilings: policy.sizeCeilings }),
     indexes: readIndexOutcome(candidateRoot, candidate),
     kinds: resolveKinds(candidate.entries),
+    relationships,
   };
   const findings: Finding[] = [];
   const unevaluated: UnevaluatedRule[] = [];

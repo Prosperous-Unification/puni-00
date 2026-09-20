@@ -105,6 +105,8 @@ export function resolveKinds(entries: readonly CandidateEntry[]): KindGraph {
     const directory = directoryOf(path);
     const module = moduleOf(directory, moduleRoots);
     if (module === undefined) continue;
+    // Proof: on 2026-09-20, classifying the composition root as a feature made its repository
+    // import produce a K3 debt finding where the exemption test expected `findings: []`.
     if (path === modulePath(module, CompositionRootName)) {
       compositionRoots.push(path);
       continue;

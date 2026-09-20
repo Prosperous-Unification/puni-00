@@ -27,6 +27,19 @@ function runCli(argv: string[]): ReturnType<typeof Bun.spawnSync> {
   });
 }
 
+/** `runCli` with an overridden child environment. `runCli` itself is unchanged. */
+function runCliWithEnv(
+  argv: string[],
+  env: Record<string, string | undefined>,
+): ReturnType<typeof Bun.spawnSync> {
+  return Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
+    cwd: import.meta.dir,
+    env: { ...process.env, ...env },
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+}
+
 function stdoutOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
   if (invocation.stdout === undefined) throw new Error('stdout pipe was unavailable');
   return Buffer.from(invocation.stdout).toString('utf8');
@@ -56,7 +69,7 @@ describe('explain production CLI', () => {
     const invocation = runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: F7, INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)',
+      'unknown rule: NO-SUCH-RULE (registered: F7, INV-CLASSIFY, K3, K4, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)',
     );
   });
 });
@@ -251,6 +264,40 @@ function createRootModuleCandidate(): { repository: string; revision: string } {
   return { repository, revision: commit(repository, 'root module fixture') };
 }
 
+/**
+ * A candidate whose `src` tree holds the sources the caller supplies. It carries `nx.json`,
+ * `package.json` and a `tsconfig.json`, because relationship extraction refuses a candidate with no
+ * Nx workspace file and throws on any type error.
+ */
+function createKindedCandidate(sources: Record<string, string>): {
+  repository: string;
+  revision: string;
+} {
+  const repository = initRepository('twilight-rules-kinds-');
+  write(repository, 'nx.json', '{"$schema":"./node_modules/nx/schemas/nx-schema.json"}\n');
+  write(repository, 'package.json', '{"name":"kinds-fixture","private":true}\n');
+  write(
+    repository,
+    'tsconfig.json',
+    '{"compilerOptions":{"strict":true,"module":"ESNext","moduleResolution":"bundler","target":"ES2022"}}\n',
+  );
+  // The entrypoint exports a constant and imports nothing. The import graph comes from every file
+  // the tsconfig includes, not from what the entrypoint reaches, so no test needs it to name a module.
+  write(repository, 'src/entry.ts', 'export const entry = 1;\n');
+  for (const [path, source] of Object.entries(sources)) write(repository, path, source);
+  write(
+    repository,
+    'README.md',
+    indexSource('Kinds fixture', 'module.kinds', [
+      { kind: 'path', path: 'nx.json' },
+      { kind: 'path', path: 'package.json' },
+      { kind: 'path', path: 'tsconfig.json' },
+      { kind: 'directory-prefix', prefix: 'src', exclusions: [] },
+    ]),
+  );
+  return { repository, revision: commit(repository, 'kinded fixture') };
+}
+
 interface RuleModeEntry {
   ruleId: string;
   mode: 'observe' | 'ratchet' | 'enforce';
@@ -259,6 +306,8 @@ interface RuleModeEntry {
 const everyRuleObserving: RuleModeEntry[] = [
   { ruleId: 'F7', mode: 'observe' },
   { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+  { ruleId: 'K3', mode: 'observe' },
+  { ruleId: 'K4', mode: 'observe' },
   { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
   { ruleId: 'MOD-INDEX', mode: 'observe' },
   { ruleId: 'MOD-LAYOUT', mode: 'observe' },
@@ -864,6 +913,143 @@ describe('MOD-LAYOUT', () => {
   }, 15_000);
 });
 
+describe('K3 and K4', () => {
+  const checkDirection = (
+    ruleId: 'K3' | 'K4',
+    sources: Record<string, string>,
+    env?: Record<string, string | undefined>,
+  ): ReturnType<typeof Bun.spawnSync> => {
+    const { repository, revision } = createKindedCandidate(sources);
+    const argv = [
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving),
+      '--rule',
+      ruleId,
+    ];
+    return env === undefined ? runCli(argv) : runCliWithEnv(argv, env);
+  };
+
+  const repositorySource = 'export const store = { read: (): number => 1 };\n';
+
+  test('names a feature-service that imports a repository', () => {
+    const invocation = checkDirection('K3', {
+      'src/m/m.repository.ts': repositorySource,
+      'src/m/m.feature.ts':
+        "import { store } from './m.repository';\nexport const run = (): number => store.read();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'K3',
+        path: 'src/m/m.feature.ts',
+        subject: 'src/m/m.repository.ts',
+        message: "feature imports repository src/m/m.repository.ts through './m.repository'",
+        effect: 'debt',
+      },
+    ]);
+  }, 30_000);
+
+  test('sees a repository through a barrel a feature imports', () => {
+    const invocation = checkDirection('K3', {
+      'src/m/m.repository.ts': repositorySource,
+      'src/m/barrel.ts': "export * from './m.repository';\n",
+      'src/m/m.feature.ts':
+        "import { store } from './barrel';\nexport const run = (): number => store.read();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'K3',
+        path: 'src/m/m.feature.ts',
+        subject: 'src/m/m.repository.ts',
+        message: "feature imports repository src/m/m.repository.ts through './barrel'",
+        effect: 'debt',
+      },
+    ]);
+  }, 30_000);
+
+  test('names a feature-service that imports a delivery component', () => {
+    const invocation = checkDirection('K3', {
+      'src/m/view/panel.ts': 'export const panel = 1;\n',
+      'src/m/m.feature.ts':
+        "import { panel } from './view/panel';\nexport const run = (): number => panel;\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'K3',
+        path: 'src/m/m.feature.ts',
+        subject: 'src/m/view/panel.ts',
+        message: "feature imports delivery src/m/view/panel.ts through './view/panel'",
+        effect: 'debt',
+      },
+    ]);
+  }, 30_000);
+
+  test('allows a feature-service that imports a resource-service', () => {
+    const invocation = checkDirection('K3', {
+      'src/m/m.resource.ts': 'export const load = (): number => 1;\n',
+      'src/m/m.feature.ts':
+        "import { load } from './m.resource';\nexport const run = (): number => load();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+    expect(verdictOf(invocation).unevaluated).toEqual([]);
+  }, 30_000);
+
+  test('names a resource-service that imports a feature-service', () => {
+    const invocation = checkDirection('K4', {
+      'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
+      'src/m/m.resource.ts':
+        "import { run } from './m.feature';\nexport const load = (): number => run();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'K4',
+        path: 'src/m/m.resource.ts',
+        subject: 'src/m/m.feature.ts',
+        message: "resource imports feature src/m/m.feature.ts through './m.feature'",
+        effect: 'debt',
+      },
+    ]);
+  }, 30_000);
+
+  test('exempts a composition root that imports every kind', () => {
+    const invocation = checkDirection('K3', {
+      'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
+      'src/m/m.resource.ts': 'export const load = (): number => 2;\n',
+      'src/m/m.repository.ts': repositorySource,
+      'src/m/composition.ts':
+        "import { run } from './m.feature';\nimport { load } from './m.resource';\nimport { store } from './m.repository';\nexport const wired = (): number => run() + load() + store.read();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 30_000);
+
+  test('refuses K3 when the trusted modules are unconfigured', () => {
+    const invocation = checkDirection(
+      'K3',
+      {
+        'src/m/m.repository.ts': repositorySource,
+        'src/m/m.feature.ts':
+          "import { store } from './m.repository';\nexport const run = (): number => store.read();\n",
+      },
+      { TOOL_WIKI_TRUSTED_NODE_MODULES: '' },
+    );
+    expect(invocation.exitCode).toBe(1);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.findings).toEqual([]);
+    expect(verdict.unevaluated).toEqual([
+      { ruleId: 'K3', reason: 'trusted TypeScript runtime modules are not configured' },
+    ]);
+  }, 30_000);
+});
+
 describe('check production CLI', () => {
   test('allows the indexed candidate under an enforced module rule and never certifies', () => {
     const { repository, revision } = createIndexedCandidate();
@@ -1162,6 +1348,8 @@ describe('rule adapters over real candidates', () => {
     expect(verdict.ruleIds).toEqual([
       'F7',
       'INV-CLASSIFY',
+      'K3',
+      'K4',
       'MOD-DIRECT-ENTRIES',
       'MOD-INDEX',
       'MOD-LAYOUT',

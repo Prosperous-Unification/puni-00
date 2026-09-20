@@ -1,6 +1,7 @@
 import type { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import type { checkIndexes } from '../indexes/check-indexes';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
+import type { extractRelationships } from '../relationships';
 import type { KindGraph } from './kinds';
 import type { SizeCeilings } from './size-ratchet';
 
@@ -72,6 +73,7 @@ export type RuleEvaluation =
   | { readonly kind: 'not-evaluated'; readonly reason: string };
 
 export type IndexReport = ReturnType<typeof checkIndexes>;
+export type RelationshipReport = ReturnType<typeof extractRelationships>;
 
 export type RuleOutcome<Report> =
   { readonly ok: true; readonly report: Report } | { readonly ok: false; readonly reason: string };
@@ -87,6 +89,12 @@ export interface RuleContext {
   readonly indexes: RuleOutcome<IndexReport>;
   /** Kinds and modules, derived from paths alone; total, so it needs no outcome wrapper. */
   readonly kinds: KindGraph;
+  /**
+   * The extracted relationships, computed at most once per check and never before a rule asks.
+   * Extraction typechecks the whole candidate, so an unconditional call would make every `check` pay
+   * for it.
+   */
+  relationships(): RuleOutcome<RelationshipReport>;
 }
 
 /**

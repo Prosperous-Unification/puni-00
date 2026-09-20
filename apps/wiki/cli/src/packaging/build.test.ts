@@ -165,6 +165,8 @@ describe('buildPackage', () => {
         ruleModes: [
           { ruleId: 'F7', mode: 'observe' },
           { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+          { ruleId: 'K3', mode: 'observe' },
+          { ruleId: 'K4', mode: 'observe' },
           { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
           { ruleId: 'MOD-INDEX', mode: 'enforce' },
           { ruleId: 'MOD-LAYOUT', mode: 'observe' },

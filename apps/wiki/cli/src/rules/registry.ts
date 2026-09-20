@@ -1,8 +1,14 @@
 import { classifyEntries } from '../inventory/classify-entries';
 import { readCandidateBlob } from '../inventory/read-blob';
-import { extractRelationships } from '../relationships';
+import { type Direction, directionObservations, type ImportEdge } from './direction';
+import type { KindGraph } from './kinds';
 import { moduleLayoutObservations } from './kinds';
-import { evaluateWrapped, type RegisteredRule } from './rule';
+import {
+  evaluateWrapped,
+  type RegisteredRule,
+  type RuleContext,
+  type RuleObservation,
+} from './rule';
 import { measureSizes } from './size-ratchet';
 
 const SpecSource = 'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md';
@@ -103,23 +109,18 @@ const relationshipsRule: RegisteredRule = {
   source: `${SpecSource}#requirement-relationship-resolution`,
   inputs: ['candidate.entries', 'policy.relationshipRequest'],
   evaluate: (context) => {
-    const relationshipRequest = context.relationshipRequest;
-    if (relationshipRequest === undefined) {
-      return { kind: 'not-evaluated', reason: 'the rule policy carries no relationship request' };
-    }
+    const outcome = context.relationships();
+    if (!outcome.ok) return { kind: 'not-evaluated', reason: outcome.reason };
     // Proof: on 2026-09-20, replacing the unresolved mapping with an empty list made the adapter
     // test receive `findings: []` instead of the declared relationship debt.
-    return evaluateWrapped(() =>
-      extractRelationships(
-        context.repository,
-        context.candidate,
-        relationshipRequest,
-      ).declarations.unresolved.map((unresolved) => ({
+    return {
+      kind: 'observed',
+      observations: outcome.report.declarations.unresolved.map((unresolved) => ({
         path: '.',
         subject: unresolved.relationshipId,
         message: `declared relationship is unresolved: ${unresolved.reason}`,
       })),
-    );
+    };
   },
 };
 
@@ -142,6 +143,63 @@ const sizeRatchetRule: RegisteredRule = {
   },
 };
 
+function graphRule(
+  id: string,
+  family: string,
+  statement: string,
+  anchor: string,
+  inputs: readonly string[],
+  observe: (
+    graph: KindGraph,
+    imports: readonly ImportEdge[],
+    context: RuleContext,
+  ) => readonly RuleObservation[],
+): RegisteredRule {
+  return {
+    id,
+    family,
+    statement,
+    source: `${KindSpecSource}${anchor}`,
+    inputs,
+    evaluate: (context) => {
+      const outcome = context.relationships();
+      // Proof: on 2026-09-20, reporting an empty observed list when extraction failed made the
+      // unconfigured-modules test expect exit 1 and receive 0.
+      if (!outcome.ok) return { kind: 'not-evaluated', reason: outcome.reason };
+      return {
+        kind: 'observed',
+        observations: observe(context.kinds, outcome.report.typescript.imports, context),
+      };
+    },
+  };
+}
+
+const DirectionAnchor = '#requirement-kind-direction-over-the-import-graph';
+const GraphInputs = ['candidate.entries', 'policy.relationshipRequest'];
+
+function directionRule(id: string, statement: string, direction: Direction): RegisteredRule {
+  return graphRule(id, 'relationships', statement, DirectionAnchor, GraphInputs, (graph, imports) =>
+    directionObservations(graph, imports, direction),
+  );
+}
+
+const kindDirectionRules: readonly RegisteredRule[] = [
+  directionRule(
+    'K3',
+    'A feature-service imports resource-services and never a repository or delivery, through a barrel or directly.',
+    // Proof: on 2026-09-20, omitting delivery made the delivery-import test receive
+    // `findings: []` instead of the expected K3 finding.
+    { from: 'feature', forbidden: ['repository', 'delivery'] },
+  ),
+  directionRule(
+    'K4',
+    'A resource-service imports repository ports and never a feature-service or delivery.',
+    // Proof: on 2026-09-20, omitting feature made the feature-import test receive
+    // `findings: []` instead of the expected K4 finding.
+    { from: 'resource', forbidden: ['feature', 'delivery'] },
+  ),
+];
+
 const rules: readonly RegisteredRule[] = [
   classificationRule,
   directEntriesRule,
@@ -149,6 +207,7 @@ const rules: readonly RegisteredRule[] = [
   moduleLayoutRule,
   relationshipsRule,
   sizeRatchetRule,
+  ...kindDirectionRules,
 ];
 
 /** The registry, sorted by identifier so a verdict's rule list is stable. */

@@ -64,6 +64,27 @@ Planner, after part C, 2026-09-20: replayed the candidate-root fault outside the
 
 ### Part D — K3 and K4 import direction
 
+Executor attempt `010-7-rules.D-finish.20260920T163701Z`. D1 was supplied from the stopped
+predecessor attempt; D2 through D6 were replayed in this attempt. Every fault exercised the
+production CLI.
+
+| Command                                                                 | Result                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focused rules suite, baseline                                           | exit 0; 43 pass, 0 fail                                                                                                                                                                                     |
+| Strict OpenSpec validation, baseline                                    | exit 0; 104 passed, 0 failed                                                                                                                                                                                |
+| Focused rules suite, tests first                                        | exit 1 as expected; the seven direction tests named unregistered `K3`                                                                                                                                       |
+| Focused rules suite, implemented and after all proof restores           | exit 0; 50 pass, 0 fail (baseline plus seven); `reports a declared relationship that the candidate leaves unresolved` passed                                                                                |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`             | exit 0                                                                                                                                                                                                      |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`           | first two runs exited 1; direct ESLint showed only autofixable `simple-import-sort/imports` errors in `check.ts` and `registry.ts`; after `bunx eslint --fix` on those two owned files, the target exited 0 |
+| Owned-file Prettier write; `NX_DAEMON=false bunx nx format:check --all` | write exited 0; repository-wide check exited 0 with no output                                                                                                                                               |
+| Strict OpenSpec validation, final                                       | exit 0; 104 passed, 0 failed, unchanged from baseline                                                                                                                                                       |
+
+Pending planner verification: the whole `twilight-bureaucrat:test`,
+`twilight-bureaucrat:test:package` and `tool-devsync:test` targets. The host gate was not run on
+this machine.
+
+Planner, after part D, 2026-09-20: replayed D3 outside the sandbox (in `kinds.ts`, the composition root pushed into `files` as a feature instead of into `compositionRoots`): `exempts a composition root that imports every kind` failed with a finding at `src/m/composition.ts` where none was expected, and the kind-resolution case failed with it (recorded, not a stop); restored byte for byte. The whole `twilight-bureaucrat` `test`, `test:package` (with `K3` and `K4` in the packaged-build test's rule policy), `lint:source` and `typecheck` succeeded; `tool-devsync:test` succeeded; format check clean.
+
 ### Part E — K2, K5, K6, F1 and record
 
 ## Failure proofs
@@ -95,3 +116,9 @@ Planner, after part C, 2026-09-20: replayed the candidate-root fault outside the
 | C7    | Unavailable index report                | Returned an empty observed list when the index outcome was unavailable     | `refuses a candidate whose index metadata is malformed`                 | Failed: expected exit 1, received 0.                                                                                                                                              |
 | C8a   | Candidate-root module containment       | Applied the named-root containment guard to the empty root                 | `calls a file under a module's view directory delivery`                 | Failed: expected the root module `""` for `view/panel.tsx`, received `undefined`.                                                                                                 |
 | C8b   | Candidate-root module paths             | Always joined a module root and filename with `/`                          | `allows a module at the candidate root`                                 | Failed: expected no findings; received missing-index and missing-contract findings at `.`.                                                                                        |
+| D1    | Barrel traversal                        | Returned only the direct target from `reachedTargets`                      | `sees a repository through a barrel a feature imports`                  | Failed: expected one repository finding, received `findings: []` (`D1.patch`, `D1.log`).                                                                                          |
+| D2    | Forbidden-kind membership               | Treated every reached kind as forbidden                                    | `allows a feature-service that imports a resource-service`              | Failed: expected `findings: []`, received one K3 debt finding, `feature imports resource src/m/m.resource.ts through './m.resource'` (`D2.patch`, `D2.log`).                      |
+| D3    | Composition-root exemption              | Classified `composition.ts` as a feature                                   | `exempts a composition root that imports every kind`                    | Failed: expected `findings: []`, received one K3 debt finding at `src/m/composition.ts` for its repository import (`D3.patch`, `D3.log`).                                         |
+| D4    | Extraction failure is unevaluated       | Reported an empty observed list when relationship extraction failed        | `refuses K3 when the trusted modules are unconfigured`                  | Failed at the exit-status assertion: expected 1, received 0 (`D4.patch`, `D4.log`).                                                                                               |
+| D5    | K3 forbids delivery                     | Removed `delivery` from K3's forbidden kinds                               | `names a feature-service that imports a delivery component`             | Failed: expected one delivery finding, received `findings: []` (`D5.patch`, `D5.log`).                                                                                            |
+| D6    | K4 forbids feature-services             | Removed `feature` from K4's forbidden kinds                                | `names a resource-service that imports a feature-service`               | Failed: expected one feature finding, received `findings: []` (`D6.patch`, `D6.log`).                                                                                             |
