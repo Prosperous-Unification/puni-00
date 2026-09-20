@@ -19,7 +19,11 @@
         "executor": "nx:run-commands",
         "options": {
           "command": "bun test src --coverage --coverage-reporter=lcov",
-          "cwd": "libs/wbs/application/core"
+          "cwd": "libs/wbs/application/core",
+          "env": {
+            "CLAUDECODE": "0",
+            "AGENT": "0"
+          }
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -47,7 +51,11 @@
         ],
         "options": {
           "command": "bun test --coverage --coverage-reporter=lcov",
-          "cwd": "libs/wbs/domain/domain"
+          "cwd": "libs/wbs/domain/domain",
+          "env": {
+            "CLAUDECODE": "0",
+            "AGENT": "0"
+          }
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -69,7 +77,11 @@
         "inputs": ["default", "^production"],
         "options": {
           "command": "bun test src --coverage --coverage-reporter=lcov",
-          "cwd": "libs/wbs/adapters/store-memory"
+          "cwd": "libs/wbs/adapters/store-memory",
+          "env": {
+            "CLAUDECODE": "0",
+            "AGENT": "0"
+          }
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -102,7 +114,11 @@
         ],
         "options": {
           "command": "bun test --preload ../test/scratch/preload.ts",
-          "cwd": "tools/tool-dagger"
+          "cwd": "tools/tool-dagger",
+          "env": {
+            "CLAUDECODE": "0",
+            "AGENT": "0"
+          }
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -135,7 +151,11 @@
         "executor": "nx:run-commands",
         "options": {
           "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../tools/test/scratch/preload.ts",
-          "cwd": "apps/wiki/cli"
+          "cwd": "apps/wiki/cli",
+          "env": {
+            "CLAUDECODE": "0",
+            "AGENT": "0"
+          }
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},

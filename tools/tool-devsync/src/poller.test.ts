@@ -657,11 +657,21 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
       fakeGitArchiving(`case "$sha" in
   ${firstSha})
     : > "$RACE_STARTED"
-    while [ ! -e "$RACE_RELEASE" ]; do sleep 0.01; done
+    waited=0
+    while [ ! -e "$RACE_RELEASE" ]; do
+      sleep 0.01
+      waited=$((waited + 1))
+      if [ "$waited" -ge "\${RACE_PATIENCE:-3000}" ]; then echo "race partner never arrived: $RACE_RELEASE" >&2; exit 97; fi
+    done
     CONTENT=BROKEN
     ;;
   ${secondSha})
-    while [ ! -e "$RACE_STARTED" ]; do sleep 0.01; done
+    waited=0
+    while [ ! -e "$RACE_STARTED" ]; do
+      sleep 0.01
+      waited=$((waited + 1))
+      if [ "$waited" -ge "\${RACE_PATIENCE:-3000}" ]; then echo "race partner never arrived: $RACE_STARTED" >&2; exit 97; fi
+    done
     CONTENT=FIXED
     : > "$RACE_RELEASE"
     ;;
@@ -717,7 +727,12 @@ esac`),
     await writeFile(
       fakeGit,
       fakeGitArchiving(`if mkdir "$RACE_FIRST" 2>/dev/null; then
-  while [ ! -e "$RACE_RELEASE" ]; do sleep 0.01; done
+  waited=0
+  while [ ! -e "$RACE_RELEASE" ]; do
+    sleep 0.01
+    waited=$((waited + 1))
+    if [ "$waited" -ge "\${RACE_PATIENCE:-3000}" ]; then echo "race partner never arrived: $RACE_RELEASE" >&2; exit 97; fi
+  done
 else
   : > "$RACE_RELEASE"
 fi
@@ -752,6 +767,49 @@ CONTENT=SAME`),
     ]);
     expect(await readFile(candidateDeployer(installed, sha), 'utf8')).toBe('SAME\n');
   });
+
+  // Proof: four fixture processes from this file were found alive on h2puni after 10.9 days
+  // (2026-09-20), spinning in `while [ ! -e "$RACE_RELEASE" ]` because their race partner had
+  // never arrived. With this test's patience raised to 100000000, which is the old unbounded
+  // wait, it timed out at 20004.52ms and left the helper and its fake `git` alive afterwards
+  // (2026-09-20); with the bound they exit 97 and the test passes in under a second.
+  it('ends a race whose partner never arrives, rather than waiting forever', async () => {
+    const root = await scratchAsync('wbs-dev-poller-lonely-');
+    const source = join(root, 'src');
+    const installed = join(root, 'bin');
+    const commands = join(root, 'commands');
+    const fakeGit = join(commands, 'git');
+    const fakeBun = join(root, 'bun');
+    const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
+    const sha = 'e'.repeat(40);
+
+    await requireCommand(['mkdir', '-p', source, commands]);
+    await writeFile(
+      fakeGit,
+      fakeGitArchiving(`waited=0
+while [ ! -e "$RACE_RELEASE" ]; do
+  sleep 0.01
+  waited=$((waited + 1))
+  if [ "$waited" -ge "\${RACE_PATIENCE:-3000}" ]; then echo "race partner never arrived: $RACE_RELEASE" >&2; exit 97; fi
+done
+CONTENT=NEVER`),
+    );
+    await writeFile(
+      fakeBun,
+      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\nexit 0\n',
+    );
+    await chmod(fakeGit, 0o755);
+    await chmod(fakeBun, 0o755);
+
+    const lonely = await command(['bash', helper, source, installed, fakeBun, sha, '1.3.14'], {
+      PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+      RACE_RELEASE: join(root, 'release-that-never-comes'),
+      RACE_PATIENCE: '20',
+    });
+
+    expect(lonely.code).not.toBe(0);
+    expect(lonely.stderr).toContain('race partner never arrived');
+  }, 20_000);
 
   it('guards the canonical h2puni gate wiring for the real orphan process proof', async () => {
     const gate = await readFile(new URL('../../../bin/h2puni-gate.sh', import.meta.url), 'utf8');
