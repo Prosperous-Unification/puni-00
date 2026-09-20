@@ -8,7 +8,7 @@
 
 ## 3. Prove the file-scope checks
 
-- [ ] 3.1 Inject P2-P12, P14, and P22-P24 one at a time, compile each fault, observe its named focused test fail, restore exact bytes, and rerun green — tests: each proof's named `templates.test.ts` case.
+- [x] 3.1 Inject P2-P12, P14, and P22-P24 one at a time, compile each fault, observe its named focused test fail, restore exact bytes, and rerun green — tests: each proof's named `templates.test.ts` case.
 
 ## 4. Verify one module
 

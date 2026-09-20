@@ -40,15 +40,19 @@ function oneKindFindings(
   requirement: TemplateRequirement,
   files: readonly ArtifactFile[],
 ): TemplateFinding[] {
-  return files
-    .filter((file) => declaredKinds(file.path).length > 1)
-    .map((file) =>
-      finding(
-        requirement,
-        file.path,
-        `file name declares ${declaredKinds(file.path).join(' and ')}`,
-      ),
-    );
+  return (
+    files
+      // Proof: requiring more than two declared kinds made `reports a standalone file whose name
+      // declares two kinds` lose its `resource.one-kind` finding. Observed 2026-09-20.
+      .filter((file) => declaredKinds(file.path).length > 1)
+      .map((file) =>
+        finding(
+          requirement,
+          file.path,
+          `file name declares ${declaredKinds(file.path).join(' and ')}`,
+        ),
+      )
+  );
 }
 
 function fileFindings(
@@ -59,6 +63,8 @@ function fileFindings(
   const { file, siblings } = scope;
   switch (constraint.kind) {
     case 'name-suffix':
+      // Proof: returning no finding here made `reports a file whose name lacks the kind suffix`
+      // lose its `feature.suffix` finding. Observed 2026-09-20.
       return fileNameOf(file.path).endsWith(constraint.suffix)
         ? []
         : [finding(requirement, file.path, `file name does not end in ${constraint.suffix}`)];
@@ -66,6 +72,8 @@ function fileFindings(
       return oneKindFindings(requirement, [file]);
     case 'declares-one': {
       const stated = taggedValues(file.text, constraint.tag);
+      // Proof: accepting fewer than 99 tags made `reports a service that states two declaration
+      // tags` exit 0 instead of 1. Observed 2026-09-20.
       return stated.length === 1
         ? []
         : [
@@ -80,6 +88,8 @@ function fileFindings(
       const findings: TemplateFinding[] = [];
       for (const specifier of importSpecifiers(file.text, file.path)) {
         for (const forbidden of constraint.kinds) {
+          // Proof: checking an empty kind list made `reports a side-effect import of a repository
+          // and ignores comments and strings` exit 0 instead of 1. Observed 2026-09-20.
           if (declaredKinds(specifier).includes(forbidden)) {
             findings.push(
               finding(
@@ -98,6 +108,8 @@ function fileFindings(
       const testName = name.endsWith('.ts')
         ? `${name.slice(0, -'.ts'.length)}.test.ts`
         : `${name}.test.ts`;
+      // Proof: returning no finding here made `reports a repository adapter with no sibling test`
+      // exit 0 instead of 1. Observed 2026-09-20.
       return siblings.includes(testName)
         ? []
         : [finding(requirement, file.path, `no sibling ${testName} proves this file`)];
@@ -109,6 +121,8 @@ function fileFindings(
 
 /** Every finding one template's requirements produce over one artifact. */
 function requirementFindings(template: Template, scope: FileScope): TemplateFinding[] {
+  // Proof: skipping the first requirement made `evaluates exactly the requirements the template
+  // states` lose its sole `probe.tag` finding. Observed 2026-09-20.
   return template.requirements.flatMap((requirement) =>
     fileFindings(requirement, requirement.constraint, scope),
   );
@@ -170,6 +184,8 @@ function decodeArtifact(repository: string, blob: string, path: string): string 
   const bytes = readCandidateBlob(repository, blob, path);
   let text: string;
   try {
+    // Proof: decoding without `fatal` made `refuses a candidate file that is not UTF-8` receive
+    // empty stderr instead of the encoding refusal. Observed 2026-09-20.
     text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
@@ -195,6 +211,8 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
   const template = selectTemplate(request.templateId);
   const root = resolveCandidateRoot(request.repository);
   const subject = request.subject.replace(/\/+$/, '');
+  // Proof: deleting this guard made `refuses a subject that is not candidate-relative` report an
+  // empty selection for `/etc/passwd` instead of the path refusal. Observed 2026-09-20.
   if (subject.length === 0 || subject.startsWith('/') || subject.split('/').includes('..')) {
     throw new Error(`subject must be a candidate-relative path: ${request.subject}`);
   }
@@ -204,11 +222,15 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
       ? snapshot.entries.filter((entry) => entry.path.startsWith(`${subject}/`))
       : snapshot.entries.filter((entry) => entry.path === subject);
   if (selected.length === 0) {
+    // Proof: returning a finding-free verification for an absent subject made `refuses a subject
+    // that selects nothing` exit 0 instead of 1. Observed 2026-09-20.
     const mistaken = snapshot.entries.some((entry) =>
       template.subject === 'directory'
         ? entry.path === subject
         : entry.path.startsWith(`${subject}/`),
     );
+    // Proof: forcing `mistaken` false made `refuses a file template pointed at a directory`
+    // report an empty selection instead of the subject-kind refusal. Observed 2026-09-20.
     throw new Error(
       mistaken
         ? `template ${template.id} verifies one ${template.subject}; ${subject} is not one`
@@ -233,6 +255,8 @@ const Usage =
 
 function candidateRequest(kind: string, revision: string): CandidateRequest {
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
+    // Proof: treating an invalid kind as committed made `refuses an unknown candidate selection
+    // kind` exit 0 instead of 1. Observed 2026-09-20.
     throw new Error(Usage);
   }
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
@@ -267,8 +291,12 @@ export function writeTemplateCommand(argv: readonly string[]): void {
       subject,
     });
     process.stdout.write(`${JSON.stringify(verified)}\n`);
+    // Proof: deleting this assignment made `reports a file whose name lacks the kind suffix`
+    // exit 0 instead of 1. Observed 2026-09-20.
     if (!verified.conforms) process.exitCode = 1;
     return;
   }
+  // Proof: deleting this refusal made `refuses an unknown template action` exit 0 instead of 1.
+  // Observed 2026-09-20.
   throw new Error(Usage);
 }

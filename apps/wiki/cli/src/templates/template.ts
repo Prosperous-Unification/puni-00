@@ -133,6 +133,8 @@ export function importSpecifiers(text: string, path: string): string[] {
   try {
     return scanner.scanImports(text).map((record) => record.path);
   } catch (cause) {
+    // Proof: returning no imports here made `refuses a file that does not parse` lose its
+    // `cannot scan the imports` refusal and receive empty stderr. Observed 2026-09-20.
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`cannot scan the imports of ${path}: ${detail}`, { cause });
   }
@@ -182,6 +184,8 @@ export function lineComments(text: string): string[] {
 export function taggedValues(text: string, tag: string): string[] {
   const declaration = new RegExp(`^//[ \\t]*@${tag}[ \\t]+(\\S+)$`);
   const values: string[] = [];
+  // Proof: scanning raw source with a multiline regular expression made `counts a declaration
+  // tag only when it is a real line comment` report 2 tags instead of 0. Observed 2026-09-20.
   for (const comment of lineComments(text)) {
     const match = declaration.exec(comment.trimEnd());
     if (match !== null) values.push(match[1]);
