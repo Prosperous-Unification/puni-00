@@ -1310,6 +1310,27 @@ describe('one cell for the whole trio', () => {
     expect(combinedCell('010').style.fontWeight).toBe('400');
   });
 
+  itDom('ends a resting trio in an ellipsis, and only while it is resting', async () => {
+    // What a folded cell does when the trio, the result and an assignee slot do
+    // not all fit: the trio yields, and says so. Chromium is the oracle for
+    // whether it *had* to yield (`e2e/layout.spec.ts`); jsdom is the oracle for
+    // which arm carries the declaration, which is the half a browser cannot
+    // report without a 104px cell to do it in.
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('3.7');
+    });
+
+    expect(combinedCell('010').style.textOverflow).toBe('ellipsis');
+
+    fireEvent.focus(combinedCell('010'));
+    expect(combinedCell('010').style.textOverflow).toBe('');
+
+    fireEvent.blur(combinedCell('010'));
+    expect(combinedCell('010').style.textOverflow).toBe('ellipsis');
+  });
+
   itDom('leaves a refused trio at full strength, because a complaint may not recede', async () => {
     await oneRow();
     typeCombined('010', '2/3/10');

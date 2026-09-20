@@ -6,7 +6,7 @@
 
 ## 2. Let the resting trio end in an ellipsis
 
-- [ ] 2.1 Add the jsdom oracle for which arm carries the declaration.
+- [x] 2.1 Add the jsdom oracle for which arm carries the declaration.
 - [ ] 2.2 Declare `text-overflow: ellipsis` on the resting arm only.
 - [ ] 2.3 Record the green run.
 
