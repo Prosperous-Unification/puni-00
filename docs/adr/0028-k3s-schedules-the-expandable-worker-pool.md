@@ -2,6 +2,8 @@
 
 **Status:** accepted, 2026-09-06.
 
+**Ownership (2026-09-19):** The worker pool recorded here is Twilight Dash's.
+
 Twilight uses K3s to place isolated activity attempts across an expandable set of
 client-owned worker hosts. M1 proves a real cluster with one dedicated server that
 schedules no attempt Pods and at least two agent nodes, using direct Kubernetes

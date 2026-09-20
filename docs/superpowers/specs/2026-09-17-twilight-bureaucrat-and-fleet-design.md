@@ -2,6 +2,8 @@
 
 Status: implementation proposal based on the September 17 sync and the user's explicit choices: `twilight-bureaucrat`, npm distribution, k3s immediately, fleet abstraction with node churn. No package publication, infrastructure provisioning or production cutover was performed while writing this contract.
 
+The fleet and its delivery tooling belong to Twilight Dash.
+
 ## Intent
 
 The repository has a reusable wiki toolkit but distributes it as a bespoke archive; consumers and CI still refer to its in-repository implementation. Infrastructure setup also depends on host-specific scripts and knowledge. Deliver a standalone npm package, make CI/CD consume a pinned release, and provide reproducible k3s provisioning, deployment and recovery across a changing fleet. Existing package-manager, activation-trust, migration and gate invariants remain mandatory. Do not implement the Twilight scheduler, change the WBS database engine, purchase capacity automatically, or equate a renamed tool with certified content. Local clusters prove the deployment paths before any production mutation.
