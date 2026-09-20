@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
+import { rememberedPreferences } from '@/modules/preferences/composition';
 
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
@@ -79,12 +80,16 @@ export interface ProjectPageProps {
 /**
  * Where this browser remembers which project was open.
  *
- * localStorage, like the session token beside it: a refresh that forgets the
- * project costs a click and the remembering, every time. The stored id is a
- * claim, not a fact — it is honoured only while the fetched list still
- * contains it, so a deleted project cannot be "selected" into a 404.
+ * Reached through the preferences service like every other key, and **judged**
+ * nowhere near it: its claim is tested against the project list this load just
+ * fetched, not against a shape, so there is nothing to hand a guard built once
+ * at module scope — `found.some(...)` is the whole validity rule and it is
+ * different on every load. That is what the unchecked shape is for, and why the
+ * empty string is held rather than refused: a held empty string still reaches
+ * `installProjects`, which drops the key, and a refusal would leave it in
+ * storage for ever.
  */
-const PROJECT_KEY = 'wbs.project';
+const rememberedProject = rememberedPreferences.lastOpenedProject;
 
 /**
  * The name be-01 writes for a project nobody has named yet.
@@ -108,8 +113,8 @@ const PLACEHOLDER_PROJECT_NAME = 'New project';
  * `remembered` exists to hold.
  */
 function rememberProject(id: string | null): void {
-  if (id === null) localStorage.removeItem(PROJECT_KEY);
-  else localStorage.setItem(PROJECT_KEY, id);
+  if (id === null) rememberedProject.forget();
+  else rememberedProject.write(id);
 }
 
 /**
@@ -572,7 +577,7 @@ export function ProjectPage({
       // selecting the only project saves a click on the common path; with
       // several, the choice is the user's and nothing is guessed.
       if (current !== null && found.some((project) => project.id === current)) return current;
-      const remembered = localStorage.getItem(PROJECT_KEY);
+      const remembered = rememberedProject.read();
       if (remembered !== null && found.some((project) => project.id === remembered)) {
         return remembered;
       }

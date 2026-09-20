@@ -9,7 +9,8 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/ui/modal';
-import { type Remembered, rememberedText } from '@/lib/remembered';
+import type { Remembered } from '@/lib/remembered';
+import { rememberedPreferences } from '@/modules/preferences/composition';
 
 import { EstimatingPanel, type EstimatingPanelProps } from './estimating-panel';
 import { OptimizationSettingsPanel, type OptimizationSettingsProps } from './optimization-settings';
@@ -41,14 +42,6 @@ export function isSettingsSection(claimed: unknown): claimed is SettingsSection 
 }
 
 /**
- * Where this browser remembers which section of a project's settings was last
- * open. Per project and per browser, as every other remembered plan preference
- * in `wbs-table.tsx` is — a reader who came back to adjust capacity twice lands
- * on capacity, and be-01 is never told.
- */
-const sectionKey = (projectId: string): string => `wbs.projectSettingsSection.${projectId}`;
-
-/**
  * The section this browser last left open for `projectId`, or the first one.
  *
  * The stored value is a claim, not a fact, read the way `rememberedHiddenColumns`
@@ -72,11 +65,16 @@ export function rememberSettingsSection(projectId: string, section: SettingsSect
 }
 
 /**
- * One project's open section, stored as **bare text** — see
- * {@link rememberedText} for why that cannot become JSON now.
+ * Where this browser remembers which section of a project's settings was last
+ * open. Per project and per browser, as every other remembered plan preference
+ * in `wbs-table.tsx` is — a reader who came back to adjust capacity twice lands
+ * on capacity, and be-01 is never told.
+ *
+ * One project's open section, stored as **bare text**, which cannot become JSON
+ * without losing the section existing readers already hold.
  */
 const storedSection = (projectId: string): Remembered<SettingsSection> =>
-  rememberedText(sectionKey(projectId), isSettingsSection);
+  rememberedPreferences.projectSettingsSection(projectId, isSettingsSection);
 
 /** What each section gets from the plan, less what the modal itself supplies. */
 type SectionOwn<P> = Omit<P, 'onDirtyChange' | 'onDone'>;

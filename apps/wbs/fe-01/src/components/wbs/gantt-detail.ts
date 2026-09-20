@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { remembered } from '@/lib/remembered';
+import { rememberedPreferences } from '@/modules/preferences/composition';
 
 /**
  * The chart's **detail** switch, whole: the key it remembers, the reading of
@@ -33,29 +33,10 @@ import { remembered } from '@/lib/remembered';
  * again in the next project is the fault this remembers away.
  *
  * `wbs.ganttDetail` and no longer `wbs.ganttArrows`, because the switch no
- * longer answers about the arrows alone. See {@link RETIRED_ARROWS_KEY}.
+ * longer answers about the arrows alone. See the retired-key note in
+ * {@link rememberedDetail}.
  */
-const DETAIL_KEY = 'wbs.ganttDetail';
-
-/** The detail switch as stored — a boolean and nothing else; see {@link remembered}. */
-const storedDetail = remembered(
-  DETAIL_KEY,
-  (claimed): claimed is boolean => typeof claimed === 'boolean',
-);
-
-/**
- * The key the arrows-only switch wrote, for one day, between `gantt-declutter`
- * and `declutter-one-button`.
- *
- * **Dropped rather than migrated**, and the difference matters: it held an
- * answer about the arrows, and this switch draws two further families of mark
- * with them. Reading a stored `true` across would open the chart with parent
- * brackets and uncosted bars on it for a reader who asked for elbows — which is
- * the clutter Dany asked to be rid of in the first place. So the answer is
- * discarded and the key is **removed**, rather than left in storage to be
- * puzzled over by whoever reads a browser's `localStorage` next.
- */
-const RETIRED_ARROWS_KEY = 'wbs.ganttArrows';
+const storedDetail = rememberedPreferences.ganttDetail;
 
 /**
  * Drops the two keys this panel refuses, then reads the remembered answer.
@@ -77,15 +58,31 @@ const RETIRED_ARROWS_KEY = 'wbs.ganttArrows';
  * hand, over a preference about a mark.
  */
 function rememberedDetail(): boolean {
-  // The retired key goes whatever this browser has said since, and its value is
-  // never looked at: see {@link RETIRED_ARROWS_KEY}. `removeItem` on a key that
-  // is not there is a no-op, so there is nothing to ask first.
+  /**
+   * The key the arrows-only switch wrote, for one day, between `gantt-declutter`
+   * and `declutter-one-button`.
+   *
+   * **Dropped rather than migrated**, and the difference matters: it held an
+   * answer about the arrows, and this switch draws two further families of mark
+   * with them. Reading a stored `true` across would open the chart with parent
+   * brackets and uncosted bars on it for a reader who asked for elbows — which is
+   * the clutter Dany asked to be rid of in the first place. So the answer is
+   * discarded and the key is **removed**, rather than left in storage to be
+   * puzzled over by whoever reads a browser's `localStorage` next.
+   *
+   * The retired key goes whatever this browser has said since, and its value is
+   * never looked at. Forgetting a key that is not there is a no-op, so there is
+   * nothing to ask first.
+   */
   //
   // Proof: this line deleted. `drops the key the arrows switch wrote, without
   // reading it` alone failed, `1 failed | 90 passed`, on `expected 'true' to be
   // null` — the retired key still in storage after the chart had been opened.
   // Watched 2026-08-12.
-  localStorage.removeItem(RETIRED_ARROWS_KEY);
+  // Proof: making the repository's `forget` a no-op failed its adapter case
+  // and three chart-detail cases; this one failed on `expected 'true' to be
+  // null`. Observed 2026-09-20.
+  rememberedPreferences.retiredGanttArrows.forget();
   // Proof: this refusal replaced by `claimed === true || (typeof claimed ===
   // 'string' && claimed !== '')`, which is what "read the claim, drop nothing"
   // comes to. `2 failed | 89 passed`: `refuses a stored answer that is not a
