@@ -40,7 +40,7 @@ When any startup action fails, `bootBe01` SHALL reject with the original failure
 
 ### Requirement: Shutdown releases in the reverse of the start order
 
-`stop()` SHALL release what boot acquired in the reverse of the order it was acquired, the listener before the source, and SHALL be safe to call again after it has settled.
+`stop()` SHALL release resources in the declared shutdown order: listener, optimizer, retention timer, source. Repeated calls SHALL replay the first close's outcome without invoking any disposer again.
 
 #### Scenario: The process stops normally
 
@@ -50,7 +50,7 @@ When any startup action fails, `bootBe01` SHALL reject with the original failure
 #### Scenario: The process is stopped twice
 
 - **WHEN** `stop()` is called after a previous call has settled
-- **THEN** the second call resolves without releasing any resource twice
+- **THEN** the second call replays the previous success or cleanup failure without releasing any resource twice
 
 ### Requirement: A refused release is reported and the rest is still released
 
