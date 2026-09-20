@@ -710,6 +710,19 @@ describe('what a keystroke costs the chart', () => {
             callback(performance.now());
           });
         }
+        // Force a real viewport-state publication as the positive control: a
+        // dimension change cannot take the same-window early return. With the
+        // hook back in WbsTable this increments ownerRenders; below the owner it
+        // redraws only the viewport child.
+        Object.defineProperty(frame, 'clientHeight', { configurable: true, value: 321 });
+        frame.scrollTop = 121;
+        fireEvent.scroll(frame);
+        const resized = queued.shift();
+        if (resized === undefined) throw new Error('viewport resize queued no frame');
+        act(() => {
+          resized(performance.now());
+        });
+
         expect(ownerRenders.count).toBe(0);
         expect(window.__wbsScrollProbe.ganttCommits).toBe(0);
 

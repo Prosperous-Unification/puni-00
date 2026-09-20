@@ -2758,6 +2758,7 @@ export const GanttPanel = memo(
     before.labelsShown === after.labelsShown &&
     before.pointed === after.pointed &&
     before.markers === after.markers &&
+    before.plan.narrowedByFilter === after.plan.narrowedByFilter &&
     before.plan.rows.length === after.plan.rows.length &&
     before.plan.rows.every((row, index) => row.id === after.plan.rows[index]?.id),
 );

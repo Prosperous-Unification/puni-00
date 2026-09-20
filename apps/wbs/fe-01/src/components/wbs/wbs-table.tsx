@@ -941,7 +941,7 @@ export function WbsTable({
       if (settle !== null) clearTimeout(settle);
       pointedRows.resumeTablePointing();
     };
-  }, [pointedRows]);
+  }, [pointedRows, renderer]);
   const { refreshOrMarkStale, run, stepStack, runMarkerWrite } = usePlanRead({
     setDrafts,
     projectId,

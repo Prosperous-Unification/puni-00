@@ -7600,6 +7600,34 @@ describe('the waits the filter left undrawn', () => {
     expect(droppedSentence()).toBeNull();
   });
 
+  itDom('publishes the dropped-wait sentence when filtering changes without changing rows', () => {
+    const pointed = pointedAtRow(null);
+    const view = render(
+      <GanttPanel
+        plan={narrowedPast({ narrowedByFilter: false })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        pointed={pointed}
+      />,
+    );
+
+    view.rerender(
+      <GanttPanel
+        plan={narrowedPast()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        pointed={pointed}
+      />,
+    );
+    askForTheDetail();
+
+    expect(droppedSentence()).toContain('this filter is hiding');
+  });
+
   itDom('says nothing when a filter drew every wait it has', () => {
     render(
       <GanttPanel
