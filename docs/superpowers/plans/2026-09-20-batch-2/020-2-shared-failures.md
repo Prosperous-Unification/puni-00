@@ -1566,12 +1566,7 @@ test(shared-failures): prove each report limit with a watched production negativ
 
 ### Slice H — complete the record and hand over
 
-- [ ] H1. Complete `openspec/changes/adopt-failure-reporting/verify.md` from what earlier slices
-      appended: structural validation counts, the intent word count, task state, and one
-      failure-proof table row per proof — C2, D3, D4, D5, E4, E5, G1 to G5 — with the fault, the
-      named test, the failing line and the `$TMPDIR/evidence` patch and output paths. Name every
-      check **not** run and why: the whole `tool-devsync:test` target, `bin/h2puni-gate.sh`, and
-      any browser execution.
+- [ ] H1. Complete `openspec/changes/adopt-failure-reporting/verify.md` from earlier slices: structural validation counts, intent word count, task state, and one failure-proof row for each of C2, D3, D4, D5, E4, E5 and G1 to G5. Record the fault, named failing test, observed diagnostic and artifact references. Evidence filenames are relative to their originating attempt's evidence directory; never publish expanded `$TMPDIR` paths or absolute clone or log paths. For C2, cite attempt `020-2-shared-failures.C.20260920T141109Z`, patch `restart-entry-omitted.patch`, and failure output `sync-before.txt`. The latter records C's original red baseline: `names every library project.json that exists on disk` failed with `Expected to contain: "libs/shared/domain/failures/project.json"`. Identify it as that baseline observation. Do not cite `restart-entry-omitted.out` as proof: it contains the later zero-test run. Preserve the separately recorded planner replay without inventing artifact references for it. Preserve historical planner verification. Separately identify checks not run by this executor and why: the whole `tool-devsync:test` target, `bin/h2puni-gate.sh`, and browser execution.
 
 - [ ] H2. Tick task 1 in `openspec/changes/adopt-failure-reporting/tasks.md`. Leave tasks 2 and 3
       unticked.
