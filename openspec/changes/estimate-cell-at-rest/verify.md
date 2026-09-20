@@ -44,3 +44,7 @@ None. This slice adds specification artifacts and no production safety check.
 
 - `bin/h2puni-gate.sh <sha>` was not run because the host gate is unavailable on this machine and this executor cannot create the required commit.
 - No browser test ran in this attempt.
+
+## Planner, P0 (before slice 2)
+
+- 2026-09-20, commit `538cfe98`, unchanged production code: `CI=1 NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- --grep "folded step cell|same slot as its leaves"` with `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and `AGENT` unset: **2 passed** in Chromium (`holds a trio and its figure on one line of a folded step cell` 3.1s, `stands a parent’s figure in the same slot as its leaves’` 3.3s; 16.7s wall clock with the stack's start). Chromium was already installed, so `playwright install --with-deps` was not run. The gate was green before the change.
