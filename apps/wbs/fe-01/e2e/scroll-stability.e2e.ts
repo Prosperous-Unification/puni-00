@@ -247,6 +247,11 @@ test.describe('large-plan scroll stability', () => {
       await page.goto('/');
       await page.getByRole('button', { name: 'Gantt', exact: true }).click();
       await expect(page.locator('[data-gantt-label]')).toHaveCount(rows);
+      if (process.env['WBS_SCROLL_HIDE_GANTT'] === '1') {
+        await page.locator('[data-gantt-panel]').evaluate((panel) => {
+          panel.style.visibility = 'hidden';
+        });
+      }
       const wrapped = page.locator(`[data-name-input="${seeded.ids[4]}"]`);
       const oneLine = page.locator(`[data-name-input="${seeded.ids[3]}"]`);
       await expect(wrapped).toBeVisible();
