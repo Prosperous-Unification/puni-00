@@ -61,6 +61,7 @@ export const NODE_SUITES: readonly string[] = [
   // wrong in, as the rule's own comment says, so it is left where the rule
   // puts it rather than special-cased.
   'src/lib/saved-plan-compare.test.ts',
+  'src/modules/calendar-markers/calendar-markers.feature.test.ts',
   'src/modules/calendar-markers/calendar-markers.resource.test.ts',
   'src/modules/directory-management/directory-management.feature.test.ts',
   'src/modules/directory/directory.resource.test.ts',
