@@ -4,6 +4,7 @@ import {
   ClassificationPolicy,
   OpaqueId,
   RelationshipRequest,
+  RelativePath,
   SchemaVersion,
 } from '../contracts/records';
 import { readExternalArtifact } from '../policy/trust';
@@ -15,12 +16,25 @@ const RuleModeRecord = type({
   mode: "'observe'|'ratchet'|'enforce'",
 }).onUndeclaredKey('reject');
 
+const AdoptedSetRecord = type({
+  adoptedPrefixes: RelativePath.array(),
+})
+  .onUndeclaredKey('reject')
+  // Proof: on 2026-09-20, removing this narrow made the repeated-prefix test receive empty stderr
+  // instead of `unique adopted prefixes`.
+  .narrow((adopted, context) =>
+    new Set(adopted.adoptedPrefixes).size === adopted.adoptedPrefixes.length
+      ? true
+      : context.mustBe('unique adopted prefixes'),
+  );
+
 // Proof: on 2026-09-20, accepting undeclared policy keys made the schema test receive empty stderr
 // instead of `unexpected must be removed`.
 const RulePolicyRecord = type({
   schemaVersion: SchemaVersion,
   policyId: OpaqueId,
   ruleModes: RuleModeRecord.array(),
+  'adoptedSet?': AdoptedSetRecord,
   'classificationPolicy?': ClassificationPolicy,
   'relationshipRequest?': RelationshipRequest,
 }).onUndeclaredKey('reject');
@@ -53,8 +67,8 @@ function decodeRulePolicy(bytes: Uint8Array, path: string): RulePolicy {
  * Loads the consumer's rule policy from outside the candidate and checks it against the registry.
  *
  * Every registered rule needs a mode and every named rule must exist: an absent entry is unknown
- * state, and AGENTS.md R5 forbids defaulting it. `ratchet` is refused until the adopted set that
- * gives it meaning arrives with slice B2.
+ * state, and AGENTS.md R5 forbids defaulting it. `ratchet` needs an adopted set; a policy that
+ * ratchets a rule without one is refused.
  * @throws Error naming the offending rule identifier.
  */
 export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy {
@@ -75,12 +89,11 @@ export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy 
         `rule policy names an unregistered rule: ${ruleId} (registered: ${registeredIds()})`,
       );
     }
-    // Proof: on 2026-09-20, deleting this branch made the ratchet test receive empty stderr
-    // instead of the refusal that names slice B2's missing adopted set.
-    if (mode === 'ratchet') {
-      throw new Error(
-        `rule policy sets ${ruleId} to ratchet, which has no adopted set until slice B2`,
-      );
+    // The adopted set is what gives ratchet its meaning; R5 forbids defaulting it.
+    // Proof: on 2026-09-20, deleting this branch made the no-adopted-set test receive empty stderr
+    // instead of naming INV-CLASSIFY.
+    if (mode === 'ratchet' && policy.adoptedSet === undefined) {
+      throw new Error(`rule policy sets ${ruleId} to ratchet but states no adopted set`);
     }
   }
   // Proof: on 2026-09-20, deleting this coverage loop made the missing-mode test receive empty

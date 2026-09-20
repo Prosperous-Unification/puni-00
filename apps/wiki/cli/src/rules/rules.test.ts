@@ -161,6 +161,23 @@ function createUnindexedCandidate(): { repository: string; revision: string } {
   return { repository, revision: commit(repository, 'no index') };
 }
 
+/** An indexed candidate whose single index declares 41 direct entries, one over the limit. */
+function createDirectEntryDebtCandidate(): { repository: string; revision: string } {
+  const repository = initRepository('twilight-rules-debt-');
+  const members = Array.from({ length: 41 }, (unused, index) => `src/module${String(index)}.ts`);
+  for (const member of members) write(repository, member, 'export const value = 1;\n');
+  write(
+    repository,
+    'README.md',
+    indexSource(
+      'Debt fixture',
+      'module.debt',
+      members.map((path) => ({ kind: 'path', path }) as const),
+    ),
+  );
+  return { repository, revision: commit(repository, 'over the limit') };
+}
+
 interface RuleModeEntry {
   ruleId: string;
   mode: 'observe' | 'ratchet' | 'enforce';
@@ -291,7 +308,7 @@ describe('rule policy boundary', () => {
     expect(invocation.exitCode).toBe(1);
   });
 
-  test('refuses ratchet until the adopted set exists', () => {
+  test('refuses ratchet when the policy states no adopted set', () => {
     const { repository, revision } = createIndexedCandidate();
     const policyPath = writeRulePolicy(
       everyRuleObserving.map((entry) =>
@@ -308,10 +325,10 @@ describe('rule policy boundary', () => {
       'MOD-INDEX',
     ]);
     expect(stderrOf(invocation)).toContain(
-      'rule policy sets INV-CLASSIFY to ratchet, which has no adopted set until slice B2',
+      'rule policy sets INV-CLASSIFY to ratchet but states no adopted set',
     );
     expect(invocation.exitCode).toBe(1);
-  });
+  }, 15_000);
 
   test('refuses a selected rule whose policy input is absent', () => {
     const { repository, revision } = createIndexedCandidate();
@@ -376,6 +393,86 @@ describe('rule policy boundary', () => {
     // default (2026-09-20): it runs the production CLI five times in sequence, which fits locally
     // and not on a loaded build host.
   }, 20_000);
+});
+
+describe('ratchet mode', () => {
+  test('reports ratchet debt outside the adopted set and allows the candidate', () => {
+    const { repository, revision } = createDirectEntryDebtCandidate();
+    const policyPath = writeRulePolicy(
+      everyRuleObserving.map((entry) =>
+        entry.ruleId === 'MOD-DIRECT-ENTRIES' ? { ...entry, mode: 'ratchet' as const } : entry,
+      ),
+      { adoptedSet: { adoptedPrefixes: ['src'] } },
+    );
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      policyPath,
+      '--rule',
+      'MOD-DIRECT-ENTRIES',
+    ]);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(true);
+    expect(verdict.findings).toEqual([
+      {
+        ruleId: 'MOD-DIRECT-ENTRIES',
+        path: 'README.md',
+        message: 'index declares 41 direct entries, limit 40',
+        effect: 'debt',
+      },
+    ]);
+  }, 15_000);
+
+  test('refuses ratchet debt inside the adopted set', () => {
+    const { repository, revision } = createDirectEntryDebtCandidate();
+    const policyPath = writeRulePolicy(
+      everyRuleObserving.map((entry) =>
+        entry.ruleId === 'MOD-DIRECT-ENTRIES' ? { ...entry, mode: 'ratchet' as const } : entry,
+      ),
+      { adoptedSet: { adoptedPrefixes: ['README.md'] } },
+    );
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      policyPath,
+      '--rule',
+      'MOD-DIRECT-ENTRIES',
+    ]);
+    expect(invocation.exitCode).toBe(1);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.findings).toEqual([
+      {
+        ruleId: 'MOD-DIRECT-ENTRIES',
+        path: 'README.md',
+        message: 'index declares 41 direct entries, limit 40',
+        effect: 'refusal',
+      },
+    ]);
+  }, 15_000);
+
+  test('refuses an adopted set that repeats a prefix', () => {
+    const { repository, revision } = createDirectEntryDebtCandidate();
+    const policyPath = writeRulePolicy(everyRuleObserving, {
+      adoptedSet: { adoptedPrefixes: ['src', 'src'] },
+    });
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      policyPath,
+      '--rule',
+      'MOD-DIRECT-ENTRIES',
+    ]);
+    expect(stderrOf(invocation)).toContain('unique adopted prefixes');
+    expect(invocation.exitCode).toBe(1);
+  }, 15_000);
 });
 
 describe('check production CLI', () => {
@@ -508,19 +605,7 @@ describe('explain with a rule policy', () => {
 
 describe('rule adapters over real candidates', () => {
   test('reports an index over the direct-entry limit with its exact counts', () => {
-    const repository = initRepository('twilight-rules-debt-');
-    const members = Array.from({ length: 41 }, (unused, index) => `src/module${String(index)}.ts`);
-    for (const member of members) write(repository, member, 'export const value = 1;\n');
-    write(
-      repository,
-      'README.md',
-      indexSource(
-        'Debt fixture',
-        'module.debt',
-        members.map((path) => ({ kind: 'path', path }) as const),
-      ),
-    );
-    const revision = commit(repository, 'over the limit');
+    const { repository, revision } = createDirectEntryDebtCandidate();
     const invocation = runCli([
       'check',
       'committed',
@@ -542,19 +627,7 @@ describe('rule adapters over real candidates', () => {
   });
 
   test('turns direct-entry debt into a refusal under enforce', () => {
-    const repository = initRepository('twilight-rules-debt-enforce-');
-    const members = Array.from({ length: 41 }, (unused, index) => `src/module${String(index)}.ts`);
-    for (const member of members) write(repository, member, 'export const value = 1;\n');
-    write(
-      repository,
-      'README.md',
-      indexSource(
-        'Debt fixture',
-        'module.debt',
-        members.map((path) => ({ kind: 'path', path }) as const),
-      ),
-    );
-    const revision = commit(repository, 'over the limit');
+    const { repository, revision } = createDirectEntryDebtCandidate();
     const invocation = runCli([
       'check',
       'committed',

@@ -122,7 +122,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
       continue;
     }
     for (const observation of evaluation.observations) {
-      findings.push(toFinding(rule.id, mode, observation));
+      findings.push(toFinding(rule.id, mode, observation, policy.adoptedSet));
     }
   }
   return {
