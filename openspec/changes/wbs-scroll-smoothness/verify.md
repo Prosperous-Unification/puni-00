@@ -70,11 +70,11 @@ before counters start and caches the complete, stable Gantt label list instead
 of rebuilding a 500/2,000-entry observer array on every animation frame. One
 h2puni repeat at each size measured:
 
-| Rows | React commits | React commit time | Gantt commits | Worst pairing | Worst frame gap |
-| ---: | ------------: | ----------------: | ------------: | ------------: | --------------: |
-| 50 | 30 | 55.7 ms | 0 | 0.018 row | 116.6 ms |
-| 500 | 129 | 548.3 ms | 0 | 0.018 row | 201.3 ms |
-| 2,000 | 129 | 589.2 ms | 0 | 0.016 row | 187.8 ms |
+|  Rows | React commits | React commit time | Gantt commits | Worst pairing | Worst frame gap |
+| ----: | ------------: | ----------------: | ------------: | ------------: | --------------: |
+|    50 |            30 |           55.7 ms |             0 |     0.018 row |        116.6 ms |
+|   500 |           129 |          548.3 ms |             0 |     0.018 row |        201.3 ms |
+| 2,000 |           129 |          589.2 ms |             0 |     0.016 row |        187.8 ms |
 
 The 500-row React cost is down from the prior chunk's 162 commits / 1,309 ms;
 the 2,000-row cost is down from 1,344 ms, and pairing remained inside the

@@ -155,9 +155,11 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
   }
   await session.send('IO.close', { handle: stream });
   const events =
-    (JSON.parse(raw) as {
-      traceEvents?: { name?: string; dur?: number; args?: Record<string, unknown> }[];
-    }).traceEvents ?? [];
+    (
+      JSON.parse(raw) as {
+        traceEvents?: { name?: string; dur?: number; args?: Record<string, unknown> }[];
+      }
+    ).traceEvents ?? [];
   const durationMs = (name: string) =>
     events
       .filter((event) => event.name === name)
@@ -205,12 +207,17 @@ test('50-row plan reaches matching terminal positions from either face', async (
         );
         if (row === undefined) return { id: '', cut: 0 };
         const box = row.getBoundingClientRect();
-        return { id: row.dataset['rowId'] ?? row.dataset['ganttLabel'] ?? '', cut: (edge - box.top) / box.height };
+        return {
+          id: row.dataset['rowId'] ?? row.dataset['ganttLabel'] ?? '',
+          cut: (edge - box.top) / box.height,
+        };
       };
       const table = document.querySelector<HTMLElement>('[data-table-frame]');
       const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
       const heading = table?.querySelector('thead th')?.getBoundingClientRect().bottom;
-      const axis = panel?.querySelector<HTMLElement>('[data-gantt-axis]')?.getBoundingClientRect().bottom;
+      const axis = panel
+        ?.querySelector<HTMLElement>('[data-gantt-axis]')
+        ?.getBoundingClientRect().bottom;
       if (table === null || panel === null || heading === undefined || axis === undefined)
         throw new Error('the two plan faces have no measurable headings');
       return {
@@ -229,13 +236,22 @@ test('50-row plan reaches matching terminal positions from either face', async (
         }, terminal);
         await painted(page);
       }
-      const driverGap = await page.locator(driver).evaluate((node, edge) =>
-        edge === 'end' ? node.scrollHeight - node.clientHeight - node.scrollTop : node.scrollTop,
-      terminal);
-      expect(driverGap, `${driver} driver does not roll back at ${terminal}`).toBeLessThanOrEqual(1);
+      const driverGap = await page
+        .locator(driver)
+        .evaluate(
+          (node, edge) =>
+            edge === 'end'
+              ? node.scrollHeight - node.clientHeight - node.scrollTop
+              : node.scrollTop,
+          terminal,
+        );
+      expect(driverGap, `${driver} driver does not roll back at ${terminal}`).toBeLessThanOrEqual(
+        1,
+      );
       const paired = await positions();
       const mismatch = Math.abs(
-        (indexes.get(paired.table.id) ?? -1) + paired.table.cut -
+        (indexes.get(paired.table.id) ?? -1) +
+          paired.table.cut -
           ((indexes.get(paired.gantt.id) ?? -1) + paired.gantt.cut),
       );
       expect(mismatch, `${driver} leaves mismatched faces at ${terminal}`).toBeLessThanOrEqual(0.1);
