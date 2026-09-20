@@ -29,6 +29,7 @@ describe('plan viewport', () => {
       publicationOffset(192, COLUMN_PUBLICATION_STEP_PX),
     ]).toEqual([0, 192]);
     expect(publicationOffset(-40, ROW_PUBLICATION_STEP_PX)).toBe(0);
+    expect(publicationOffset(2398, COLUMN_PUBLICATION_STEP_PX, 2398)).toBe(2398);
   });
 
   it('slices measured variable-height rows by viewport and overscan', () => {

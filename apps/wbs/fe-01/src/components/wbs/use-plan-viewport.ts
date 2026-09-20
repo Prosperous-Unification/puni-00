@@ -38,8 +38,15 @@ export const COLUMN_PUBLICATION_STEP_PX = 192;
  * Pins a compositor offset to the start of its retained publication bucket.
  * Negative offsets are browser overscroll rather than a logical plan position.
  */
-export function publicationOffset(offsetPx: number, stepPx: number): number {
-  return Math.floor(Math.max(0, offsetPx) / stepPx) * stepPx;
+export function publicationOffset(
+  offsetPx: number,
+  stepPx: number,
+  terminalOffsetPx?: number,
+): number {
+  const clampedOffsetPx = Math.max(0, offsetPx);
+  if (terminalOffsetPx !== undefined && clampedOffsetPx >= terminalOffsetPx - 1)
+    return clampedOffsetPx;
+  return Math.floor(clampedOffsetPx / stepPx) * stepPx;
 }
 
 interface FrameViewport {
@@ -189,7 +196,11 @@ export function usePlanViewport({
       if (heightPx <= 0 || widthPx <= 0) return;
       const current = frameReading.current;
       const scrollTop = publicationOffset(frameNode.scrollTop, ROW_PUBLICATION_STEP_PX);
-      const scrollLeft = publicationOffset(frameNode.scrollLeft, COLUMN_PUBLICATION_STEP_PX);
+      const scrollLeft = publicationOffset(
+        frameNode.scrollLeft,
+        COLUMN_PUBLICATION_STEP_PX,
+        Math.max(0, frameNode.scrollWidth - widthPx),
+      );
       if (current.measured && current.heightPx === heightPx && current.widthPx === widthPx) {
         const pinnedRowIds = new Set(pinnedCells.map((cell) => cell.rowId));
         const pinnedColumnIds = new Set(pinnedCells.map((cell) => cell.columnId));
