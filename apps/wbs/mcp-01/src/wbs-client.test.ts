@@ -3,7 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 import type { FetchLike } from './wbs-client';
-import { buildRequest, callTool } from './wbs-client';
+import { buildRequest, callTool, EdgeGate, UpstreamRejected } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -182,31 +182,49 @@ describe('callTool', () => {
   // Watched red for D6 / task 3.3. A 401 must not read like a 400: the caller
   // cannot fix an expired token by sending different inputs. Drop the 401
   // branch and this goes red.
-  it('names the caller token and sign-in recovery on a 401 from be-01', async () => {
+  it('types a 401 from be-01 as an upstream credential rejection', async () => {
     const be01 = stub(json(401, { error: 'unauthorized' }));
-    const result = await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch);
-    expect(result.isError).toBe(true);
-    const message = textOf(result);
-    expect(message).toMatch(/caller access token/);
-    expect(message).toMatch(/expired, invalid/);
-    expect(message).toMatch(/sign in again/i);
-    expect(message).toContain('unauthorized');
+    const cause = await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch).catch(
+      (error: unknown) => error,
+    );
+    expect(cause).toBeInstanceOf(UpstreamRejected);
+    expect(String(cause)).toMatch(/caller access token/);
+    expect(String(cause)).toContain('unauthorized');
   });
 
   // The other 401. fe-01 shipped this bug once already: an edge challenge
   // reported as `http_401` sent someone hunting through the app for a fault one
   // layer above it. Delete the `www-authenticate` check and this goes red.
-  it('separates the deployment gate’s 401 from be-01’s own', async () => {
+  it('separates the deployment gate’s 401 even when its credential is missing', async () => {
     const be01 = stub(
       new Response('<html>401 Unauthorized</html>', {
         status: 401,
         headers: { 'www-authenticate': 'Basic realm="wbs-dev"' },
       }),
     );
-    const message = textOf(await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch));
-    expect(message).toContain('WBS_BASIC_AUTH');
-    expect(message).toMatch(/never reached the API/);
-    expect(message).not.toContain('caller access token');
+    const cause = await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch).catch(
+      (error: unknown) => error,
+    );
+    expect(cause).toBeInstanceOf(EdgeGate);
+    expect(String(cause)).toContain('WBS_BASIC_AUTH');
+    expect(String(cause)).toMatch(/never reached the API/);
+    expect(String(cause)).not.toContain('caller access token');
+  });
+
+  // Proof: classifying any challenge as the edge gate made this Bearer response
+  // an EdgeGate instead of ending the caller's local MCP session.
+  it('treats a Bearer challenge as an upstream rejection', async () => {
+    const be01 = stub(
+      new Response('', { status: 401, headers: { 'www-authenticate': 'Bearer realm="be-01"' } }),
+    );
+    const cause = await callTool(
+      READ,
+      { id: 'p1' },
+      { ...CONFIG, WBS_BASIC_AUTH: 'dany:hunter2' },
+      be01.fetch,
+    ).catch((error: unknown) => error);
+    expect(cause).toBeInstanceOf(UpstreamRejected);
+    expect(cause).not.toBeInstanceOf(EdgeGate);
   });
 
   it('keeps the status when a refusal body is not JSON', async () => {

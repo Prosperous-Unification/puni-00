@@ -31,11 +31,20 @@ describe('authenticateCaller', () => {
   // Break caught: returning the presented local token here leaks the wrong
   // issuer/audience credential to be-01 instead of its server-held Okta token.
   it('uses a verifier-provided downstream token without exposing it in the local JWT', async () => {
-    const verifier: TokenVerifier & { upstreamTokenFor(token: string): Promise<string> } = {
+    const verifier: TokenVerifier & {
+      upstreamTokenFor(token: string): Promise<string>;
+      callerSessionFor(
+        token: string,
+      ): Promise<{ upstreamToken: string; mcpSessionId: string | null }>;
+    } = {
       verify: () => Promise.resolve(claims),
-      upstreamTokenFor: (token) =>
+      upstreamTokenFor: () => Promise.reject(new Error('the combined resolver must be used')),
+      callerSessionFor: (token) =>
         token === 'local-mcp-token'
-          ? Promise.resolve('upstream-okta-token')
+          ? Promise.resolve({
+              upstreamToken: 'upstream-okta-token',
+              mcpSessionId: 'mcp-session-1',
+            })
           : Promise.reject(new Error('unexpected token')),
     };
     expect(
@@ -46,7 +55,11 @@ describe('authenticateCaller', () => {
         'dev',
         'wbs_groups',
       ),
-    ).toMatchObject({ token: 'upstream-okta-token', clientId: 'person-1' });
+    ).toMatchObject({
+      token: 'upstream-okta-token',
+      clientId: 'person-1',
+      extra: { mcpSessionId: 'mcp-session-1' },
+    });
   });
 
   // Proof: attempting verification in gateway mode made this test throw from the verifier.

@@ -9,7 +9,7 @@ import {
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 import type { FetchLike, ToolTextResult } from './wbs-client';
-import { callTool } from './wbs-client';
+import { callTool, EdgeGate, UpstreamRejected } from './wbs-client';
 
 /**
  * The three pieces composed: the tools section 2 derives, the call section 3
@@ -65,6 +65,7 @@ export interface ServerDeps {
   /** Injectable for the round trip in `server.test.ts`; production passes none. */
   readonly fetchImpl?: FetchLike;
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
+  readonly endSession?: (mcpSessionId: string) => void;
 }
 
 const errorText = (message: string): ToolTextResult => ({
@@ -103,7 +104,8 @@ const asCallToolResult = (
  * has settled on typebox and arktype. See design.md D5.
  */
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
-export function createServer({ tools, config, fetchImpl, callerTokenOf }: ServerDeps): Server {
+export function createServer(deps: ServerDeps): Server {
+  const { tools, config, fetchImpl, callerTokenOf, endSession } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
@@ -155,6 +157,18 @@ export function createServer({ tools, config, fetchImpl, callerTokenOf }: Server
         ),
       );
     } catch (cause) {
+      if (cause instanceof UpstreamRejected) {
+        const sessionId = extraSessionId(extra.authInfo);
+        if (sessionId !== null) endSession?.(sessionId);
+        return asCallToolResult(
+          errorText(
+            sessionId === null
+              ? `${tool.name} could not be called: ${cause.message} Sign in again and retry.`
+              : `${tool.name} could not be called: be-01 rejected the upstream credential, so the MCP session ended. Reauthorize and retry.`,
+          ),
+        );
+      }
+      if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
       // The opposite case, and deliberately not a throw. An undeclared input or
       // a missing path parameter is a mistake the caller can correct, and these
       // messages name what to correct — as tool content a model reads them and
@@ -169,4 +183,11 @@ export function createServer({ tools, config, fetchImpl, callerTokenOf }: Server
   });
 
   return server;
+}
+
+function extraSessionId(authInfo: unknown): string | null {
+  if (typeof authInfo !== 'object' || authInfo === null || !('extra' in authInfo)) return null;
+  const extra = authInfo.extra;
+  if (typeof extra !== 'object' || extra === null || !('mcpSessionId' in extra)) return null;
+  return typeof extra.mcpSessionId === 'string' ? extra.mcpSessionId : null;
 }
