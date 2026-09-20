@@ -1,6 +1,6 @@
 # Backlog.md 1.52.0, observed
 
-Status: experiments E1, E5, E6 and E8 of `docs/superpowers/plans/2026-09-20-wbs-backlog-md-kanban-research.md` (work item K1), run on 2026-09-20 in a scratch Git repository with `backlog.md` pinned exactly at 1.52.0 and installed with Bun. Nothing here was read from source; every line is something the released binary did.
+Status: experiments E1, E2, E5, E6 and E8 of `docs/superpowers/plans/2026-09-20-wbs-backlog-md-kanban-research.md` (work items K1 and K2), run on 2026-09-20 in a scratch Git repository with `backlog.md` pinned exactly at 1.52.0 and installed with Bun. Nothing here was read from source; every line is something the released binary did.
 
 ## What was seen
 
@@ -20,3 +20,19 @@ Status: experiments E1, E5, E6 and E8 of `docs/superpowers/plans/2026-09-20-wbs-
 - The watch stream is usable as a change feed for a board drawn by the WBS: whole documents, a versioned shape, no diffing protocol to reverse-engineer.
 - Embedding the shipped web UI under another origin would mean rewriting root-absolute asset and API paths. Experiment E2 (work item K2) can still be run to record exactly what breaks, but nothing seen here suggests it will work.
 - Its timestamps are coarser than what the agentic planning research asks of the WBS (start and end as instants), so the board cannot take its times from Backlog.md.
+
+## Behind a proxy mount (experiment E2, work item K2)
+
+Run on 2026-09-20: `backlog browser --no-open --port 6440` from the scratch project, and in front of it a twenty-line Bun reverse proxy on another port that forwards only `/backlog/…` and answers 404 for everything else, as a host that owns the rest of its origin would. Probed with `curl`; no browser was opened, so "blank page" below is inferred from the 404 on the page's only script, not seen.
+
+| Request through the proxy                               | Answer                          | Why                                                                                                                                                                    |
+| ------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /backlog/`                                         | 200, the page                   | The mount forwards it.                                                                                                                                                 |
+| `GET /backlog/api/tasks`                                | 200                             | The server itself is indifferent to the prefix once it is stripped.                                                                                                    |
+| `GET /chunk-….js`, the address the page itself asks for | **404**                         | The page references its script, stylesheet and icon root-absolutely (`src="/chunk-….js"`, `href="/chunk-….css"`), which lands outside the mount.                       |
+| `GET /api/tasks`, the address the script asks for       | **404**                         | The bundle's API paths are literals (`"/api/config"`, `"/api/decisions"`, `"/api/docs"`, …).                                                                           |
+| WebSocket                                               | not reachable through the mount | The bundle opens `new WebSocket(`ws(s)://${window.location.host}`)`: the origin's root, no path. The server does upgrade a WebSocket on `/` when asked directly (101). |
+
+Also seen: no router base to configure was found in the bundle, and the server sent no `Access-Control-Allow-Origin` header on `/api/tasks` for a foreign `Origin`, so a page on another origin cannot read its API from a browser either.
+
+E2 fails as predicted, on three independent counts (assets, API base, WebSocket address). Making the shipped UI work under a path would mean rewriting HTML and JavaScript in flight or claiming the whole origin for it. A dedicated subdomain per project would satisfy all three, and would still leave authentication, the loopback bind and the absent write conflict story to be solved around it. The question to put upstream (work item K6) is therefore specific: a configurable base path for assets, API and WebSocket.

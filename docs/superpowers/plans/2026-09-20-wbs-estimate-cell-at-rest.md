@@ -34,16 +34,16 @@ The alternative Dany named first, stronger numbers with fainter slashes, is kept
 
 - Behaviour is observable, so this is one small OpenSpec change on the table's capability, with scenarios for: result drawn for a flat trio; trio quiet at rest and full on focus; a refused trio not receding; a parent reading like its leaves.
 - The R5 negatives are per scenario: remove the focus rule and the "full on focus" case fails; restore the `finalSaysMore` guard and the flat-trio case fails.
-- The pixel suites will change on purpose. CI's `pixels` shards compare screenshots, so the baselines for every view with step columns are regenerated in the same change and reviewed by eye, light and dark.
-- `plan-estimates.test.tsx` pins the existing pair (`2/2/3 · 2.2`) and the parent-leaf alignment (`Expected: 858`); both are expected to change and each change is named in the packet, not discovered.
+- CI's `pixels` job is a Chromium geometry gate, not a screenshot comparison: the repository holds no screenshot baselines (no `toHaveScreenshot`, no committed images under `apps/`), so there is nothing to regenerate. The Chromium tests that measure this cell (`e2e/layout.spec.ts`: the fit of a trio and its figure in the folded cell, measured at 104 pixels, and the parent's figure standing in its leaves' slot) are the ones that move, and the planner runs them because the executor's sandbox has no browser. An earlier draft of this document said otherwise; corrected 2026-09-20 while writing the packet.
+- `2/2/3 · 2.2` and `Expected: 858` are quoted in comments as history, not pinned by assertions: the live parent-leaf assertion is relative. The tests that do change are listed in the packet (nine in the jsdom tier, measured by rehearsal), not discovered.
 
 ## Fit
 
-- Files: `plan-columns/estimates.tsx`, `plan-number-format.ts`, their tests, the e2e pixel baselines. None is in a refactoring lane (040.4 and 040.5 edit the plan read hook and the command services; 040.7 the lifetimes), so this can be built as soon as it is specified.
+- Files: `plan-columns/estimates.tsx`, `plan-number-format.ts`, their tests, and the Chromium layout and dark-mode specs. None is in a refactoring lane (040.4 and 040.5 edit the plan read hook and the command services; 040.7 the lifetimes), so this can be built as soon as it is specified.
 - The agentic planning research will add units shorter than a day and other measures (tokens, points, sizes). A cell whose main reading is "the result" takes those more easily than one whose main reading is a days trio, so this change goes first and the research builds on it.
 
 ## Work item
 
-| Ref | Item                                                                                                                                              | Depends on | Days (O / R / P) | Tokens  |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------- | ------- |
-| U1  | Estimate cell at rest: the result is the main reading and the trio recedes; OpenSpec change, tests with negatives, pixel baselines light and dark | —          | 0.5 / 1 / 2      | 800,000 |
+| Ref | Item                                                                                                                                                                 | Depends on | Days (O / R / P) | Tokens  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------- | ------- |
+| U1  | Estimate cell at rest: the result is the main reading and the trio recedes; OpenSpec change, tests with negatives, Chromium fit and contrast measured light and dark | —          | 0.5 / 1 / 2      | 800,000 |
