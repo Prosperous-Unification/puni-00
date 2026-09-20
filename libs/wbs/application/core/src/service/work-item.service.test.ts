@@ -2289,8 +2289,10 @@ describe('the priority a create stamps', () => {
   });
 });
 
+// T1 does not require a Unit citation, but this scenario enters the ledger no other way because
+// Unit is its only proving level.
 describe('assignment projections isolate memory projects', () => {
-  it('names only the people assigned in the requested project', async () => {
+  it('[PROJECT-ASSIGNMENT-READS-003] names only the people assigned in the requested project', async () => {
     const first = await service.create(projectId, OWNER, {
       parentId: null,
       afterId: null,

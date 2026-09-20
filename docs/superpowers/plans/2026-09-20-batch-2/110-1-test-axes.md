@@ -40,9 +40,9 @@ packet in either state; no slice inspects or moves that pin.
 | S     | The OpenSpec amendment that lets the rollout add targets      |                                     n/a |
 | A     | The level-selection table and the project inventory           |                                       5 |
 | B     | The level targets, their reports, and the command-shape rules |                                       9 |
-| C     | Scenario identifiers and the citations                        |                                      13 |
-| D     | The JUnit reader and the join                                 |                                      22 |
-| E     | Report provenance, the coverage command, and the table        |                                      24 |
+| C     | Scenario identifiers and the citations                        |                                      14 |
+| D     | The JUnit reader and the join                                 |                                      55 |
+| E     | Report provenance, the coverage command, and the table        |                                      57 |
 
 Each slice is dispatched from the reviewed and committed predecessor and has its
 own entry conditions, baseline step, changed-path list and commit subject. Every
@@ -62,7 +62,7 @@ type-checks and lints on its own — the second review's finding 2.
 | `openspec/changes/test-axes/verify.md`                            | Section 5 shows the proof-table shape each slice appends to; section 7 is the open item slice E answers.              |
 | `openspec/specs/project-assignment-reads/spec.md`                 | The chosen capability. Slice C edits it.                                                                              |
 | `tools/tool-devsync/src/service-kinds.ts`                         | The precedent for a checker in this tool: JSDoc density and `Proof:` comment placement.                               |
-| `tools/tool-devsync/src/workspace-targets.test.ts`                | `source conformance target discovery` and the `test:unit` presence case: section 5.5 says why they bind this packet.  |
+| `tools/tool-devsync/src/workspace-targets.test.ts`                | `source conformance target discovery` and the `test:unit` presence case: section 4.5 says why they bind this packet.  |
 | `apps/wiki/cli/src/relationships/committed-target-facts.test.ts`  | The declared `nx-target` facts. Do not edit any target they name.                                                     |
 | `nx.json`                                                         | `targetDefaults`. Slice B adds one entry.                                                                             |
 | `libs/wbs/adapters/store-sqlite/project.json`                     | Slice B edits it.                                                                                                     |
@@ -149,13 +149,20 @@ is edited. In `libs/wbs/application/core`, `bun test src` and
 `bun test $(find src -name '*.test.ts' | tr '\n' ' ')` collected the same files
 and the same total.
 
-**No enforcement case for the `CLAUDECODE`/`AGENT` target defaults exists on
-this tree.** `tools/tool-devsync/src/workspace-targets.test.ts` contains no such
-case and `nx.json` has no such entries today. Slice B adds the entry for the new
-target name because the incoming fix branch adds that enforcement; B1 reads
-`nx.json` first and copies the shape it finds, and falls back to the literal
-form when the branch has not landed. This packet claims nothing about that case
-existing now — the second review's finding 11.
+**An enforcement case for the `CLAUDECODE`/`AGENT` target defaults already
+exists on this tree.** `tools/tool-devsync/src/workspace-targets.test.ts:543`–`577`
+(`every test-running target answers the same from an agent shell`,
+`sets the agent output variables to 0`) walks the resolved project graph and
+requires `options.env.CLAUDECODE === '0'` and `options.env.AGENT === '0'` on
+every target whose command runs a test runner. `nx.json:69`–`76` already
+carries that default for `test:unit`, with the identical shape for
+`test:conformance` (`nx.json:77`–`84`), `test:store` (`nx.json:85`–`92`) and
+`test:portable` (`nx.json:93`–`100`) — confirmed with
+`grep -n '"CLAUDECODE"' nx.json` and by reading the case. Slice B still adds
+the entry for the new `test:api` target name, because a target name gains no
+default until one is written for it; B1 already reads `nx.json` first and
+copies the shape it finds there. This corrects the second review's finding
+11, whose "no such case" observation is stale on this tree.
 
 ### 4.6 OpenSpec, and the fault S4 really needs
 
@@ -216,9 +223,11 @@ packet owns was then empty.
 | `libs/wbs/application/core/src/service/work-item.service.test.ts` | C     | modify          | One citation                                           |
 | `tools/tool-devsync/src/scenario-coverage-cli.ts`                 | E     | create          | The coverage table                                     |
 
-Not edited: `openspec/changes/test-axes/tasks.md`, either `test` target, either
-`test:conformance` target, `tools/tool-devsync/project.json`, `.gitignore`,
-`docs/wiki-policy/*.json`, `docs/code-organization/**`, any README.
+Not edited by the executor: `package.json` and `bun.lock` — the planner declared
+`saxes` in its own commit before this packet's, and the executor has no network;
+`openspec/changes/test-axes/tasks.md`; either `test` target; either
+`test:conformance` target; `tools/tool-devsync/project.json`; `.gitignore`;
+`docs/wiki-policy/*.json`; `docs/code-organization/**`; any README.
 
 ## 6. Slice S — put the change's own words in order
 
@@ -575,7 +584,7 @@ and `test-levels.test.ts` do not exist.
 - [ ] A4 Run the focused file. Expected: exit 0, `Ran 5 tests across 1 file.`, 0 fail.
 - [ ] A5 Watch three negatives, each with the block of section 12 and the diagnostics of section 11, rows A-1 to A-3.
 - [ ] A6 Add one dated `Proof:` comment per negative in `test-levels.ts`, adjacent to the guard each one proves, naming the injected fault and the observed message.
-- [ ] A7 Append this slice's evidence to `verify.md` (commands, exit statuses, the three proof rows), **then** format:
+- [ ] A7 Append this slice's evidence to `verify.md` (commands, exit statuses, the three proof rows). Write each evidence reference as a basename relative to the attempt's evidence directory, never an absolute clone path or an expanded `$TMPDIR` path — the record is published. **Then** format:
 
   ```sh
   set -euo pipefail
@@ -862,7 +871,7 @@ discovery` searches every command for. Both forms select the same 56 files.
   `wbs-core:test:unit`; a different total on a moved main is recorded, not a
   stop. A failing test is a stop.
 
-- [ ] B11 Watch five negatives, rows B-1 to B-5 of section 11.
+- [ ] B11 Execute rows B-1 through B-9 independently, restoring and rerunning green between faults.
 - [ ] B12 Re-run the pinned case the first draft broke:
 
   ```sh
@@ -873,7 +882,7 @@ discovery` searches every command for. Both forms select the same 56 files.
   Expected: `Ran 1 test across 1 file.`, 0 fail, `17 filtered out`. Zero tests
   matched is a stop.
 
-- [ ] B13 Add the five dated `Proof:` comments, append this slice's evidence to `verify.md`, **then** run A7's check list over this slice's owned paths (`nx.json`, both manifests, both devsync files, `verify.md`) plus `nx format:check --all`.
+- [ ] B13 Add nine observed, dated `Proof:` comments beside the checks they establish, including checks in `test-levels.test.ts`; append all nine proof rows to `verify.md`. The number of test cases remains B0's N+4. Write each evidence reference as a basename relative to the attempt's evidence directory, never an absolute clone path or an expanded `$TMPDIR` path — the record is published. **Then** run A7's check list over this slice's owned paths (`nx.json`, both manifests, both devsync files, `verify.md`) plus `nx format:check --all`.
 
 **Hand-over.** `nx.json`, `libs/wbs/adapters/store-sqlite/project.json`,
 `libs/wbs/application/core/project.json`,
@@ -888,8 +897,8 @@ appear. Subject: `feat(test-axes): run the API and unit levels alone and report 
 scenario heading in `openspec/specs/project-assignment-reads/spec.md` carries an
 identifier, and none of the three test titles does.
 
-- [ ] C0 Record: the OpenSpec totals; the `Ran N tests across 1 file.` line of `bun test src/assignment-scope.db.test.ts` in `libs/wbs/adapters/store-sqlite`; and of `bun test src/service/work-item.service.test.ts` in `libs/wbs/application/core`. All three must be unchanged at the end.
-- [ ] C1 Append slice C's four cases to `test-levels.test.ts` and add `ADOPTED_CAPABILITY`, `readSpec`, `scenarioIdentifiers` and `scenariosWithoutIdentifier` to the import list.
+- [ ] C0 Record the focused devsync file's own baseline N from its `Ran N tests across 1 file.` line; the OpenSpec totals; the `Ran N tests across 1 file.` line of `bun test src/assignment-scope.db.test.ts` in `libs/wbs/adapters/store-sqlite`; and of `bun test src/service/work-item.service.test.ts` in `libs/wbs/application/core`. The last three must be unchanged at the end. C adds five cases and finishes at N+5.
+- [ ] C1 Append slice C's five cases to `test-levels.test.ts` and add `ADOPTED_CAPABILITY`, `readSpec`, `scenarioIdentifiers` and `scenariosWithoutIdentifier` to the import list.
 
   ```ts
   describe('the adopted capability', () => {
@@ -908,6 +917,12 @@ identifier, and none of the three test titles does.
     it('refuses a specification that holds no scenario', () => {
       expect(() => scenariosWithoutIdentifier('### Requirement: alone\n')).toThrow(
         'no `#### Scenario:`',
+      );
+    });
+
+    it('refuses a specification that holds no requirement', () => {
+      expect(() => scenariosWithoutIdentifier('#### Scenario: [DEMO-001] a\n')).toThrow(
+        'no `### Requirement:`',
       );
     });
 
@@ -977,7 +992,7 @@ identifier, and none of the three test titles does.
   }
   ```
 
-- [ ] C3 Run the focused file and record the red. Expected: the two new capability cases fail — `leaves no scenario without an identifier` with the three scenario titles, and `allocates the identifiers once and in order` with `these scenarios carry no identifier: …`. The two new refusal cases pass immediately.
+- [ ] C3 Run the focused file and record the red. Observed here: `12 pass`, `2 fail`, `Ran 14 tests across 1 file.` The two new capability cases fail — `leaves no scenario without an identifier` with the three scenario titles, and `allocates the identifiers once and in order` with `error: these scenarios carry no identifier: Tiny project among unrelated projects; Assignment write among unrelated projects; Different projects in the memory fixture`. The three new refusal cases pass immediately.
 - [ ] C4 In `openspec/specs/project-assignment-reads/spec.md`, prefix the three scenario titles in document order, changing nothing else:
 
   ```text
@@ -1006,11 +1021,12 @@ identifier, and none of the three test titles does.
 
   Expected: each of the first three prints `Ran 1 test across 1 file.` with 0
   fail — zero tests matched is a stop. The two whole-file runs reproduce C0's
-  totals. The focused devsync file is at B0's N+8.
+  totals. The focused devsync file is at C0's N+5 — **14 on this planner's
+  tree**, observed 2026-09-20.
 
 - [ ] C8 Run the OpenSpec validation block. Expected: C0's totals, 0 failed.
-- [ ] C9 Watch three negatives, rows C-1 to C-3 of section 11, and add their dated `Proof:` comments.
-- [ ] C10 Append this slice's evidence to `verify.md`, **then** format the **six** owned paths and run `nx format:check --all` and the focused devsync file.
+- [ ] C9 Execute rows C-1 through C-4 of section 11 independently, restoring and rerunning green between faults, and add one dated `Proof:` comment per row. C-4 removes only the requirement-heading guard from `assertSpecification`; the named test is `refuses a specification that holds no requirement`. Require `Received function did not throw` and `Received value: []`, restore and compare bytes, rerun green, then add the adjacent dated proof comment. Update subsequent counts from their own slice baselines.
+- [ ] C10 Append this slice's evidence to `verify.md`. Publish evidence references as basenames only. Do not copy absolute clone paths or expanded temporary-root paths into `verify.md`. Record unavailable whole-suite checks as pending planner verification. **Then** run, in this order: `NX_DAEMON=false bunx nx run tool-devsync:typecheck`; `NX_DAEMON=false bunx nx run tool-devsync:lint`; Prettier `--write` then `--check` over the **six** owned paths; `NX_DAEMON=false bunx nx format:check --all`; and the focused devsync file. Observed here: typecheck and lint each exit 0 with no diagnostic on the two devsync files.
 
 **Hand-over.** `tools/tool-devsync/src/test-levels.ts`,
 `tools/tool-devsync/src/test-levels.test.ts`,
@@ -1025,17 +1041,133 @@ Subject: `feat(test-axes): identify and cite the project assignment reads scenar
 **Entry conditions.** Slice C is committed; the focused file passes; the three
 identifiers are in the specification and in the three titles.
 
-- [ ] D0 Record the focused file's total. This slice adds nine cases.
-- [ ] D1 Append slice D's nine cases to `test-levels.test.ts` and add `passedCitations`, `readJUnitReport` and `uncoveredScenarios` to the import list.
+**The planner's decision of 2026-09-20, recorded in §15 as A11.** This slice no
+longer hand-writes an XML tokenizer. Two hand-rolled readers were reviewed and
+both accepted malformed or unsupported reports and manufactured passing
+citations from them. The reader below parses with `saxes` 6.0.0 — a strict,
+streaming XML 1.0 well-formedness parser — and keeps only the **structural**
+rules of a Bun JUnit report, each with its own negative.
+
+**`saxes` is already declared and installed.** The planner added it as an
+exact-pinned direct devDependency in the commit before this packet's, and it was
+already in `bun.lock` as a dependency of `jsdom`, so declaring it added no
+package: `bun.lock` gained one line, the workspace's own dependency entry, and
+`bun pm ls saxes` shows a single resolved `saxes@6.0.0`. **The executor has no
+network and must not run `bun add`, `bun install` or any other install command.**
+If `import { SaxesParser } from 'saxes'` does not resolve, that is a stop
+condition, not something to repair.
+
+**The matcher is not the requirement; the fact is.** A negative proof is
+accepted when the NAMED test fails at the assertion about that row's fact,
+whatever matcher the test used and whatever diagnostic shape Bun printed. It is
+a stop only when the named test **passes**, does not run at all, or fails about a
+**different** fact.
+
+### What Bun 1.4.2 really writes, observed 2026-09-20
+
+`bun test --reporter=junit --reporter-outfile=out.xml src/a.test.ts` over a
+scratch file with nested `describe`s, a passing case, a failing case, a skipped
+case, a todo, and titles holding `<`, `&`, quotes and a newline produced:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="7" assertions="5" failures="1" skipped="2" time="0.00438912">
+  <testsuite name="src/a.test.ts" file="src/a.test.ts" tests="7" assertions="5" failures="1" skipped="2" time="0.001451567" hostname="pop-os">
+    <testsuite name="outer group" file="src/a.test.ts" line="3" tests="6" assertions="4" failures="1" skipped="2" time="0" hostname="pop-os">
+      <testsuite name="inner group" file="src/a.test.ts" line="4" tests="1" assertions="1" failures="0" skipped="0" time="0" hostname="pop-os">
+        <testcase name="[DEMO-001] passes plainly" classname="inner group &gt; outer group" time="0.000018" file="src/a.test.ts" line="5" assertions="1" />
+      </testsuite>
+      <testcase name="[DEMO-002] has &lt;angle&gt; &amp; &quot;quotes&quot; and &apos;apostrophes&apos;" classname="outer group" time="0.000014" file="src/a.test.ts" line="10" assertions="1" />
+      <testcase name="[DEMO-003] has a&#10;newline in its title" classname="outer group" time="0.000015" file="src/a.test.ts" line="14" assertions="1" />
+      <testcase name="is skipped" classname="outer group" time="0" file="src/a.test.ts" line="18" assertions="0">
+        <skipped />
+      </testcase>
+      <testcase name="fails on purpose with &lt;tag&gt; &amp; &quot;quotes&quot;" classname="outer group" time="0.000231" file="src/a.test.ts" line="22" assertions="1">
+        <failure type="AssertionError" message="expect(received).toBe(expected)&#10;&#10;Expected: 5&#10;Received: 4&#10;">AssertionError: expect(received).toBe(expected)&#10;&#10;Expected: 5&#10;Received: 4&#10;&#10;      at src/a.test.ts:23:15&#10;</failure>
+      </testcase>
+      <testcase name="is a todo" classname="outer group" time="0" file="src/a.test.ts" line="26" assertions="0">
+        <skipped message="TODO" />
+      </testcase>
+    </testsuite>
+    <testcase name="top level case" classname="" time="0.000134" file="src/a.test.ts" line="29" assertions="1" />
+  </testsuite>
+</testsuites>
+```
+
+Eight facts the reader depends on. One `testsuites` root. One `testsuite` per
+file, then one nested `testsuite` per `describe`, so **every `testcase` sits
+directly inside a `testsuite`** and a `testcase` directly under the root is not
+something Bun writes. A passing case is self-closing; a skipped one carries
+`<skipped />`, a todo `<skipped message="TODO" />` and a failing one a
+`<failure>` with both a `message` attribute and element text. `name` and `file`
+are always present; `classname` is the reversed `describe` chain and is empty for
+a top-level case. Titles are escaped with the five named entities
+`&lt; &gt; &amp; &quot; &apos;`, and a newline in a title or in a failure message
+is written as the numeric reference `&#10;`. Bun writes no doctype, no CDATA, no
+processing instruction after the declaration and no namespace. `saxes` resolves
+all five named entities and both numeric forms itself.
+
+The planner ran the reader below over this report and over the three reports the
+declared level targets really write: `tmp/junit/wbs-core.unit.xml` 535 cases,
+`tmp/junit/wbs-store-sqlite.api.xml` 656 cases and
+`tmp/junit/wbs-store-sqlite.unit.xml` 35 cases, all accepted, all `passed`, with
+the expected citations.
+
+### What the reader refuses, and who refuses it
+
+`saxes` refuses every well-formedness fault, with its own message and its own
+`line:column`. The reader does not stop at the first `saxes` error: `saxes`
+keeps parsing after one and can still deliver `testcase`s that would enter the
+array, and a later structural exception thrown from an event handler propagates
+immediately and can supersede the retained first parser error. What is
+guaranteed instead is that no citation is returned once any error was seen —
+either the structural exception unwinds the call before a result is produced,
+or, absent one, the retained first malformed error is thrown once parsing
+finishes. Observed on 2026-09-20, each fault in its own document: a garbage
+declaration
+(`XML declaration is incomplete.`), `version="garbage"`
+(`version number must match /^1\.[0-9]+$/.`), a declaration naming no version
+(`expected one of version`), a second XML declaration inside the root
+(`an XML declaration must be at the start of the document.`), text or CDATA
+before or after the root (`text data outside of root node.`), a second root
+(`documents may contain only one root.`), a malformed comment
+(`malformed comment.`), an unterminated comment or CDATA section
+(`unclosed tag: testsuites`), an unknown entity (`undefined entity.`), a repeated
+attribute (`duplicate attribute: name.`), two attributes with no whitespace
+between them (`no whitespace between attributes.`), an attribute with no value
+(`attribute without value.`), an unescaped `<` in an attribute value and an
+attribute value that is never closed (`disallowed character.`), a malformed
+processing instruction (`disallowed character in processing instruction name.`),
+a mismatched end tag (`unexpected close tag.`) and a truncated document
+(`unclosed tag: testsuites`).
+
+The reader itself refuses only what no XML parser knows: a root that is not
+`testsuites`; a `testcase` whose parent is not a `testsuite`; an outcome element
+(`failure`, `error`, `skipped`) whose parent is not a `testcase`; any other
+element inside a `testcase`; an element or attribute name holding `:`; an
+`xmlns` attribute; a doctype; a CDATA section; a processing instruction other
+than the leading XML declaration, which `saxes` reports as `xmldecl` and not as
+one; a `testcase` with no `name`; a `testcase` with no `file`; and a report with
+no test case at all. Well-formed comments are accepted, because `saxes` has
+already validated them.
+
+- [ ] D0 Record the focused file's total N. This slice adds forty-one cases and finishes at N+41 — **14 and 55 on this planner's tree**.
+- [ ] D1 Append slice D's forty-one cases to `test-levels.test.ts` and add `passedCitations`, `readJUnitReport` and `uncoveredScenarios` to the import list, keeping the order `simple-import-sort` produces (`passedCitations` and `readJUnitReport` between `parseLevelCommand` and `readManifest`; `uncoveredScenarios` between `testFilesUnder` and `UNDECLARED_TEST_TARGETS`). Append the listing at the end of the file, separated from the last existing line by exactly one blank line. Both listings in this slice are printed at the narrower width an indented fence imposes; D6's `prettier --write` rewraps them to the repository's own width, and that rewrapping is the only difference between what you paste and what you commit. Both listings were reconstructed from this packet on 2026-09-20 and gave `55 pass`, `0 fail`, a clean `bunx eslint` and a green `tool-devsync:typecheck`.
 
   ```ts
   describe('the scenario join', () => {
     const report = (...cases: string[]): string =>
-      `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="bun test">\n${cases.join(
-        '\n',
-      )}\n</testsuites>\n`;
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<testsuites name="bun test">',
+        '  <testsuite name="src/a.test.ts" file="src/a.test.ts">',
+        ...cases,
+        '  </testsuite>',
+        '</testsuites>',
+        '',
+      ].join('\n');
     const passing = (title: string): string =>
-      `  <testcase name="${title}" classname="d" file="src/a.test.ts" />`;
+      `    <testcase name="${title}" classname="d" time="0.1" file="src/a.test.ts" />`;
     const spec = [
       '### Requirement: one',
       '#### Scenario: [DEMO-001] first',
@@ -1044,6 +1176,33 @@ identifiers are in the specification and in the three titles.
       '',
     ].join('\n');
     const citations = (xml: string): ReadonlySet<string> => passedCitations(readJUnitReport(xml));
+
+    /** Bun 1.4.2's own output, copied from a run of a seven-case scratch file. */
+    const asBunWritesIt = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<testsuites name="bun test" tests="7" assertions="5" failures="1" skipped="2" time="0.00438912">',
+      '  <testsuite name="src/a.test.ts" file="src/a.test.ts" tests="7" assertions="5" failures="1" skipped="2" time="0.001451567" hostname="pop-os">',
+      '    <testsuite name="outer group" file="src/a.test.ts" line="3" tests="6" assertions="4" failures="1" skipped="2" time="0" hostname="pop-os">',
+      '      <testsuite name="inner group" file="src/a.test.ts" line="4" tests="1" assertions="1" failures="0" skipped="0" time="0" hostname="pop-os">',
+      '        <testcase name="[DEMO-001] passes plainly" classname="inner group &gt; outer group" time="0.000018" file="src/a.test.ts" line="5" assertions="1" />',
+      '      </testsuite>',
+      '      <testcase name="[DEMO-002] has &lt;angle&gt; &amp; &quot;quotes&quot; and &apos;apostrophes&apos;" classname="outer group" time="0.000014" file="src/a.test.ts" line="10" assertions="1" />',
+      '      <testcase name="[DEMO-003] has a&#10;newline in its title" classname="outer group" time="0.000015" file="src/a.test.ts" line="14" assertions="1" />',
+      '      <testcase name="is skipped" classname="outer group" time="0" file="src/a.test.ts" line="18" assertions="0">',
+      '        <skipped />',
+      '      </testcase>',
+      '      <testcase name="fails on purpose with &lt;tag&gt; &amp; &quot;quotes&quot;" classname="outer group" time="0.000231" file="src/a.test.ts" line="22" assertions="1">',
+      '        <failure type="AssertionError" message="expect(received).toBe(expected)&#10;&#10;Expected: 5&#10;Received: 4&#10;">AssertionError: expect(received).toBe(expected)&#10;&#10;Expected: 5&#10;Received: 4&#10;&#10;      at src/a.test.ts:23:15&#10;</failure>',
+      '      </testcase>',
+      '      <testcase name="is a todo" classname="outer group" time="0" file="src/a.test.ts" line="26" assertions="0">',
+      '        <skipped message="TODO" />',
+      '      </testcase>',
+      '    </testsuite>',
+      '    <testcase name="top level case" classname="" time="0.000134" file="src/a.test.ts" line="29" assertions="1" />',
+      '  </testsuite>',
+      '</testsuites>',
+      '',
+    ].join('\n');
 
     it('reads an identifier out of a passing test title', () => {
       expect([
@@ -1068,27 +1227,48 @@ identifiers are in the specification and in the three titles.
 
     it('does not count a skipped or a failing test as coverage', () => {
       const skipped =
-        '  <testcase name="[DEMO-001] a" classname="d" file="src/a.test.ts"><skipped /></testcase>';
+        '    <testcase name="[DEMO-001] a" classname="d" file="src/a.test.ts"><skipped /></testcase>';
       const failing =
-        '  <testcase name="[DEMO-002] b" classname="d" file="src/a.test.ts"><failure message="x">no</failure></testcase>';
+        '    <testcase name="[DEMO-002] b" classname="d" file="src/a.test.ts"><failure message="x">no</failure></testcase>';
       expect(
         uncoveredScenarios(spec, citations(report(skipped, failing, passing('[DEMO-003] c')))),
       ).toEqual(['DEMO-001', 'DEMO-002']);
     });
 
     it('does not read a citation out of a comment or out of failure text', () => {
-      const commented = `  <!-- <testcase name="[DEMO-001] a" file="src/a.test.ts" /> -->`;
+      const commented = `    <!-- <testcase name="[DEMO-001] a" file="src/a.test.ts" /> -->`;
       const inText =
-        '  <testcase name="[DEMO-003] c" classname="d" file="src/a.test.ts"><failure message="expected name=&quot;[DEMO-002] b&quot;">t</failure></testcase>';
+        '    <testcase name="[DEMO-003] c" classname="d" file="src/a.test.ts"><failure message="expected name=&quot;[DEMO-002] b&quot;">t</failure></testcase>';
       expect([...citations(report(commented, inText))]).toEqual([]);
     });
 
-    it('refuses a report that holds no testcase', () => {
-      expect(() => readJUnitReport(report())).toThrow('holds no testcase');
-    });
-
-    it('refuses a report that is not a JUnit document', () => {
-      expect(() => readJUnitReport('[DEMO-001] not xml at all')).toThrow('no XML declaration');
+    it('reads the report Bun really writes, nesting, escapes and outcomes included', () => {
+      expect(readJUnitReport(asBunWritesIt)).toEqual([
+        { name: '[DEMO-001] passes plainly', file: 'src/a.test.ts', outcome: 'passed' },
+        {
+          name: `[DEMO-002] has <angle> & "quotes" and 'apostrophes'`,
+          file: 'src/a.test.ts',
+          outcome: 'passed',
+        },
+        {
+          name: '[DEMO-003] has a\nnewline in its title',
+          file: 'src/a.test.ts',
+          outcome: 'passed',
+        },
+        { name: 'is skipped', file: 'src/a.test.ts', outcome: 'skipped' },
+        {
+          name: 'fails on purpose with <tag> & "quotes"',
+          file: 'src/a.test.ts',
+          outcome: 'failed',
+        },
+        { name: 'is a todo', file: 'src/a.test.ts', outcome: 'skipped' },
+        { name: 'top level case', file: 'src/a.test.ts', outcome: 'passed' },
+      ]);
+      expect([...passedCitations(readJUnitReport(asBunWritesIt))]).toEqual([
+        'DEMO-001',
+        'DEMO-002',
+        'DEMO-003',
+      ]);
     });
 
     it('refuses a report whose root is not testsuites', () => {
@@ -1096,27 +1276,286 @@ identifiers are in the specification and in the three titles.
         readJUnitReport(
           '<?xml version="1.0"?>\n<coverage>\n  <testcase name="[DEMO-001] a" file="src/a.test.ts" />\n</coverage>\n',
         ),
-      ).toThrow('root is <coverage>');
+      ).toThrow('root is <coverage>, not <testsuites>');
     });
 
-    it('refuses a report with an unclosed element', () => {
+    it('refuses a testcase whose parent is not a testsuite', () => {
+      expect(() =>
+        readJUnitReport(
+          `<?xml version="1.0"?>\n<testsuites>\n${passing('[DEMO-001] a')}\n</testsuites>\n`,
+        ),
+      ).toThrow('holds a <testcase> inside <testsuites>, not inside <testsuite>');
+    });
+
+    it('refuses a testcase nested inside a failure element', () => {
+      expect(() =>
+        readJUnitReport(
+          report(
+            '    <testcase name="outer" file="src/a.test.ts">',
+            '      <failure>',
+            '        <testcase name="[DEMO-001] a" file="src/a.test.ts"/>',
+            '      </failure>',
+            '    </testcase>',
+          ),
+        ),
+      ).toThrow('holds a <testcase> inside <failure>, not inside <testsuite>');
+    });
+
+    it('refuses an outcome element outside a testcase', () => {
+      expect(() => readJUnitReport(report('    <failure message="x">no</failure>'))).toThrow(
+        'holds a <failure> inside <testsuite>, not inside <testcase>',
+      );
+    });
+
+    it('refuses an unsupported element inside a testcase', () => {
+      expect(() =>
+        readJUnitReport(
+          report(
+            '    <testcase name="[DEMO-001] a" file="src/a.test.ts"><system-out>x</system-out></testcase>',
+          ),
+        ),
+      ).toThrow('holds an unsupported <system-out> inside a <testcase>');
+    });
+
+    it('refuses a testcase hidden inside an outcome element', () => {
+      for (const outcome of ['failure', 'error', 'skipped']) {
+        expect(() =>
+          readJUnitReport(
+            report(
+              `<testcase name="outer" file="src/a.test.ts"><${outcome}><testsuite>`,
+              passing('[DEMO-001] a'),
+              `</testsuite></${outcome}></testcase>`,
+            ),
+          ),
+        ).toThrow('holds an unsupported <testsuite> inside a <testcase>');
+      }
+    });
+
+    it('refuses a namespaced element name', () => {
+      expect(() =>
+        readJUnitReport(
+          report(
+            '    <testcase name="[DEMO-001] a" file="src/a.test.ts">',
+            '      <x:failure>failed</x:failure>',
+            '    </testcase>',
+          ),
+        ),
+      ).toThrow('has a qualified element name <x:failure>');
+    });
+
+    it('refuses a namespaced attribute name', () => {
+      expect(() =>
+        readJUnitReport(
+          report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" x:kind="odd" />'),
+        ),
+      ).toThrow('has a qualified attribute name x:kind on <testcase>');
+    });
+
+    it('refuses an xmlns attribute', () => {
+      expect(() =>
+        readJUnitReport(
+          report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" xmlns="urn:test" />'),
+        ),
+      ).toThrow('has an xmlns attribute on <testcase>');
+    });
+
+    it('refuses a document type declaration', () => {
+      expect(() =>
+        readJUnitReport(
+          `<?xml version="1.0"?>\n<!DOCTYPE testsuites>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+        ),
+      ).toThrow('has a document type declaration');
+    });
+
+    it('refuses a CDATA section', () => {
+      expect(() =>
+        readJUnitReport(
+          report(
+            '    <testcase name="[DEMO-001] a" file="src/a.test.ts"><![CDATA[anything]]></testcase>',
+          ),
+        ),
+      ).toThrow('has a CDATA section');
+    });
+
+    it('refuses a CDATA section outside the root element', () => {
+      expect(() =>
+        readJUnitReport(`${report(passing('[DEMO-001] a'))}<![CDATA[trailing junk]]>\n`),
+      ).toThrow('has a CDATA section');
+    });
+
+    it('refuses a processing instruction after the declaration', () => {
+      expect(() => readJUnitReport(report('    <?sortme?>', passing('[DEMO-001] a')))).toThrow(
+        'has a processing instruction <?sortme?>',
+      );
+    });
+
+    it('refuses a testcase that names no test', () => {
+      expect(() => readJUnitReport(report('    <testcase file="src/a.test.ts" />'))).toThrow(
+        'holds a <testcase> with no name',
+      );
+    });
+
+    it('refuses a testcase that names no file', () => {
+      expect(() => readJUnitReport(report('    <testcase name="[DEMO-001] a" />'))).toThrow(
+        'holds a <testcase> with no file',
+      );
+    });
+
+    it('refuses a report that holds no testcase', () => {
+      expect(() => readJUnitReport(report())).toThrow('holds no testcase');
+    });
+
+    it('refuses a document with a second root element', () => {
+      expect(() => readJUnitReport(`${report(passing('[DEMO-001] a'))}<testsuites />\n`)).toThrow(
+        'documents may contain only one root',
+      );
+    });
+
+    it('refuses a report that is not a JUnit document', () => {
+      expect(() => readJUnitReport('[DEMO-001] not xml at all')).toThrow(
+        'text data outside of root node',
+      );
+    });
+
+    it('refuses a malformed XML declaration', () => {
+      expect(() =>
+        readJUnitReport(
+          `<?xml garbage?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+        ),
+      ).toThrow('XML declaration is incomplete');
+    });
+
+    it('refuses a declaration whose version is not an XML version', () => {
+      expect(() =>
+        readJUnitReport(
+          `<?xml version="garbage"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+        ),
+      ).toThrow('version number must match');
+    });
+
+    it('refuses a declaration that names no version', () => {
+      expect(() =>
+        readJUnitReport(
+          `<?xml encoding="UTF-8"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+        ),
+      ).toThrow('expected one of version');
+    });
+
+    it('refuses a second XML declaration inside the root', () => {
+      expect(() =>
+        readJUnitReport(report('    <?xml version="1.0"?>', passing('[DEMO-001] a'))),
+      ).toThrow('an XML declaration must be at the start of the document');
+    });
+
+    it('refuses text outside the root element', () => {
+      expect(() => readJUnitReport(`${report(passing('[DEMO-001] a'))}trailing junk\n`)).toThrow(
+        'text data outside of root node',
+      );
+    });
+
+    it('refuses a malformed processing instruction', () => {
+      expect(() => readJUnitReport(report('    <?broken>', passing('[DEMO-001] a')))).toThrow(
+        'disallowed character in processing instruction name',
+      );
+    });
+
+    it('refuses a malformed comment', () => {
+      expect(() =>
+        readJUnitReport(report('    <!-- bad -- comment -->', passing('[DEMO-001] a'))),
+      ).toThrow('malformed comment');
+    });
+
+    it('refuses an unterminated comment', () => {
+      expect(() =>
+        readJUnitReport(`<?xml version="1.0"?>\n<testsuites>\n  <!-- never ends\n`),
+      ).toThrow('unclosed tag: testsuites');
+    });
+
+    it('refuses an unterminated CDATA section', () => {
+      expect(() =>
+        readJUnitReport(`<?xml version="1.0"?>\n<testsuites>\n  <![CDATA[never ends\n`),
+      ).toThrow('unclosed tag: testsuites');
+    });
+
+    it('refuses an entity it does not know', () => {
+      expect(() =>
+        readJUnitReport(
+          report('    <testcase name="[DEMO-001] a" file="src/a.test.ts">&bogus;</testcase>'),
+        ),
+      ).toThrow('undefined entity');
+    });
+
+    it('refuses a repeated attribute', () => {
+      expect(() =>
+        readJUnitReport(
+          report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" name="[DEMO-002] b" />'),
+        ),
+      ).toThrow('duplicate attribute: name');
+    });
+
+    it('refuses two attributes with no whitespace between them', () => {
+      expect(() =>
+        readJUnitReport(report('    <testcase name="[DEMO-001] a"file="src/a.test.ts" />')),
+      ).toThrow('no whitespace between attributes');
+    });
+
+    it('refuses an attribute whose value is never closed', () => {
+      expect(() =>
+        readJUnitReport(
+          '<?xml version="1.0"?>\n<testsuites><testsuite name="s"><testcase name="[DEMO-001] a" file="src/a.test.ts" broken="/></testsuite></testsuites>\n',
+        ),
+      ).toThrow('disallowed character');
+    });
+
+    it('refuses an unescaped angle bracket in an attribute value', () => {
+      expect(() =>
+        readJUnitReport(report('    <testcase name="a < b" file="src/a.test.ts" />')),
+      ).toThrow('disallowed character');
+    });
+
+    it('refuses an attribute with no value', () => {
+      expect(() =>
+        readJUnitReport(
+          report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" garbage />'),
+        ),
+      ).toThrow('attribute without value');
+    });
+
+    it('refuses a truncated report', () => {
+      expect(() =>
+        readJUnitReport('<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s"'),
+      ).toThrow('unclosed tag: testsuites');
+    });
+
+    it('refuses a report that closes an element that is not open', () => {
       expect(() =>
         readJUnitReport(
           `<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n</testsuites>\n`,
         ),
-      ).toThrow('closes <testsuites> where <testsuite> is open');
+      ).toThrow('unexpected close tag');
     });
 
-    it('refuses a testcase that names no file', () => {
+    it('refuses a report that leaves an element open', () => {
       expect(() =>
-        readJUnitReport(report('  <testcase name="[DEMO-001] a" classname="d" />')),
-      ).toThrow('no name or no file');
+        readJUnitReport(
+          `<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n`,
+        ),
+      ).toThrow('unclosed tag: testsuite');
     });
   });
   ```
 
-- [ ] D2 Watch all nine fail for want of the three exports: the file does not resolve. Record the output.
-- [ ] D3 Append to `test-levels.ts`:
+- [ ] D2 Run the focused file and record the red. All forty-one fail together for one reason: the module does not resolve the three new imports, so the whole file fails to load. This is an import-resolution failure, not forty-one separately executed cases. Observed here: `SyntaxError: Export named 'passedCitations' not found in module`, `0 pass`, `1 fail`, `1 error`. Save the output.
+- [ ] D3 Extend `test-levels.ts`'s import block with the parser, exactly:
+
+  ```ts
+  import { readFile } from 'node:fs/promises';
+  import { join } from 'node:path';
+
+  import { SaxesParser } from 'saxes';
+  ```
+
+  Then append exactly this content at the end of the file, separated from the last existing line by exactly one blank line. It **replaces nothing**; slices A to C are untouched.
 
   ```ts
   /* ─── slice D adds everything below this line ─────────────────────────────── */
@@ -1132,127 +1571,118 @@ identifiers are in the specification and in the three titles.
     readonly outcome: CaseOutcome;
   }
 
-  /** The five entities Bun escapes in an attribute value. */
-  function decodeEntities(value: string): string {
-    return value
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&apos;', "'")
-      .replaceAll('&amp;', '&');
-  }
-
-  /** The attributes of one start tag, by name. */
-  function attributesOf(tagBody: string): ReadonlyMap<string, string> {
-    const found = new Map<string, string>();
-    for (const [, name, value] of tagBody.matchAll(/([A-Za-z_:][-\w:.]*)\s*=\s*"([^"]*)"/g)) {
-      found.set(name, decodeEntities(value));
-    }
-    return found;
-  }
+  /** The elements Bun writes inside a `<testcase>`, and what each one says happened. */
+  const OUTCOME_ELEMENT = new Map<string, CaseOutcome>([
+    ['error', 'failed'],
+    ['failure', 'failed'],
+    ['skipped', 'skipped'],
+  ]);
 
   /**
    * Every test case of one JUnit report.
    *
-   * A scanner and not a regular expression over the whole document, because
-   * `name="[X-001] …"` inside a comment, inside failure text, or inside an element
-   * that was never closed is not a test that ran — and a report read loosely is a
-   * coverage ledger that cannot fail. Only the `name` attribute of a real
-   * `testcase` element counts, and a case with a `skipped`, `failure` or `error`
-   * child is not a pass.
+   * Well-formedness is `saxes`'s job, not this reader's: a hand-written tokenizer
+   * twice accepted malformed reports — a garbage declaration, a duplicate
+   * attribute, an unterminated attribute value, a malformed comment, an unknown
+   * entity, CDATA outside the root — and manufactured a passing citation from
+   * each, and a coverage ledger that cannot fail is worse than none. `saxes`
+   * parses XML 1.0 strictly and streaming; everything it reports through its
+   * `error` event is refused here with its own message and position.
    *
-   * @throws when the document has no XML declaration, is not well formed, has a
-   * root other than one `testsuites`, holds no test case, or holds a test case
-   * with no name or no file.
+   * What is left is the STRUCTURE of a Bun JUnit report, which no XML parser
+   * knows: a `testsuites` root, `testcase` directly inside a `testsuite`, an
+   * outcome element directly inside its `testcase` and nothing else there, and a
+   * `name` and a `file` on every case. Namespaces are refused rather than
+   * resolved — the parser runs with `xmlns: false`, so a prefix binds to nothing
+   * and a qualified `x:failure` would otherwise read as an unknown element and
+   * turn a failing case into a passing one.
+   *
+   * Its limits, stated: it trusts `saxes` for well-formedness and for entity
+   * expansion; it does not validate the JUnit schema beyond the rules above, so an
+   * unknown element outside a `testcase` is accepted; and a document with no XML
+   * declaration at all is well-formed XML and is accepted.
+   *
+   * @throws when the document is not well-formed XML 1.0, has a root other than
+   * `testsuites`, carries a doctype, a CDATA section or a processing instruction,
+   * uses a qualified name or an `xmlns` attribute, puts a `testcase` outside a
+   * `testsuite`, puts an outcome element outside a `testcase`, puts any other
+   * element inside a `testcase`, holds a `testcase` with no `name` or no `file`,
+   * or holds no test case at all.
    */
   export function readJUnitReport(xml: string): readonly JUnitCase[] {
-    const declaration = /^\s*<\?xml[^>]*\?>/.exec(xml);
-    if (declaration === null) throw new Error('the JUnit report has no XML declaration');
-
-    const names: string[] = [];
-    const files: string[] = [];
-    const outcomes: CaseOutcome[] = [];
-    /** Indices into the three arrays above, for the `testcase` elements still open. */
-    const openCases: number[] = [];
+    const parser = new SaxesParser({ xmlns: false, fileName: 'the JUnit report' });
+    const cases: JUnitCase[] = [];
+    /** The element names still open, outermost first. */
     const open: string[] = [];
-    let root: string | undefined;
-    let at = declaration[0].length;
+    let malformed: Error | undefined;
 
-    while (at < xml.length) {
-      const next = xml.indexOf('<', at);
-      if (next === -1) break;
-      at = next;
-      if (xml.startsWith('<!--', at)) {
-        const closed = xml.indexOf('-->', at + 4);
-        if (closed === -1) throw new Error('the JUnit report has an unterminated comment');
-        at = closed + 3;
-        continue;
+    parser.on('error', (cause) => {
+      malformed ??= cause;
+    });
+    parser.on('doctype', () => {
+      throw parser.makeError('has a document type declaration');
+    });
+    parser.on('cdata', () => {
+      throw parser.makeError('has a CDATA section');
+    });
+    parser.on('processinginstruction', (instruction) => {
+      throw parser.makeError(`has a processing instruction <?${instruction.target}?>`);
+    });
+    parser.on('opentag', (tag) => {
+      if (tag.name.includes(':')) {
+        throw parser.makeError(`has a qualified element name <${tag.name}>`);
       }
-      if (xml.startsWith('<![CDATA[', at)) {
-        const closed = xml.indexOf(']]>', at + 9);
-        if (closed === -1) throw new Error('the JUnit report has an unterminated CDATA section');
-        at = closed + 3;
-        continue;
-      }
-      if (xml.startsWith('<?', at) || xml.startsWith('<!', at)) {
-        const closed = xml.indexOf('>', at);
-        if (closed === -1) throw new Error('the JUnit report has an unterminated declaration');
-        at = closed + 1;
-        continue;
-      }
-      const closed = xml.indexOf('>', at);
-      if (closed === -1) throw new Error('the JUnit report has an unterminated tag');
-      const body = xml.slice(at + 1, closed);
-      at = closed + 1;
-
-      if (body.startsWith('/')) {
-        const closing = body.slice(1).trim();
-        const last = open.pop();
-        if (last !== closing) {
-          throw new Error(
-            `the JUnit report closes <${closing}> where <${last ?? 'nothing'}> is open`,
-          );
+      // A Map and not `tag.attributes[…]`: `noUncheckedIndexedAccess` is off, so an
+      // index read types as `string` and the absent-attribute tests below would be
+      // `no-unnecessary-condition` lint errors rather than the guards they are.
+      const attributes = new Map(Object.entries(tag.attributes));
+      for (const attribute of attributes.keys()) {
+        if (attribute === 'xmlns') {
+          throw parser.makeError(`has an xmlns attribute on <${tag.name}>`);
         }
-        if (closing === 'testcase') openCases.pop();
-        continue;
+        if (attribute.includes(':')) {
+          throw parser.makeError(`has a qualified attribute name ${attribute} on <${tag.name}>`);
+        }
       }
-      const selfClosing = body.endsWith('/');
-      const tagBody = selfClosing ? body.slice(0, -1) : body;
-      const name = /^\s*([A-Za-z_:][-\w:.]*)/.exec(tagBody)?.[1];
-      if (name === undefined) throw new Error(`the JUnit report has a malformed tag: <${body}>`);
-      if (open.length === 0) {
-        if (root !== undefined) throw new Error('the JUnit report has more than one root element');
-        root = name;
+      const parent = open.at(-1);
+      if (parent === undefined && tag.name !== 'testsuites') {
+        throw parser.makeError(`root is <${tag.name}>, not <testsuites>`);
       }
-
-      if (name === 'testcase') {
-        const attributes = attributesOf(tagBody);
+      if (tag.name === 'testcase' && parent !== 'testsuite') {
+        throw parser.makeError(
+          `holds a <testcase> inside <${parent ?? 'nothing'}>, not inside <testsuite>`,
+        );
+      }
+      if (OUTCOME_ELEMENT.has(tag.name) && parent !== 'testcase') {
+        throw parser.makeError(
+          `holds a <${tag.name}> inside <${parent ?? 'nothing'}>, not inside <testcase>`,
+        );
+      }
+      if (open.includes('testcase') && !OUTCOME_ELEMENT.has(tag.name)) {
+        throw parser.makeError(`holds an unsupported <${tag.name}> inside a <testcase>`);
+      }
+      if (tag.name === 'testcase') {
         const title = attributes.get('name');
+        if (title === undefined) throw parser.makeError('holds a <testcase> with no name');
         const file = attributes.get('file');
-        if (title === undefined || file === undefined) {
-          throw new Error('the JUnit report holds a testcase with no name or no file');
-        }
-        names.push(title);
-        files.push(file);
-        outcomes.push('passed');
-        if (!selfClosing) openCases.push(names.length - 1);
-      } else if (name === 'skipped' || name === 'failure' || name === 'error') {
-        const owner = openCases.at(-1);
-        if (owner !== undefined) outcomes[owner] = name === 'skipped' ? 'skipped' : 'failed';
+        if (file === undefined) throw parser.makeError('holds a <testcase> with no file');
+        cases.push({ name: title, file, outcome: 'passed' });
       }
-      if (!selfClosing) open.push(name);
-    }
+      // The owner is the case last pushed: an outcome element's parent is a
+      // `testcase` (checked above) and `testcase` elements cannot nest, so the
+      // enclosing case is the most recent one.
+      const outcome = OUTCOME_ELEMENT.get(tag.name);
+      if (outcome !== undefined) cases[cases.length - 1] = { ...cases[cases.length - 1], outcome };
+      open.push(tag.name);
+    });
+    parser.on('closetag', () => {
+      open.pop();
+    });
 
-    if (open.length > 0) throw new Error(`the JUnit report never closes <${open.join('>, <')}>`);
-    if (root !== 'testsuites') {
-      throw new Error(`the JUnit report's root is <${root ?? 'nothing'}>, not <testsuites>`);
-    }
-    if (names.length === 0) throw new Error('the JUnit report holds no testcase');
-    return names.map((one, index) => ({
-      name: one,
-      file: files[index],
-      outcome: outcomes[index],
-    }));
+    parser.write(xml).close();
+    if (malformed !== undefined) throw malformed;
+    if (cases.length === 0) throw parser.makeError('holds no testcase');
+    return cases;
   }
 
   /**
@@ -1280,21 +1710,26 @@ identifiers are in the specification and in the three titles.
   }
   ```
 
-- [ ] D4 Run the focused file. Expected: exit 0, D0's total plus nine, 0 fail — all three exports (`readJUnitReport`, `passedCitations`, `uncoveredScenarios`) resolve.
-- [ ] D5 Watch two negatives, rows D-1 and D-2 of section 11, and add their dated `Proof:` comments.
-- [ ] D6 Append evidence to `verify.md`, then format the three owned paths, run `nx format:check --all`, `tool-devsync:typecheck`, `tool-devsync:lint` and the focused file.
+- [ ] D4 Run the focused file. Expected: exit 0, D0's N+41, 0 fail. Observed here: `55 pass`, `0 fail`, `Ran 55 tests across 1 file.`
+- [ ] D5 Execute rows D-1 through D-17 of section 11 independently, each with §12's block and §12's literal fragments, restoring and rerunning the complete focused file green between faults. Seventeen guards, seventeen faults: one fixture must not stand in for another guard, and no mutation may hide a second check. Apply each fault exactly as §11's Fault column spells it — each fault text occurs exactly once in the file, verified here. Then add one dated `Proof:` comment per row beside the guard it establishes, and append seventeen proof rows to `verify.md`.
+- [ ] D6 Append evidence to `verify.md`. Publish evidence references as basenames only. Do not copy absolute clone paths or expanded temporary-root paths into `verify.md`. Record unavailable whole-suite checks as pending planner verification. **Then** format the three owned paths, and run `nx format:check --all`, `tool-devsync:typecheck`, `tool-devsync:lint` and the focused file. Observed here: `bunx eslint` on both owned source files exited 0 with no diagnostic, and `NX_DAEMON=false bunx nx run tool-devsync:typecheck` succeeded. `simple-import-sort/imports` and `prettier/prettier` remain the only diagnostics preamble rule 17 covers.
 
 **Hand-over.** `tools/tool-devsync/src/test-levels.ts`,
 `tools/tool-devsync/src/test-levels.test.ts`,
 `openspec/changes/test-axes/verify.md`.
-Subject: `feat(test-axes): read a JUnit report strictly enough to join it to scenarios`.
+`package.json` and `bun.lock` are **not** the executor's: `saxes` was declared in
+the commit before this packet's and must not be touched again.
+Do not discover or update whole-suite pins in the executor. If a reviewed
+amendment changes their inputs, report the named pin as pending planner
+verification.
+Subject: `feat(test-axes): read a JUnit report through a strict XML parser and join it to scenarios`.
 
 ## 11a. Slice E — provenance, the coverage command and the table
 
 **Entry conditions.** Slice D is committed; the focused file passes;
 `tools/tool-devsync/src/scenario-coverage-cli.ts` does not exist.
 
-- [ ] E0 Record the focused file's total. This slice adds two cases.
+- [ ] E0 Record the focused file's total N. This slice adds two cases and finishes at N+2 — **55 and 57 on this planner's tree**. Slice E was rehearsed on top of the rebuilt slice D on 2026-09-20: every name E imports from `test-levels.ts` — `assertReportCovers`, `assertReportIsCurrent`, `levelTargetNamed`, `collectedFiles`, `parseLevelCommand`, `passedCitations`, `readJUnitReport`, `readManifest`, `readSpec`, `scenarioIdentifiers`, `uncoveredScenarios`, `WORKSPACE` — still exists with the same name and shape, E1's two cases ran green at 57, and only E-4's expected message changed.
 - [ ] E1 Append slice E's two cases to `test-levels.test.ts` and add `assertReportCovers` and `levelTargetNamed` to the import list.
 
   ```ts
@@ -1316,7 +1751,7 @@ Subject: `feat(test-axes): read a JUnit report strictly enough to join it to sce
   });
   ```
 
-- [ ] E2 Watch both fail for want of the two exports. Record the output.
+- [ ] E2 Run the focused file and record the red. Both fail together for one reason: the module does not resolve `assertReportCovers` and `levelTargetNamed`, so the whole file fails to load. This is an import-resolution failure, not two separately executed cases. Save the output.
 - [ ] E3 First extend `test-levels.ts`'s existing import to `import { readFile, stat } from 'node:fs/promises';` — `assertReportIsCurrent` below is the first user of `stat`. Then append:
 
   ```ts
@@ -1344,7 +1779,10 @@ Subject: `feat(test-axes): read a JUnit report strictly enough to join it to sce
    *
    * The design's manual-report rule in the small: a report goes stale when
    * something it measured changed, and a stale report read as coverage is a
-   * green row for a test nobody ran.
+   * green row for a test nobody ran. A heuristic, and stated as one: it compares
+   * the modification times of the test files the report itself names, not of
+   * their production dependencies and not of the specification, so a changed
+   * dependency with an unchanged test file does not make the report stale here.
    */
   export async function assertReportIsCurrent(
     target: LevelTarget,
@@ -1371,7 +1809,7 @@ Subject: `feat(test-axes): read a JUnit report strictly enough to join it to sce
   }
   ```
 
-- [ ] E4 Run the focused file. Expected: exit 0, D0's total plus eleven — **24 on this planner's tree** — and 0 fail.
+- [ ] E4 Run the focused file. Expected: exit 0, E0's N+2 — **57 on this planner's tree** — and 0 fail.
 - [ ] E5 Create `tools/tool-devsync/src/scenario-coverage-cli.ts` with exactly this content. `argv.at(0)` and not a destructured `[capability]`: `strictTypeChecked` is on and `noUncheckedIndexedAccess` is not set, so a destructured element types as `string` and the undefined test becomes a lint error.
 
   ```ts
@@ -1482,14 +1920,39 @@ Subject: `feat(test-axes): read a JUnit report strictly enough to join it to sce
   Any edit to a source file after this run makes the next command refuse the
   report as stale; rerun the target rather than working around it.
 
-- [ ] E7 Watch the six false-coverage negatives, rows E-1 to E-6 of section 11, using §12's E-specific procedure. Before starting, confirm `tmp/junit/wbs-store-sqlite.unit.xml` exists — run `wbs-store-sqlite:test:unit` first if this clone has not already produced it; E-3 copies that report over `…api.xml`. Each is a production-path negative: no fixture, no fake report. Only E-1 and E-2 rerun the API target while the fault is present; E-3 through E-6 invoke only the coverage CLI, never the level target — rerunning the target regenerates the report and erases the fault before the CLI can observe it. After restoring each fault, rerun the three declared targets and require E6's three-row green table before moving to the next row.
-- [ ] E8 Add the dated `Proof:` comments for `assertReportCovers` and `assertReportIsCurrent`, then append the final evidence block to `verify.md`: E6's commands with exit statuses and totals; the coverage table verbatim; a proof row for every row of section 11; the findings of section 14; the answer to `verify.md`'s section 7 open item — `source-conformance.test.ts` needs no distinguishing suffix, because row 2 of the level table resolves it through target membership, which the isolation case exercises on the real target; and what was not done, namely that `tasks.md` stays unticked.
+- [ ] E7 Execute the false-coverage and declaration negatives, rows E-1 through E-10 of section 11, using §12's E-specific procedures. Before starting, confirm `tmp/junit/wbs-store-sqlite.unit.xml` exists — run `wbs-store-sqlite:test:unit` first if this clone has not already produced it; E-3 copies that report over `…api.xml`. Each is a production-path negative: no fixture, no fake report. Only E-1 and E-2 rerun the API target while the fault is present; E-3 through E-10 invoke only the coverage CLI, never the level target — rerunning the target regenerates the report and erases the fault before the CLI can observe it. After restoring each fault, rerun the three declared targets and require E6's three-row green table before moving to the next row.
+
+  Rows E-7 through E-10 are the declaration checks that E-1 to E-6 never reach:
+  no arguments; the capability with no targets; an undeclared target name; and a
+  declared target whose manifest command is gone. For the three argument faults,
+  save the passing and faulty invocations under the temporary root, their diff
+  and the failing output. For the manifest fault, temporarily delete exactly
+  `targets["test:unit"].options.command` in
+  `libs/wbs/application/core/project.json` with a **structural JSON edit** —
+  address the value by its JSON path, re-serialise the object, and never select
+  an occurrence by matching an identical line; the aggregate `test` target
+  carries a byte-identical `command` line earlier in the same file and two
+  executor attempts have already patched the wrong one. Save the patch, restore
+  and compare bytes **before** asserting, then rerun green. That manifest file is
+  authorized only for this temporary fault; it must have no final diff.
+
+- [ ] E8 Add a dated, observed `Proof:` comment beside every check rows E-1 through E-10 establish — `assertReportCovers`, `assertReportIsCurrent`, the usage guard, `levelTargetNamed`'s refusal and the CLI's `is not declared in its project manifest` guard — and record every proof separately. Publish evidence references as basenames only. Do not copy absolute clone paths or expanded temporary-root paths into `verify.md`. Record unavailable whole-suite checks as pending planner verification. Then append the final evidence block to `verify.md`: E6's commands with exit statuses and totals; the coverage table verbatim; a proof row for every row of section 11; the findings of section 14; the answer to `verify.md`'s section 7 open item — `source-conformance.test.ts` needs no distinguishing suffix, because row 2 of the level table resolves it through target membership, which the isolation case exercises on the real target; and what was not done, namely that `tasks.md` stays unticked.
 - [ ] E9 Format the four owned paths, then `nx format:check --all`, `tool-devsync:typecheck`, `tool-devsync:lint` and the focused file.
 
 **Hand-over.** `tools/tool-devsync/src/test-levels.ts`,
 `tools/tool-devsync/src/test-levels.test.ts`,
 `tools/tool-devsync/src/scenario-coverage-cli.ts`,
 `openspec/changes/test-axes/verify.md`.
+Do not discover or update whole-suite pins in the executor. If a reviewed
+amendment changes their inputs, report the named pin as pending planner
+verification. `scenario-coverage-cli.ts` is a **new** file, and the namespacing
+handover's index checker refuses untracked diagnostic paths: until the planner
+stages it, `tool-devsync:test` fails the case `the production index checker
+resolves current Markdown links and anchors` with `index checks cannot resolve
+untracked diagnostic paths: tools/tool-devsync/src/scenario-coverage-cli.ts`.
+Observed on this tree 2026-09-20; staged, the same run was 336 pass, 0 fail. The
+executor cannot stage, so it reports that case as pending planner verification
+and does not treat it as a defect.
 Subject: `feat(test-axes): join a trusted JUnit report to one capability's scenarios`.
 
 ## 11. Every guard and the fault that proves it
@@ -1498,33 +1961,76 @@ Every row was injected, observed and restored on this worktree on 2026-09-20.
 The named test must fail with the named message; other tests failing at the same
 time are recorded, not a stop.
 
-| Row | Slice | Guard                                                      | Fault                                                                                                                                                               | Test that fails                                                                        | Observed message                                                                                                                                                  |
-| --- | ----- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A-1 | A     | Row 2 of the level table beats row 6                       | delete the `conformanceFiles.includes(…)` line from `levelOf`                                                                                                       | `resolves the plain and the database conformance suffixes through target membership`   | received `["api","unit","api","unit"]` against expected `["conformance","conformance","api","unit"]`                                                              |
-| A-2 | A     | An unclassified test file throws                           | replace `levelOf`'s final `throw` with `return 'unit';`                                                                                                             | `refuses a file that matches no row`                                                   | the case fails: nothing was thrown                                                                                                                                |
-| A-3 | A     | No test file hides outside a declared test root            | delete the one `KNOWN_OUTSIDE_TEST_ROOTS` entry                                                                                                                     | `keeps every test file outside a declared test root on the known list`                 | names `libs/wbs/application/core/testing/portable-composition.spec.ts`                                                                                            |
-| B-1 | B     | A level target collects only its own level (TEST-AXES-004) | delete `! -name 'source-conformance.db.test.ts' ` from `test:api`                                                                                                   | `collects exactly the files of its own level`                                          | `wbs-store-sqlite:test:api is declared api and collects src/testing/source-conformance.db.test.ts, which is conformance`                                          |
-| B-2 | B     | Every level target writes a JUnit report                   | delete ` --reporter=junit` from `wbs-core:test:unit`                                                                                                                | `writes a JUnit report where the declaration says`                                     | `wbs-core:test:unit does not pass --reporter=junit`                                                                                                               |
-| B-3 | B     | A level target may not filter which tests run              | append ` --test-name-pattern=NO_MATCH` to `test:api`'s flags                                                                                                        | `collects exactly the files of its own level` and the report case                      | `wbs-store-sqlite:test:api command shape: a declared level target may not pass --test-name-pattern=NO_MATCH; only coverage and JUnit reporting flags are allowed` |
-| B-4 | B     | A failing selector throws                                  | replace the entire selector between `$(` and `)` in `test:api`'s command, including its `\| tr '\n' ' '` pipeline, with `find src --bogus-flag`                     | `collects exactly the files of its own level`                                          | the list is non-empty and the run carries `the file selector failed`                                                                                              |
-| B-5 | B     | Every test-running target is accounted for                 | replace `AGGREGATE_TARGETS`' array with `[]`                                                                                                                        | `accounts for every test-running target as a level, an aggregate or a known exception` | names `wbs-core:test` and `wbs-store-sqlite:test`                                                                                                                 |
-| C-1 | C     | A specification with no scenario heading throws            | delete the `#### Scenario:` guard from `assertSpecification`                                                                                                        | `refuses a specification that holds no scenario`                                       | the case fails: nothing was thrown                                                                                                                                |
-| C-2 | C     | A scenario with no identifier throws                       | delete the `unidentified.length > 0` guard from `scenarioIdentifiers`                                                                                               | `refuses a specification whose scenario carries no identifier`                         | the case fails: nothing was thrown                                                                                                                                |
-| C-3 | C     | Every scenario of the capability carries an identifier     | delete `[PROJECT-ASSIGNMENT-READS-002] ` from the specification                                                                                                     | `leaves no scenario without an identifier`                                             | names `Assignment write among unrelated projects`                                                                                                                 |
-| D-1 | D     | A skipped or failing test is not coverage                  | delete `if (one.outcome !== 'passed') continue;` from `passedCitations`                                                                                             | `does not count a skipped or a failing test as coverage`                               | also fails `does not read a citation out of a comment or out of failure text`                                                                                     |
-| D-2 | D     | A report with no test case throws                          | delete the `names.length === 0` guard from `readJUnitReport`                                                                                                        | `refuses a report that holds no testcase`                                              | the case fails: nothing was thrown                                                                                                                                |
-| E-1 | E     | A citation with no passing test is not coverage            | delete `[PROJECT-ASSIGNMENT-READS-001] ` from the API title, rerun `test:api`, rerun the command                                                                    | the coverage table                                                                     | the `PROJECT-ASSIGNMENT-READS-001` row reads `**no**`, the other two `yes`                                                                                        |
-| E-2 | E     | A skipped test is not coverage                             | change that `it(` to `it.skip(`, rerun `test:api`, rerun the command                                                                                                | the coverage table                                                                     | the same `**no**` row, with the other two `yes`                                                                                                                   |
-| E-3 | E     | A report of another run is refused                         | copy `tmp/junit/wbs-store-sqlite.unit.xml` over `…api.xml`, rerun the command                                                                                       | the command                                                                            | `wbs-store-sqlite:test:api did not collect src/audit.test.ts, … ; tmp/junit/wbs-store-sqlite.api.xml is the report of another run`                                |
-| E-4 | E     | An empty report is refused                                 | write `<?xml …?><testsuites name="bun test"></testsuites>` over `…api.xml`                                                                                          | the command                                                                            | `the JUnit report holds no testcase`                                                                                                                              |
-| E-5 | E     | A stale report is refused                                  | append a harmless trailing newline to `libs/wbs/adapters/store-sqlite/src/assignment-scope.db.test.ts` (not `touch`, which leaves no content diff for §12's backup) | the command                                                                            | `tmp/junit/wbs-store-sqlite.api.xml is older than src/assignment-scope.db.test.ts; rerun wbs-store-sqlite:test:api`                                               |
-| E-6 | E     | An absent or unreadable report is refused                  | `mv tmp/junit/wbs-core.unit.xml "$TMPDIR/evidence/"`, then a second run with `mkdir -p tmp/junit/wbs-core.unit.xml` in its place                                    | the command                                                                            | `wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml`, both times                                                                            |
+| Row           | Slice | Guard                                                                            | Fault                                                                                                                                                               | Test that fails                                                                                              | Observed message                                                                                                                                                                                                                                                                                                                            |
+| ------------- | ----- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-1           | A     | Row 2 of the level table beats row 6                                             | delete the `conformanceFiles.includes(…)` line from `levelOf`                                                                                                       | `resolves the plain and the database conformance suffixes through target membership`                         | received `["api","unit","api","unit"]` against expected `["conformance","conformance","api","unit"]`                                                                                                                                                                                                                                        |
+| A-2           | A     | An unclassified test file throws                                                 | replace `levelOf`'s final `throw` with `return 'unit';`                                                                                                             | `refuses a file that matches no row`                                                                         | the case fails: nothing was thrown                                                                                                                                                                                                                                                                                                          |
+| A-3           | A     | No test file hides outside a declared test root                                  | delete the one `KNOWN_OUTSIDE_TEST_ROOTS` entry                                                                                                                     | `keeps every test file outside a declared test root on the known list`                                       | names `libs/wbs/application/core/testing/portable-composition.spec.ts`                                                                                                                                                                                                                                                                      |
+| B-1           | B     | A level target collects only its own level (TEST-AXES-004)                       | delete `! -name 'source-conformance.db.test.ts' ` from `test:api`                                                                                                   | `collects exactly the files of its own level`                                                                | `wbs-store-sqlite:test:api is declared api and collects src/testing/source-conformance.db.test.ts, which is conformance`                                                                                                                                                                                                                    |
+| B-2           | B     | Every level target writes a JUnit report                                         | delete ` --reporter=junit` from `wbs-core:test:unit`                                                                                                                | `writes a JUnit report where the declaration says`                                                           | `wbs-core:test:unit does not pass --reporter=junit`                                                                                                                                                                                                                                                                                         |
+| B-3           | B     | A level target may not filter which tests run                                    | append ` --test-name-pattern=NO_MATCH` to `test:api`'s flags                                                                                                        | `collects exactly the files of its own level` and the report case                                            | `wbs-store-sqlite:test:api command shape: a declared level target may not pass --test-name-pattern=NO_MATCH; only coverage and JUnit reporting flags are allowed`                                                                                                                                                                           |
+| B-4           | B     | A failing selector throws                                                        | replace the entire selector between `$(` and `)` in `test:api`'s command, including its `\| tr '\n' ' '` pipeline, with `find src --bogus-flag`                     | `collects exactly the files of its own level`                                                                | Throws before the array assertion; the diagnostic contains `the file selector failed`.                                                                                                                                                                                                                                                      |
+| B-5           | B     | Every test-running target is accounted for                                       | replace `AGGREGATE_TARGETS`' array with `[]`                                                                                                                        | `accounts for every test-running target as a level, an aggregate or a known exception`                       | names `wbs-core:test` and `wbs-store-sqlite:test`                                                                                                                                                                                                                                                                                           |
+| B-6           | B     | A level target does not omit a file it owns (completeness half of TEST-AXES-004) | insert `! -name 'assignment-scope.db.test.ts'` into `test:api`'s `find` selector                                                                                    | `collects exactly the files of its own level`                                                                | `wbs-store-sqlite:test:api is declared api and does not collect src/assignment-scope.db.test.ts, which is api`                                                                                                                                                                                                                              |
+| B-7           | B     | Every level target writes its JUnit report to the declared path                  | change only `wbs-core:test:unit`'s reporter outfile basename to `wrong.xml`                                                                                         | `writes a JUnit report where the declaration says`                                                           | `wbs-core:test:unit does not write ../../../../tmp/junit/wbs-core.unit.xml`                                                                                                                                                                                                                                                                 |
+| B-8           | B     | Every level target creates its report directory                                  | change only that command's `mkdir` directory to `../../../../tmp/wrong`, retaining the correct outfile                                                              | `writes a JUnit report where the declaration says`                                                           | `wbs-core:test:unit does not create ../../../../tmp/junit`                                                                                                                                                                                                                                                                                  |
+| B-9           | B     | A level target runs in its declared project root (`cwd`)                         | change only `wbs-core:test:unit.options.cwd` to `libs/wbs/application`                                                                                              | `collects exactly the files of its own level`                                                                | `wbs-core:test:unit runs in libs/wbs/application, not libs/wbs/application/core`                                                                                                                                                                                                                                                            |
+| C-1           | C     | A specification with no scenario heading throws                                  | delete the `#### Scenario:` guard from `assertSpecification`                                                                                                        | `refuses a specification that holds no scenario`                                                             | nothing was thrown; received value `[]`                                                                                                                                                                                                                                                                                                     |
+| C-2           | C     | A scenario with no identifier throws                                             | delete the `unidentified.length > 0` guard from `scenarioIdentifiers`                                                                                               | `refuses a specification whose scenario carries no identifier`                                               | nothing was thrown; received value `[ "DEMO-001" ]`                                                                                                                                                                                                                                                                                         |
+| C-3           | C     | Every scenario of the capability carries an identifier                           | delete `[PROJECT-ASSIGNMENT-READS-002] ` from the specification                                                                                                     | `leaves no scenario without an identifier`                                                                   | received `Assignment write among unrelated projects` against an expected `[]`; also fails `allocates the identifiers once and in order`                                                                                                                                                                                                     |
+| C-4           | C     | A specification with no requirement heading throws                               | delete the `### Requirement:` guard from `assertSpecification`                                                                                                      | `refuses a specification that holds no requirement`                                                          | nothing was thrown; received value `[]`                                                                                                                                                                                                                                                                                                     |
+| D-1           | D     | `passedCitations` ignores a case that did not pass                               | delete `if (one.outcome !== 'passed') continue;` from `passedCitations`                                                                                             | `does not count a skipped or a failing test as coverage`                                                     | received `+ []` against `- [ "DEMO-001", "DEMO-002", ]`; also fails `does not read a citation out of a comment or out of failure text`                                                                                                                                                                                                      |
+| D-2           | D     | An outcome element sets its case's outcome                                       | delete the whole `if (outcome !== undefined) cases[cases.length - 1] = { ...cases[cases.length - 1], outcome };` line from `readJUnitReport`                        | `reads the report Bun really writes, nesting, escapes and outcomes included`                                 | three hunks of `- "outcome": "skipped",` / `+ "outcome": "passed",` and `- "outcome": "failed",` / `+ "outcome": "passed",`; also fails D-1's test                                                                                                                                                                                          |
+| D-3           | D     | Every `saxes` error refuses the report                                           | delete `if (malformed !== undefined) throw malformed;` from `readJUnitReport`                                                                                       | `refuses a document with a second root element`                                                              | nothing was thrown; received one `passed` case named `[DEMO-001] a`; also fails the eleven other well-formedness cases                                                                                                                                                                                                                      |
+| D-4           | D     | A doctype is refused                                                             | replace the whole `parser.on('doctype', …)` registration with `parser.on('doctype', () => undefined);`                                                              | `refuses a document type declaration`                                                                        | nothing was thrown; received one `passed` case named `[DEMO-001] a`                                                                                                                                                                                                                                                                         |
+| D-5           | D     | A CDATA section is refused                                                       | replace the whole `parser.on('cdata', …)` registration with `parser.on('cdata', () => undefined);`                                                                  | `refuses a CDATA section`                                                                                    | nothing was thrown; also fails `refuses a CDATA section outside the root element`, which then threw `text data outside of root node.`                                                                                                                                                                                                       |
+| D-6           | D     | A processing instruction is refused                                              | replace the whole `parser.on('processinginstruction', …)` registration with `parser.on('processinginstruction', () => undefined);`                                  | `refuses a processing instruction after the declaration`                                                     | nothing was thrown; received one `passed` case named `[DEMO-001] a`                                                                                                                                                                                                                                                                         |
+| D-7           | D     | A qualified element name is refused                                              | delete the `if (tag.name.includes(':'))` block                                                                                                                      | `refuses a namespaced element name`                                                                          | threw `the JUnit report:5:17: holds an unsupported <x:failure> inside a <testcase>` instead — the structural rule catches it, but with the wrong fact                                                                                                                                                                                       |
+| D-8           | D     | An `xmlns` attribute is refused                                                  | delete the `if (attribute === 'xmlns')` block                                                                                                                       | `refuses an xmlns attribute`                                                                                 | nothing was thrown; received one `passed` case named `[DEMO-001] a`                                                                                                                                                                                                                                                                         |
+| D-9           | D     | A qualified attribute name is refused                                            | delete the `if (attribute.includes(':'))` block                                                                                                                     | `refuses a namespaced attribute name`                                                                        | nothing was thrown; received one `passed` case named `[DEMO-001] a`                                                                                                                                                                                                                                                                         |
+| D-10          | D     | The root element must be `testsuites`                                            | delete the `if (parent === undefined && tag.name !== 'testsuites')` block                                                                                           | `refuses a report whose root is not testsuites`                                                              | threw `the JUnit report:3:55: holds a <testcase> inside <coverage>, not inside <testsuite>` instead                                                                                                                                                                                                                                         |
+| D-11          | D     | A `testcase`'s parent must be a `testsuite`                                      | delete the `if (tag.name === 'testcase' && parent !== 'testsuite')` block                                                                                           | `refuses a testcase whose parent is not a testsuite`                                                         | nothing was thrown; received one `passed` case named `[DEMO-001] a`; also fails `refuses a testcase nested inside a failure element`                                                                                                                                                                                                        |
+| D-12          | D     | An outcome element's parent must be a `testcase`                                 | delete the `if (OUTCOME_ELEMENT.has(tag.name) && parent !== 'testcase')` block                                                                                      | `refuses an outcome element outside a testcase`                                                              | threw `the JUnit report:1:0: holds no testcase` instead                                                                                                                                                                                                                                                                                     |
+| D-13          | D     | Nothing but an outcome element may occur anywhere inside a `testcase`            | delete the complete `if (open.includes('testcase') && !OUTCOME_ELEMENT.has(tag.name))` block                                                                        | `refuses an unsupported element inside a testcase` and `refuses a testcase hidden inside an outcome element` | nothing was thrown; received one `passed` case named `[DEMO-001] a`; also fails `refuses a testcase hidden inside an outcome element`                                                                                                                                                                                                       |
+| D-14          | D     | A `testcase` must carry a `name`                                                 | delete only the `if (title === undefined) throw parser.makeError('holds a <testcase> with no name');` line, keeping the `file` check                                | `refuses a testcase that names no test`                                                                      | nothing was thrown; received a case whose `name` is `undefined`                                                                                                                                                                                                                                                                             |
+| D-15          | D     | A `testcase` must carry a `file`                                                 | delete only the `if (file === undefined) throw parser.makeError('holds a <testcase> with no file');` line, keeping the `name` check                                 | `refuses a testcase that names no file`                                                                      | nothing was thrown; received a case whose `file` is `undefined`                                                                                                                                                                                                                                                                             |
+| D-16          | D     | A report with no test case is refused                                            | delete `if (cases.length === 0) throw parser.makeError('holds no testcase');`                                                                                       | `refuses a report that holds no testcase`                                                                    | nothing was thrown; `Received value: []`                                                                                                                                                                                                                                                                                                    |
+| D-17          | D     | The open-element stack pops on every end tag                                     | replace the whole `parser.on('closetag', …)` registration with `parser.on('closetag', () => undefined);`                                                            | `reads an identifier out of a passing test title`                                                            | threw `the JUnit report:5:85: holds a <testcase> inside <testcase>, not inside <testsuite>`; also fails four more cases                                                                                                                                                                                                                     |
+| E-1           | E     | A citation with no passing test is not coverage                                  | delete `[PROJECT-ASSIGNMENT-READS-001] ` from the API title, rerun `test:api`, rerun the command                                                                    | the coverage table                                                                                           | exit **0**; the `PROJECT-ASSIGNMENT-READS-001` row reads `**no**`, the other two `yes`                                                                                                                                                                                                                                                      |
+| E-2           | E     | A skipped test is not coverage                                                   | change that `it(` to `it.skip(`, rerun `test:api`, rerun the command                                                                                                | the coverage table                                                                                           | exit **0**; the same `**no**` row, with the other two `yes`                                                                                                                                                                                                                                                                                 |
+| E-3           | E     | A report of another run is refused                                               | copy `tmp/junit/wbs-store-sqlite.unit.xml` over `…api.xml`, rerun the command                                                                                       | the command                                                                                                  | `wbs-store-sqlite:test:api did not collect src/audit.test.ts, src/gate.test.ts, src/saved-plan-immutability.test.ts, src/schedule-input-hash.test.ts, src/source.test.ts, src/testing/faults.test.ts, src/working-plan-performance.test.ts; tmp/junit/wbs-store-sqlite.api.xml is the report of another run` — seven filenames, no ellipsis |
+| E-4           | E     | An empty report is refused                                                       | replace only the API report's contents with `<?xml version="1.0" encoding="UTF-8"?><testsuites name="bun test"></testsuites>`                                       | the command                                                                                                  | `the JUnit report:1:0: holds no testcase`, observed under the rebuilt reader on 2026-09-20                                                                                                                                                                                                                                                  |
+| E-5           | E     | A stale report is refused                                                        | append a harmless trailing newline to `libs/wbs/adapters/store-sqlite/src/assignment-scope.db.test.ts` (not `touch`, which leaves no content diff for §12's backup) | the command                                                                                                  | `tmp/junit/wbs-store-sqlite.api.xml is older than src/assignment-scope.db.test.ts; rerun wbs-store-sqlite:test:api`                                                                                                                                                                                                                         |
+| E-6-absent    | E     | An absent report is refused                                                      | move `tmp/junit/wbs-core.unit.xml` into the evidence directory                                                                                                      | the command                                                                                                  | `wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml` (`ENOENT` as the cause)                                                                                                                                                                                                                                          |
+| E-6-directory | E     | An unreadable report is refused                                                  | move the report aside, then create a **directory** at `tmp/junit/wbs-core.unit.xml`                                                                                 | the command                                                                                                  | `wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml` (`EISDIR` as the cause)                                                                                                                                                                                                                                          |
+| E-7           | E     | The command refuses no arguments                                                 | invoke the coverage CLI with no arguments at all                                                                                                                    | the command                                                                                                  | `usage: scenario-coverage-cli.ts <capability> <project:target>…`                                                                                                                                                                                                                                                                            |
+| E-8           | E     | The command refuses a capability with no target                                  | invoke it with `project-assignment-reads` alone                                                                                                                     | the command                                                                                                  | `usage: scenario-coverage-cli.ts <capability> <project:target>…`                                                                                                                                                                                                                                                                            |
+| E-9           | E     | An undeclared target name is refused                                             | invoke it with `project-assignment-reads wbs-core:test`                                                                                                             | the command                                                                                                  | `wbs-core:test is not a declared level target`                                                                                                                                                                                                                                                                                              |
+| E-10          | E     | A declared target absent from its manifest is refused                            | delete exactly `targets["test:unit"].options.command` in `libs/wbs/application/core/project.json` with a structural JSON edit                                       | the command                                                                                                  | `wbs-core:test:unit is not declared in its project manifest`                                                                                                                                                                                                                                                                                |
 
-E-3, E-4 and E-6 mutate only files under `tmp/`, which is ignored; E-5 mutates
-a tracked source file and is restored from the saved copy like any other
-negative. Restore each with `mv` (and `rmdir` for E-6's directory), never
-`rm -f`, and regenerate the three reports (E6's commands) afterwards so a
-stale table from one fault does not leak into the next row's baseline.
+Rows B-6 through B-9 mutate `project.json` and `nx.json` values that the
+focused test file reads statically; run these faults through the focused
+devsync file using §12, not through the mutated level targets — `nx run` is
+never invoked while one of these four faults is present.
+
+Rows D-1 to D-17 are seventeen distinct expressions of one reader, and each has
+its own fixture. Execute them independently: a single malformed fixture must not
+stand in for another guard, and no mutation may hide a second check — that is
+exactly how two hand-written scanners passed every prescribed assertion while
+accepting a malformed declaration, duplicate attributes, an unterminated
+attribute value, a namespaced `x:failure` and a `testcase` nested inside a
+`<failure>`. Each fault text above occurs exactly once in `test-levels.ts`,
+checked on this worktree. `saxes`'s own well-formedness refusals are covered by
+row D-3, which removes the single expression that re-throws them; the twelve
+well-formedness cases D-3 breaks are regression fixtures for the reviewers'
+counterexamples, not seperate guards of this repository's code.
+
+E-3, E-4 and E-6 mutate only files under `tmp/`, which is ignored; E-5 mutates a
+tracked source file and E-10 a tracked manifest, each restored from the saved
+copy like any other negative. Restore each by copying the retained bytes back
+(and `rmdir` for E-6-directory's directory), never `rm -f`, and regenerate the
+three reports (E6's commands) afterwards so a stale table from one fault does not
+leak into the next row's baseline.
 
 ## 12. The fault block every negative uses
 
@@ -1561,6 +2067,86 @@ test "$status" -ne 0
 grep -F "<the exact message row N names>" "$TMPDIR/evidence/$name.failing"
 ```
 
+The final two lines above are a placeholder, not a literal instruction for
+every slice: Bun's own multiline diff output and `Received function did not
+throw` do not contain the matrix row's prose, so a grep for that prose never
+matches.
+
+**For slices A and B**, use the matrix row ID as the proof name. After
+restoring and comparing bytes, require a nonzero test status and confirm that
+the named test failed. Compilation or import errors do not count. Run
+`grep -F --` separately for each literal fragment below against the saved
+failing output; do not grep the explanatory prose in §11. Then rerun the
+complete focused file and require green before the next mutation.
+
+| Row | Literal fragments to require                                                                                                                                      |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-1 | `expect(received).toEqual(expected)`; `-   "conformance",`; `+   "api",`; `+   "unit",`                                                                           |
+| A-2 | `Received function did not throw`; `Received value: "unit"`                                                                                                       |
+| A-3 | `libs/wbs/application/core/testing/portable-composition.spec.ts`                                                                                                  |
+| B-1 | `wbs-store-sqlite:test:api is declared api and collects src/testing/source-conformance.db.test.ts, which is conformance`                                          |
+| B-2 | `wbs-core:test:unit does not pass --reporter=junit`                                                                                                               |
+| B-3 | `wbs-store-sqlite:test:api command shape: a declared level target may not pass --test-name-pattern=NO_MATCH; only coverage and JUnit reporting flags are allowed` |
+| B-4 | `the file selector failed`                                                                                                                                        |
+| B-5 | `wbs-core:test`; `wbs-store-sqlite:test`                                                                                                                          |
+| B-6 | `wbs-store-sqlite:test:api is declared api and does not collect src/assignment-scope.db.test.ts, which is api`                                                    |
+| B-7 | `wbs-core:test:unit does not write ../../../../tmp/junit/wbs-core.unit.xml`                                                                                       |
+| B-8 | `wbs-core:test:unit does not create ../../../../tmp/junit`                                                                                                        |
+| B-9 | `wbs-core:test:unit runs in libs/wbs/application, not libs/wbs/application/core`                                                                                  |
+
+**For C and D**, require nonzero status and the named test's failure after
+restoration and `cmp`. Require each literal fragment below separately with
+`grep -F --`; explanatory prose in §11 is not an output assertion. **The matcher
+is not the requirement; the fact is:** accept a proof when the NAMED test fails
+at the assertion about that row's fact, whatever matcher your test used and
+whatever diagnostic shape Bun printed. It is a stop only when the named test
+passes, does not run, or fails about a different fact. Where a row's fragments no
+longer match because Bun's diagnostic formatting changed, record what you really
+saw beside the row and go on. Where two rows
+print the same received value, the `(fail) …` line naming that row's test is one
+of its required fragments. Record collateral failures, then rerun the complete
+focused file green before the next mutation.
+
+**For E-3 through E-10**, require nonzero CLI status and every listed fragment
+separately. For E-1 and E-2, require status **zero** and the three table rows in
+the E-1/E-2 ending below.
+
+| Row           | Literal fragments to require                                                                                                                                                                                                                                                                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-1           | `Received function did not throw`; `Received value: []`; `(fail) the adopted capability > refuses a specification that holds no scenario`                                                                                                                                                                                                                       |
+| C-2           | `Received function did not throw`; `Received value: [ "DEMO-001" ]`                                                                                                                                                                                                                                                                                             |
+| C-3           | `expect(received).toEqual(expected)`; `+   "Assignment write among unrelated projects",`                                                                                                                                                                                                                                                                        |
+| C-4           | `Received function did not throw`; `Received value: []`; `(fail) the adopted capability > refuses a specification that holds no requirement`                                                                                                                                                                                                                    |
+| D-1           | `(fail) the scenario join > does not count a skipped or a failing test as coverage`; `expect(received).toEqual(expected)`; `-   "DEMO-001",`; `+ []`                                                                                                                                                                                                            |
+| D-2           | `(fail) the scenario join > reads the report Bun really writes, nesting, escapes and outcomes included`; `-     "outcome": "skipped",`; `+     "outcome": "passed",`                                                                                                                                                                                            |
+| D-3           | `(fail) the scenario join > refuses a document with a second root element`; `Expected substring: "documents may contain only one root"`; `Received function did not throw`                                                                                                                                                                                      |
+| D-4           | `(fail) the scenario join > refuses a document type declaration`; `Expected substring: "has a document type declaration"`; `Received function did not throw`                                                                                                                                                                                                    |
+| D-5           | `(fail) the scenario join > refuses a CDATA section`; `Expected substring: "has a CDATA section"`; `Received function did not throw`                                                                                                                                                                                                                            |
+| D-6           | `(fail) the scenario join > refuses a processing instruction after the declaration`; `Expected substring: "has a processing instruction <?sortme?>"`; `Received function did not throw`                                                                                                                                                                         |
+| D-7           | `(fail) the scenario join > refuses a namespaced element name`; `Expected substring: "has a qualified element name <x:failure>"`; `Received message: "the JUnit report:5:17: holds an unsupported <x:failure> inside a <testcase>"`                                                                                                                             |
+| D-8           | `(fail) the scenario join > refuses an xmlns attribute`; `Expected substring: "has an xmlns attribute on <testcase>"`; `Received function did not throw`                                                                                                                                                                                                        |
+| D-9           | `(fail) the scenario join > refuses a namespaced attribute name`; `Expected substring: "has a qualified attribute name x:kind on <testcase>"`; `Received function did not throw`                                                                                                                                                                                |
+| D-10          | `(fail) the scenario join > refuses a report whose root is not testsuites`; `Expected substring: "root is <coverage>, not <testsuites>"`; `Received message: "the JUnit report:3:55: holds a <testcase> inside <coverage>, not inside <testsuite>"`                                                                                                             |
+| D-11          | `(fail) the scenario join > refuses a testcase whose parent is not a testsuite`; `Expected substring: "holds a <testcase> inside <testsuites>, not inside <testsuite>"`; `Received function did not throw`                                                                                                                                                      |
+| D-12          | `(fail) the scenario join > refuses an outcome element outside a testcase`; `Expected substring: "holds a <failure> inside <testsuite>, not inside <testcase>"`; `Received message: "the JUnit report:1:0: holds no testcase"`                                                                                                                                  |
+| D-13          | `(fail) the scenario join > refuses an unsupported element inside a testcase`; `Expected substring: "holds an unsupported <system-out> inside a <testcase>"`; `Received function did not throw`; `(fail) the scenario join > refuses a testcase hidden inside an outcome element`; `Expected substring: "holds an unsupported <testsuite> inside a <testcase>"` |
+| D-14          | `(fail) the scenario join > refuses a testcase that names no test`; `Expected substring: "holds a <testcase> with no name"`; `    name: undefined,`                                                                                                                                                                                                             |
+| D-15          | `(fail) the scenario join > refuses a testcase that names no file`; `Expected substring: "holds a <testcase> with no file"`; `    file: undefined,`                                                                                                                                                                                                             |
+| D-16          | `(fail) the scenario join > refuses a report that holds no testcase`; `Expected substring: "holds no testcase"`; `Received value: []`                                                                                                                                                                                                                           |
+| D-17          | `(fail) the scenario join > reads an identifier out of a passing test title`; `error: the JUnit report:5:85: holds a <testcase> inside <testcase>, not inside <testsuite>`                                                                                                                                                                                      |
+| E-3           | `wbs-store-sqlite:test:api did not collect src/audit.test.ts`; `tmp/junit/wbs-store-sqlite.api.xml is the report of another run`                                                                                                                                                                                                                                |
+| E-4           | `holds no testcase`                                                                                                                                                                                                                                                                                                                                             |
+| E-5           | `tmp/junit/wbs-store-sqlite.api.xml is older than src/assignment-scope.db.test.ts`; `rerun wbs-store-sqlite:test:api`                                                                                                                                                                                                                                           |
+| E-6-absent    | `wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml`; `ENOENT`                                                                                                                                                                                                                                                                            |
+| E-6-directory | `wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml`; `EISDIR`                                                                                                                                                                                                                                                                            |
+| E-7           | `usage: scenario-coverage-cli.ts <capability> <project:target>…`                                                                                                                                                                                                                                                                                                |
+| E-8           | `usage: scenario-coverage-cli.ts <capability> <project:target>…`                                                                                                                                                                                                                                                                                                |
+| E-9           | `wbs-core:test is not a declared level target`                                                                                                                                                                                                                                                                                                                  |
+| E-10          | `wbs-core:test:unit is not declared in its project manifest`                                                                                                                                                                                                                                                                                                    |
+
+Every fragment above was copied out of a saved failing output on this worktree
+on 2026-09-20; none is paraphrased.
+
 Substitute the command under test: for slice S it is the OpenSpec validation
 block; for rows E-1 and E-2 it is the level target followed by the coverage
 command. Generate all three reports (`wbs-store-sqlite.api.xml`,
@@ -1583,15 +2169,18 @@ cp "$TMPDIR/evidence/$name.passing" "$target"
 cmp "$TMPDIR/evidence/$name.passing" "$target"
 
 test "$status" -eq 0                                    # E-1 and E-2 only
-grep -F "| PROJECT-ASSIGNMENT-READS-001 | **no** |" "$TMPDIR/evidence/$name.failing"
+grep -F -- '| PROJECT-ASSIGNMENT-READS-001 | **no** |' "$TMPDIR/evidence/$name.failing"
+grep -Fx -- '| PROJECT-ASSIGNMENT-READS-002 | yes |' "$TMPDIR/evidence/$name.failing"
+grep -Fx -- '| PROJECT-ASSIGNMENT-READS-003 | yes |' "$TMPDIR/evidence/$name.failing"
 ```
 
-**Rows E-3 through E-6 invoke only the coverage CLI as the command under
+**Rows E-3 through E-10 invoke only the coverage CLI as the command under
 test — never the level target.** Rerunning the target regenerates the report
-under test and erases the fault before the CLI can observe it. E-3, E-4 and
-E-5 mutate a file's content (E-5 by an appended newline, not `touch`, so the
-mutation leaves a content diff), so they keep the general block above with the
-command under test replaced by:
+under test and erases the fault before the CLI can observe it. E-3, E-4, E-5 and
+E-10 mutate a file's content (E-5 by an appended newline, not `touch`, so the
+mutation leaves a content diff; E-10 by a structural JSON edit addressing
+`targets["test:unit"].options.command` by its path, never by matching a line), so
+they keep the general block above with the command under test replaced by:
 
 ```sh
 bun tools/tool-devsync/src/scenario-coverage-cli.ts project-assignment-reads \
@@ -1601,46 +2190,69 @@ bun tools/tool-devsync/src/scenario-coverage-cli.ts project-assignment-reads \
 and `test "$status" -ne 0` followed by a grep for the message row 11 names.
 
 E-6 replaces a file with an absence and then with a directory, so it has no
-single content diff and needs its own backup, evidence and restoration
-instead of the general block:
+single content diff and cannot be restored after its assertions without leaving
+the clone mutated when one of them fails. Execute absence and directory
+replacement as **two independent proofs**, named `E-6-absent` and
+`E-6-directory`, with a green baseline between them.
+
+Before each fault, copy the passing report to `$TMPDIR/evidence/$name.passing`
+and retain that copy. Record a labeled content-deletion patch with
+`diff -u --label wbs-core.unit.xml --label /dev/null "$TMPDIR/evidence/$name.passing" /dev/null`,
+accepting exactly status 1. Also save the exact filesystem fault commands as
+`$TMPDIR/evidence/$name.fault.sh`; the directory proof must explicitly record
+creation of the directory.
+
+Move the report into the evidence directory; for the directory proof create a
+directory at its former path. Invoke only the coverage CLI and capture its status
+and output through an `if` block.
+
+**Before asserting anything about that invocation**, remove the replacement
+directory with `rmdir` where applicable, restore the report by copying the
+retained passing bytes back, and require `cmp`. Only then require nonzero status
+and the literal message.
 
 ```sh
 set -euo pipefail
 mkdir -p "$TMPDIR/evidence"
-name=e6-absent-or-unreadable
+name=E-6-absent                                  # then E-6-directory, its own proof
+report=tmp/junit/wbs-core.unit.xml
 
-mv tmp/junit/wbs-core.unit.xml "$TMPDIR/evidence/$name.report"
+cp "$report" "$TMPDIR/evidence/$name.passing"
+if diff -u --label wbs-core.unit.xml --label /dev/null \
+     "$TMPDIR/evidence/$name.passing" /dev/null >"$TMPDIR/evidence/$name.patch"; then
+  echo "the report was already empty" >&2
+  exit 1
+else
+  test $? -eq 1
+fi
+
+# $TMPDIR/evidence/$name.fault.sh holds exactly the two lines below, the second
+# only for E-6-directory:
+mv "$report" "$TMPDIR/evidence/$name.moved"
+mkdir -p "$report"                               # E-6-directory only
 
 if bun tools/tool-devsync/src/scenario-coverage-cli.ts project-assignment-reads \
      wbs-store-sqlite:test:api wbs-core:test:unit \
-     >"$TMPDIR/evidence/$name.absent.failing" 2>&1; then
+     >"$TMPDIR/evidence/$name.failing" 2>&1; then
   status=0
 else
   status=$?
 fi
+
+rmdir "$report"                                  # E-6-directory only
+cp "$TMPDIR/evidence/$name.passing" "$report"
+cmp "$TMPDIR/evidence/$name.passing" "$report"
+
 test "$status" -ne 0
-grep -F 'wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml' \
-  "$TMPDIR/evidence/$name.absent.failing"
-
-mkdir -p tmp/junit/wbs-core.unit.xml
-
-if bun tools/tool-devsync/src/scenario-coverage-cli.ts project-assignment-reads \
-     wbs-store-sqlite:test:api wbs-core:test:unit \
-     >"$TMPDIR/evidence/$name.unreadable.failing" 2>&1; then
-  status=0
-else
-  status=$?
-fi
-test "$status" -ne 0
-grep -F 'wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml' \
-  "$TMPDIR/evidence/$name.unreadable.failing"
-
-rmdir tmp/junit/wbs-core.unit.xml
-mv "$TMPDIR/evidence/$name.report" tmp/junit/wbs-core.unit.xml
-test -f tmp/junit/wbs-core.unit.xml
+grep -F -- 'wbs-core:test:unit has no readable report at tmp/junit/wbs-core.unit.xml' \
+  "$TMPDIR/evidence/$name.failing"
 ```
 
-After restoring each of E-3 through E-6, rerun the three declared targets
+Regenerate all three declared reports and require the three-row green table
+before beginning the next proof. Retain every backup, patch, fault script and
+output file.
+
+After restoring each of E-3 through E-10, rerun the three declared targets
 (E6's commands) and require the three-row green table again before moving to
 the next row. Never `rm -f`; never `|| true`; never read a status through
 `tee`.
@@ -1651,7 +2263,7 @@ the next row. Never `rm -f`; never `|| true`; never read a status through
 
 | Command                                                                                                                                                                               | Expected                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `cd tools/tool-devsync && bun test --preload ../test/scratch/preload.ts src/test-levels.test.ts`                                                                                      | exit 0, 0 fail, slice E's E0 baseline plus two (24 on the planner's tree) |
+| `cd tools/tool-devsync && bun test --preload ../test/scratch/preload.ts src/test-levels.test.ts`                                                                                      | exit 0, 0 fail, slice E's E0 baseline plus two (57 on the planner's tree) |
 | `NX_DAEMON=false bunx nx run tool-devsync:typecheck`                                                                                                                                  | exit 0, Nx reports the target succeeded                                   |
 | `NX_DAEMON=false bunx nx run tool-devsync:lint`                                                                                                                                       | exit 0, Nx reports the target succeeded, no ESLint diagnostic             |
 | `cd tools/tool-devsync && bun test --preload ../test/scratch/preload.ts src/workspace-targets.test.ts -t 'selects each terminal source file exactly and keeps normal test inclusion'` | `Ran 1 test across 1 file.`, 0 fail, `17 filtered out`                    |
@@ -1673,13 +2285,13 @@ which `levelOf` throws on; that an undeclared target spanning levels is refused.
 
 ### Planner-only
 
-| Check                                    | Why the executor cannot run it                                                      | Expected                                                                                              |
-| ---------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `tool-devsync:test` whole target         | its namespacing test runs the wiki index checker over the tree, writing Git objects | one more file and twenty-four more cases than the planner's own baseline on the dispatch base; 0 fail |
-| `wbs-store-sqlite:test`, `wbs-core:test` | heavy aggregates this packet must leave untouched                                   | unchanged totals: no test is added or removed, only three titles change                               |
-| `bun run test:unit` at the root          | runs every project's fast tier                                                      | unchanged totals; two new files in `tmp/junit`                                                        |
-| `bin/h2puni-gate.sh <sha>`               | the shared build host and the heavy lock                                            | exit 0; record the printed `h2puni gate: running on <sha>` line                                       |
-| replay of rows B-1, C-3, E-1 and E-3     | the contract requires the planner to replay a sample                                | the named test or command fails with the named message                                                |
+| Check                                      | Why the executor cannot run it                                                      | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool-devsync:test` whole target           | its namespacing test runs the wiki index checker over the tree, writing Git objects | one more file and forty-three more cases than the planner's own baseline on the dispatch base; 0 fail. Stage `scenario-coverage-cli.ts` first: untracked, it fails the index checker (see slice E's hand-over). Measured on the rebuilt slice D, 2026-09-20: the dispatch base (slice C committed, `saxes` declared) is **315 pass / 0 fail**, and the rehearsed slice D staged is **356 pass / 0 fail**, with `pins the complete moved depth-sensitive configuration inventory` and the namespacing digest green in both. Slice E is expected at **358**; that figure was not re-measured in this pass, because only E's focused file was rehearsed |
+| `wbs-store-sqlite:test`, `wbs-core:test`   | heavy aggregates this packet must leave untouched                                   | unchanged totals: no test is added or removed, only three titles change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `bun run test:unit` at the root            | runs every project's fast tier                                                      | unchanged totals; two new files in `tmp/junit`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `bin/h2puni-gate.sh <sha>`                 | the shared build host and the heavy lock                                            | exit 0; record the printed `h2puni gate: running on <sha>` line                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| replay of rows B-1, C-3, D-11, E-1 and E-3 | the contract requires the planner to replay a sample                                | the named test or command fails with the named message                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 Nothing needs Docker, the network or a credential. Every OpenSpec invocation
 carries `OPENSPEC_TELEMETRY=0`.
@@ -1693,22 +2305,26 @@ carries `OPENSPEC_TELEMETRY=0`.
 5. The level targets are not in the gate: CI and `bin/h2puni-gate.sh` drive `test`, `lint`, `typecheck` and `build`.
 6. The open item in `verify.md` section 7 is answered: `source-conformance.test.ts` needs no distinguishing suffix.
 7. `levelOf` implements rows 2, 6 and 10 of the ten-row table only; the rest throw.
-8. `assertReportIsCurrent` compares modification times, which a checkout can move without changing content. It is a staleness heuristic, not a content binding; the real binding is task 3.1's candidate record.
+8. `assertReportIsCurrent` compares modification times, which a checkout can move without changing content. It examines the test files the report itself names, not their production dependencies and not the specification, so a changed dependency under an unchanged test file leaves the report "current". It is a staleness heuristic, not a content binding; the real binding is task 3.1's candidate record. The limitation is stated in its JSDoc.
+9. `readJUnitReport` delegates well-formedness to `saxes` 6.0.0 and keeps only the structure of a Bun JUnit report. What it therefore does **not** check is stated in its JSDoc and in §22: it trusts `saxes` for XML 1.0 well-formedness and for entity expansion; it validates no JUnit schema beyond its own rules, so an unknown element **outside** a `testcase` is accepted; and a document with no XML declaration at all is well-formed XML and is accepted.
+10. `tools/tool-devsync/src/scenario-coverage-cli.ts` is a new file, and the namespacing handover's index checker refuses untracked diagnostic paths, so `tool-devsync:test` cannot be green until it is staged. The executor cannot stage; this is a planner step, not a defect.
 
 ## 15. Assumptions recorded, not asked
 
-| #   | Assumption                                                                                                                                                                                               |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | The adopted projects are the two holding the chosen capability's tests, not the three rollout Task 5 names.                                                                                              |
-| A2  | `project-assignment-reads` replaces `plan-refresh` as the first worked example; `plan-refresh` is the obvious second.                                                                                    |
-| A3  | A scenario identifier is the capability directory name upper-cased, hyphens kept, then a three-digit ordinal in document order from `001`.                                                               |
-| A4  | The Unit-level test is cited although T1 does not require it, because a scenario proved only at Unit level enters the ledger no other way.                                                               |
-| A5  | The level declaration is a typed constant in `test-levels.ts`, not a JSON policy beside `kinds.json`; three rows are code, not policy.                                                                   |
-| A6  | `tasks.md` is not ticked: 2.1 and 2.2 are each larger than this increment, and `verify.md` records what was observed.                                                                                    |
-| A7  | Reports land in `tmp/junit/`, one file per project and level, rather than one ignored directory per project.                                                                                             |
-| A8  | TEST-AXES-005's second half is deferred: no undeclared target of an adopted project spans levels today. The packet claims only the exemption half.                                                       |
-| A9  | The delta spec's "change no target" sentence is amended rather than worked around.                                                                                                                       |
-| A10 | The coverage command takes declared target names, not report paths, so a caller cannot hand the join a file from elsewhere. It is a narrower interface than `twib coverage scenarios <reports>` will be. |
+| #   | Assumption                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | The adopted projects are the two holding the chosen capability's tests, not the three rollout Task 5 names.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| A2  | `project-assignment-reads` replaces `plan-refresh` as the first worked example; `plan-refresh` is the obvious second.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A3  | A scenario identifier is the capability directory name upper-cased, hyphens kept, then a three-digit ordinal in document order from `001`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| A4  | The Unit-level test is cited although T1 does not require it, because a scenario proved only at Unit level enters the ledger no other way.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| A5  | The level declaration is a typed constant in `test-levels.ts`, not a JSON policy beside `kinds.json`; three rows are code, not policy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| A6  | `tasks.md` is not ticked: 2.1 and 2.2 are each larger than this increment, and `verify.md` records what was observed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A7  | Reports land in `tmp/junit/`, one file per project and level, rather than one ignored directory per project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| A8  | TEST-AXES-005's second half is deferred: no undeclared target of an adopted project spans levels today. The packet claims only the exemption half.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| A9  | The delta spec's "change no target" sentence is amended rather than worked around.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| A10 | The coverage command takes declared target names, not report paths, so a caller cannot hand the join a file from elsewhere. It is a narrower interface than `twib coverage scenarios <reports>` will be.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A11 | **Planner's decision, 2026-09-20 — the JUnit reader is built on `saxes` 6.0.0, not on a hand-written tokenizer.** Two hand-rolled readers were reviewed and both accepted malformed or unsupported reports and manufactured passing citations from them: a namespaced `x:failure`, a `testcase` nested inside a `<failure>`, a garbage declaration, CDATA outside the root, a stray processing instruction, a malformed comment and an unknown entity in text. The reasons for ending the cycle on a parser rather than on a third tokenizer: XML 1.0 well-formedness is a large grammar that a reviewer cannot exhaust by counterexample, so each review only found the next hole; `saxes` is a strict, streaming XML 1.0 parser under the ISC licence with one dependency (`xmlchars`), it ships its own TypeScript types, and it was **already installed and locked in this workspace** as a dependency of `jsdom`, so declaring it adds no package and no supply-chain surface; and what is left for this repository to check — the structure of a Bun JUnit report — is small enough that every rule gets its own negative. The parser runs with `xmlns: false`; see §22 for why, and for what the reader still does not check. |
+| A12 | `saxes` is declared as an exact-pinned direct devDependency by the planner, in its own commit before this packet's, because a module a tool imports must be a declared dependency and not an accident of `jsdom`'s tree. The executor has no network and must not run any install command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ## 16. Cumulative hand-over
 
@@ -1793,3 +2409,132 @@ this review authorizes for dispatch today. The non-blocking notes on the
 scanner's malformed-XML acceptance, the incomplete proof matrix and the
 foreign-file timestamp heuristic were left unapplied, as none is a one-line
 edit; they remain open findings for the executor and a later review.
+
+## 20. Disposition of the slices A and B dispatch review
+
+`reviewAB.md`'s verdict was DISPATCH AFTER FIXES for both slices. Every
+finding it raised is dispositioned below.
+
+| Finding                                                                                                                       | Disposition                            | Where / evidence                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Blocking problem 1 — A5/B11, §11/§12: prescribed diagnostic assertions did not match emitted output                           | FIXED                                  | §12 now carries an A/B-specific ending: a `grep -F --` table of literal fragments per row, replacing a grep of §11's prose. §11's B-4 observed-message cell now reads "Throws before the array assertion; the diagnostic contains `the file selector failed`."                             |
+| Blocking problem 2 — B11/B13, §11: independent safety checks (missing file, wrong report path, wrong report directory, `cwd`) | FIXED                                  | §11 gained rows B-6 to B-9. B11 now reads "Execute rows B-1 through B-9…"; B13 now requires nine dated `Proof:` comments and nine `verify.md` rows. A new note after the table sends B-6–B-9 through the focused devsync file via §12, never through `nx run`.                             |
+| Second-review finding 7 — malformed-XML findings remain for D's review                                                        | REJECTED (out of scope)                | Slice D is untouched by this pass; this edit is scoped to slices A and B plus the shared sections the review named.                                                                                                                                                                        |
+| Second-review finding 8 — A-1 describes the correct array but §12 cannot grep it literally                                    | FIXED (subsumed by blocking problem 1) | Same fix as blocking problem 1.                                                                                                                                                                                                                                                            |
+| Second-review finding 10 — B-5 is scheduled and B-4 throws, but independent B checks still lack proofs                        | FIXED (subsumed by blocking problem 2) | Same fix as blocking problem 2.                                                                                                                                                                                                                                                            |
+| Second-review finding 12 — the read-first table still references §5.5                                                         | FIXED                                  | §3's row for `workspace-targets.test.ts` now points at §4.5, the section that actually explains why those two cases bind the packet.                                                                                                                                                       |
+| Non-blocking — §4.5's "no enforcement case" paragraph is stale                                                                | FIXED                                  | §4.5 rewritten: `workspace-targets.test.ts:543`–`577` (`sets the agent output variables to 0`) and `nx.json:69`–`100` (`test:unit`, `test:conformance`, `test:store`, `test:portable` defaults) already enforce and declare the defaults, confirmed with `grep -n '"CLAUDECODE"' nx.json`. |
+| Non-blocking — B12 currently reports 18 filtered out; the historical count is not a dispatch condition                        | REJECTED (no action needed)            | The review states this explicitly; B12's assertion already only requires the named case to pass with 0 fail, so no packet edit was needed.                                                                                                                                                 |
+| Non-blocking — A's in-memory lint was clean; B's only diagnostic was autofixable import ordering                              | REJECTED (no action needed)            | Informational; already covered by preamble rule 17 and the A7/B13 lint steps.                                                                                                                                                                                                              |
+| Non-blocking — publish evidence basenames or attempt-relative references; never absolute clone paths or expanded temp paths   | FIXED                                  | A7 and B13 each gained a sentence: `verify.md` evidence references are basenames relative to the attempt's evidence directory, never an absolute clone path or an expanded `$TMPDIR` path — the record is published.                                                                       |
+| Non-blocking — read-only validation scope (Nx execution, report generation, restoration, builds, host gate not verified here) | REJECTED (no action needed)            | A caveat about the review's own method, not a packet defect.                                                                                                                                                                                                                               |
+
+## 21. Disposition of the slices C, D and E dispatch review
+
+`reviewCDE.md`'s verdict was C DISPATCH AFTER FIXES, D NOT READY, E DISPATCH
+AFTER FIXES. Every finding was checked against the code at HEAD and then settled
+by rehearsal in a clone: slices C, D and E were implemented exactly as revised
+here, run red then green, mutated once per guard, and reverted. Every literal
+fragment in §12 and every observed message in §11 was copied out of a saved
+Bun 1.4.2 output, not reasoned about.
+
+| Finding                                                                                         | Disposition | Where / evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocking 1 — C/D diagnostics remain prose; E-3's ellipsis cannot match actual output            | FIXED       | §12 gained the review's C/D and E-3-to-E-10 rules verbatim and a literal-fragment table for every C, D and E row. E-3 really prints seven filenames and no ellipsis; §11's E-3 cell now lists all seven. Its C-1 to C-3 and D-1, D-2 fragments were reproduced here exactly as the review predicted.                                                                                                                                                                                                                                                      |
+| Blocking 2 — C1/C9: the requirement-heading guard has neither a test nor a proof                | FIXED       | Confirmed: `assertSpecification`'s two guards are independent, and `refuses a specification that holds no scenario` still passes with the requirement guard gone. C1 gained the review's exact case, C0 and C7 now say five cases and N+5, C9 carries the review's exact replacement, and §11 gained row C-4 (observed `Received function did not throw`, `Received value: []`).                                                                                                                                                                          |
+| Blocking 3 — D3's well-formedness claim is false and D1 does not expose it                      | FIXED       | Confirmed by running the packet's own listing: it accepted `<?xml garbage?>`, trailing text after the root, a duplicate `name`, attribute garbage with an unknown entity, an unterminated attribute value and a `testcase` outside any `testsuite`, returning a passing `DEMO-001` citation for each. §10 is rewritten: real Bun output first, then a complete strict tokenizer, nineteen cases and sixteen independent guards with observed fragments. Leading text was already refused; that is the review's only overstatement and it changes nothing. |
+| Blocking 4 — §12 E-6 violates the restoration/evidence contract                                 | FIXED       | §12's E-6 block is replaced by the review's exact procedure: two independent proofs, retained passing bytes, a labeled content-deletion patch, a saved `fault.sh`, restoration and `cmp` **before** any assertion, and a regenerated green table between them. Both really produce the same message, from `ENOENT` and `EISDIR` respectively.                                                                                                                                                                                                             |
+| Blocking 5 — E7/E8: E's declaration checks have no scheduled production-path negatives          | FIXED       | §11 gained rows E-7 to E-10 (no arguments; capability alone; `wbs-core:test`; the manifest command deleted structurally) with their observed messages; E7 and E8 carry the review's exact additions, including the JSON-path rule and the "authorized only for this temporary fault" sentence.                                                                                                                                                                                                                                                            |
+| Blocking 6 — E-4's fault is malformed XML; basename instructions cover A/B only                 | FIXED       | E-4's fault is the review's exact replacement and really throws `the JUnit report holds no testcase` under the repaired reader. C10, D6 and E8 each gained the basename-and-pending-verification sentence.                                                                                                                                                                                                                                                                                                                                                |
+| Non-blocking — C, D and E move neither whole-suite pin; the inventory reads 166 rows / 80 files | CONFIRMED   | Rehearsed and measured, not reasoned: `tool-devsync:test --skip-nx-cache` after C was 315 pass / 0 fail, after D 334 / 0, after E 336 / 0, with `pins the complete moved depth-sensitive configuration inventory` and the namespacing digest green each time. No slice moves either pin.                                                                                                                                                                                                                                                                  |
+| Non-blocking — add the "do not discover or update whole-suite pins" sentence to the hand-overs  | FIXED       | Added to slice D's and slice E's hand-over blocks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Non-blocking — D2/E2 should describe an import-resolution failure                               | FIXED       | D2 and E2 now say the whole file fails to load for want of the new exports, and that this is one failure, not nineteen or two executed cases.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Non-blocking — C should run its own typecheck and lint before hand-over                         | FIXED       | C10 now runs `tool-devsync:typecheck` and `tool-devsync:lint` before formatting; both exited 0 here with no diagnostic.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Non-blocking — keep E's timestamp heuristic limitation explicit                                 | FIXED       | Stated in `assertReportIsCurrent`'s JSDoc in E3's listing and sharpened in §14 finding 8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Non-blocking — the review executed no mutated Nx run, restoration, build or host gate           | ACCEPTED    | This pass executed them: both level targets and the coverage command really ran, E-1 and E-2 really reran `wbs-store-sqlite:test:api` under the fault, and every mutation was restored and compared with `cmp`. The host gate was not run here.                                                                                                                                                                                                                                                                                                           |
+
+**New, found only by rehearsing.** Slice E adds a file, and the namespacing
+handover's index checker refuses untracked diagnostic paths: with
+`scenario-coverage-cli.ts` unstaged, `tool-devsync:test` failed `the production
+index checker resolves current Markdown links and anchors` with `index checks
+cannot resolve untracked diagnostic paths:
+tools/tool-devsync/src/scenario-coverage-cli.ts`; staged, the same run was 336
+pass, 0 fail. Slice E's hand-over and §14 record it, and the executor reports it
+as pending planner verification.
+
+## 22. Disposition of the slice D re-review
+
+`reviewD2.md`'s verdict was HOLD. The planner ended the cycle with the decision
+recorded as A11: the reader is rebuilt on `saxes` 6.0.0. Every finding of that
+review, and every counterexample of the earlier `reviewCDE.md` that was still
+open, is dispositioned below. Each was run against the rebuilt reader on this
+worktree on 2026-09-20 — implemented, run red then green, mutated once per
+expression, restored, and reverted.
+
+| Finding                                                                                                    | Disposition | Where / evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocking 1 — §10/D3: unsupported syntax and invalid nesting still become passing citations                 | FIXED       | §10 is rewritten on `saxes`. `x:failure` is refused by the qualified-name rule (`has a qualified element name <x:failure>`); the `testcase` nested inside a `<failure>` by the parent rule (`holds a <testcase> inside <failure>, not inside <testsuite>`). The six delegated faults are refused by the parser: garbage declaration, CDATA outside the root, `<?broken>`, a second XML declaration, the malformed comment and `&bogus;`. Each has its own test in D1. |
+| Blocking 1 — `open.includes('testsuite')` accepts any ancestor                                             | FIXED       | The rule is now the immediate parent, `open.at(-1)`, for `testcase` and for every outcome element, and nothing but an outcome element may sit inside a `testcase`. Rows D-11, D-12 and D-13 are three independent negatives.                                                                                                                                                                                                                                          |
+| Blocking 2 — D1/D5 and §11: "one negative per refusal" is incomplete                                       | FIXED       | §11 now has seventeen D rows, one per surviving expression, each mutated alone and observed. A second root (D-3), missing `name` separately from missing `file` (D-14, D-15) and the parser's declaration checks are all covered. The two similar expressions — `passedCitations`'s outcome filter and the reader's outcome assignment — are told apart by their named tests (D-1 and D-2).                                                                           |
+| Blocking 2 — no unterminated-CDATA case; a valid declaration without a version is not independently proved | FIXED       | Both are D1 cases (`refuses an unterminated CDATA section`, `refuses a declaration that names no version`); both are now the parser's job, and row D-3 is the one expression that re-throws its refusals.                                                                                                                                                                                                                                                             |
+| Blocking 2 — "keep `attributesOf`'s call and disable only the presence condition"                          | REJECTED    | The function it names no longer exists. `saxes` validates the declaration, and the fault that establishes it is D-3.                                                                                                                                                                                                                                                                                                                                                  |
+| Finding 10 / Blocking 1 — replaying D-13 and whole-suite checks would plausibly miss these                 | FIXED       | Twelve well-formedness regression fixtures were added as their own cases, so removing D-3's single re-throw fails all twelve; the whole devsync suite on the staged rehearsal was 356 pass / 0 fail (355 before the third review's D-13 repair added one more case; see §23).                                                                                                                                                                                         |
+| Finding — D lacks "the matcher is not the requirement; the fact is"                                        | FIXED       | Stated in §10's entry block and in §12's C/D rule.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Non-blocking — real Bun reports parsed at 535, 35 and 656 cases                                            | CONFIRMED   | The rebuilt reader reads the same three reports at 535, 35 and 656, all `passed`, with the expected citations, and it reads a freshly generated seven-case report with nested describes, a pass, a fail, a skip, a todo and titles holding `<`, `&`, quotes and a newline.                                                                                                                                                                                            |
+| Non-blocking — quoted `>`, BOM and CRLF accepted; single-quoted attributes refused                         | PARTLY      | `>` in a value, a BOM and CRLF are still accepted. **Single-quoted and mixed attribute quoting are now accepted**, because they are well-formed XML 1.0 and `saxes` does not distinguish them. This is a deliberate widening, not an oversight; Bun writes double quotes.                                                                                                                                                                                             |
+| Non-blocking — existing mutation locations are distinguishable                                             | CONFIRMED   | Every fault text in §11's D rows occurs exactly once in `test-levels.ts`, checked mechanically on this worktree.                                                                                                                                                                                                                                                                                                                                                      |
+| Non-blocking — no mutated Nx run, filesystem restoration or host gate was replayed                         | ACCEPTED    | This pass ran the seventeen D negatives with real restoration and `cmp`, the whole devsync suite staged, `bunx eslint` and `tool-devsync:typecheck`. The host gate was not run here.                                                                                                                                                                                                                                                                                  |
+
+**What the new reader still does NOT check.** Stated plainly, because a coverage
+ledger that looks stricter than it is, is the defect this cycle was about.
+
+- It trusts `saxes` 6.0.0 for XML 1.0 well-formedness and for entity expansion.
+  Every refusal in the table above that carries a `saxes` message is the
+  parser's, not this repository's, and a defect in `saxes` is a defect here.
+- The parser options are `{ xmlns: false, fileName: 'the JUnit report' }`.
+  `xmlns: false` was chosen over `xmlns: true` by experiment: with namespace
+  processing **on**, a report that properly declares `xmlns:x="urn:test"` is
+  accepted and `x:failure` arrives as a legitimate namespaced element, which is
+  exactly the counterexample that turned a failing case into a passing one; with
+  it **off**, no prefix binds to anything, and one rule — no `:` in a name, no
+  `xmlns` attribute — refuses the whole family with this repository's own
+  message. `fileName` is what puts `the JUnit report:LINE:COLUMN:` in front of
+  every refusal, the parser's and this reader's alike, through
+  `parser.makeError`. Position tracking is left at its default, on.
+- It validates no JUnit schema beyond its own rules. An unknown element outside
+  a `testcase` — a `<properties>` under `<testsuite>`, say — is accepted and
+  ignored. Only the inside of a `testcase` is closed.
+- A document with **no XML declaration at all** is well-formed XML and is
+  accepted. Only a declaration that is present and wrong is refused.
+- It does not check that a `testsuite`'s parent is a `testsuites` or a
+  `testsuite`, nor any of Bun's count attributes (`tests`, `failures`,
+  `skipped`): a report whose counts contradict its own cases is read by its
+  cases.
+- The qualified-element-name rule is defence in depth rather than the only thing
+  standing between a namespaced element and a false citation: with it removed,
+  `x:failure` inside a `testcase` is still refused, by the
+  nothing-else-inside-a-testcase rule, with a different message. Row D-7 records
+  exactly that.
+- Nothing here checks that a citing test actually proves its scenario.
+
+## 23. Disposition of the slice D third review
+
+`reviewD3.md`'s verdict was DISPATCH AFTER FIXES: D needed one rehearsed
+structural repair to stop a `<testsuite>` hidden inside a `testcase`'s outcome
+content — `<failure>`, `<error>` or `<skipped>` — from being read as an
+ancestor-less sibling and having its own `testcase` recorded as a passing
+citation. Every finding was applied here and confirmed by rehearsal in the
+clone, not reasoned about.
+
+| Finding                                                                                                                                                            | Disposition                 | Where / evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Blocking — §10/D3, D1 and D-13: a `testsuite` inside outcome content admits a fabricated passing `testcase`                                                        | FIXED                       | D3's guard is now `if (open.includes('testcase') && !OUTCOME_ELEMENT.has(tag.name))`, checking the whole open-element stack rather than only the immediate parent, so a `testsuite` nested inside a `<failure>`/`<error>`/`<skipped>` that itself sits inside a `testcase` is refused with `holds an unsupported <testsuite> inside a <testcase>`. D1 gained the review's exact `refuses a testcase hidden inside an outcome element` case, looping over all three outcome elements. D-13's row in §11 now names both `refuses an unsupported element inside a testcase` and the new test, and §12's D-13 fragments require both named failures. D0 through E4 and the verification and planner-only tables were renumbered from forty/N+40 to forty-one/N+41 (55 after D, 57 after E; the whole-suite delta from "forty-two more" to "forty-three more", 356 staged after D, 358 expected after E). Confirmed by rehearsal in this clone. |
+| Non-blocking — error recovery: the reader does not stop at the first `saxes` error and a later structural exception can supersede the retained first parser error  | FIXED                       | §10's "What the reader refuses, and who refuses it" no longer claims the reader "re-throws the first one unchanged". It now states the actual guarantee: no citation is returned once any error was seen, because a structural exception thrown from an event handler propagates immediately and unwinds before a result is produced, and absent one the retained first `saxes` error is thrown once parsing finishes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Non-blocking — requested attacks: direct suites inside testcases and outcomes nested two levels down                                                               | CONFIRMED, no action        | Already refused before this review: a `testsuite` directly inside a `testcase` is caught by the same widened D-13 rule, and a `testsuite` nested two levels into an outcome element (e.g. `<failure><a><testsuite>…`) is caught the same way, since `open.includes('testcase')` holds at any depth once a `testcase` is still open.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Non-blocking — empty test names are accepted but cite nothing                                                                                                      | ACCEPTED, deliberately left | `readJUnitReport` requires only that `name` be present (`holds a <testcase> with no name` when absent), not non-empty. `SCENARIO_IDENTIFIER` never matches an empty string, so `passedCitations` records no identifier for such a case; it is inert, not a false citation, and out of this packet's non-goals (Rule T2 is not enforced).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Non-blocking — empty `file` values can produce a D citation, but slice E refuses them through file membership                                                      | ACCEPTED, deliberately left | D only requires `file` to be present, not non-empty, so `file=""` structurally passes and can be cited. Slice E's `assertReportCovers` compares every case's `file` against the level target's actually-collected files (`collectedFiles`); an empty string is never a member of that list, so E throws `did not collect ` before the citation reaches the coverage table. This division of labour — D reads structure, E establishes provenance — is why the review found E immune to the same attack.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Non-blocking — duplicate cases are accepted; citations use existential passing-case semantics                                                                      | ACCEPTED, deliberately left | `passedCitations` builds a `Set`, so two cases citing the same identifier — whether one passed and one failed, or both passed — collapse to one citation once **any** passing case bears it. This existential semantics (some passing test cites it) rather than universal (every test with that title passed) is the join's stated design, not a gap D-13 opened; changing it is out of this increment's non-goals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Non-blocking — entity-expanded brackets (`&#91;DEMO-001&#93;` and hex equivalents) decode to the same value as literal brackets                                    | CONFIRMED, no action        | `saxes` performs entity and numeric-reference expansion before the reader ever sees `tag.attributes`, so `passedCitations`' regex reads the same decoded string either way. No packet edit needed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Non-blocking — BOM, CRLF, a 200,000-case report, and a freshly generated Bun 1.4.2 seven-case report were all accepted with correct nesting, escaping and outcomes | CONFIRMED, no action        | Matches §10's "What Bun 1.4.2 really writes" and the real-report figures already recorded (535/656/35 cases); nothing in the packet contradicted this.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Non-blocking — `ec1a7da9` adds only the exact `saxes` dependency declaration; `bun pm ls saxes` failed with `EROFS` in the review's read-only sandbox              | CONFIRMED, no action        | D3's hand-over already forbids the executor from touching `package.json` or `bun.lock`; this packet does not run `bun pm ls` as a gating step, so the sandbox limitation does not block dispatch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Non-blocking — Nx checks, lint, typecheck, formatting, OpenSpec validation, filesystem restoration and the host gate were not replayed by the review               | ACCEPTED, executed here     | This pass rehearsed slice D's files in the clone, ran the focused file green, injected and reverted D-13's fault, confirmed both named tests fail with the fragments now required, ran `bunx eslint` and `tool-devsync:typecheck`, reverted the rehearsal completely, and ran Prettier and `tool-devsync:test` over the packet itself. The host gate was not run in this pass.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |

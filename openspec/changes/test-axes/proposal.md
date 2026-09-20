@@ -18,7 +18,7 @@ The repository has several test runners and established test levels, but no comp
 
 ## Non-Goals
 
-This change renames no test, changes no Nx target and implements no allocator or coverage check. Conformance and Architecture tests remain outside T2 because they prove contracts and rules rather than scenarios.
+This change renames no test and implements no allocator or coverage ledger. It adds test targets and test reporting only additively: an existing target is never renamed, removed or repurposed. Conformance and Architecture tests remain outside T2 because they prove contracts and rules rather than scenarios.
 
 ## Constraints
 
