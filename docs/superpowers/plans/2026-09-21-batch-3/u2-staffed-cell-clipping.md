@@ -333,7 +333,7 @@ apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx`, then `--check` bo
 - [ ] 3.4 `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0. This is the slice's real
       check: `tsconfig.e2e.json` covers the spec (section 3, fact 11).
 - [ ] 3.5 `NX_DAEMON=false bunx nx run wbs-fe-01:lint` — exit 0.
-- [ ] 3.6 Append to `verify.md`, under "Not verified", that `wbs-fe-01:e2e`, its **five** negatives
+- [ ] 3.6 Append to `verify.md`, under "Not verified", that `wbs-fe-01:e2e`, its **six** negatives
       and the browser `Proof:` comments they authorise are **pending planner verification**, naming
       them by the section 9 identifiers CP and CN1 to CN6. Tick 3.1 in `tasks.md`; leave 3.2
       unticked, because it is the planner's.
@@ -775,19 +775,21 @@ each injection: save the patch and the failing output under `$TMPDIR/evidence`, 
 saved passing bytes with `cp`, prove with `cmp`, and rerun CP green.
 
 **Then write the browser `Proof:` comments** — not before. The executor's `layout.spec.ts` carries
-none, by design. After CP and CN1 to CN5 have been replayed, the planner inserts, in
+none, by design. After CP and CN1 to CN6 have been replayed, the planner inserts, in
 `apps/wbs/fe-01/e2e/layout.spec.ts` inside this test, each block below immediately above the
 assertion it names, using what **this** run printed wherever it differs:
 
 ```ts
-// Proof: the cell wrapper's `display: 'flex'` written as `display: 'block'`,
-// so the figure drops under the box — this failed on `a staffed cell holding
-// a trio, a result and an assignee is taller than a bare row · Expected:
-// 26.1875 · Received: 40.1875`. Watched in Chromium, 2026-09-20.
+// Proof: the wrapper's `display: 'flex'` changed to `display: 'block'`
+// failed the staffed-versus-bare height comparison (CN5).
+// Separately, adding `minHeight: 40` to that wrapper left both rows
+// equally tall, then failed the height budget: Expected: <= 28,
+// Received: 42 (CN6). Watched in Chromium, <actual observation date>.
 ```
 
 above `expect(
-      staffed.estimated,` — that one block covers both height assertions;
+      staffed.estimated,` — this block records the two independent height proofs: substitute the
+actual observation date and diagnostics only after observing both failures;
 
 ```ts
 // Proof: the box's own `flex: 1` in `estimates.tsx` replaced by
