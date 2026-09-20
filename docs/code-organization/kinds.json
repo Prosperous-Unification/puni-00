@@ -233,6 +233,144 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/work-item.service directly"
     },
     {
+      "path": "libs/wbs/application/core/src/service/assumed-assignee.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "directory-usage.ts, step.service.ts and work-item.service.ts call its pure assignment transformations for the glossary's assumed assignee, with no store or clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/auth.service.ts",
+      "kind": "feature",
+      "capability": "authentication",
+      "rationale": "composeServices and the backend authentication delivery call it to coordinate user and identity stores with verifier, password, token and clock ports for registration and sign-in"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/broadcast.ts",
+      "kind": "support",
+      "disposition": "project-event broadcaster contract and batch collector; move to the realtime module",
+      "rationale": "import.service.ts and plan-commands.ts collect announcements through it while gateway-broadcaster.ts and several resource services share its project-event publication contract"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",
+      "kind": "resource",
+      "term": "calendar marker",
+      "rationale": "calendar-marker and project routes call it for the calendar marker aggregate's rules over CalendarMarkerStore and ProjectStore, with Clock and Broadcaster ports"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/capacity.service.ts",
+      "kind": "resource",
+      "term": "capacity",
+      "rationale": "composeServices and PlanCommandRunner use it for the capacity aggregate's edit rules over CapacityStore and ProjectStore, with Clock and Broadcaster ports"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/clean-name.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "directory.service.ts, prepare-import.ts and step.service.ts call its pure name normalization with no store or clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/command-bindings.ts",
+      "kind": "support",
+      "disposition": "private member of plan-commands.ts",
+      "rationale": "plan-commands.ts is its only production importer and uses its bindings and command context to dispatch the batch runner's admitted service graph"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "work-item.routes.ts normalizes command values and prepare-import.ts shares its limits; the transformations use no store or clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/compensating.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "work-item.service.ts calls its pure journal decoding, touched-row and command-subject transformations over stored values with no store or clock access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/dependency.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "prepare-import.ts and work-item.service.ts call canDepend as a pure check over work-item and dependency values with no store or clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/directory-usage.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "directory.service.ts calls its pure removal-effect projections over DirectoryUsageRows and labelled work items for the glossary's directory usage, with no store or clock"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/directory.service.ts",
+      "kind": "resource",
+      "term": "directory",
+      "rationale": "directory and project routes, ImportService and PlanCommandRunner call it for directory vocabulary invariants over DirectoryStore, with Clock and Broadcaster ports"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts",
+      "kind": "support",
+      "disposition": "private member of compose.ts",
+      "rationale": "composeServices is its only production importer and binds EventLogStore, PushTransport, ReplayBuffer and Clock into the composition's durable project-event publisher"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/history.service.ts",
+      "kind": "feature",
+      "capability": "core-lib-extraction",
+      "rationale": "historyRoutes calls it for the user-visible history read that coordinates ProjectStore existence with PlanEventStore filtering, an explicit history capability of the extracted core"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/import.service.ts",
+      "kind": "feature",
+      "capability": "unspecified",
+      "rationale": "importRoutes calls it for one atomic user-visible import that owns UnitOfWork and coordinates DirectoryService, work-item insertion, scheduler and announcement ports; no accepted capability specifies import"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/login-throttle.ts",
+      "kind": "support",
+      "disposition": "authentication admission throttle; move to the authentication module",
+      "rationale": "composeServices constructs it and auth-password-endpoints.ts applies its injected-clock failure windows and bounded admission around password verification"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "broadcast.ts and work-item.service.ts share its derived reader value types, which contain no store, clock or runtime access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts",
+      "kind": "support",
+      "disposition": "private member of compose.ts",
+      "rationale": "composeServices is its only production importer and uses it to decorate that composition's Broadcaster with optimizer invalidation after selected project events"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/plan-command.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "plan-commands.ts consumes its command type and batch-limit value, which carry no store, clock or runtime access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/plan-commands.ts",
+      "kind": "feature",
+      "capability": "core-lib-extraction",
+      "rationale": "run-command-batch and work-item routes call it to own UnitOfWork and coordinate directory, capacity, priority-band and work-item services for one admitted command batch"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/plan-document.ts",
+      "kind": "resource",
+      "term": "plan document",
+      "rationale": "project and import routes call it for plan document export and classification rules over DirectoryStore, CalendarMarkerService and Clock-backed document metadata"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/prepare-import.ts",
+      "kind": "support",
+      "disposition": "private member of import.service.ts",
+      "rationale": "ImportService is its only production importer; it validates and prepares a plan document over values but also asks the Scheduler port whether an engine is supported, so it is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/priority-band.service.ts",
+      "kind": "resource",
+      "term": "priority band",
+      "rationale": "composeServices and PlanCommandRunner use it for the priority band aggregate's edit rules over PriorityBandStore and ProjectStore, with Clock and Broadcaster ports"
+    },
+    {
       "path": "libs/wbs/application/core/src/use-cases/replay.ts",
       "kind": "feature",
       "capability": "realtime",
