@@ -7,7 +7,8 @@ Origin: section 13, "Finding for a separate work item", of
 Batch contract: [execution batch 1 README](../2026-09-19-batch-1/README.md) — "Execution contract",
 "Standard blocks every packet uses", "Hidden constraints every frontend packet must respect",
 "Counts are relative, never absolute", "Formatting", "Negative proofs with a restore".
-Launcher: `--batch batch-3`. No `--network`: nothing here binds a port from the sandbox.
+Launcher: `--batch batch-3 --batch-dir docs/superpowers/plans/2026-09-21-batch-3` — `run-executor.sh:24`
+exits 64 on any batch but 1 or 2 without `--batch-dir`. No `--network`: nothing here binds a port from the sandbox.
 
 Everything in section 3 was checked in this repository on 2026-09-20 by reading the files and by
 running the commands named there. Nothing is asserted from memory. **Chromium was run.** The whole
@@ -19,7 +20,8 @@ measured against the real stack before one was chosen; section 4 is that measure
 
 **Goal.** A folded step cell that cannot show its whole typed trio beside its result lets the
 **trio** yield, and yield legibly: at rest the trio box ends in an ellipsis instead of cutting a
-glyph in half, while the result and the assignee stay whole and inside the cell. The staffed,
+glyph in half, while the result and the assignee keep the rendering they already have and stay
+inside the cell. The staffed,
 fractional case that U1 could only measure becomes a committed Chromium assertion that passes.
 
 **Non-goals.** The step column's width; the assignee slot; `QUIET_TRIO_PX`; what is stored; how a
@@ -51,7 +53,7 @@ the **exact quoted text is the authoritative locator**; a line number is a hint 
    `fontSize: QUIET_TRIO_PX,`. That second object is the **resting arm** and the only place this
    packet edits.
 2. `estimates.tsx` already contains `textOverflow: 'ellipsis'` **twice** — at `:91` on the column
-   header button and at `:881` on the assumed-assignee span. Neither is the resting arm. Every
+   header button and at `:873` on the assumed-assignee span (`:881` is the `MismatchMark`). Neither is the resting arm. Every
    instruction below locates the edit by the `fontSize: QUIET_TRIO_PX,` line above it, never by a
    search for `textOverflow`.
 3. `estimates.tsx:561` gives the result span `flex: 'none'`, `:598` gives the assignee
@@ -75,16 +77,23 @@ the **exact quoted text is the authoritative locator**; a line number is a hint 
    the same signed-in `local-dev` account. Watched 2026-09-20: a new test creating `Nia` before
    `a step’s figure lands at one x whether or not the row is assigned` (`:1352` uses
    `getByRole('option', { name: 'Add “Nia”' })`) made that test fail with `element(s) not found`,
-   because Nia was by then an existing person. `Nia` and `Uma` are the only names any spec in
-   `apps/wbs/fe-01/e2e` creates; **`Ola` is free** and is what this packet uses.
+   because Nia was by then an existing person. Other specs create other people —
+   `e2e/directory.spec.ts:126` to `:130` creates `Kat ${tag}` and renames it `Katrin ${tag}` — so the
+   verified fact is narrower and is the one that matters: **no source under `apps/wbs/fe-01/e2e`
+   contains `Ola`** (`grep -rn Ola apps/wbs/fe-01/e2e` prints nothing), and `Ola` is what this
+   packet uses.
 9. `creatable-picker.tsx:132` to `136` calls `preventDefault` on the list's mousedown so the click
    cannot blur the box, so a measurement taken straight after the Add reports the focused
    arrangement. `e2e/layout.spec.ts:1242` to `1247` already records that as `focused=true
 boxType=13px`.
 10. `apps/wbs/fe-01/vitest.config.ts:168` includes `src/**/*.{test,spec}.{ts,tsx}` under
-    `environment: 'jsdom'`, so `plan-estimates.test.tsx` runs under the **default** config and not
-    under `vitest.node.config.ts`. The batch README's sandbox unit command does not cover it; the
-    focused command in section 7 does.
+    `environment: 'jsdom'`, so `plan-estimates.test.tsx` runs under the **default** config.
+    `vitest.node.config.ts:46` includes only `NODE_SUITES`, and `vitest.node-suites.ts` does **not**
+    list `plan-estimates.test.tsx`; `vitest.zoned.config.ts:41` includes only
+    `src/**/*.zoned.test.{ts,tsx}`. So the new test moves the **UTC jsdom** suite and neither the
+    node unit tier nor the Auckland suite. `project.json`'s `test` target is the UTC run followed by
+    the zoned one; `test:unit` is the node one. The batch README's sandbox unit command does not
+    cover this file; the focused command in section 7 does.
 11. `apps/wbs/fe-01/tsconfig.json:33` to `38` references `tsconfig.e2e.json`, whose `include` is
     `["e2e/**/*.ts", "e2e-packaged/**/*.ts", "playwright.config.ts", "playwright.packaged.config.ts"]`,
     so `wbs-fe-01:typecheck` covers the browser spec as well as `src`.
@@ -137,28 +146,32 @@ reader cannot tell the step was estimated by hand at all.
 
 **A is chosen.** It costs no pixels, moves no width pin, breaks no committed test, leaves editing
 untouched, and is exactly the owner's direction expressed as a rendering: the result and the
-assignee are whole, and the trio is the one reading that gives way — visibly, with a mark that says
+assignee keep the rendering they already have, and the trio is the one reading that gives way — visibly, with a mark that says
 there is more, which the hover card and the focused box both supply. In dark it reads the same. Its
 limit is stated rather than hidden: `clipped` stays 16, so this packet does **not** claim the trio
 fits, and the committed assertion is about how it yields.
 
 ## 5. File plan
 
-| File                                                                      | Create or modify | What                                                                                 |
-| ------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
-| `openspec/changes/estimate-trio-ellipsis/proposal.md`                     | create           | Intent, under 400 words.                                                             |
-| `openspec/changes/estimate-trio-ellipsis/tasks.md`                        | create           | The three slices below.                                                              |
-| `openspec/changes/estimate-trio-ellipsis/specs/wbs-estimate-cell/spec.md` | create           | One `### Requirement:` with its normative SHALL and two scenarios.                   |
-| `openspec/changes/estimate-trio-ellipsis/verify.md`                       | create           | Commands, results and R5 proofs; appended by every slice.                            |
-| `apps/wbs/fe-01/src/components/wbs/plan-estimates.test.tsx`               | modify           | One `itDom` added inside `describe('one cell for the whole trio')`.                  |
-| `apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx`            | modify           | One property plus its comment, in the resting arm only.                              |
-| `apps/wbs/fe-01/e2e/layout.spec.ts`                                       | modify           | One committed test added inside `test.describe('the table, measured by a browser')`. |
+| File                                                                      | Create or modify  | What                                                                                 |
+| ------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
+| `openspec/changes/estimate-trio-ellipsis/.openspec.yaml`                  | create by command | `schema: sdd-lean` plus the date. Written by `openspec new change`, never by hand.   |
+| `openspec/changes/estimate-trio-ellipsis/proposal.md`                     | create            | Intent, under 400 words.                                                             |
+| `openspec/changes/estimate-trio-ellipsis/tasks.md`                        | create            | The three slices below.                                                              |
+| `openspec/changes/estimate-trio-ellipsis/specs/wbs-estimate-cell/spec.md` | create            | One `### Requirement:` with its normative SHALL and two scenarios.                   |
+| `openspec/changes/estimate-trio-ellipsis/verify.md`                       | create            | Commands, results and R5 proofs; appended by every slice.                            |
+| `apps/wbs/fe-01/src/components/wbs/plan-estimates.test.tsx`               | modify            | One `itDom` added inside `describe('one cell for the whole trio')`.                  |
+| `apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx`            | modify            | One property plus its comment, in the resting arm only.                              |
+| `apps/wbs/fe-01/e2e/layout.spec.ts`                                       | modify            | One committed test added inside `test.describe('the table, measured by a browser')`. |
 
-**Neighbours.** None of the other batch 3 or batch 2 packets named in the brief (010.6 templates,
-010.7 rules, 020.2 shared failures, 020.7 backend startup, 040.1 Chromium proof, 040.4 plan feed,
-110.1 test axes, 110.6 retire upstream sync) owns any of these files, verified by reading
-`docs/superpowers/plans/2026-09-20-batch-2/` — which holds only `u1-estimate-cell-at-rest.md` — and
-by `git grep -l` over the file names above in `docs/superpowers/plans/`. **110.1 is the one to
+**Neighbours.** `docs/superpowers/plans/2026-09-20-batch-2/` holds **nine** packets —
+`010-6-templates.md`, `010-7-rules.md`, `020-2-shared-failures.md`, `020-7-backend-startup.md`,
+`040-1-chromium-proof.md`, `040-4-plan-feed.md`, `110-1-test-axes.md`,
+`110-6-retire-upstream-sync.md` and `u1-estimate-cell-at-rest.md`. `git grep -l` over each path in
+the plan above, across that directory, names only `u1-estimate-cell-at-rest.md`, and U1 is **already
+merged**: this packet's edits sit on top of its, which is why every anchor in section 3 is read off
+`batch-3/planning` and not off `main`. Ownership among the **batch 3** lanes is bookkeeping the
+coordinator holds; nothing in this repository settles it, and this packet claims nothing about it. **110.1 is the one to
 watch**: `docs/superpowers/plans/2026-09-19-code-organization-rollout.md:259` to `260` puts
 square-bracket scenario identifiers on existing test titles. This packet only **adds** titles and
 edits none, so a prefix campaign and this packet cannot collide; if a title in either changed file
@@ -172,30 +185,70 @@ Each slice is dispatchable alone, records its own baseline first, and ends ready
 are relative to the baseline that slice recorded (batch README, "Counts are relative, never
 absolute"). Every rehearsed figure below was watched on 2026-09-20 on `batch-3/planning`.
 
-### Slice 0 (part of slice 1) — baselines
+### Baselines every slice collects for itself
 
-Every slice begins by recording, in its own report and in `verify.md`:
+A baseline is collected **by the slice that compares against it**, on the tree that slice starts on,
+and is written into the slice's report and into `verify.md`. No slice uses another slice's figure,
+and no expected count here is absolute (batch README, "Counts are relative, never absolute").
 
-- **N** — `cd apps/wbs/fe-01 && bunx vitest run src/components/wbs/plan-estimates.test.tsx`, the
-  `Tests N passed (N)` figure. Rehearsed: **73** before slice 2, **74** after.
+The focused test file is recorded as **three** numbers, not one, because slice 2b starts on a tree
+where one test is failing on purpose:
+
+- **F** — `cd apps/wbs/fe-01 && bunx vitest run src/components/wbs/plan-estimates.test.tsx`, read as
+  `Tests <failed> failed | <passed> passed (<total>)`, or `Tests <passed> passed (<passed>)` when
+  none fails. Write it down as the triple `F.total / F.passed / F.failed`.
 - **V** — `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`, the
-  `summary.totals.passed` figure. Rehearsed: **107** before slice 1, **108** after.
+  `summary.totals.passed` figure.
+
+Rehearsed on 2026-09-20, for orientation only — each slice must still read its own:
+
+| Slice start | F.total / F.passed / F.failed | V   |
+| ----------- | ----------------------------- | --- |
+| slice 1     | 73 / 73 / 0                   | 107 |
+| slice 2a    | 73 / 73 / 0                   | 108 |
+| slice 2b    | 74 / 73 / **1**               | 108 |
+| slice 3     | 74 / 74 / 0                   | 108 |
+
+Expected transitions, each stated against the slice's **own** baseline: slice 1 leaves F untouched
+and V at **V + 1**; slice 2a leaves V untouched and F at `total + 1`, `passed` unchanged, `failed`
+**1**; slice 2b leaves V and `total` untouched and moves `failed` to **0**, so `passed = total`;
+slice 3 adds a browser test and moves none of F or V, because the executor never runs a browser.
 
 ### Slice 1 — the OpenSpec change
 
-- [ ] 1.1 Record **V**. Create the four files under `openspec/changes/estimate-trio-ellipsis/` with
-      exactly the text in section 12. The delta spec's normative SHALL sits directly under the
-      `### Requirement:` heading; without it validation refuses the file.
-- [ ] 1.2 `GSETTINGS_BACKEND=memory bunx prettier --write` the four files, then `--check` them.
-- [ ] 1.3 Validate. Expect exit 0 and `summary.totals.passed` = **V + 1**.
-- [ ] 1.4 Fill `verify.md`'s two tables with this slice's real command output.
+- [ ] 1.1 Record **V** and **F**, into `$TMPDIR/evidence/baselines.txt`. `verify.md` does not exist
+      yet — this slice creates it — so the observations are held there and transferred in 1.6.
+- [ ] 1.2 Scaffold the change with the batch README's "Creating an OpenSpec change" block, which is
+      the only supported way to get the schema metadata right:
 
-Pre-edit check: `openspec/changes/estimate-trio-ellipsis/` does not exist. Ready to commit:
-the four files; subject `docs(openspec): state how a resting trio yields when it does not fit`.
+  ```sh
+  OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change estimate-trio-ellipsis --schema sdd-lean
+  grep -n "schema: sdd-lean" openspec/changes/estimate-trio-ellipsis/.openspec.yaml
+  ```
+
+  Expected, watched 2026-09-20: `Created change 'estimate-trio-ellipsis' at
+openspec/changes/estimate-trio-ellipsis/` and `Schema: sdd-lean`, then `1:schema: sdd-lean` from the
+  grep. The command creates **only** `.openspec.yaml`; it writes no `proposal.md`, `tasks.md`,
+  `verify.md` or `specs/`, which is why 1.3 writes them. A grep that prints nothing is a stop.
+  The command must not download: OpenSpec is already warmed into `$TMPDIR`.
+
+- [ ] 1.3 Write the four remaining files with exactly the text in section 12. The delta spec's
+      normative SHALL sits directly under the `### Requirement:` heading; without it validation
+      refuses the file.
+- [ ] 1.4 `GSETTINGS_BACKEND=memory bunx prettier --write` the four Markdown files, then `--check`
+      them. `.openspec.yaml` is not Markdown and is left exactly as the command wrote it.
+- [ ] 1.5 Validate. Expect exit 0 and `summary.totals.passed` = **V + 1** (rehearsed 107 → 108).
+- [ ] 1.6 Fill `verify.md`'s two tables with this slice's real command output, including the
+      baselines held in 1.1, and tick 1.1 to 1.3 in `tasks.md`.
+
+Pre-edit check: `openspec/changes/estimate-trio-ellipsis/` does not exist. Ready to commit: the five
+files (`.openspec.yaml`, `proposal.md`, `tasks.md`, `verify.md`,
+`specs/wbs-estimate-cell/spec.md`); subject
+`docs(openspec): state how a resting trio yields when it does not fit`.
 
 ### Slice 2a — the jsdom oracle, watched red
 
-- [ ] 2a.1 Record **N** (rehearsed 73).
+- [ ] 2a.1 Record **F** and **V** for this slice (rehearsed 73 / 73 / 0 and 108).
 - [ ] 2a.2 Add the test in section 8.1 to `plan-estimates.test.tsx`, inside
       `describe('one cell for the whole trio')`, immediately **above**
       `itDom('leaves a refused trio at full strength, because a complaint may not recede', …)`.
@@ -208,35 +261,51 @@ the four files; subject `docs(openspec): state how a resting trio yields when it
    Tests  1 failed | 73 passed (74)
   ```
 
-  `Tests 1 failed | N passed (N + 1)`. A green run here is a stop: the test is not measuring
-  anything.
+  Against this slice's own baseline: `failed` = **1**, `passed` = `F.passed`, `total` =
+  `F.total + 1`. A green run here is a stop: the test is not measuring anything.
 
-- [ ] 2a.4 Append the red run to `verify.md`.
+- [ ] 2a.4 Append the red run to `verify.md` and tick 2.1 in `tasks.md`.
 
-Ready to commit: `plan-estimates.test.tsx`, `verify.md`; subject
+Pre-edit check: `openspec/changes/estimate-trio-ellipsis/verify.md` exists and carries slice 1's
+filled tables, and `plan-estimates.test.tsx` does **not** contain `ends a resting trio in an
+ellipsis`. Ready to commit: `plan-estimates.test.tsx`,
+`openspec/changes/estimate-trio-ellipsis/verify.md`,
+`openspec/changes/estimate-trio-ellipsis/tasks.md`; subject
 `test(wbs-fe): pin which arm carries the resting trio's ellipsis`.
 
 ### Slice 2b — the production line, watched green
 
-- [ ] 2b.1 Record **N** again on the tree this slice starts on (rehearsed 74 total, 1 failing).
+- [ ] 2b.1 Record **F** on the tree this slice starts on. Rehearsed **74 / 73 / 1** — one test is
+      failing on purpose, which is slice 2a's whole point, and that is this slice's baseline.
 - [ ] 2b.2 In `estimates.tsx`, in the object literal that begins `fontSize: QUIET_TRIO_PX,` — the
       **resting** arm of the `problem !== null || typing` conditional, and not either of the two
       other `textOverflow: 'ellipsis'` occurrences in this file (section 3, fact 2) — add the
       comment and property in section 8.2, directly after the `color:` line and as the object's last
       entry.
-- [ ] 2b.3 Format `estimates.tsx`, rerun the test file. Expect exit 0 and `Tests 74 passed (74)`,
-      that is `N` with nothing failing.
+- [ ] 2b.3 Format `estimates.tsx`, rerun the test file. Expect exit 0 and
+      `Tests F.total passed (F.total)` — the same total, `failed` down to **0** (rehearsed
+      `Tests 74 passed (74)`).
 - [ ] 2b.4 `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` (exit 0) and
       `NX_DAEMON=false bunx nx run wbs-fe-01:lint` (exit 0, `Successfully ran target lint for
 project wbs-fe-01`). Both watched green on the rehearsed tree.
-- [ ] 2b.5 Negative **N1** and **N2** from section 8.3, each injected, watched, restored by `cp` and
-      proved with `cmp`, then the file rerun green.
-- [ ] 2b.6 Append both proofs and all four runs to `verify.md`.
+- [ ] 2b.5 Negative **N1** and **N2** from section 8.3, each injected separately, watched, restored
+      by `cp` and proved with `cmp`, then the file rerun green after each.
+- [ ] 2b.6 **Only now**, having observed both, add the adjacent dated `Proof:` comment to
+      `estimates.tsx`, immediately above the `textOverflow: 'ellipsis',` line and inside the same
+      comment block, with exactly the text in section 8.2's second listing. R5 requires it and
+      preamble rule 9 forbids writing it before the observation, which is why it is a separate step
+      from 2b.2.
+- [ ] 2b.7 Reformat `estimates.tsx`, rerun the test file green (same expectation as 2b.3), and rerun
+      the type check and lint. Append both proofs and every run to `verify.md`, and tick 2.2 and 2.3
+      in `tasks.md`.
 
 Pre-edit check: `plan-estimates.test.tsx` contains
-`itDom('ends a resting trio in an ellipsis, and only while it is resting'`, and `estimates.tsx` does
-**not** contain `textOverflow` inside the resting arm. Ready to commit: `estimates.tsx`,
-`verify.md`; subject `feat(wbs-fe): end a resting trio in an ellipsis when it does not fit`.
+`itDom('ends a resting trio in an ellipsis, and only while it is resting'`, `verify.md` carries
+slice 2a's red run, and `estimates.tsx` does **not** contain `textOverflow` inside the resting arm.
+Ready to commit: `apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx`,
+`openspec/changes/estimate-trio-ellipsis/verify.md`,
+`openspec/changes/estimate-trio-ellipsis/tasks.md`; subject
+`feat(wbs-fe): end a resting trio in an ellipsis when it does not fit`.
 
 ### Slice 3 — the committed browser case
 
@@ -246,20 +315,26 @@ the type check and lint over it, and hands the run itself to the planner (sectio
 - [ ] 3.1 Add the test in section 8.4 to `apps/wbs/fe-01/e2e/layout.spec.ts`, inside
       `test.describe('the table, measured by a browser')`, immediately **above**
       `test('a toolbar panel closes when the pointer goes down outside it', …)`. Transcribe it
-      verbatim, `Ola` included (section 3, fact 8).
+      verbatim, `Ola` included (section 3, fact 8). The listing carries **no** browser `Proof:`
+      comments and none may be invented here: nobody in this sandbox can watch a browser fail, and
+      preamble rule 9 forbids writing a proof comment before its observation. The planner adds them
+      in section 9 after replaying each fault.
 - [ ] 3.2 `GSETTINGS_BACKEND=memory bunx prettier --write apps/wbs/fe-01/e2e/layout.spec.ts`, then
       `--check`. The listing in section 8.4 is already in its post-Prettier form.
 - [ ] 3.3 `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0. This is the slice's real
       check: `tsconfig.e2e.json` covers the spec (section 3, fact 11).
 - [ ] 3.4 `NX_DAEMON=false bunx nx run wbs-fe-01:lint` — exit 0.
-- [ ] 3.5 Append to `verify.md`, under "Not verified", that `wbs-fe-01:e2e` and its three negatives
-      are **pending planner verification**, naming them by the section 9 identifiers CP, CN1, CN2
-      and CN3.
+- [ ] 3.5 Append to `verify.md`, under "Not verified", that `wbs-fe-01:e2e`, its **five** negatives
+      and the browser `Proof:` comments they authorise are **pending planner verification**, naming
+      them by the section 9 identifiers CP, CN1, CN2, CN3, CN4 and CN5. Tick 3.1 in `tasks.md`;
+      leave 3.2 unticked, because it is the planner's.
 
 Pre-edit check: `layout.spec.ts` contains
 `test('a toolbar panel closes when the pointer goes down outside it'` and does **not** contain
-`yields the trio to an ellipsis`. Ready to commit: `apps/wbs/fe-01/e2e/layout.spec.ts`,
-`openspec/changes/estimate-trio-ellipsis/verify.md`; subject
+`yields the trio to an ellipsis`; `estimates.tsx` contains `textOverflow: 'ellipsis',` in the
+resting arm with its `Proof:` comment above it. Ready to commit:
+`apps/wbs/fe-01/e2e/layout.spec.ts`, `openspec/changes/estimate-trio-ellipsis/verify.md`,
+`openspec/changes/estimate-trio-ellipsis/tasks.md`; subject
 `test(wbs-fe): pin the staffed, fractional folded cell in Chromium`.
 
 ## 7. Verification table
@@ -267,17 +342,19 @@ Pre-edit check: `layout.spec.ts` contains
 Every command runs from the repository root unless it says otherwise. Nx carries `NX_DAEMON=false`;
 whole test targets carry `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
 
-| #   | Command                                                                           | Who                                | Exit                   | The line to read                                                                                                                                                                                                                                                                                                                                               |
-| --- | --------------------------------------------------------------------------------- | ---------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`     | executor                           | 0                      | `summary.totals.passed` = V + 1 after slice 1 (rehearsed 107 → 108)                                                                                                                                                                                                                                                                                            |
-| 2   | `cd apps/wbs/fe-01 && bunx vitest run src/components/wbs/plan-estimates.test.tsx` | executor                           | 1 after 2a, 0 after 2b | `Tests 1 failed \| 73 passed (74)`, then `Tests 74 passed (74)`                                                                                                                                                                                                                                                                                                |
-| 3   | `bunx nx run wbs-fe-01:typecheck`                                                 | executor                           | 0                      | `Successfully ran target typecheck`                                                                                                                                                                                                                                                                                                                            |
-| 4   | `bunx nx run wbs-fe-01:lint`                                                      | executor                           | 0                      | `Successfully ran target lint for project wbs-fe-01`                                                                                                                                                                                                                                                                                                           |
-| 5   | `bunx nx format:check --all`                                                      | executor                           | 0                      | no file listed                                                                                                                                                                                                                                                                                                                                                 |
-| 6   | `bunx nx run wbs-fe-01:test:unit`, `wbs-fe-01:test`                               | **planner only**                   | 0                      | three tests in two files spawn `bun` from Node; the sandbox refuses with `spawnSync bun EPERM` (batch README). Expect `+1` test against the recorded baseline                                                                                                                                                                                                  |
-| 7   | `bunx nx run tool-devsync:test --skip-nx-cache`                                   | **planner only**, files **staged** | 0                      | `301 pass`, `0 fail`. Rehearsed: with the new `openspec/` files untracked it fails on `the production index checker resolves current Markdown links and anchors` (`300 pass / 1 fail`); with them staged it passes. **No count pin moves** — the comment lines this packet adds sit in files the inventory already counts, and no project target path is added |
-| 8   | `CI=1 E2E_PORT_SHIFT=<n> bunx nx run wbs-fe-01:e2e -- --grep …`                   | **planner only**                   | 0                      | section 9                                                                                                                                                                                                                                                                                                                                                      |
-| 9   | `bin/h2puni-gate.sh <sha>`                                                        | **planner only**, shared host      | 0                      | `h2puni gate: running on <sha>`                                                                                                                                                                                                                                                                                                                                |
+| #   | Command                                                                                                                                                                                               | Who                                | Exit                   | The line to read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change estimate-trio-ellipsis --schema sdd-lean`, then `grep -n "schema: sdd-lean" openspec/changes/estimate-trio-ellipsis/.openspec.yaml` | executor, slice 1 only             | 0                      | `Schema: sdd-lean`, then `1:schema: sdd-lean`. A grep that prints nothing is a stop                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2   | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                         | executor                           | 0                      | `summary.totals.passed` = **V + 1** in slice 1 (rehearsed 107 to 108), and **V**, unchanged, in every later slice                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 3   | `cd apps/wbs/fe-01 && bunx vitest run src/components/wbs/plan-estimates.test.tsx`                                                                                                                     | executor                           | 1 after 2a, 0 after 2b | against that slice's own **F**: `failed` 0 to 1 and `total` + 1 in 2a, then `failed` 1 to 0 with `total` unchanged in 2b. Rehearsed `Tests 1 failed \| 73 passed (74)`, then `Tests 74 passed (74)`                                                                                                                                                                                                                                                                                                                               |
+| 4   | `bunx nx run wbs-fe-01:typecheck`                                                                                                                                                                     | executor                           | 0                      | `Successfully ran target typecheck`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 5   | `bunx nx run wbs-fe-01:lint`                                                                                                                                                                          | executor                           | 0                      | `Successfully ran target lint for project wbs-fe-01`                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 6   | `bunx nx format:check --all`                                                                                                                                                                          | executor                           | 0                      | no file listed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 7   | `bunx nx run wbs-fe-01:test:unit` — the node tier                                                                                                                                                     | **planner only**                   | 0                      | **unchanged** against the planner's own baseline for this commit. `plan-estimates.test.tsx` is not in `NODE_SUITES` (section 3, fact 10), so this tier cannot move; rehearsed on the changed tree at `Tests 621 passed (621)`                                                                                                                                                                                                                                                                                                     |
+| 8   | `bunx nx run wbs-fe-01:test` — UTC, then Auckland                                                                                                                                                     | **planner only**                   | 0                      | the **UTC** half is **+1 test** against the planner's own baseline; the **Auckland** half is **unchanged** (`vitest.zoned.config.ts:41` includes only `src/**/*.zoned.test.{ts,tsx}`). Planner-only because three tests in two files spawn `bun` from Node and the sandbox refuses with `spawnSync bun EPERM` (batch README)                                                                                                                                                                                                      |
+| 9   | `bunx nx run tool-devsync:test --skip-nx-cache`                                                                                                                                                       | **planner only**, files **staged** | 0                      | **unchanged** against the planner's own baseline for this commit: the same pass total and `0 fail`. Rehearsed 2026-09-20 at `301 pass / 0 fail`, which is historical evidence and not a pin. With the new `openspec/` files **untracked** it fails on `the production index checker resolves current Markdown links and anchors` (`300 pass / 1 fail`), which is why they are staged first. No count pin moves: the comment lines this packet adds sit in files the inventory already counts, and no project target path is added |
+| 10  | `CI=1 E2E_PORT_SHIFT=<n> bunx nx run wbs-fe-01:e2e -- --grep ...`                                                                                                                                     | **planner only**                   | 0                      | section 9                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 11  | `bin/h2puni-gate.sh <sha>`                                                                                                                                                                            | **planner only**, shared host      | 0                      | `h2puni gate: running on <sha>`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## 8. Exact code
 
@@ -337,12 +414,29 @@ In `estimates.tsx`, the resting arm — the object literal opening `fontSize: QU
 Indentation in the file is 26 spaces deeper than shown; Prettier settles it. Add nothing to the
 `{ fontSize: 'inherit', fontWeight: 600 }` arm above.
 
+**Step 2b.6 only, after both negatives have been watched.** Insert these five lines between
+`// trio in full either way.` and `textOverflow: 'ellipsis',`, so the arm ends:
+
+```tsx
+    // trio in full either way.
+    // Proof, both watched 2026-09-20. This line dropped: `ends a resting
+    // trio in an ellipsis, and only while it is resting` failed on
+    // `expected '' to be 'ellipsis'`. The same declaration added to the
+    // full-strength arm above: the same test failed on its focus
+    // assertion, `expected 'ellipsis' to be ''`.
+    textOverflow: 'ellipsis',
+```
+
+Replace the date with the day the executor actually observed them, and either quoted message with
+what that run really printed if it differs (preamble rule 20: the proof is the fact, not the
+wording).
+
 ### 8.3 jsdom negatives (slice 2b)
 
-| #   | Fault, by function and expression                                                                                                                                                        | Named test                                                         | Watched on 2026-09-20                                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| N1  | Delete the `textOverflow: 'ellipsis',` line from the **resting** arm in `estimates.tsx` (the object literal opening `fontSize: QUIET_TRIO_PX,`), and nothing else.                       | `ends a resting trio in an ellipsis, and only while it is resting` | `AssertionError: expected '' to be 'ellipsis' // Object.is equality`, `Tests 1 failed \| 73 passed (74)` |
-| N2  | Leave the resting arm alone and add the same `textOverflow: 'ellipsis',` to the **full-strength** arm, so it reads `{ fontSize: 'inherit', fontWeight: 600, textOverflow: 'ellipsis' }`. | the same test                                                      | its **focus** assertion: `expected 'ellipsis' to be ''`                                                  |
+| #   | Fault, by function and expression                                                                                                                                                        | Named test                                                         | Watched on 2026-09-20                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1  | Delete the `textOverflow: 'ellipsis',` line from the **resting** arm in `estimates.tsx` (the object literal opening `fontSize: QUIET_TRIO_PX,`), and nothing else.                       | `ends a resting trio in an ellipsis, and only while it is resting` | `AssertionError: expected '' to be 'ellipsis' // Object.is equality`, `Tests 1 failed \| 73 passed (74)`                                                  |
+| N2  | Leave the resting arm alone and add the same `textOverflow: 'ellipsis',` to the **full-strength** arm, so it reads `{ fontSize: 'inherit', fontWeight: 600, textOverflow: 'ellipsis' }`. | the same test                                                      | its **focus** assertion: `AssertionError: expected 'ellipsis' to be '' // Object.is equality`, `Tests 1 failed \| 73 passed (74)`. Watched, not predicted |
 
 Both are required and neither hides the other: N1 proves the declaration exists at rest, N2 proves it
 is absent while the cell is typed in, which is the half that keeps editing unchanged. N1 is the same
@@ -351,12 +445,21 @@ fault as slice 2a's red run and the same message; run it anyway, from green, wit
 Save each patch and each failing output under `$TMPDIR/evidence` with the README's
 `if diff -u passing mutated >"$TMPDIR/evidence/n1.patch"; then echo "nothing was injected" >&2; exit
 1; else test $? -eq 1; fi` form, restore by `cp` from the saved passing bytes, prove with `cmp`, and
-rerun green **before** asserting on any captured status.
+rerun green **before** asserting on any captured status. **Then, and only then, write the `Proof:`
+comment** — section 8.2's second listing, step 2b.6. Nothing in this packet authorises a proof
+comment before its observation (preamble rule 9).
 
 ### 8.4 The committed browser test (slice 3)
 
-Post-Prettier, and transcribed exactly. `findOverrun` and `ROW_HEIGHT_BUDGET` are already in scope
-(section 3, fact 5).
+Transcribed exactly. `findOverrun` and `ROW_HEIGHT_BUDGET` are already in scope (section 3, fact 5).
+
+The listing is shown **dedented by two spaces** so it fits this document, and Prettier wraps at the
+width it is given: pasted back inside `test.describe(...)` at its real indentation, one or two calls
+here will wrap differently from what is printed below. That is expected and is what step 3.2's
+`prettier --write` settles; the observed case is
+`expect(findOverrun(staffed.cell, staffed.box), 'the trio box is out of the cell').toBe(undefined);`,
+which fits one line dedented and takes three lines in the file. Nothing about the code changes, and
+a wrapping difference is never a stop.
 
 ```ts
 test('yields the trio to an ellipsis where a staffed cell’s result is fractional', async ({
@@ -471,15 +574,20 @@ test('yields the trio to an ellipsis where a staffed cell’s result is fraction
   expect(staffed.boxFocused, 'the resting state is only the resting state unfocused').toBe(false);
   expect(staffed.boxType).toBe('10px');
 
+  // Still one line, asserted **first**, because it is the only fault below that
+  // also changes the box's width: a wrapped cell gives the box the whole line,
+  // the trio then fits, and the tightness check further down would report the
+  // wrap as a fixture failure instead.
+  expect(
+    staffed.estimated,
+    'a staffed cell holding a trio, a result and an assignee is taller than a bare row',
+  ).toBeCloseTo(staffed.bare, 1);
+  expect(staffed.estimated).toBeLessThanOrEqual(ROW_HEIGHT_BUDGET);
+
   // What does **not** yield: the result and the assignee stay inside the cell,
   // which is the direction stated as a measurement. Both have area first — a
   // zero-width rectangle sits inside every cell there is, so an overrun check
   // against one is a check that cannot fail (`AGENTS.md`, R5).
-  // Proof: the box's own `flex: 1` in `estimates.tsx` replaced by
-  // `flex: 'none'`, so the trio stops yielding and takes its content width —
-  // this failed on `the result is pushed out of the cell · Expected: undefined
-  // · Received: "right"` — the figure is checked first, and it is the first to
-  // go. Watched in Chromium, 2026-09-20.
   expect(staffed.figure.width).toBeGreaterThan(0);
   expect(staffed.who.width).toBeGreaterThan(0);
   expect(findOverrun(staffed.cell, staffed.box), 'the trio box is out of the cell').toBe(undefined);
@@ -493,30 +601,12 @@ test('yields the trio to an ellipsis where a staffed cell’s result is fraction
   // **The case has to still be the tight case, or everything under it passes
   // on a cell that never had to choose.** Measured 16 on 2026-09-20 with the
   // box at 30.69px and the trio wanting 46.69px.
-  // Proof: `ASSIGNEE_SLOT_PX` replaced by `16` on the assignee span alone in
-  // `estimates.tsx` — the box gets those 16px back, the trio fits, and this
-  // failed on `the trio fits after all, so this case no longer exercises the
-  // ellipsis · Expected: > 0 · Received: 0`. Which is also the measurement's
-  // point: what the trio is short is exactly what the slot costs. Watched in
-  // Chromium, 2026-09-20.
   expect(
     staffed.clipped,
     'the trio fits after all, so this case no longer exercises the ellipsis',
   ).toBeGreaterThan(0);
 
-  // Proof: `textOverflow: 'ellipsis'` taken off the resting arm in
-  // `estimates.tsx` — this failed on `Expected: "ellipsis" · Received: "clip"`,
-  // which is the cell cutting `20/24` off mid-glyph. Watched in Chromium,
-  // 2026-09-20.
   expect(staffed.boxOverflow).toBe('ellipsis');
-
-  // Still one line: a trio that wrapped instead of yielding would be a taller
-  // row, which is the other way this cell can fail.
-  expect(
-    staffed.estimated,
-    'a staffed cell holding a trio, a result and an assignee is taller than a bare row',
-  ).toBeCloseTo(staffed.bare, 1);
-  expect(staffed.estimated).toBeLessThanOrEqual(ROW_HEIGHT_BUDGET);
 });
 ```
 
@@ -528,11 +618,20 @@ whole test **passing** (watched 2026-09-20, `1 passed`). The assignee's is falsi
 but not by any fault that keeps this fixture tight: narrowing its slot hands the 16px back to the
 box and trips the tightness assertion instead. Both were removed rather than committed as decoration
 (`AGENTS.md`, R5, and `docs/findings/checks-that-cannot-fail.md`). The overrun checks that replaced
-them are proven by CN2 below.
+them are proven **one element at a time** by CN2 and CN4 below: `findOverrun` measures each
+rectangle it is handed independently (`src/components/wbs/box-geometry.ts`), so a fault that moves
+the result proves nothing about the assignee, and CN4 exists for exactly that reason.
 
-**Assertion order is load-bearing.** The overrun trio stands **above** `clipped > 0`, because the
-`flex: 'none'` mutation makes the trio fit as well as pushing the result out; with the tightness
-check first it would have been reported as a fixture failure. Do not reorder them.
+**Assertion order is load-bearing, and every check below it has its own fault.** The order is: the
+fixture preconditions (`said`, `cell.width`, `boxFocused`, `boxType`), then the **row height**, then
+the three **overrun** checks, then the **tightness** check, then the **ellipsis**. It is that way
+round because each fault in section 9 also changes something an earlier assertion would have caught:
+`display: 'block'` (CN5) widens the box as well as wrapping the row, and `flex: 'none'` (CN2) makes
+the trio fit as well as pushing the result out. Rehearsed on 2026-09-20 with the height assertions
+placed **last**, CN5 was reported as
+`the trio fits after all, so this case no longer exercises the ellipsis · Expected: > 0 ·
+Received: 0` — the tightness check masking the wrap. With the order above, each of CN1 to CN5 fails
+at its own assertion and nowhere else. **Do not reorder them.**
 
 ## 9. Planner-only browser work
 
@@ -540,7 +639,7 @@ Standing rules for every command in this section: `CI=1` (so `reuseExistingServe
 stack is fresh), `NX_DAEMON=false`, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT`, always
 through the Nx target (a bare `bunx playwright test` lacks the environment and the backend refuses
 to start), and an `E2E_PORT_SHIFT` nobody else is using — the config throws on a collision, and a
-collision is a stop, never a reason to reuse a server. The rehearsal used `2500`. After any run that
+collision is a stop, never a reason to reuse a server. The rehearsal used `2500`, then `3000`; shifts differing by 100, 1000 or 1100 share a port, so check `ss -ltn` first and pick one at least 300 away from every live run. After any run that
 produced something, copy `apps/wbs/fe-01/test-results` into `$TMPDIR/evidence` before the next run:
 Playwright removes each filtered project's `outputDir` when a run starts.
 
@@ -555,17 +654,75 @@ CI=1 E2E_PORT_SHIFT=<n> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPO
 `parent.s` with a dot: the test title carries a typographic apostrophe, and the dot matches it
 without shell quoting trouble.
 
-| #   | What                                                                                                                                                                                           | Command                                   | Expected, watched 2026-09-20                                                                                              |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| CP  | The green run                                                                                                                                                                                  | the grep above                            | exit 0, `4 passed`                                                                                                        |
-| CN1 | Delete `textOverflow: 'ellipsis',` from the resting arm of `estimates.tsx`                                                                                                                     | `--grep "yields the trio to an ellipsis"` | exit 1, `Expected: "ellipsis"` / `Received: "clip"` at `expect(staffed.boxOverflow).toBe('ellipsis')`                     |
-| CN2 | In the trio box's own style, `flex: 1,` → `flex: 'none',` (the occurrence directly under the comment ending `is back to what it was.`, **not** the `flex: 1` in the rolled-trio span below it) | the same grep                             | exit 1, `Error: the result is pushed out of the cell` / `Expected: undefined` / `Received: "right"`                       |
-| CN3 | On the assignee span only (`data-folded-assignee`), `width: ASSIGNEE_SLOT_PX,` → `width: 16,`                                                                                                  | the same grep                             | exit 1, `Error: the trio fits after all, so this case no longer exercises the ellipsis` / `Expected: > 0` / `Received: 0` |
+| #   | Fault, by element and expression                                                                                                                                                                                                                     | Expected, watched 2026-09-20                                                                                                                   |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| CP  | none — the green run                                                                                                                                                                                                                                 | exit 0, `4 passed`                                                                                                                             |
+| CN1 | Delete the `textOverflow: 'ellipsis',` line from the **resting** arm of `estimates.tsx` (the object literal opening `fontSize: QUIET_TRIO_PX,`), with its `Proof:` comment                                                                           | exit 1, `expect(received).toBe(expected)` / `Expected: "ellipsis"` / `Received: "clip"`, at `expect(staffed.boxOverflow).toBe('ellipsis')`     |
+| CN2 | In the **trio box's** own style, `flex: 1,` to `flex: 'none',` — the occurrence directly under the comment ending `is back to what it was.`, **not** the `flex: 1` in the `data-rolled-trio` span below it                                           | exit 1, `Error: the result is pushed out of the cell` / `Expected: undefined` / `Received: "right"`                                            |
+| CN3 | On the **assignee** span (`data-folded-assignee`) only, `width: ASSIGNEE_SLOT_PX,` to `width: 16,` — not the `data-folded-assignee-slot` spacer, which carries the same constant                                                                     | exit 1, `Error: the trio fits after all, so this case no longer exercises the ellipsis` / `Expected: > 0` / `Received: 0`                      |
+| CN4 | On the **assignee** span only, add `transform: 'translateX(104px)',` directly under `width: ASSIGNEE_SLOT_PX,`. It keeps the flex allocation and moves only the painted rectangle, which is why it reaches the assignee's own check instead of CN2's | exit 1, `Error: the assignee is pushed out of the cell` / `Expected: undefined` / `Received: "right"`                                          |
+| CN5 | On the **cell wrapper** — the `<span>` whose style begins `position: 'relative',` — `display: 'flex',` to `display: 'block',`                                                                                                                        | exit 1, `Error: a staffed cell holding a trio, a result and an assignee is taller than a bare row` / `Expected: 26.1875` / `Received: 40.1875` |
 
-After each injection: save the patch and the failing output under `$TMPDIR/evidence`, restore from
-the saved passing bytes with `cp`, prove with `cmp`, and rerun CP green. The three `Proof:` comments
-in section 8.4 already name what was observed; the planner confirms them rather than rewriting them,
-and replaces any line that differs with what this run actually printed.
+Every one of CN1 to CN5 fails at **its own** assertion and at no earlier one; each was injected
+alone, watched, and restored on 2026-09-20 in that order. CN2 and CN4 are both required: they prove
+the result's containment and the assignee's separately, and `findOverrun` measures each rectangle it
+is handed on its own.
+
+Run each with `--grep "yields the trio to an ellipsis"`, and CP with the four-test grep above. After
+each injection: save the patch and the failing output under `$TMPDIR/evidence`, restore from the
+saved passing bytes with `cp`, prove with `cmp`, and rerun CP green.
+
+**Then write the browser `Proof:` comments** — not before. The executor's `layout.spec.ts` carries
+none, by design. After CP and CN1 to CN5 have been replayed, the planner inserts, in
+`apps/wbs/fe-01/e2e/layout.spec.ts` inside this test, each block below immediately above the
+assertion it names, using what **this** run printed wherever it differs:
+
+```ts
+// Proof: the cell wrapper's `display: 'flex'` written as `display: 'block'`,
+// so the figure drops under the box — this failed on `a staffed cell holding
+// a trio, a result and an assignee is taller than a bare row · Expected:
+// 26.1875 · Received: 40.1875`. Watched in Chromium, 2026-09-20.
+```
+
+above `expect(
+      staffed.estimated,`;
+
+```ts
+// Proof: the box's own `flex: 1` in `estimates.tsx` replaced by
+// `flex: 'none'`, so the trio stops yielding and takes its content width —
+// this failed on `the result is pushed out of the cell · Expected: undefined
+// · Received: "right"`. The assignee's own containment has its own fault:
+// `transform: 'translateX(104px)'` on the assignee span failed on `the
+// assignee is pushed out of the cell · Expected: undefined · Received:
+// "right"`. Both watched in Chromium, 2026-09-20.
+```
+
+above `expect(staffed.figure.width).toBeGreaterThan(0);`;
+
+```ts
+// Proof: `ASSIGNEE_SLOT_PX` replaced by `16` on the assignee span alone in
+// `estimates.tsx` — the box gets those 16px back, the trio fits, and this
+// failed on `the trio fits after all, so this case no longer exercises the
+// ellipsis · Expected: > 0 · Received: 0`. Which is also the measurement's
+// point: what the trio is short is exactly what the slot costs. Watched in
+// Chromium, 2026-09-20.
+```
+
+above `expect(
+      staffed.clipped,`; and
+
+```ts
+// Proof: `textOverflow: 'ellipsis'` taken off the resting arm in
+// `estimates.tsx` — this failed on `Expected: "ellipsis" · Received: "clip"`,
+// which is the cell cutting `20/24` off mid-glyph. Watched in Chromium,
+// 2026-09-20.
+```
+
+above `expect(staffed.boxOverflow).toBe('ellipsis');`.
+
+Then `GSETTINGS_BACKEND=memory bunx prettier --write apps/wbs/fe-01/e2e/layout.spec.ts`, rerun CP
+green, and commit `layout.spec.ts` with the executor's slice-3 work. The comments are part of the
+final reviewed commit; the hand-over list in section 11 already names the file.
 
 **Looked at by eye, in light and dark** (design rule: the cell is judged by eye as well as by
 arithmetic). Take a `locator.screenshot()` of the first row's `td[data-column$="-final"]` under a
@@ -577,7 +734,12 @@ with the ellipsis in the muted foreground and the result in the row's own ink.
 
 ## 10. Stop conditions
 
-Each is false on the real starting tree; each holds throughout.
+Each is false on the tree the slice it applies to starts on. The three that are about state a
+slice creates are scoped to the slices after it, because preamble rule 8 makes any true stop
+condition a stop and slice 1's own starting tree has no `openspec/changes/estimate-trio-ellipsis/`
+in it.
+
+**Throughout, every slice:**
 
 - A command's result differs from this packet's expected result and the packet does not say what to
   do next.
@@ -590,30 +752,62 @@ Each is false on the real starting tree; each holds throughout.
   file plan needs editing.
 - The step column's declared width, `QUIET_TRIO_PX` or `ASSIGNEE_SLOT_PX` would have to change: this
   packet's whole finding is that they do not (section 4).
-- `verify.md` is missing or has not been appended by the slice that is handing over.
+
+**Slice 1 only:**
+
+- `openspec/changes/estimate-trio-ellipsis/` already exists before step 1.2, or
+  `openspec new change` writes it without `schema: sdd-lean` in `.openspec.yaml`, or tries to reach
+  the network.
+
+**Slices 2a, 2b and 3 only** (slice 1 creates what these require, so they cannot be asked of it):
+
+- `openspec/changes/estimate-trio-ellipsis/verify.md` is missing, or does not carry the previous
+  slice's observations.
+
+**At hand-over, every slice:**
+
+- `verify.md` has not been appended with this slice's own commands, results and proofs, or
+  `tasks.md`'s boxes for the steps this slice completed are still unticked.
 
 ## 11. Hand-over
 
 `git status --short --untracked-files=all` after each slice, in order:
 
-- Slice 1: `?? openspec/changes/estimate-trio-ellipsis/` (four files: `proposal.md`, `tasks.md`,
-  `verify.md`, `specs/wbs-estimate-cell/spec.md`).
+Untracked files print **one path per line**, never a directory entry. Watched on 2026-09-20, slice
+1's five lines are exactly:
+
+```
+?? openspec/changes/estimate-trio-ellipsis/.openspec.yaml
+?? openspec/changes/estimate-trio-ellipsis/proposal.md
+?? openspec/changes/estimate-trio-ellipsis/specs/wbs-estimate-cell/spec.md
+?? openspec/changes/estimate-trio-ellipsis/tasks.md
+?? openspec/changes/estimate-trio-ellipsis/verify.md
+```
+
 - Slice 2a: ` M apps/wbs/fe-01/src/components/wbs/plan-estimates.test.tsx`,
+  ` M openspec/changes/estimate-trio-ellipsis/tasks.md`,
   ` M openspec/changes/estimate-trio-ellipsis/verify.md`.
 - Slice 2b: ` M apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx`,
-  ` M openspec/changes/estimate-trio-ellipsis/verify.md`.
+  ` M openspec/changes/estimate-trio-ellipsis/tasks.md`,
+  ` M openspec/changes/estimate-trio-ellipsis/verify.md`. `estimates.tsx` is on this list **because
+  of** step 2b.6's required `Proof:` comment as much as the declaration itself.
 - Slice 3: ` M apps/wbs/fe-01/e2e/layout.spec.ts`,
+  ` M openspec/changes/estimate-trio-ellipsis/tasks.md`,
   ` M openspec/changes/estimate-trio-ellipsis/verify.md`.
 
-Slice 3's list stays the same after the planner's browser work: the three `Proof:` comments it
-confirms are already in the delivered listing. The path lists above include every file a required
-proof comment touches.
+Slice 3's list does not change when the planner adds the four browser `Proof:` comments: they go
+into `layout.spec.ts`, which is already on it. The lists above include every file a required proof
+comment touches.
 
 The executor never stages, commits or branches. It leaves the work in the tree, names the files and
 the subject, and reports. The planner stages, reviews, replays a sample of the proofs, runs the
 section 9 and section 7 planner-only checks, and commits.
 
 ## 12. The OpenSpec files, in full
+
+`.openspec.yaml` is **not** written by hand: `openspec new change … --schema sdd-lean` writes it
+(slice 1, step 1.2) and the executor only greps it. Watched 2026-09-20, it is two lines,
+`schema: sdd-lean` and `created: <date>`.
 
 `proposal.md`:
 
@@ -627,7 +821,7 @@ A folded step cell holds three readings in 104px: the typed trio, the step's res
 **The resting trio yields legibly**
 
 - From: A trio too wide for its box is clipped at the box edge, mid-glyph, with no mark.
-- To: A trio too wide for its box ends in an ellipsis while the cell is at rest, and the result and the assignee are unaffected.
+- To: A trio too wide for its box ends in an ellipsis while the cell is at rest. The result and the assignee keep the rendering they already have, the assignee slot's own deliberate clipping of an assumed `(WW)` included.
 - Impact: Non-breaking visual change to folded step cells whose trio does not fit.
 
 **Editing is untouched**
@@ -642,7 +836,7 @@ This change does not widen the step column, shrink or hide the trio, change the 
 
 ## Constraints
 
-The column width is fixed: widening the step column moves the table's own width equation and fourteen unit pins. The result is the cell's main reading, so it and the assignee may not yield. The trio is a real `<input>`, so its text cannot be styled in parts.
+The column width is fixed: widening the step column moves the table's own width equation and fourteen unit pins. The result is the cell's main reading, so the trio is what yields. The trio is a real `<input>`, so its text cannot be styled in parts. The assignee slot's own clipping of an assumed `(WW)`, which `ASSIGNEE_SLOT_PX`'s JSDoc accepts on purpose, is unchanged and out of scope.
 
 ## Capabilities
 
@@ -674,13 +868,13 @@ The change affects only the WBS frontend's folded estimate-cell rendering and it
 
 ### Requirement: A resting trio that does not fit ends in an ellipsis
 
-When a folded step cell cannot show its whole typed trio beside its result, the resting trio SHALL end in an ellipsis, and the result and the assignee SHALL stay whole and inside the cell.
+When a folded step cell cannot show its whole typed trio, the resting trio SHALL end in an ellipsis rather than a clipped glyph, and the result and the assignee SHALL keep the rendering they already have.
 
 #### Scenario: A wide trio stands beside a fractional result and an assignee
 
 - **WHEN** a folded step with the trio `20/24/30`, the result `24.3` and a named assignee is at rest
 - **THEN** the trio box ends in an ellipsis rather than a clipped glyph
-- **THEN** the result and the assignee are drawn inside the cell and the row stays one line high
+- **THEN** the result's and the assignee's boxes are drawn inside the cell and the row stays one line high
 
 #### Scenario: The same cell is being typed in
 
@@ -706,7 +900,7 @@ When a folded step cell cannot show its whole typed trio beside its result, the 
 ## 3. Pin the staffed, fractional case in Chromium
 
 - [ ] 3.1 Add the committed browser case and its measurement.
-- [ ] 3.2 Record the planner's browser negatives.
+- [ ] 3.2 Record the planner's browser negatives and the proof comments they authorise.
 ```
 
 `verify.md` starts as the two empty tables below and is filled by every slice:
@@ -741,17 +935,128 @@ Recorded rather than asked (the owner's standing instruction: assume and documen
 2. **`clipped` stays 16 and that is accepted.** This packet does not make the trio fit; no candidate
    that keeps the column at 104 can. The committed assertion is therefore about _how_ it yields, and
    it asserts `clipped > 0` explicitly so nobody later reads the test as a fit guarantee.
-3. **`20/24/30 → 24.3` is the selected regression case, not the widest possible.**
+3. **"Whole" is a claim about this fixture only, and about boxes rather than glyphs.** The
+   committed test measures rectangles, not text. It says the result's and the assignee's boxes are
+   inside the 104px cell on the selected fixture; it does not promise that every possible result or
+   every possible assignee form is fully legible, and the specification in section 12 is worded to
+   match. `estimates.tsx:592` to `:600` clips the assignee slot on purpose, and
+   `ASSIGNEE_SLOT_PX`'s JSDoc accepts that for the assumed `(WW)` form; nothing here changes it or
+   claims otherwise.
+4. **`20/24/30 → 24.3` is the selected regression case, not the widest possible.**
    `libs/wbs/domain/domain/src/estimate.ts:15` bounds a point at `MAX_ESTIMATE_DAYS = 44_739_242`
    and `plan-number-format.ts` imposes no character limit, so a wider result exists in principle.
    Every fit claim here is limited to this fixture, which is the widest trio typed here in anger.
-4. **A new person named `Ola` in the shared directory is harmless.** Fact 8 makes the directory
+5. **A new person named `Ola` in the shared directory is harmless.** Fact 8 makes the directory
    global to a run; `Ola` collides with no existing spec, and the test's own picker assertions would
    fail loudly if another packet later created her first.
-5. **`estimate-trio-ellipsis` is a `wbs-estimate-cell` modification, not a new capability.** The
+6. **`estimate-trio-ellipsis` is a `wbs-estimate-cell` modification, not a new capability.** The
    capability already exists in an unarchived change; a delta adding to it validates (fact 13).
-6. **OpenSpec is required here.** This is observable behaviour in a shipped surface, so the brief's
+7. **OpenSpec is required here.** This is observable behaviour in a shipped surface, so the brief's
    rule applies and the mechanical-refactor exemption does not.
-7. **The screenshot review is the planner's and is not committed.** `layout.spec.ts` ships no new
+8. **The screenshot review is the planner's and is not committed.** `layout.spec.ts` ships no new
    screenshot: the light artifact this file already writes is unaffected, and the dark reading is a
    temporary planner run whose spec edit is restored and proved with `cmp`.
+
+## 14. Disposition of review 1
+
+Every finding was checked against this repository before acting, and each was settled by rehearsal
+in a private worktree on `batch-3/planning` rather than by argument. Chromium was available, so all
+five browser negatives were injected and watched again in the order this revision prescribes. All
+ten findings are accepted; none is rejected.
+
+**Critical**
+
+1. **Required OpenSpec metadata is missing from the authorized files** — FIXED. Verified:
+   `openspec/changes/estimate-cell-at-rest/.openspec.yaml` holds `schema: sdd-lean` and a date, and
+   the batch README's "Creating an OpenSpec change" block is the command that writes it. Rehearsed:
+   `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change estimate-trio-ellipsis --schema
+sdd-lean` printed `Created change 'estimate-trio-ellipsis' …` and `Schema: sdd-lean`, and created
+   **only** `.openspec.yaml` — no `proposal.md`, `tasks.md`, `verify.md` or `specs/`. That fact is
+   now stated at step 1.2, so the packet neither omits the command nor pretends it scaffolds more.
+   `.openspec.yaml` is in the file plan, in slice 1's step list with its grep, in verification row
+   1, in the hand-over list and in section 12, with the note that it is never hand-written and never
+   passed to Prettier. Re-validated: `{'items': 108, 'passed': 108, 'failed': 0}`.
+2. **A stop condition is already true before slice 1 starts** — FIXED. Verified: preamble rule 8
+   makes any true stop condition a stop, and slice 1 creates `verify.md`. Section 10 is now in four
+   scoped groups — every slice, slice 1 only, slices 2a/2b/3 only, and at hand-over — so no
+   condition asks a slice for state a later slice creates. Slice 1 step 1.1 records its baselines
+   into `$TMPDIR/evidence/baselines.txt` and step 1.6 transfers them into the `verify.md` it has by
+   then created, which is the review's own suggested order.
+
+**Important**
+
+1. **The planner's unit-tier delta is wrong** — FIXED. Verified: `vitest.node.config.ts:46` includes
+   only `NODE_SUITES`, `vitest.node-suites.ts` does not list `plan-estimates.test.tsx`, and
+   `vitest.zoned.config.ts:41` includes only `src/**/*.zoned.test.{ts,tsx}`; `project.json`'s `test`
+   target is the UTC run followed by the zoned one. Verification rows 7 and 8 are now separate:
+   node tier **unchanged** (rehearsed `Tests 621 passed (621)` on the changed tree), UTC **+1**,
+   Auckland **unchanged**. Section 3, fact 10 carries the evidence.
+2. **Baseline definitions and expected counts contradict each other** — FIXED. The single **N** is
+   gone. Section 6 now defines **F** as the triple `total / passed / failed` plus **V**, collected
+   by the slice that compares against it, with a rehearsed orientation table that names slice 2b's
+   baseline as `74 / 73 / 1` — a failing test is what that slice starts on, and saying so is the
+   point. Expected transitions are stated per slice. **V + 1** is required in slice 1 only and
+   **V**, unchanged, thereafter. Devsync is now "unchanged against the planner's own baseline for
+   this commit", with `301 pass / 0 fail` kept as dated evidence rather than as a pin.
+3. **One failure masks the assignee check** — FIXED, and it uncovered a second masking the review
+   did not name. Verified: `box-geometry.ts`'s `findOverrun` measures each rectangle it is handed
+   independently. **CN4** added, exactly as suggested: `transform: 'translateX(104px)'` on the
+   `data-folded-assignee` span, which keeps the flex allocation and moves only the painted
+   rectangle. Watched 2026-09-20: `Error: the assignee is pushed out of the cell · Expected:
+undefined · Received: "right"`. **CN5** added for the row height: the cell wrapper's
+   `display: 'flex'` written as `display: 'block'`. Injected first with the height assertions last,
+   it failed on the **tightness** check instead (`Expected: > 0 · Received: 0`) — a block cell gives
+   the box the whole line, so the trio fits. The assertions were therefore reordered so the row
+   height is checked **before** the overrun trio and the tightness check, and CN5 then failed at its
+   own assertion: `a staffed cell holding a trio, a result and an assignee is taller than a bare row
+· Expected: 26.1875 · Received: 40.1875`. (40.1875 and not `holdsItsContents`'s 44.375: this
+   fixture carries an assignee.) All five were then replayed in order on the final tree, each
+   failing at its own assertion and nowhere else, and CP was rerun green at `4 passed`. The order is
+   documented at the listing as load-bearing, with the masked run quoted so nobody reinstates it.
+4. **Proof-comment instructions conflict with the executor contract** — FIXED, in both directions.
+   The jsdom half: N2 was injected and watched for the first time (it had been predicted), giving
+   `AssertionError: expected 'ellipsis' to be '' // Object.is equality`, `Tests 1 failed | 73 passed
+(74)`; section 8.3 now carries the observed diagnostic, section 8.2 carries the exact `Proof:` block
+   and where it goes, and slice 2b gained **step 2b.6**, which writes it only after both
+   observations, plus step 2b.7 to reformat and rerun. `estimates.tsx` is in slice 2b's hand-over
+   list with the proof comment named as a reason. The browser half: section 8.4's listing now
+   carries **no** `Proof:` comments at all — rehearsed and run green in that form, `4 passed` — and
+   slice 3 step 3.1 says so and forbids inventing them. Section 9 gives the planner the four blocks
+   verbatim with the assertion each sits above, to insert after replaying.
+5. **The promised behaviour exceeds implementation and coverage** — FIXED. Verified:
+   `estimates.tsx:592` to `:600` clips the assignee slot deliberately and `ASSIGNEE_SLOT_PX`'s JSDoc
+   accepts it for the assumed `(WW)`. The normative sentence now reads "the resting trio SHALL end
+   in an ellipsis rather than a clipped glyph, and the result and the assignee SHALL keep the
+   rendering they already have"; the scenario says "the result's and the assignee's **boxes** are
+   drawn inside the cell". The proposal's Constraints name the assignee's own clipping as out of
+   scope, section 1 and section 4 no longer say "whole", and a new assumption 3 states plainly that
+   the test measures rectangles rather than glyphs and that the guarantee is limited to the selected
+   fixture. No production change was broadened to meet the old wording. Re-validated at 108.
+
+**Minor**
+
+1. **Several "verified facts" are false on this tree** — FIXED, all three, each re-checked.
+   `grep -n "textOverflow: 'ellipsis'"` on the untouched file prints `91` and **`873`**; `:881` is
+   the `MismatchMark` line (the earlier `881` was read off the _changed_ file, where the new comment
+   had pushed it down nine lines). `docs/superpowers/plans/2026-09-20-batch-2/` holds **nine**
+   packets, now listed by name in section 5, with the ownership claim narrowed to what `git grep -l`
+   over that directory actually shows and with batch-3 lane ownership explicitly disclaimed as the
+   coordinator's bookkeeping. `e2e/directory.spec.ts:126` to `:130` creates `Kat ${tag}` and renames
+   it `Katrin ${tag}`, so fact 8's claim is replaced by the narrower one it needed all along:
+   `grep -rn Ola apps/wbs/fe-01/e2e` prints nothing.
+2. **The launcher flags are incomplete** — FIXED. Verified: `run-executor.sh:24` exits 64 with
+   `unknown batch $batch: pass --batch-dir` for any batch but 1 or 2. The header now reads
+   `--batch batch-3 --batch-dir docs/superpowers/plans/2026-09-21-batch-3` and cites the line.
+3. **Hand-over bookkeeping is inaccurate** — FIXED. Verified by running
+   `git status --short --untracked-files=all` on the rehearsed tree: it prints one `??` line per
+   file. Section 11 now quotes those five lines exactly instead of a directory entry, and every
+   slice's list gains `openspec/changes/estimate-trio-ellipsis/tasks.md`, because each slice now
+   ticks its own boxes (steps 1.6, 2a.4, 2b.7 and 3.5) and section 10's hand-over group makes an
+   unticked box a stop. Slice 3 leaves task 3.2 unticked on purpose: it is the planner's.
+
+**On the review's own note.** `docs/superpowers/plans/2026-09-20-batch-2/RESULTS.md` is indeed
+absent from this worktree, which was cut from `batch-3/planning`; batch 2's lessons reached this
+packet through the batch 3 brief, and the four that bear on it — proof tables stating the fact and
+the literal fragment, one mutation never hiding a second check, unambiguous fault locations, and
+whole-suite effects named for the planner — are what findings Critical 2 and Important 2 to 4 above
+turn into instructions.
