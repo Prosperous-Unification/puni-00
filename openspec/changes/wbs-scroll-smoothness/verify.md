@@ -84,6 +84,14 @@ measurement checkpoint h2puni was at load 8.11 on 8 cores with `containerd` at
 126% CPU and `dockerd` at 86.8% CPU; `/` was also 96% used. A clean CI runner or
 a quiet h2puni window must repeat all five traces before terminal disposition.
 
+Two bounded negative controls at 500 rows ruled out the probe's heavy artifacts
+as the source of the current red: disabling CDP timeline collection still
+measured a 180.0ms worst gap, and disabling both timeline collection and video
+still measured 247.2ms. Both controls preserved the same 129 React commits,
+zero Gantt commits, and 0.018-row pairing. The strict result therefore remains
+red; the controls are diagnostic only and do not replace the required recorded
+five-trace run.
+
 ## Rewritten-plan review
 
 Sol (`openai/gpt-5.6-sol`) and Gemini (Antigravity CLI) reviewed section 2 at
