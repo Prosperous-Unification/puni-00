@@ -352,8 +352,14 @@ one.
 ## Slice 2 — the boundaries disclose a public report
 
 **Pre-edit check.** `apps/wbs/fe-01/src/components/chrome/fault-boundary.tsx` exports `faultWords`,
-and `git grep -n "@shared/failures" apps/wbs/fe-01/vite.config.ts` prints one line (slice 1
-landed). Either being false is a stop.
+and `git grep -n "^[[:space:]]*'@shared/failures':" -- apps/wbs/fe-01/vite.config.ts` prints exactly
+one alias-entry line pointing to `../../../libs/shared/domain/failures/src/index.ts`. Comments
+mentioning the alias do not count. Either condition being false is a stop.
+
+The anchored pattern is the whole point: step 1.6 inserts a three-line comment above the entry, so
+the unanchored `git grep -n "@shared/failures" apps/wbs/fe-01/vite.config.ts` prints **two** lines
+after a successful slice 1, and a check written that way stops this slice on its own predecessor
+(rehearsed 2026-09-21: unanchored 2 lines, anchored 1).
 
 ### 2a. The failing cases first
 
@@ -361,18 +367,23 @@ landed). Either being false is a stop.
       against them, not against a literal.
   - `B_FAULT` = the test count of
     `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/chrome/app-fault.test.tsx)`.
-    Rehearsed 2026-09-21 as 6; the file's `describe` blocks are unchanged by slices 0 and 1, so a
-    different number means another lane has edited it — stop and report.
+    Rehearsed 2026-09-21 as 6, which is history and not a requirement: slices 0 and 1 edit no
+    `describe` block in this file, so what this run prints **is** the dispatch baseline. Record it
+    and state 2.8 and 2.13 against it.
   - `B_NEIGHBOURS` = the test count of
     `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/wbs/gantt-panel.test.tsx src/app.test.tsx)`.
     Rehearsed 2026-09-21 as 249. Neither file is edited by this packet, so this number must come
     back unchanged at 2.13.
-- [ ] 2.1 In `app-fault.test.tsx`, add this import beside the existing
-      `import { GanttFaultBoundary } from '@/components/wbs/gantt-fault';`:
-
-  ```ts
-  import { GanttDataError } from '@/components/wbs/gantt-geometry';
-  ```
+- [ ] 2.1 In `app-fault.test.tsx`, add **two** imports. First
+      `import { GanttDataError } from '@/components/wbs/gantt-geometry';` beside the existing
+      `import { GanttFaultBoundary } from '@/components/wbs/gantt-fault';`. Then
+      `import { FaultBoundary } from './fault-boundary';` immediately after the existing
+      `import { AppFaultBoundary } from './app-fault';`. Both imports must exist before appending
+      Appendices D1 and D2 and running step 2.8: Appendix D2's `renderBareBoundary` renders the
+      production `FaultBoundary` directly, and without that import the file fails the type check
+      with two `TS2552: Cannot find name 'FaultBoundary'. Did you mean 'AppFaultBoundary'?` and an
+      implicit-any on the `fallback` parameter — three errors, watched 2026-09-21. Slice 3 assumes
+      both imports are already there.
 
 - [ ] 2.2 After the existing `Throwing` component in that file, add two more:
 
@@ -483,9 +494,11 @@ landed). Either being false is a stop.
       page can put it back — reload it to start again. Anything already saved is on the server."
       (the wrap moves one word earlier); and insert this immediately after that closing `</p>` and
       before the `<button` — note there is **no** semicolon after the closing tag, which would
-      render as JSX text:
+      render as JSX text. The fence below is tagged `text` on purpose: tagged `tsx`, Prettier reads
+      it as two top-level statements and puts that semicolon back on every `--write`, so the packet
+      could not keep the listing correct (watched 2026-09-21).
 
-  ```tsx
+  ```text
   {
     /*
      * The handle, and the only thing on this page that is specific to this fault.
@@ -496,7 +509,7 @@ landed). Either being false is a stop.
   }
   <p className="text-muted-foreground mb-4 font-mono text-xs" data-app-fault-reference>
     Reference {fault.occurrenceId}
-  </p>;
+  </p>
   ```
 
   Add this paragraph to `AppFaultBoundary`'s docblock, before
@@ -1617,11 +1630,15 @@ import { discloseFault } from './fault-disclosure';
  *   as {@link import('./fault-boundary').FaultBoundary}'s, so a caught value appended to
  *   either is a failed assertion rather than a longer line nobody reads.
  *
- * **They also keep a hostile caught value from killing the page.** react-dom's default
- * handlers read the thrown value: a revoked `Proxy` thrown under a boundary made React's own
- * default throw `TypeError: Cannot perform 'get' on a proxy that has been revoked` out of the
- * render, with no fallback of either kind on screen (watched under jsdom, 2026-09-20).
- * {@link discloseFault} never reads the value directly, so these handlers do not.
+ * **They read a caught value the way the boundaries do, which is not at all.** react-dom's
+ * default handlers inspect the thrown value to print it; {@link discloseFault} never does, so
+ * neither does anything here, and a value that cannot be inspected costs a disclosure rather
+ * than a render. What these options do **not** do is rescue a value React itself cannot get
+ * past: a revoked `Proxy` thrown *as* the value fails inside react-dom's own `handleThrow`
+ * while the render is still unwinding, above any handler and above any boundary (verified
+ * fact 10, watched under jsdom 2026-09-20). Nothing in this module claims to catch that. The
+ * hostile values these handlers really do meet are an `Error` with a throwing own accessor and
+ * one whose *cause* the reporter cannot describe.
  */
 export const ROOT_FAULT_OPTIONS: RootOptions = {
   onCaughtError: () => undefined,
@@ -1888,10 +1905,11 @@ Deciding what a caught fault discloses SHALL model a failure to inspect the caug
 
 #### Scenario: A kind's disclosure selector throws
 
-- **GIVEN** a caught value whose own message throws when it is read
-- **WHEN** the boundary's disclosure selector is applied to it
-- **THEN** the boundary renders the generic public message
+- **GIVEN** a fault boundary whose disclosure selector raises an exception for the caught value it is given
+- **WHEN** that selector is applied while deciding what to disclose
+- **THEN** the boundary renders the generic public message and the occurrence identifier
 - **AND** the console line names the selector as what was lost
+- **AND** the exception reaches nothing above the boundary
 
 ### Requirement: The shared reporting module executes in a browser
 
@@ -2081,3 +2099,45 @@ spelling, pushed `itDom('…', () => {` past Prettier's print width; the commit 
 refused the commit with `[warn] apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`, so step
 2.3 prescribes the shorter title and says what happens to a longer one. With both fixed, the whole
 rehearsed tree committed under lefthook with `format` and `lint` green.
+
+## Disposition of review 3
+
+Both blocking defects were reproduced before being fixed, and the review's exact replacement text
+was used for each.
+
+**Blocking.**
+
+1. **Slice 2's pre-edit check stopped on its own predecessor — FIXED** above slice 2's steps, with
+   the review's wording. Reproduced: with step 1.6 applied,
+   `git grep -n "@shared/failures" apps/wbs/fe-01/vite.config.ts` printed **two** lines — the
+   comment at 197 and the entry at 200 — while the anchored
+   `git grep -n "^[[:space:]]*'@shared/failures':" -- apps/wbs/fe-01/vite.config.ts` printed exactly
+   one, line 200. The packet now names the anchored form and says why the unanchored one is wrong.
+2. **Step 2.1 was missing `FaultBoundary` — FIXED**, step 2.1 now prescribes both imports with the
+   review's wording. Reproduced on a tree with slice 1 and slice 2's implementation applied and
+   Appendices D1 and D2 appended: `wbs-fe-01:typecheck` exits 0 with the import, and without it
+   fails with `Found 3 errors in the same file` — two
+   `TS2552: Cannot find name 'FaultBoundary'. Did you mean 'AppFaultBoundary'?` at the opening and
+   closing tags, and an implicit-any on the `fallback` parameter.
+
+**Non-blocking.**
+
+- **The stray `</p>;` — FIXED, and the reason it survived two rounds is now in the packet.** The
+  semicolon was removed each time and Prettier put it back: tagged `tsx`, the fence is two top-level
+  statements, and `--write` terminates the JSX expression statement. The fence is tagged `text`, and
+  step 2.11 says so, so the listing stays correct.
+- **Step 2.0's six-test stop rule — FIXED.** The rehearsed 6 is labelled history; what the command
+  prints at dispatch **is** the baseline, because slices 0 and 1 edit no `describe` block in that
+  file.
+- **Appendix J's selector-throw scenario — FIXED.** It now describes a selector that raises an
+  exception, not a throwing message accessor — which, with Appendix C's descriptor selector, is
+  correctly `lost: 'nothing'` — and adds that nothing above the boundary sees the exception. The
+  amended spec text was appended to the real delta spec and validated: 107 items, 0 failed.
+- **Appendix F's revoked-proxy paragraph — FIXED.** It no longer claims the root options protect
+  against a revoked `Proxy` thrown as the value; it states that such a value fails inside
+  react-dom's own `handleThrow` above any handler and any boundary (verified fact 10), and names the
+  hostile values these handlers actually meet.
+
+Nothing was rejected. Every PARTLY and NOT FIXED item in the review's opening list is closed by the
+four fixes above: Critical 2 by blocking fix 2, Important 3 by step 2.0, Minor 1 by the `text`
+fence.
