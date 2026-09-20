@@ -536,6 +536,9 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: omitting this entry after creating the project failed `names every
   // library project.json that exists on disk` with `Expected to contain:
   // "libs/shared/domain/validation/project.json"` (2026-09-15).
+  // Proof: omitting the failures manifest failed `names every library project.json that exists
+  // on disk` with `Expected to contain: "libs/shared/domain/failures/project.json"` (2026-09-20).
+  'libs/shared/domain/failures/project.json',
   'libs/shared/domain/validation/project.json',
 ];
 

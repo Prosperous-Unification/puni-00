@@ -39,7 +39,64 @@ No implementation safety check exists in Slice A. Later slices append the eleven
 
 ## 6. Executor Checks
 
-Later slices append their focused implementation checks here.
+### Slice B — project and constants
+
+Baseline before the project was added:
+
+```text
+workspace-projects: 17 pass, 0 fail
+sync: 48 pass, 0 fail
+workspace-inventory: 4 pass, 0 fail
+namespace-layout: 19 pass, 0 fail
+workspace-targets: 19 pass, 0 fail
+current-document link case: 1 pass, 13 filtered out, 0 fail
+OpenSpec: 104 passed, 0 failed
+inventory pins: 163 rows, 80 distinct files
+README pin absent; digest pin present
+```
+
+The tests were written before `report-failure.ts`. The red run exited 1 with:
+
+```text
+error: Cannot find module './report-failure' from 'libs/shared/domain/failures/src/report-failure.test.ts' (the clone's absolute prefix removed)
+```
+
+Focused implementation checks:
+
+| Command                                                                                                                                            | Result                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run shared-failures:typecheck`                                                                                            | exit 0; target completed without diagnostics      |
+| `NX_DAEMON=false bunx nx run shared-failures:lint`                                                                                                 | exit 0; target completed without problems         |
+| `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`                                                                                 | exit 0; 2 pass, 0 fail                            |
+| `GSETTINGS_BACKEND=memory bunx prettier --write libs/shared/domain/failures tsconfig.base.json`                                                    | exit 0; owned project files formatted             |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`                                                                              | initial exit 1; the command did not name the file |
+| `GSETTINGS_BACKEND=memory bunx prettier --check libs/shared/domain/failures tsconfig.base.json openspec/changes/adopt-failure-reporting/verify.md` | exit 1; named only owned `verify.md`              |
+| `GSETTINGS_BACKEND=memory bunx prettier --write openspec/changes/adopt-failure-reporting/verify.md`                                                | exit 0; verification record formatted             |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`                                                                              | exit 0                                            |
+
+The project intentionally leaves the `workspace-projects`, `sync` and
+`workspace-inventory` devsync checks red until Slice C registers it. The whole
+`tool-devsync:test` target is pending planner verification because its index
+checker writes Git objects in the clone.
+
+## Slice C — register the project
+
+Executor attempt on the clone holding slices A and B, then the planner. The executor completed C1 to C6 and most of C7, then stopped by rule: an extra replay of the C2 fault used a `-t` filter containing Bun's displayed `>` separator, which matched zero tests. The file was restored byte for byte. The planner replayed that fault with a matching filter and completed the record.
+
+| Step | Command or check                                                                                                    | Result                                                                                                                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0a   | Baseline block                                                                                                      | README pin absent (110.6's derived check is in place), digest pin present; inventory pins 163 rows and 80 files                                                                                                    |
+| 0b   | The five devsync files and the routed-link case, before                                                             | exactly the three expected files red: `workspace-projects` 15 pass 2 fail, `sync` 47 pass 1 fail, `workspace-inventory` 3 pass 1 fail; `namespace-layout` 19 pass, `workspace-targets` 19 pass, routed link 1 pass |
+| 0c   | OpenSpec validation                                                                                                 | 104 passed, 0 failed                                                                                                                                                                                               |
+| C1   | `workspace-projects.test.ts` after registering `shared-failures`                                                    | 17 pass, 0 fail                                                                                                                                                                                                    |
+| C2   | `sync.test.ts` after the restart path entry                                                                         | 48 pass, 0 fail                                                                                                                                                                                                    |
+| C3   | `workspace-inventory.test.ts`                                                                                       | rows 163 to 167, then files 80 to 84, each seen as `Received length` before its pin moved; then 4 pass, 0 fail                                                                                                     |
+| C4   | The legacy-occurrence pin                                                                                           | failed on a new digest with `occurrences` still 257; re-pinned with a dated comment; then 1 pass                                                                                                                   |
+| C5   | Three stale `nx-selector` exemptions removed                                                                        | the three named checks pass                                                                                                                                                                                        |
+| C6   | `LLM_README.md` names the new library on an existing row                                                            | routed-link case passes; the router stays at 130 lines                                                                                                                                                             |
+| C7   | Alias case; `namespace-layout` and `workspace-targets`; `tool-devsync:typecheck`; `tool-devsync:lint`; format check | 1 pass; 38 pass; exit 0; exit 0; exit 0                                                                                                                                                                            |
+
+Negative proof for C2, planner, 2026-09-20: with `'libs/shared/domain/failures/project.json'` removed from `RESTART_PATHS`, `RESTART_PATHS coverage > names every library project.json that exists on disk` failed with `Expected to contain: "libs/shared/domain/failures/project.json"`; restored with `cmp`, then `sync.test.ts` 48 pass, 0 fail. Slice C's own starting red state is the proof for C1 and C3: both checks were watched failing before the registration that satisfies them.
 
 ## Decision
 

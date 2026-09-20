@@ -105,8 +105,10 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // target failed with `Received length: 163`; its command carries the project's seventh
   // parent-relative value in the already-inventoried project.json, so the file count holds
   // at 80 (2026-09-18).
-  expect(paths).toHaveLength(163);
-  expect(new Set(paths.map(({ file }) => file))).toHaveLength(80);
+  // Re-pinned after shared-failures added four configuration files carrying four
+  // parent-relative values (2026-09-20).
+  expect(paths).toHaveLength(167);
+  expect(new Set(paths.map(({ file }) => file))).toHaveLength(84);
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',
     propertyPath: 'extends',
