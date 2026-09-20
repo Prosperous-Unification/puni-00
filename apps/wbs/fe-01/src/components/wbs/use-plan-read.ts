@@ -2,14 +2,7 @@ import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type * as React from 'react';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  ALL_RESOURCES,
-  createPlanRefresh,
-  type PlanRefresh,
-  type PlanRefreshSnapshot,
-  type RefreshResource,
-  resourcesFor,
-} from '@/lib/plan-refresh';
+import { ALL_RESOURCES, type RefreshResource } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
 import type {
   AssignedPersonView,
@@ -33,6 +26,8 @@ import {
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
+import { planFeedForReader } from '@/modules/plan-feed/composition';
+import type { PlanFeed, PlanFeedDelivery } from '@/modules/plan-feed/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
 
 import { type CellCards } from './cell-card-store';
@@ -470,7 +465,7 @@ export function usePlanRead({
   focusIntent: React.RefObject<FocusIntent>;
   setBusy: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
-  const ownerRef = useRef<PlanRefresh | null>(null);
+  const feedRef = useRef<PlanFeed | null>(null);
   const activeApi = useRef(api);
   activeApi.current = api;
 
@@ -533,29 +528,17 @@ export function usePlanRead({
     [setDrafts],
   );
 
-  const applySnapshot = useCallback(
-    (
-      snapshot: PlanRefreshSnapshot,
-      applied: Record<'tree' | 'steps' | 'directory' | 'markers', number>,
-    ) => {
-      setTreeMayBeStale(snapshot.staleResources.length > 0);
+  const publishPlan = useCallback(
+    (delivery: PlanFeedDelivery) => {
+      setTreeMayBeStale(delivery.staleResources.length > 0);
       // Proof: suppressing this failure text left the peer-refetch window on
       // “the last refresh failed”, expected the named optimizer-unavailable
       // message while the previously installed plan stayed on screen.
       setTreeFailureText(
-        snapshot.tree.failure === null ? null : refusalSentence(snapshot.tree.failure.cause),
+        delivery.treeFailure === null ? null : refusalSentence(delivery.treeFailure.cause),
       );
-      // Publish the first table with its column vocabulary. The tree anchor
-      // alone would expose editors which the initial steps read then remounts.
-      // Proof: removing this gate exposed a textarea instead of null in
-      // `does not expose a first editor before its held column vocabulary installs`.
-      if (snapshot.baseline === null) return;
-      if (
-        snapshot.directory.installed !== null &&
-        snapshot.directory.installed.generation > applied.directory
-      ) {
-        const vocabulary = snapshot.directory.installed.value;
-        applied.directory = snapshot.directory.installed.generation;
+      if (delivery.directory !== null) {
+        const vocabulary = delivery.directory;
         setTeams(vocabulary.teams);
         setTags(vocabulary.tags);
         setServices(vocabulary.services);
@@ -563,9 +546,8 @@ export function usePlanRead({
         setExternalSystems(vocabulary.externalSystems);
         setPeople(vocabulary.people);
       }
-      if (snapshot.tree.installed !== null && snapshot.tree.installed.generation > applied.tree) {
-        const tree = snapshot.tree.installed.value;
-        applied.tree = snapshot.tree.installed.generation;
+      if (delivery.tree !== null) {
+        const tree = delivery.tree.value;
         const drawn = toTree(tree.workItems);
         setWorkItems(drawn);
         treeReadProject.current = projectId;
@@ -602,7 +584,7 @@ export function usePlanRead({
           pertWeights: tree.pertWeights,
           estimateRounding: tree.estimateRounding,
           ...(tree.optimization === undefined ? {} : { optimization: tree.optimization }),
-          generation: snapshot.tree.installed.generation,
+          generation: delivery.tree.generation,
         });
         setStack({ undoable: tree.undoable, redoable: tree.redoable });
         setTeamCapacities(tree.teamCapacities);
@@ -613,22 +595,12 @@ export function usePlanRead({
         setEstimateMethod(tree.estimateMethod);
         setStartDate(tree.startDate);
       }
-      if (
-        snapshot.steps.installed !== null &&
-        snapshot.steps.installed.generation > applied.steps
-      ) {
-        const loadedSteps = snapshot.steps.installed.value;
-        applied.steps = snapshot.steps.installed.generation;
+      if (delivery.steps !== null) {
+        const loadedSteps = delivery.steps;
         setSteps((current) => (sameSteps(current, loadedSteps) ? current : [...loadedSteps]));
         settleAgainstSteps(loadedSteps);
       }
-      if (
-        snapshot.markers.installed !== null &&
-        snapshot.markers.installed.generation > applied.markers
-      ) {
-        applied.markers = snapshot.markers.installed.generation;
-        setMarkers(snapshot.markers.installed.value);
-      }
+      if (delivery.markers !== null) setMarkers(delivery.markers);
     },
     [
       projectId,
@@ -657,73 +629,45 @@ export function usePlanRead({
     ],
   );
 
+  /**
+   * This reader's feed: one project, one API, one refresh owner, one stream.
+   *
+   * Built in an effect and closed by its cleanup, which is what makes the
+   * owner's lifetime the reader's. `feedRef` is how everything outside this
+   * effect reaches it, and it is cleared before the feed is closed, so work
+   * that outlives the reader — a gesture whose answer is still in flight —
+   * finds no owner rather than a disposed one.
+   */
   useEffect(() => {
-    // Proof: reusing the disposed owner left zero subscriptions instead of one
-    // in `creates a live second owner after StrictMode cleans up its first setup`.
-    const owner = createPlanRefresh({ projectId, api });
-    ownerRef.current = owner;
-    const applied = { tree: 0, steps: 0, directory: 0, markers: 0 };
-    let stream: ProjectStream | null = null;
-    let streamSequence = -1;
-    const isCurrent = () =>
-      ownerRef.current === owner &&
-      activeProject.current === projectId &&
-      activeApi.current === api;
-    const apply = () => {
-      if (!isCurrent()) return;
-      const snapshot = owner.getSnapshot();
-      applySnapshot(snapshot, applied);
-      if (subscribe !== undefined && snapshot.baseline !== null && stream === null) {
-        // The existing socket is already registered during recovery. Reopening
-        // here would turn every refused resume into another read/socket cycle.
-        // Proof: restoring epoch replacement opened two sockets instead of one
-        // in both `recovers a persistent %s ...` production-page cases.
-        streamSequence = snapshot.baseline.seq;
-        stream = subscribe(
-          projectId,
-          {
-            onChange: (changed, seq) => {
-              if (!isCurrent()) return;
-              if (changed == null && seq === undefined) void owner.initialize();
-              else void owner.invalidate({ resources: resourcesFor(changed), seq });
-            },
-            onConnectionChange: (connected) => {
-              if (isCurrent()) setConnected(connected);
-            },
-          },
-          snapshot.baseline.seq,
-        );
-      }
-      if (snapshot.acknowledged > streamSequence) {
-        stream?.seen(snapshot.acknowledged);
-        streamSequence = snapshot.acknowledged;
-      }
-    };
-    const stop = owner.subscribe(apply);
-    void owner.initialize().then((outcome) => {
-      if (!isCurrent() || outcome.status !== 'failed') return;
-      for (const failure of outcome.failures)
+    const feed = planFeedForReader({
+      projectId,
+      api,
+      subscribe,
+      isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
+      publish: publishPlan,
+      announceRefusal: ({ cause }) => {
         // Proof: using the bare failure code here left the unavailable-plan
         // fixture with no named toast and an unhandled refusal-code branch.
-        pushToast({ kind: 'error', text: refusalSentence(failure.cause) });
+        pushToast({ kind: 'error', text: refusalSentence(cause) });
+      },
+      setConnected,
     });
+    feedRef.current = feed;
     return () => {
-      if (ownerRef.current === owner) ownerRef.current = null;
-      stop();
-      owner.dispose();
-      stream?.unsubscribe();
+      if (feedRef.current === feed) feedRef.current = null;
+      feed.close();
     };
-  }, [activeProject, api, projectId, applySnapshot, pushToast, setConnected, subscribe]);
+  }, [activeProject, api, projectId, publishPlan, pushToast, setConnected, subscribe]);
 
   /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
   const refreshResourcesOrMarkStale = useCallback(
     async (resources: readonly RefreshResource[]): Promise<void> => {
-      const owner = ownerRef.current;
-      if (owner === null || activeProject.current !== projectId || activeApi.current !== api)
-        return;
-      if (owner.getSnapshot().baseline === null && owner.getSnapshot().staleResources.length > 0)
-        await owner.initialize();
-      else await owner.invalidate({ resources });
+      const feed = feedRef.current;
+      // The reader this callback was built for, and not whoever is on screen
+      // now: a reread issued from a project or an API this reader has left must
+      // not be spent against the feed that replaced it.
+      if (feed === null || activeProject.current !== projectId || activeApi.current !== api) return;
+      await feed.rereadResources(resources);
     },
     [activeProject, api, projectId],
   );
@@ -744,10 +688,10 @@ export function usePlanRead({
   /** A refused marker write also invalidates its list: the target may have disappeared. */
   const runMarkerWrite = useCallback(
     async (write: () => Promise<unknown>) => {
-      const owner = ownerRef.current;
+      const owner = feedRef.current?.owner ?? null;
       if (owner === null) return;
       const isCurrent = () =>
-        ownerRef.current === owner &&
+        feedRef.current?.owner === owner &&
         activeProject.current === projectId &&
         activeApi.current === api;
       try {
@@ -772,7 +716,7 @@ export function usePlanRead({
   const writer = useMemo(
     () =>
       createPlanWriter({
-        readRefreshOwner: () => ownerRef.current,
+        readRefreshOwner: () => feedRef.current?.owner ?? null,
         isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
         noteCommandIssued: () => {
           focusIntent.current.commandIssued();
@@ -801,10 +745,10 @@ export function usePlanRead({
    */
   const stepStack = useCallback(
     async (direction: 'undo' | 'redo') => {
-      const owner = ownerRef.current;
+      const owner = feedRef.current?.owner ?? null;
       const isCurrent = () =>
         owner !== null &&
-        ownerRef.current === owner &&
+        feedRef.current?.owner === owner &&
         activeProject.current === projectId &&
         activeApi.current === api;
       setBusy(true);

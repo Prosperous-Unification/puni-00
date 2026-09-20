@@ -63,6 +63,8 @@ export const NODE_SUITES: readonly string[] = [
   'src/lib/saved-plan-compare.test.ts',
   'src/modules/directory-management/directory-management.feature.test.ts',
   'src/modules/directory/directory.resource.test.ts',
+  'src/modules/plan-feed/plan-feed.feature.test.ts',
+  'src/modules/plan-feed/plan-feed.resource.test.ts',
   'src/modules/plan-writer/plan-writer.test.ts',
   'src/modules/preferences/composition.test.ts',
   'src/modules/preferences/preferences.feature.test.ts',
