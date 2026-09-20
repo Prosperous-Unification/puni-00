@@ -177,7 +177,117 @@ const repositoryTemplate: Template = {
   ],
 };
 
-const templates: readonly Template[] = [featureTemplate, repositoryTemplate, resourceTemplate];
+const ModuleReadme = `# <Name>
+
+One sentence on the value this module delivers.
+
+## What it owns
+
+- The decisions, state and invariants that live here.
+
+## What it does not own
+
+- The neighbouring decisions a reader would expect here and will not find.
+
+## Relationships
+
+The exported types are in \`contract.ts\`; <the kind files, and what each one holds>.
+
+## Checks
+
+<The Nx target that runs this module's tests, and the files that prove it.>
+`;
+
+const ModuleContract = `/**
+ * What this module exports, and what its host must supply.
+ *
+ * Every member carries the JSDoc that states its behaviour, its throws and its invariants, because
+ * a work packet reads this file and the README, not the module.
+ */
+export interface <Name> {
+  readonly <member>: <Type>;
+}
+`;
+
+const IndexSections = [
+  '## What it owns',
+  '## What it does not own',
+  '## Relationships',
+  '## Checks',
+] as const;
+
+const moduleTemplate: Template = {
+  id: 'module',
+  version: '1.0.0',
+  subject: 'directory',
+  generates: 'One module directory: its index, its contract, its kind files and its tests.',
+  files: [
+    { path: 'README.md', required: true, content: ModuleReadme },
+    { path: 'contract.ts', required: true, content: ModuleContract },
+    { path: '<name>.feature.ts', required: false, content: FeatureFile },
+    { path: '<name>.resource.ts', required: false, content: ResourceFile },
+    { path: '<name>.repository.ts', required: false, content: RepositoryFile },
+    { path: '<name>.feature.test.ts', required: false, content: KindTest },
+  ],
+  requirements: [
+    {
+      id: 'module.readme',
+      statement: 'A module carries a README index at its root.',
+      rules: ['module layout'],
+      constraint: { kind: 'required-file', path: 'README.md' },
+    },
+    {
+      id: 'module.readme-sections',
+      statement:
+        'The README states a title and the sections "What it owns", "What it does not own", "Relationships" and "Checks".',
+      rules: ['module layout'],
+      constraint: { kind: 'index-sections', path: 'README.md', sections: IndexSections },
+    },
+    {
+      id: 'module.contract',
+      statement: 'A module carries a contract file that states its exported types.',
+      rules: ['module layout'],
+      constraint: { kind: 'required-file', path: 'contract.ts' },
+    },
+    {
+      id: 'module.kind-file',
+      statement: 'A module carries at least one file that declares a kind by its suffix.',
+      rules: ['K1'],
+      constraint: { kind: 'kind-file-present' },
+    },
+    {
+      id: 'module.one-kind',
+      statement: 'No file declares more than one kind.',
+      rules: ['K1'],
+      constraint: { kind: 'one-kind-per-file' },
+    },
+    {
+      id: 'module.test',
+      statement: 'A module carries at least one test file.',
+      rules: ['required test levels'],
+      constraint: { kind: 'test-present' },
+    },
+    {
+      id: 'module.layout',
+      statement: 'Every file sits in the module directory or in its `view` directory.',
+      rules: ['module layout'],
+      constraint: { kind: 'files-stay-in-module', allowedDirectories: ['view'] },
+    },
+    {
+      id: 'module.kind-files',
+      statement: 'Every kind file in the module satisfies the template of its own kind.',
+      rules: ['K1', 'K3', 'K4', 'K5', 'K9'],
+      constraint: { kind: 'kind-files-follow-their-template' },
+    },
+  ],
+};
+
+const templates: readonly Template[] = [
+  featureTemplate,
+  moduleTemplate,
+  repositoryTemplate,
+  resourceTemplate,
+];
 
 /** The registry, sorted by identifier so a listing is stable. */
 export function registeredTemplates(): readonly Template[] {

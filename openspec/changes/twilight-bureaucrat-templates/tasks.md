@@ -12,7 +12,7 @@
 
 ## 4. Verify one module
 
-- [ ] 4.1 Add the module template, module-scope constraint handlers, and delegation to kind templates — tests: the nine `template verify, one module` cases plus the updated registry listing and unknown-template cases; negatives P13, P15-P21, and P25 are watched in slice 5.
+- [x] 4.1 Add the module template, module-scope constraint handlers, and delegation to kind templates — tests: the eleven `template verify, one module` cases plus the updated registry listing and unknown-template cases; negatives P13, P15-P21, and P25 are watched in slice 5.
 
 ## 5. Prove the module-scope checks
 

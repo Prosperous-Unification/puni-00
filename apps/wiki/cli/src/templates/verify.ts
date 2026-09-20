@@ -8,6 +8,7 @@ import { registeredTemplates, selectTemplate } from './registry';
 import {
   type ArtifactFile,
   declaredKinds,
+  type FileKind,
   fileNameOf,
   importSpecifiers,
   taggedValues,
@@ -26,7 +27,17 @@ export interface FileScope {
   readonly siblings: readonly string[];
 }
 
-function refuseScope(requirement: TemplateRequirement, scope: FileScope): never {
+/** One module directory and everything under it. */
+export interface ModuleScope {
+  readonly scope: 'module';
+  readonly subject: string;
+  readonly files: readonly ArtifactFile[];
+  readonly siblingsOf: (path: string) => readonly string[];
+}
+
+export type ArtifactScope = FileScope | ModuleScope;
+
+function refuseScope(requirement: TemplateRequirement, scope: ArtifactScope): never {
   throw new Error(
     `template requirement ${requirement.id} states a ${requirement.constraint.kind} constraint, which no ${scope.scope} artifact can satisfy`,
   );
@@ -119,12 +130,87 @@ function fileFindings(
   }
 }
 
+function moduleFindings(
+  requirement: TemplateRequirement,
+  constraint: TemplateConstraint,
+  scope: ModuleScope,
+): TemplateFinding[] {
+  const { subject, files } = scope;
+  switch (constraint.kind) {
+    case 'required-file':
+      return files.some((file) => file.relativePath === constraint.path)
+        ? []
+        : [finding(requirement, subject, `the module directory has no ${constraint.path}`)];
+    case 'index-sections': {
+      const index = files.find((file) => file.relativePath === constraint.path);
+      if (index === undefined) return [];
+      const absent = [
+        ...(index.text.startsWith('# ') ? [] : ['its title']),
+        ...constraint.sections.filter((section) => !index.text.includes(`\n${section}\n`)),
+      ];
+      return absent.length === 0
+        ? []
+        : [finding(requirement, index.path, `the index omits ${absent.join(', ')}`)];
+    }
+    case 'kind-file-present':
+      return kindFilesOf(files).length > 0
+        ? []
+        : [finding(requirement, subject, 'no file declares a kind by its suffix')];
+    case 'test-present':
+      return files.some((file) => file.relativePath.endsWith('.test.ts'))
+        ? []
+        : [finding(requirement, subject, 'the module has no test file')];
+    case 'files-stay-in-module':
+      return files
+        .filter((file) => {
+          const segments = file.relativePath.split('/');
+          return (
+            segments.length > 2 ||
+            (segments.length === 2 && !constraint.allowedDirectories.includes(segments[0]))
+          );
+        })
+        .map((file) =>
+          finding(
+            requirement,
+            file.path,
+            `the file sits neither in the module directory nor in ${constraint.allowedDirectories.join(', ')}`,
+          ),
+        );
+    case 'one-kind-per-file':
+      return oneKindFindings(requirement, files);
+    case 'kind-files-follow-their-template':
+      return kindFilesOf(files).flatMap((file) => {
+        const kinds = declaredKinds(file.path);
+        if (kinds.length !== 1) return [];
+        return requirementFindings(selectTemplate(templateIdOfKind(kinds[0])), {
+          scope: 'file',
+          file,
+          siblings: scope.siblingsOf(file.path),
+        });
+      });
+    default:
+      return refuseScope(requirement, scope);
+  }
+}
+
+function kindFilesOf(files: readonly ArtifactFile[]): ArtifactFile[] {
+  return files.filter(
+    (file) => !file.relativePath.endsWith('.test.ts') && declaredKinds(file.path).length > 0,
+  );
+}
+
+function templateIdOfKind(kind: FileKind): string {
+  return kind === 'repository' ? 'repository' : `${kind}-service`;
+}
+
 /** Every finding one template's requirements produce over one artifact. */
-function requirementFindings(template: Template, scope: FileScope): TemplateFinding[] {
+function requirementFindings(template: Template, scope: ArtifactScope): TemplateFinding[] {
   // Proof: skipping the first requirement made `evaluates exactly the requirements the template
   // states` lose its sole `probe.tag` finding. Observed 2026-09-20.
   return template.requirements.flatMap((requirement) =>
-    fileFindings(requirement, requirement.constraint, scope),
+    scope.scope === 'file'
+      ? fileFindings(requirement, requirement.constraint, scope)
+      : moduleFindings(requirement, requirement.constraint, scope),
   );
 }
 
@@ -156,6 +242,13 @@ export function verifyArtifact(
   files: readonly ArtifactFile[],
   siblingsOf: (path: string) => readonly string[],
 ): TemplateVerification {
+  if (template.subject === 'directory') {
+    return verification(
+      template,
+      subject,
+      requirementFindings(template, { scope: 'module', subject, files, siblingsOf }),
+    );
+  }
   const file = files.find((candidate) => candidate.path === subject);
   if (file === undefined) {
     throw new Error(`template ${template.id} verifies one file; ${subject} is not one`);

@@ -89,3 +89,22 @@ Planner, after slice 2, 2026-09-20: the focused templates file passes 22 of 22 (
 - `bin/h2puni-gate.sh` was not run because the host gate is unavailable on this machine.
 
 Planner, after slice 3, 2026-09-20: slice 3 changed only `Proof:` comments (and one expression Prettier re-wrapped around a comment). Replayed P7 outside the sandbox (the import scan's catch returning `[]` instead of rethrowing with context): `refuses a file that does not parse` failed with `Expected to contain: "cannot scan the imports of src/modules/widget/widget.feature.ts"` against `Received: ""`, 21 pass and 1 fail; restored byte for byte, then 22 pass. Source lint, typecheck and the format check succeed.
+
+### Slice 4
+
+- Preparation and final rule suites: each exited 0 with `19 pass`, `0 fail`, `Ran 19 tests across 1 file.` The rule-suite count remained unchanged.
+- Preparation template suite: exit 0; `22 pass`, `0 fail`, `Ran 22 tests across 1 file.`
+- Test-first template suite: exit 1; `20 pass`, `13 fail`, `Ran 33 tests across 1 file.` The eleven new module cases and the two authorized registry cases failed; no other test failed. The full output is retained as `slice4-red.log`.
+- Post-implementation and final template suites: each exited 0 with `33 pass`, `0 fail`, `Ran 33 tests across 1 file.` The committed `directory` module observation reported only its expected `resource.term` finding.
+- `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0; `Successfully ran target typecheck for project twilight-bureaucrat` (`slice4-typecheck.log`).
+- Focused packaging suite: exit 0; `2 pass`, `0 fail`, `Ran 2 tests across 1 file.`
+- `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`: first run exited 1 because `verify.ts` imports were unsorted; direct ESLint reported `simple-import-sort/imports`. After `bunx eslint --fix apps/wiki/cli/src/templates/verify.ts`, the target exited 0 with `Successfully ran target lint:source for project twilight-bureaucrat` (`slice4-lint-source-rerun.log`).
+- `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`: exit 0; `Successfully ran target build for project twilight-bureaucrat` (`slice4-build.log`).
+- Owned-file `bunx prettier --write`: exit 0; all five slice 4 paths were unchanged.
+- `NX_DAEMON=false bunx nx format:check --all`: the first wrapper outlived the tool window and was terminated without a status; no Nx, Bun, or Node process remained. The persistent-session rerun exited 0 with no diagnostics (`slice4-format-check.log`).
+- Strict `OPENSPEC_TELEMETRY=0` validation: exit 0; `105` passed and `0` failed. The JSON report is retained as `openspec-validation-slice4.e1c7fJ.json` in the attempt evidence directory.
+- Negative proofs P13, P15-P21, and P25 were not run because they belong to slice 5.
+- Not run here, pending planner verification because whole targets may require Git writes or staged files: `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package`, and `tool-devsync:test`.
+- `bin/h2puni-gate.sh` was not run because the host gate is unavailable on this machine.
+
+Planner, after slice 4, 2026-09-20: the focused templates file passes 33 of 33 (22 plus eleven). The whole `twilight-bureaucrat` `test`, `test:package` (the packaged executable still lists its templates with the `module` template registered), `lint:source` and `typecheck` succeeded; `tool-devsync:test` succeeded; format check clean. Slice 4's checks get their negatives in slice 5, including the fault run against each of the three malformed-file titles.

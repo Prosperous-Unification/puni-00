@@ -46,10 +46,16 @@ describe('template registry CLI', () => {
     expect(listing.schemaVersion).toBe(1);
     expect(listing.templates.map((template) => template.id)).toEqual([
       'feature-service',
+      'module',
       'repository',
       'resource-service',
     ]);
-    expect(listing.templates.map((template) => template.subject)).toEqual(['file', 'file', 'file']);
+    expect(listing.templates.map((template) => template.subject)).toEqual([
+      'file',
+      'directory',
+      'file',
+      'file',
+    ]);
   }, 30_000);
 
   test('shows one template with its skeleton files and its constrained requirements', () => {
@@ -82,7 +88,7 @@ describe('template registry CLI', () => {
     const invocation = runCli(['template', 'show', 'NO-SUCH-TEMPLATE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown template: NO-SUCH-TEMPLATE (registered: feature-service, repository, resource-service)',
+      'unknown template: NO-SUCH-TEMPLATE (registered: feature-service, module, repository, resource-service)',
     );
   }, 30_000);
 
@@ -165,7 +171,13 @@ function commit(repository: string, message: string): string {
   return runGit(repository, ['rev-parse', 'HEAD']);
 }
 
-/** A module directory that satisfies every requirement of every template. */
+/**
+ * A module directory that satisfies every requirement of every template.
+ *
+ * `helper.ts` is a plain support file: it declares no kind by its suffix and no declaration tag,
+ * so it satisfies every module-scope constraint and exists only so slice 4's malformed-support-file
+ * test has a support file to corrupt.
+ */
 function createConformingCandidate(): { repository: string; revision: string } {
   const repository = initFixture('twilight-templates-');
   write(repository, 'src/modules/widget/README.md', conformingReadme);
@@ -186,6 +198,7 @@ function createConformingCandidate(): { repository: string; revision: string } {
     'src/modules/widget/widget.feature.test.ts',
     "import { test } from 'bun:test';\ntest('gesture', () => {});\n",
   );
+  write(repository, 'src/modules/widget/helper.ts', 'export function helper(): void {}\n');
   write(repository, 'src/modules/widget/view/use-widget.ts', 'export const view = 1;\n');
   return { repository, revision: commit(repository, 'fixture') };
 }
@@ -590,4 +603,178 @@ describe('the template record drives verification', () => {
       'template requirement probe.module states a required-file constraint, which no file artifact can satisfy',
     );
   });
+});
+
+describe('template verify, one module', () => {
+  test('allows a module that satisfies every requirement', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verificationOf(invocation)).toEqual({
+      schemaVersion: 1,
+      templateId: 'module',
+      templateVersion: '1.0.0',
+      subject: 'src/modules/widget',
+      conforms: true,
+      findings: [],
+      certifies: false,
+    });
+  }, 30_000);
+
+  test('reports a module with no index, no contract, no kind file and no test', () => {
+    const repository = initFixture('twilight-templates-bare-');
+    write(repository, 'src/modules/bare/helper.ts', 'export const helper = 1;\n');
+    const revision = commit(repository, 'a bare module');
+    const invocation = verify('module', repository, revision, 'src/modules/bare');
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'module.readme',
+        path: 'src/modules/bare',
+        message: 'the module directory has no README.md',
+      },
+      {
+        requirementId: 'module.contract',
+        path: 'src/modules/bare',
+        message: 'the module directory has no contract.ts',
+      },
+      {
+        requirementId: 'module.kind-file',
+        path: 'src/modules/bare',
+        message: 'no file declares a kind by its suffix',
+      },
+      {
+        requirementId: 'module.test',
+        path: 'src/modules/bare',
+        message: 'the module has no test file',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports an index that omits one of its sections', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/README.md',
+      conformingReadme.slice(0, conformingReadme.indexOf('\n## Checks\n') + 1),
+    );
+    const revision = commit(repository, 'drop a section');
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'module.readme-sections',
+        path: 'src/modules/widget/README.md',
+        message: 'the index omits ## Checks',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports an index with no title', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/README.md',
+      conformingReadme.replace('# Widget', 'Widget'),
+    );
+    const revision = commit(repository, 'drop the title');
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'module.readme-sections',
+        path: 'src/modules/widget/README.md',
+        message: 'the index omits its title',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a file that sits below the module directory', () => {
+    const { repository } = createConformingCandidate();
+    write(repository, 'src/modules/widget/inner/deep.ts', 'export const deep = 1;\n');
+    const revision = commit(repository, 'a nested file');
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'module.layout',
+        path: 'src/modules/widget/inner/deep.ts',
+        message: 'the file sits neither in the module directory nor in view',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a module file that declares two kinds', () => {
+    const { repository } = createConformingCandidate();
+    write(repository, 'src/modules/widget/widget.feature.resource.ts', conformingFeature);
+    const revision = commit(repository, 'two kinds in one name');
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'module.one-kind',
+        path: 'src/modules/widget/widget.feature.resource.ts',
+        message: 'file name declares feature and resource',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a kind file inside a module that breaks its own template', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      conformingFeature.replace('// @capability widget-editing\n', ''),
+    );
+    const revision = commit(repository, 'drop the capability');
+    const invocation = verify('module', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  for (const [name, path] of [
+    ['refuses a module whose contract does not parse', 'src/modules/widget/contract.ts'],
+    ['refuses a module whose support file does not parse', 'src/modules/widget/helper.ts'],
+    [
+      'refuses a module whose test file does not parse',
+      'src/modules/widget/widget.feature.test.ts',
+    ],
+  ] as const) {
+    test(
+      name,
+      () => {
+        const { repository } = createConformingCandidate();
+        write(repository, path, 'export const = ;\n');
+        const revision = commit(repository, 'one malformed file');
+        const invocation = verify('module', repository, revision, 'src/modules/widget');
+        expect(invocation.exitCode).toBe(1);
+        expect(stderrOf(invocation)).toContain('cannot scan the imports of ' + path);
+        expect(stdoutOf(invocation)).toBe('');
+      },
+      30_000,
+    );
+  }
+
+  test("observes this repository's directory module at its committed revision", () => {
+    const invocation = verify(
+      'module',
+      join(import.meta.dir, '..', '..'),
+      'HEAD',
+      'apps/wbs/fe-01/src/modules/directory',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'resource.term',
+        path: 'apps/wbs/fe-01/src/modules/directory/directory.resource.ts',
+        message: 'file states 0 @term tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
 });
