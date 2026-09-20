@@ -79,6 +79,9 @@ function rememberedDetail(): boolean {
   // reading it` alone failed, `1 failed | 90 passed`, on `expected 'true' to be
   // null` — the retired key still in storage after the chart had been opened.
   // Watched 2026-08-12.
+  // Proof: making the repository's `forget` a no-op failed its adapter case
+  // and three chart-detail cases; this one failed on `expected 'true' to be
+  // null`. Observed 2026-09-20.
   rememberedPreferences.retiredGanttArrows.forget();
   // Proof: this refusal replaced by `claimed === true || (typeof claimed ===
   // 'string' && claimed !== '')`, which is what "read the claim, drop nothing"

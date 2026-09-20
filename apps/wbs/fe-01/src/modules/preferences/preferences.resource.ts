@@ -8,6 +8,9 @@ function parsedOrNothing(stored: string): unknown {
   } catch {
     // Nothing but this app writes these keys, so the only way here is a
     // hand-edited store. Recovered from by the caller rather than rethrown.
+    // Proof: rethrowing the parse error failed `bytes that will not parse are
+    // refused rather than thrown` with `SyntaxError: Expected property name or
+    // '}' in JSON at position 1`. Observed 2026-09-20.
     return undefined;
   }
 }
@@ -37,6 +40,9 @@ export function createPreferences(storage: BrowserStorage): Preferences {
     readAndDrop: () => {
       const claimed = claim();
       if (claimed.status === 'held') return claimed.value;
+      // Proof: making the refusal drop a no-op failed the JSON, unparsable JSON,
+      // and bare-text refusal cases on `expected <stored value> to be
+      // undefined`. Observed 2026-09-20.
       if (claimed.status === 'refused') storage.forget(key);
       return null;
     },
@@ -80,6 +86,9 @@ export function createPreferences(storage: BrowserStorage): Preferences {
           if (stored === null) return { status: 'absent' };
           return isValid(stored) ? { status: 'held', value: stored } : { status: 'refused' };
         },
+        // Proof: JSON-stringifying this write failed the resource case on
+        // `expected '"steps"' to be 'steps'` and the named-answer compatibility
+        // case on the quoted settings-section bytes. Observed 2026-09-20.
         writeText(key),
       ),
     unchecked: (key: string): Remembered<string> =>
@@ -89,6 +98,10 @@ export function createPreferences(storage: BrowserStorage): Preferences {
         // the caller's own rule is the only judge there is.
         () => {
           const stored = storage.read(key);
+          // Proof: treating the empty string as absent failed the unchecked-key
+          // case on `expected { status: 'absent' } to deeply equal { status:
+          // 'held', value: '' }` and the project-page case on `expected '' to
+          // be null`. Observed 2026-09-20.
           return stored === null ? { status: 'absent' } : { status: 'held', value: stored };
         },
         writeText(key),

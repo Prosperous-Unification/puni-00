@@ -7,6 +7,11 @@ import {
   THEME_KEY,
 } from './preference-keys';
 
+/**
+ * Proof: accepting strings instead failed `the chart detail refuses anything
+ * that is not a boolean` on `expected { status: 'held', value: 'yes' } to
+ * deeply equal { status: 'refused' }`. Observed 2026-09-20.
+ */
 const holdsBoolean = (claimed: unknown): claimed is boolean => typeof claimed === 'boolean';
 
 /**

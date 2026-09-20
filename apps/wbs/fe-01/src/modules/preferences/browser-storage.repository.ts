@@ -9,6 +9,10 @@ import type { BrowserStorage } from './contract';
  * and the shared jsdom setup installs its stand-in after the module graph is
  * built.
  *
+ * Proof: capturing the store at module load made the production composition
+ * suite fail collection with `ReferenceError: localStorage is not defined`.
+ * Observed 2026-09-20.
+ *
  * @throws whatever the browser throws on access. A store that refuses — site
  * data blocked, a private session — is not recovered from here; see
  * {@link BrowserStorage}.
@@ -20,6 +24,9 @@ export function browserStorage(): BrowserStorage {
       localStorage.setItem(key, value);
     },
     forget: (key) => {
+      // Proof: making this a no-op failed the adapter case on `expected 'held'
+      // to be null` and three chart-detail drop cases, including the retired
+      // key on `expected 'true' to be null`. Observed 2026-09-20.
       localStorage.removeItem(key);
     },
   };

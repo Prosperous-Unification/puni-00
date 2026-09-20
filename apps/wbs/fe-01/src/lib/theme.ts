@@ -65,6 +65,9 @@ export function rememberedTheme(): ThemeChoice {
   // three, and drops the key` failed on `expected '"midnight"' to be null` —
   // the unreadable key left in storage to be read again next time — and
   // `refuses storage that is not JSON at all` with it.
+  // Proof: the shared refusal drop made a no-op failed three resource cases,
+  // including `a read that drops removes the refused key; a plain read writes
+  // nothing`, on `expected '"midnight"' to be undefined`. Observed 2026-09-20.
   return storedChoice.readAndDrop() ?? 'system';
 }
 
