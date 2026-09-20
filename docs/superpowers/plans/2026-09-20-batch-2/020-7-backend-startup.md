@@ -119,7 +119,7 @@ package-adoption inventory to update: 020.1 shipped the pins, not the inventory.
 | Close order from `bag.close()`                  | `app.stop`, `optimizer.stop`, `retention.stop`, `source.close` — today's four-step order, from the dependency edges plus pushed-disposer order.                                                                                                                                       |
 | Rollback when a factory throws                  | `DiBagStartupError`, `code === 'DI_BAG_STARTUP_FAILED'`, `error.cause` is the original failure, `cleanupFailures` empty, every acquired resource released.                                                                                                                            |
 | A disposer that rejects                         | `close()` rejects with `DiBagCleanupError`; `failures[].label` names the binding (`source`, or `server` for a pushed disposer); **every other release still runs** — rehearsed with the optimizer's `stop()` rejecting, after which the timer was stopped and the source closed once. |
-| `bag.close()` twice                             | The second resolves.                                                                                                                                                                                                                                                                  |
+| `bag.close()` twice                             | Repeated calls replay the first close's outcome without rerunning disposers: success stays successful; failure rejects again with the same cleanup error.                                                                                                                             |
 | Dropping an ordering-only dependency            | The dependency is never acquired: with `retention` removed from the server factory's parameter, the timer never starts. Proof 2.                                                                                                                                                      |
 | A renamed destructure (`retention: _retention`) | Still acquired; the Proxy read happens at destructuring.                                                                                                                                                                                                                              |
 | Removing `withDisposal` from the server         | **The listener is still stopped**: DI Bag then reports `no-service-disposer` to the pushed disposer, which stops it. Section 8 mutates the disposer's body instead.                                                                                                                   |
@@ -243,13 +243,30 @@ line of their existing field documentation — `BootOptions` carries no JSDoc of
 
 ## 7. Steps
 
+**Four lessons this batch has taught, carried into every step below.** A fault must name its
+location unambiguously — two executor attempts in another packet patched the first of two identical
+lines because the fault named the text, not the line. Proof expectations are literal fragments the
+runner actually prints, never prose paraphrase of them (section 8 and C2 are written that way; the
+di-bag repeated-close wording above was corrected for the same reason). Slow `nx` targets run under
+a status-recording wrapper, per the executor preamble's rule 19, so a killed or timed-out target
+still leaves a status to read. And any pin the change moves that only a whole-suite run sees has to
+be named for the planner: this packet adds no `project.json`, no `tsconfig.json` and no legacy-root
+string, so it moves neither `tools/tool-devsync/src/workspace-inventory.test.ts`'s pinned row count
+(163 rows, 80 files — grepped: this packet's changed files are none of `project.json` or
+`tsconfig*.json`) nor `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`'s legacy-source
+digest (grepped `apps/(be-01|fe-01|gw-01|mcp-01)` and the listed `libs/*` roots against this
+packet's prescribed `boot.ts`, `boot.db.test.ts`, `main.ts` and `dev/main.ts` text: no match).
+
 ### Step 0 — Record the baseline. Every slice, before touching anything
 
 Counts are relative to what **you** record, never to section 3.5.
 
 - [ ] `git rev-parse HEAD` and `git status --short --untracked-files=all` — record both. Other
       lanes' modifications may be present; leave them exactly as they are.
-- [ ] `mkdir -p "$TMPDIR/evidence"`.
+- [ ] `mkdir -p "$TMPDIR/evidence"`. **Every attempt of every slice launches under a new temporary
+      root**: nothing under a previous attempt's `$TMPDIR` is available here, which is why B, C and
+      D each append their own observations to `verify.md` by basename before handing over (B5, C9,
+      D9) instead of leaving them for E to find on disk.
 - [ ] From `apps/wbs/be-01`:
       `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/boot.db.test.ts`. Record the
       `N pass` and `0 fail` line. **If this fails because a socket was refused — `EPERM`, `listen`,
@@ -300,7 +317,9 @@ Counts are relative to what **you** record, never to section 3.5.
       chain and closes the source exactly once. WHEN boot acquired a listener before failing,
       THEN that listener stops accepting; a listener boot never owned is left alone. 3. _Shutdown releases in the reverse of the start order._ WHEN `stop()` is called, THEN the
       listener stops accepting before the source is closed, and the optimizer and the retention
-      timer are both stopped by then. WHEN `stop()` is called twice, THEN the second resolves. 4. _A refused release is reported, and the rest is still released._ WHEN a disposer rejects,
+      timer are both stopped by then. WHEN `stop()` is called after a previous call has settled,
+      THEN the second call replays the previous success or cleanup failure without releasing any
+      resource twice. 4. _A refused release is reported, and the rest is still released._ WHEN a disposer rejects,
       THEN `stop()` rejects with a cleanup failure naming that resource and carrying its error,
       and every other release still runs. 5. _The retention timer is the process's, not the class's._ WHEN boot resolves, THEN the timer
       is running; WHEN `stop()` resolves, THEN it is not.
@@ -498,8 +517,12 @@ it('serves an unmigrated database rather than refusing to start', async () => {
 - [ ] **B3.** `bun test src/boot.db.test.ts` — Step 0 **+5**, `0 fail`. Every one of these passes
       against the unchanged `boot.ts`; that is the point of this slice.
 - [ ] **B4.** `wbs-be-01:typecheck` exit 0, then `wbs-be-01:lint` exit 0.
-- [ ] **B5.** Append to `verify.md`, tick `tasks.md`, prettier `boot.db.test.ts` and the two
-      Markdown files, then `nx format:check --all` exit 0.
+- [ ] **B5.** Before handing over, append this slice's own observations to `verify.md`: every
+      command, its exit status and decisive line, plus the five new cases' pass counts. Reference
+      any saved evidence file by its **basename** (e.g. `stalled-listener.log`), never by the
+      absolute clone path or an expanded `$TMPDIR` path — the record is published and this attempt's
+      temporary root will not exist for whoever reads it. Tick `tasks.md`, prettier
+      `boot.db.test.ts` and the two Markdown files, then `nx format:check --all` exit 0.
 
 **Ready to commit.** `test(wbs-be-01): pin be-01's shutdown order and startup refusals`.
 
@@ -689,12 +712,19 @@ it('refuses to report a clean stop when a release is refused', async () => {
   const dir = tempDir('wbs-boot-refused-');
   const dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
+  let closes = 0;
   let real: (() => Promise<void>) | undefined;
   const be = await bootBe01(bootOptions(dbPath, 0), {
     openSource: (options) => {
       const source = openSqliteSource(options);
       real = () => source.close();
-      return { ...source, close: () => Promise.reject(new Error('disk gone')) };
+      return {
+        ...source,
+        close: () => {
+          closes += 1;
+          return Promise.reject(new Error('disk gone'));
+        },
+      };
     },
   });
   running = null;
@@ -714,6 +744,18 @@ it('refuses to report a clean stop when a release is refused', async () => {
   expect(caught.failures.map((failure) => failure.label)).toEqual(['source']);
   expect(caught.failures.map((failure) => reasons(failure.error))).toEqual(['disk gone']);
   expect(be.services.retention.isRunning()).toBe(false);
+
+  // Repeated calls replay the first close's outcome without rerunning any
+  // disposer: the rejection is the same object, and the source disposer runs
+  // only once.
+  let repeated: unknown;
+  try {
+    await be.stop();
+  } catch (failure) {
+    repeated = failure;
+  }
+  expect(repeated).toBe(caught);
+  expect(closes).toBe(1);
 }, 10_000);
 ```
 
@@ -721,13 +763,13 @@ it('refuses to report a clean stop when a release is refused', async () => {
       Each run must report **1 test, 1 fail**; `matched 0 tests` or a zero count is a failure to
       stop on. These are the failures the planner observed on the untouched tree:
 
-| Case                                                                    | Observed failure                                                                                                                                          |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `releases the source when the port it was given is already taken`       | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                         |
-| `closes the source when the service graph cannot be composed`           | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                         |
-| `releases the source and the port when a step after the listener fails` | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                         |
-| `releases every other resource when one release is refused`             | `expect(received).toBeInstanceOf(expected)` · `Expected constructor: DiBagCleanupError` · the run also reports the uncaught `optimizer refused to settle` |
-| `refuses to report a clean stop when a release is refused`              | `expect(received).toBeInstanceOf(expected)` · `Expected constructor: DiBagCleanupError` · the run also reports `disk gone`                                |
+| Case                                                                    | Observed failure                                                                                                                                                                             |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `releases the source when the port it was given is already taken`       | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                                                            |
+| `closes the source when the service graph cannot be composed`           | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                                                            |
+| `releases the source and the port when a step after the listener fails` | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                                                            |
+| `releases every other resource when one release is refused`             | `expect(received).toBeInstanceOf(expected)` · `Expected constructor: [class DiBagCleanupError extends AggregateError]` · the received error rendering contains `optimizer refused to settle` |
+| `refuses to report a clean stop when a release is refused`              | `expect(received).toBeInstanceOf(expected)` · `Expected constructor: [class DiBagCleanupError extends AggregateError]` · the run also reports `disk gone`                                    |
 
 Save each output under `$TMPDIR/evidence/`.
 
@@ -947,7 +989,8 @@ export async function bootBe01(
      *
      * A disposer that rejects makes this reject with `DiBagCleanupError`, whose
      * `failures` name the resource; every other release is still attempted.
-     * Calling it twice is safe: the second resolves.
+     * Repeated calls do not rerun disposers. They replay the first close's
+     * outcome, including its cleanup error.
      */
     stop: () => bag.close(),
   };
@@ -977,8 +1020,12 @@ export async function bootBe01(
 - [ ] **C8.** `bun test src/production-entrypoint.test.ts` — 2 tests, both pass (the planner ran it
       against this exact edit). If the sandbox refuses `Bun.spawnSync`, record the refusal verbatim
       and list the file as pending planner verification; do not edit it.
-- [ ] **C9.** Append to `verify.md`, tick `tasks.md`, prettier the changed files, then
-      `nx format:check --all` exit 0.
+- [ ] **C9.** Before handing over, append this slice's own observations to `verify.md`: the five red
+      observations from C2 with their exact printed messages, the five green counts from C6, and the
+      typecheck/lint/production-entrypoint results. Reference any saved evidence file by its
+      **basename**, never by the absolute clone path or an expanded `$TMPDIR` path — the record is
+      published and this attempt's temporary root will not exist for whoever reads it. Tick
+      `tasks.md`, prettier the changed files, then `nx format:check --all` exit 0.
 
 **Ready to commit.** `refactor(wbs-be-01): the bag owns be-01's startup and shutdown`.
 
@@ -1006,8 +1053,12 @@ the planner.
 - [ ] **D7.** `bun test src/boot.db.test.ts` — Step 0 **+0**, `0 fail`, the same count as slice C.
 - [ ] **D8.** `wbs-be-01:typecheck` and `wbs-be-01:lint`, both exit 0 (the comments change line
       lengths; prettier and lint both have to see them).
-- [ ] **D9.** Append every observed failure to `verify.md`, tick `tasks.md`, prettier `boot.ts` and
-      the Markdown, then `nx format:check --all` exit 0.
+- [ ] **D9.** Before handing over, append every observed failure to `verify.md` as its own proof
+      row: the injected fault, the named test, and the failure message actually printed. Reference
+      any saved mutation patch or output file by its **basename**, never by the absolute clone path
+      or an expanded `$TMPDIR` path — the record is published and this attempt's temporary root will
+      not exist for whoever reads it. Tick `tasks.md`, prettier `boot.ts` and the Markdown, then
+      `nx format:check --all` exit 0.
 
 **Ready to commit.** `test(wbs-be-01): record the six watched startup and shutdown faults`.
 
@@ -1021,11 +1072,20 @@ the planner.
 
 ### Slice E — The record
 
-- [ ] **E1.** Complete `verify.md`: every command of every slice, its exit status and decisive line;
-      each negative proof with the injected fault and the failure observed; and a "Not verified"
-      section naming at least the whole `wbs-be-01:test` target, `wbs-be-01:build`, `wbs-fe-01:e2e`,
-      `bin/h2puni-gate.sh`, and the deferred optimizer-start case from assumption 6.
-- [ ] **E2.** Tick every task in `tasks.md`.
+- [ ] **E1.** Before dispatching E, the planner supplies prior attempt reports, command logs and
+      mutation evidence for A–D through `--seed`, using a directory named `prior-evidence`. Include
+      the planner's post-repair validation for A. Complete `verify.md` only from those observations
+      and existing committed records; distinguish executor results from planner results. Reference
+      evidence by basename and attempt identifier, never by absolute local path. Do not reconstruct
+      historical statuses or failure output by inference. If required evidence is missing, report
+      exactly what is missing and leave E incomplete. `verify.md` covers every command of every
+      slice, its exit status and decisive line; each negative proof with the injected fault and the
+      failure observed; and a "Not verified" section naming at least the whole `wbs-be-01:test`
+      target, `wbs-be-01:build`, `wbs-fe-01:e2e`, `bin/h2puni-gate.sh`, and the deferred
+      optimizer-start case from assumption 6.
+- [ ] **E2.** Tick tasks only where the supplied evidence establishes completion. Preserve A's
+      original validation failure and the planner's subsequent successful repair as separate
+      observations.
 - [ ] **E3.** Run the **OpenSpec validation** block. Expected `failed == 0` and the passed total
       equal to **this slice's own Step 0 number**, unchanged.
 - [ ] **E4.** Prettier the two Markdown files, then `nx format:check --all` exit 0.
@@ -1051,14 +1111,14 @@ a stop.**
 **Every mutation below was injected by the planner against the finished code, and the quoted failure
 is the one observed.**
 
-| #   | Inject into `boot.ts`                                                                                       | Named test that fails                                                   | Observed failure                                                                                                      | Comment goes                       |
-| --- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| 1   | Register `source` as a bare `DiBag.fromSyncFactory(…)`, dropping its `withDisposal` and `source.close`      | `releases the source when the port it was given is already taken`       | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                     | beside the `source` registration   |
-| 2   | Delete the `retention: _retention` member from the server factory's parameter and its type                  | `starts the retention timer`                                            | `expect(received).toBe(expected)` · `Expected: true` · `Received: false`                                              | beside that member                 |
-| 3   | Delete the `factoryCtx.pushDisposer(async (disposerCtx) => …)` that stops the app                           | `releases the source and the port when a step after the listener fails` | `expect(received).toBe(expected)` · `Expected: true` · `Received: false`                                              | beside the pushed disposer         |
-| 4   | Replace the server's `withDisposal` disposer body with `await Promise.resolve();`, keeping `withDisposal`   | `stops accepting before it closes the source it opened`                 | `expect(received).toBe(expected)` · `Expected: true` · `Received: false`                                              | beside the `withDisposal` disposer |
-| 5   | Make the source disposer swallow: `async (source) => { await source.close().catch(() => undefined); }`      | `refuses to report a clean stop when a release is refused`              | `expect(received).toBeInstanceOf(expected)` · `Expected constructor: DiBagCleanupError` · `Received value: undefined` | beside the source disposer         |
-| 6   | Register `retention` as a bare `DiBag.fromSyncFactory(…)`, dropping its `withDisposal` and `retention.stop` | `releases every other resource when one release is refused`             | `expect(received).toBe(expected)` · `Expected: false` · `Received: true`                                              | beside the `retention` disposer    |
+| #   | Inject into `boot.ts`                                                                                       | Named test that fails                                                   | Observed failure                                                                                                                                     | Comment goes                       |
+| --- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 1   | Register `source` as a bare `DiBag.fromSyncFactory(…)`, dropping its `withDisposal` and `source.close`      | `releases the source when the port it was given is already taken`       | `expect(received).toBe(expected)` · `Expected: 1` · `Received: 0`                                                                                    | beside the `source` registration   |
+| 2   | Delete the `retention: _retention` member from the server factory's parameter and its type                  | `starts the retention timer`                                            | `expect(received).toBe(expected)` · `Expected: true` · `Received: false`                                                                             | beside that member                 |
+| 3   | Delete the `factoryCtx.pushDisposer(async (disposerCtx) => …)` that stops the app                           | `releases the source and the port when a step after the listener fails` | `expect(received).toBe(expected)` · `Expected: true` · `Received: false`                                                                             | beside the pushed disposer         |
+| 4   | Replace the server's `withDisposal` disposer body with `await Promise.resolve();`, keeping `withDisposal`   | `stops accepting before it closes the source it opened`                 | `expect(received).toBe(expected)` · `Expected: true` · `Received: false`                                                                             | beside the `withDisposal` disposer |
+| 5   | Make the source disposer swallow: `async (source) => { await source.close().catch(() => undefined); }`      | `refuses to report a clean stop when a release is refused`              | `expect(received).toBeInstanceOf(expected)` · `Expected constructor: [class DiBagCleanupError extends AggregateError]` · `Received value: undefined` | beside the source disposer         |
+| 6   | Register `retention` as a bare `DiBag.fromSyncFactory(…)`, dropping its `withDisposal` and `retention.stop` | `releases every other resource when one release is refused`             | `expect(received).toBe(expected)` · `Expected: false` · `Received: true`                                                                             | beside the `retention` disposer    |
 
 Proof 6 is what makes "the rest is still released" a claim and not a hope: with the timer's disposer
 gone, the refused optimizer release leaves it running, and the case says so.
@@ -1105,12 +1165,13 @@ network or Docker — but see section 5.
 
 ### Planner-only, listed by the executor as pending
 
-| Check                                                                 | Expected                                                                                                                                                   |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run wbs-be-01:test` (whole target, coverage) | **+10 tests** against whatever the baseline is when it runs, same file count, `0 fail`. The planner's pre-merge worktree went 1079 → 1089 across 91 files. |
-| `NX_DAEMON=false bunx nx run wbs-be-01:build`                         | exit 0; the bundle still contains `solverSupervisorSpawner` and `/run/wbs-solver/supervisor.sock`                                                          |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:e2e`                           | Unchanged against the batch baseline. It starts be-01 through `main.ts` as a process and waits on `/health`.                                               |
-| `bin/h2puni-gate.sh <sha>`                                            | On the shared build host only. The executor states that it was not run.                                                                                    |
+| Check                                                                                                                                                                                                     | Expected                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run wbs-be-01:test` (whole target, coverage)                                                                                                                                     | **+10 tests** against whatever the baseline is when it runs, same file count, `0 fail`. The planner's pre-merge worktree went 1079 → 1089 across 91 files.                                                                      |
+| `NX_DAEMON=false bunx nx run wbs-be-01:build`                                                                                                                                                             | exit 0; the bundle still contains `solverSupervisorSpawner` and `/run/wbs-solver/supervisor.sock`                                                                                                                               |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:e2e`                                                                                                                                                               | Unchanged against the batch baseline. It starts be-01 through `main.ts` as a process and waits on `/health`.                                                                                                                    |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                | On the shared build host only. The executor states that it was not run.                                                                                                                                                         |
+| Lifecycle: independently observe the complete listener → optimizer → retention → source shutdown sequence and retention cleanup after a startup failure; inject simultaneous startup and cleanup failures | The original startup cause survives in the rejection's cause chain even when cleanup also fails. Slice C's cases establish conditions at source close, not this complete ordering — a planner-owned check, not an executor one. |
 
 ### What none of it proves
 
@@ -1225,3 +1286,22 @@ slice E needs earlier attempts' preserved evidence including A's validation
 output — are planner-side verification reminders rather than drop-in text, so
 none was applied; they carry forward to the planner's checks after B through
 E return.
+
+### Remaining-slices dispatch review, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES
+
+Verdicts: B DISPATCH; C, D and E each DISPATCH AFTER FIXES, applying sequentially from each
+reviewed and committed predecessor. Every second-review finding (C1–C3, I1–I6, m1, m2) was
+reconfirmed FIXED by this review and needed no further change. I2 stays PARTLY: source-open and
+composition failures are covered; complete ordering and retention cleanup after startup failure
+remain planner checks, now named explicitly in section 10's "Planner-only" table.
+
+#### Disposition of the remaining-slices dispatch review
+
+| Finding                                                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                       | Where                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Repeated shutdown falsely promises success after failed cleanup                        | **Fixed.** Confirmed against installed `di-bag` 0.4.0: `bag.close()` returns the same stored `closing` promise on a repeated call (`node_modules/di-bag/dist/runtime.js:418-420`, `if (this.closing) return this.closing;`). Probed with a `bun -e` script against a rejecting disposer: `closes: 1`, `same object: true`, both calls surfaced the identical `DiBagCleanupError`. | §3.3's `bag.close()` twice row; C3's `stop()` JSDoc; the committed spec's shutdown requirement's normative paragraph and its "stopped twice" scenario; A3's requirement 3 summary; C1's `refuses to report a clean stop…` case now counts `closes` and asserts a same-object repeated rejection. |
+| 2. The required constructor fragment is not what Bun prints                               | **Fixed.** Confirmed with a `bun -e`/`bun test` probe (Bun 1.4.2): `expect(undefined).toBeInstanceOf(class Foo extends AggregateError {})` prints `Expected constructor: [class Foo extends AggregateError]`. `DiBagCleanupError` itself `extends AggregateError` (`node_modules/di-bag/dist/errors.js:70`).                                                                      | C2's two `toBeInstanceOf` rows and §8 proof 5's observed-failure cell; the optimizer-refusal row's phrase changed from "the run also reports the uncaught …" to "the received error rendering contains …".                                                                                       |
+| 3. The executor lacks the historical evidence it must reproduce for E1–E2                 | **Fixed.** Replaced E1–E2 verbatim with the review's text: `--seed prior-evidence`, basenames only, distinguishing executor from planner results, leaving E incomplete when evidence is missing.                                                                                                                                                                                  | Slice E, steps E1 and E2.                                                                                                                                                                                                                                                                        |
+| Non-blocking: B, C and D should append their own observations before E consolidates       | **Fixed.** B5, C9 and D9 now each say to append this slice's own observations to `verify.md`, citing evidence by basename, before handing over; Step 0 now states every attempt gets a new temporary root.                                                                                                                                                                        | B5, C9, D9, Step 0.                                                                                                                                                                                                                                                                              |
+| Non-blocking: four lessons the batch has taught should be recorded near execution notes   | **Fixed.**                                                                                                                                                                                                                                                                                                                                                                        | New paragraph opening section 7, before Step 0.                                                                                                                                                                                                                                                  |
+| Non-blocking: complete shutdown ordering and retention cleanup after startup failure (I2) | **Fixed.** Added as an explicit planner-only check rather than left implicit: the complete listener → optimizer → retention → source sequence and retention cleanup after a startup failure, plus a simultaneous-failure check that the original startup cause survives.                                                                                                          | Section 10's "Planner-only, listed by the executor as pending" table, new "Lifecycle" row.                                                                                                                                                                                                       |
