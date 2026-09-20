@@ -133,21 +133,50 @@ function gitBlob(bytes: Uint8Array): string {
     .digest('hex');
 }
 
-function candidatePaths(): string[] {
-  const invocation = Bun.spawnSync(
-    ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-    {
-      cwd: WORKSPACE,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
+/**
+ * Refuse an unmerged index. `git ls-files --cached` lists a conflicted path once per stage, so
+ * during a merge conflict the enumeration below reports that file two or three times and every
+ * count and digest built on it is silently wrong. A half-finished merge is not a state these
+ * oracles can describe, so they throw rather than count.
+ *
+ * @throws Error naming each unmerged path when the index holds any.
+ */
+function refuseUnmergedIndex(unmergedListing: string): void {
+  const paths = [
+    ...new Set(
+      unmergedListing
+        .split('\0')
+        .filter(Boolean)
+        .map((entry) => entry.slice(entry.indexOf('\t') + 1)),
+    ),
+  ].sort();
+  if (paths.length > 0) {
+    throw new Error(`cannot enumerate candidate source: index is unmerged: ${paths.join(', ')}`);
+  }
+}
+
+function readGitOutput(argv: readonly string[]): string {
+  const invocation = Bun.spawnSync(['git', ...argv], {
+    cwd: WORKSPACE,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
   if (invocation.exitCode !== 0) {
     throw new Error(
       `cannot enumerate candidate source: ${new TextDecoder().decode(invocation.stderr)}`,
     );
   }
-  return new TextDecoder().decode(invocation.stdout).split('\0').filter(Boolean);
+  return invocation.stdout.toString();
+}
+
+function candidatePaths(): string[] {
+  // Proof: changing the unmerged probe to `ls-files --cached -z` made the legacy-occurrence
+  // production path throw `cannot enumerate candidate source: index is unmerged:` followed by
+  // the tracked paths; restoring the probe returned the filtered sweep to 14 pass (2026-09-21).
+  refuseUnmergedIndex(readGitOutput(['ls-files', '--unmerged', '-z']));
+  return readGitOutput(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+    .split('\0')
+    .filter(Boolean);
 }
 
 async function currentDocuments(
@@ -351,10 +380,8 @@ async function legacySourceOccurrences(): Promise<{
   const relevantPaths = candidatePaths().filter(isRelevantSourceConfig);
   for (const path of relevantPaths) {
     const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
-    for (const [offset, line] of lines.entries()) {
+    for (const line of lines) {
       for (const match of line.matchAll(LEGACY_ROOT)) {
-        const context = `${path}:${String(offset + 1)}:${match[0]}:${line.trim()}`;
-        contexts.push(context);
         const category = /^(?:apps|libs)\/\*+\//.test(match[0])
           ? 'current recursive selector'
           : path.includes('/drizzle/') && path.endsWith('.sql')
@@ -382,6 +409,14 @@ async function legacySourceOccurrences(): Promise<{
                       ].includes(path)
                     ? 'production proof or revision transition'
                     : 'UNCLASSIFIED';
+        // A context is keyed by the file it sits in, the legacy root matched, the class the rules
+        // above gave it and the whole trimmed source line — never by the line number. An unrelated
+        // line added above an occurrence must not move this digest; a legacy root that moves from a
+        // comment into executable text in the same file, or that changes class, still does, because
+        // the line's text and the class are both part of the key. Duplicates are kept rather than
+        // de-duplicated, so deleting one of two identical occurrences still moves the digest.
+        const context = `${path}:${match[0]}:${category}:${line.trim()}`;
+        contexts.push(context);
         categories[category] = (categories[category] ?? 0) + 1;
         if (category === 'UNCLASSIFIED') unclassified.push(context);
       }
@@ -478,6 +513,26 @@ test('every Dockerfile naming variant participates in source inventory', () => {
   // Proof: exact-basename matching omitted solver-orphan-fixture.Dockerfile from this manifest;
   // this test failed with that exact missing app path before suffix matching was added.
   expect(inventoried).toEqual(candidates);
+});
+
+test('an unmerged index is refused instead of counted', () => {
+  const conflicted = [
+    '100644 5626abf0f72e58d7a153368ba57db4c673c0e171 1\tdocs/current.md',
+    '100644 ba2906d0666cf726c7eaadd2cd3db615dedfdf3a 2\tdocs/current.md',
+    '100644 2299c37978265a95cbe835a4b0f0bbf15aad5549 3\tdocs/current.md',
+    '',
+  ].join('\0');
+
+  // `git ls-files --cached` lists a conflicted path once per stage, so a merge in progress would
+  // otherwise triple that file's occurrences and silently move every count and digest.
+  // Proof: the synthetic three-stage listing for docs/current.md threw `cannot enumerate candidate
+  // source: index is unmerged: docs/current.md`; the no-op stub did not throw (2026-09-21).
+  expect(() => {
+    refuseUnmergedIndex(conflicted);
+  }).toThrow('cannot enumerate candidate source: index is unmerged: docs/current.md');
+  expect(() => {
+    refuseUnmergedIndex('');
+  }).not.toThrow();
 });
 
 test('the current-document sweep reaches every application, library and tool README', async () => {
@@ -725,7 +780,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // occurrences and no unclassified entries. While the two files were still unmerged in the index
     // the same run reported 261 occurrences, because `git ls-files` lists a conflicted path once
     // per stage: resolve and stage before reading this pin (2026-09-20). Work item G2 derives it.
-    digest: '224f86cbd141955bf725bbc1e44bdcb9c31eae8b37e50d972cfbe3627e5781c3',
+    digest: '2f0d2926e8d85aed7089c3ad667f7a0f6ccb97c514152a9895893978fab3f22d',
     occurrences: 257,
     unclassified: [],
   });

@@ -4,7 +4,7 @@
 
 ## 2. Derive the legacy-occurrence context and refuse an unmerged index
 
-- [ ] 2.1 Key each context by file, matched text, class and trimmed line, refuse an unmerged index, and re-pin the digest from the observed value.
+- [x] 2.1 Key each context by file, matched text, class and trimmed line, refuse an unmerged index, and re-pin the digest from the observed value.
 
 ## 3. Prove the derived digest still refuses the recorded faults
 
