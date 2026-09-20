@@ -98,6 +98,49 @@ Executor attempt on the clone holding slices A and B, then the planner. The exec
 
 Negative proof for C2, planner, 2026-09-20: with `'libs/shared/domain/failures/project.json'` removed from `RESTART_PATHS`, `RESTART_PATHS coverage > names every library project.json that exists on disk` failed with `Expected to contain: "libs/shared/domain/failures/project.json"`; restored with `cmp`, then `sync.test.ts` 48 pass, 0 fail. Slice C's own starting red state is the proof for C1 and C3: both checks were watched failing before the registration that satisfies them.
 
+### Slice D — redaction policy
+
+Baseline before the policy was added:
+
+```text
+workspace-projects: 17 pass, 0 fail
+sync: 48 pass, 0 fail
+workspace-inventory: 4 pass, 0 fail
+namespace-layout: 19 pass, 0 fail
+workspace-targets: 19 pass, 0 fail
+current-document link case: 1 pass, 13 filtered out, 0 fail
+OpenSpec: 104 passed, 0 failed
+inventory pins: 167 rows, 84 distinct files
+README pin absent; digest pin present
+```
+
+The four policy tests were written before `createFailureRedaction`. The red run exited 1 with:
+
+```text
+SyntaxError: Export named 'createFailureRedaction' not found in module 'libs/shared/domain/failures/src/report-failure.ts' (the clone's absolute prefix removed)
+```
+
+Focused implementation checks:
+
+| Command                                                                                                                                                   | Result                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `NX_DAEMON=false bunx nx run shared-failures:typecheck`                                                                                                   | exit 0; target completed without diagnostics |
+| `NX_DAEMON=false bunx nx run shared-failures:lint`                                                                                                        | exit 0; target completed without problems    |
+| `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`                                                                                        | exit 0; 6 pass, 0 fail                       |
+| `GSETTINGS_BACKEND=memory bunx prettier --write libs/shared/domain/failures/src/report-failure.ts libs/shared/domain/failures/src/report-failure.test.ts` | exit 0; both files unchanged                 |
+| `GSETTINGS_BACKEND=memory bunx prettier --write libs/shared/domain/failures/src/index.ts openspec/changes/adopt-failure-reporting/verify.md`              | exit 0; owned files formatted                |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`                                                                                     | exit 0                                       |
+
+Watched production negatives, all restored byte for byte with `cmp` and followed by a full-file run of 6 pass, 0 fail:
+
+| Proof                    | Fault                                                  | Named failing test                                                                | Observed failure                                                         | Evidence                                                                                                                       |
+| ------------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| D3 `keys-removed`        | Replaced `keys: SENSITIVE_KEY_PATTERNS` with `[]`      | `skips a sensitive property whatever its capitalisation`                          | Diff exposed `Authorization: "Bearer live-token"`                        | `keys-removed.patch` in the attempt's evidence directory; `keys-removed.out` in the attempt's evidence directory               |
+| D4 `keys-case-sensitive` | Replaced the regex key list with plain strings         | `skips a sensitive property whatever its capitalisation`                          | `Received  + 1`; capitalised `Authorization` exposed `Bearer live-token` | `keys-case-sensitive.patch` in the attempt's evidence directory; `keys-case-sensitive.out` in the attempt's evidence directory |
+| D5 `patterns-removed`    | Replaced the caller-owned pattern expression with `[]` | `scrubs a caller-owned secret from message and stack, not only from its property` | `Received: "Error: token was hunter2"`                                   | `patterns-removed.patch` in the attempt's evidence directory; `patterns-removed.out` in the attempt's evidence directory       |
+
+Planner, after slice D, 2026-09-20: replayed `patterns-removed` outside the sandbox: `scrubs a caller-owned secret from message and stack, not only from its property` failed with `Received: "Error: token was hunter2"`, and `treats a secret as literal text, not as a pattern` failed with it (recorded, not a stop); restored byte for byte. Whole `shared-failures` and `tool-devsync` test, typecheck and lint pass; format check clean. Evidence paths in this record are relative to each attempt's evidence directory, which is kept beside the planning files and not in this repository.
+
 ## Decision
 
 - [ ] Archive readiness is outside Slice A. Tasks remain open until implementation and evidence are complete.

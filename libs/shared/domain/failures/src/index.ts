@@ -1,1 +1,1 @@
-export { FAILURE_REPORT_LIMITS, SENSITIVE_KEYS } from './report-failure';
+export { createFailureRedaction, FAILURE_REPORT_LIMITS, SENSITIVE_KEYS } from './report-failure';

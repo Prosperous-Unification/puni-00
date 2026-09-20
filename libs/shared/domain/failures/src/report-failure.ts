@@ -1,4 +1,8 @@
-import type { AppexCorjOptions } from 'application-exception';
+import {
+  type AppexCorjOptions,
+  createRedactionPolicy,
+  type RedactionPolicy,
+} from 'application-exception';
 
 /**
  * The one options bag every reporting call in this repository shares. It is a module constant
@@ -43,3 +47,41 @@ export const SENSITIVE_KEYS: readonly string[] = [
   'jwtKey',
   'internalAuthSecret',
 ];
+
+/** The literal form of `text` inside a regular expression. */
+function quoteForPattern(text: string): string {
+  return text.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+}
+
+// Proof: replacing these patterns with the plain key strings exposed capitalised
+// `Authorization` and `Bearer live-token` in the capitalisation test (2026-09-20).
+const SENSITIVE_KEY_PATTERNS = SENSITIVE_KEYS.map(
+  (key) => new RegExp(`^${quoteForPattern(key)}$`, 'i'),
+);
+
+/**
+ * A redaction policy over the secrets the calling boundary owns, for both reports of a failure.
+ *
+ * Build it once at startup and share it: the library caches one report maker per policy. Pass
+ * only the secrets the caller actually holds — never a whole configuration, request or
+ * environment object, because a secret nobody named cannot be detected. An empty list is correct
+ * where the caller owns no secret, and leaves the key rules in force. The policy applies to the
+ * public report as well, and it sees only what a kind's disclosure selector returned, so a
+ * mistaken selector cannot get past it.
+ *
+ * @param secrets Secret values to scrub from messages, stacks, `as_string`, `as_json`, `context`
+ *   and `reporting_errors` wherever they appear. Empty strings are ignored.
+ * @returns A reusable policy accepted as `redact` by both reports.
+ */
+export function createFailureRedaction(secrets: readonly string[]): RedactionPolicy {
+  return createRedactionPolicy({
+    // Proof: replacing the key patterns with [] exposed `Bearer live-token` in the
+    // capitalisation test (2026-09-20).
+    keys: SENSITIVE_KEY_PATTERNS,
+    // Proof: replacing the caller-owned patterns with [] left `Error: token was hunter2`
+    // unredacted in the message-and-stack test (2026-09-20).
+    patterns: secrets
+      .filter((secret) => secret.length > 0)
+      .map((secret) => new RegExp(quoteForPattern(secret), 'g')),
+  });
+}
