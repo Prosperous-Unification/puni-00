@@ -509,6 +509,27 @@ export function resolveValidatorArtifactPaths(entryPaths: readonly string[]): st
   return [...visited].sort(compareText);
 }
 
+/**
+ * Reads one artifact that must live outside the candidate, through the same stable read and the
+ * same containment refusal every trusted input in {@link loadTrustedPolicy} uses. A candidate
+ * cannot select the policy that judges it.
+ *
+ * `candidateRoot` must already be the resolved Git worktree root, not a caller's interior
+ * directory: `resolveCandidateRoot` in `inventory/read-candidate.ts` produces it.
+ * @throws Error when the path is unreadable, changes while it is read, or resolves inside the root.
+ */
+export function readExternalArtifact(
+  candidateRoot: string,
+  path: string,
+  subject: string,
+): { path: string; bytes: Uint8Array } {
+  const artifact = readStableArtifact(path, subject);
+  // Proof: on 2026-09-20, removing this boundary made the interior-policy test receive empty
+  // stderr instead of `rule policy resolves inside selected candidate:`.
+  assertExternal(realpathSync(candidateRoot), artifact, subject);
+  return artifact;
+}
+
 /** Loads exact policy and executable identities through an external, stable trust binding. */
 export function loadTrustedPolicy(
   bindingInputPath: string,

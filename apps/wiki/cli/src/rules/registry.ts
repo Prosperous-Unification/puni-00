@@ -17,6 +17,8 @@ const classificationRule: RegisteredRule = {
       return { kind: 'not-evaluated', reason: 'the rule policy carries no classification policy' };
     }
     return evaluateWrapped(() => {
+      // Proof: on 2026-09-20, skipping classification made an unclassifiable candidate exit 0;
+      // the adapter test expected exit 1 and received 0.
       classifyEntries(context.candidate.entries, classificationPolicy, (blob, path) =>
         readCandidateBlob(context.repository, blob, path),
       );
@@ -35,6 +37,8 @@ const directEntriesRule: RegisteredRule = {
     context.indexes.ok
       ? {
           kind: 'observed',
+          // Proof: on 2026-09-20, replacing this mapping with an empty list made the adapter test
+          // receive no finding instead of the exact 41-entry debt record.
           observations: context.indexes.report.reviewDebt.map((debt) => ({
             path: debt.indexPath,
             message: `index declares ${String(debt.directEntries)} direct entries, limit ${String(debt.limit)}`,
@@ -42,6 +46,8 @@ const directEntriesRule: RegisteredRule = {
         }
       : {
           // The limit was never judged, so no mode may report this rule as clean.
+          // Proof: on 2026-09-20, returning an empty observed list here made a failed index
+          // prerequisite exit 0; the adapter test expected exit 1 and received 0.
           kind: 'not-evaluated',
           reason: `the index report is unavailable: ${context.indexes.reason}`,
         },
@@ -73,6 +79,8 @@ const relationshipsRule: RegisteredRule = {
     if (relationshipRequest === undefined) {
       return { kind: 'not-evaluated', reason: 'the rule policy carries no relationship request' };
     }
+    // Proof: on 2026-09-20, replacing the unresolved mapping with an empty list made the adapter
+    // test receive `findings: []` instead of the declared relationship debt.
     return evaluateWrapped(() =>
       extractRelationships(
         context.repository,

@@ -113,7 +113,12 @@ function readText(
   }
 }
 
-function resolveWorktreeRoot(repository: string): string {
+/**
+ * Resolves the Git worktree root of a caller's repository argument, which may be an interior
+ * directory. Every boundary that must decide what is inside the candidate uses this root.
+ * @throws {@link CandidateReadError} `not-repository`.
+ */
+export function resolveCandidateRoot(repository: string): string {
   const invocation = invokeGit(repository, ['rev-parse', '--show-toplevel']);
   if (invocation.exitCode !== 0) {
     const detail = invocation.stderr.length === 0 ? 'Git worktree unavailable' : invocation.stderr;
@@ -443,7 +448,7 @@ function readWorking(repository: string, baseRevision: string): CandidateSnapsho
  * @throws {@link CandidateReadError} when required Git state cannot be selected completely.
  */
 export function readCandidate(repository: string, request: CandidateRequest): CandidateSnapshot {
-  const root = resolveWorktreeRoot(repository);
+  const root = resolveCandidateRoot(repository);
   switch (request.kind) {
     case 'committed':
       return readCommitted(root, request.revision);
