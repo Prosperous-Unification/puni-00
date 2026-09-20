@@ -126,6 +126,12 @@ For every proof, in this order:
    mutated file behind. `grep -F` failing is a stop: the fault produced a different failure than the
    packet predicted.
 
+   **Parts B through E replace the literal `grep -F` check with inspection of the named assertion
+   mismatch, as their proof sections specify.** Their tables' last column describes an assertion
+   mismatch, not a literal log sentence, so each replaces that command with
+   `cat "$TMPDIR/evidence/P<n>.log"` and reads it. See B.4, C.4, D.5 and E.5, which state the rule
+   and what still counts as a stop.
+
 5. Record the decisive failing line.
 6. Copy the saved bytes back, `cmp` them, rerun the named test green.
 7. Only then write the adjacent `Proof:` comment, dated, describing what you actually saw.
@@ -148,6 +154,10 @@ or the mutation **does not compile**.
   `ts.getPreEmitDiagnostics` and **throws if there is any diagnostic**, and emits declarations. It
   is seconds per call, and it refuses a candidate that does not typecheck. Parts D and E therefore
   compute it **once per check** and share it. Never call it per rule.
+
+### 0.5a Every newly registered rule is owed a mode in the packaged-build test
+
+Seen in part B, by the planner's whole-suite run on 2026-09-20: registering `F7` failed `buildPackage > builds the canonical executable for use outside the repository` on `rule policy states no mode for F7`, because a rule policy owes every registered rule a mode and `apps/wiki/cli/src/packaging/build.test.ts` writes its own policy (`ruleModes`, in identifier order, beside a comment that says so). The sandbox cannot build the package, so the executor never sees this failure. **Every part that registers a rule (C, D and E) therefore adds each new identifier to that list as `{ ruleId: '<ID>', mode: 'observe' }`, keeps the list sorted by identifier, and names `apps/wiki/cli/src/packaging/build.test.ts` among its changed paths.** It adds no test and moves no count. Do not run that test: report it as pending planner verification.
 
 ### 0.6 Timeouts
 
@@ -452,6 +462,7 @@ Not verified; never state any of these as fact.
 | `apps/wiki/cli/src/rules/registry.ts`              | B, C, D, E | modify           | One registry entry per new rule                                       |
 | `apps/wiki/cli/src/rules/rules.test.ts`            | A-E        | modify           | Every test and every exact-list update                                |
 | `apps/wiki/cli/README.md`                          | E          | modify           | The "## Rules" section only                                           |
+| `apps/wiki/cli/src/packaging/build.test.ts`        | D, E       | modify           | Add each newly registered rule's observing mode under §0.5a           |
 
 One more file is touched, by part A only:
 `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`, whose "Ratchet mode protects
@@ -459,8 +470,8 @@ touched and adopted code" requirement is amended so it no longer contradicts wha
 delivers. See §9 and assumption A3. That change is **proposed, not accepted**: it is not in
 `openspec/specs/`, so nothing archived is being rewritten.
 
-Nothing else is touched. No file outside `apps/wiki/cli/src/rules`, `apps/wiki/cli/README.md`, the
-new OpenSpec change directory and that one delta spec changes. **This packet creates no README and
+Only files named in this file plan or the dispatched part's handover may change. This includes
+`apps/wiki/cli/src/packaging/build.test.ts` under §0.5a. **This packet creates no README and
 no Nx target**, so neither the README coverage pin in
 `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` — which packet 110.6 lands first and may
 turn from a literal into a derived value — nor the incoming `CLAUDECODE=0`/`AGENT=0` target defaults
@@ -846,6 +857,15 @@ function directoryOf(path: string): string {
   return cut === -1 ? '' : path.slice(0, cut);
 }
 
+/**
+ * A path inside a module directory. `''` is the candidate-root module identifier, and a candidate
+ * path carries no leading slash, so joining `''` with `/` would build `/README.md` and match
+ * nothing.
+ */
+function modulePath(root: string, name: string): string {
+  return root === '' ? name : `${root}/${name}`;
+}
+
 function kindOfSuffix(path: string): ServiceKind | undefined {
   const matched = KindSuffix.exec(path);
   if (matched === null) return undefined;
@@ -859,9 +879,12 @@ function kindOfSuffix(path: string): ServiceKind | undefined {
 function moduleOf(directory: string, moduleRoots: readonly string[]): string | undefined {
   let nearest: string | undefined;
   for (const root of moduleRoots) {
-    if (directory !== root && !directory.startsWith(`${root}/`)) continue;
-    // Proof: on <date>, returning the first match made a file under `m/inner` report module `m`;
-    // the nearest-module test expected `m/inner`.
+    // `''` is the candidate root and contains every directory, so it is exempt from the
+    // containment test that a named root must pass.
+    if (root !== '' && directory !== root && !directory.startsWith(`${root}/`)) continue;
+    // Proof: on <date>, returning the first match instead of the longest made
+    // `m/inner/view/x.tsx` resolve to module `m`, which left it outside `m/view`, so it received
+    // no kind at all; the nearest-module test expected `m/inner` and received `undefined`.
     if (nearest === undefined || root.length > nearest.length) nearest = root;
   }
   return nearest;
@@ -895,9 +918,8 @@ export function resolveKinds(entries: readonly CandidateEntry[]): KindGraph {
     const directory = directoryOf(path);
     const module = moduleOf(directory, moduleRoots);
     if (module === undefined) continue;
-    // Proof: on <date>, recording a composition root in `files` as a feature instead of here made
-    // the wiring fixture report one K3 repository finding; that test expected none.
-    if (path === `${module}/${CompositionRootName}`) {
+    // Part D writes this proof comment, after observing D3. Part C leaves it out.
+    if (path === modulePath(module, CompositionRootName)) {
       compositionRoots.push(path);
       continue;
     }
@@ -906,9 +928,12 @@ export function resolveKinds(entries: readonly CandidateEntry[]): KindGraph {
       files.push({ path, kind: declared, module });
       continue;
     }
-    // Proof: on <date>, dropping the view branch left the delivery component with no kind and the
-    // K2 test received `findings: []` instead of its forbidden resource import.
-    if (directory === `${module}/view` || directory.startsWith(`${module}/view/`)) {
+    const view = modulePath(module, 'view');
+    // Proof: on <date>, keeping only the descendant half of this condition
+    // (`directory.startsWith(...)`) dropped `m/view/panel.tsx`, and keeping only the direct half
+    // (`directory === view`) dropped `m/view/deep/row.tsx`; the delivery test's
+    // `toContainEqual` reported each missing tuple in turn.
+    if (directory === view || directory.startsWith(`${view}/`)) {
       files.push({ path, kind: 'delivery', module });
     }
   }
@@ -935,25 +960,41 @@ export function moduleLayoutObservations(
   );
   const observations: RuleObservation[] = [];
   for (const root of graph.moduleRoots) {
+    // The candidate root is reported as `.`, the same whole-candidate path `REL-EXTRACT` uses,
+    // because `RelativePath` forbids the empty string.
+    const reported = root === '' ? '.' : root;
     // Proof: on <date>, accepting any entry named README.md made the ordinary-README fixture
     // allowed; the test expected `module directory declares no wiki index`.
-    if (!indexPaths.has(`${root}/README.md`)) {
-      observations.push({ path: root, message: 'module directory declares no wiki index' });
+    if (!indexPaths.has(modulePath(root, 'README.md'))) {
+      observations.push({ path: reported, message: 'module directory declares no wiki index' });
     }
     // Proof: on <date>, dropping the regular-file filter made the symlinked-contract fixture
     // allowed; the test expected `module directory declares no contract file`.
-    if (!regularFiles.has(`${root}/contract.ts`)) {
-      observations.push({ path: root, message: 'module directory declares no contract file' });
+    if (!regularFiles.has(modulePath(root, 'contract.ts'))) {
+      observations.push({ path: reported, message: 'module directory declares no contract file' });
     }
   }
   return observations;
 }
 ```
 
+**The candidate root is a module like any other.** The owning requirement covers "each directory
+containing a kind-declared service" and excludes nothing, so a candidate whose kinded file sits at
+the root has `''` as a module root. `''` is preserved as the internal candidate-root module
+identifier, and `modulePath` is what keeps it from building `/README.md`, `/contract.ts` and
+`/view`, none of which a candidate path can ever equal. Observed on 2026-09-20, in this worktree, by
+rehearsing part C: with `modulePath` changed to always join with `/`, the root-module CLI fixture
+received two findings, `module directory declares no wiki index` and
+`module directory declares no contract file`, both at `path: "."`, where the test expected `[]`.
+That rehearsal is proof C8b below.
+
 ### 6.5 `apps/wiki/cli/src/rules/direction.ts` — parts D and E
 
-Part D writes everything except `PlainSelector`, `resolvePlainSelectors`, `matchesSelector` and
-`reactObservations`, which part E adds.
+Part D writes everything except `ReactTargets`, `ReactScopePrefix`, `PlainSelector`,
+`SelectorOutcome`, `resolvePlainSelectors`, `matchesSelector` and `reactObservations`, which part E
+adds. **The two React constants belong to part E**, whose `reactObservations` is their first
+consumer: declaring them in part D leaves two `@typescript-eslint/no-unused-vars` errors, observed
+on 2026-09-20 by running part D's `direction.ts` through `bunx eslint`.
 
 ```ts
 import type { KindedFile, KindGraph, ServiceKind } from './kinds';
@@ -968,6 +1009,7 @@ export interface ImportEdge {
 }
 
 const ReExportKinds = new Set(['re-export', 'type-re-export']);
+// Part E adds these two, immediately before `reactObservations`, their first consumer.
 const ReactTargets = new Set(['external:react', 'external:react-dom']);
 const ReactScopePrefix = 'external:@tanstack/react-';
 
@@ -1060,8 +1102,8 @@ export function sidewaysObservations(
     for (const target of reachedTargets(imports, edge.target)) {
       const reachedFile = kinded.get(target);
       if (reachedFile === undefined) continue;
-      // Proof: on <date>, making this module comparison always unequal made a same-module import a
-      // finding; the inside-one-module test expected `findings: []`.
+      // Part E writes this function's `Proof:` comment, after it observes E3 and E4; part D writes
+      // the function without one, because part D observes neither.
       if (reachedFile.kind !== source.kind || reachedFile.module === source.module) continue;
       const key = `${edge.source}\u0000${target}`;
       if (reported.has(key)) continue;
@@ -1094,8 +1136,8 @@ export function resolvePlainSelectors(
   entryPaths: ReadonlySet<string>,
 ): SelectorOutcome {
   for (const selector of selectors) {
-    // Proof: on <date>, deleting this loop let `src/m/renamed-store.ts` import React while the
-    // policy still named `src/m/store.ts`; the stale-selector test expected an unevaluated rule.
+    // Proof: on <date>, deleting this exact-path refusal made the stale-selector test's first
+    // invocation, the one naming `src/m/store.ts`, exit 0 where exit 1 was expected (E8a).
     if (selector.kind === 'path' && !entryPaths.has(selector.value)) {
       return {
         ok: false,
@@ -1104,6 +1146,8 @@ export function resolvePlainSelectors(
     }
     if (selector.kind === 'prefix') {
       const covered = [...entryPaths].some((path) => path.startsWith(`${selector.value}/`));
+      // Proof: on <date>, neutralizing this refusal made the stale-selector test's second
+      // invocation, the one naming the prefix `src/stores`, exit 0 where exit 1 was expected (E8b).
       if (!covered) {
         return {
           ok: false,
@@ -1116,6 +1160,9 @@ export function resolvePlainSelectors(
 }
 
 function matchesSelector(path: string, selectors: readonly PlainSelector[]): boolean {
+  // Proof: on <date>, replacing the prefix arm with `false` made the store test's prefix invocation
+  // receive no finding (E5b), and dropping the trailing slash made it receive two, because
+  // `src/more/store.ts` starts with `src/m` (E5c).
   return selectors.some((selector) =>
     selector.kind === 'path' ? path === selector.value : path.startsWith(`${selector.value}/`),
   );
@@ -1139,7 +1186,7 @@ export function reactObservations(
   for (const edge of imports) {
     const source = kinded.get(edge.source);
     // Proof: on <date>, dropping this skip made the delivery component's React import a finding;
-    // the scoped-and-delivery test expected exactly one observation, for the store.
+    // the delivery-exemption test expected `findings: []`.
     if (source?.kind === 'delivery') continue;
     const declaredPlain = matchesSelector(edge.source, plainSelectors);
     // Proof: on <date>, dropping `declaredPlain` made the store fixture report nothing; the store
@@ -1841,18 +1888,23 @@ Each written line ends in exactly one newline, so `countLines` returns the reque
 
 ### B.4 Negative proofs
 
-| #   | Fault in the named file                                                     | Named test                                                              | Expected failing line                                                                                                                    |
-| --- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | `countLines` returns `0` always                                             | `reports an unpinned file over the ceiling with both numbers`           | `findings: []` where one finding was expected                                                                                            |
-| B2  | Change `lines > ceilings.ceiling` to `lines >= ceilings.ceiling`            | `allows a file exactly at the ceiling`                                  | One finding, `40 lines exceeds the ceiling 40`, where none was expected                                                                  |
-| B3  | Delete the stale-pin loop                                                   | `refuses a size policy that pins a file the candidate does not hold`    | Exit 0 and `unevaluated: []`                                                                                                             |
-| B4  | Change `lines > maximum` to `lines > maximum + 1000`                        | `reports a pinned file that has grown past its pin`                     | `findings: []`                                                                                                                           |
-| B5  | Delete the `lines <= ceilings.ceiling` branch                               | `reports a pinned file that has fallen under the ceiling`               | `findings: []`                                                                                                                           |
-| B6  | `isMeasuredSource` returns `true` for every path                            | `measures neither a test file nor a declaration file`                   | Two findings where none were expected                                                                                                    |
-| B7  | In `underOneRoot`, replace the whole predicate with `path.startsWith(root)` | `measures nothing outside the declared roots`                           | One finding for `src2/big.ts` where none was expected                                                                                    |
-| B8  | Remove the `roots.length === 0` clause from `SizeCeilingsRecord`'s narrow   | `refuses a size policy with no root, a repeated root or a repeated pin` | No `at least one measured root` in stderr                                                                                                |
-| B9  | Remove the duplicate-root and duplicate-pin clauses from the same narrow    | the same test                                                           | Neither `unique measured roots` nor `unique pinned paths` in stderr                                                                      |
-| B10 | Remove the `policy.sizeCeilings` disjunct from `assertPolicyInputs`         | `refuses F7 when the policy states no size ceilings`                    | Stderr lacks `rule F7 needs policy.sizeCeilings`. The registry fallback still exits 1, so **the sentence is the proof, not the status**. |
+For Part B, this table's final column describes the required assertion mismatch, not a literal log sentence. In §0.4 step 4, replace the final `grep -F` command with `cat "$TMPDIR/evidence/P<n>.log"`. Keep status capture, restoration, `cmp`, and the nonzero-status assertion unchanged. Confirm that the named test actually ran and failed at the assertion demonstrating the listed mismatch; a collection error, timeout, or unrelated assertion does not prove it. Record the actual matcher diagnostic and expected/received values. B3 may fail first with `Expected: 1` and `Received: 0`; unprinted subsequent assertions are not additional evidence. In the policy-refusal tests used by B8, B9a, B9b and B10, assert the required stderr sentence before asserting the exit code. Stop if the intended mismatch cannot be established. Additional failing tests remain governed by preamble rule 16.
+
+| #   | Fault in the named file                                                                                       | Named test                                                              | Expected failing line                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | `countLines` returns `0` always                                                                               | `reports an unpinned file over the ceiling with both numbers`           | `findings: []` where one finding was expected                                                                                            |
+| B2  | Change `lines > ceilings.ceiling` to `lines >= ceilings.ceiling`                                              | `allows a file exactly at the ceiling`                                  | One finding, `40 lines exceeds the ceiling 40`, where none was expected                                                                  |
+| B3  | Delete the stale-pin loop                                                                                     | `refuses a size policy that pins a file the candidate does not hold`    | Exit 0 and `unevaluated: []`                                                                                                             |
+| B4  | Change `lines > maximum` to `lines > maximum + 1000`                                                          | `reports a pinned file that has grown past its pin`                     | `findings: []`                                                                                                                           |
+| B5  | Delete the `lines <= ceilings.ceiling` branch                                                                 | `reports a pinned file that has fallen under the ceiling`               | `findings: []`                                                                                                                           |
+| B6  | `isMeasuredSource` returns `true` for every path                                                              | `measures neither a test file nor a declaration file`                   | Two findings where none were expected                                                                                                    |
+| B7  | In `underOneRoot`, replace the whole predicate with `path.startsWith(root)`                                   | `measures nothing outside the declared roots`                           | One finding for `src2/big.ts` where none was expected                                                                                    |
+| B8  | Remove the `roots.length === 0` clause from `SizeCeilingsRecord`'s narrow                                     | `refuses a size policy with no root, a repeated root or a repeated pin` | No `at least one measured root` in stderr                                                                                                |
+| B9a | Remove only the duplicate-root `if` block from `SizeCeilingsRecord`'s narrow; retain the duplicate-pin check. | `refuses a size policy with no root, a repeated root or a repeated pin` | The repeated-root stderr assertion fails because `unique measured roots` is absent.                                                      |
+| B9b | Retain the duplicate-root check; replace the final duplicate-pin ternary return with `return true;`.          | the same test                                                           | The empty-root and repeated-root cases pass; the repeated-pin stderr assertion fails because `unique pinned paths` is absent.            |
+| B10 | Remove the `policy.sizeCeilings` disjunct from `assertPolicyInputs`                                           | `refuses F7 when the policy states no size ceilings`                    | Stderr lacks `rule F7 needs policy.sizeCeilings`. The registry fallback still exits 1, so **the sentence is the proof, not the status**. |
+
+Execute B9a and B9b independently, restoring and confirming green between them. Save separate patches and logs and record both observations beside their respective checks. These are two mutations of the existing test; the test-count delta remains `+11`.
 
 ### B.5 Part B verification
 
@@ -1881,13 +1933,16 @@ Paths: `apps/wiki/cli/src/rules/size-ratchet.ts`, `apps/wiki/cli/src/rules/regis
 
 ## Part C — kind resolution and `MOD-LAYOUT`
 
-Starts from the committed part B. **Adds nine tests; the delta is `+9`.**
+Starts from the committed part B. **Adds ten tests; the delta is `+10`.**
 
 ### C.1 Preparation
 
 - [ ] A.1's three blocks, with these checks: tree clean; `ls apps/wiki/cli/src/rules/size-ratchet.ts`
       succeeds; an explicit conditional that stops if `apps/wiki/cli/src/rules/kinds.ts` exists.
-      Record `N` and `P`. **Part C ends at `N + 9` tests and `P` unchanged.**
+      Record `N` and `P`. **Part C ends at `N + 10` tests and `P` unchanged.**
+- [ ] Part B already added `KindSpecSource` to `registry.ts`, the `sizeCeilings` policy field and
+      the mapped enforcement policy in `rules.test.ts`. **Preserve all three.** Part C needs **no**
+      rule policy schema change: `MOD-LAYOUT` declares only `candidate.entries`.
 
 ### C.2 Tests first
 
@@ -1916,10 +1971,44 @@ Starts from the committed part B. **Adds nine tests; the delta is `+9`.**
   | ------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
   | `reads a kind from the filename suffix`                 | `m/a.feature.ts`, `m/b.resource.ts`, `m/c.repository.ts`       | `kindsOf` equals the three tuples with kinds `feature`, `resource`, `repository`, all module `m` |
   | `does not read a kind from a test file`                 | `m/a.feature.ts`, `m/a.feature.test.ts`                        | `kindsOf` has length 1 and its only path is `m/a.feature.ts`                                     |
-  | `calls a file under a module's view directory delivery` | `m/a.feature.ts`, `m/view/panel.tsx`, `m/view/deep/row.tsx`    | both view paths appear with kind `delivery` and module `m`                                       |
+  | `calls a file under a module's view directory delivery` | `m/a.feature.ts`, `m/view/panel.tsx`, `m/view/deep/row.tsx`    | see the two paragraphs below this table                                                          |
   | `assigns a file to its nearest module`                  | `m/a.feature.ts`, `m/inner/b.feature.ts`, `m/inner/view/x.tsx` | `x.tsx` has module `m/inner`, and `resolveKinds(...).moduleRoots` equals `['m', 'm/inner']`      |
 
-- [ ] Add `describe('MOD-LAYOUT', ...)` with five CLI tests, each carrying `15_000` and each running
+  **`calls a file under a module's view directory delivery` asserts each view path on its own**, so
+  that losing the direct half of the view condition and losing the descendant half give different
+  diagnostics. Do not fold the three tuples into one `toEqual`:
+
+  ```ts
+  const nested = kindsOf(['m/a.feature.ts', 'm/view/panel.tsx', 'm/view/deep/row.tsx']);
+  expect(nested).toContainEqual(['m/view/panel.tsx', 'delivery', 'm']);
+  expect(nested).toContainEqual(['m/view/deep/row.tsx', 'delivery', 'm']);
+  expect(nested).toHaveLength(3);
+  ```
+
+  **The same test then extends to the candidate root**, because a module at the root is the path the
+  resolution code gets wrong when `''` is joined with a slash:
+
+  ```ts
+  const graph = resolveKinds(
+    [
+      'a.feature.ts',
+      'composition.ts',
+      'view/panel.tsx',
+      'view/deep/row.tsx',
+      'inner/b.feature.ts',
+      'inner/view/x.tsx',
+    ].map(kindEntry),
+  );
+  const moduleOfPath = (path: string): string | undefined =>
+    graph.files.find((file) => file.path === path)?.module;
+  expect(moduleOfPath('view/panel.tsx')).toBe('');
+  expect(moduleOfPath('view/deep/row.tsx')).toBe('');
+  expect(moduleOfPath('inner/view/x.tsx')).toBe('inner');
+  expect(graph.compositionRoots).toEqual(['composition.ts']);
+  expect(graph.files.map((file) => file.path)).not.toContain('composition.ts');
+  ```
+
+- [ ] Add `describe('MOD-LAYOUT', ...)` with six CLI tests, each carrying `15_000` and each running
       `check committed <repository> <revision> <policy> --rule MOD-LAYOUT` with
       `writeRulePolicy(everyRuleObserving)`. Add this fixture helper, which builds a module under
       `src/m` and a root index declaring the `src` prefix, exactly as `createIndexedCandidate` does:
@@ -1954,13 +2043,53 @@ Starts from the committed part B. **Adds nine tests; the delta is `+9`.**
   `symlinkSync` joins the existing `node:fs` import and `join` the existing `node:path` import. The
   fixture writer already runs `git add --all`, which records a symlink with mode `120000`.
 
-  | Title, and the `-t` pattern                                | `createModuleCandidate` options                                                                                                           | Assert                                                                                                                                       |
-  | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `allows a module that declares its index and its contract` | a valid `indexSource('M', 'module.m', [{ kind: 'directory-prefix', prefix: 'src/m', exclusions: [] }])` README, `contractMode: 'regular'` | exit 0; `findings: []`; `unevaluated: []`                                                                                                    |
-  | `names a module directory that declares no contract`       | the same README, `contractMode: 'absent'`                                                                                                 | one finding: `path` `src/m`, `message` `module directory declares no contract file`, `effect` `debt`                                         |
-  | `names a module directory that declares no wiki index`     | `moduleReadme: '# Module\n\nOrdinary prose, no metadata.\n'`, `contractMode: 'regular'`                                                   | one finding: `path` `src/m`, `message` `module directory declares no wiki index`                                                             |
-  | `names a module whose contract is a symlink`               | the valid README, `contractMode: 'symlink'`                                                                                               | the finding `module directory declares no contract file`                                                                                     |
-  | `refuses a candidate whose index metadata is malformed`    | `moduleReadme: '# M\n\n<!-- module-index {not json} -->\n'`, `contractMode: 'regular'`                                                    | exit 1; `findings: []`; `unevaluated` names `MOD-LAYOUT` with a reason beginning `the index report is unavailable: index metadata malformed` |
+  | Title, and the `-t` pattern                                | `createModuleCandidate` options                                                         | Assert                                                                                                                                       |
+  | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `allows a module that declares its index and its contract` | the **valid module README** below, `contractMode: 'regular'`                            | exit 0; `findings: []`; `unevaluated: []`                                                                                                    |
+  | `allows a module at the candidate root`                    | `createRootModuleCandidate()` below, not `createModuleCandidate`                        | exit 0; `findings: []`; `unevaluated: []`; `allowed: true`                                                                                   |
+  | `names a module directory that declares no contract`       | the **no-contract module README** below, `contractMode: 'absent'`                       | one finding: `path` `src/m`, `message` `module directory declares no contract file`, `effect` `debt`                                         |
+  | `names a module directory that declares no wiki index`     | `moduleReadme: '# Module\n\nOrdinary prose, no metadata.\n'`, `contractMode: 'regular'` | one finding: `path` `src/m`, `message` `module directory declares no wiki index`                                                             |
+  | `names a module whose contract is a symlink`               | the valid module README, `contractMode: 'symlink'`                                      | the finding `module directory declares no contract file`                                                                                     |
+  | `refuses a candidate whose index metadata is malformed`    | `moduleReadme: '# M\n\n<!-- module-index {not json} -->\n'`, `contractMode: 'regular'`  | exit 1; `findings: []`; `unevaluated` names `MOD-LAYOUT` with a reason beginning `the index report is unavailable: index metadata malformed` |
+
+  **The module README's memberships are relative to the declaring README, not to the candidate
+  root.** `joinIndexPath` (`apps/wiki/cli/src/indexes/check-indexes.ts:32-38`) joins each declared
+  local path onto the index's own directory, so a `src/m/README.md` declaring the prefix `src/m`
+  asks for `src/m/src/m` and `checkIndexes` throws `membership target absent: src/m/src/m` — which
+  would leave `MOD-LAYOUT` unevaluated and prove nothing. Keep the **root** index's `src` prefix and
+  the symlink fixture's target as §C.2's helper writes them, and use these two module READMEs:
+
+  ```ts
+  // For `allows a module that declares its index and its contract` and
+  // `names a module whose contract is a symlink`:
+  indexSource('M', 'module.m', [
+    { kind: 'path', path: 'm.feature.ts' },
+    { kind: 'path', path: 'contract.ts' },
+  ]);
+  // For `names a module directory that declares no contract`:
+  indexSource('M', 'module.m', [{ kind: 'path', path: 'm.feature.ts' }]);
+  ```
+
+  and add this second fixture beside `createModuleCandidate`, for the candidate-root test. Its
+  README is the candidate's only index and declares the two root files it owns:
+
+  ```ts
+  /** A candidate whose kinded module IS the candidate root. */
+  function createRootModuleCandidate(): { repository: string; revision: string } {
+    const repository = initRepository('twilight-rules-root-module-');
+    write(repository, 'a.feature.ts', 'export const value = 1;\n');
+    write(repository, 'contract.ts', 'export const c = 1;\n');
+    write(
+      repository,
+      'README.md',
+      indexSource('Root module fixture', 'module.rootmodule', [
+        { kind: 'path', path: 'a.feature.ts' },
+        { kind: 'path', path: 'contract.ts' },
+      ]),
+    );
+    return { repository, revision: commit(repository, 'root module fixture') };
+  }
+  ```
 
   **`MOD-LAYOUT` is not skipped when the index check fails.** `checkCandidate` stores the index
   outcome in the context and runs every selected rule regardless; `MOD-LAYOUT` reports itself
@@ -1969,36 +2098,66 @@ Starts from the committed part B. **Adds nine tests; the delta is `+9`.**
 - [ ] Update all five sites of §6.8 for `MOD-LAYOUT`. It needs no new policy input, so
       `writeCompleteRulePolicy` gains only its mode.
 - [ ] Run the rules test file. **Two different reds, recorded separately**: the four in-process tests
-      fail with `kind resolution is not implemented`; the five CLI tests fail with
+      fail with `kind resolution is not implemented`; the six CLI tests fail with
       `rule policy names an unregistered rule: MOD-LAYOUT`. The file must still **collect**; a
       module-resolution error instead of test failures means the skeleton was not written.
 
 ### C.3 Implementation
 
-- [ ] Fill the two bodies in `kinds.ts` exactly as §6.4, keeping the skeleton's signatures.
+- [ ] Fill the two bodies in `kinds.ts` exactly as §6.4, keeping the skeleton's signatures. §6.4
+      includes `modulePath`; take it verbatim, and with it the `root !== ''` exemption in `moduleOf`,
+      the `modulePath(module, CompositionRootName)` comparison, the `const view` binding, the two
+      `modulePath(root, ...)` layout lookups and `path: root === '' ? '.' : root`. `''` stays the
+      internal candidate-root module identifier and is never rewritten inside `resolveKinds`.
+- [ ] **Do not copy §6.4's or §6.7's placeholder `Proof:` comments verbatim.** Omit the
+      composition-root proof comment entirely: it describes D3, which part D observes, not part C.
+      Write the view-branch comment only after observing C2a and C2b, and every other part C proof
+      comment only after observing its own fault, naming the mismatch you actually saw. A comment
+      claiming a K2 or K3 finding is a claim part C cannot make: those rules are not registered
+      until parts D and E.
 - [ ] Add `readonly kinds: KindGraph;` to `RuleContext` with its `import type`, and add
       `kinds: resolveKinds(candidate.entries),` to `check.ts`'s context literal, per §6.6.
 - [ ] Register `moduleLayoutRule` **exactly as §6.7 gives it** — three arguments to
       `moduleLayoutObservations` and an index-outcome branch — and add it to the `rules` array. A
       two-argument call is a type error.
-- [ ] Run the rules test file. Expected: `N + 9` tests, `0 fail`.
+- [ ] Run the rules test file. Expected: `N + 10` tests, `0 fail`.
 - [ ] Run the type check; this part widens `RuleContext`.
 
 ### C.4 Negative proofs
 
-| #   | Fault                                                                                           | Named test                                              | Expected failing line                                                                                                                                                         |
-| --- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C1  | `KindSuffix` becomes `/\.(feature\|repository\|resource)\./` — the **loose** form               | `does not read a kind from a test file`                 | Two files where one was expected. Removing only the `$` is inert: `m/a.feature.test.ts` holds no `.feature.ts` substring, and a probe returned one file either way (fact 30). |
-| C2  | Delete the view branch of `resolveKinds`                                                        | `calls a file under a module's view directory delivery` | Zero delivery files                                                                                                                                                           |
-| C3  | `moduleOf` returns the first match instead of the longest                                       | `assigns a file to its nearest module`                  | `module` is `m`, not `m/inner`                                                                                                                                                |
-| C4  | Delete the `contract.ts` requirement from `moduleLayoutObservations`                            | `names a module directory that declares no contract`    | `findings: []`                                                                                                                                                                |
-| C5  | Replace `indexPaths.has(...)` with a check over every entry path named `README.md`              | `names a module directory that declares no wiki index`  | `findings: []`: an ordinary README passes a filename check                                                                                                                    |
-| C6  | Drop the regular-file filter, so any entry may stand for the contract                           | `names a module whose contract is a symlink`            | `findings: []`                                                                                                                                                                |
-| C7  | In `moduleLayoutRule`, return `{ kind: 'observed', observations: [] }` when `indexes` is not ok | `refuses a candidate whose index metadata is malformed` | Exit 0 and `unevaluated: []`                                                                                                                                                  |
+For part C the final column describes an **assertion mismatch, not a literal log sentence**. In
+§0.4 step 4, replace the final `grep -F` command with `cat "$TMPDIR/evidence/P<n>.log"`. Preserve
+the status capture, the restoration, the `cmp` and the nonzero-status assertion. Confirm that the
+named test ran and failed at the assertion demonstrating the specified mismatch; a collection error,
+a timeout and an unrelated failure do not count. Record the actual matcher diagnostic with its
+expected and received values. C7 may fail first on exit status, expected 1 and received 0; do not
+claim that subsequent assertions ran. Preamble rule 16 governs additional failing tests.
+
+Run each row independently: restore and confirm green between rows, and save a separate patch and
+log for each. C1, C2a, C2b, C3 and C8a mutate `resolveKinds` or `moduleOf` and are observed
+**in process**; C4 to C7 and C8b are observed through the **production CLI**. None of C2a, C2b,
+C8a or C8b adds a test.
+
+The "required mismatch" column was **observed** on 2026-09-20 by rehearsing part C in a worktree at
+this packet's part B head, under §0.2's command with Bun 1.4.2. Expect these exact matcher
+diagnostics; a different one is a stop.
+
+| #   | Fault                                                                                                                                                                      | Named test                                              | Required mismatch                                                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | `KindSuffix` becomes `/\.(feature\|repository\|resource)\./` — the **loose** form                                                                                          | `does not read a kind from a test file`                 | `expect(received).toHaveLength(expected)`, `Expected length: 1`, `Received length: 2`. Removing only the `$` is inert (fact 30)        |
+| C2a | Keep only the descendant half of the view condition: `directory.startsWith(\`${view}/\`)`                                                                                  | `calls a file under a module's view directory delivery` | `toContainEqual`, `Expected to contain: [ "m/view/panel.tsx", "delivery", "m" ]`; received holds the feature and `m/view/deep/row.tsx` |
+| C2b | Keep only the direct half: `directory === view`                                                                                                                            | Same test                                               | `toContainEqual`, `Expected to contain: [ "m/view/deep/row.tsx", "delivery", "m" ]`; received holds the feature and `m/view/panel.tsx` |
+| C3  | `moduleOf` keeps the first match instead of the longest                                                                                                                    | `assigns a file to its nearest module`                  | `toBe`, `Expected: "m/inner"`, `Received: undefined` — module `m` puts the file outside `m/view`, so it receives no kind at all        |
+| C4  | Delete the `contract.ts` requirement from `moduleLayoutObservations`                                                                                                       | `names a module directory that declares no contract`    | `toEqual`, expected the one `module directory declares no contract file` finding at `src/m`, `Received + 1`: `[]`                      |
+| C5  | Replace `indexPaths.has(...)` with a lookup in `regularFiles`, so any entry named `README.md` counts                                                                       | `names a module directory that declares no wiki index`  | `toEqual`, expected the one `module directory declares no wiki index` finding at `src/m`, `Received + 1`: `[]`                         |
+| C6  | Drop the regular-file filter that builds `moduleLayoutObservations`'s `regularFiles`, so any entry may stand for the contract. **Retain `resolveKinds`'s own mode filter** | `names a module whose contract is a symlink`            | `toContain`, `Expected to contain: "module directory declares no contract file"`, `Received: []`                                       |
+| C7  | In `moduleLayoutRule`, return `{ kind: 'observed', observations: [] }` when `indexes` is not ok                                                                            | `refuses a candidate whose index metadata is malformed` | `toBe`, `Expected: 1`, `Received: 0` — the exit-status assertion, which is reached first. The `unevaluated` assertions never ran       |
+| C8a | Restore the old `moduleOf` containment guard: drop `root !== '' &&`                                                                                                        | `calls a file under a module's view directory delivery` | `toBe`, `Expected: ""`, `Received: undefined` — `view/panel.tsx` loses its module, so the candidate-root delivery files disappear      |
+| C8b | `modulePath` always returns `` `${root}/${name}` ``                                                                                                                        | `allows a module at the candidate root`                 | `toEqual`, `Expected: []`, received two findings at `path: "."`, `module directory declares no wiki index` and `...no contract file`   |
 
 ### C.5 Part C verification
 
-A.6's table, with `N + 9` tests, `0 fail`, and `passed` equal to `P`. Fill part C's section of
+A.6's table, with `N + 10` tests, `0 fail`, and `passed` equal to `P`. Fill part C's section of
 `verify.md` before handing over.
 
 ### C.6 Ready to commit
@@ -2007,17 +2166,21 @@ Subject: `feat(bureaucrat): resolve service kinds and check the module layout`
 
 Paths: `apps/wiki/cli/src/rules/kinds.ts`, `apps/wiki/cli/src/rules/registry.ts`,
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/check.ts`,
-`apps/wiki/cli/src/rules/rules.test.ts`, `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`.
+`apps/wiki/cli/src/rules/rules.test.ts`, `apps/wiki/cli/src/packaging/build.test.ts` (section 0.5a: the
+`MOD-LAYOUT` mode), `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`.
 Report what `git status` actually shows.
 
 ### C.7 Part C stop conditions
 
 1. `kinds.ts` or `direction.ts` already exists, or part B's files are absent.
 2. The baseline run reports any failure.
-3. The module-index check refuses a fixture **other than** the deliberately malformed one. Report the
-   refusal; the fixture's index is wrong, and the rule is not the thing to change.
-4. A named negative's test passes under the fault, fails with a different message, or does not
-   compile.
+3. The module-index check refuses a fixture **other than** the deliberately malformed one — for
+   example with `membership target absent`. Report the refusal; the fixture's index is wrong, and
+   the rule is not the thing to change. C.2 states why a module README's memberships are local.
+4. A named negative's test passes under the fault, fails with a **different mismatch** than C.4's
+   "required mismatch" column states, or does not compile. C.4, not §0.4's `grep -F`, defines what
+   the mismatch is for part C, and preamble rule 16 governs additional failing tests: record them
+   and go on.
 
 ---
 
@@ -2094,8 +2257,9 @@ entrypoint that exists.
 
   **Every fixture file must typecheck under `strict`.** A type error or an unresolved specifier makes
   extraction throw and the rule report itself unevaluated instead of producing a finding. An **unused
-  import is harmless**: `noUnusedLocals` is set nowhere (fact 29). Give each file a used export
-  anyway, because an import the compiler elides produces no edge.
+  import is harmless**: `noUnusedLocals` is set nowhere (fact 29). Extraction walks the source's
+  import syntax, so an unused import is not necessarily edge-free; the fixtures above use every
+  import anyway, so no test depends on that question either way.
 
 ### D.3 Tests first
 
@@ -2118,14 +2282,20 @@ entrypoint that exists.
 
 - [ ] Update all five sites of §6.8 for `K3` and `K4`. `writeCompleteRulePolicy` already carries a
       `relationshipRequest`, so nothing else changes there.
+- [ ] Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `K3`
+      and `K4` to its existing `ruleModes`, retaining identifier order and all existing assertions.
+      It adds no test; report it as pending planner verification.
 - [ ] Run the rules test file. Expected: all seven fail with
-      `rule policy names an unregistered rule: K3`.
+      `rule policy names an unregistered rule: K3 (registered: F7, INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)`,
+      observed on 2026-09-20 by rehearsal.
 
 ### D.4 Implementation
 
 - [ ] Create `apps/wiki/cli/src/rules/direction.ts` with §6.5's part-D half: `ImportEdge`,
-      `ReExportKinds`, `ReactTargets`, `ReactScopePrefix`, `reachedTargets`, `Direction`,
-      `kindedByPath`, `sorted`, `directionObservations` and `sidewaysObservations`. Write
+      `ReExportKinds`, `reachedTargets`, `Direction`, `kindedByPath`, `sorted`,
+      `directionObservations` and `sidewaysObservations`. **Part D omits `ReactTargets` and
+      `ReactScopePrefix`**; part E adds both from §6.5 immediately before implementing
+      `reactObservations`. Do not rename, suppress or export them merely to satisfy lint. Write
       `directionObservations`'s guard as `if (source?.kind !== direction.from) continue;`: the
       two-clause form is refused by `lint:source` with `@typescript-eslint/prefer-optional-chain`,
       observed on 2026-09-20.
@@ -2140,6 +2310,11 @@ entrypoint that exists.
       `forbidden: ['feature', 'delivery']`. Add both to the `rules` array.
 - [ ] Add **no** composition-root guard. §6.5 has none: the exemption is a composition root's absence
       from `KindGraph.files`, and a guard would be unreachable (fact 30).
+- [ ] The "use verbatim" instruction **excludes placeholder `Proof:` comments**. Write each only
+      after observing that fault in the current part, using the actual named test and its first
+      failing assertion. Part D writes no `Proof:` comment on `sidewaysObservations`, whose faults
+      E3 and E4 only part E observes, and none on `resolvePlainSelectors`, `matchesSelector` or
+      `reactObservations`, which part D does not write at all.
 - [ ] Run the rules test file. Expected: `N + 7` tests, `0 fail`, and in particular
       `reports a declared relationship that the candidate leaves unresolved` still passes. If that one
       fails, **stop**: the refactor changed behaviour.
@@ -2147,14 +2322,43 @@ entrypoint that exists.
 
 ### D.5 Negative proofs
 
-| #   | Fault                                                                                                                                            | Named test                                                  | Expected failing line                                                                                                                                                                                                    |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | In `reachedTargets`, return `[target]` and never expand re-exports                                                                               | `sees a repository through a barrel a feature imports`      | `findings: []` where one K3 finding was expected                                                                                                                                                                         |
-| D2  | In `directionObservations`, drop the `direction.forbidden.includes(...)` test                                                                    | `allows a feature-service that imports a resource-service`  | Unexpected findings in a verdict that **still exits 0**: the rule is observing, so the extra finding is debt. The failing assertion is `findings` not being `[]`, never the status.                                      |
-| D3  | In `resolveKinds` (`kinds.ts`), push the composition root into `files` as `{ path, kind: 'feature', module }` instead of into `compositionRoots` | `exempts a composition root that imports every kind`        | One K3 finding with `path` `src/m/composition.ts` where none was expected. **Deleting a guard proves nothing**: a composition root never enters `files`, so a probe returned `[]` either way (fact 30).                  |
-| D4  | In `graphRule`, return `{ kind: 'observed', observations: [] }` when the outcome is not ok                                                       | `refuses K3 when the trusted modules are unconfigured`      | Exit 0 with `allowed: true` and `unevaluated: []`, where exit 1 and the named reason were expected. That test supplies the empty variable itself through `runCliWithEnv`; every other command in this part keeps it set. |
-| D5  | Remove `'delivery'` from K3's `forbidden` list                                                                                                   | `names a feature-service that imports a delivery component` | `findings: []`                                                                                                                                                                                                           |
-| D6  | In `directionRule`'s K4 entry, remove `'feature'` from `forbidden`                                                                               | `names a resource-service that imports a feature-service`   | `findings: []`                                                                                                                                                                                                           |
+For part D the final column describes the **required assertion mismatch, not a literal log
+sentence**. In §0.4 step 4, replace the final `grep -F` command with
+`cat "$TMPDIR/evidence/P<n>.log"`. Keep the status capture, the restoration, the `cmp` and the
+nonzero-status assertion. Confirm that the named test ran and failed at the assertion demonstrating
+that mismatch; a collection error, a timeout and an unrelated failure do not count. Record the
+actual matcher diagnostic with its expected and received values. D4 fails first on exit status,
+expected 1 and received 0; do not claim that subsequent assertions ran. Preamble rule 16 governs
+additional failing tests.
+
+**The matcher is not the requirement; the fact is.** A row's mismatch names the matcher the
+rehearsal's test happened to use (`toHaveLength`, `toEqual`, `toBe`). Your test may assert the same
+fact with another matcher, and then Bun prints another diagnostic: `toEqual` printing a received
+`[]` where one finding was expected proves exactly what `Expected length: 1`, `Received length: 0`
+proves. Accept the proof when the NAMED test fails at the assertion about the row's fact (what was
+expected and what was received agree with the row); record the diagnostic you actually saw. It is a
+stop only when the named test passes, does not run, or fails about a different fact.
+
+Run each row independently: restore and confirm green between rows, and save a separate patch and
+log for each. **Every part D proof runs the production CLI.**
+
+The "required mismatch" column was **observed on 2026-09-20** by rehearsing part D in a clone at
+part C's committed head, under §0.2's command with Bun 1.4.2. Expect these exact matcher
+diagnostics; a different one is a stop.
+
+| #   | Fault, named by function and expression                                                                                                                                         | Named test                                                  | Required mismatch                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | In `reachedTargets` only, make `return [target];` the function's first statement, so the re-export queue never runs                                                             | `sees a repository through a barrel a feature imports`      | `expect(received).toHaveLength(expected)`, `Expected length: 1`, `Received length: 0`                                                                                                   |
+| D2  | In `directionObservations` only, replace the whole condition `reachedFile === undefined \|\| !direction.forbidden.includes(reachedFile.kind)` with `reachedFile === undefined`  | `allows a feature-service that imports a resource-service`  | `expect(received).toEqual(expected)` on `findings`, `Expected - 1` `[]` against `Received + 9`, the single K3 debt finding `feature imports resource src/m/m.resource.ts`. Still exit 0 |
+| D3  | In `resolveKinds` (`kinds.ts`) only, replace `compositionRoots.push(path);` with `files.push({ path, kind: 'feature', module });`                                               | `exempts a composition root that imports every kind`        | `toEqual` on `findings`, `Expected - 1` `[]` against `Received + 9`, one K3 finding at `path: "src/m/composition.ts"`. **Deleting a guard proves nothing** (fact 30)                    |
+| D4  | In **`graphRule`'s** `evaluate`, not `REL-EXTRACT`'s, replace `return { kind: 'not-evaluated', reason: outcome.reason };` with `return { kind: 'observed', observations: [] };` | `refuses K3 when the trusted modules are unconfigured`      | `expect(received).toBe(expected)` on the exit status, `Expected: 1`, `Received: 0`. The `allowed` and `unevaluated` assertions never ran                                                |
+| D5  | In `directionRule`'s **K3** entry, change `{ from: 'feature', forbidden: ['repository', 'delivery'] }` to `forbidden: ['repository']`                                           | `names a feature-service that imports a delivery component` | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                              |
+| D6  | In `directionRule`'s **K4** entry, change `{ from: 'resource', forbidden: ['feature', 'delivery'] }` to `forbidden: ['delivery']`                                               | `names a resource-service that imports a feature-service`   | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                              |
+
+D2's and D4's expressions each appear twice in their file with different surroundings: D2's
+membership test is the one inside `directionObservations`, not `sidewaysObservations`'s
+`reachedFile === undefined` line, and D4's early return is the one in `graphRule`, not the
+identical-looking line `REL-EXTRACT`'s `evaluate` gained in D.4.
 
 D3's proof comment belongs beside the composition-root branch in `kinds.ts`, so **`kinds.ts` is in
 part D's handover**.
@@ -2170,10 +2374,16 @@ required in this slice. Fill part D's section of `verify.md` before handing over
 
 Subject: `feat(bureaucrat): judge K3 and K4 on the extracted import graph`
 
+Rules this part registers: `K3` and `K4`.
+
 Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/kinds.ts`,
 `apps/wiki/cli/src/rules/registry.ts`, `apps/wiki/cli/src/rules/rule.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
+`apps/wiki/cli/src/packaging/build.test.ts`,
 `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what `git status` actually shows.
+
+Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `K3` and
+`K4` to its existing `ruleModes`, retaining identifier order and all existing assertions.
 
 ### D.8 Part D stop conditions
 
@@ -2191,7 +2401,7 @@ Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/kinds.ts
 
 ## Part E — `K2`, `K5`, `K6`, `F1`, the README and the record
 
-Starts from the committed part D. **Adds ten tests; the delta is `+10`.** Unlike the earlier
+Starts from the committed part D. **Adds eleven tests; the delta is `+11`.** Unlike the earlier
 revision, this part carries its own schema, policy-input, context and propagation steps: `F1` needs a
 policy field that does not exist yet, and registering it without that field would make every F1
 fixture fail undeclared-key validation.
@@ -2247,6 +2457,22 @@ made the production CLI report
       and each carrying `30_000`. The policy is `writeCompleteRulePolicy(everyRuleObserving)` unless a
       row names an override, which goes through `writeRulePolicy`'s `extra`.
 
+  **Every F1-specific `writeRulePolicy(everyRuleObserving, extra)` call must include:**
+
+  ```ts
+  relationshipRequest: {
+    schemaVersion: 1,
+    typescript: {
+      configPaths: ['tsconfig.json'],
+      publicEntrypoints: ['src/entry.ts'],
+    },
+  },
+  ```
+
+  `writeRulePolicy` merges only the supplied `extra` and supplies no defaults, so without this every
+  override row reaches `rule F1 needs policy.relationshipRequest, which the rule policy omits`
+  instead of the behaviour it means to check. Include the row's `plainTypeScriptPaths` alongside it.
+
   | Title, and the `-t` pattern                                       | `sources`                                                                                                                                               | Rule | Assert                                                                                                                                                                                                                                                                             |
   | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | `names a delivery component that imports a resource-service`      | `src/m/m.resource.ts` exporting `load` • `src/m/view/panel.ts` importing and calling it                                                                 | K2   | one finding: `path` `src/m/view/panel.ts`, `subject` `src/m/m.resource.ts`                                                                                                                                                                                                         |
@@ -2263,10 +2489,24 @@ made the production CLI report
   The last row is the check that every `statement` and `source` anchor is what §6.7 and §9 say. Fix
   the registry to match the packet, never the test.
 
+- [ ] Extend `names a store the policy declares plain TypeScript` with `src/more/store.ts`,
+      containing the same React type import and export as `src/m/store.ts`. Run the fixture twice,
+      using respectively `[{ kind: 'path', value: 'src/m/store.ts' }]` and
+      `[{ kind: 'prefix', value: 'src/m' }]`. Each invocation must have exactly one finding, for
+      `src/m/store.ts`, and no unevaluated rule. Without the prefix invocation the prefix arm of
+      `matchesSelector` has no proof at all.
+- [ ] Extend `refuses a plain TypeScript selector the candidate does not hold` with a second
+      invocation using `[{ kind: 'prefix', value: 'src/stores' }]`. Expect exit 1, no findings, and
+      exactly one `F1` unevaluated reason:
+      `the rule policy declares plain TypeScript under src/stores, which covers no candidate file`.
+
+  Both are extensions of listed tests, not new ones, so part E's delta stays `+11`.
+
 - [ ] Add one more test to the same describe, titled
       `refuses F1 when the policy declares no plain TypeScript paths`: `createKindedCandidate({ 'src/m/m.feature.ts': 'export const run = (): number => 1;\n' })`,
-      policy `writeRulePolicy(everyRuleObserving)` with **no** `plainTypeScriptPaths`, `--rule F1`,
-      expecting exit 1 and
+      policy `writeRulePolicy(everyRuleObserving, extra)` carrying the `relationshipRequest` block
+      above and **no** `plainTypeScriptPaths`, `--rule F1`, asserting the stderr sentence **before**
+      the exit status, expecting exit 1 and
       `rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits` in stderr. With the
       ten above that makes **eleven** tests, which is E.1's `+11`. Report the number the run actually
       gives, never this arithmetic.
@@ -2277,9 +2517,17 @@ made the production CLI report
       and `verdict.ruleIds` is that list in that order. `writeCompleteRulePolicy` gains
       `plainTypeScriptPaths: []`, without which `assertPolicyInputs` refuses every check selecting
       `F1`, including the canonical all-rules test.
-- [ ] Run the rules test file. Expected: every new test fails, those whose policy carries
-      `plainTypeScriptPaths` at the schema with `plainTypeScriptPaths must be removed`, and the rest
-      with `rule policy names an unregistered rule: F1` or `: K2`. Record which gave which.
+- [ ] Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `F1`,
+      `K2`, `K5` and `K6`, retaining identifier order and all existing assertions. The packaged-build
+      test remains pending planner verification; neither edit adds a test.
+- [ ] Run the rules test file. Before implementation, check tests supplying `plainTypeScriptPaths`
+      fail schema validation with `Validation failed: plainTypeScriptPaths must be removed`; check
+      tests without that field fail on a newly named unregistered rule, as
+      `rule policy names an unregistered rule: F1` or `: K2`. In
+      `prints the registry record for a kind rule`, the `K3` assertions **pass**, because part D
+      registered `K3` and `explain` without a policy never reaches policy validation; the `F1`
+      invocation exits 1 with `unknown rule: F1` and fails its expected exit 0 assertion. Record
+      each actual failure separately. All three sentences were observed on 2026-09-20 by rehearsal.
 
 ### E.4 Implementation
 
@@ -2288,8 +2536,16 @@ plan and E.8 list all four.
 
 - [ ] In `rule-policy.ts`: add `PlainSelectorRecord` and the `'plainTypeScriptPaths?'` field from
       §6.2, and add the `policy.plainTypeScriptPaths` disjunct to `assertPolicyInputs`.
-- [ ] In `direction.ts`: add `PlainSelector`, `SelectorOutcome`, `resolvePlainSelectors`,
-      `matchesSelector` and `reactObservations` from §6.5.
+- [ ] In `direction.ts`: add `ReactTargets` and `ReactScopePrefix` from §6.5 immediately before
+      `reactObservations`, their first consumer, and add `PlainSelector`, `SelectorOutcome`,
+      `resolvePlainSelectors`, `matchesSelector` and `reactObservations` from §6.5. Part D left the
+      two constants out because unused declarations fail `lint:source` with
+      `@typescript-eslint/no-unused-vars`.
+- [ ] The "use verbatim" instruction **excludes placeholder `Proof:` comments**. Write each only
+      after observing that fault in this part, naming the actual test and its first failing
+      assertion. Part E writes `sidewaysObservations`'s comment, which part D left out, after
+      observing E3 and E4. Claim no renamed-store fixture and no combined scoped-and-delivery test:
+      neither exists.
 - [ ] In `rule.ts`: add `readonly plainTypeScriptPaths?: readonly PlainSelector[];` to `RuleContext`
       with its `import type { PlainSelector } from './direction';`.
 - [ ] In `check.ts`: add the `plainTypeScriptPaths` spread to the context literal, per §6.6.
@@ -2299,21 +2555,47 @@ plan and E.8 list all four.
 
 ### E.5 Negative proofs
 
-| #   | Fault                                                                                | Named test                                                        | Expected failing line                                                                                                                            |
-| --- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| E1  | K2's `forbidden` becomes `[]`                                                        | `names a delivery component that imports a resource-service`      | `findings: []`                                                                                                                                   |
-| E2  | K5's `forbidden` becomes `['delivery']` only                                         | `names a repository adapter that imports a resource-service`      | `findings: []`                                                                                                                                   |
-| E3  | In `sidewaysObservations`, make the module comparison always equal                   | `names a feature that imports another module's feature`           | `findings: []`                                                                                                                                   |
-| E4  | In `sidewaysObservations`, make the module comparison always unequal                 | `allows two files of one kind inside one module`                  | One finding where none was expected                                                                                                              |
-| E5  | In `reactObservations`, drop the `declaredPlain` disjunct                            | `names a store the policy declares plain TypeScript`              | `findings: []`                                                                                                                                   |
-| E6  | In `reactObservations`, drop the `ReactScopePrefix` test                             | `names a service that imports a scoped React package`             | `findings: []`                                                                                                                                   |
-| E7  | In `reactObservations`, drop the `source?.kind === 'delivery'` skip                  | `exempts delivery from the framework boundary`                    | One finding where none was expected                                                                                                              |
-| E8  | Delete the loop body of `resolvePlainSelectors`, returning `{ ok: true }`            | `refuses a plain TypeScript selector the candidate does not hold` | Exit 0 and `unevaluated: []`                                                                                                                     |
-| E9  | Remove the `policy.plainTypeScriptPaths` disjunct from `assertPolicyInputs`          | `refuses F1 when the policy declares no plain TypeScript paths`   | Stderr lacks `rule F1 needs policy.plainTypeScriptPaths`. The registry fallback still exits 1, so **the sentence is the proof, not the status**. |
-| E10 | In `plainTypeScriptRule`, change `family: 'code-shape'` to `family: 'relationships'` | `prints the registry record for a kind rule`                      | `explain F1` prints `family: "relationships"`, not `code-shape`                                                                                  |
+For part E the final column describes the **required assertion mismatch, not a literal log
+sentence**. In §0.4 step 4, replace the final `grep -F` command with
+`cat "$TMPDIR/evidence/P<n>.log"`. Keep the status capture, the restoration, the `cmp` and the
+nonzero-status assertion. Confirm that the named test ran and failed at the assertion demonstrating
+that mismatch; a collection error, a timeout and an unrelated failure do not count. Record the
+actual matcher diagnostic with its expected and received values. E8a and E8b fail first on exit
+status, expected 1 and received 0; do not claim that subsequent assertions ran. E9's test asserts
+the required stderr sentence before the exit status, and that sentence is the proof. Preamble rule
+16 governs additional failing tests.
 
-Every one of these runs the production CLI. **No proof in this packet is an in-process observation
-test**, which the earlier revision wrongly claimed was unavoidable for the scoped package.
+Section D.5's rule applies here unchanged: **the matcher is not the requirement; the fact is.** Accept a proof when the named test fails at the assertion about the row's fact, whatever matcher your test used, and record the diagnostic you actually saw.
+
+Run each row independently: restore, `cmp` and rerun green between rows, and save a separate patch
+and log for each. **Every Part E proof runs the production CLI. Part C's explicitly identified
+resolution proofs run in process.**
+
+The "required mismatch" column was **observed on 2026-09-20** by rehearsing part D and then part E
+in a clone, under §0.2's command with Bun 1.4.2. Expect these exact matcher diagnostics; a different
+one is a stop. Where two invocations of one test can fail the same way, the column names which one,
+and the run's `expect() calls` count distinguishes them.
+
+| #   | Fault, named by function and expression                                                                                                                                             | Named test                                                        | Required mismatch                                                                                                                                                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| E1  | In `directionRule`'s **K2** entry, change `{ from: 'delivery', forbidden: ['resource', 'repository'] }` to `forbidden: []`                                                          | `names a delivery component that imports a resource-service`      | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E2  | In `directionRule`'s **K5** entry, change `{ from: 'repository', forbidden: ['resource', 'feature', 'delivery'] }` to `forbidden: ['delivery']`                                     | `names a repository adapter that imports a resource-service`      | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E3  | In `sidewaysObservations` only, replace the sub-expression `reachedFile.module === source.module` with `true`                                                                       | `names a feature that imports another module's feature`           | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E4  | In `sidewaysObservations` only, replace the same sub-expression `reachedFile.module === source.module` with `false`                                                                 | `allows two files of one kind inside one module`                  | `toEqual` on `findings`, `Expected - 1` `[]` against `Received + 9`, one K6 finding at `src/m/two.feature.ts`, `feature in src/m imports feature in src/m`                                                                                        |
+| E5  | In `reactObservations` only, replace `if (source === undefined && !declaredPlain) continue;` with `if (source === undefined) continue;`                                             | `names a store the policy declares plain TypeScript`              | `toHaveLength`, `Expected length: 1`, `Received length: 0`, on the **first, exact-path** invocation: the run reports `9 expect() calls`                                                                                                           |
+| E5b | In `matchesSelector` only, replace the whole prefix arm of its ternary — the `startsWith` call on the selector value joined with a slash — with `false`, keeping the exact-path arm | the same test                                                     | `toHaveLength`, `Expected length: 1`, `Received length: 0`, on the **second, prefix** invocation: the run reports `13 expect() calls`                                                                                                             |
+| E5c | In `matchesSelector` only, keep that prefix arm but drop the trailing slash from its template, so it reads `path.startsWith(selector.value)`                                        | the same test                                                     | `toHaveLength`, `Expected length: 1`, `Received length: 2`, on the prefix invocation: `src/more/store.ts` starts with `src/m`                                                                                                                     |
+| E6  | In `reactObservations` only, replace `if (!ReactTargets.has(target) && !target.startsWith(ReactScopePrefix)) continue;` with `if (!ReactTargets.has(target)) continue;`             | `names a service that imports a scoped React package`             | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E7  | In `reactObservations` only, delete the line `if (source?.kind === 'delivery') continue;`                                                                                           | `exempts delivery from the framework boundary`                    | `toEqual` on `findings`, `Expected - 1` `[]` against `Received + 9`, one F1 finding at `src/m/view/panel.ts`, `delivery imports external:react through 'react'`                                                                                   |
+| E8a | In `resolvePlainSelectors` only, delete the exact-path refusal branch `if (selector.kind === 'path' && !entryPaths.has(selector.value)) { ... }`. **Retain the prefix branch**      | `refuses a plain TypeScript selector the candidate does not hold` | `expect(received).toBe(expected)` on the exit status, `Expected: 1`, `Received: 0`, on the **first, exact-path** invocation: the run reports `7 expect() calls`                                                                                   |
+| E8b | In `resolvePlainSelectors` only, replace the prefix branch's condition `if (!covered) {` with `if (false) {`. **Retain the exact-path branch**                                      | the same test                                                     | `toBe` on the exit status, `Expected: 1`, `Received: 0`, on the **second, prefix** invocation: the run reports `10 expect() calls`                                                                                                                |
+| E9  | Remove the `policy.plainTypeScriptPaths` disjunct from `assertPolicyInputs` in `rule-policy.ts`                                                                                     | `refuses F1 when the policy declares no plain TypeScript paths`   | `expect(received).toContain(expected)`, `Expected to contain: "rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits"`, `Received: ""`. The F1 registry fallback still exits 1, so **the sentence is the proof, not the status** |
+| E10 | In `plainTypeScriptRule`, change `family: 'code-shape'` to `family: 'relationships'`                                                                                                | `prints the registry record for a kind rule`                      | `toBe`, `Expected: "code-shape"`, `Received: "relationships"`. The K3 assertions pass first                                                                                                                                                       |
+
+E3, E4, E5, E5b, E5c, E6, E7, E8a and E8b each mutate one expression whose neighbours look alike.
+E3 and E4 touch the **same** sub-expression with opposite constants; E5b and E5c touch the **same**
+prefix arm; E8a and E8b touch the two branches of one loop, and each run must retain the other.
+Never mutate `reachedTargets`, `directionObservations` or the `REL-EXTRACT` rule for any part E row.
 
 ### E.6 The README
 
@@ -2340,6 +2622,8 @@ test**, which the earlier revision wrongly claimed was unavoidable for the scope
       memory: each attempt gets a new temporary root, so part A's `$TMPDIR/evidence` is gone. If a
       part's section is missing, stop and report which; the planner holds the copied evidence outside
       the repository.
+- [ ] Preserve earlier parts' observed evidence. Record evidence filenames by **basename**, such as
+      `D1.patch` and `D1.log`; do not insert absolute clone or temporary-root paths.
 - [ ] Name what was not run: the three whole targets and the host gate.
 - [ ] Tick `tasks.md`'s five tasks.
 
@@ -2358,9 +2642,16 @@ test**, which the earlier revision wrongly claimed was unavoidable for the scope
 
 Subject: `feat(bureaucrat): judge K2, K5, K6 and F1 and record slice B2`
 
+Rules this part registers: `F1`, `K2`, `K5` and `K6`.
+
+Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `F1`, `K2`,
+`K5` and `K6`, retaining identifier order and all existing assertions. The packaged-build test
+remains pending planner verification; neither this edit nor part D's adds a test.
+
 Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/registry.ts`,
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/rule-policy.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
+`apps/wiki/cli/src/packaging/build.test.ts`,
 `apps/wiki/cli/README.md`, `openspec/changes/twilight-bureaucrat-kind-rules/tasks.md`,
 `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what
 `git status --short --untracked-files=all` actually shows, including any file a required `Proof:`
@@ -2385,18 +2676,18 @@ Every figure is a delta over the baseline **that part** recorded in its own step
 states no absolute total anywhere.** Main has moved since it was written, packet 010.6 adds
 Bureaucrat tests and 110.6 changes the devsync suite, so a literal would be a false stop.
 
-| Check                                        | Who      | Expected                                                                                                                              |
-| -------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| §0.2's focused command                       | Executor | `+3`, `+11`, `+9`, `+7`, `+11` over each part's own recorded `N`; `0 fail` throughout.                                                |
-| `twilight-bureaucrat:typecheck`              | Executor | Exit 0, in **every** part: each one moves a shared type or signature.                                                                 |
-| `twilight-bureaucrat:lint:source`            | Executor | Exit 0, every part.                                                                                                                   |
-| `twilight-bureaucrat:build`                  | Executor | Exit 0, part E.                                                                                                                       |
-| `nx format:check --all`                      | Executor | Exit 0, every part.                                                                                                                   |
-| Strict OpenSpec validation                   | Executor | `P + 1` in part A, which creates the change; `P` unchanged in B to E.                                                                 |
-| **Whole `twilight-bureaucrat:test`**         | Planner  | Exit 0, `+41` over the baseline of the commit **this dispatch** started from. Cumulative only when that baseline precedes every part. |
-| **Whole `twilight-bureaucrat:test:package`** | Planner  | Exit 0 and unchanged against that same baseline: no command and no manifest entry changes.                                            |
-| **Whole `tool-devsync:test`**                | Planner  | Exit 0 and unchanged against that same baseline: this packet never touches devsync.                                                   |
-| **`bin/h2puni-gate.sh <sha>`**               | Planner  | On the shared build host only. Report as not run here.                                                                                |
+| Check                                        | Who      | Expected                                                                                                                                                                                               |
+| -------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §0.2's focused command                       | Executor | `+3`, `+11`, `+10`, `+7`, `+11` over each part's own recorded `N`; `0 fail` throughout.                                                                                                                |
+| `twilight-bureaucrat:typecheck`              | Executor | Exit 0, in **every** part: each one moves a shared type or signature.                                                                                                                                  |
+| `twilight-bureaucrat:lint:source`            | Executor | Exit 0, every part.                                                                                                                                                                                    |
+| `twilight-bureaucrat:build`                  | Executor | Exit 0, part E.                                                                                                                                                                                        |
+| `nx format:check --all`                      | Executor | Exit 0, every part.                                                                                                                                                                                    |
+| Strict OpenSpec validation                   | Executor | `P + 1` in part A, which creates the change; `P` unchanged in B to E.                                                                                                                                  |
+| **Whole `twilight-bureaucrat:test`**         | Planner  | Exit 0, plus this part's own delta over the baseline of the commit **this dispatch** started from (A `+3`, B `+11`, C `+10`, D `+7`, E `+11`); `+42` only against a baseline that precedes every part. |
+| **Whole `twilight-bureaucrat:test:package`** | Planner  | Exit 0 and unchanged against that same baseline: no command and no manifest entry changes.                                                                                                             |
+| **Whole `tool-devsync:test`**                | Planner  | Exit 0 and unchanged against that same baseline: this packet never touches devsync.                                                                                                                    |
+| **`bin/h2puni-gate.sh <sha>`**               | Planner  | On the shared build host only. Report as not run here.                                                                                                                                                 |
 
 **No new Nx target and no new README.** The incoming `nx.json` change that puts `CLAUDECODE=0` and
 `AGENT=0` in the default of every test-running target name, the
@@ -2413,11 +2704,17 @@ K7, K8 and K9. The verdict still never certifies.
 
 ## 8. Negative proofs, all parts
 
-Thirty-six faults: A1 to A4, B1 to B10, C1 to C7, D1 to D6 and E1 to E10. Each is injected into the
-production path, observed failing the named test, restored by byte comparison, and only then given an
-adjacent dated `Proof:` comment. **Every one runs the production CLI**; none is an in-process
-observation test, and the four in-process kind-resolution tests of part C carry no proof of their own
-because C1 to C3 mutate `resolveKinds`, whose production path they are.
+Forty-four faults: A1 to A4; B1 to B10, with B9 run as B9a and B9b; C1, C2a, C2b, C3 to C7, C8a and
+C8b; D1 to D6; and E1 to E4, E5 with E5b and E5c, E6, E7, E8a, E8b, E9 and E10. Each mutates
+production code and must be observed failing its named test, restored by byte comparison, and only
+then given an adjacent dated `Proof:` comment.
+
+**Not every one runs the production CLI.** C1, C2a, C2b, C3 and C8a exercise `resolveKinds` and
+`moduleOf` directly in process; they prove the resolution, not the CLI wiring. They are the only
+in-process proofs in this packet. C4 to C7 and C8b exercise the production CLI, as do every A, B, D
+and E fault. Record that distinction in
+`verify.md`, and never claim an observation that belongs to a later part: part C cannot see a K2 or
+K3 finding, and cannot see D3's composition-root exemption.
 
 Every patch and failing log stays under `$TMPDIR/evidence`, named after its identifier, and every row
 is transcribed into `verify.md` **in the part that observed it**, because the next attempt gets a new
@@ -2667,3 +2964,65 @@ mutation left F1's printed family unchanged. The remaining non-blocking notes
 for C1–C3, E.3's stale `explain F1` red expectation, and §0.4's literal-output
 caution for A2/A3 — are advisory rather than drop-in text and were left for
 the executor and a later review to apply when B, C and E are dispatched.
+
+## Disposition of the part C dispatch review
+
+Fourth review, 2026-09-20 (Codex gpt-6-astra, high effort): **DISPATCH AFTER FIXES**, part C only.
+Every finding was checked against this worktree's code, and finding 4 was settled by **rehearsing**
+part C here — writing §6.4, the wiring and all ten tests, running them red then green under §0.2's
+command, injecting every part C fault, and then reverting the rehearsal. The rehearsal observed
+`33` tests before part C and `43` after, so the delta is `+10`.
+
+| Finding                                              | Disposition                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** module README memberships are index-relative   | **FIXED** in C.2. Confirmed at `apps/wiki/cli/src/indexes/check-indexes.ts:32-38` and `:120-136`: `joinIndexPath` joins onto `index.directory`, so `src/m/README.md` declaring the prefix `src/m` asks for `src/m/src/m`. The three module READMEs now declare the local paths `m.feature.ts` and `contract.ts`; the root index keeps its `src` prefix. Rehearsed green.                      |
+| **2** proof descriptions read as literal diagnostics | **FIXED**. C.4 opens with the review's rule, §0.4 now names part C as the exception to its `grep -F` line, and C.4's last column carries the **observed** Bun 1.4.2 matcher diagnostics. C7 is recorded as failing first on exit status, `Expected: 1` / `Received: 0`.                                                                                                                       |
+| **2b** C2 masks one delivery predicate               | **FIXED**. C2 is split into C2a (descendant half only) and C2b (direct half only), and the delivery test now asserts each view path with its own `toContainEqual`, so the two faults produce different diagnostics. Rehearsed: C2a names `m/view/panel.tsx`, C2b names `m/view/deep/row.tsx`. C6 is narrowed to `moduleLayoutObservations`'s filter only.                                     |
+| **3** §8 and §6.4 misstate what the proofs observed  | **FIXED**. §8's opening paragraph is replaced; the fault total is now **forty-one** and the in-process set is named. §6.4's composition-root proof comment is removed as D3's, the view-branch comment describes C2a and C2b, and C.3 forbids copying placeholder proof comments. (The old total "thirty-seven" was already wrong by one for A1–A4, B1–B10 + B9b, C1–C7, D1–D6, E1–E10 = 38.) |
+| **4** a module at the candidate root is misresolved  | **FIXED**, and confirmed by rehearsal rather than by reasoning. `modulePath`, the `root !== ''` exemption, the `view` binding and `path: root === '' ? '.' : root` are in §6.4; C.2 adds `createRootModuleCandidate` and the CLI test `allows a module at the candidate root`; C8a and C8b are the two new proofs. Part C's delta is `+10` and the cumulative delta `+42`.                    |
+| Note: commit part B before dispatch                  | Planner action, not a packet change. Part B is staged and uncommitted in this worktree.                                                                                                                                                                                                                                                                                                       |
+| Note: preserve part B's policy additions             | **FIXED** in C.1: `KindSpecSource`, `sizeCeilings` and the mapped enforcement policy are named as preserved, and `MOD-LAYOUT` is stated to need no policy-schema change.                                                                                                                                                                                                                      |
+| Note: kind resolution remains suffix-only            | Already stated, in `resolveKinds`'s JSDoc in §6.4. No change.                                                                                                                                                                                                                                                                                                                                 |
+
+**Rehearsal record, 2026-09-20, in `/home/df/wd/puni/batch-2/revise-010-7-C` at part B's staged
+head.** `bun test` on the rules file: `33 pass, 0 fail` before, `43 pass, 0 fail, 361 expect()
+calls` after. `bunx eslint` on `kinds.ts`, `registry.ts`, `rule.ts`, `check.ts` and `rules.test.ts`:
+exit 0. `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0. Every one of C1, C2a,
+C2b, C3, C4, C5, C6, C7, C8a and C8b was injected, observed failing only its named test with the
+diagnostic C.4 now records, and the file restored. The rehearsal was then reverted; only part B's
+staged paths and this packet remain changed.
+
+## Disposition of the parts D and E dispatch review
+
+Fifth review, 2026-09-20 (Codex gpt-6-astra, high effort): **DISPATCH AFTER FIXES**, parts D and E.
+Every finding was checked against this clone's code at part C's committed head, and parts D and E
+were settled by **rehearsal**: both were implemented here exactly as the revised packet prescribes,
+run red then green under §0.2's command, every fault injected and observed, and the rehearsal then
+reverted.
+
+| Finding                                                     | Disposition                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** D introduces unused constants and cannot pass lint    | **FIXED** in §6.5, D.4 and E.4. Reproduced: `bunx eslint` on part D's `direction.ts` carrying both constants gave two `@typescript-eslint/no-unused-vars` errors at lines 13 and 14, exit 1; without them, exit 0. Part E now adds `ReactTargets` and `ReactScopePrefix` immediately before `reactObservations`.                                                                         |
+| **2** the packaged-build edit is outside the file lists     | **FIXED**. §5 gains the `apps/wiki/cli/src/packaging/build.test.ts` row and its "Nothing else is touched" sentences are replaced; D.3, D.7, E.3 and E.9 name the edit, and each "Ready to commit" now lists the file and the rule identifiers that part registers. Confirmed at HEAD: that policy holds `F7` and `MOD-LAYOUT` and none of D or E's identifiers.                          |
+| **3** successful mutations trigger the literal-message stop | **FIXED**. §0.4's part C exception becomes "Parts B through E"; D.5 and E.5 each open with the assertion-mismatch rule and carry the **observed** Bun 1.4.2 diagnostics. D4, E8a and E8b are recorded as failing first on exit status, `Expected: 1` / `Received: 0`.                                                                                                                    |
+| **4** override policies omit F1's relationship request      | **FIXED** in E.3. Confirmed at `apps/wiki/cli/src/rules/rules.test.ts:269-277`: `writeRulePolicy` merges only `extra`. Every F1 override now carries the `relationshipRequest` block, and the eleventh test omits only `plainTypeScriptPaths`. Rehearsed E9: with that block present, stderr is `""` and the F1 registry fallback still exits 1, so the sentence is the proof.           |
+| **5** the prescribed red result is wrong for `explain`      | **FIXED** in E.3. Rehearsed red: the K3 assertions pass (3 `expect()` calls) and the run fails at `expect(plainInvocation.exitCode).toBe(0)` with `unknown rule: F1 (registered: F7, INV-CLASSIFY, K3, K4, ...)`. The schema sentence was separately observed as `Validation failed: plainTypeScriptPaths must be removed`.                                                              |
+| **6** prefix selectors have no independent proof            | **FIXED** in E.3 and E.5. The store test gains `src/more/store.ts` and a second, prefix invocation; the stale-selector test gains a `src/stores` prefix invocation. E8 is split into E8a and E8b, and E5b and E5c are added. All four were rehearsed. §8's total moves from forty-one to forty-four; part E's delta stays `+11`, rehearsed as 50 tests before and 61 after.              |
+| **7** verbatim proof templates claim unmade observations    | **FIXED**. D.4 and E.4 state that "use verbatim" excludes placeholder `Proof:` comments. §6.5's `sidewaysObservations` comment is deferred to part E, the stale-selector comment no longer invents a renamed store, the delivery comment names the delivery-exemption test, and `matchesSelector` gains E5b and E5c. E.5's "Every one" paragraph is replaced with the review's sentence. |
+| Note: E's introduction says ten tests                       | **FIXED**: part E's introduction now says eleven, matching E.1 and E.3.                                                                                                                                                                                                                                                                                                                  |
+| Note: D.2's import-elision explanation is inaccurate        | **FIXED** in D.2: extraction walks source import syntax, and the fixtures use every import, so no test depends on elision.                                                                                                                                                                                                                                                               |
+| Note: kind resolution remains suffix-only                   | Already stated in `resolveKinds`'s JSDoc in §6.4 and in §8. No change; this packet does not enforce the backend inventory.                                                                                                                                                                                                                                                               |
+
+Nothing was rejected.
+
+**Rehearsal record, 2026-09-20, in `/home/df/wd/puni/batch-2/010-7-rules` at part C's committed
+head.** The rules file ran `43 pass, 0 fail` before part D, `50 pass, 0 fail, 427 expect() calls`
+after part D, and `61 pass, 0 fail, 528 expect() calls` after part E. `bunx eslint` over
+`direction.ts`, `registry.ts`, `rule.ts`, `rule-policy.ts`, `check.ts` and `rules.test.ts`: exit 0
+after each part. `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0 after each
+part. D1 to D6 and E1 to E10, including E5b, E5c, E8a and E8b, were each injected, observed failing
+only their named test with the diagnostic D.5 and E.5 now record, and restored. With `F1`, `K2`,
+`K3`, `K4`, `K5` and `K6` added to `build.test.ts`'s `ruleModes`,
+`NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package --skip-nx-cache` exited 0 with
+`44 pass, 0 fail, 301 expect() calls` in 123 s, so §0.5a's instruction is sufficient. The rehearsal
+was then reverted; only this packet remains changed.
