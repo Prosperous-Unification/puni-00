@@ -14,6 +14,15 @@ import { expect, test } from 'bun:test';
 import { readProjects } from '../workspace-projects.mjs';
 
 const WORKSPACE = fileURLToPath(new URL('../../../', import.meta.url));
+/**
+ * This file's own workspace-relative path. Derived rather than written out, because the scan
+ * below must skip it: its `Proof:` comments quote pre-move roots on purpose, and a stale literal
+ * would silently fold them into the classified inventory.
+ */
+// Proof: pointing SELF at not-this-file.ts failed the legacy-occurrence pin with test-fixture
+// contexts raised from 106 to 126 and occurrences from 257 to 279, while unclassified stayed [].
+// Restoring the derived path returned the filtered sweep to green (2026-09-20).
+const SELF = relative(WORKSPACE, fileURLToPath(import.meta.url));
 const LEGACY_ROOT =
   /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01|\*+|\$\{[^}]+\})|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation|\*+|\$\{[^}]+\}))(?:\/|\b)/g;
 
@@ -306,11 +315,7 @@ async function currentDocumentLinkFailures(
 }
 
 function isRelevantSourceConfig(path: string): boolean {
-  if (
-    path === 'tools/tool-devsync/src/repo-namespacing-handoff.test.ts' ||
-    path.endsWith('/README.md') ||
-    path.endsWith('.md')
-  ) {
+  if (path === SELF || path.endsWith('/README.md') || path.endsWith('.md')) {
     return false;
   }
   const basename = posix.basename(path);
