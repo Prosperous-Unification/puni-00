@@ -240,6 +240,11 @@
       "path": "docs/superpowers/plans/2026-09-19-batch-1/010-3-record-the-decision.md",
       "reason": "task packet quoting the verbatim body of files it creates under openspec/changes, whose links are relative to that location",
       "excuses": ["links"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-20-batch-2/020-2-shared-failures.md",
+      "reason": "The packet plans the Nx project shared-failures, which does not exist until its slice B lands; the selectors are the commands that slice will make true. Slice C5 of the same packet removes this entry.",
+      "excuses": ["nx-selector"]
     }
   ]
 }
