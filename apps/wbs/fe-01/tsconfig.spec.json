@@ -39,6 +39,7 @@
     "vitest.zoned.config.ts",
     "vitest.node-suites.ts",
     "vite-config.test.ts",
+    "browser-packages.test.ts",
     "playwright.config.ts",
     "playwright-config.test.ts"
   ]
