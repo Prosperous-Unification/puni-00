@@ -53,8 +53,15 @@ still predates this amendment, and the facts here replace the matching statement
   schema, the backend's unexpected-error boundary, then the MCP server. Then backend startup
   ownership. Defer the portable core rewiring and the all-tools sweep until the report format
   has held for a release or two; it changed twice in two days.
-- **Browser proof is partial.** The Vite 8.2.2 bundle built and ran in a Node sandbox with
-  Node's globals hidden. It has not run in Chromium.
+- **The browser proof is a check now.** Work item 040.1 added a probe of the three libraries
+  built through `apps/wbs/fe-01/vite.config.ts`: `apps/wbs/fe-01/browser-packages.test.ts`
+  holds the build property — no module is externalized for the browser, and nanoid keeps its
+  browser entry — and `apps/wbs/fe-01/e2e/browser-packages.spec.ts` runs that bundle in the
+  layout gate's Chromium. Import `di-bag`, never `di-bag/node`: Vite answers a Node built-in in
+  browser code with a warning and a stub that throws at page load, and inside `vitest` that
+  warning is not even delivered, so the module identities are what the check reads. Neither
+  check says anything about what application code imports, and neither gives `@shared/failures`
+  the browser fixture this plan's slice 2 asks for; both remain open.
 
 ## Intent
 

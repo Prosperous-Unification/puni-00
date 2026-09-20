@@ -820,7 +820,7 @@ spawn `bun` in the sandbox, and there is no Chromium there.
 
 ## 10. Negative proofs
 
-> **Isolation, for every planner browser run (slice 2 dispatch review, 2026-09-20).** Run every browser baseline, fault and restored-green check with `CI=1` and the same `E2E_PORT_SHIFT`. Shift 1900 selects ports 5000, 5100 and 6100. `CI=1` disables existing-server reuse (`playwright.config.ts` sets `reuseExistingServer: !isCi`). If any port is occupied, stop and select another valid shift for all three tiers; never enable reuse or terminate an unrelated server. The focused command is `CI=1 E2E_PORT_SHIFT=1900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts browser-packages.spec.ts`.
+> **Isolation, for every planner browser run (slice 2 dispatch review, 2026-09-20).** Run every browser baseline, fault and restored-green check with `CI=1` and the same `E2E_PORT_SHIFT`. Shift 1900 selects ports 5000, 5100 and 6100. `CI=1` disables existing-server reuse (`playwright.config.ts` sets `reuseExistingServer: !isCi`). If any port is occupied, stop and select another valid shift for all three tiers; never enable reuse or terminate an unrelated server. The focused command is `CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- browser-packages.spec.ts`: run through the target, because a bare `bunx playwright test` lacks the environment `tools/dev/setup.ts` writes and the backend refuses to start on `AUTH_MODE is required` (seen by the planner, 2026-09-20).
 
 Every message below was watched in this repository on 2026-09-20, in the runner named. None of
 these runs reports zero tests: the Vitest ones register three cases and the Chromium one registers
