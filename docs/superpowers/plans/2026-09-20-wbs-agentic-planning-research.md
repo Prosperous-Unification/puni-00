@@ -47,7 +47,7 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
 - **Days were the wrong size.** Eight items estimated at 36.5 PERT days finished in about a day and a half of wall-clock. The shortest real unit was an executor attempt: 10 to 40 minutes.
 - **Agents do not keep working days.** Executors ran through the night and the weekend. The schedule snaps everything to working days.
 - **Token estimates lived in notes as text**, as three keys per item, because nothing else could hold a planning, an implementation and a review figure. `setMeasure` would have held them per step; the planner did not find that out until it was refused with `unknown_metric` for a name it invented.
-- **The estimates were far off, and nothing could show it.** Executor tokens actually used against the implementation estimate in the notes:
+- **Nobody could say whether the estimates were right, because "tokens" had no definition.** The table below compares each estimate with the executor tool's printed "tokens used", which the field data later showed to be uncached input plus output only. Against total tokens processed the same estimates were 0.19 to 1.68 times the actual: see `docs/wbs/research/2026-09-20-batch-1-field-data.md`, which corrects this table's reading.
 
   | Item  | Size | PERT days | Estimated tokens | Actual tokens | Estimate ÷ actual |
   | ----- | ---- | --------- | ---------------- | ------------- | ----------------- |
