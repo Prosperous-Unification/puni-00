@@ -84,6 +84,9 @@ export default defineConfig(({ command, mode }) => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      ...(process.env['WBS_SCROLL_PROBE'] === '1'
+        ? { 'react-dom/client': 'react-dom/profiling' }
+        : {}),
       '@': resolve(__dirname, 'src'),
       // **The module, not the barrel.** `libs/wbs/domain/domain`'s index re-exports
       // `estimate.ts` as well, and the validators around it pull arktype into

@@ -540,6 +540,8 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // classified tool-dagger main changed the pinned occurrence count/digest and failed this test.
   // Proof: changing solver-orphan-fixture.Dockerfile line 4 to `COPY apps/be-01/...` failed with
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
+  // Re-pinned after dev-poll made its live source default injectable for isolated rehearsal;
+  // the classified occurrence count and categories remain unchanged (2026-09-19).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
       'current recursive selector': 31,
@@ -694,7 +696,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // docs/wiki-policy/relationships*.json their matching `env` facts failed on the observed
     // digest below with the occurrence count and the unclassified list unchanged: the added lines
     // shift classified contexts only (2026-09-20).
-    digest: 'd17f003c979410481c7ba5c71402305b004922f426c4e64371548e8c0036e0ef',
+    // Proof: merging main's `25601def...` (the dev deploy cut-over and the scrolling work) with
+    // this branch's `d17f003c...` left neither right: the merged tree failed on the observed
+    // digest below, again with the occurrence count and the unclassified list unchanged
+    // (2026-09-20). Two lanes re-pinning one line-sensitive digest is a conflict by construction.
+    digest: '21a80db52be81d6875704adb862a00a7a379d4f5da6dd72a7d265c2edca8eb82',
     occurrences: 257,
     unclassified: [],
   });

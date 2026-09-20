@@ -83,7 +83,7 @@ fi
 
 # shellcheck disable=SC2029
 ssh h2puni \
-  "git -C /home/puni1/wbs-dev/src fetch --quiet origin && bash -s -- /home/puni1/wbs-dev/src /home/puni1/wbs-dev/bin /home/puni1/wbs-dev/bin/bun $SHA $BUN_VERSION" \
+  "flock /home/puni1/wbs-dev/state/poll.lock bash -c 'git -C /home/puni1/wbs-dev/src fetch --quiet origin && bash -s -- /home/puni1/wbs-dev/src /home/puni1/wbs-dev/bin /home/puni1/wbs-dev/bin/bun $SHA $BUN_VERSION && echo $SHA > /home/puni1/wbs-dev/state/last-synced.manual && mv /home/puni1/wbs-dev/state/last-synced.manual /home/puni1/wbs-dev/state/last-synced && rm -f /home/puni1/wbs-dev/state/awaiting-recreate'" \
   < "$(dirname "${BASH_SOURCE[0]}")/dev-poll-sync.sh"
 
 # No credential is fetched or sent. Dev's edge password was removed 2026-08-06;

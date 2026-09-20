@@ -159,6 +159,7 @@ const server = (app: string, command: string, url: string, env?: Record<string, 
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: /.*\.(?:spec|e2e)\.ts/,
   // Named explicitly because CI uploads this exact path as the run's artifact,
   // and the screenshot the widths are judged from is written into it.
   outputDir: './test-results',

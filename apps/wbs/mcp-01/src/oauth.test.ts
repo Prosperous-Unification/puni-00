@@ -4,7 +4,7 @@ import type { BrowserOidcClient } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { InMemoryMcpOAuth } from './oauth';
+import { InMemoryMcpOAuth, type OAuthRouteEvidence } from './oauth';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -31,6 +31,7 @@ function fixture(
   const values = Array.from({ length: 20 }, (_, index) => `random-${String(index + 1)}`);
   const authorizationCalls: unknown[] = [];
   const exchangeCalls: unknown[] = [];
+  const routeEvidence: OAuthRouteEvidence[] = [];
   const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'> = {
     authorizationUrl: (input) => {
       authorizationCalls.push(input);
@@ -44,6 +45,7 @@ function fixture(
   return {
     authorizationCalls,
     exchangeCalls,
+    routeEvidence,
     oauth: new InMemoryMcpOAuth(CONFIG, provider, {
       groupsClaim: 'wbs_groups',
       groupPrefix: 'dev',
@@ -58,6 +60,7 @@ function fixture(
             })
           : Promise.reject(new Error('not an upstream token')),
       ...limits,
+      routeEvidence: (evidence) => routeEvidence.push(evidence),
     }),
     advance: (milliseconds: number) => {
       now += milliseconds;
@@ -233,6 +236,46 @@ async function promoteClient(oauth: InMemoryMcpOAuth, source: string): Promise<s
 }
 
 describe('InMemoryMcpOAuth', () => {
+  // Proof: serializing request bodies or query strings here exposes credentials;
+  // these records retain only bounded grant classifications and the route path.
+  it('records OAuth route evidence without request secrets', async () => {
+    const { oauth, routeEvidence } = fixture();
+    await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/register?secret=query-secret', {
+        body: JSON.stringify({
+          grant_types: ['authorization_code', 'refresh_token', 'body-secret'],
+          redirect_uris: [CALLBACK],
+          token_endpoint_auth_method: 'none',
+        }),
+        headers: { authorization: 'Bearer header-secret', 'content-type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'token-secret' }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+
+    expect(routeEvidence).toEqual([
+      {
+        method: 'POST',
+        path: '/mcp/oauth/register',
+        registration_grant_types: ['authorization_code', 'refresh_token', 'other'],
+        status: 201,
+      },
+      {
+        grant_type: 'refresh_token',
+        method: 'POST',
+        path: '/mcp/oauth/token',
+        status: 400,
+      },
+    ]);
+    expect(JSON.stringify(routeEvidence)).not.toContain('secret');
+  });
+
   // Break caught: accepting an arbitrary HTTPS callback lets an attacker
   // register their origin and exfiltrate a signed-in user's authorization code.
   it('limits dynamic registration to the real connector and loopback clients', async () => {
