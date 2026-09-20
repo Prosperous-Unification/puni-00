@@ -1,4 +1,4 @@
-# Twilight SDLC pilot tasks
+# Twilight Structure SDLC pilot tasks
 
 One tracked checkbox per deliverable. This plan is for the documentation/schema
 trial. [Product delivery](../twilight-control-plane/tasks.md) is separate and

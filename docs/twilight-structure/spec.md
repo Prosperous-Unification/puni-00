@@ -6,10 +6,15 @@ records user direction; the proposed OpenSpec deltas have not been synchronized.
 
 ## Intent
 
-Twilight Structure (`twilight-structure`) is the software factory service for
-building the other software in `puni-00`. It has a frontend and backend using a
-stack similar to WBS, with LangChain/LangGraph for agent orchestration and ACP
-as the primary interface to coding-agent sessions.
+Vesper Shipyards is the software factory service for building the other software
+in `puni-00`. It runs on Twilight Structure, whose Twilight Dash execution tool
+has a frontend and backend using a stack similar to WBS, with LangChain/LangGraph
+for agent orchestration and ACP as the primary interface to coding-agent sessions.
+
+Naming note, 2026-09-19: in this catalog, Vesper Shipyards is the customer-facing
+software factory, Twilight Structure is its tool suite, Twilight Navigator owns
+request shaping through planning, Twilight Dash owns implementation through release
+and environments, and Twilight Bureaucrat owns rules, templates and evidence gates.
 
 The desired outcome is a traceable software delivery loop: shape a request,
 specify it, plan resources and dependencies, implement and review it, exercise it
@@ -141,7 +146,7 @@ See the root [package manifest](../../package.json),
 
 The current [design](../../openspec/changes/twilight-control-plane/design.md) and
 [assumptions](assumptions.md) select proposed reuse boundaries, including shared
-OIDC primitives and separate Twilight state. These choices require the planned
+OIDC primitives and separate Twilight Dash state. These choices require the planned
 integration proofs; similar stack does not establish a shared product database.
 
 ## Specification coverage

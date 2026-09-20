@@ -1,5 +1,7 @@
 ## ADDED Requirements
 
+Twilight Navigator owns the repository-planning boundary described here.
+
 ### Requirement: The factory uses the client repository contract
 
 `puni-00` and client repositories MUST use the same versioned Nx repository
@@ -80,7 +82,7 @@ resolve the pinned inputs without consulting a moving planning/receipt head.
 A `WorkPlan` read through the planning port MUST carry each task's resource units
 in the ledger vocabulary (human minutes, additive agent time, tool time, token
 categories, money categories and concurrent slots) beside WBS workdays. Each value
-MUST retain its unit, uncertainty and measured or unavailable status. Twilight MUST
+MUST retain its unit, uncertainty and measured or unavailable status. Twilight Dash MUST
 reserve and report against those units without converting one into another. Run
 wall elapsed, queue wait and human wait MAY be reported as distinct progress
 observations but MUST NOT be substituted for task effort. Settled usage MUST return

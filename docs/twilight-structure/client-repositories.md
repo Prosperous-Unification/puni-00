@@ -7,7 +7,7 @@ Status: user-directed target; storage protocol below is proposed. Updated
 
 Every client gets an Nx monorepo containing its projects, OpenSpec, linked domain
 wiki, per-repo Backlog.md, and versioned workflow configuration. `puni-00` is the
-first consumer of that setup. A central Twilight installation can coordinate
+first consumer of that setup. A central Vesper Shipyards installation can coordinate
 several authorized repos; source, planning, credentials, and context permissions
 remain scoped to each client. A dedicated per-client installation uses the same
 contracts. Distribution topology does not alter task meaning or safety gates.
@@ -82,11 +82,12 @@ Task 8 changes the OpenSpec default to `twilight-v1` in both puni-00 and generat
 clients after pinning each pre-existing change's schema metadata. Template parity
 includes that default; the current opt-in pilot is the pre-acceptance state.
 
-Self-growth uses that identical path: Twilight proposes a change to its own
-repo/template, another review evaluates it, independent gates verify it, and the
-existing release authority promotes it. The running factory cannot replace the
-policy that currently judges its own run. A protected bootstrap/recovery command
-must operate without the latest factory process being healthy.
+Self-growth uses that identical path: Twilight Navigator proposes a change to the
+product's own repo/template, another review evaluates it, Twilight Bureaucrat verifies
+it, and the existing Twilight Dash release authority promotes it. The running Vesper
+Shipyards installation cannot replace the policy that currently judges its own run. A
+protected bootstrap/recovery command must operate without the latest factory process
+being healthy.
 
 ## Storage ownership
 
@@ -96,7 +97,7 @@ must operate without the latest factory process being healthy.
 | WBS hierarchy/order/frozen numbering, per-step triples, measures, calendars, capacity, directory references, saved-plan metadata | Versioned extension files under `<planning.backlogDir>/wbs/` | WBS domain codec with lossless fixtures            |
 | Stable planning identity, command intent and accepted batch revisions                                                            | Git-versioned planning journal, scoped to repo               | Planning broker                                    |
 | Derived schedules/indexes                                                                                                        | Rebuildable cache from a planning revision                   | WBS; cache is never authoritative planning storage |
-| Workflow checkpoints, active leases, budgets, event delivery, transient presence                                                 | Durable service store appropriate to deployment              | Twilight coordinator/runtime                       |
+| Workflow checkpoints, active leases, budgets, event delivery, transient presence                                                 | Durable service store appropriate to deployment              | Twilight Dash coordinator/runtime                  |
 | Credentials and protected raw evidence                                                                                           | Secret/evidence service, client-scoped                       | Integration authority                              |
 
 “Backlog instead of SQLite” applies to the authoritative WBS planning model. The

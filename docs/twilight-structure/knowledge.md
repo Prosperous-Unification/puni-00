@@ -41,7 +41,7 @@ no Git revision contained them.
 ## Requirements and the wiki: the boundary
 
 OpenSpec owns testable requirements; the domain wiki explains and cites them.
-The user accepted that split during Twilight discovery on 2026-09-06, and it
+The user accepted that split during Twilight Navigator discovery on 2026-09-06, and it
 holds because making wiki prose canonical would change how specification
 discovery, review, and synchronization work across existing and generated
 repositories, and would add a second workflow authority before the first one is
@@ -92,16 +92,16 @@ evidence storage, with authorized references; credentials never go in Git.
 
 ## Refactor performed by this pilot
 
-| Existing entry                  | Current owner / treatment                                                                                   |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `spec.md`                       | User requirement catalog; expanded with new direction and links to testable deltas                          |
-| `discovery.md`                  | Prior accepted answers retained; pending Q1 superseded for this run by explicit assumptions                 |
-| `sdlc-stages.md`                | Current canonical stage mapping and focus-profile behavior                                                  |
-| `sdd-proposal.md`               | Deleted; it had become a redirect. The authority split lives above, the flow in `sdlc-stages.md`            |
-| `research.md`                   | Deleted; its index is the research row of [the Twilight README](README.md) and its notes are in `research/` |
-| `sdd-sources.md`                | Dated CLI findings that are current at the pinned 1.12.0; obsolete 1.3.0 recommendations removed            |
-| `CONTEXT.md` / `CONTEXT-MAP.md` | Original locations retained, glossary and relationships updated                                             |
-| `LLM_README.md`                 | Existing Twilight link now opens current navigation; wiki link added within the cap                         |
+| Existing entry                  | Current owner / treatment                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `spec.md`                       | User requirement catalog; expanded with new direction and links to testable deltas                                    |
+| `discovery.md`                  | Prior accepted answers retained; pending Q1 superseded for this run by explicit assumptions                           |
+| `sdlc-stages.md`                | Current canonical stage mapping and focus-profile behavior                                                            |
+| `sdd-proposal.md`               | Deleted; it had become a redirect. The authority split lives above, the flow in `sdlc-stages.md`                      |
+| `research.md`                   | Deleted; its index is the research row of [the Twilight Structure README](README.md) and its notes are in `research/` |
+| `sdd-sources.md`                | Dated CLI findings that are current at the pinned 1.12.0; obsolete 1.3.0 recommendations removed                      |
+| `CONTEXT.md` / `CONTEXT-MAP.md` | Original locations retained, glossary and relationships updated                                                       |
+| `LLM_README.md`                 | Existing Twilight Structure link now opens current navigation; wiki link added within the cap                         |
 
 No wholesale WBS doc move is needed to test this pattern. The first maintenance
 benchmark asks a fresh reviewer five questions: where behavior is authoritative;
@@ -111,7 +111,7 @@ the answer, and a misleading historical page is a failure to fix.
 
 ## When a custom knowledge tool becomes worthwhile
 
-The first `tool-twilight` increment should check local links, required source
+The first `twilight-bureaucrat` increment should check local links, required source
 metadata, capability coverage, content digests, and stale evidence references
 through the same validation operation used by BE/CI. It must report facts it
 cannot establish. Semantic contradiction review remains an attributed judgment.

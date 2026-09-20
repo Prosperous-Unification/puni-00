@@ -1,4 +1,4 @@
-# Twilight review hardening tasks
+# Twilight Bureaucrat review hardening tasks
 
 Scope: apply the accepted branch review, using [design](design.md) and the
 [workflow contract](specs/twilight/workflow-maintenance/spec.md). Runtime changes
@@ -108,7 +108,7 @@ retained artifact.
 - [x] 5.2 Check the amended documents and configuration together, run the relevant
       repository checks and record the six findings' dispositions and limits.
 
-Owns the current Twilight proposal and `execution.yaml`; preserves historical
+Owns the current Twilight Dash proposal and `execution.yaml`; preserves historical
 reviews and leaves every product implementation task unchecked. Use the accepted
 review's concrete counterexamples: spend/holds across a profile change, concurrent
 agent time versus wall time, skipped observations versus zero findings, mixed-profile

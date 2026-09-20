@@ -1,5 +1,7 @@
 ## ADDED Requirements
 
+Twilight Navigator owns the assistant-interaction boundary described here.
+
 ### Requirement: The secretary remains available while delegated work runs
 
 The system MUST provide one default secretary conversation for requests of any
@@ -38,7 +40,7 @@ the secretary; worker admission MUST treat that reserve as unavailable to worker
 ### Requirement: Software delivery enters one authority boundary
 
 The assistant runtime MUST remain usable for general requests. A software-delivery
-request MUST enter Twilight through an authenticated, authorized operation that
+request MUST enter Twilight Navigator through an authenticated, authorized operation that
 returns durable work references. Conversation text, worker instructions and
 OpenClaw session state MUST NOT expand the execution envelope, approve a plan,
 publish source or release production.
@@ -47,23 +49,23 @@ publish source or release production.
 
 - **GIVEN** a request has no software-delivery effect
 - **WHEN** the secretary handles or delegates it
-- **THEN** no Twilight delivery run is created merely because a worker session exists
+- **THEN** no Twilight Dash delivery run is created merely because a worker session exists
 
 #### Scenario: A software request is submitted
 
 - **GIVEN** the caller is allowed to create work for a repository
-- **WHEN** the secretary submits the request through Twilight
-- **THEN** Twilight returns immutable request and run references and applies its normal planning, budget and decision boundaries
+- **WHEN** the secretary submits the request through Twilight Navigator
+- **THEN** Twilight Structure returns immutable request and run references and applies its normal planning, budget and decision boundaries
 
 #### Scenario: Conversation asks for broader authority
 
 - **GIVEN** an approved run has a bounded execution envelope
 - **WHEN** any assistant or worker message asks to exceed that envelope or release production
-- **THEN** the action remains blocked until the owning Twilight decision operation supplies the required authority
+- **THEN** the action remains blocked until the owning Twilight Dash decision operation supplies the required authority
 
 ### Requirement: Workers are stable, renameable presentation identities
 
-Twilight MUST represent a worker independently from its assignments, sessions,
+Twilight Dash MUST represent a worker independently from its assignments, sessions,
 model and OpenClaw configured-agent identity. Dany MUST be able to rename a worker
 without changing its stable identity, history ownership or active assignments.
 Worker names MUST NOT imply fixed occupational roles or grant authority.
@@ -77,7 +79,7 @@ Worker names MUST NOT imply fixed occupational roles or grant authority.
 #### Scenario: A runtime session is replaced
 
 - **GIVEN** a worker assignment resumes in a new OpenClaw session or model
-- **WHEN** Twilight binds that session
+- **WHEN** Twilight Dash binds that session
 - **THEN** the same worker and assignment remain visible and the runtime change is recorded rather than creating a new worker identity
 
 #### Scenario: A name resembles a privileged role
@@ -88,7 +90,7 @@ Worker names MUST NOT imply fixed occupational roles or grant authority.
 
 ### Requirement: Every permitted session is explorable and searchable
 
-Twilight MUST retain a redacted, access-controlled session corpus for the personal
+Twilight Navigator MUST retain a redacted, access-controlled session corpus for the personal
 phase without default age-based deletion. It MUST index user and assistant text,
 permitted tool inputs and outputs, assignment links and required inactive branches.
 It MUST label omitted or unavailable content. A storage ceiling MUST warn and offer
@@ -112,7 +114,7 @@ results MUST link to the matching session position and structured work context.
 
 - **GIVEN** content is secret, outside the caller's authority or unavailable from the runtime
 - **WHEN** capture or search reaches it
-- **THEN** Twilight stores or returns an explicit redacted, excluded or unavailable marker without indexing the protected value
+- **THEN** Twilight Navigator stores or returns an explicit redacted, excluded or unavailable marker without indexing the protected value
 
 #### Scenario: The storage ceiling is reached
 
@@ -122,7 +124,7 @@ results MUST link to the matching session position and structured work context.
 
 ### Requirement: Work is visible through sourced high-level events
 
-Twilight MUST persist a high-level event stream that projects workers,
+Twilight Dash MUST persist a high-level event stream that projects workers,
 assignments, sessions, delivery runs, environments and evidence. Every event MUST
 identify its source and time and distinguish observed runtime state,
 agent-reported progress and accepted outcomes. A report or message alone MUST NOT

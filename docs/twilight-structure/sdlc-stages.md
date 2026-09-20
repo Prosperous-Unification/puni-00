@@ -1,4 +1,4 @@
-# Twilight SDLC v1
+# Twilight Structure SDLC v1
 
 Status: opt-in repository workflow, exercised by the
 [documentation trial](../../openspec/changes/twilight-sdlc-pilot/verify.md).
@@ -70,6 +70,9 @@ production delivery, and `release` never starts from stage completion. Which
 activities a run performs is the delivery profile's choice within the repository
 and organization floors; changing enablement is one audited activity override.
 
+Request through planning are Twilight Navigator's stages, implementation through
+release are Twilight Dash's stages, and every stage gate is Twilight Bureaucrat's.
+
 ## Authority and assumptions
 
 The current user authorized an autonomous plan and self-answered questions.
@@ -102,7 +105,7 @@ The trial tests these boundaries against 1.12.0. `apply.requires` lists intent,
 specs and tasks directly: a task file does not recursively establish its ancestors.
 Design is a dependency of tasks, so fast-forward evaluates its applicability
 before planning; the CLI does not judge whether an applicability-only design was
-the right call, and the future verifier will. The schema is not a workflow engine.
+the right call, and Twilight Bureaucrat will. The schema is not a workflow engine.
 
 ## Applicability and completion
 
@@ -125,11 +128,11 @@ deterministically. The [migration](client-repositories.md) changes authority exp
 
 ## From pilot to service
 
-The custom `tool-twilight` compiler/verifier fills identified gaps: content and
+Compilation and inspection are Twilight Dash's command-line operations. Content,
 capability coverage, design applicability, provenance/digests, stale decisions,
-profile floors, organization-snapshot inputs and task extraction. BE and CI call
-the same operations. LangGraph persists and executes the compiled workflow while
-ACP workers act within
+profile floors, organization-snapshot inputs and task extraction are Twilight
+Bureaucrat checks used by Twilight Dash's BE and CI. LangGraph persists and executes
+the compiled workflow while ACP workers act within
 capabilities. Settings and levers use the
 [exposed control matrix](product-experience.md). Implementation order belongs
 only to the [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md).
