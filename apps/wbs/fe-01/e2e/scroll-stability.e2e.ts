@@ -43,10 +43,13 @@ async function resetProbe(page: Page): Promise<void> {
   }, EMPTY_PROBE);
 }
 
-async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]> {
+async function pointAtTable(page: Page): Promise<void> {
   const box = await page.locator('[data-table-frame]').boundingBox();
   if (box === null) throw new Error('scroll probe table has no geometry');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]> {
   await page.evaluate(() => {
     type ObservedWindow = typeof window & {
       __wbsScrollProbe?: ProbeCounters;
@@ -251,6 +254,11 @@ test.describe('large-plan scroll stability', () => {
         await page.locator('[data-table-frame]').evaluate((node) => {
           node.scrollTop = 0;
         });
+        await painted(page);
+        // Pointer placement is setup, not scrolling. Counting its row-light
+        // publication charged the first trace for a Gantt commit a reader had
+        // already paid before starting a wheel gesture.
+        await pointAtTable(page);
         await painted(page);
         await resetProbe(page);
         const before = await session.send('Performance.getMetrics');
