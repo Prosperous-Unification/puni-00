@@ -12,7 +12,7 @@
 
 ## 4. Prove lifecycle checks can fail
 
-- [ ] 4.1 Inject and observe the six specified ownership faults, restore each passing version, and record adjacent proof comments.
+- [x] 4.1 Inject and observe the six specified ownership faults, restore each passing version, and record adjacent proof comments.
 
 ## 5. Complete the verification record
 

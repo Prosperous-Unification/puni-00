@@ -90,8 +90,12 @@ export async function bootBe01(
     .register({
       // One connection for the process, opened through `openDrizzle` so the
       // per-connection pragmas (WAL, busy_timeout) are set and asserted.
+      // Proof: on 2026-09-20, dropping this disposal made the occupied-port
+      // test report `Expected: 1`, `Received: 0` source closes (0 pass, 1 fail).
       source: DiBag.withDisposal(
         DiBag.fromSyncFactory((): OwnedSource => dependencies.openSource({ dbPath: opts.dbPath })),
+        // Proof: on 2026-09-20, swallowing this refusal produced no cleanup
+        // error: expected `DiBagCleanupError`, received `undefined`.
         (source) => source.close(),
       ),
       services: DiBag.fromSyncFactory(({ source }: { source: OwnedSource }): BeServices =>
@@ -117,6 +121,8 @@ export async function bootBe01(
           services.retention.start();
           return services.retention;
         }),
+        // Proof: on 2026-09-20, dropping this disposal made the refused-release
+        // test report `Expected: false`, `Received: true` for timer activity.
         (retention) => retention.stop(),
       ),
       // The listener is the last thing acquired and the first thing released.
@@ -139,6 +145,8 @@ export async function bootBe01(
               // Read for its edge, not its value: it is what puts the timer's
               // disposer after the listener's. Drop it and the timer is never
               // started at all.
+              // Proof: on 2026-09-20, dropping this edge made the timer test
+              // report `Expected: true`, `Received: false` (0 pass, 1 fail).
               retention: BeServices['retention'];
             },
             factoryCtx,
@@ -188,6 +196,8 @@ export async function bootBe01(
             // Pushed before `listen`, because from here on there is something
             // to give back. On the clean path the `withDisposal` below stops the
             // app and this sees `service-disposed` and does nothing.
+            // Proof: on 2026-09-20, deleting this push made startup rollback
+            // report `Expected: true`, `Received: false` for a refused port.
             factoryCtx.pushDisposer(async (disposerCtx) => {
               if (disposerCtx.reason !== 'service-disposed') await app.stop();
             });
@@ -241,6 +251,8 @@ export async function bootBe01(
         ),
         // A block body, not `(app) => app.stop()`: Elysia's `stop()` resolves to
         // the application, and a disposer must resolve to nothing.
+        // Proof: on 2026-09-20, replacing `app.stop()` with a resolved promise
+        // made source close observe `Expected: true`, `Received: false`.
         async (app) => {
           await app.stop();
         },
