@@ -168,7 +168,10 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
   };
 }
 
-test.use({ viewport: { width: 1280, height: 800 }, video: 'on' });
+test.use({
+  viewport: { width: 1280, height: 800 },
+  video: process.env['WBS_SCROLL_VIDEO'] === '0' ? 'off' : 'on',
+});
 
 test('50-row plan reaches matching terminal positions from either face', async ({ page }) => {
   const seeded = await seedRenderingPlan(page, {
