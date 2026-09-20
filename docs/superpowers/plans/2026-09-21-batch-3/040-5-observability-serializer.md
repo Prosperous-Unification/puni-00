@@ -323,9 +323,9 @@ Recorded rather than asked, per the owner's standing instruction.
 | `openspec/changes/log-failure-records/tasks.md`                          | Create                                                                                                                                                    |
 | `openspec/changes/log-failure-records/verify.md`                         | Create                                                                                                                                                    |
 
-`libs/shared/domain/failures/src/report-failure.ts` is **not** in the file plan. Proof 2 mutates
-and restores it; a mutation that ends in a byte-identical `cmp` is not an edit, and it is the only
-file outside the plan the executor may touch, for that one proof.
+`libs/shared/domain/failures/src/report-failure.ts` is outside the persistent file plan. Proofs 2
+and 10 may temporarily mutate it, with saved patches, observed outputs, restoration from passing
+copies and byte-identical `cmp` checks. It must not appear in either handover's diff.
 
 `libs/wbs/adapters/observability/src/serializers.ts` gains `keepAbsentFailure` beside
 `createFailureSerializer` and `registerReportedFailure`; `logger.ts` gains a `formatters.log`
@@ -1153,7 +1153,6 @@ it('states one fixed reason on every lost report', () => {
   expect(losses[0].reason).toBe(losses[1].reason);
   expect(losses[0].reason.length).toBeGreaterThan(0);
 });
-});
 ```
 
 Ten separate tests, not four: schema conformance, the absent-failure normalisation, the
@@ -1492,8 +1491,12 @@ with `cp` and prove **both** with `cmp` before asserting on anything, then rerun
 
 ### Proof 10 — the fallback's own handle counter
 
-Same dependency fault, so that the fallback is the layer answering. Run it immediately after proof
-2, while fault A is still installed and the guard is restored.
+Complete proof 2 first: restore both files, verify both with `cmp`, and rerun its named test green.
+For proof 10, save fresh passing copies of both files, then reapply proof 2's fault A to
+`libs/shared/domain/failures/src/report-failure.ts`; leave the serializer guard intact. Save this
+dependency mutation separately as `proof-10-dependency.patch`. Run step 1, then apply and save the
+counter mutation for step 2. Finally restore both files from the passing copies, compare both with
+`cmp`, and rerun both named tests green.
 
 **Step 1 (fault A alone).** `gives two lost reports two different correlation handles` and
 `states one fixed reason on every lost report` in `src/logger.test.ts` both **pass**: they assert
