@@ -166,6 +166,11 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
       layoutMs: durationMs('Layout'),
       paintMs: durationMs('Paint'),
       updateLayoutTreeMs: durationMs('UpdateLayoutTree'),
+      longestEvents: events
+        .filter((event) => (event.dur ?? 0) >= 10_000)
+        .sort((left, right) => (right.dur ?? 0) - (left.dur ?? 0))
+        .slice(0, 20)
+        .map((event) => ({ name: event.name ?? '(unnamed)', durationMs: (event.dur ?? 0) / 1_000 })),
     },
   };
 }
