@@ -30,6 +30,9 @@ export function createDirectoryManagement(directory: DirectoryResource): Directo
     whenAdded: () => void,
   ): NameWrite => {
     const clean = typedName.trim();
+    // Proof: removing this guard made `an empty add is refused without a
+    // request and keeps its box` fail with expected `sent` to be `empty`.
+    // Watched 2026-09-20.
     if (clean === '') {
       nameRequired();
       return 'empty';
@@ -56,6 +59,9 @@ export function createDirectoryManagement(directory: DirectoryResource): Directo
        * alone, and says so` failed on `Unable to find role="alert"`, with
        * `patchPerson` having been called `{ name: '' }`. Watched 2026-08-09.
        */
+      // Proof: removing this guard made `a name of whitespace alone is never
+      // sent, and says so` fail with expected `sent` to be `empty`. Watched
+      // 2026-09-20.
       if (clean === '') {
         nameRequired();
         return 'empty';
@@ -66,6 +72,9 @@ export function createDirectoryManagement(directory: DirectoryResource): Directo
         // Here and not after the refetch: this is where the page dropped the
         // name draft, and a draft left standing over a value that has just come
         // back would hold the box at what this browser typed.
+        // Proof: moving this callback after an awaited read made `a rename is
+        // trimmed, sent, and its caller told before the refetch` fail with
+        // expected `0` to be `1` at `atRefetch`. Watched 2026-09-20.
         whenSent();
         sayTaken(written);
       });
@@ -98,6 +107,9 @@ export function createDirectoryManagement(directory: DirectoryResource): Directo
 
     addTeamForPerson: (person, name) => {
       void directory.runWrite(async () => {
+        // Proof: patching before this create made `making a team for somebody
+        // creates before it patches` fail with expected `[ 'patchPerson:p1' ]`
+        // to equal `[]`. Watched 2026-09-20.
         const team = await directory.createTeam(name);
         sayTaken(await directory.setPersonTeams(person.id, [...person.teamIds, team.id]));
       });
@@ -120,6 +132,9 @@ export function createDirectoryManagement(directory: DirectoryResource): Directo
          * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
          * fault `steps-panel` already knows. Watched 2026-08-09.
          */
+        // Proof: pinning this cascade to `true` made `a removal is always asked
+        // without a cascade first` and its no-usage sibling fail with expected
+        // `[ [ 'p1', true ] ]` to equal `[ [ 'p1', false ] ]`. Watched 2026-09-20.
         const outcome = await directory.removeEntry(kind, entry.id, false);
         if (outcome.ok) return;
         whenRefused(outcome.usage);

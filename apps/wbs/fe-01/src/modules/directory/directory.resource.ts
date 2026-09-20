@@ -34,6 +34,9 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
    */
   const show = (next: Partial<DirectorySnapshot>): void => {
     const merged: DirectorySnapshot = { ...shown, ...next };
+    // Proof: deleting this early return made `a refusal that says nothing new
+    // replaces no snapshot and wakes nobody` fail its object-identity assertion.
+    // Watched 2026-09-20.
     if (FIELDS.every((field) => Object.is(merged[field], shown[field]))) return;
     shown = merged;
     for (const listen of [...listeners]) listen();
@@ -97,6 +100,8 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
     // alone failed, on `expected null not to be null` — a superseded read
     // putting the name somebody had just changed back on the panel. Watched
     // 2026-08-13.
+    // Proof: deleting this guard made `only the newest read may install` fail
+    // with expected `Stale` to be `Bo`. Watched 2026-09-20.
     if (generation !== latestRead) return;
     show({
       people: foundPeople,
@@ -117,6 +122,9 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
       try {
         await change();
       } catch (thrown: unknown) {
+        // Proof: removing this catch made `a write that throws becomes a refusal,
+        // and still refetches` fail with the thrown `Error: offline`. Watched
+        // 2026-09-20.
         show({ problem: { reason: 'refused', code: failureText(thrown, 'request_failed') } });
       }
       try {
@@ -124,6 +132,9 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
       } catch (thrown: unknown) {
         reportFailedRead(thrown);
       } finally {
+        // Proof: removing this finally made `a refetch that throws becomes a
+        // refusal, and busy still falls` and two other busy cases fail with
+        // expected `true` to be `false`. Watched 2026-09-20.
         show({ busy: false });
       }
     })();
@@ -145,6 +156,9 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
       show({ problem: refusal });
     },
     replaceClient: (next) => {
+      // Proof: making this a no-op made `a replaced client keeps everything the
+      // directory already held` fail with expected `Kat` to be `Bo`. Watched
+      // 2026-09-20.
       api = next;
     },
     runWrite,
