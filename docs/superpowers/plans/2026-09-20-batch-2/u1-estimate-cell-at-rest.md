@@ -503,8 +503,8 @@ Then:
      invalid styling.
 
   **No requirement states a pixel size, and none may.** "Smaller" is the rule; the number is
-  `QUIET_TRIO_PX` and lives in code with its measurement. That is what lets decision rule D1 change
-  the number without touching this specification.
+  `QUIET_TRIO_PX` and lives in code with its measurement, so a later, replanned change of the number
+  does not touch this specification.
 
 - [ ] Write `openspec/changes/estimate-cell-at-rest/tasks.md` as the ordered slices of this packet.
 - [ ] Create `openspec/changes/estimate-cell-at-rest/verify.md` with the headings
@@ -588,8 +588,8 @@ Nothing about the **result** changes in this slice. The tests come first and the
     rowFor(number).querySelector<HTMLElement>(`[data-rolled-trio="${stepId}"]`);
   ```
 
-- [ ] Import the constant the tests assert against, so decision rule D1 can change the number
-      without editing a test. Add to the relative import group, **before**
+- [ ] Import the constant the tests assert against, so the jsdom tests never restate the number.
+      Add to the relative import group, **before**
       `import type * as TableFrameModule from './table-frame';` (import order is lint-checked; this
       position was watched passing):
 
@@ -1318,8 +1318,8 @@ is precisely the state review 2 found.
 
 **N1 and N4 are the same failures the slice-2 red run produces**, which is what makes them honest:
 the check is the difference between that red and the green beside it. `10px` appears in the messages
-because `QUIET_TRIO_PX` is 10; under decision rule D1 the number in the message follows the constant
-and the tests still read `quiet`.
+because `QUIET_TRIO_PX` is 10; the jsdom tests read `quiet` from the constant, while the Chromium
+assertions pin the literal, which is why D1 stops and replans instead of changing the number.
 
 Two more are the planner's, in section 9: the Chromium fit proof (P3) and the dark contrast proof
 (P4). Neither can be watched in the sandbox, and neither may be claimed by the executor.
