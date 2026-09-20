@@ -126,10 +126,11 @@ For every proof, in this order:
    mutated file behind. `grep -F` failing is a stop: the fault produced a different failure than the
    packet predicted.
 
-   **Part C is the exception to the `grep -F` line.** Its proof table's last column describes an
-   assertion mismatch, not a literal log sentence, so part C replaces that command with
-   `cat "$TMPDIR/evidence/P<n>.log"` and reads it. See C.4, which states the rule and what still
-   counts as a stop.
+   **Parts B through E replace the literal `grep -F` check with inspection of the named assertion
+   mismatch, as their proof sections specify.** Their tables' last column describes an assertion
+   mismatch, not a literal log sentence, so each replaces that command with
+   `cat "$TMPDIR/evidence/P<n>.log"` and reads it. See B.4, C.4, D.5 and E.5, which state the rule
+   and what still counts as a stop.
 
 5. Record the decisive failing line.
 6. Copy the saved bytes back, `cmp` them, rerun the named test green.
@@ -461,6 +462,7 @@ Not verified; never state any of these as fact.
 | `apps/wiki/cli/src/rules/registry.ts`              | B, C, D, E | modify           | One registry entry per new rule                                       |
 | `apps/wiki/cli/src/rules/rules.test.ts`            | A-E        | modify           | Every test and every exact-list update                                |
 | `apps/wiki/cli/README.md`                          | E          | modify           | The "## Rules" section only                                           |
+| `apps/wiki/cli/src/packaging/build.test.ts`        | D, E       | modify           | Add each newly registered rule's observing mode under §0.5a           |
 
 One more file is touched, by part A only:
 `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`, whose "Ratchet mode protects
@@ -468,8 +470,8 @@ touched and adopted code" requirement is amended so it no longer contradicts wha
 delivers. See §9 and assumption A3. That change is **proposed, not accepted**: it is not in
 `openspec/specs/`, so nothing archived is being rewritten.
 
-Nothing else is touched. No file outside `apps/wiki/cli/src/rules`, `apps/wiki/cli/README.md`, the
-new OpenSpec change directory and that one delta spec changes. **This packet creates no README and
+Only files named in this file plan or the dispatched part's handover may change. This includes
+`apps/wiki/cli/src/packaging/build.test.ts` under §0.5a. **This packet creates no README and
 no Nx target**, so neither the README coverage pin in
 `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` — which packet 110.6 lands first and may
 turn from a literal into a derived value — nor the incoming `CLAUDECODE=0`/`AGENT=0` target defaults
@@ -988,8 +990,11 @@ That rehearsal is proof C8b below.
 
 ### 6.5 `apps/wiki/cli/src/rules/direction.ts` — parts D and E
 
-Part D writes everything except `PlainSelector`, `resolvePlainSelectors`, `matchesSelector` and
-`reactObservations`, which part E adds.
+Part D writes everything except `ReactTargets`, `ReactScopePrefix`, `PlainSelector`,
+`SelectorOutcome`, `resolvePlainSelectors`, `matchesSelector` and `reactObservations`, which part E
+adds. **The two React constants belong to part E**, whose `reactObservations` is their first
+consumer: declaring them in part D leaves two `@typescript-eslint/no-unused-vars` errors, observed
+on 2026-09-20 by running part D's `direction.ts` through `bunx eslint`.
 
 ```ts
 import type { KindedFile, KindGraph, ServiceKind } from './kinds';
@@ -1004,6 +1009,7 @@ export interface ImportEdge {
 }
 
 const ReExportKinds = new Set(['re-export', 'type-re-export']);
+// Part E adds these two, immediately before `reactObservations`, their first consumer.
 const ReactTargets = new Set(['external:react', 'external:react-dom']);
 const ReactScopePrefix = 'external:@tanstack/react-';
 
@@ -1096,8 +1102,8 @@ export function sidewaysObservations(
     for (const target of reachedTargets(imports, edge.target)) {
       const reachedFile = kinded.get(target);
       if (reachedFile === undefined) continue;
-      // Proof: on <date>, making this module comparison always unequal made a same-module import a
-      // finding; the inside-one-module test expected `findings: []`.
+      // Part E writes this function's `Proof:` comment, after it observes E3 and E4; part D writes
+      // the function without one, because part D observes neither.
       if (reachedFile.kind !== source.kind || reachedFile.module === source.module) continue;
       const key = `${edge.source}\u0000${target}`;
       if (reported.has(key)) continue;
@@ -1130,8 +1136,8 @@ export function resolvePlainSelectors(
   entryPaths: ReadonlySet<string>,
 ): SelectorOutcome {
   for (const selector of selectors) {
-    // Proof: on <date>, deleting this loop let `src/m/renamed-store.ts` import React while the
-    // policy still named `src/m/store.ts`; the stale-selector test expected an unevaluated rule.
+    // Proof: on <date>, deleting this exact-path refusal made the stale-selector test's first
+    // invocation, the one naming `src/m/store.ts`, exit 0 where exit 1 was expected (E8a).
     if (selector.kind === 'path' && !entryPaths.has(selector.value)) {
       return {
         ok: false,
@@ -1140,6 +1146,8 @@ export function resolvePlainSelectors(
     }
     if (selector.kind === 'prefix') {
       const covered = [...entryPaths].some((path) => path.startsWith(`${selector.value}/`));
+      // Proof: on <date>, neutralizing this refusal made the stale-selector test's second
+      // invocation, the one naming the prefix `src/stores`, exit 0 where exit 1 was expected (E8b).
       if (!covered) {
         return {
           ok: false,
@@ -1152,6 +1160,9 @@ export function resolvePlainSelectors(
 }
 
 function matchesSelector(path: string, selectors: readonly PlainSelector[]): boolean {
+  // Proof: on <date>, replacing the prefix arm with `false` made the store test's prefix invocation
+  // receive no finding (E5b), and dropping the trailing slash made it receive two, because
+  // `src/more/store.ts` starts with `src/m` (E5c).
   return selectors.some((selector) =>
     selector.kind === 'path' ? path === selector.value : path.startsWith(`${selector.value}/`),
   );
@@ -1175,7 +1186,7 @@ export function reactObservations(
   for (const edge of imports) {
     const source = kinded.get(edge.source);
     // Proof: on <date>, dropping this skip made the delivery component's React import a finding;
-    // the scoped-and-delivery test expected exactly one observation, for the store.
+    // the delivery-exemption test expected `findings: []`.
     if (source?.kind === 'delivery') continue;
     const declaredPlain = matchesSelector(edge.source, plainSelectors);
     // Proof: on <date>, dropping `declaredPlain` made the store fixture report nothing; the store
@@ -2246,8 +2257,9 @@ entrypoint that exists.
 
   **Every fixture file must typecheck under `strict`.** A type error or an unresolved specifier makes
   extraction throw and the rule report itself unevaluated instead of producing a finding. An **unused
-  import is harmless**: `noUnusedLocals` is set nowhere (fact 29). Give each file a used export
-  anyway, because an import the compiler elides produces no edge.
+  import is harmless**: `noUnusedLocals` is set nowhere (fact 29). Extraction walks the source's
+  import syntax, so an unused import is not necessarily edge-free; the fixtures above use every
+  import anyway, so no test depends on that question either way.
 
 ### D.3 Tests first
 
@@ -2270,14 +2282,20 @@ entrypoint that exists.
 
 - [ ] Update all five sites of §6.8 for `K3` and `K4`. `writeCompleteRulePolicy` already carries a
       `relationshipRequest`, so nothing else changes there.
+- [ ] Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `K3`
+      and `K4` to its existing `ruleModes`, retaining identifier order and all existing assertions.
+      It adds no test; report it as pending planner verification.
 - [ ] Run the rules test file. Expected: all seven fail with
-      `rule policy names an unregistered rule: K3`.
+      `rule policy names an unregistered rule: K3 (registered: F7, INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)`,
+      observed on 2026-09-20 by rehearsal.
 
 ### D.4 Implementation
 
 - [ ] Create `apps/wiki/cli/src/rules/direction.ts` with §6.5's part-D half: `ImportEdge`,
-      `ReExportKinds`, `ReactTargets`, `ReactScopePrefix`, `reachedTargets`, `Direction`,
-      `kindedByPath`, `sorted`, `directionObservations` and `sidewaysObservations`. Write
+      `ReExportKinds`, `reachedTargets`, `Direction`, `kindedByPath`, `sorted`,
+      `directionObservations` and `sidewaysObservations`. **Part D omits `ReactTargets` and
+      `ReactScopePrefix`**; part E adds both from §6.5 immediately before implementing
+      `reactObservations`. Do not rename, suppress or export them merely to satisfy lint. Write
       `directionObservations`'s guard as `if (source?.kind !== direction.from) continue;`: the
       two-clause form is refused by `lint:source` with `@typescript-eslint/prefer-optional-chain`,
       observed on 2026-09-20.
@@ -2292,6 +2310,11 @@ entrypoint that exists.
       `forbidden: ['feature', 'delivery']`. Add both to the `rules` array.
 - [ ] Add **no** composition-root guard. §6.5 has none: the exemption is a composition root's absence
       from `KindGraph.files`, and a guard would be unreachable (fact 30).
+- [ ] The "use verbatim" instruction **excludes placeholder `Proof:` comments**. Write each only
+      after observing that fault in the current part, using the actual named test and its first
+      failing assertion. Part D writes no `Proof:` comment on `sidewaysObservations`, whose faults
+      E3 and E4 only part E observes, and none on `resolvePlainSelectors`, `matchesSelector` or
+      `reactObservations`, which part D does not write at all.
 - [ ] Run the rules test file. Expected: `N + 7` tests, `0 fail`, and in particular
       `reports a declared relationship that the candidate leaves unresolved` still passes. If that one
       fails, **stop**: the refactor changed behaviour.
@@ -2299,14 +2322,35 @@ entrypoint that exists.
 
 ### D.5 Negative proofs
 
-| #   | Fault                                                                                                                                            | Named test                                                  | Expected failing line                                                                                                                                                                                                    |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | In `reachedTargets`, return `[target]` and never expand re-exports                                                                               | `sees a repository through a barrel a feature imports`      | `findings: []` where one K3 finding was expected                                                                                                                                                                         |
-| D2  | In `directionObservations`, drop the `direction.forbidden.includes(...)` test                                                                    | `allows a feature-service that imports a resource-service`  | Unexpected findings in a verdict that **still exits 0**: the rule is observing, so the extra finding is debt. The failing assertion is `findings` not being `[]`, never the status.                                      |
-| D3  | In `resolveKinds` (`kinds.ts`), push the composition root into `files` as `{ path, kind: 'feature', module }` instead of into `compositionRoots` | `exempts a composition root that imports every kind`        | One K3 finding with `path` `src/m/composition.ts` where none was expected. **Deleting a guard proves nothing**: a composition root never enters `files`, so a probe returned `[]` either way (fact 30).                  |
-| D4  | In `graphRule`, return `{ kind: 'observed', observations: [] }` when the outcome is not ok                                                       | `refuses K3 when the trusted modules are unconfigured`      | Exit 0 with `allowed: true` and `unevaluated: []`, where exit 1 and the named reason were expected. That test supplies the empty variable itself through `runCliWithEnv`; every other command in this part keeps it set. |
-| D5  | Remove `'delivery'` from K3's `forbidden` list                                                                                                   | `names a feature-service that imports a delivery component` | `findings: []`                                                                                                                                                                                                           |
-| D6  | In `directionRule`'s K4 entry, remove `'feature'` from `forbidden`                                                                               | `names a resource-service that imports a feature-service`   | `findings: []`                                                                                                                                                                                                           |
+For part D the final column describes the **required assertion mismatch, not a literal log
+sentence**. In §0.4 step 4, replace the final `grep -F` command with
+`cat "$TMPDIR/evidence/P<n>.log"`. Keep the status capture, the restoration, the `cmp` and the
+nonzero-status assertion. Confirm that the named test ran and failed at the assertion demonstrating
+that mismatch; a collection error, a timeout and an unrelated failure do not count. Record the
+actual matcher diagnostic with its expected and received values. D4 fails first on exit status,
+expected 1 and received 0; do not claim that subsequent assertions ran. Preamble rule 16 governs
+additional failing tests.
+
+Run each row independently: restore and confirm green between rows, and save a separate patch and
+log for each. **Every part D proof runs the production CLI.**
+
+The "required mismatch" column was **observed on 2026-09-20** by rehearsing part D in a clone at
+part C's committed head, under §0.2's command with Bun 1.4.2. Expect these exact matcher
+diagnostics; a different one is a stop.
+
+| #   | Fault, named by function and expression                                                                                                                                         | Named test                                                  | Required mismatch                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | In `reachedTargets` only, make `return [target];` the function's first statement, so the re-export queue never runs                                                             | `sees a repository through a barrel a feature imports`      | `expect(received).toHaveLength(expected)`, `Expected length: 1`, `Received length: 0`                                                                                                   |
+| D2  | In `directionObservations` only, replace the whole condition `reachedFile === undefined \|\| !direction.forbidden.includes(reachedFile.kind)` with `reachedFile === undefined`  | `allows a feature-service that imports a resource-service`  | `expect(received).toEqual(expected)` on `findings`, `Expected - 1` `[]` against `Received + 9`, the single K3 debt finding `feature imports resource src/m/m.resource.ts`. Still exit 0 |
+| D3  | In `resolveKinds` (`kinds.ts`) only, replace `compositionRoots.push(path);` with `files.push({ path, kind: 'feature', module });`                                               | `exempts a composition root that imports every kind`        | `toEqual` on `findings`, `Expected - 1` `[]` against `Received + 9`, one K3 finding at `path: "src/m/composition.ts"`. **Deleting a guard proves nothing** (fact 30)                    |
+| D4  | In **`graphRule`'s** `evaluate`, not `REL-EXTRACT`'s, replace `return { kind: 'not-evaluated', reason: outcome.reason };` with `return { kind: 'observed', observations: [] };` | `refuses K3 when the trusted modules are unconfigured`      | `expect(received).toBe(expected)` on the exit status, `Expected: 1`, `Received: 0`. The `allowed` and `unevaluated` assertions never ran                                                |
+| D5  | In `directionRule`'s **K3** entry, change `{ from: 'feature', forbidden: ['repository', 'delivery'] }` to `forbidden: ['repository']`                                           | `names a feature-service that imports a delivery component` | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                              |
+| D6  | In `directionRule`'s **K4** entry, change `{ from: 'resource', forbidden: ['feature', 'delivery'] }` to `forbidden: ['delivery']`                                               | `names a resource-service that imports a feature-service`   | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                              |
+
+D2's and D4's expressions each appear twice in their file with different surroundings: D2's
+membership test is the one inside `directionObservations`, not `sidewaysObservations`'s
+`reachedFile === undefined` line, and D4's early return is the one in `graphRule`, not the
+identical-looking line `REL-EXTRACT`'s `evaluate` gained in D.4.
 
 D3's proof comment belongs beside the composition-root branch in `kinds.ts`, so **`kinds.ts` is in
 part D's handover**.
@@ -2322,10 +2366,16 @@ required in this slice. Fill part D's section of `verify.md` before handing over
 
 Subject: `feat(bureaucrat): judge K3 and K4 on the extracted import graph`
 
+Rules this part registers: `K3` and `K4`.
+
 Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/kinds.ts`,
 `apps/wiki/cli/src/rules/registry.ts`, `apps/wiki/cli/src/rules/rule.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
+`apps/wiki/cli/src/packaging/build.test.ts`,
 `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what `git status` actually shows.
+
+Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `K3` and
+`K4` to its existing `ruleModes`, retaining identifier order and all existing assertions.
 
 ### D.8 Part D stop conditions
 
@@ -2343,7 +2393,7 @@ Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/kinds.ts
 
 ## Part E — `K2`, `K5`, `K6`, `F1`, the README and the record
 
-Starts from the committed part D. **Adds ten tests; the delta is `+10`.** Unlike the earlier
+Starts from the committed part D. **Adds eleven tests; the delta is `+11`.** Unlike the earlier
 revision, this part carries its own schema, policy-input, context and propagation steps: `F1` needs a
 policy field that does not exist yet, and registering it without that field would make every F1
 fixture fail undeclared-key validation.
@@ -2399,6 +2449,22 @@ made the production CLI report
       and each carrying `30_000`. The policy is `writeCompleteRulePolicy(everyRuleObserving)` unless a
       row names an override, which goes through `writeRulePolicy`'s `extra`.
 
+  **Every F1-specific `writeRulePolicy(everyRuleObserving, extra)` call must include:**
+
+  ```ts
+  relationshipRequest: {
+    schemaVersion: 1,
+    typescript: {
+      configPaths: ['tsconfig.json'],
+      publicEntrypoints: ['src/entry.ts'],
+    },
+  },
+  ```
+
+  `writeRulePolicy` merges only the supplied `extra` and supplies no defaults, so without this every
+  override row reaches `rule F1 needs policy.relationshipRequest, which the rule policy omits`
+  instead of the behaviour it means to check. Include the row's `plainTypeScriptPaths` alongside it.
+
   | Title, and the `-t` pattern                                       | `sources`                                                                                                                                               | Rule | Assert                                                                                                                                                                                                                                                                             |
   | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | `names a delivery component that imports a resource-service`      | `src/m/m.resource.ts` exporting `load` • `src/m/view/panel.ts` importing and calling it                                                                 | K2   | one finding: `path` `src/m/view/panel.ts`, `subject` `src/m/m.resource.ts`                                                                                                                                                                                                         |
@@ -2415,10 +2481,24 @@ made the production CLI report
   The last row is the check that every `statement` and `source` anchor is what §6.7 and §9 say. Fix
   the registry to match the packet, never the test.
 
+- [ ] Extend `names a store the policy declares plain TypeScript` with `src/more/store.ts`,
+      containing the same React type import and export as `src/m/store.ts`. Run the fixture twice,
+      using respectively `[{ kind: 'path', value: 'src/m/store.ts' }]` and
+      `[{ kind: 'prefix', value: 'src/m' }]`. Each invocation must have exactly one finding, for
+      `src/m/store.ts`, and no unevaluated rule. Without the prefix invocation the prefix arm of
+      `matchesSelector` has no proof at all.
+- [ ] Extend `refuses a plain TypeScript selector the candidate does not hold` with a second
+      invocation using `[{ kind: 'prefix', value: 'src/stores' }]`. Expect exit 1, no findings, and
+      exactly one `F1` unevaluated reason:
+      `the rule policy declares plain TypeScript under src/stores, which covers no candidate file`.
+
+  Both are extensions of listed tests, not new ones, so part E's delta stays `+11`.
+
 - [ ] Add one more test to the same describe, titled
       `refuses F1 when the policy declares no plain TypeScript paths`: `createKindedCandidate({ 'src/m/m.feature.ts': 'export const run = (): number => 1;\n' })`,
-      policy `writeRulePolicy(everyRuleObserving)` with **no** `plainTypeScriptPaths`, `--rule F1`,
-      expecting exit 1 and
+      policy `writeRulePolicy(everyRuleObserving, extra)` carrying the `relationshipRequest` block
+      above and **no** `plainTypeScriptPaths`, `--rule F1`, asserting the stderr sentence **before**
+      the exit status, expecting exit 1 and
       `rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits` in stderr. With the
       ten above that makes **eleven** tests, which is E.1's `+11`. Report the number the run actually
       gives, never this arithmetic.
@@ -2429,9 +2509,17 @@ made the production CLI report
       and `verdict.ruleIds` is that list in that order. `writeCompleteRulePolicy` gains
       `plainTypeScriptPaths: []`, without which `assertPolicyInputs` refuses every check selecting
       `F1`, including the canonical all-rules test.
-- [ ] Run the rules test file. Expected: every new test fails, those whose policy carries
-      `plainTypeScriptPaths` at the schema with `plainTypeScriptPaths must be removed`, and the rest
-      with `rule policy names an unregistered rule: F1` or `: K2`. Record which gave which.
+- [ ] Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `F1`,
+      `K2`, `K5` and `K6`, retaining identifier order and all existing assertions. The packaged-build
+      test remains pending planner verification; neither edit adds a test.
+- [ ] Run the rules test file. Before implementation, check tests supplying `plainTypeScriptPaths`
+      fail schema validation with `Validation failed: plainTypeScriptPaths must be removed`; check
+      tests without that field fail on a newly named unregistered rule, as
+      `rule policy names an unregistered rule: F1` or `: K2`. In
+      `prints the registry record for a kind rule`, the `K3` assertions **pass**, because part D
+      registered `K3` and `explain` without a policy never reaches policy validation; the `F1`
+      invocation exits 1 with `unknown rule: F1` and fails its expected exit 0 assertion. Record
+      each actual failure separately. All three sentences were observed on 2026-09-20 by rehearsal.
 
 ### E.4 Implementation
 
@@ -2440,8 +2528,16 @@ plan and E.8 list all four.
 
 - [ ] In `rule-policy.ts`: add `PlainSelectorRecord` and the `'plainTypeScriptPaths?'` field from
       §6.2, and add the `policy.plainTypeScriptPaths` disjunct to `assertPolicyInputs`.
-- [ ] In `direction.ts`: add `PlainSelector`, `SelectorOutcome`, `resolvePlainSelectors`,
-      `matchesSelector` and `reactObservations` from §6.5.
+- [ ] In `direction.ts`: add `ReactTargets` and `ReactScopePrefix` from §6.5 immediately before
+      `reactObservations`, their first consumer, and add `PlainSelector`, `SelectorOutcome`,
+      `resolvePlainSelectors`, `matchesSelector` and `reactObservations` from §6.5. Part D left the
+      two constants out because unused declarations fail `lint:source` with
+      `@typescript-eslint/no-unused-vars`.
+- [ ] The "use verbatim" instruction **excludes placeholder `Proof:` comments**. Write each only
+      after observing that fault in this part, naming the actual test and its first failing
+      assertion. Part E writes `sidewaysObservations`'s comment, which part D left out, after
+      observing E3 and E4. Claim no renamed-store fixture and no combined scoped-and-delivery test:
+      neither exists.
 - [ ] In `rule.ts`: add `readonly plainTypeScriptPaths?: readonly PlainSelector[];` to `RuleContext`
       with its `import type { PlainSelector } from './direction';`.
 - [ ] In `check.ts`: add the `plainTypeScriptPaths` spread to the context literal, per §6.6.
@@ -2451,21 +2547,45 @@ plan and E.8 list all four.
 
 ### E.5 Negative proofs
 
-| #   | Fault                                                                                | Named test                                                        | Expected failing line                                                                                                                            |
-| --- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| E1  | K2's `forbidden` becomes `[]`                                                        | `names a delivery component that imports a resource-service`      | `findings: []`                                                                                                                                   |
-| E2  | K5's `forbidden` becomes `['delivery']` only                                         | `names a repository adapter that imports a resource-service`      | `findings: []`                                                                                                                                   |
-| E3  | In `sidewaysObservations`, make the module comparison always equal                   | `names a feature that imports another module's feature`           | `findings: []`                                                                                                                                   |
-| E4  | In `sidewaysObservations`, make the module comparison always unequal                 | `allows two files of one kind inside one module`                  | One finding where none was expected                                                                                                              |
-| E5  | In `reactObservations`, drop the `declaredPlain` disjunct                            | `names a store the policy declares plain TypeScript`              | `findings: []`                                                                                                                                   |
-| E6  | In `reactObservations`, drop the `ReactScopePrefix` test                             | `names a service that imports a scoped React package`             | `findings: []`                                                                                                                                   |
-| E7  | In `reactObservations`, drop the `source?.kind === 'delivery'` skip                  | `exempts delivery from the framework boundary`                    | One finding where none was expected                                                                                                              |
-| E8  | Delete the loop body of `resolvePlainSelectors`, returning `{ ok: true }`            | `refuses a plain TypeScript selector the candidate does not hold` | Exit 0 and `unevaluated: []`                                                                                                                     |
-| E9  | Remove the `policy.plainTypeScriptPaths` disjunct from `assertPolicyInputs`          | `refuses F1 when the policy declares no plain TypeScript paths`   | Stderr lacks `rule F1 needs policy.plainTypeScriptPaths`. The registry fallback still exits 1, so **the sentence is the proof, not the status**. |
-| E10 | In `plainTypeScriptRule`, change `family: 'code-shape'` to `family: 'relationships'` | `prints the registry record for a kind rule`                      | `explain F1` prints `family: "relationships"`, not `code-shape`                                                                                  |
+For part E the final column describes the **required assertion mismatch, not a literal log
+sentence**. In §0.4 step 4, replace the final `grep -F` command with
+`cat "$TMPDIR/evidence/P<n>.log"`. Keep the status capture, the restoration, the `cmp` and the
+nonzero-status assertion. Confirm that the named test ran and failed at the assertion demonstrating
+that mismatch; a collection error, a timeout and an unrelated failure do not count. Record the
+actual matcher diagnostic with its expected and received values. E8a and E8b fail first on exit
+status, expected 1 and received 0; do not claim that subsequent assertions ran. E9's test asserts
+the required stderr sentence before the exit status, and that sentence is the proof. Preamble rule
+16 governs additional failing tests.
 
-Every one of these runs the production CLI. **No proof in this packet is an in-process observation
-test**, which the earlier revision wrongly claimed was unavoidable for the scoped package.
+Run each row independently: restore, `cmp` and rerun green between rows, and save a separate patch
+and log for each. **Every Part E proof runs the production CLI. Part C's explicitly identified
+resolution proofs run in process.**
+
+The "required mismatch" column was **observed on 2026-09-20** by rehearsing part D and then part E
+in a clone, under §0.2's command with Bun 1.4.2. Expect these exact matcher diagnostics; a different
+one is a stop. Where two invocations of one test can fail the same way, the column names which one,
+and the run's `expect() calls` count distinguishes them.
+
+| #   | Fault, named by function and expression                                                                                                                                             | Named test                                                        | Required mismatch                                                                                                                                                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| E1  | In `directionRule`'s **K2** entry, change `{ from: 'delivery', forbidden: ['resource', 'repository'] }` to `forbidden: []`                                                          | `names a delivery component that imports a resource-service`      | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E2  | In `directionRule`'s **K5** entry, change `{ from: 'repository', forbidden: ['resource', 'feature', 'delivery'] }` to `forbidden: ['delivery']`                                     | `names a repository adapter that imports a resource-service`      | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E3  | In `sidewaysObservations` only, replace the sub-expression `reachedFile.module === source.module` with `true`                                                                       | `names a feature that imports another module's feature`           | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E4  | In `sidewaysObservations` only, replace the same sub-expression `reachedFile.module === source.module` with `false`                                                                 | `allows two files of one kind inside one module`                  | `toEqual` on `findings`, `Expected - 1` `[]` against `Received + 9`, one K6 finding at `src/m/two.feature.ts`, `feature in src/m imports feature in src/m`                                                                                        |
+| E5  | In `reactObservations` only, replace `if (source === undefined && !declaredPlain) continue;` with `if (source === undefined) continue;`                                             | `names a store the policy declares plain TypeScript`              | `toHaveLength`, `Expected length: 1`, `Received length: 0`, on the **first, exact-path** invocation: the run reports `9 expect() calls`                                                                                                           |
+| E5b | In `matchesSelector` only, replace the whole prefix arm of its ternary — the `startsWith` call on the selector value joined with a slash — with `false`, keeping the exact-path arm | the same test                                                     | `toHaveLength`, `Expected length: 1`, `Received length: 0`, on the **second, prefix** invocation: the run reports `13 expect() calls`                                                                                                             |
+| E5c | In `matchesSelector` only, keep that prefix arm but drop the trailing slash from its template, so it reads `path.startsWith(selector.value)`                                        | the same test                                                     | `toHaveLength`, `Expected length: 1`, `Received length: 2`, on the prefix invocation: `src/more/store.ts` starts with `src/m`                                                                                                                     |
+| E6  | In `reactObservations` only, replace `if (!ReactTargets.has(target) && !target.startsWith(ReactScopePrefix)) continue;` with `if (!ReactTargets.has(target)) continue;`             | `names a service that imports a scoped React package`             | `toHaveLength`, `Expected length: 1`, `Received length: 0`                                                                                                                                                                                        |
+| E7  | In `reactObservations` only, delete the line `if (source?.kind === 'delivery') continue;`                                                                                           | `exempts delivery from the framework boundary`                    | `toEqual` on `findings`, `Expected - 1` `[]` against `Received + 9`, one F1 finding at `src/m/view/panel.ts`, `delivery imports external:react through 'react'`                                                                                   |
+| E8a | In `resolvePlainSelectors` only, delete the exact-path refusal branch `if (selector.kind === 'path' && !entryPaths.has(selector.value)) { ... }`. **Retain the prefix branch**      | `refuses a plain TypeScript selector the candidate does not hold` | `expect(received).toBe(expected)` on the exit status, `Expected: 1`, `Received: 0`, on the **first, exact-path** invocation: the run reports `7 expect() calls`                                                                                   |
+| E8b | In `resolvePlainSelectors` only, replace the prefix branch's condition `if (!covered) {` with `if (false) {`. **Retain the exact-path branch**                                      | the same test                                                     | `toBe` on the exit status, `Expected: 1`, `Received: 0`, on the **second, prefix** invocation: the run reports `10 expect() calls`                                                                                                                |
+| E9  | Remove the `policy.plainTypeScriptPaths` disjunct from `assertPolicyInputs` in `rule-policy.ts`                                                                                     | `refuses F1 when the policy declares no plain TypeScript paths`   | `expect(received).toContain(expected)`, `Expected to contain: "rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits"`, `Received: ""`. The F1 registry fallback still exits 1, so **the sentence is the proof, not the status** |
+| E10 | In `plainTypeScriptRule`, change `family: 'code-shape'` to `family: 'relationships'`                                                                                                | `prints the registry record for a kind rule`                      | `toBe`, `Expected: "code-shape"`, `Received: "relationships"`. The K3 assertions pass first                                                                                                                                                       |
+
+E3, E4, E5, E5b, E5c, E6, E7, E8a and E8b each mutate one expression whose neighbours look alike.
+E3 and E4 touch the **same** sub-expression with opposite constants; E5b and E5c touch the **same**
+prefix arm; E8a and E8b touch the two branches of one loop, and each run must retain the other.
+Never mutate `reachedTargets`, `directionObservations` or the `REL-EXTRACT` rule for any part E row.
 
 ### E.6 The README
 
@@ -2492,6 +2612,8 @@ test**, which the earlier revision wrongly claimed was unavoidable for the scope
       memory: each attempt gets a new temporary root, so part A's `$TMPDIR/evidence` is gone. If a
       part's section is missing, stop and report which; the planner holds the copied evidence outside
       the repository.
+- [ ] Preserve earlier parts' observed evidence. Record evidence filenames by **basename**, such as
+      `D1.patch` and `D1.log`; do not insert absolute clone or temporary-root paths.
 - [ ] Name what was not run: the three whole targets and the host gate.
 - [ ] Tick `tasks.md`'s five tasks.
 
@@ -2510,9 +2632,16 @@ test**, which the earlier revision wrongly claimed was unavoidable for the scope
 
 Subject: `feat(bureaucrat): judge K2, K5, K6 and F1 and record slice B2`
 
+Rules this part registers: `F1`, `K2`, `K5` and `K6`.
+
+Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `F1`, `K2`,
+`K5` and `K6`, retaining identifier order and all existing assertions. The packaged-build test
+remains pending planner verification; neither this edit nor part D's adds a test.
+
 Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/registry.ts`,
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/rule-policy.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
+`apps/wiki/cli/src/packaging/build.test.ts`,
 `apps/wiki/cli/README.md`, `openspec/changes/twilight-bureaucrat-kind-rules/tasks.md`,
 `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what
 `git status --short --untracked-files=all` actually shows, including any file a required `Proof:`
@@ -2565,13 +2694,15 @@ K7, K8 and K9. The verdict still never certifies.
 
 ## 8. Negative proofs, all parts
 
-Forty-one faults: A1 to A4; B1 to B10, with B9 run as B9a and B9b; C1, C2a, C2b, C3 to C7, C8a and
-C8b; D1 to D6; and E1 to E10. Each mutates production code and must be observed failing its named
-test, restored by byte comparison, and only then given an adjacent dated `Proof:` comment.
+Forty-four faults: A1 to A4; B1 to B10, with B9 run as B9a and B9b; C1, C2a, C2b, C3 to C7, C8a and
+C8b; D1 to D6; and E1 to E4, E5 with E5b and E5c, E6, E7, E8a, E8b, E9 and E10. Each mutates
+production code and must be observed failing its named test, restored by byte comparison, and only
+then given an adjacent dated `Proof:` comment.
 
 **Not every one runs the production CLI.** C1, C2a, C2b, C3 and C8a exercise `resolveKinds` and
-`moduleOf` directly in process; they prove the resolution, not the CLI wiring. C4 to C7 and C8b
-exercise the production CLI, as do every A, B, D and E fault. Record that distinction in
+`moduleOf` directly in process; they prove the resolution, not the CLI wiring. They are the only
+in-process proofs in this packet. C4 to C7 and C8b exercise the production CLI, as do every A, B, D
+and E fault. Record that distinction in
 `verify.md`, and never claim an observation that belongs to a later part: part C cannot see a K2 or
 K3 finding, and cannot see D3's composition-root exemption.
 
@@ -2850,3 +2981,38 @@ exit 0. `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0. Eve
 C2b, C3, C4, C5, C6, C7, C8a and C8b was injected, observed failing only its named test with the
 diagnostic C.4 now records, and the file restored. The rehearsal was then reverted; only part B's
 staged paths and this packet remain changed.
+
+## Disposition of the parts D and E dispatch review
+
+Fifth review, 2026-09-20 (Codex gpt-6-astra, high effort): **DISPATCH AFTER FIXES**, parts D and E.
+Every finding was checked against this clone's code at part C's committed head, and parts D and E
+were settled by **rehearsal**: both were implemented here exactly as the revised packet prescribes,
+run red then green under §0.2's command, every fault injected and observed, and the rehearsal then
+reverted.
+
+| Finding                                                     | Disposition                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** D introduces unused constants and cannot pass lint    | **FIXED** in §6.5, D.4 and E.4. Reproduced: `bunx eslint` on part D's `direction.ts` carrying both constants gave two `@typescript-eslint/no-unused-vars` errors at lines 13 and 14, exit 1; without them, exit 0. Part E now adds `ReactTargets` and `ReactScopePrefix` immediately before `reactObservations`.                                                                         |
+| **2** the packaged-build edit is outside the file lists     | **FIXED**. §5 gains the `apps/wiki/cli/src/packaging/build.test.ts` row and its "Nothing else is touched" sentences are replaced; D.3, D.7, E.3 and E.9 name the edit, and each "Ready to commit" now lists the file and the rule identifiers that part registers. Confirmed at HEAD: that policy holds `F7` and `MOD-LAYOUT` and none of D or E's identifiers.                          |
+| **3** successful mutations trigger the literal-message stop | **FIXED**. §0.4's part C exception becomes "Parts B through E"; D.5 and E.5 each open with the assertion-mismatch rule and carry the **observed** Bun 1.4.2 diagnostics. D4, E8a and E8b are recorded as failing first on exit status, `Expected: 1` / `Received: 0`.                                                                                                                    |
+| **4** override policies omit F1's relationship request      | **FIXED** in E.3. Confirmed at `apps/wiki/cli/src/rules/rules.test.ts:269-277`: `writeRulePolicy` merges only `extra`. Every F1 override now carries the `relationshipRequest` block, and the eleventh test omits only `plainTypeScriptPaths`. Rehearsed E9: with that block present, stderr is `""` and the F1 registry fallback still exits 1, so the sentence is the proof.           |
+| **5** the prescribed red result is wrong for `explain`      | **FIXED** in E.3. Rehearsed red: the K3 assertions pass (3 `expect()` calls) and the run fails at `expect(plainInvocation.exitCode).toBe(0)` with `unknown rule: F1 (registered: F7, INV-CLASSIFY, K3, K4, ...)`. The schema sentence was separately observed as `Validation failed: plainTypeScriptPaths must be removed`.                                                              |
+| **6** prefix selectors have no independent proof            | **FIXED** in E.3 and E.5. The store test gains `src/more/store.ts` and a second, prefix invocation; the stale-selector test gains a `src/stores` prefix invocation. E8 is split into E8a and E8b, and E5b and E5c are added. All four were rehearsed. §8's total moves from forty-one to forty-four; part E's delta stays `+11`, rehearsed as 50 tests before and 61 after.              |
+| **7** verbatim proof templates claim unmade observations    | **FIXED**. D.4 and E.4 state that "use verbatim" excludes placeholder `Proof:` comments. §6.5's `sidewaysObservations` comment is deferred to part E, the stale-selector comment no longer invents a renamed store, the delivery comment names the delivery-exemption test, and `matchesSelector` gains E5b and E5c. E.5's "Every one" paragraph is replaced with the review's sentence. |
+| Note: E's introduction says ten tests                       | **FIXED**: part E's introduction now says eleven, matching E.1 and E.3.                                                                                                                                                                                                                                                                                                                  |
+| Note: D.2's import-elision explanation is inaccurate        | **FIXED** in D.2: extraction walks source import syntax, and the fixtures use every import, so no test depends on elision.                                                                                                                                                                                                                                                               |
+| Note: kind resolution remains suffix-only                   | Already stated in `resolveKinds`'s JSDoc in §6.4 and in §8. No change; this packet does not enforce the backend inventory.                                                                                                                                                                                                                                                               |
+
+Nothing was rejected.
+
+**Rehearsal record, 2026-09-20, in `/home/df/wd/puni/batch-2/010-7-rules` at part C's committed
+head.** The rules file ran `43 pass, 0 fail` before part D, `50 pass, 0 fail, 427 expect() calls`
+after part D, and `61 pass, 0 fail, 528 expect() calls` after part E. `bunx eslint` over
+`direction.ts`, `registry.ts`, `rule.ts`, `rule-policy.ts`, `check.ts` and `rules.test.ts`: exit 0
+after each part. `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0 after each
+part. D1 to D6 and E1 to E10, including E5b, E5c, E8a and E8b, were each injected, observed failing
+only their named test with the diagnostic D.5 and E.5 now record, and restored. With `F1`, `K2`,
+`K3`, `K4`, `K5` and `K6` added to `build.test.ts`'s `ruleModes`,
+`NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package --skip-nx-cache` exited 0 with
+`44 pass, 0 fail, 301 expect() calls` in 123 s, so §0.5a's instruction is sufficient. The rehearsal
+was then reverted; only this packet remains changed.
