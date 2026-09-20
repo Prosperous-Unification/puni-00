@@ -14,7 +14,14 @@ const verifier =
     ? oauth
     : { verify: () => Promise.reject(new Error('gateway mode must not verify locally')) };
 const http = startHttpServer(
-  () => createServer({ tools, config }),
+  () =>
+    createServer({
+      tools,
+      config,
+      endSession: (sessionId) => {
+        oauth.endSession(sessionId);
+      },
+    }),
   config,
   verifier,
   process.env,

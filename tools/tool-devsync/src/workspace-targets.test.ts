@@ -523,6 +523,59 @@ function dependencyInputCovers(
   );
 }
 
+/**
+ * Bun prints a terser test report when it believes an agent launched it: `CLAUDECODE=1` or
+ * `AGENT=1` drops passing test names and shortens `toEqual` diffs to compact hunks. Thirteen tests
+ * here assert on that output — an inner `bun test` run, or the diff inside a caught failure — so
+ * the same commit passed in a terminal and failed from an agent's shell. A gate must answer the
+ * same whoever starts it, so `nx.json` sets both variables to `0` in the default of every target
+ * name that runs a test runner, and this walks the resolved project graph rather than trusting
+ * the defaults. The defaults are keyed by target name on purpose: an executor key
+ * (`nx:run-commands`) was tried first and hid the `test` default entirely, dropping its `cache`
+ * and `inputs`, because Nx resolves a target's defaults to a single key and does not merge.
+ *
+ * Proof: with the `test:unit` default removed from `nx.json`, this failed naming the 16
+ * `test:unit` targets, `shared-validation:test:unit` first (2026-09-20). Before the change
+ * `CLAUDECODE=1 bunx nx run wbs-mcp-01:test` failed 124 to 1 on
+ * `isolated Bun process observes MCP state comparisons at the crypto primitive`, then passed 125
+ * with the default in place.
+ */
+describe('every test-running target answers the same from an agent shell', () => {
+  it('sets the agent output variables to 0', async () => {
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const runsTests = /\b(bun test|vitest run|playwright test|-m unittest)\b/;
+    const exposed: string[] = [];
+    for (const [project, node] of Object.entries(projectGraph.nodes)) {
+      for (const [target, config] of Object.entries(node.data.targets ?? {})) {
+        const options = (config.options ?? {}) as {
+          command?: string;
+          commands?: readonly (string | { command: string })[];
+          env?: Readonly<Record<string, string>>;
+        };
+        const commands = [
+          options.command ?? '',
+          ...(options.commands ?? []).map((each) =>
+            typeof each === 'string' ? each : each.command,
+          ),
+        ];
+        if (!commands.some((command) => runsTests.test(command))) continue;
+        if (options.env?.['CLAUDECODE'] !== '0' || options.env['AGENT'] !== '0') {
+          exposed.push(`${project}:${target}`);
+        }
+      }
+    }
+    expect(exposed.sort()).toEqual([]);
+  }, 30_000);
+});
+
 describe('every cached target declares what it reads', () => {
   it('names every file a suite reads from outside its own project', async () => {
     const nxJson = JSON.parse(

@@ -57,19 +57,19 @@ Whole-target totals against main: `tool-devsync:test` 267 to 284; `twilight-bure
 
 ## What it cost
 
-Executor tokens actually used, summed over every attempt of a work item, read from the attempt logs (Codex `gpt-5.6-sol`, medium effort). Planning, the Codex reviews and the planner's own verification are not in these figures.
+The executor tool's printed "tokens used", summed over every attempt of a work item (Codex `gpt-5.6-sol`, medium effort). That figure is **uncached input plus output only**: the executor's own session records show about 194 million tokens processed for the batch in all, 97 percent of them cached input. Planning, the Codex reviews and the planner's own verification are in neither figure.
 
-| Work item        | Attempts | Executor tokens |
-| ---------------- | -------- | --------------- |
-| 010.5            | 1        | 168,731         |
-| 020.1            | 1        | 178,720         |
-| 010.3            | 2        | 348,973         |
-| 040.3            | 5        | 539,452         |
-| 110.5            | 4        | 657,790         |
-| 010.4            | 5        | 914,392         |
-| 040.6 and 040.6b | 5        | 964,458         |
-| 020.8            | 7        | 1,186,639       |
-| **Total**        | **30**   | **4,959,155**   |
+| Work item        | Attempts | "Tokens used" |
+| ---------------- | -------- | ------------- |
+| 010.5            | 1        | 168,731       |
+| 020.1            | 1        | 178,720       |
+| 010.3            | 2        | 348,973       |
+| 040.3            | 5        | 539,452       |
+| 110.5            | 4        | 657,790       |
+| 010.4            | 5        | 914,392       |
+| 040.6 and 040.6b | 5        | 964,458       |
+| 020.8            | 7        | 1,186,639     |
+| **Total**        | **30**   | **4,959,155** |
 
 ## Two results that look like regressions and are not
 

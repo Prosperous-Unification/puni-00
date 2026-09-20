@@ -99,12 +99,14 @@ export async function mcpHttpResponse(
   } catch {
     const resource = new URL(config.MCP_PUBLIC_URL);
     const resourceMetadata = new URL('/.well-known/oauth-protected-resource', resource);
+    const presentedToken = /^Bearer [^\s]+$/i.test(request.headers.get('authorization') ?? '');
+    const invalidToken = presentedToken ? ', error="invalid_token"' : '';
     return Response.json(
-      { error: 'unauthorized' },
+      { error: presentedToken ? 'invalid_token' : 'unauthorized' },
       {
         status: 401,
         headers: {
-          'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadata.href}"`,
+          'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadata.href}"${invalidToken}`,
         },
       },
     );

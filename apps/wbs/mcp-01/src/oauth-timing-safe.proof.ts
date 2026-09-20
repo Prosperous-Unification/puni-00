@@ -27,13 +27,14 @@ let exchangeCount = 0;
 beforeAll(async () => {
   const values = ['client-1', 'binding-1', 'upstream-state', 'nonce-1', 'verifier-1', 'grant-1'];
   const exchanges: unknown[] = [];
-  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'> = {
+  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'> = {
     authorizationUrl: ({ state }) =>
       Promise.resolve(new URL(`https://idp.example/authorize?state=${state}`)),
     exchange: (request, checks) => {
       exchanges.push({ checks, request });
       return Promise.resolve({ accessToken: 'upstream-token', expiresIn: 300 });
     },
+    revoke: () => Promise.resolve(),
   };
   const oauth = new InMemoryMcpOAuth(CONFIG, provider, {
     now: () => 1_700_000_000_000,

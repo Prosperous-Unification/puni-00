@@ -26,7 +26,7 @@ evidence are owned by
 
 Sources: [requirements](../../../docs/twilight-structure/spec.md),
 [product experience](../../../docs/twilight-structure/product-experience.md),
-[existing milestone exits](../../../openspec/changes/twilight-control-plane/tasks.md#milestones-and-ordering).
+[existing milestone exits](../../../openspec/changes/twilight-control-plane/tasks.md#technical-milestones-and-ordering).
 
 ## Answer
 

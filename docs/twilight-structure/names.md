@@ -2,9 +2,11 @@
 
 Status: decided by Dany on 2026-09-19. This page is the canonical home for what each name
 means and which tool owns which question. Terms are defined in the
-[Twilight glossary](CONTEXT.md); this page explains how they fit together. Documents written
-before this date use the older meaning described under [What changed](#what-changed), and the
-[rename plan](../superpowers/plans/2026-09-19-twilight-rename.md) brings them into line.
+[Twilight glossary](CONTEXT.md); this page explains how they fit together. The current
+documents were brought into line on 2026-09-20 by the
+[rename plan](../superpowers/plans/2026-09-19-twilight-rename.md)'s Tasks 2 to 4. Historical
+evidence, research notes and verification records keep the older meaning described under
+[What changed](#what-changed), in which a bare "Twilight" means Twilight Dash.
 
 ## The naming tree
 
