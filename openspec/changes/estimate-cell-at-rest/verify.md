@@ -81,6 +81,31 @@
 - Final two-file oracle after proof comments and evidence updates — exit 0; `Test Files 2 passed (2)`, `Tests 161 passed (161)`.
 - Final sandbox unit command — exit 0; `Test Files 38 passed (38)`, `Tests 578 passed (578)`, unchanged from U.
 
+### Slice 4 — the dark-mode check and the record
+
+- `git rev-parse HEAD` — exit 0; `a62da783f7839dc2d1593bb1bf4296e55758bda1`.
+- `git status --short --untracked-files=all` — exit 0; no output before the slice began.
+- `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx vitest run src/components/wbs/plan-estimates.test.tsx` from `apps/wbs/fe-01` — exit 0; `Test Files 1 passed (1)`, `Tests 73 passed (73)` (N = 73).
+- `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx vitest run src/components/wbs/plan-estimates.test.tsx src/components/wbs/plan-read-and-write.test.tsx` from `apps/wbs/fe-01` — exit 0; `Test Files 2 passed (2)`, `Tests 161 passed (161)` (M = 161).
+- Sandbox unit command — exit 0; `Test Files 38 passed (38)`, `Tests 578 passed (578)` (U = 578).
+- Strict OpenSpec validation baseline — exit 0; one JSON report with `passed: 104`, `failed: 0` (V = 104). Evidence: `$TMPDIR/evidence/openspec-validation.slice-4-baseline.PmWWh1.json`.
+- Slice 4 pre-edit assertions — exit 0; Slices 2 and 3's production and layout changes were present, the dark contrast test was absent, and the verification record carried Slices 1 to 3.
+- `GSETTINGS_BACKEND=memory bunx prettier --write apps/wbs/fe-01/e2e/dark-mode.spec.ts` — exit 0; the file reported `(unchanged)`.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0; `Successfully ran target typecheck for project wbs-fe-01`.
+- The first lint invocation exceeded its 30-second capture window and returned no terminal status; it was not accepted as verification. An immediate second invocation collided with that still-running process and exited 1 with `Recursive task invocation detected`. After the process ended, `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache` completed with exit 0 and `Successfully ran target lint for project wbs-fe-01`.
+- Post-edit one-file oracle — exit 0; `Test Files 1 passed (1)`, `Tests 73 passed (73)`, unchanged from N.
+- Post-edit two-file oracle — exit 0; `Test Files 2 passed (2)`, `Tests 161 passed (161)`, unchanged from M.
+- Post-edit sandbox unit command — exit 0; `Test Files 38 passed (38)`, `Tests 578 passed (578)`, unchanged from U.
+- `GSETTINGS_BACKEND=memory bunx prettier --write apps/wbs/fe-01/e2e/dark-mode.spec.ts openspec/changes/estimate-cell-at-rest/verify.md` — exit 0; both files reported `(unchanged)`.
+- `NX_DAEMON=false bunx nx format:check --all` — exit 0 after resuming the captured process; no output.
+- Strict OpenSpec validation after the Slice 4 edits — exit 0; `passed: 104`, `failed: 0`, unchanged from V. Evidence: `$TMPDIR/evidence/openspec-validation.slice-4-final.SGFVM7.json`.
+- Final record-only Prettier pass over `verify.md` and repository-wide format check — exit 0; Prettier reported `(unchanged)` and the format check produced no output.
+- Final cached `NX_DAEMON=false bunx nx run wbs-fe-01:lint` and `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` reruns — exit 0; each reported `Successfully ran target`.
+- Post-record OpenSpec validation — exit 0; `passed: 104`, `failed: 0`, unchanged from V. Evidence: `$TMPDIR/evidence/openspec-validation.slice-4-post-record.JoilJ2.json`.
+- Final one-file oracle — exit 0; `Test Files 1 passed (1)`, `Tests 73 passed (73)`, unchanged from N.
+- Final two-file oracle — exit 0; `Test Files 2 passed (2)`, `Tests 161 passed (161)`, unchanged from M.
+- Final sandbox unit command — exit 0; `Test Files 38 passed (38)`, `Tests 578 passed (578)`, unchanged from U.
+
 ## Negative proofs
 
 ### Slice 1
@@ -110,19 +135,24 @@ None. This slice adds specification artifacts and no production safety check.
 
 - `NX_DAEMON=false bunx nx run wbs-fe-01:test` — pending planner verification because sandboxed Node cannot spawn Bun.
 - `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` — pending planner verification for the same sandbox restriction.
-- Chromium geometry, contrast, and visual-review checks remain for later slices and planner verification.
 - Slice 3 changed the seeded result pin from `· 4` to `4` in `holds a trio and its figure on one line of a folded step cell` — written, not run; pending planner verification.
 - Slice 3 changed the wide result pins from `· 25` to `25` in that test — written, not run; pending planner verification.
 - Slice 3 rewrote that test's three size-budget comments for the reversed type hierarchy — written, not run; pending planner verification.
 - Slice 3 widened `measure()` with resting focus, computed type, ink, and numeric-variant fields — written, not run; pending planner verification.
 - Slice 3 added the five wide-case resting/main-reading assertions — written, not run; pending planner verification.
 - Slice 3 changed the parent and leaf result pins from `· 4` to `4` in `stands a parent’s figure in the same slot as its leaves’` — written, not run; pending planner verification.
-- Planner P1/P1b must run the two geometry cases and computed-style faults after this slice is committed.
+- Planner P0, P1, and P1b are recorded below as completed outside the executor sandbox; they are no longer pending.
+- P2, the unsharded Chromium gate after Slice 4 — pending planner verification.
+- `the quiet trio in a folded step cell stands off the row it is in` — written and statically checked, not run; pending planner verification inside P2 and P4.
+- P3, the staffed fractional-cell measurement and finding on the reviewed commit — pending planner verification.
+- P4, the dark contrast test's transparent-ink fault, byte restoration, green rerun, and adjacent dated `Proof:` comment — pending planner verification.
+- P5, light and dark visual review with preserved screenshot evidence — pending planner verification.
+- P6, `bin/h2puni-gate.sh <sha>` on the shared build host — pending planner verification.
 
 ## Not verified
 
 - `bin/h2puni-gate.sh <sha>` was not run because the host gate is unavailable on this machine and this executor cannot create the required commit.
-- No browser test ran in this attempt.
+- No browser ran inside any executor attempt; the browser checks listed above require planner verification outside the sandbox.
 - No Slice 3 Chromium assertion was run in this attempt; the sandbox has no browser execution authority.
 
 ## Planner, P0 (before slice 2)
@@ -146,3 +176,12 @@ None. This slice adds specification artifacts and no production safety check.
   - CN-d, `fontVariantNumeric` removed: `figureNumerals` failed, `Expected: "tabular-nums"`, `Received: "normal"`.
   - `wide.boxFocused` is a measurement precondition; no production fault belongs to it.
 - `NX_DAEMON=false bunx nx run-many -t typecheck lint test -p wbs-fe-01 --skip-nx-cache` with the agent variables unset, on slice 3 plus the planner's proof comments: all three targets succeeded (`test` runs both tiers).
+
+## Planner, after slice 4
+
+- P2, 2026-09-20: the whole Chromium gate, unsharded, `CI=1 NX_DAEMON=false bunx nx run wbs-fe-01:e2e` with the agent variables unset: **376 passed, 40 skipped** in 19.4 minutes. Among them `the quiet trio in a folded step cell stands off the row it is in`, `a step’s figure lands at one x whether or not the row is assigned` and `stands a parent’s figure in the same slot as its leaves’`. Decision rule D2 did not fire.
+- P4: with the box's rest arm painting `color: 'transparent'` unconditionally, the contrast test failed on `Error: the quiet trio reads at 1.00:1` (`Expected: >= 4.5`, `Received: 1`); restored byte for byte (`cmp`), rerun: 1 passed. The `Proof:` comment stands above the test.
+- The ratio itself, read with a temporary `console.log` that was removed again: **7.66:1** under the dark palette, against the 4.5 the test requires.
+- P3, a measurement and not a gate: the temporary staffed, fractional block on this tree printed `STAFFED {"said":"24.3", "cell":{"width":104}, "box":{"width":30.6875}, "figure":{"width":25.3125}, "clipped":16, "boxType":"10px", "boxFocused":false}` and failed `Expected: <= 0`, `Received: 16`. The spec was restored byte for byte. The same arrangement clips 28px on unchanged main (measured while planning), so this change improves it and does not close it; it is scheduled as its own work item.
+- P5, by eye. Light (the picture the whole-gate run left): in the Dev column the result `4` stands at the right edge in the row's weight and the trio `2/3/8` sits beside it small and grey; it reads as a number with its annotation. Dark (a temporary screenshot line, removed again, the spec restored with `cmp`): the same arrangement, `2/4/6` and `4`; the trio is legible and clearly secondary. Neither palette hides the trio; an unestimated cell shows only its `o/r/p` placeholder.
+- Still owed before landing: the whole `wbs-fe-01` test, typecheck and lint on the final tree, and `bin/h2puni-gate.sh` on the merged commit.
