@@ -6195,6 +6195,12 @@ describe('the height the panel is drawn at', () => {
     expect(panel.style.height).toBe('');
   });
 
+  itDom('retains complete labels while allowing offscreen paint containment', () => {
+    const label = panelAt(null).querySelector<HTMLElement>('[data-gantt-label]');
+    expect(label?.style.contentVisibility).toBe('auto');
+    expect(label?.style.containIntrinsicSize).toBe('176px 28px');
+  });
+
   itDom('is drawn at the override', () => {
     const panel = panelAt(400);
     expect(panel.style.height).toBe('400px');
