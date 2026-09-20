@@ -6,7 +6,9 @@ import { createServer } from './server';
 
 const config = loadConfig();
 const tools = toolsFromDocument(readDocument());
-const oauth = mcpOAuthFromEnv(config, process.env);
+const oauth = mcpOAuthFromEnv(config, process.env, (evidence) => {
+  console.error(JSON.stringify({ event: 'mcp_oauth_route', ...evidence }));
+});
 const verifier =
   config.MCP_AUTH_MODE === 'standalone'
     ? oauth

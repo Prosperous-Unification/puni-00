@@ -5,6 +5,7 @@ import {
   type ComponentProps,
   memo,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -100,7 +101,7 @@ import {
   usePlanStructure,
   usePlanStructureEffects,
 } from './use-plan-structure';
-import { usePlanViewport } from './use-plan-viewport';
+import { type PlanViewport, usePlanViewport } from './use-plan-viewport';
 import { usePlanAssignments, usePlanLabels, useReferenceSets } from './use-reference-sets';
 import { type TreeRow } from './wbs-rows';
 
@@ -278,6 +279,76 @@ function ViewportColumnSpacer({ columnCount }: { columnCount: number }) {
       style={{ ...CELL, padding: 0 }}
     />
   );
+}
+
+interface PlanViewportOwnerProps {
+  frameRef: Parameters<typeof usePlanViewport>[0]['frameRef'];
+  rowIds: Parameters<typeof usePlanViewport>[0]['rowIds'];
+  columns: Parameters<typeof usePlanViewport>[0]['columns'];
+  pinnedCells: Parameters<typeof usePlanViewport>[0]['pinnedCells'];
+  enabled: boolean;
+  layout: Omit<Parameters<typeof usePlanLayoutEffects>[0], 'frameRef' | 'rendererRows'>;
+  requestedFocus: { cell: CellRef; landing: CellLanding } | null;
+  committedLogicalCells: readonly CellRef[];
+  gridElement: RefObject<HTMLElement | null>;
+  clearRequestedFocus: () => void;
+  children: (viewport: PlanViewport) => ReactNode;
+}
+
+/**
+ * Owns the scroll-published table window below the complete plan owner.
+ *
+ * A retained viewport bucket is still React state, but changing it must redraw
+ * only the mounted rows and columns. Keeping that state in {@link WbsTable}
+ * scheduled every toolbar, modal and chart derivation on each bucket crossing.
+ */
+function PlanViewportOwner({
+  frameRef,
+  rowIds,
+  columns,
+  pinnedCells,
+  enabled,
+  layout,
+  requestedFocus,
+  committedLogicalCells,
+  gridElement,
+  clearRequestedFocus,
+  children,
+}: PlanViewportOwnerProps) {
+  const viewport = usePlanViewport({ frameRef, rowIds, columns, pinnedCells, enabled });
+  usePlanLayoutEffects({ ...layout, frameRef, rendererRows: viewport.rowLayout });
+  useLayoutEffect(() => {
+    if (requestedFocus === null) return;
+    if (
+      !committedLogicalCells.some(
+        (cell) =>
+          cell.rowId === requestedFocus.cell.rowId &&
+          cell.columnId === requestedFocus.cell.columnId,
+      )
+    ) {
+      clearRequestedFocus();
+      return;
+    }
+    const grid = gridElement.current;
+    if (grid === null) return;
+    const attached = cellIn(grid, requestedFocus.cell);
+    if (attached === undefined) return;
+    // jsdom has no scrollIntoView; that boundary is the test environment, not a browser.
+    if (typeof attached.scrollIntoView === 'function')
+      attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (requestedFocus.landing === 'focus') attached.focus();
+    else
+      focusCellAt(
+        attached,
+        requestedFocus.landing === 'all'
+          ? 'all'
+          : requestedFocus.landing === 'start'
+            ? 0
+            : attached.value.length,
+      );
+    clearRequestedFocus();
+  }, [clearRequestedFocus, committedLogicalCells, gridElement, requestedFocus, viewport]);
+  return children(viewport);
 }
 
 /** What {@link PlanCell} needs beyond the `<td>` attributes it passes on. */
@@ -843,6 +914,36 @@ export function WbsTable({
    * `[data-table-frame]`, and so does the browser gate.
    */
   const frameRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * A wheel keeps the row under a stationary pointer changing even though the
+   * reader is scrolling, not pointing. Hold those transient row readings and
+   * publish only the last one after the gesture settles. The wheel listener is
+   * deliberately before the scroll listener: Chromium updates hover as the
+   * default wheel action moves content, so waiting for `scroll` lets the first
+   * moving row flash through. Keyboard and linked scrolls still enter through
+   * `scroll`; they do not create pointer crossings before it.
+   */
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (frame === null) return;
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      pointedRows.suspendTablePointing();
+      if (settle !== null) clearTimeout(settle);
+      settle = setTimeout(() => {
+        settle = null;
+        pointedRows.resumeTablePointing();
+      }, 1_000);
+    };
+    frame.addEventListener('wheel', onScroll, { passive: true });
+    frame.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      frame.removeEventListener('wheel', onScroll);
+      frame.removeEventListener('scroll', onScroll);
+      if (settle !== null) clearTimeout(settle);
+      pointedRows.resumeTablePointing();
+    };
+  }, [pointedRows, renderer]);
   const { refreshOrMarkStale, run, stepStack, runMarkerWrite } = usePlanRead({
     setDrafts,
     projectId,
@@ -1574,6 +1675,54 @@ export function WbsTable({
     priorityBands,
     startFloor,
   });
+  const pickGanttDayPx = useCallback<NonNullable<ComponentProps<typeof GanttPanel>['onPickDayPx']>>(
+    (picked) => {
+      setGanttDayPx(picked);
+      rememberGanttDayPx(projectId, picked);
+    },
+    [projectId, setGanttDayPx],
+  );
+  const pickGanttLabels = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onPickLabelsShown']>
+  >(
+    (shown) => {
+      setGanttLabelsShown(shown);
+      rememberGanttLabels(projectId, shown);
+    },
+    [projectId, setGanttLabelsShown],
+  );
+  const createGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onCreateMarker']>
+  >(
+    (marker) => {
+      void runMarkerWrite(() => api.createCalendarMarker(projectId, marker));
+    },
+    [api, projectId, runMarkerWrite],
+  );
+  const renameGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onRenameMarker']>
+  >(
+    (markerId, name) => {
+      void runMarkerWrite(() => api.renameCalendarMarker(projectId, markerId, name));
+    },
+    [api, projectId, runMarkerWrite],
+  );
+  const recolorGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onRecolorMarker']>
+  >(
+    (markerId, color) => {
+      void runMarkerWrite(() => api.recolorCalendarMarker(projectId, markerId, color));
+    },
+    [api, projectId, runMarkerWrite],
+  );
+  const deleteGanttMarker = useCallback<
+    NonNullable<ComponentProps<typeof GanttPanel>['onDeleteMarker']>
+  >(
+    (markerId) => {
+      void runMarkerWrite(() => api.deleteCalendarMarker(projectId, markerId));
+    },
+    [api, projectId, runMarkerWrite],
+  );
   /**
    * One row's Start sentence, worked out once however many readers and commits
    * ask while its span and chart floor remain unchanged.
@@ -1696,31 +1845,6 @@ export function WbsTable({
       ),
     [activeCell, requestedFocus],
   );
-  const viewport = usePlanViewport({
-    frameRef,
-    rowIds: shownRowIds,
-    columns: viewportColumns,
-    pinnedCells,
-    enabled: renderer === 'table',
-  });
-  usePlanLayoutEffects({
-    frameRef,
-    ganttOpen,
-    renderer,
-    chartRead,
-    ganttColumn,
-    setGanttRoomPx,
-    rendererRows: viewport.rowLayout,
-  });
-  const mountedRows = viewport.rows.entries.map((entry) => ({
-    entry,
-    row: shownRows[entry.index],
-  }));
-  // Proof: replacing this set with every leaf id made `an unfolded plan mounts only its
-  // viewport columns` fail on `Expected: 0, Received: 43` for the offscreen Actions cells.
-  // Watched in Chromium, 2026-09-08.
-  const mountedColumnIds = new Set(viewport.columns.entries.map((entry) => entry.id));
-
   const requestCellAttachment = useCallback(
     (cell: CellRef, landing: CellLanding): boolean => {
       const grid = gridElement.current;
@@ -1749,35 +1873,9 @@ export function WbsTable({
   useLayoutEffect(() => {
     attachCell.current = requestCellAttachment;
   }, [attachCell, requestCellAttachment]);
-  useLayoutEffect(() => {
-    if (requestedFocus === null) return;
-    if (
-      !committedLogicalCells.some(
-        (cell) =>
-          cell.rowId === requestedFocus.cell.rowId &&
-          cell.columnId === requestedFocus.cell.columnId,
-      )
-    ) {
-      setRequestedFocus(null);
-      return;
-    }
-    const grid = gridElement.current;
-    if (grid === null) return;
-    const attached = cellIn(grid, requestedFocus.cell);
-    if (attached === undefined) return;
-    attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    if (requestedFocus.landing === 'focus') attached.focus();
-    else
-      focusCellAt(
-        attached,
-        requestedFocus.landing === 'all'
-          ? 'all'
-          : requestedFocus.landing === 'start'
-            ? 0
-            : attached.value.length,
-      );
+  const clearRequestedFocus = useCallback(() => {
     setRequestedFocus(null);
-  }, [committedLogicalCells, gridElement, requestedFocus, viewport]);
+  }, []);
 
   /**
    * What the headings' hints may bend for, in one object beside the layout's.
@@ -2137,209 +2235,240 @@ export function WbsTable({
         </p>
       )}
 
-      {renderer === 'cards' ? (
-        /*
+      <PlanViewportOwner
+        frameRef={frameRef}
+        rowIds={shownRowIds}
+        columns={viewportColumns}
+        pinnedCells={pinnedCells}
+        enabled={renderer === 'table'}
+        layout={{
+          ganttOpen,
+          renderer,
+          chartRead,
+          ganttColumn,
+          setGanttRoomPx,
+        }}
+        requestedFocus={requestedFocus}
+        committedLogicalCells={committedLogicalCells}
+        gridElement={gridElement}
+        clearRequestedFocus={clearRequestedFocus}
+      >
+        {(viewport) => {
+          const mountedRows = viewport.rows.entries.map((entry) => ({
+            entry,
+            row: shownRows[entry.index],
+          }));
+          // Proof: replacing this set with every leaf id made `an unfolded plan mounts only its
+          // viewport columns` fail on `Expected: 0, Received: 43` for the offscreen Actions cells.
+          // Watched in Chromium, 2026-09-08.
+          const mountedColumnIds = new Set(viewport.columns.entries.map((entry) => entry.id));
+          return renderer === 'cards' ? (
+            /*
           The same rows, the same order, the same open branches: `shownRows` is
           the table model's answer and both renderers draw it. What the cards
           get instead of the frame is an ordinary scrolling column — there is
           nothing sticky to hold, because there are no columns to pin.
         */
-        <PlanCards
-          rows={shownRows.map((row) => ({
-            row: row.original,
-            depth: row.depth,
-            // No triangle while a search is on, for the reason the Number
-            // column gives: what is open during a search is the search's own
-            // answer, and a control that appeared to do nothing reads as broken.
-            expandable: row.getCanExpand() && !filtering,
-            expanded: row.getIsExpanded(),
-            toggleBranch: row.getToggleExpandedHandler(),
-            // The same set the table's Name cell marks from, so a plan read on
-            // a phone and on a laptop marks the same rows. Read straight here
-            // rather than through `live`: the cards are not a memoised column
-            // definition, and there is no per-keystroke remount to protect.
-            matched: search.matchIds.has(row.id),
-          }))}
-          steps={steps}
-          priorityBands={priorityBands}
-          gridRef={(node) => {
-            gridElement.current = node;
-          }}
-          commitName={commitNameCell}
-          claimFocus={(node, cell) => {
-            focusIntent.current.landOnAttached(node, cell, gridElement.current);
-          }}
-          estimateValue={combinedValue}
-          estimateProblem={combinedProblem}
-          commitEstimate={commitCombinedEstimate}
-          enterEstimate={enterFoldedCell}
-          readEstimate={readFoldedCell}
-          closeMention={closeMention}
-          leaveEstimate={leaveFoldedCell}
-          mentionOptions={mentionOptions}
-          assigneeOn={assigneeOn}
-          waitsFor={waitsFor}
-          // The Depends cell's own picker rule and its own two writers, handed
-          // to the face that had neither. `depEntriesFor` is `pickerEntries`,
-          // which is a *ported copy of be-01's judgement* about which edges are
-          // refusable — the one rule in this dimension that two implementations
-          // would quietly disagree about — so the card asks the same question of
-          // the same function and greys the same rows. `pickDependency` and
-          // `removeDependency` are the paths the table's list and its chip `✕`
-          // take, for `rowActions`' bargain, a fifth dimension over.
-          dependencyOptions={(row, typed) => depEntriesFor(row, typed)}
-          addDependency={(row, predecessorId) => {
-            return pickDependency(row.id, predecessorId);
-          }}
-          dropDependency={(row, predecessorId) => {
-            return run((write) =>
-              write.perform(['tree'], () => api.removeDependency(row.id, predecessorId)),
-            );
-          }}
-          // The `Start` cell's own sentence, off the one map, handed to the
-          // face that has no hover to give it. `startFloor.current` is filled
-          // two hundred lines above this JSX, from the same `ganttPlan` the
-          // chart is drawn from — so a plan read on a phone and on a laptop
-          // cannot be told two different things about one wait.
-          //
-          // `?? null` and never the empty string: a row this map has no entry
-          // for is a row the geometry refused to explain, and the card's
-          // contract is that `null` is the only way to say so.
-          startFloor={(row) => startFloor.current.get(row.id) ?? null}
-          teamLabel={effectiveTeamLabelOf}
-          // The Service/team cell's own directory and its own two writers,
-          // handed to the other face — `rowActions`' bargain, one dimension
-          // over. Not card-shaped copies: `setTeamOf` is what makes the patch
-          // and `createTeamFor` is what makes a team idempotently by name, so a
-          // team chosen on a phone reaches be-01 by the path a team chosen on a
-          // laptop reaches it by.
-          teams={teams}
-          setTeams={(row, teamIds) => {
-            return setTeamOf(row.id, teamIds);
-          }}
-          createTeam={(row, name, currentTeamIds) => {
-            return createTeamFor(row.id, name, currentTeamIds);
-          }}
-          // The `not-before` and `deadline` cells' calendar, handed to the face
-          // that cannot read it from a row. Both controls derive availability
-          // from it, and the deadline also uses the date to identify a stored
-          // deadline that the project start has moved past.
-          projectStart={startDate}
-          // Both boxes in one call, which is what the third argument is for —
-          // `setNotBefore` is the table's own writer widened, not a card-shaped
-          // copy, so a date set on a phone reaches be-01 by the path a date set
-          // on a laptop reaches it by, and the pair rule be-01 checks inside one
-          // transaction is answered by one request.
-          setNotBefore={(row, day, reason) => {
-            setNotBefore(row.id, day, reason);
-          }}
-          // A deadline has no reason field, so clearing it remains one field.
-          setDeadline={(row, day) => {
-            setDeadline(row.id, day);
-          }}
-          // The Prio cell's own writer, handed to the face that had none — and
-          // the string, not a parsed number, because `setPriority` is where
-          // three rules live that a card must not keep a second copy of: a
-          // band's name resolving to its number, the refusal toast for
-          // anything that is not a whole number from 1 upward, and an emptied
-          // box meaning `null` rather than `0`.
-          setPriority={(row, typed) => {
-            return setPriority(row.id, typed);
-          }}
-          tagLabel={effectiveTagLabelOf}
-          tags={tags}
-          setTags={(row, tagIds) => {
-            return setTagsOf(row.id, tagIds);
-          }}
-          createTag={(row, name, current) => {
-            return createTagFor(row.id, name, current);
-          }}
-          serviceLabel={effectiveServiceLabelOf}
-          services={services}
-          setServices={(row, serviceIds) => {
-            return setServicesOf(row.id, serviceIds);
-          }}
-          createService={(row, name, current) => {
-            return createServiceFor(row.id, name, current);
-          }}
-          // The same sentence the Services cell's `△` carries, handed to the
-          // face that had none. Not a card-shaped copy of the rule: one memo
-          // (`mismatchByRow`) answers both renderers, so a phone and a laptop
-          // cannot disagree about which services a team does not own.
-          nonOwner={nonOwnerNoteOf}
-          spanOf={spanOf}
-          showDay={showDay}
-          // The `actions` column's own three handlers, handed to the only other
-          // face this plan has. Not card-shaped copies of them: `duplicateRow`
-          // and `deleteRow` are the callbacks the table's ⋯ calls, so a row
-          // duplicated on a phone lands the caret where a row duplicated on a
-          // laptop does, and a delete promotes its children the same way.
-          //
-          // Read straight rather than through `live`, unlike the column that
-          // does the same three things: `columns` is a memo that must not
-          // depend on state, and this is ordinary JSX in the render — reading
-          // `live.current` here would pin the handlers to whichever render
-          // built the ref last.
-          //
-          // Unfreeze has no `unfreezeRow` of its own to borrow because the
-          // table has none either; both faces spell it the same way, one `run`
-          // around one request.
-          rowActions={{
-            busy,
-            duplicate: (rowId) => {
-              void duplicateRow(rowId);
-            },
-            unfreeze: (rowId) => {
-              void run((write) => write.perform(['tree'], () => api.unfreezeWorkItem(rowId)));
-            },
-            remove: (row) => {
-              void deleteRow(row);
-            },
-            markDone: setCompletionFor,
-            setUnknown: (rowId) => {
-              void setStatus(rowId, 'unknown', isoToday(new Date()));
-            },
-          }}
-        />
-      ) : (
-        <>
-          {/*
+            <PlanCards
+              rows={shownRows.map((row) => ({
+                row: row.original,
+                depth: row.depth,
+                // No triangle while a search is on, for the reason the Number
+                // column gives: what is open during a search is the search's own
+                // answer, and a control that appeared to do nothing reads as broken.
+                expandable: row.getCanExpand() && !filtering,
+                expanded: row.getIsExpanded(),
+                toggleBranch: row.getToggleExpandedHandler(),
+                // The same set the table's Name cell marks from, so a plan read on
+                // a phone and on a laptop marks the same rows. Read straight here
+                // rather than through `live`: the cards are not a memoised column
+                // definition, and there is no per-keystroke remount to protect.
+                matched: search.matchIds.has(row.id),
+              }))}
+              steps={steps}
+              priorityBands={priorityBands}
+              gridRef={(node) => {
+                gridElement.current = node;
+              }}
+              commitName={commitNameCell}
+              claimFocus={(node, cell) => {
+                focusIntent.current.landOnAttached(node, cell, gridElement.current);
+              }}
+              estimateValue={combinedValue}
+              estimateProblem={combinedProblem}
+              commitEstimate={commitCombinedEstimate}
+              enterEstimate={enterFoldedCell}
+              readEstimate={readFoldedCell}
+              closeMention={closeMention}
+              leaveEstimate={leaveFoldedCell}
+              mentionOptions={mentionOptions}
+              assigneeOn={assigneeOn}
+              waitsFor={waitsFor}
+              // The Depends cell's own picker rule and its own two writers, handed
+              // to the face that had neither. `depEntriesFor` is `pickerEntries`,
+              // which is a *ported copy of be-01's judgement* about which edges are
+              // refusable — the one rule in this dimension that two implementations
+              // would quietly disagree about — so the card asks the same question of
+              // the same function and greys the same rows. `pickDependency` and
+              // `removeDependency` are the paths the table's list and its chip `✕`
+              // take, for `rowActions`' bargain, a fifth dimension over.
+              dependencyOptions={(row, typed) => depEntriesFor(row, typed)}
+              addDependency={(row, predecessorId) => {
+                return pickDependency(row.id, predecessorId);
+              }}
+              dropDependency={(row, predecessorId) => {
+                return run((write) =>
+                  write.perform(['tree'], () => api.removeDependency(row.id, predecessorId)),
+                );
+              }}
+              // The `Start` cell's own sentence, off the one map, handed to the
+              // face that has no hover to give it. `startFloor.current` is filled
+              // two hundred lines above this JSX, from the same `ganttPlan` the
+              // chart is drawn from — so a plan read on a phone and on a laptop
+              // cannot be told two different things about one wait.
+              //
+              // `?? null` and never the empty string: a row this map has no entry
+              // for is a row the geometry refused to explain, and the card's
+              // contract is that `null` is the only way to say so.
+              startFloor={(row) => startFloor.current.get(row.id) ?? null}
+              teamLabel={effectiveTeamLabelOf}
+              // The Service/team cell's own directory and its own two writers,
+              // handed to the other face — `rowActions`' bargain, one dimension
+              // over. Not card-shaped copies: `setTeamOf` is what makes the patch
+              // and `createTeamFor` is what makes a team idempotently by name, so a
+              // team chosen on a phone reaches be-01 by the path a team chosen on a
+              // laptop reaches it by.
+              teams={teams}
+              setTeams={(row, teamIds) => {
+                return setTeamOf(row.id, teamIds);
+              }}
+              createTeam={(row, name, currentTeamIds) => {
+                return createTeamFor(row.id, name, currentTeamIds);
+              }}
+              // The `not-before` and `deadline` cells' calendar, handed to the face
+              // that cannot read it from a row. Both controls derive availability
+              // from it, and the deadline also uses the date to identify a stored
+              // deadline that the project start has moved past.
+              projectStart={startDate}
+              // Both boxes in one call, which is what the third argument is for —
+              // `setNotBefore` is the table's own writer widened, not a card-shaped
+              // copy, so a date set on a phone reaches be-01 by the path a date set
+              // on a laptop reaches it by, and the pair rule be-01 checks inside one
+              // transaction is answered by one request.
+              setNotBefore={(row, day, reason) => {
+                setNotBefore(row.id, day, reason);
+              }}
+              // A deadline has no reason field, so clearing it remains one field.
+              setDeadline={(row, day) => {
+                setDeadline(row.id, day);
+              }}
+              // The Prio cell's own writer, handed to the face that had none — and
+              // the string, not a parsed number, because `setPriority` is where
+              // three rules live that a card must not keep a second copy of: a
+              // band's name resolving to its number, the refusal toast for
+              // anything that is not a whole number from 1 upward, and an emptied
+              // box meaning `null` rather than `0`.
+              setPriority={(row, typed) => {
+                return setPriority(row.id, typed);
+              }}
+              tagLabel={effectiveTagLabelOf}
+              tags={tags}
+              setTags={(row, tagIds) => {
+                return setTagsOf(row.id, tagIds);
+              }}
+              createTag={(row, name, current) => {
+                return createTagFor(row.id, name, current);
+              }}
+              serviceLabel={effectiveServiceLabelOf}
+              services={services}
+              setServices={(row, serviceIds) => {
+                return setServicesOf(row.id, serviceIds);
+              }}
+              createService={(row, name, current) => {
+                return createServiceFor(row.id, name, current);
+              }}
+              // The same sentence the Services cell's `△` carries, handed to the
+              // face that had none. Not a card-shaped copy of the rule: one memo
+              // (`mismatchByRow`) answers both renderers, so a phone and a laptop
+              // cannot disagree about which services a team does not own.
+              nonOwner={nonOwnerNoteOf}
+              spanOf={spanOf}
+              showDay={showDay}
+              // The `actions` column's own three handlers, handed to the only other
+              // face this plan has. Not card-shaped copies of them: `duplicateRow`
+              // and `deleteRow` are the callbacks the table's ⋯ calls, so a row
+              // duplicated on a phone lands the caret where a row duplicated on a
+              // laptop does, and a delete promotes its children the same way.
+              //
+              // Read straight rather than through `live`, unlike the column that
+              // does the same three things: `columns` is a memo that must not
+              // depend on state, and this is ordinary JSX in the render — reading
+              // `live.current` here would pin the handlers to whichever render
+              // built the ref last.
+              //
+              // Unfreeze has no `unfreezeRow` of its own to borrow because the
+              // table has none either; both faces spell it the same way, one `run`
+              // around one request.
+              rowActions={{
+                busy,
+                duplicate: (rowId) => {
+                  void duplicateRow(rowId);
+                },
+                unfreeze: (rowId) => {
+                  void run((write) => write.perform(['tree'], () => api.unfreezeWorkItem(rowId)));
+                },
+                remove: (row) => {
+                  void deleteRow(row);
+                },
+                markDone: setCompletionFor,
+                setUnknown: (rowId) => {
+                  void setStatus(rowId, 'unknown', isoToday(new Date()));
+                },
+              }}
+            />
+          ) : (
+            <>
+              {/*
             The table scrolls inside this, in both directions, so the page never
             scrolls sideways and the toolbar and the alerts above stay where they
             were put. The heading row and the three identity columns are sticky
             against this box — see `table-frame.ts` for why it has to be the one
             that scrolls.
           */}
-          <div
-            data-table-frame
-            ref={frameRef}
-            style={TABLE_FRAME}
-            onDragOver={(event) => {
-              if (dragging === null) return;
-              const frame = event.currentTarget;
-              const box = frame.getBoundingClientRect();
-              const edgePx = 48;
-              const direction =
-                event.clientY < box.top + edgePx ? -1 : event.clientY > box.bottom - edgePx ? 1 : 0;
-              if (direction === 0) return;
-              event.preventDefault();
-              // Native dragover repeats while the pointer rests at an edge;
-              // each event advances one logical Gantt-row step and lets the
-              // viewport attach the next possible destinations.
-              // Proof: removing this handler, `a row drag at the frame edge
-              // reaches an initially unmounted destination` failed on
-              // `Expected: visible · Error: element(s) not found`. Watched in
-              // Chromium, 2026-09-08.
-              frame.scrollTop += direction * 28;
-            }}
-          >
-            {/*
+              <div
+                data-table-frame
+                ref={frameRef}
+                style={TABLE_FRAME}
+                onDragOver={(event) => {
+                  if (dragging === null) return;
+                  const frame = event.currentTarget;
+                  const box = frame.getBoundingClientRect();
+                  const edgePx = 48;
+                  const direction =
+                    event.clientY < box.top + edgePx
+                      ? -1
+                      : event.clientY > box.bottom - edgePx
+                        ? 1
+                        : 0;
+                  if (direction === 0) return;
+                  event.preventDefault();
+                  // Native dragover repeats while the pointer rests at an edge;
+                  // each event advances one logical Gantt-row step and lets the
+                  // viewport attach the next possible destinations.
+                  // Proof: removing this handler, `a row drag at the frame edge
+                  // reaches an initially unmounted destination` failed on
+                  // `Expected: visible · Error: element(s) not found`. Watched in
+                  // Chromium, 2026-09-08.
+                  frame.scrollTop += direction * 28;
+                }}
+              >
+                {/*
             `separate` with no spacing rather than the browser's default gap:
             the pinned columns' offsets are the running total of their widths,
             and two pixels between every pair of cells is two pixels the offsets
             do not know about.
           */}
-            {/*
+                {/*
             `data-grid` marks the whole of the editable grid for the cascade, and
             it is the only thing this change writes into the table. Every rule in
             `styles.css`'s `@layer base` carries `:not([data-grid], [data-grid] *)`,
@@ -2354,42 +2483,42 @@ export function WbsTable({
             than `closest('table')`, so a renderer that is not a table still has
             a grid (agy #11).
           */}
-            <table
-              data-grid
-              aria-rowcount={shownRows.length + 1}
-              // A callback rather than the ref object itself: `gridElement` holds
-              // an `HTMLElement` since `M mobile-cards` — a `<table>` here and a
-              // list of cards below the breakpoint — and React will not hand a
-              // widened ref object to a `<table>`.
-              ref={(node) => {
-                gridElement.current = node;
-              }}
-              onFocusCapture={(event) => {
-                const cell = cellRefOf(event.target);
-                if (cell !== null) setActiveCell(cell);
-              }}
-              onBlurCapture={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) setActiveCell(null);
-              }}
-              style={{
-                borderCollapse: 'separate',
-                borderSpacing: 0,
-                // `fixed`, so the browser lays every column out at the width
-                // `table-frame.ts` says it has. Under the default `auto` the
-                // widths were a suggestion the content could outvote, and a column
-                // that came out wider than the offsets assumed is a pinned Name
-                // painted over "Depends on".
-                tableLayout: 'fixed',
-                // The frame's width at rest, and the resolved sum while a
-                // dragged Name holds an override — `tableWidthStyle` is the
-                // one line the excess-width measurement decided, and its JSDoc
-                // holds the observation. The minimum stays the floor either
-                // way: below it the frame scrolls sideways with the pinned
-                // columns holding the left edge.
-                ...tableWidthStyle(layout),
-              }}
-            >
-              {/*
+                <table
+                  data-grid
+                  aria-rowcount={shownRows.length + 1}
+                  // A callback rather than the ref object itself: `gridElement` holds
+                  // an `HTMLElement` since `M mobile-cards` — a `<table>` here and a
+                  // list of cards below the breakpoint — and React will not hand a
+                  // widened ref object to a `<table>`.
+                  ref={(node) => {
+                    gridElement.current = node;
+                  }}
+                  onFocusCapture={(event) => {
+                    const cell = cellRefOf(event.target);
+                    if (cell !== null) setActiveCell(cell);
+                  }}
+                  onBlurCapture={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setActiveCell(null);
+                  }}
+                  style={{
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
+                    // `fixed`, so the browser lays every column out at the width
+                    // `table-frame.ts` says it has. Under the default `auto` the
+                    // widths were a suggestion the content could outvote, and a column
+                    // that came out wider than the offsets assumed is a pinned Name
+                    // painted over "Depends on".
+                    tableLayout: 'fixed',
+                    // The frame's width at rest, and the resolved sum while a
+                    // dragged Name holds an override — `tableWidthStyle` is the
+                    // one line the excess-width measurement decided, and its JSDoc
+                    // holds the observation. The minimum stays the floor either
+                    // way: below it the frame scrolls sideways with the pinned
+                    // columns holding the left edge.
+                    ...tableWidthStyle(layout),
+                  }}
+                >
+                  {/*
               The one place the declared widths reach the browser. `col` sizes a
               column and nothing else about it, which is why the cells below
               carry no width of their own.
@@ -2398,171 +2527,175 @@ export function WbsTable({
               width of `auto`, which is the same thing said less clearly — and
               `table-layout: fixed` hands it whatever the declared ones leave.
             */}
-              <colgroup>
-                {layout.columns.map((column) => (
-                  // `colWidth`, not `width`: a dragged Name resolves a width
-                  // and its `<col>` must still stay silent, or fixed layout
-                  // distributes the viewport's excess across every sized
-                  // column and moves Number off its measured envelope. The
-                  // dragged width rides on the Name cells below;
-                  // `e2e/layout.spec.ts` measures the consequence.
-                  // Proof: re-pointed at `column.width`, `lays a remembered
-                  // Name width on the Name cells, and leaves its <col> silent`
-                  // failed on `expected '300px' to be ''` — a sized
-                  // `<col name>`. Watched, 2026-08-10. The browser half of the
-                  // same fault — the viewport's excess distributed, Number off
-                  // 93 — is `e2e/layout.spec.ts`'s to watch.
-                  <col
-                    key={column.id}
-                    style={column.colWidth === undefined ? undefined : { width: column.colWidth }}
-                  />
-                ))}
-              </colgroup>
-              <thead>
-                {table.getHeaderGroups().map((group) => (
-                  <tr key={group.id}>
-                    {group.headers.map((header) => (
-                      <PlanHeaderCell
-                        key={header.id}
-                        header={header}
-                        frameState={frameState}
-                        layout={layout}
-                        hasProjectStartDate={hintState.hasProjectStartDate}
-                        projectId={projectId}
-                        resizeHandle={resizeHandleFor}
+                  <colgroup>
+                    {layout.columns.map((column) => (
+                      // `colWidth`, not `width`: a dragged Name resolves a width
+                      // and its `<col>` must still stay silent, or fixed layout
+                      // distributes the viewport's excess across every sized
+                      // column and moves Number off its measured envelope. The
+                      // dragged width rides on the Name cells below;
+                      // `e2e/layout.spec.ts` measures the consequence.
+                      // Proof: re-pointed at `column.width`, `lays a remembered
+                      // Name width on the Name cells, and leaves its <col> silent`
+                      // failed on `expected '300px' to be ''` — a sized
+                      // `<col name>`. Watched, 2026-08-10. The browser half of the
+                      // same fault — the viewport's excess distributed, Number off
+                      // 93 — is `e2e/layout.spec.ts`'s to watch.
+                      <col
+                        key={column.id}
+                        style={
+                          column.colWidth === undefined ? undefined : { width: column.colWidth }
+                        }
                       />
                     ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {mountedRows.flatMap(({ row, entry }, mountedIndex) => {
-                  const previousEnd =
-                    mountedIndex === 0
-                      ? 0
-                      : viewport.rows.entries[mountedIndex - 1].startPx +
-                        viewport.rows.entries[mountedIndex - 1].sizePx;
-                  const gapPx = entry.startPx - previousEnd;
-                  return [
-                    <ViewportRowSpacer
-                      key={`gap-${row.id}`}
-                      position={mountedIndex === 0 ? 'before' : 'between'}
-                      heightPx={gapPx}
-                      columnCount={leafColumnIds.length}
-                    />,
-                    <PlanRow
-                      key={row.id}
-                      rowId={row.original.id}
-                      // Logical position drives both aria-rowindex and zebra
-                      // parity; spacer rows and a pinned editor make DOM order
-                      // a different sequence. Proof: passing mountedIndex,
-                      // `a broad Find renders no more than its two
-                      // filter-sensitive cells per row` failed on
-                      // `aria-rowindex Expected: "101" · Received: "36"`.
-                      // Watched in Chromium, 2026-09-08.
-                      rowIndex={entry.index}
-                      attach={viewport.attachRow}
-                      frozen={row.original.frozenNumber !== null}
-                      status={row.original.status}
-                      depLights={depLights}
-                      armed={armedDelete?.rowId === row.original.id}
-                      drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
-                      pointed={pointedRows}
-                      // The drag handlers sit on the row rather than in a column
-                      // definition: `flexRender` renders each `cell` as a
-                      // component *type*, so a definition that changed with the
-                      // drag would remount every cell in the table on every
-                      // pointer move. Built here rather than in {@link PlanRow}
-                      // because they read this component's drag state, which the
-                      // shell has no business subscribing to.
-                      onDragOver={(event) => {
-                        if (dragging === null) return;
-                        // Without this the browser refuses the drop outright.
-                        event.preventDefault();
-                        const box = event.currentTarget.getBoundingClientRect();
-                        setDropHint({
-                          rowId: row.original.id,
-                          zone: zoneFor(event.clientY - box.top, box.height),
-                        });
-                      }}
-                      onDragLeave={() => {
-                        setDropHint((current) =>
-                          current?.rowId === row.original.id ? null : current,
-                        );
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        // The zone the last `dragover` worked out, not one recomputed
-                        // here. That one is the marker the person was looking at when
-                        // they let go, and a drop that lands somewhere other than where
-                        // the line was drawn is the one thing drag must never do.
-                        if (dropHint?.rowId !== row.original.id) return;
-                        dropOn(
-                          row.original.id,
-                          dropHint.zone,
-                          row.getIsExpanded() && row.subRows.length > 0,
-                        );
-                      }}
-                    >
-                      {row.getAllCells().flatMap((cell, columnIndex, rowCells) => {
-                        if (!mountedColumnIds.has(cell.column.id)) {
-                          const previous = rowCells[columnIndex - 1];
-                          if (columnIndex > 0 && !mountedColumnIds.has(previous.column.id))
-                            return [];
-                          let columnCount = 1;
-                          while (
-                            columnIndex + columnCount < rowCells.length &&
-                            !mountedColumnIds.has(rowCells[columnIndex + columnCount].column.id)
-                          )
-                            columnCount += 1;
-                          return [
-                            <ViewportColumnSpacer
-                              key={`columns-${String(columnIndex)}`}
-                              columnCount={columnCount}
-                            />,
-                          ];
-                        }
-                        const sentence =
-                          cell.column.id === 'start' ? startSentence(row.original) : null;
-                        return [
-                          <PlanTableCell
-                            key={cell.id}
-                            cards={cellCards}
-                            cell={cell}
+                  </colgroup>
+                  <thead>
+                    {table.getHeaderGroups().map((group) => (
+                      <tr key={group.id}>
+                        {group.headers.map((header) => (
+                          <PlanHeaderCell
+                            key={header.id}
+                            header={header}
                             frameState={frameState}
                             layout={layout}
-                            armed={armedDelete?.rowId === row.original.id}
-                            attributes={{
-                              // The dependency light's handlers belong to the whole
-                              // `<td>`, not the wrapper inside its padding.
-                              ...(cell.column.id === 'depends'
-                                ? dependsCellHoverProps(row.original)
-                                : {}),
-                              ...(cell.column.id === 'start'
-                                ? startCellProps(row.original, sentence)
-                                : {}),
-                            }}
-                            expandable={row.getCanExpand()}
-                            expanded={row.getIsExpanded()}
-                            startSentence={sentence}
-                            filtering={filtering}
-                            matched={search.matchIds.has(row.id)}
-                          />,
-                        ];
-                      })}
-                    </PlanRow>,
-                  ];
-                })}
-                <ViewportRowSpacer
-                  position="after"
-                  heightPx={viewport.rows.afterPx}
-                  columnCount={leafColumnIds.length}
-                />
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                            hasProjectStartDate={hintState.hasProjectStartDate}
+                            projectId={projectId}
+                            resizeHandle={resizeHandleFor}
+                          />
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {mountedRows.flatMap(({ row, entry }, mountedIndex) => {
+                      const previousEnd =
+                        mountedIndex === 0
+                          ? 0
+                          : viewport.rows.entries[mountedIndex - 1].startPx +
+                            viewport.rows.entries[mountedIndex - 1].sizePx;
+                      const gapPx = entry.startPx - previousEnd;
+                      return [
+                        <ViewportRowSpacer
+                          key={`gap-${row.id}`}
+                          position={mountedIndex === 0 ? 'before' : 'between'}
+                          heightPx={gapPx}
+                          columnCount={leafColumnIds.length}
+                        />,
+                        <PlanRow
+                          key={row.id}
+                          rowId={row.original.id}
+                          // Logical position drives both aria-rowindex and zebra
+                          // parity; spacer rows and a pinned editor make DOM order
+                          // a different sequence. Proof: passing mountedIndex,
+                          // `a broad Find renders no more than its two
+                          // filter-sensitive cells per row` failed on
+                          // `aria-rowindex Expected: "101" · Received: "36"`.
+                          // Watched in Chromium, 2026-09-08.
+                          rowIndex={entry.index}
+                          attach={viewport.attachRow}
+                          frozen={row.original.frozenNumber !== null}
+                          status={row.original.status}
+                          depLights={depLights}
+                          armed={armedDelete?.rowId === row.original.id}
+                          drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+                          pointed={pointedRows}
+                          // The drag handlers sit on the row rather than in a column
+                          // definition: `flexRender` renders each `cell` as a
+                          // component *type*, so a definition that changed with the
+                          // drag would remount every cell in the table on every
+                          // pointer move. Built here rather than in {@link PlanRow}
+                          // because they read this component's drag state, which the
+                          // shell has no business subscribing to.
+                          onDragOver={(event) => {
+                            if (dragging === null) return;
+                            // Without this the browser refuses the drop outright.
+                            event.preventDefault();
+                            const box = event.currentTarget.getBoundingClientRect();
+                            setDropHint({
+                              rowId: row.original.id,
+                              zone: zoneFor(event.clientY - box.top, box.height),
+                            });
+                          }}
+                          onDragLeave={() => {
+                            setDropHint((current) =>
+                              current?.rowId === row.original.id ? null : current,
+                            );
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            // The zone the last `dragover` worked out, not one recomputed
+                            // here. That one is the marker the person was looking at when
+                            // they let go, and a drop that lands somewhere other than where
+                            // the line was drawn is the one thing drag must never do.
+                            if (dropHint?.rowId !== row.original.id) return;
+                            dropOn(
+                              row.original.id,
+                              dropHint.zone,
+                              row.getIsExpanded() && row.subRows.length > 0,
+                            );
+                          }}
+                        >
+                          {row.getAllCells().flatMap((cell, columnIndex, rowCells) => {
+                            if (!mountedColumnIds.has(cell.column.id)) {
+                              const previous = rowCells[columnIndex - 1];
+                              if (columnIndex > 0 && !mountedColumnIds.has(previous.column.id))
+                                return [];
+                              let columnCount = 1;
+                              while (
+                                columnIndex + columnCount < rowCells.length &&
+                                !mountedColumnIds.has(rowCells[columnIndex + columnCount].column.id)
+                              )
+                                columnCount += 1;
+                              return [
+                                <ViewportColumnSpacer
+                                  key={`columns-${String(columnIndex)}`}
+                                  columnCount={columnCount}
+                                />,
+                              ];
+                            }
+                            const sentence =
+                              cell.column.id === 'start' ? startSentence(row.original) : null;
+                            return [
+                              <PlanTableCell
+                                key={cell.id}
+                                cards={cellCards}
+                                cell={cell}
+                                frameState={frameState}
+                                layout={layout}
+                                armed={armedDelete?.rowId === row.original.id}
+                                attributes={{
+                                  // The dependency light's handlers belong to the whole
+                                  // `<td>`, not the wrapper inside its padding.
+                                  ...(cell.column.id === 'depends'
+                                    ? dependsCellHoverProps(row.original)
+                                    : {}),
+                                  ...(cell.column.id === 'start'
+                                    ? startCellProps(row.original, sentence)
+                                    : {}),
+                                }}
+                                expandable={row.getCanExpand()}
+                                expanded={row.getIsExpanded()}
+                                startSentence={sentence}
+                                filtering={filtering}
+                                matched={search.matchIds.has(row.id)}
+                              />,
+                            ];
+                          })}
+                        </PlanRow>,
+                      ];
+                    })}
+                    <ViewportRowSpacer
+                      position="after"
+                      heightPx={viewport.rows.afterPx}
+                      columnCount={leafColumnIds.length}
+                    />
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        }}
+      </PlanViewportOwner>
 
       {/*
         Under the plan and inside the section, so the frame splits vertically:
@@ -2630,16 +2763,10 @@ export function WbsTable({
             dayPx={ganttDayPx}
             // Stored where it is set and nowhere else, exactly as a let-go drag
             // is: opening a project must not write to it.
-            onPickDayPx={(picked) => {
-              setGanttDayPx(picked);
-              rememberGanttDayPx(projectId, picked);
-            }}
+            onPickDayPx={pickGanttDayPx}
             labelsShown={ganttLabelsShown}
             // Stored where it is set and nowhere else, as the rung beside it is.
-            onPickLabelsShown={(shown) => {
-              setGanttLabelsShown(shown);
-              rememberGanttLabels(projectId, shown);
-            }}
+            onPickLabelsShown={pickGanttLabels}
             onPickRow={goToRow}
             // The panel reports which row the pointer or a bar's focus is
             // on, straight into the store it also lights from — no state of
@@ -2657,18 +2784,10 @@ export function WbsTable({
             // can agree. Rename and recolour stay **two** callbacks because
             // be-01 refuses a `PATCH` body naming both.
             markers={markers}
-            onCreateMarker={(marker) => {
-              void runMarkerWrite(() => api.createCalendarMarker(projectId, marker));
-            }}
-            onRenameMarker={(markerId, name) => {
-              void runMarkerWrite(() => api.renameCalendarMarker(projectId, markerId, name));
-            }}
-            onRecolorMarker={(markerId, color) => {
-              void runMarkerWrite(() => api.recolorCalendarMarker(projectId, markerId, color));
-            }}
-            onDeleteMarker={(markerId) => {
-              void runMarkerWrite(() => api.deleteCalendarMarker(projectId, markerId));
-            }}
+            onCreateMarker={createGanttMarker}
+            onRenameMarker={renameGanttMarker}
+            onRecolorMarker={recolorGanttMarker}
+            onDeleteMarker={deleteGanttMarker}
             // The panel lends the toolbar its own `.svg` downloader while it is
             // mounted, and takes it back when it is not: the file is a clone of
             // the live drawing, so only the panel can make one.

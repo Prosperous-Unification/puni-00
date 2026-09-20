@@ -1,4 +1,5 @@
 import {
+  Profiler,
   type ReactNode,
   useCallback,
   useEffect,
@@ -27,6 +28,7 @@ import {
   SavedPlansPanel,
   type SavedPlansPanelDeps,
 } from './saved-plans-panel';
+import { recordWbsScrollCommit } from './scroll-performance';
 import { useToasts } from './toasts';
 import { usePlanImport } from './use-plan-import';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
@@ -1156,27 +1158,29 @@ export function ProjectPage({
           </p>
         )}
         {selected !== null && (
-          <WbsTable
-            // Each project owns its rows and transient editor state.
-            // Proof: omitting this key left “Departed project row” in Name010
-            // in `starts a created project without the previous project’s row anchors`.
-            key={selected}
-            projectId={selected}
-            // The name the export's header and filename carry. Read from the
-            // list rather than held twice: a rename lands in `projects` and the
-            // next export says the new name.
-            projectName={selectedProject?.name}
-            api={api}
-            planImport={planImport}
-            // Proof: omitting this page-owned API left the remounted table's
-            // toast list empty after a successful import. Observed 2026-09-14.
-            toastApi={toastApi}
-            subscribe={subscribe}
-            // Rendered by the table only on a cards viewport, which is the
-            // same answer `renderer` above gives — one hook, one store, so the
-            // header's arm and this one are complementary and never both.
-            savedPlansShelf={savedPlanShelf}
-          />
+          <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
+            <WbsTable
+              // Each project owns its rows and transient editor state.
+              // Proof: omitting this key left “Departed project row” in Name010
+              // in `starts a created project without the previous project’s row anchors`.
+              key={selected}
+              projectId={selected}
+              // The name the export's header and filename carry. Read from the
+              // list rather than held twice: a rename lands in `projects` and the
+              // next export says the new name.
+              projectName={selectedProject?.name}
+              api={api}
+              planImport={planImport}
+              // Proof: omitting this page-owned API left the remounted table's
+              // toast list empty after a successful import. Observed 2026-09-14.
+              toastApi={toastApi}
+              subscribe={subscribe}
+              // Rendered by the table only on a cards viewport, which is the
+              // same answer `renderer` above gives — one hook, one store, so the
+              // header's arm and this one are complementary and never both.
+              savedPlansShelf={savedPlanShelf}
+            />
+          </Profiler>
         )}
       </main>
     </>

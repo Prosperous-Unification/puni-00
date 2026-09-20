@@ -1,3 +1,5 @@
+import { recordScrollProbe, scrollProbeStart } from './scroll-performance';
+
 export interface ViewportEntry {
   id: string;
   index: number;
@@ -46,13 +48,16 @@ export function placeRows(
   heights: ReadonlyMap<string, number>,
   estimatedHeight: number,
 ): ViewportEntry[] {
+  const started = scrollProbeStart();
   let startPx = 0;
-  return rowIds.map((id, index) => {
+  const placed = rowIds.map((id, index) => {
     const sizePx = heights.get(id) ?? estimatedHeight;
     const entry = { id, index, startPx, sizePx };
     startPx += sizePx;
     return entry;
   });
+  recordScrollProbe('placeRowsCalls', 'placeRowsMs', started);
+  return placed;
 }
 
 /**
