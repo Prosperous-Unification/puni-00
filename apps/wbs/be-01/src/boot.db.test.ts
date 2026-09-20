@@ -98,6 +98,63 @@ function oidcOptions(passwordLoginEnabled: boolean): OidcRouteOptions {
   };
 }
 
+/** Every message in a failure's cause chain, so a test reads the reason through any wrapper. */
+function reasons(failure: unknown): string {
+  const seen: string[] = [];
+  let at: unknown = failure;
+  while (at instanceof Error) {
+    seen.push(at.message);
+    at = at.cause;
+  }
+  return seen.join(' | ');
+}
+
+/** A port held by an exclusive listener, which is what makes a bind failure reachable. */
+function heldPort(): { port: number; release: () => Promise<void> } {
+  const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
+  const port = held.port;
+  if (port === undefined) throw new Error('Bun.serve reported no port to hold');
+  return { port, release: () => held.stop(true) };
+}
+
+/** A port nothing is listening on: held, then released. */
+async function freePort(): Promise<number> {
+  const held = heldPort();
+  await held.release();
+  return held.port;
+}
+
+/**
+ * Whether the port refuses connections, which is the only answer that means
+ * nothing is listening. A timeout means something accepted and never replied,
+ * and a sandbox denial means the measurement never happened; both are rethrown
+ * rather than reported as a closed socket.
+ */
+async function refuses(port: number): Promise<boolean> {
+  try {
+    await fetch(`http://localhost:${String(port)}/health`, { signal: AbortSignal.timeout(2_000) });
+    return false;
+  } catch (failure) {
+    if (failure instanceof Error && 'code' in failure && failure.code === 'ConnectionRefused') {
+      return true;
+    }
+    throw failure;
+  }
+}
+
+/** The boot options every case below shares, minus the two each one chooses. */
+function bootOptions(dbPath: string, port: number) {
+  return {
+    appOrigin: 'http://localhost',
+    dbPath,
+    port,
+    logger: createLogger({ service: 'be-01' }),
+    jwtKey: 'k'.repeat(32),
+    gwUrl: 'http://gw.invalid',
+    internalAuthSecret: 's'.repeat(32),
+  };
+}
+
 describe('bootBe01', () => {
   it('reconciles an abandoned optimizer drain before reporting healthy', async () => {
     const dir = tempDir('wbs-optimizer-reconcile-');
@@ -305,6 +362,92 @@ describe('bootBe01', () => {
 
     expect(stateAtClose).toEqual({ optimizerRunning: false, retentionRunning: false });
   });
+
+  it('does not mistake a stalled listener for a closed one', async () => {
+    const stalled = Bun.serve({
+      port: 0,
+      reusePort: false,
+      fetch: () => new Promise<Response>(() => undefined),
+    });
+    const port = stalled.port;
+    if (port === undefined) throw new Error('Bun.serve reported no port to stall on');
+    let caught: unknown;
+    try {
+      await refuses(port);
+    } catch (failure) {
+      caught = failure;
+    } finally {
+      await stalled.stop(true);
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('TimeoutError');
+  }, 10_000);
+
+  it('releases nothing and rejects when the source cannot be opened', async () => {
+    const dir = tempDir('wbs-boot-unopenable-');
+    const port = await freePort();
+    let caught: unknown;
+    try {
+      bootBe01(bootOptions(join(dir, 'test.db'), port), {
+        openSource: () => {
+          throw new Error('the database file is unreadable');
+        },
+      });
+    } catch (failure) {
+      caught = failure;
+    }
+
+    expect(reasons(caught)).toContain('the database file is unreadable');
+    expect(await refuses(port)).toBe(true);
+  }, 10_000);
+
+  it('stops accepting before it closes the source it opened', async () => {
+    const dir = tempDir('wbs-boot-release-order-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const port = await freePort();
+    let refusedAtClose: boolean | undefined;
+    const be = bootBe01(bootOptions(dbPath, port), {
+      openSource: (options) => {
+        const source = openSqliteSource(options);
+        return {
+          ...source,
+          close: async () => {
+            refusedAtClose = await refuses(port);
+            await source.close();
+          },
+        };
+      },
+    });
+    running = be;
+    expect((await fetch(`http://localhost:${String(port)}/health`)).status).toBe(200);
+
+    await be.stop();
+    running = null;
+
+    expect(refusedAtClose).toBe(true);
+  }, 10_000);
+
+  it('stops twice without complaining', async () => {
+    const be = boot();
+    running = null;
+
+    await be.stop();
+    await be.stop();
+
+    expect(be.services.retention.isRunning()).toBe(false);
+  }, 10_000);
+
+  it('serves an unmigrated database rather than refusing to start', async () => {
+    const dir = tempDir('wbs-boot-unmigrated-');
+    const be = bootBe01(bootOptions(join(dir, 'test.db'), 0));
+    running = be;
+
+    const health = await fetch(`http://localhost:${String(be.port)}/health`);
+
+    expect(health.status).toBe(503);
+  }, 10_000);
 
   it('serves health on the port it bound', async () => {
     const be = boot();

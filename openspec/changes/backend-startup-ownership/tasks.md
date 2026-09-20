@@ -4,7 +4,7 @@
 
 ## 2. Pin existing startup and shutdown behavior
 
-- [ ] 2.1 Extend the boot tests with the existing startup refusals, shutdown order, repeated stop and unhealthy-schema behavior.
+- [x] 2.1 Extend the boot tests with the existing startup refusals, shutdown order, repeated stop and unhealthy-schema behavior.
 
 ## 3. Transfer lifecycle ownership to DI Bag
 
