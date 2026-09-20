@@ -12,7 +12,7 @@ import {
 import { recordScrollProbe, scrollProbeStart } from './scroll-performance';
 
 /** The vertical allowance published in the measured-rendering budget. */
-export const ROW_OVERSCAN_PX = 300;
+export const ROW_OVERSCAN_PX = 768;
 
 /** The horizontal allowance published in the measured-rendering budget. */
 export const COLUMN_OVERSCAN_PX = 256;
@@ -29,7 +29,7 @@ export const ESTIMATED_ROW_HEIGHT_PX = 26.1875;
  * the hook technically publishes only changed windows, but still commits once
  * per wheel event because rows cross that moving edge.
  */
-export const ROW_PUBLICATION_STEP_PX = 256;
+export const ROW_PUBLICATION_STEP_PX = 640;
 
 /** The matching retention bucket for horizontally windowed, unpinned columns. */
 export const COLUMN_PUBLICATION_STEP_PX = 192;

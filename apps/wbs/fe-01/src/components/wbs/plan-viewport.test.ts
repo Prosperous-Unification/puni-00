@@ -12,11 +12,18 @@ describe('plan viewport', () => {
     expect([
       publicationOffset(0, ROW_PUBLICATION_STEP_PX),
       publicationOffset(96, ROW_PUBLICATION_STEP_PX),
-      publicationOffset(255, ROW_PUBLICATION_STEP_PX),
-      publicationOffset(256, ROW_PUBLICATION_STEP_PX),
-      publicationOffset(511, ROW_PUBLICATION_STEP_PX),
-      publicationOffset(512, ROW_PUBLICATION_STEP_PX),
-    ]).toEqual([0, 0, 0, 256, 256, 512]);
+      publicationOffset(ROW_PUBLICATION_STEP_PX - 1, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX * 2 - 1, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX * 2, ROW_PUBLICATION_STEP_PX),
+    ]).toEqual([
+      0,
+      0,
+      0,
+      ROW_PUBLICATION_STEP_PX,
+      ROW_PUBLICATION_STEP_PX,
+      ROW_PUBLICATION_STEP_PX * 2,
+    ]);
     expect([
       publicationOffset(191, COLUMN_PUBLICATION_STEP_PX),
       publicationOffset(192, COLUMN_PUBLICATION_STEP_PX),
