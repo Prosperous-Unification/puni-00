@@ -209,8 +209,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     try {
       const payload = await this.verifyLocal(token);
       const session = this.sessionOf(payload);
-      if (typeof payload.jti !== 'string') throw new Error('verified MCP token has no session id');
-      return { upstreamToken: session.upstreamAccessToken, mcpSessionId: payload.jti };
+      const sessionId = payload['jti'];
+      if (typeof sessionId !== 'string') throw new Error('verified MCP token has no session id');
+      return { upstreamToken: session.upstreamAccessToken, mcpSessionId: sessionId };
     } catch {
       await this.verifyUpstream(token);
       return { upstreamToken: token, mcpSessionId: null };
@@ -466,7 +467,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 
   private validReauthMarker(marker: string | undefined): boolean {
     if (marker === undefined) return false;
-    const expected = reauthMarker(this.reauthKey);
+    const expected = Buffer.from(reauthMarker(this.reauthKey));
     const received = Buffer.from(marker);
     return received.length === expected.length && timingSafeEqual(received, expected);
   }
