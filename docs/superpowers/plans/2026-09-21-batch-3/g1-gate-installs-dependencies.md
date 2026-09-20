@@ -124,12 +124,12 @@ took.
 
 **Neighbours in batch 2, and what this packet does about them.**
 
-| Packet                       | Contact                                                                                                             | Resolution                                                                                                                                                                                                                                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 110.6 retire upstream sync   | Its slice A edits `docs/findings/checks-that-cannot-fail-puni-00.md`, rewording two stale descriptors near the top. | **Overlapping hunks.** 110.6 rewords the opening paragraphs; slice D edits the opening total (twenty-nine to thirty) as well as appending at the end. Land 110.6 first and rebase slice D onto it, re-reading the opening sentence before editing the total. |
-| 110.1 test axes              | Adds an OpenSpec change, moving the validator's item total.                                                         | Section 8 records the total relative to a baseline this packet's slices take themselves. No absolute number appears anywhere.                                                                                                                                |
-| 010.7 rules, 010.6 templates | Add source files under `apps/wiki/cli`, changing the Twilight Bureaucrat validator identity.                        | This packet adds no file there, so it does not move that identity. No test pins it as a literal.                                                                                                                                                             |
-| 020.2, 020.7, 040.1, 040.4   | None. No file in section 5 is touched by them.                                                                      | Nothing to do.                                                                                                                                                                                                                                               |
+| Packet                       | Contact                                                                                                             | Resolution                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 110.6 retire upstream sync   | Its slice A edits `docs/findings/checks-that-cannot-fail-puni-00.md`, rewording two stale descriptors near the top. | **Prerequisite already satisfied.** 110.6's slice A landed in `7d4ba6ec`, an ancestor of `da8be091`: `docs/findings/checks-that-cannot-fail-puni-00.md:3-4` already reads "recorded here after the wbs-tool-v1 history was merged in" and "the inherited catalogue". Nothing is owed here. Slice D edits the opening total (twenty-nine to thirty) and appends at the end; any later 110.6 hunk is the planner's to rebase. |
+| 110.1 test axes              | Adds an OpenSpec change, moving the validator's item total.                                                         | Section 8 records the total relative to a baseline this packet's slices take themselves. No absolute number appears anywhere.                                                                                                                                                                                                                                                                                               |
+| 010.7 rules, 010.6 templates | Add source files under `apps/wiki/cli`, changing the Twilight Bureaucrat validator identity.                        | This packet adds no file there, so it does not move that identity. No test pins it as a literal.                                                                                                                                                                                                                                                                                                                            |
+| 020.2, 020.7, 040.1, 040.4   | None. No file in section 5 is touched by them.                                                                      | Nothing to do.                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## 6. Slices
 
@@ -244,11 +244,30 @@ difference.
 
 ### Slice B. The harness, then the install
 
-- [ ] B0. Baseline and pre-edit check. Run `grep -c '^bun install' bin/h2puni-gate-steps.sh`;
-      expected `0`. A non-zero count means the install already exists — stop, this slice is done.
-      Then run `bash bin/h2puni-gate.test.sh` and record the exit status and the number of
-      `  ok:` lines. Observed: exit 0, `all cases passed`, **85** ok lines. Call it `B`. Every
-      count in this slice is against `B`, never against 85.
+- [ ] B0. Baseline and pre-edit check. Run the prerequisite block below: expect it to print
+      exactly `installs=0 proofs=3 proofs-before-install=3` and to exit **0**. Then run
+      `bash bin/h2puni-gate.test.sh` and record its exit status and its number of `  ok:` lines —
+      observed exit 0, `all cases passed`, **85** ok lines; call that number `B` and compare every
+      later count in this slice with `B`, never with 85. Then run the focused devsync command in
+      section 8 and record its pass count as `Bd` with no failures — observed 45 pass, 0 fail;
+      later runs must be unchanged at `Bd`, not equal to 45. An `installs` above `0` means the
+      install already exists: stop, this slice is done. A `proofs` count other than 3 means the
+      file is not the one this packet read, since `bin/h2puni-gate-steps.sh` carries three
+      `# Proof:` comments, at lines 10, 13 and 26: stop. A bare `grep -c` is not usable for this
+      check, because `grep` exits **1** when it matches nothing, which is exactly this slice's
+      expected state, and under `set -e` that aborts the shell before the baseline is taken; the
+      block accepts exactly status 1 and lets any higher status propagate, the shape the batch
+      README's mutation-patch block uses for `diff`.
+
+  ```sh
+  set -euo pipefail
+  steps=bin/h2puni-gate-steps.sh
+  installs=$(grep -c '^bun install' "$steps") || test $? -eq 1
+  proofs=$(grep -c '^# Proof:' "$steps") || test $? -eq 1
+  before=$(sed -n '1,/^bun install/p' "$steps" | grep -c '^# Proof:') || test $? -eq 1
+  printf 'installs=%s proofs=%s proofs-before-install=%s\n' "$installs" "$proofs" "$before"
+  ```
+
 - [ ] B1. In `bin/h2puni-gate.test.sh`, give `prepare_gate_steps_path` a fourth parameter and a
       `bun` stub. Replace its first line and append the stub block immediately after the existing
       `include_tee` block, before the comment that introduces the `bunx` fake:
@@ -296,7 +315,11 @@ difference.
       closes case 33 by removing the lock directory and the queue, and before the
       `if ((failures)); then` block. The text is in section 7; add it exactly.
 - [ ] B5. Run `bash bin/h2puni-gate.test.sh`. Expected RED: exit 1, `10 failing case(s)`, `B` ok
-      lines (85 on the rehearsal tree — the new cases contribute no passes yet). The ten failures
+      lines (85 on the rehearsal tree). The total is unchanged rather than raised because the new
+      cases contribute exactly one pass at this point — case 34's `expect_status 0`, which
+      succeeds because the original steps still complete — while case 22 loses the one pass it had
+      (B3 moved the validator to the second line and no install occupies the first). The ten
+      failures
       are the list in section 7's fault F1, and they include
       `the gate invokes the pinned validator contract: want '@fission-ai/openspec@1.12.0 validate
 --all --json', got ''`: that one is EXPECTED here, because B3 has moved the validator to the
@@ -327,22 +350,25 @@ difference.
       `bin/h2puni-gate-steps.sh`, `bin/h2puni-gate.test.sh`,
       `openspec/changes/host-gate-locked-install/verify.md`.
 
-### Slice C. Five negative proofs
+### Slice C. Six negative proofs
 
 Follow the batch README's **Negative proofs with a restore** and **Saving a mutation patch**
 blocks. Copy `bin/h2puni-gate-steps.sh` to `$TMPDIR/steps.passing` once, before the first fault,
 and restore from that copy with `cp` and verify with `cmp` after each one. Never restore from Git.
 
-- [ ] C0. Baseline and pre-edit check. Run `grep -c '^bun install' bin/h2puni-gate-steps.sh`;
-      expected `1`. A `0` means slice B is not in your clone — stop. Then run
-      `bash bin/h2puni-gate.test.sh`: expected exit 0, `all cases passed`. Record the `  ok:`
-      count and call it `C` (95 on the rehearsal tree). Every count below is against `C`.
+- [ ] C0. Baseline and pre-edit check. Run slice B0's **prerequisite block** unchanged.
+      Expected, exactly: `installs=1 proofs=3 proofs-before-install=0`, exit 0. `installs=0` means
+      slice B is not in your clone — stop. `proofs-before-install=1` means slice C's proof comment
+      is already there — stop, this slice is done. Then run `bash bin/h2puni-gate.test.sh`:
+      expected exit 0, `all cases passed`. Record the `  ok:` count and call it `C` (95 on the
+      rehearsal tree). Every count below is against `C`. Record the focused devsync pass count as
+      `Cd` as well (45 on the rehearsal tree).
 - [ ] C1 to C6. Inject each of the six faults in section 7's table in turn, run the harness, save
       the failing output under `$TMPDIR/evidence/`, restore, `cmp`, and re-run green before the
       next one. Every fault replaces or wraps the single line matching `^bun install` in
       `bin/h2puni-gate-steps.sh`; `grep -c '^bun install' bin/h2puni-gate-steps.sh` prints `1`
       before each injection, so there is no second candidate line to patch by mistake.
-- [ ] C6. Only after watching all six, add the `Proof:` comment immediately above the single
+- [ ] C7. Only after watching all six, add the `Proof:` comment immediately above the single
       `bun install --frozen-lockfile` line, below all five rationale comment lines added in B6,
       describing what you saw:
 
@@ -361,26 +387,31 @@ and restore from that copy with `cp` and verify with `cmp` after each one. Never
   the text YOUR run printed and date the comment with the day you ran it. The comment states what
   you saw, never what this packet predicted.
 
-- [ ] C7. Run `bash bin/h2puni-gate.test.sh` and shellcheck once more. Expected exit 0 both
+- [ ] C8. Run `bash bin/h2puni-gate.test.sh` and shellcheck once more. Expected exit 0 both
       times, and `C` ok lines — the `Proof:` comment adds no case, so the count does not move.
-- [ ] C8. Append each fault, its named failing assertion and the literal line you saw to the
+      Re-run slice B0's prerequisite block: it must now print
+      `installs=1 proofs=4 proofs-before-install=1`, which is what slice D checks for.
+- [ ] C9. Append each fault, its named failing assertion and the literal line you saw to the
       change's `verify.md`, and tick the third task in `tasks.md`. Then format both files with
       `GSETTINGS_BACKEND=memory bunx prettier --write` and run the repository-wide format check.
       Expected exit 0.
-- [ ] C9. Stop and report. Ready to commit, message
+- [ ] C10. Stop and report. Ready to commit, message
       `test(gate): record the watched faults for the gate install`, paths:
       `bin/h2puni-gate-steps.sh`, `openspec/changes/host-gate-locked-install/tasks.md`,
       `openspec/changes/host-gate-locked-install/verify.md`.
 
 ### Slice D. The routing text and the catalogue
 
-- [ ] D0. Baseline and pre-edit check. Run `grep -c '^bun install' bin/h2puni-gate-steps.sh`;
-      expected `1`. A `0` means slices B and C are not in your clone — stop. Run
-      `grep -c 'Proof: ' bin/h2puni-gate-steps.sh`; expected at least `3` (two pre-existing plus
-      slice C's). Then run the OpenSpec validation block and `bash bin/h2puni-gate.test.sh` and
-      record both numbers: call them `D` (passed) and `Dh` (ok lines). Expected `failed 0`, and
-      exit 0 with `all cases passed`. **This slice adds no OpenSpec change and no harness case, so
-      both numbers must be UNCHANGED at D5.**
+- [ ] D0. Baseline and pre-edit check. Run slice B0's prerequisite block unchanged: expect
+      exactly `installs=1 proofs=4 proofs-before-install=1` and exit 0. That signature is the only
+      one that distinguishes slice C's tree from slice B's — `bin/h2puni-gate-steps.sh` already
+      carries three `# Proof:` comments before this packet touches it, so a total count alone
+      proves nothing — and `proofs-before-install=0` means slice C's watched faults and its proof
+      comment are missing: stop, and do not write the documents for work that was not proved. Then
+      run the OpenSpec validation block and `bash bin/h2puni-gate.test.sh`, recording both numbers
+      as `D` (passed) and `Dh` (ok lines); expected `failed 0`, and exit 0 with `all cases passed`.
+      This slice adds no OpenSpec change and no harness case, so **both numbers must be UNCHANGED
+      at D5.**
 - [ ] D1. In `AGENTS.md`, replace the first bullet of the `## Gate` section. The old text is three
       lines beginning `- Before claiming done on h2puni`; the new text is four lines:
 
@@ -429,20 +460,26 @@ and restore from that copy with `cp` and verify with `cmp` after each one. Never
       is the expected local result, not a failure. A `passed` total of `D + 1` here means a change
       was created that this slice does not own: stop.
 - [ ] D6. Tick the remaining tasks in `tasks.md` and append D0 to D5 to `verify.md`. Then, with
-      every edit of this slice finished, format the four Markdown files you changed —
-      `docs/findings/checks-that-cannot-fail-puni-00.md`, `openspec/changes/host-gate-locked-install/tasks.md`,
-      `openspec/changes/host-gate-locked-install/verify.md` — with
-      `GSETTINGS_BACKEND=memory bunx prettier --write`, and run the repository-wide format check.
-      Do NOT pass `AGENTS.md` to Prettier by name if you are unsure whether you are naming the
-      symlink; the repository-wide check covers it, and it exited 0 on the rehearsal tree after
-      the D1 edit. Expected: exit 0.
+      every edit of this slice finished, format the four Markdown files you changed:
+
+  ```sh
+  GSETTINGS_BACKEND=memory bunx prettier --write AGENTS.md \
+    docs/findings/checks-that-cannot-fail-puni-00.md \
+    openspec/changes/host-gate-locked-install/tasks.md \
+    openspec/changes/host-gate-locked-install/verify.md
+  ```
+
+  `AGENTS.md` is a regular file — `CLAUDE.md` and `GEMINI.md` are the symlinks to it — so naming it
+  here is safe and was observed exiting 0 after the D1 edit. Then run the repository-wide format
+  check. Expected: exit 0.
+
 - [ ] D7. Stop and report. Ready to commit, message
       `docs(gate): record the stale-dependency finding and correct the Gate routing`, paths:
       `AGENTS.md`, `docs/findings/checks-that-cannot-fail-puni-00.md`,
       `openspec/changes/host-gate-locked-install/tasks.md`,
       `openspec/changes/host-gate-locked-install/verify.md`.
 
-## 7. Exact new harness text, and the five faults
+## 7. Exact new harness text, and the six faults
 
 Append this to `bin/h2puni-gate.test.sh` in step B4, exactly as written.
 
@@ -544,7 +581,8 @@ counts below are against the rehearsed green of 95; express yours against your o
 | F5  | Replace it with `if command -v bun >/dev/null; then bun install --frozen-lockfile; fi`                                                                                | `a missing installer refuses the gate steps`            | `  FAIL: a missing installer refuses the gate steps: want exit 127, got 0`                       | case 36's other two assertions                                 | exit 1, `C - 3` ok (92)  |
 | F6  | Insert, immediately above the install line, `if ! command -v bun >/dev/null; then` / `  bunx @fission-ai/openspec@1.12.0 validate --all --json` / `  exit 127` / `fi` | `the missing installer allowed OpenSpec validation`     | `  FAIL: the missing installer allowed OpenSpec validation`                                      | none — exactly one failing assertion                           | exit 1, `C - 1` ok (94)  |
 
-F2, F3 and F6 each fail exactly one assertion, and F5 fails only case 36's, so no single mutation
+F2 and F6 each fail exactly one assertion, F3's four failures are all about the one fact that the
+install no longer precedes the validator, and F5 fails only case 36's three, so no single mutation
 stands in for two unrelated checks: the frozen-lockfile contract, the ordering, the refusal on a
 failing install and the refusal on an absent installer each have a fault that is refused by that
 assertion alone or by that case alone. F1 is the whole-check removal R5 asks for. Per the executor
@@ -581,12 +619,13 @@ real install is exercised only by a host gate run, which is the planner's.
 None of these can run in the executor's sandbox, and each is listed with the value observed on the
 rehearsal tree so a deviation is visible rather than argued.
 
-| Check                                                                                                                                                                                                          | Why planner-only                                                                                        | Expected, and what was observed                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GSETTINGS_BACKEND=memory NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, run with the slice's paths STAGED                                                         | The namespacing test runs the wiki index checker, which writes Git objects and refuses untracked files. | `Successfully ran target test for project tool-devsync`, exit 0, and NO pin moves. Rehearsed on 2026-09-21 with all nine cumulative paths staged.                                                                                                                                                                                                                                                                                 |
-| `TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test apps/wiki/cli/src/policy/gate-entrypoints.test.ts --preload ./tools/test/scratch/preload.ts` | It reads the steps script, and it needs the runtime and preload its Nx target configures.               | **57 pass, 0 fail, exit 0.** Observed on the unmodified tree AND with this change applied, 2026-09-21. Every named test must have the same outcome as the baseline: a failure here is investigated, never accepted as environmental. Dropping the runtime variable produces two spurious `trusted TypeScript runtime modules are not provisioned` failures — that is a wrong command, not a finding.                              |
-| The batch README's **Integration verification** matrix, steps 1 to 4                                                                                                                                           | Whole targets; slow, and some spawn `bun` from Node.                                                    | Unchanged by this packet, which touches no TypeScript. Its step 3 is `bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=twilight-bureaucrat` and its step 4 the Bureaucrat's own `test typecheck build`, then `twilight-bureaucrat:lint:source --skip-nx-cache` — the split `bin/h2puni-gate-steps.sh:28-30` makes. These are WORKSTATION-only; AGENTS.md forbids raw full Nx gates on h2puni. |
-| `bin/h2puni-gate.sh <sha>` on h2puni, with the committed sha                                                                                                                                                   | The host gate itself; the executor must never run it, and this packet was planned without host access.  | The real proof. It must print `h2puni gate: running on <sha>` and, this time, an install before the validator output. This is the ONLY check that exercises a real `bun install`; report it as pending until it has run.                                                                                                                                                                                                          |
+| Check                                                                                                                                                                                                          | Why planner-only                                                                                        | Expected, and what was observed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, run with the slice's paths STAGED                                                         | The namespacing test runs the wiki index checker, which writes Git objects and refuses untracked files. | `Successfully ran target test for project tool-devsync`, exit 0, and NO pin moves. Rehearsed on 2026-09-21 with all nine cumulative paths staged.                                                                                                                                                                                                                                                                                                                                                                                         |
+| `TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test apps/wiki/cli/src/policy/gate-entrypoints.test.ts --preload ./tools/test/scratch/preload.ts` | It reads the steps script, and it needs the runtime and preload its Nx target configures.               | Run it on the frozen baseline BEFORE staging, record the pass count and `0 fail`, then run it again after staging and require the SAME pass count and still `0 fail`; a named test whose outcome differs is a finding, never environmental. Rehearsal observation only: **57 pass, 0 fail, exit 0** on the unmodified tree and again with this change applied, 2026-09-21. Dropping the runtime variable produces two spurious `trusted TypeScript runtime modules are not provisioned` failures — that is a wrong command, not a result. |
+| The batch README's **Integration verification** matrix, steps 1 to 4                                                                                                                                           | Whole targets; slow, and some spawn `bun` from Node.                                                    | Unchanged by this packet, which touches no TypeScript. Its step 3 is `bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=twilight-bureaucrat` and its step 4 the Bureaucrat's own `test typecheck build`, then `twilight-bureaucrat:lint:source --skip-nx-cache` — the split `bin/h2puni-gate-steps.sh:28-30` makes. These are WORKSTATION-only; AGENTS.md forbids raw full Nx gates on h2puni.                                                                                                         |
+| `git commit` of the nine paths with hooks on (the planner commits; the executor cannot)                                                                                                                        | The executor's `.git` is read-only.                                                                     | Exit 0. Rehearsed for real on 2026-09-21 by committing the whole prescribed change in a private worktree: `tool-wiki` ok (inactive report), `plaintext-secrets` ok, `format` ok, `agent-authored-by` ok on both message hooks; `lint`, `migration-lint` and `doc-caps` all skipped as having no matching staged files. Reset afterwards. Nothing in this packet's prescribed text is refused by a hook, a lint rule or the formatter.                                                                                                     |
+| `bin/h2puni-gate.sh <sha>` on h2puni, with the committed sha                                                                                                                                                   | The host gate itself; the executor must never run it, and this packet was planned without host access.  | The real proof. It must print `h2puni gate: running on <sha>` and, this time, an install before the validator output. This is the ONLY check that exercises a real `bun install`; report it as pending until it has run.                                                                                                                                                                                                                                                                                                                  |
 
 ## 10. Dispatch
 
@@ -683,10 +722,23 @@ Message: `test(gate): record the watched faults for the gate install`.
 
 Message: `docs(gate): record the stale-dependency finding and correct the Gate routing`.
 
-**The cumulative change**, once all four are committed, is NINE paths. `git status` cannot show it,
-because every earlier slice is already committed; read it with a baseline diff instead —
-`git diff --name-status batch-3/planning` — which printed exactly these on the rehearsal tree
-(the packet file itself excepted):
+**The cumulative change**, once all four are committed, is NINE paths. **This review is the
+PLANNER's, not an executor step.** `git status` cannot show it, because every earlier slice is
+already committed, and an executor clone has no local `batch-3/planning` to diff against: the
+launcher clones with ordinary remote-tracking refs and creates only the attempt's own branch
+(`/home/df/wd/puni/puni-plan/exec/run-executor.sh:39-40`), so in an existing batch-2 clone
+`origin/batch-2/planning` resolves while `batch-2/planning^{commit}` fails. The planner reads it
+against the base commit the ledger records for this packet's attempts, scoped to the nine owned
+paths:
+
+```sh
+git diff --name-status <packet-base-sha> -- AGENTS.md \
+  bin/h2puni-gate-steps.sh bin/h2puni-gate.test.sh \
+  docs/findings/checks-that-cannot-fail-puni-00.md \
+  openspec/changes/host-gate-locked-install
+```
+
+With `<packet-base-sha>` = `da8be091`, that printed exactly these on the rehearsal tree:
 
 ```text
 M	AGENTS.md
@@ -726,7 +778,7 @@ rehearsal in a private worktree of `da8be091` on 2026-09-21, not by reasoning.
 | Important 2, case 36 does not test the full contract           | **FIXED.** Case 36 gains `the missing installer stops before OpenSpec validation`. The review's own mutation is fault F6: rehearsed, it fails that one assertion and nothing else (exit 1, 94 ok against 95). Green is now 95 ok; the red phase is ten failing cases; every count updated.                                                                                                                               |
 | Important 3, the focused devsync command loses the timeout     | **FIXED.** `tools/tool-devsync/project.json`'s `test` command is `bun test --preload ../test/scratch/preload.ts`, and `tools/test/scratch/preload.ts:22` sets `setDefaultTimeout(30_000)`. Section 8 now carries the preload. From the root it needs the leading `./`: without it Bun prints `preload not found "tools/test/scratch/preload.ts"`. With it: 45 pass, 0 fail.                                              |
 | Important 4, the broad planner command is not the split        | **FIXED.** Section 9 links the batch README's integration matrix and states its steps 3 and 4 explicitly, matching the split at `bin/h2puni-gate-steps.sh:28-30`, and says the matrix is workstation-only because AGENTS.md forbids raw full Nx gates on h2puni.                                                                                                                                                         |
-| Important 5, the handoff status assumes nothing was committed  | **FIXED.** Section 12 now gives each slice its own `git status` rows, and the cumulative NINE paths through `git diff --name-status batch-3/planning`, rehearsed. The "eight paths" claim in section 9 is gone.                                                                                                                                                                                                          |
+| Important 5, the handoff status assumes nothing was committed  | **FIXED**, then corrected in round 2: section 12 gives each slice its own `git status` rows, and the cumulative nine paths are now read by the PLANNER against the recorded base sha, because an executor clone has no local `batch-3/planning` (see review 2, Important 3). The "eight paths" claim in section 9 is gone.                                                                                               |
 | Important 6, evidence edits escape formatting                  | **FIXED.** A6, B9, C8 and D6 finish every edit first, then format the owned files, then run the repository-wide check. D4 is emptied so the step letters still line up in a report.                                                                                                                                                                                                                                      |
 | Minor 1, file length and command count                         | **FIXED.** `wc -l` prints 31, and `grep -n 'bunx nx'` prints lines 25, 28, 29, 30 and 31 — five. Sections 2, 3 and the proposed catalogue text say 31 and five.                                                                                                                                                                                                                                                          |
 | Minor 2, CI line anchor                                        | **FIXED.** `.github/workflows/ci.yml:600` is the step name and `:601` the command; cited as `:600-601`.                                                                                                                                                                                                                                                                                                                  |
@@ -738,3 +790,25 @@ failing cases; six faults with the counts in section 7; shellcheck exit 0; OpenS
 `failed 0`; `nx format:check --all` exit 0; doc-caps exit 0; `tool-wiki-lint.sh working . HEAD`
 exit 0 and inactive; the whole `tool-devsync:test` target green with all nine paths staged; and
 `gate-entrypoints.test.ts` 57 pass, 0 fail with its configured runtime.
+
+## 15. Disposition of review 2
+
+Every finding was checked against the repository before acting and settled by rehearsal on
+2026-09-21. Nothing was rejected. Review 1's table above is kept as the record of that round;
+where review 2 corrected it, this table is what holds.
+
+| Finding                                                           | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Important 1, the prerequisite `grep -c` exits non-zero on success | **FIXED** in B0, and reused verbatim by C0 and D0. Reproduced: `grep -c '^bun install' bin/h2puni-gate-steps.sh` prints `0` and exits **1** on the unmodified tree. The prerequisite block now accepts exactly status 1 (`                                                                                                                                                                                                                                                                        |     | test $? -eq 1`, the batch README's `diff` shape) and lets any higher status propagate. Rehearsed in all three trees: exit 0 in each. |
+| Important 2, D0 accepts a tree with no slice-C proof              | **FIXED**, and the review's count was right: `bin/h2puni-gate-steps.sh` already has **three** `# Proof:` comments, at lines 10, 13 and 26, so "at least three" was satisfied by slice B's tree. The block now also reports `proofs-before-install`, and the three trees have distinct signatures: `installs=0 proofs=3 proofs-before-install=3` (B start), `installs=1 proofs=3 proofs-before-install=0` (C start), `installs=1 proofs=4 proofs-before-install=1` (D start). All three rehearsed. |
+| Important 3, the cumulative diff uses a ref executors do not have | **FIXED** in section 12: the cumulative review is marked PLANNER-only and reads `git diff --name-status <packet-base-sha> -- <the nine paths>`. Confirmed in the existing batch-2 clone `/home/df/wd/puni/batch-2/010-6-templates`: `origin/batch-2/planning` resolves, `batch-2/planning^{commit}` exits 1. The scoped command was rehearsed against `da8be091` and printed exactly the nine rows. Executors keep only their per-slice `git status`.                                             |
+| Minor 1, focused-suite totals were absolute                       | **FIXED.** B0 and C0 record `Bd` / `Cd` for the devsync pair, and section 9 has the planner record the Bureaucrat suite's baseline before staging and require the same count after. 45 and 57 are labelled rehearsal observations.                                                                                                                                                                                                                                                                |
+| Minor 2, proof numbering contradicts itself                       | **FIXED.** Both headings say six; the injections are C1 to C6 and the comment step is now C7, with C8, C9 and C10 following; the single-assertion claim reads "F2 and F6", and F3's four failures are described as one fact.                                                                                                                                                                                                                                                                      |
+| Minor 3, the red-count explanation was wrong                      | **FIXED** in B5, and the review's accounting is confirmed from the rehearsal log: during the red phase the only new `ok:` line present is `a passing install and report admit the remaining gate steps (exit 0)`, and `ok: the gate invokes the pinned validator contract` is absent. One gained, one lost, total unchanged at `B`.                                                                                                                                                               |
+| Minor 4, the 110.6 prerequisite already landed                    | **FIXED** in section 5. `7d4ba6ec` ("docs: drop the upstream sync pointer now that WBS is detached") is an ancestor of `da8be091`, and `docs/findings/checks-that-cannot-fail-puni-00.md:3-4` already carries both replacements. The row now says the prerequisite is satisfied.                                                                                                                                                                                                                  |
+| Minor 5, D6 named three files and hedged about `AGENTS.md`        | **FIXED.** D6 gives the four-file Prettier command with `AGENTS.md` first and drops the hedge; `AGENTS.md` is the regular file and `CLAUDE.md` and `GEMINI.md` are its symlinks.                                                                                                                                                                                                                                                                                                                  |
+
+**Dispatchable now.** Slices A and B are ready to dispatch as written: both have a self-collected
+baseline, a prerequisite block rehearsed on the tree they start from, and stop conditions that are
+false there. C and D are ready too, but each is dispatched only from the tree its predecessor's
+commit produces — their prerequisite signatures are what prove that.
