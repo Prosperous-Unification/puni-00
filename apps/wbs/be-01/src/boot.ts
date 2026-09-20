@@ -1,6 +1,7 @@
 import { buildOidcVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { DiBag } from 'di-bag';
 
 import { buildApp } from './app';
 import type { OidcRouteOptions } from './controller/oidc-options';
@@ -59,137 +60,214 @@ interface BootDependencies {
   readonly openSource: typeof openSqliteSource;
 }
 
+/** The opened source, named through the seam so a test double satisfies the same type. */
+type OwnedSource = ReturnType<BootDependencies['openSource']>;
+
+/** The mounted application, named without restating Elysia's generic instantiation. */
+type BuiltApp = ReturnType<typeof buildApp>;
+
 /**
  * Everything between an empty process and a serving be-01.
  *
  * It is a function, and it is tested. `retention.start()` living in a top-level
  * script meant "the timer is running in production" was a claim no test could
- * reach — the same shape of gap as the `runRetention` that had no caller at all,
- * which is what this change set out to fix.
+ * reach — the same shape of gap as the `runRetention` that had no caller at all.
+ *
+ * **It owns what it acquires.** The bag below opens the source, composes the
+ * services, starts the retention timer and mounts the listener, in that order,
+ * and releases them in the reverse of it. A step that fails takes the whole
+ * startup down with it and gives back every resource the earlier steps took;
+ * that is why this is `async` — `source.close()` and `retention.stop()` are
+ * promises, and a synchronous boot could not wait for them before rethrowing.
+ * It rejects with `DiBagStartupError`, whose `cause` is the original failure.
  */
-export function bootBe01(
+export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
-): RunningBe {
-  // One connection for the process, opened through `openDrizzle` so the
-  // per-connection pragmas (WAL, busy_timeout) are set and asserted.
-  const source = dependencies.openSource({ dbPath: opts.dbPath });
-  const db = source.db;
-  const services = buildServices({
-    source,
-    logger: opts.logger,
-    jwtKey: opts.jwtKey,
-    gwUrl: opts.gwUrl,
-    internalAuthSecret: opts.internalAuthSecret,
-    pushFetch: globalThis.fetch,
-    oidc: opts.oidc === undefined ? undefined : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
-    passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
-    localIdentity: opts.localIdentity,
-    optimizer: opts.optimizer,
-  });
-
+): Promise<RunningBe> {
   const state = { migrationsApplied: false };
-  const app = buildApp({
-    appOrigin: opts.appOrigin,
-    clock: services.clock,
-    get migrationsApplied() {
-      return state.migrationsApplied;
-    },
-    auth: services.auth,
-    // Proof: constructing a second LoginThrottle here made boot.db.test.ts:258
-    // receive HTTP 401 instead of 429 (0 pass, 1 fail, 13 filtered).
-    loginThrottle: services.loginThrottle,
-    oidc: opts.oidc,
-    projects: services.projects,
-    steps: services.steps,
-    calendarMarkers: services.calendarMarkers,
-    workItems: services.workItems,
-    optimizer: services.optimizer,
-    savedPlans: services.savedPlans,
-    directory: services.directory,
-    capacity: services.capacity,
-    priorityBands: services.priorityBands,
-    history: services.history,
-    replay: services.replay,
-    probeDatabase: () => probeSchema(db),
-    writes: {
-      imports: services.imports,
-      uow: services.uow,
-      // The batch's own services, over stores that hold no turn: the runner
-      // takes the process's one turn for the whole batch, and a store of its
-      // own that asked for another would wait for the batch itself.
-      batch: services.batch,
-      announcements: services.announcements,
-    },
-    // Read per call, not captured here: dev's deploy is a `git reset` under
-    // live watchers, so this process outlives the commit it started on.
-    deployedCommit: () => readDeployedCommit(opts.commitDir),
-    internalAuthSecret: opts.internalAuthSecret,
-    version: opts.version,
-  });
+  const bag = await DiBag.createBuilder()
+    .register({
+      // One connection for the process, opened through `openDrizzle` so the
+      // per-connection pragmas (WAL, busy_timeout) are set and asserted.
+      source: DiBag.withDisposal(
+        DiBag.fromSyncFactory((): OwnedSource => dependencies.openSource({ dbPath: opts.dbPath })),
+        (source) => source.close(),
+      ),
+      services: DiBag.fromSyncFactory(({ source }: { source: OwnedSource }): BeServices =>
+        buildServices({
+          source,
+          logger: opts.logger,
+          jwtKey: opts.jwtKey,
+          gwUrl: opts.gwUrl,
+          internalAuthSecret: opts.internalAuthSecret,
+          pushFetch: globalThis.fetch,
+          oidc:
+            opts.oidc === undefined ? undefined : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
+          passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
+          localIdentity: opts.localIdentity,
+          optimizer: opts.optimizer,
+        }),
+      ),
+      // Registered rather than started beside `listen`: a timer nobody stops
+      // outlives the file it sweeps, so what starts it is now what the bag can
+      // stop, and it stops before the source closes because it depends on it.
+      retention: DiBag.withDisposal(
+        DiBag.fromSyncFactory(({ services }: { services: BeServices }): BeServices['retention'] => {
+          services.retention.start();
+          return services.retention;
+        }),
+        (retention) => retention.stop(),
+      ),
+      // The listener is the last thing acquired and the first thing released.
+      // `withDisposal` owns the app this returns; the pushed disposers own what
+      // the factory took on the way, so a failure between `listen` and the
+      // optimizer releases both at once instead of leaving a bound socket.
+      // Pushed disposers run last first, after the `withDisposal` one: app.stop,
+      // optimizer.stop, retention.stop, source.close — the order this process
+      // has always shut down in.
+      server: DiBag.withDisposal(
+        DiBag.fromSyncFactory(
+          (
+            {
+              source,
+              services,
+              retention: _retention,
+            }: {
+              source: OwnedSource;
+              services: BeServices;
+              // Read for its edge, not its value: it is what puts the timer's
+              // disposer after the listener's. Drop it and the timer is never
+              // started at all.
+              retention: BeServices['retention'];
+            },
+            factoryCtx,
+          ): BuiltApp => {
+            const db = source.db;
+            const app = buildApp({
+              appOrigin: opts.appOrigin,
+              clock: services.clock,
+              get migrationsApplied() {
+                return state.migrationsApplied;
+              },
+              auth: services.auth,
+              // Proof: constructing a second LoginThrottle here made
+              // boot.db.test.ts receive HTTP 401 instead of 429 (0 pass, 1 fail,
+              // 13 filtered).
+              loginThrottle: services.loginThrottle,
+              oidc: opts.oidc,
+              projects: services.projects,
+              steps: services.steps,
+              calendarMarkers: services.calendarMarkers,
+              workItems: services.workItems,
+              optimizer: services.optimizer,
+              savedPlans: services.savedPlans,
+              directory: services.directory,
+              capacity: services.capacity,
+              priorityBands: services.priorityBands,
+              history: services.history,
+              replay: services.replay,
+              probeDatabase: () => probeSchema(db),
+              writes: {
+                imports: services.imports,
+                uow: services.uow,
+                // The batch's own services, over stores that hold no turn: the
+                // runner takes the process's one turn for the whole batch, and
+                // a store of its own that asked for another would wait for the
+                // batch itself.
+                batch: services.batch,
+                announcements: services.announcements,
+              },
+              // Read per call, not captured here: dev's deploy is a `git reset`
+              // under live watchers, so this process outlives the commit it
+              // started on.
+              deployedCommit: () => readDeployedCommit(opts.commitDir),
+              internalAuthSecret: opts.internalAuthSecret,
+              version: opts.version,
+            });
+            // Pushed before `listen`, because from here on there is something
+            // to give back. On the clean path the `withDisposal` below stops the
+            // app and this sees `service-disposed` and does nothing.
+            factoryCtx.pushDisposer(async (disposerCtx) => {
+              if (disposerCtx.reason !== 'service-disposed') await app.stop();
+            });
+            // Elysia runs this callback inline, before `listen` returns, so the
+            // schema step and the identity write happen exactly where they did —
+            // and a throw in either still leaves this factory, which is now what
+            // releases the socket above.
+            app.listen(opts.port, () => {
+              if (opts.migrateOnStartup !== true) {
+                opts.logger.info(
+                  { port: opts.port },
+                  'be-01 listening (schema managed by the deploy pipeline)',
+                );
+              } else {
+                opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
+                runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+              }
+              if (opts.localIdentity !== undefined) {
+                // The one write in the tree whose author is the row it writes:
+                // the fixed local-mode account brings itself into existence, so
+                // it is its own `created_by`. `Date.now()` rather than an
+                // injected clock because boot is not a service and has none —
+                // the rule the stamp exists for is that the *repository* reads
+                // no clock, and this is the caller.
+                //
+                // **This has to finish before the first write, and it does.**
+                // Every audit column's `created_by` references `users(id)` with
+                // foreign keys on, so a write attributed to this identity before
+                // its row exists is a `FOREIGN KEY constraint failed` rather
+                // than a quiet null. `/health` answers 503 `migrating` until the
+                // flag below, and both things that send the first request wait
+                // for a 200 first: Playwright's `webServer` does, and so does
+                // the deploy poller before it routes traffic to green. `OPEN`:
+                // this runs before the first request is served, so there is no
+                // batch for this write to land inside and no turn to wait for.
+                new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
+                  at: Date.now(),
+                  by: opts.localIdentity.id,
+                });
+              }
+            });
+            services.optimizer?.start();
+            factoryCtx.pushDisposer(async () => {
+              await services.optimizer?.stop();
+            });
+            state.migrationsApplied = true;
+            if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
+            return app;
+          },
+          { context: 'acquisition' },
+        ),
+        // A block body, not `(app) => app.stop()`: Elysia's `stop()` resolves to
+        // the application, and a disposer must resolve to nothing.
+        async (app) => {
+          await app.stop();
+        },
+      ),
+    })
+    .buildAndStart(['server']);
 
-  // Started before `listen`, not inside its callback: the callback is skipped by
-  // a port that fails to bind, which would leave retention off in exactly the
-  // deployment that had a problem.
-  services.retention.start();
-
-  const ensureLocalIdentity = (): void => {
-    if (opts.localIdentity !== undefined) {
-      // The one write in the tree whose author is the row it writes: the fixed
-      // local-mode account brings itself into existence, so it is its own
-      // `created_by`. `Date.now()` here rather than an injected clock because
-      // boot is not a service and has none — the rule the stamp exists for is
-      // that the *repository* reads no clock, and this is the caller.
-      //
-      // **This has to finish before the first write, and it does.** Every audit
-      // column's `created_by` references `users(id)` with foreign keys on, so a
-      // write attributed to this identity before its row exists is a
-      // `FOREIGN KEY constraint failed` rather than a quiet null. Nothing here
-      // refuses requests in the meantime — `migrationsApplied` gates `/health`
-      // alone — and the window is closed one layer out instead: `/health`
-      // answers 503 `migrating` until the line below, and both things that send
-      // the first request wait for a 200 first. Playwright's `webServer` does,
-      // and so does the deploy poller before it routes traffic to green.
-      // `OPEN`: boot runs before the server listens, so there is no batch for
-      // this write to land inside and no turn to wait for.
-      new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
-        at: Date.now(),
-        by: opts.localIdentity.id,
-      });
-    }
-  };
-
-  app.listen(opts.port, () => {
-    if (opts.migrateOnStartup !== true) {
-      opts.logger.info(
-        { port: opts.port },
-        'be-01 listening (schema managed by the deploy pipeline)',
-      );
-      ensureLocalIdentity();
-      services.optimizer?.start();
-      state.migrationsApplied = true;
-      return;
-    }
-    opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
-    runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
-    ensureLocalIdentity();
-    services.optimizer?.start();
-    state.migrationsApplied = true;
-    opts.logger.info('migrations applied');
-  });
+  const services = bag.resolve('services');
+  const app = bag.resolve('server');
 
   return {
     services,
     port: app.server?.port ?? opts.port,
-    /** Stops accepting, waits for a retention sweep in flight, then closes the file. */
-    stop: async () => {
-      await app.stop();
-      await services.optimizer?.stop();
-      await services.retention.stop();
-      // Proof: closing first made the boot lifecycle test observe both
-      // `optimizerRunning: true` and `retentionRunning: true` at source close
-      // (0 pass, 1 fail, 14 filtered, 1 assertion).
-      await source.close();
-    },
+    /**
+     * Releases in the reverse of the start order: the listener stops accepting,
+     * then the optimizer, then the retention sweep is waited out, then the file
+     * is closed.
+     *
+     * Proof: closing first made the boot lifecycle test observe both
+     * `optimizerRunning: true` and `retentionRunning: true` at source close
+     * (0 pass, 1 fail, 14 filtered, 1 assertion).
+     *
+     * A disposer that rejects makes this reject with `DiBagCleanupError`, whose
+     * `failures` name the resource; every other release is still attempted.
+     * Repeated calls do not rerun disposers. They replay the first close's
+     * outcome, including its cleanup error.
+     */
+    stop: () => bag.close(),
   };
 }

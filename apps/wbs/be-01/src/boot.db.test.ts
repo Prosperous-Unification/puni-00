@@ -6,6 +6,7 @@ import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { DiBagCleanupError } from 'di-bag';
 import { errors } from 'jose';
 
 import { bootBe01, type RunningBe } from './boot';
@@ -53,15 +54,15 @@ function tempDir(prefix: string): string {
  * whatever commit the checkout running the suite happens to be at, and an
  * assertion on that is an assertion on the developer's afternoon.
  */
-function boot(
+async function boot(
   commitDir: string = tempDir('wbs-boot-nogit-'),
   oidc?: OidcRouteOptions,
   localIdentity?: AuthenticatedUser,
-): RunningBe {
+): Promise<RunningBe> {
   const dir = tempDir('wbs-boot-');
   const dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
-  running = bootBe01({
+  running = await bootBe01({
     appOrigin: oidc?.appOrigin ?? 'http://localhost',
     dbPath,
     port: 0,
@@ -187,7 +188,7 @@ describe('bootBe01', () => {
       state.close();
     }
 
-    running = bootBe01({
+    running = await bootBe01({
       appOrigin: 'http://localhost',
       dbPath,
       port: 0,
@@ -222,7 +223,7 @@ describe('bootBe01', () => {
     // from bootBe01 to buildServices and the settings write is refused even
     // though this boot was given a runnable optimizer.
     const dir = tempDir('wbs-optimizer-boot-');
-    running = bootBe01({
+    running = await bootBe01({
       appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
       port: 0,
@@ -259,7 +260,7 @@ describe('bootBe01', () => {
 
   it('persists the fixed local identity after migrating an empty development database', async () => {
     const dir = tempDir('wbs-local-boot-');
-    running = bootBe01({
+    running = await bootBe01({
       appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
       port: 0,
@@ -291,7 +292,7 @@ describe('bootBe01', () => {
     //
     // Proof: `services.retention.start()` deleted from `boot.ts` and only this
     // test failed.
-    const be = boot();
+    const be = await boot();
 
     expect(be.services.retention.isRunning()).toBe(true);
 
@@ -301,7 +302,7 @@ describe('bootBe01', () => {
   });
 
   it('mounts the composed login throttle instead of constructing another public graph', async () => {
-    const be = boot();
+    const be = await boot();
     const releases = Array.from({ length: 8 }, (_, index) =>
       be.services.loginThrottle.reserve(`held-${String(index)}`, `client-${String(index)}`),
     );
@@ -322,7 +323,7 @@ describe('bootBe01', () => {
     const dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
     let stateAtClose: { optimizerRunning: boolean; retentionRunning: boolean } | undefined;
-    const be = bootBe01(
+    const be = await bootBe01(
       {
         appOrigin: 'http://localhost',
         dbPath,
@@ -363,6 +364,216 @@ describe('bootBe01', () => {
     expect(stateAtClose).toEqual({ optimizerRunning: false, retentionRunning: false });
   });
 
+  it('releases the source when the port it was given is already taken', async () => {
+    const dir = tempDir('wbs-boot-taken-port-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const held = heldPort();
+    let closes = 0;
+    let caught: unknown;
+    let heldStatus: number | undefined;
+    try {
+      await bootBe01(bootOptions(dbPath, held.port), {
+        openSource: (options) => {
+          const source = openSqliteSource(options);
+          return {
+            ...source,
+            close: async () => {
+              closes += 1;
+              await source.close();
+            },
+          };
+        },
+      });
+    } catch (failure) {
+      caught = failure;
+    } finally {
+      // Boot does not own this listener and must not have stopped it. Read
+      // before the release, so the answer is about a port that is still taken.
+      heldStatus = (await fetch(`http://localhost:${String(held.port)}/health`)).status;
+      await held.release();
+    }
+
+    expect(heldStatus).toBe(200);
+    expect(reasons(caught)).toContain('Failed to start server');
+    expect(closes).toBe(1);
+  }, 10_000);
+
+  it('closes the source when the service graph cannot be composed', async () => {
+    const dir = tempDir('wbs-boot-uncomposable-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    let closes = 0;
+    let caught: unknown;
+    try {
+      await bootBe01(bootOptions(dbPath, await freePort()), {
+        openSource: (options) => {
+          const source = openSqliteSource(options);
+          return {
+            ...source,
+            get stores(): never {
+              throw new Error('store wiring failed');
+            },
+            close: async () => {
+              closes += 1;
+              await source.close();
+            },
+          };
+        },
+      });
+    } catch (failure) {
+      caught = failure;
+    }
+
+    expect(reasons(caught)).toContain('store wiring failed');
+    expect(closes).toBe(1);
+  }, 10_000);
+
+  it('releases the source and the port when a step after the listener fails', async () => {
+    const dir = tempDir('wbs-boot-rollback-');
+    const dbPath = join(dir, 'test.db');
+    const port = await freePort();
+    let closes = 0;
+    let caught: unknown;
+    try {
+      await bootBe01(
+        {
+          ...bootOptions(dbPath, port),
+          migrateOnStartup: true,
+          migrationsFolder: join(dir, 'no-such-folder'),
+        },
+        {
+          openSource: (options) => {
+            const source = openSqliteSource(options);
+            return {
+              ...source,
+              close: async () => {
+                closes += 1;
+                await source.close();
+              },
+            };
+          },
+        },
+      );
+    } catch (failure) {
+      caught = failure;
+    }
+
+    expect(reasons(caught)).toContain('no such file or directory');
+    expect(closes).toBe(1);
+    expect(await refuses(port)).toBe(true);
+  }, 10_000);
+
+  it('releases every other resource when one release is refused', async () => {
+    const dir = tempDir('wbs-boot-refused-optimizer-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    let closes = 0;
+    const be = await bootBe01(
+      {
+        ...bootOptions(dbPath, 0),
+        optimizer: {
+          solverVersion: '0.1.0',
+          budgetMs: 60_000,
+          spawn: () => {
+            throw new Error('this case must not spawn');
+          },
+        },
+      },
+      {
+        openSource: (options) => {
+          const source = openSqliteSource(options);
+          return {
+            ...source,
+            close: async () => {
+              closes += 1;
+              await source.close();
+            },
+          };
+        },
+      },
+    );
+    running = null;
+    const optimizer = be.services.optimizer;
+    if (optimizer === undefined) throw new Error('this case needs the optimizer runtime');
+    // The refusal is injected into the instance the composition returned, and
+    // only for this shutdown: the real stop still runs, then it refuses.
+    const real = optimizer.stop.bind(optimizer);
+    const seam = optimizer as { stop?: typeof optimizer.stop };
+    seam.stop = async () => {
+      await real();
+      throw new Error('optimizer refused to settle');
+    };
+
+    let caught: unknown;
+    try {
+      await be.stop();
+    } catch (failure) {
+      caught = failure;
+    } finally {
+      delete seam.stop;
+    }
+
+    expect(caught).toBeInstanceOf(DiBagCleanupError);
+    if (!(caught instanceof DiBagCleanupError)) throw new Error('unreachable');
+    expect(caught.failures.map((failure) => failure.label)).toEqual(['server']);
+    expect(caught.failures.map((failure) => reasons(failure.error))).toEqual([
+      'optimizer refused to settle',
+    ]);
+    expect(be.services.retention.isRunning()).toBe(false);
+    expect(closes).toBe(1);
+  }, 10_000);
+
+  it('refuses to report a clean stop when a release is refused', async () => {
+    const dir = tempDir('wbs-boot-refused-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    let closes = 0;
+    let real: (() => Promise<void>) | undefined;
+    const be = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: (options) => {
+        const source = openSqliteSource(options);
+        real = () => source.close();
+        return {
+          ...source,
+          close: () => {
+            closes += 1;
+            return Promise.reject(new Error('disk gone'));
+          },
+        };
+      },
+    });
+    running = null;
+
+    let caught: unknown;
+    try {
+      await be.stop();
+    } catch (failure) {
+      caught = failure;
+    } finally {
+      // The refusal is the double's, not the connection's; close the real one.
+      await real?.();
+    }
+
+    expect(caught).toBeInstanceOf(DiBagCleanupError);
+    if (!(caught instanceof DiBagCleanupError)) throw new Error('unreachable');
+    expect(caught.failures.map((failure) => failure.label)).toEqual(['source']);
+    expect(caught.failures.map((failure) => reasons(failure.error))).toEqual(['disk gone']);
+    expect(be.services.retention.isRunning()).toBe(false);
+
+    // Repeated calls replay the first close's outcome without rerunning any
+    // disposer: the rejection is the same object, and the source disposer runs
+    // only once.
+    let repeated: unknown;
+    try {
+      await be.stop();
+    } catch (failure) {
+      repeated = failure;
+    }
+    expect(repeated).toBe(caught);
+    expect(closes).toBe(1);
+  }, 10_000);
+
   it('does not mistake a stalled listener for a closed one', async () => {
     const stalled = Bun.serve({
       port: 0,
@@ -389,7 +600,7 @@ describe('bootBe01', () => {
     const port = await freePort();
     let caught: unknown;
     try {
-      bootBe01(bootOptions(join(dir, 'test.db'), port), {
+      await bootBe01(bootOptions(join(dir, 'test.db'), port), {
         openSource: () => {
           throw new Error('the database file is unreadable');
         },
@@ -408,7 +619,7 @@ describe('bootBe01', () => {
     runMigrations(dbPath, FOLDER);
     const port = await freePort();
     let refusedAtClose: boolean | undefined;
-    const be = bootBe01(bootOptions(dbPath, port), {
+    const be = await bootBe01(bootOptions(dbPath, port), {
       openSource: (options) => {
         const source = openSqliteSource(options);
         return {
@@ -430,7 +641,7 @@ describe('bootBe01', () => {
   }, 10_000);
 
   it('stops twice without complaining', async () => {
-    const be = boot();
+    const be = await boot();
     running = null;
 
     await be.stop();
@@ -441,7 +652,7 @@ describe('bootBe01', () => {
 
   it('serves an unmigrated database rather than refusing to start', async () => {
     const dir = tempDir('wbs-boot-unmigrated-');
-    const be = bootBe01(bootOptions(join(dir, 'test.db'), 0));
+    const be = await bootBe01(bootOptions(join(dir, 'test.db'), 0));
     running = be;
 
     const health = await fetch(`http://localhost:${String(be.port)}/health`);
@@ -450,7 +661,7 @@ describe('bootBe01', () => {
   }, 10_000);
 
   it('serves health on the port it bound', async () => {
-    const be = boot();
+    const be = await boot();
 
     const res = await fetch(`http://localhost:${String(be.port)}/health`);
 
@@ -470,7 +681,7 @@ describe('bootBe01', () => {
     mkdirSync(join(repo, '.git', 'refs', 'heads'), { recursive: true });
     writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/main\n');
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), sha + '\n');
-    const be = boot(repo);
+    const be = await boot(repo);
 
     const first = await fetch(`http://localhost:${String(be.port)}/health`);
     expect((await first.json()) as HealthAnswer).toEqual({ status: 'ok', commit: sha });
@@ -514,7 +725,7 @@ describe('bootBe01', () => {
     // the request. One lock: the wrapper fires and the response is still
     // pending. Split lock: the runner takes the other object, the wrapper never
     // fires, and the 200 wins the race.
-    const be = boot(undefined, undefined, {
+    const be = await boot(undefined, undefined, {
       id: 'local-dev',
       username: 'local-dev',
       scopes: ['read', 'write'],
@@ -587,7 +798,7 @@ describe('bootBe01', () => {
   it('answers a resume from the log it opened', async () => {
     // End to end through the real HTTP route, the real SQLite file and the
     // services `main.ts` will build: the wiring, not the parts.
-    const be = boot();
+    const be = await boot();
 
     const res = await fetch(`http://localhost:${String(be.port)}/internal/resume`, {
       method: 'POST',
@@ -604,7 +815,7 @@ describe('bootBe01', () => {
 
 describe('OIDC boot wiring', () => {
   it('mounts the configured browser login route', async () => {
-    const be = boot(undefined, oidcOptions(true));
+    const be = await boot(undefined, oidcOptions(true));
     const res = await fetch(`http://localhost:${String(be.port)}/api/auth/login`, {
       redirect: 'manual',
     });
@@ -612,7 +823,7 @@ describe('OIDC boot wiring', () => {
   });
 
   it('stops accepting an issued password session when the kill switch is false', async () => {
-    const be = boot(undefined, oidcOptions(false));
+    const be = await boot(undefined, oidcOptions(false));
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
 
@@ -624,7 +835,7 @@ describe('OIDC boot wiring', () => {
   });
 
   it('accepts an issued password session when the kill switch is true', async () => {
-    const be = boot(undefined, oidcOptions(true));
+    const be = await boot(undefined, oidcOptions(true));
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
 
@@ -640,7 +851,7 @@ for (const passwordLoginEnabled of [false, true]) {
   it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
     const oidc = oidcOptions(passwordLoginEnabled);
     oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
-    const be = boot(undefined, oidc);
+    const be = await boot(undefined, oidc);
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
     const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {

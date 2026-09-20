@@ -8,7 +8,7 @@
 
 ## 3. Transfer lifecycle ownership to DI Bag
 
-- [ ] 3.1 Add the failing lifecycle cases, make DI Bag own startup and shutdown, and await `bootBe01` at every caller.
+- [x] 3.1 Add the failing lifecycle cases, make DI Bag own startup and shutdown, and await `bootBe01` at every caller.
 
 ## 4. Prove lifecycle checks can fail
 
