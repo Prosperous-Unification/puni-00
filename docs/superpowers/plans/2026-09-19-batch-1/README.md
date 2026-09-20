@@ -1,5 +1,7 @@
 # Execution batch 1
 
+**Outcome:** the batch concluded on 2026-09-20; what landed and what was verified is in [RESULTS.md](RESULTS.md).
+
 Status: planned on 2026-09-19. Each packet in this directory is the output of the Plan step for one work item of the "PUNI platform plan" project in the dev WBS instance. A packet is ready for the Impl step when a medium-tier model with no other context can execute it. Nothing in this batch has been implemented.
 
 Naming follows [names and boundaries](../../../twilight-structure/names.md). The designs these packets implement are the [code organization design](../../specs/2026-09-19-code-organization-design.md), its [rollout plan](../2026-09-19-code-organization-rollout.md), the [Twilight Bureaucrat rules design](../../specs/2026-09-19-twilight-bureaucrat-rules-design.md), the [rename plan](../2026-09-19-twilight-rename.md) and the amended [package adoption plan](../2026-09-17-personal-package-adoption.md).
