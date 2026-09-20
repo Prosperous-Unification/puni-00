@@ -1,7 +1,7 @@
 # Checks that cannot fail — puni-00
 
-The R5 entries recorded in puni-00 rather than upstream wbs-tool-v1. They continue
-[the upstream catalogue](checks-that-cannot-fail.md#r5-catalogue-heading), which is pinned
+The R5 entries recorded here after the wbs-tool-v1 history was merged in. They continue
+[the inherited catalogue](checks-that-cannot-fail.md#r5-catalogue-heading), which is pinned
 block-for-block by `root-migration.v1.json` and so cannot take additions. With these, the
 count is **twenty-nine**.
 

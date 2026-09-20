@@ -30,7 +30,13 @@
     "test": {
       "cache": true,
       "inputs": ["default", "^production"],
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
     },
     "lint": {
       "cache": true,
@@ -59,11 +65,83 @@
     },
     "decrypt": {
       "cache": false
+    },
+    "test:unit": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "test:api": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "test:conformance": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "test:store": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "test:portable": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "test:package": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "integration": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "e2e": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
+    "e2e-packaged": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
     }
   },
   "plugins": [],
   "defaultBase": "main",
   "parallel": 4,
   "useInferencePlugins": false,
-  "analytics": true
+  "analytics": false
 }

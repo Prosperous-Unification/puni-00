@@ -115,3 +115,12 @@ describe('per-process test scratch', () => {
     expect(existsSync(scratchDirectory(await output))).toBe(false);
   });
 });
+
+describe('the shared test preload', () => {
+  // No limit is given here on purpose: this case passes only while the preload raises Bun's
+  // 5-second default. See the Proof beside `setDefaultTimeout` in preload.ts.
+  it("a test may outlast Bun's five-second default", async () => {
+    await Bun.sleep(5_300);
+    expect(true).toBe(true);
+  });
+});

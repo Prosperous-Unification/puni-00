@@ -14,6 +14,15 @@ import { expect, test } from 'bun:test';
 import { readProjects } from '../workspace-projects.mjs';
 
 const WORKSPACE = fileURLToPath(new URL('../../../', import.meta.url));
+/**
+ * This file's own workspace-relative path. Derived rather than written out, because the scan
+ * below must skip it: its `Proof:` comments quote pre-move roots on purpose, and a stale literal
+ * would silently fold them into the classified inventory.
+ */
+// Proof: pointing SELF at not-this-file.ts failed the legacy-occurrence pin with test-fixture
+// contexts raised from 106 to 126 and occurrences from 257 to 279, while unclassified stayed [].
+// Restoring the derived path returned the filtered sweep to green (2026-09-20).
+const SELF = relative(WORKSPACE, fileURLToPath(import.meta.url));
 const LEGACY_ROOT =
   /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01|\*+|\$\{[^}]+\})|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation|\*+|\$\{[^}]+\}))(?:\/|\b)/g;
 
@@ -306,11 +315,7 @@ async function currentDocumentLinkFailures(
 }
 
 function isRelevantSourceConfig(path: string): boolean {
-  if (
-    path === 'tools/tool-devsync/src/repo-namespacing-handoff.test.ts' ||
-    path.endsWith('/README.md') ||
-    path.endsWith('.md')
-  ) {
+  if (path === SELF || path.endsWith('/README.md') || path.endsWith('.md')) {
     return false;
   }
   const basename = posix.basename(path);
@@ -331,7 +336,6 @@ function isRelevantSourceConfig(path: string): boolean {
 async function legacySourceOccurrences(): Promise<{
   categories: Record<string, number>;
   coverage: {
-    applicationLibraryToolReadmes: number;
     dockerfiles: string[];
     extensionlessScripts: boolean;
     policyJson: boolean;
@@ -387,11 +391,6 @@ async function legacySourceOccurrences(): Promise<{
   return {
     categories,
     coverage: {
-      applicationLibraryToolReadmes: (await currentDocuments()).filter(
-        (path) =>
-          path.endsWith('/README.md') &&
-          (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
-      ).length,
       dockerfiles: relevantPaths.filter((path) => {
         const basename = posix.basename(path);
         return basename === 'Dockerfile' || basename.endsWith('.Dockerfile');
@@ -481,6 +480,22 @@ test('every Dockerfile naming variant participates in source inventory', () => {
   expect(inventoried).toEqual(candidates);
 });
 
+test('the current-document sweep reaches every application, library and tool README', async () => {
+  const tracked = candidatePaths()
+    .filter((path) => /^(?:apps|libs|tools)\//.test(path) && path.endsWith('/README.md'))
+    .sort();
+  const swept = new Set(await currentDocuments());
+
+  // An empty enumeration would make the coverage assertion below vacuously true, which is
+  // the shape the pinned count used to rule out.
+  // Proof: making candidatePaths return [] failed this test with `Expected: > 0` and
+  // `Received: 0` (2026-09-20).
+  expect(tracked.length).toBeGreaterThan(0);
+  // Proof: removing the README term from currentDocuments failed this test with all 23
+  // application, library and tool README paths reported as missing (2026-09-20).
+  expect(tracked.filter((path) => !swept.has(path))).toEqual([]);
+});
+
 test('every alias has an allowed prefix and resolves to a tracked file', async () => {
   const base = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
     compilerOptions: { paths: Record<string, string[]> };
@@ -552,18 +567,6 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'test fixture or proof': 106,
     },
     coverage: {
-      // Re-pinned 17 -> 18 when `apps/wiki/consumer/README.md` landed: the consumer template's
-      // README is a real application README the sweep must cover, not an exemption.
-      // Re-pinned 18 -> 19 for `apps/wiki/cli/fixtures/consumer/README.md`, the packed-install
-      // consumer fixture's README, which the sweep must cover like any application README.
-      // Re-pinned 19 -> 20 for `apps/wbs/fe-01/src/modules/plan-writer/README.md`, the first
-      // frontend module index, which the sweep must cover like any application README.
-      // Re-pinned 20 -> 22 for `apps/wbs/fe-01/src/modules/directory/README.md` and
-      // `apps/wbs/fe-01/src/modules/directory-management/README.md`, the directory's two module
-      // indexes, which the sweep must cover like any application README.
-      // Re-pinned 22 -> 23 for `apps/wbs/fe-01/src/modules/preferences/README.md`, the preferences
-      // module index, which the sweep must cover like any application README.
-      applicationLibraryToolReadmes: 23,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
@@ -692,7 +695,37 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `539a2b35...` here after merging wbs-tool-v1 through 73e00574 failed on the
     // observed digest below at the same 257 occurrences and no unclassified entries; upstream's
     // local-solver moves shifted classified contexts only (2026-09-18).
-    digest: '25601def24c33b16c6ab68baa48f0bd9147b900876256c54cd0f00d50e7d09b3',
+    // Proof: leaving `c6f0ee2f...` here after nx.json gained its per-target `env` defaults and
+    // docs/wiki-policy/relationships*.json their matching `env` facts failed on the observed
+    // digest below with the occurrence count and the unclassified list unchanged: the added lines
+    // shift classified contexts only (2026-09-20).
+    // Proof: merging main's `25601def...` (the dev deploy cut-over and the scrolling work) with
+    // this branch's `d17f003c...` left neither right: the merged tree failed on the observed
+    // digest below, again with the occurrence count and the unclassified list unchanged
+    // (2026-09-20). Two lanes re-pinning one line-sensitive digest is a conflict by construction.
+    // Proof: the `env` facts above were wrong and are gone again. Twilight Bureaucrat's static
+    // extractor merges a target default shallowly, so a target with its own `options` never shows
+    // the default's `options.env`, and the host gate failed `pins exact pre-index tuples and
+    // passes observe lint from external trust` on `fact check.core.test authority-selector
+    // mismatch`. With docs/wiki-policy/relationships*.json back to main's bytes, leaving
+    // `21a80db5...` here failed on the observed digest below, count and unclassified list
+    // unchanged (2026-09-20).
+    // Proof: shared-failures added the inventory re-pin comment above the recursive tsconfig
+    // selectors; the old digest failed on the value below at the same 257 occurrences (2026-09-20).
+    // Proof: merging the shared-failures lane (`6b79b78a...`) with the Chromium proof lane left
+    // that value wrong: the merged tree failed on the observed digest below at the same 257
+    // occurrences and no unclassified entries, so only classified contexts' line numbers moved;
+    // which lane's lines moved them was not traced (2026-09-20). Two lanes meeting at one
+    // line-sensitive digest is a conflict by construction.
+    // Proof: leaving `5a672eac...` here after the test-axes lane re-pinned the workspace inventory
+    // failed on the observed digest below, occurrences and the unclassified list unchanged: the
+    // inventory test's new comment lines shift the classified contexts beneath them (2026-09-20).
+    // Proof: merging the first batch 2 group (`4b3aac6c...`) with the test-axes lane (`f85db082...`)
+    // left neither right: the merged tree failed on the observed digest below at the same 257
+    // occurrences and no unclassified entries. While the two files were still unmerged in the index
+    // the same run reported 261 occurrences, because `git ls-files` lists a conflicted path once
+    // per stage: resolve and stage before reading this pin (2026-09-20). Work item G2 derives it.
+    digest: '224f86cbd141955bf725bbc1e44bdcb9c31eae8b37e50d972cfbe3627e5781c3',
     occurrences: 257,
     unclassified: [],
   });

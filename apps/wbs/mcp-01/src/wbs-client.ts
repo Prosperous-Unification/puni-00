@@ -35,6 +35,22 @@ export type FetchLike = (
   init: { method: string; headers: Record<string, string>; body?: string },
 ) => Promise<Response>;
 
+/** be-01 rejected the caller credential, so its local MCP session must end. */
+export class UpstreamRejected extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UpstreamRejected';
+  }
+}
+
+/** The configured Basic edge gate rejected the deployment credential. */
+export class EdgeGate extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EdgeGate';
+  }
+}
+
 const text = (value: string, isError?: true): ToolTextResult => ({
   content: [{ type: 'text', text: value }],
   ...(isError === undefined ? {} : { isError }),
@@ -140,14 +156,23 @@ export function buildRequest(
  * sent a real person hunting through the app for a fault one layer above it.
  * `WWW-Authenticate` is the discriminator: a proxy sets it, be-01 never does.
  */
-function refusal(tool: DerivedTool, response: Response, bodyText: string): ToolTextResult {
+function refusal(
+  tool: DerivedTool,
+  response: Response,
+  bodyText: string,
+  config: McpConfig,
+): ToolTextResult {
   const where = `${tool.method.toUpperCase()} ${tool.path}`;
   const trimmed = bodyText.trim();
 
-  if (response.status === 401 && response.headers.get('www-authenticate') !== null) {
-    return text(
-      `${tool.name} was refused by the deployment's own gate, not by be-01: HTTP 401 with a WWW-Authenticate challenge on ${where}. The request never reached the API. Set WBS_BASIC_AUTH to the deployment's user:pass and restart mcp-01.`,
-      true,
+  const challenge = response.headers.get('www-authenticate');
+  if (response.status === 401 && challenge !== null && /^\s*Basic(?:\s|$)/i.test(challenge)) {
+    const remedy =
+      config.WBS_BASIC_AUTH === undefined
+        ? "Set WBS_BASIC_AUTH to the deployment's user:pass and restart mcp-01."
+        : 'Check that WBS_BASIC_AUTH matches the deployment gate credential and restart mcp-01.';
+    throw new EdgeGate(
+      `${tool.name} was refused by the deployment's own gate, not by be-01: HTTP 401 with a WWW-Authenticate challenge on ${where}. The request never reached the API. ${remedy}`,
     );
   }
 
@@ -171,11 +196,12 @@ function refusal(tool: DerivedTool, response: Response, bodyText: string): ToolT
   const head = `${tool.name} was refused: HTTP ${String(response.status)}${
     code === undefined ? '' : ` ${code}`
   } from ${where}.`;
-  const token =
-    response.status === 401
-      ? ' The caller access token is expired, invalid, or lacks the issuer/audience be-01 trusts; sign in again and retry.'
-      : '';
-  return text(`${head}${token}${trimmed === '' ? '' : `\n${trimmed}`}`, true);
+  if (response.status === 401) {
+    throw new UpstreamRejected(
+      `${head} The caller access token is expired, invalid, or lacks the issuer/audience be-01 trusts.${trimmed === '' ? '' : `\n${trimmed}`}`,
+    );
+  }
+  return text(`${head}${trimmed === '' ? '' : `\n${trimmed}`}`, true);
 }
 
 /**
@@ -201,7 +227,7 @@ export async function callTool(
   });
 
   const bodyText = await response.text();
-  if (!response.ok) return refusal(tool, response, bodyText);
+  if (!response.ok) return refusal(tool, response, bodyText, config);
 
   if (bodyText.trim() === '') {
     return text(`${tool.name}: HTTP ${String(response.status)}, no content.`);

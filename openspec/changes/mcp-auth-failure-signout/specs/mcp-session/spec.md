@@ -2,7 +2,7 @@
 
 ### Requirement: An upstream rejection ends the MCP session
 
-When be-01 answers an MCP tool call with 401 and the response is not the configured Basic edge challenge, mcp-01 SHALL end the caller's MCP session before returning the tool result, and the result SHALL say that the session ended. A 401 carrying the configured Basic edge challenge SHALL keep the existing deployment-gate error and SHALL NOT end the session.
+When be-01 answers an MCP tool call with 401 and the response carries no challenge or a Bearer challenge, mcp-01 SHALL end the caller's MCP session before returning the tool result, and the result SHALL say that the session ended. A 401 carrying a Basic challenge SHALL be treated as the deployment edge gate and SHALL NOT end the session, whether its deployment credential is missing, wrong, or accepted by configuration.
 
 #### Scenario: upstream token rejected
 
@@ -11,7 +11,7 @@ When be-01 answers an MCP tool call with 401 and the response is not the configu
 
 #### Scenario: edge gate refusal
 
-- **WHEN** be-01's route answers 401 with the configured Basic challenge
+- **WHEN** be-01's route answers 401 with a Basic challenge
 - **THEN** the caller receives the deployment-gate tool error and its next request still succeeds
 
 ### Requirement: A presented invalid token is labelled

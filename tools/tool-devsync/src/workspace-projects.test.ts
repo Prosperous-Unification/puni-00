@@ -23,6 +23,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   // product-axis case below on its `['apps/wiki/cli', ['product:twilight-bureaucrat']]`
   // companion (2026-09-16).
   ['apps/wiki/cli', 'twilight-bureaucrat'],
+  ['libs/shared/domain/failures', 'shared-failures'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],

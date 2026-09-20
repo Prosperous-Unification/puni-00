@@ -318,7 +318,7 @@ A rule in observe mode SHALL report every taxonomy violation as debt and SHALL N
 
 ### Requirement: Ratchet mode protects touched and adopted code
 
-A rule in ratchet mode SHALL refuse a violation introduced by new or touched code, SHALL refuse a regression inside a module in the adopted set, and SHALL report a pre-existing violation outside the adopted set as debt without refusing. The adopted set SHALL be policy supplied by the consumer. Twilight Bureaucrat slice B0 has no adopted set and SHALL refuse the `ratchet` mode by name until slice B2.
+A rule in ratchet mode SHALL refuse a violation inside a module in the consumer's adopted set and SHALL report a violation outside it as debt without refusing. The adopted set SHALL be policy supplied by the consumer. Refusing a violation because the candidate **touched** its file SHALL additionally require a comparison base supplied as an explicit input, resolved to a tree object identity before judging and recorded in the verdict; until that input exists, scenario SERVICE-TAXONOMY-038 SHALL be unmet and SHALL NOT be claimed. Twilight Bureaucrat slice B2 supplies the adopted set; a policy that ratchets a rule without one SHALL be refused by name.
 
 #### Scenario: [SERVICE-TAXONOMY-038] Touched code introduces a violation
 

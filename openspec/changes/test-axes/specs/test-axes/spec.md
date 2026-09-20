@@ -17,7 +17,7 @@ Every test file SHALL have exactly one level, selected by the first matching rul
 | 9     | Ending `.test.tsx` anywhere else                                                                                                                                                                                                                                   | View         |
 | 10    | Ending `.test.ts` anywhere else                                                                                                                                                                                                                                    | Unit         |
 
-Browser membership SHALL be read from the Playwright configurations, never from a directory name. This change SHALL rename nothing and change no target. Whether `libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts` gains a distinguishing suffix SHALL remain an open item owned by rollout Task 5, which names the level targets.
+Browser membership SHALL be read from the Playwright configurations, never from a directory name. Classification SHALL rename nothing and repurpose no existing target; a level target SHALL be added alongside the targets that exist. Whether `libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts` gains a distinguishing suffix SHALL remain an open item owned by rollout Task 5, which names the level targets.
 
 #### Scenario: [TEST-AXES-001] A file matches no level
 

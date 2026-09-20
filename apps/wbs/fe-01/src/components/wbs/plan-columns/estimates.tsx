@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { type StepView } from '@/lib/wbs-api';
 
 import { useCardOpenOn } from '../cell-card-store';
@@ -109,6 +111,13 @@ export function createEstimatesColumns({
             live.current.cellCards,
             cellKey(row.original.id, `${step.id}-final`),
           );
+          // Whether this cell is being typed in, which is the one thing that decides
+          // whether the trio is at full strength. Local state and not a read off
+          // `live`: the box is the cell's only focusable thing, and a store entry for
+          // "which cell has the focus" already exists for the cards and answers a
+          // different question — it survives a pointer visiting another cell.
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          const [typing, setTyping] = useState(false);
           // A folded step must not be able to hide a complaint: a typed
           // trio that saves nothing stays visible as a mark on the figure
           // the fold leaves behind.
@@ -137,20 +146,25 @@ export function createEstimatesColumns({
           // repeating it would be the fold's own reading with nothing
           // folded.
           const atRest = unfolded ? final : stored;
-          // The figure earns its pixels only where it says something the
-          // cell does not say already. A flat trio prints as `5` and its
-          // figure is `5` under every estimate method, so an unguarded
-          // cell read `5 · 5` — and the column is 96px, shared with an
-          // assignee. Unfolded, `atRest` **is** the figure and the
-          // comparison closes the column back down to one reading.
+          // The result is what this cell is read for, so it is drawn whenever the
+          // step has one — and only while the step is folded, because an unfolded
+          // cell **is** the figure (`atRest`) and a span beside it would be the
+          // same number twice. That `!unfolded` is the whole of the guard: with it
+          // dropped, `draws no result beside an unfolded step’s own figure` fails
+          // on `expected <span …(2)></span> to be null` — a folded-final span
+          // standing beside the unfolded row's own figure. Watched 2026-09-20.
           //
-          // One condition and not two: a row with no estimate has neither
-          // a trio nor a figure, so a `final !== ''` beside this would be
-          // a check that cannot fail (`AGENTS.md`, R5, `T1
-          // column-widths-drag`). be-01 computes `finalDays` from
-          // `estimates` in the same call — see `WorkItemRow.finalDays` —
-          // so the two are absent together.
-          const finalSaysMore = final !== atRest;
+          // `final !== ''` and not a second test beside it: a row with no estimate
+          // has neither a trio nor a figure — be-01 computes `finalDays` from
+          // `estimates` in the same call, see `WorkItemRow.finalDays` — so the two
+          // are absent together and one condition is all there is to say.
+          //
+          // A flat trio prints as `5` and its figure is `5` under every estimate
+          // method. Until 2026-09-20 the figure was suppressed there; now the
+          // figure is the main reading, so it is the repeated **trio** that goes
+          // quiet, below, and a cell still never reads `5 5`.
+          const showsResult = !unfolded && final !== '';
+          const trioRepeatsResult = showsResult && final === atRest;
           // Nobody on this step and exactly one person on another: they are
           // assumed to be doing this step too. The same rule the unfolded
           // column has, in the cell that is always on screen — which is the
@@ -222,6 +236,10 @@ export function createEstimatesColumns({
               // and leaving the cell has to take a half-typed `@ka` with
               // it. Nothing else in here can hold the focus.
               onBlur={() => {
+                // Proof: deleting only this reset left the box at full strength after blur;
+                // `gives the trio back its strength on focus and quiets it again on blur`
+                // failed on `expected 'inherit' to be '10px'`. Watched 2026-09-20.
+                setTyping(false);
                 live.current.leaveFoldedCell();
                 // The focus-opened card goes with the focus. Guarded like
                 // every other clear: a blur can land after the next cell has
@@ -364,6 +382,7 @@ export function createEstimatesColumns({
                   // replaces is remembered first — see `enterFoldedCell`.
                   aria-describedby={carded ? cardId : undefined}
                   onFocus={(e) => {
+                    setTyping(true);
                     live.current.enterFoldedCell(e.currentTarget);
                     // The focus opens the card the pointer opens — through
                     // its own state, so a mouse crossing the table cannot
@@ -383,8 +402,9 @@ export function createEstimatesColumns({
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    font: 'inherit',
-                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                    fontStyle: 'inherit',
+                    lineHeight: 'inherit',
                     // Grows, and that is only safe because what sits to
                     // its right is now the **same width on every row** —
                     // see {@link ASSIGNEE_SLOT_PX}. Growing against a
@@ -403,6 +423,22 @@ export function createEstimatesColumns({
                     // is back to what it was.
                     flex: 1,
                     minWidth: 0,
+                    // The one state this cell has: quiet at rest, the row's own type while
+                    // somebody is typing in it. A complaint is never quiet — a refusal that
+                    // receded would be the cell hiding its own objection.
+                    // Proof: replacing this branch with the full-strength arm made `quiets the
+                    // trio while the cell is not being typed in` fail on `expected 'inherit' to
+                    // be '10px'`. Dropping `typing` made the focus-and-blur test fail on
+                    // `expected '10px' to be 'inherit'`; dropping `problem !== null ||` made the
+                    // refused-trio test fail on `expected '10px' to be 'inherit'`. Watched
+                    // separately, 2026-09-20.
+                    ...(problem !== null || typing
+                      ? { fontSize: 'inherit', fontWeight: 600 }
+                      : {
+                          fontSize: QUIET_TRIO_PX,
+                          fontWeight: 400,
+                          color: trioRepeatsResult ? 'transparent' : 'var(--muted-foreground)',
+                        }),
                     ...(problem === null
                       ? {}
                       : {
@@ -473,51 +509,61 @@ export function createEstimatesColumns({
                     boxSizing: 'border-box',
                     padding: 2,
                     border: '2px solid transparent',
+                    // The resting box's type, spelled again, for the reason the padding and
+                    // the border above are: `e2e/layout.spec.ts`'s `stands a parent’s figure in
+                    // the same slot as its leaves’` compares this span's computed size and
+                    // weight with an unfocused leaf box's, and one column that reads in two
+                    // sizes is two columns.
+                    // Proof: dropping these three declarations made `quiets a parent’s rolled-up
+                    // trio exactly as a leaf’s` fail on `expected '' to be '10px'`. Watched
+                    // 2026-09-20.
+                    fontSize: QUIET_TRIO_PX,
+                    fontWeight: 400,
+                    color: trioRepeatsResult ? 'transparent' : 'var(--muted-foreground)',
                   }}
                 >
                   {atRest}
                 </span>
               )}
-              {finalSaysMore && (
-                // `2/2/3 · 2.2`: the trio a person typed, and what the
-                // project's estimate method makes of it. Muted and normal
-                // weight, the treatment the assignee beside it has, for
-                // the same reason — the bold thing in this cell is what
-                // somebody chose, and both of these are the plan's answer
-                // about it. The row's own total days is where a plan is
-                // read at a glance, and it is unchanged.
+              {showsResult && (
+                // The step's result, and the cell's main reading since 2026-09-20: the
+                // row's own type and foreground, which it takes by **declaring neither**
+                // and inheriting from the wrapper — so a complaint recolours it for free
+                // — and tabular numerals, so results line up down a column and can be
+                // scanned like a ledger. No leading `·`: the separator was the
+                // annotation's, and this is not an annotation any more. Dropping it also
+                // returns about six pixels, which is most of what growing from the
+                // caption size to the row's costs.
                 //
                 // `flex: none`, so a narrow column takes its pixels out
-                // of the box rather than out of this: the figure is three
-                // characters and the box scrolls, and a clipped `2.` is
-                // worse than a clipped trio the box can still be read in.
+                // of the box rather than out of this: a clipped `2.` is worse than a
+                // clipped trio the box can still be scrolled through.
                 //
-                // **10px, the type this table's headings are set in
-                // (`column-rebalance`), and it is load-bearing rather
-                // than decorative.** At the row's own 13px the widest
-                // trio anybody has typed here in anger — `20/24/30`,
-                // live on dev, 2026-08-22 — did not fit: the box clipped
-                // by 8px in a 96px column, measured in Chromium. The
-                // caption size buys that back and leaves the figure
-                // reading as the annotation it is rather than as a
-                // second figure competing with the trio.
-                // Proof: written at the row's own type instead, `holds a
-                // trio and its figure on one line of a folded step cell`
-                // failed on `the trio does not fit the box beside its
-                // figure — Expected: <= 0, Received: 8`. Watched in
-                // Chromium, 2026-08-30.
+                // **What pays for it is the trio going quiet** ({@link QUIET_TRIO_PX}).
+                // This span was drawn at 10px from 2026-08-30 until this change, for the
+                // opposite reason: at the row's own 13px the widest trio anybody has
+                // typed here in anger — `20/24/30`, live on dev, 2026-08-22 — did not fit,
+                // and the box clipped by 8px in a 96px column. Proof from that day, kept
+                // because it is what the budget is known from: the figure written at the
+                // row's own type instead, `holds a trio and its figure on one line of a
+                // folded step cell` failed on `the trio does not fit the box beside its
+                // figure — Expected: <= 0, Received: 8`. Watched in Chromium, 2026-08-30.
+                // The same test is what holds the budget now, with the sizes the other
+                // way round: the committed cases are the seeded one and the unstaffed
+                // wide one, and they now also pin that the box is unfocused at 10px and
+                // that this span takes the row's own size, ink and tabular numerals. The
+                // staffed, fractional case is not committed — it clips before this change
+                // as well as after it; see `verify.md`'s finding.
                 <span
                   data-folded-final={step.id}
                   style={{
-                    marginLeft: 3,
+                    marginLeft: 4,
                     flex: 'none',
                     whiteSpace: 'nowrap',
-                    fontWeight: 'normal',
-                    fontSize: 10,
-                    color: 'var(--muted-foreground)',
+                    fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  · {final}
+                  {final}
                 </span>
               )}
               {problem !== null && ' !'}
@@ -872,3 +918,18 @@ export function createEstimatesColumns({
  * (`folded-step-card.tsx`), which is what makes the clip affordable.
  */
 export const ASSIGNEE_SLOT_PX = 32;
+
+/**
+ * The type the typed trio recedes to while its cell is not being written in.
+ *
+ * 10px is this table's caption size — the heading row's (`styles.css`) and the
+ * size the derived figure was drawn at from 2026-08-30 until this change — so
+ * it is a size this column is already known to be readable at. It is also what
+ * pays for the result growing to the row's own 13px: at 13px the trio
+ * `20/24/30` wants about 50px of a box in a 96px column shared with a 32px
+ * assignee slot, and at 10px it wants about 39px. The measurement that decides
+ * it is Chromium's, in `e2e/layout.spec.ts`'s `holds a trio and its figure on
+ * one line of a folded step cell`; `plan-estimates.test.tsx` asserts against
+ * this constant rather than against the number, so changing it changes no test.
+ */
+export const QUIET_TRIO_PX = 10;

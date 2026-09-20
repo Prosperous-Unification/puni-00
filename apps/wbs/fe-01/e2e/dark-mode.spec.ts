@@ -446,6 +446,25 @@ test.describe('what the dark palette paints', () => {
     );
   });
 
+  // Proof: with the box's rest arm in estimates.tsx painting `color:
+  // 'transparent'` unconditionally, this failed on `Error: the quiet trio reads
+  // at 1.00:1` (`Expected: >= 4.5 · Received: 1`): transparent ink composites to
+  // the surface behind it, so the ratio is measuring this element and not a
+  // neighbour. Restored byte for byte and rerun green. Watched in Chromium,
+  // 2026-09-20.
+  test('the quiet trio in a folded step cell stands off the row it is in', async ({ page }) => {
+    // The trio recedes at rest since 2026-09-20 (`estimates.tsx`,
+    // {@link QUIET_TRIO_PX}), and at rest it is the only place the three
+    // numbers are without a hover — so its legibility under the dark palette
+    // is measured rather than assumed. This file's `seedPlan` estimates both
+    // rows, so a folded step cell with a trio in it is already on screen.
+    const trio = page.getByLabel('Dev estimate for 010');
+    await expect(trio).not.toHaveValue('');
+
+    const ratio = await contrastOf(trio);
+    expect(ratio, `the quiet trio reads at ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(READABLE);
+  });
+
   test('the way out of the app stands off the menu it is in', async ({ page }) => {
     await accountTrigger(page).click();
     const logOut = page.getByRole('menuitem', { name: 'Log out' });

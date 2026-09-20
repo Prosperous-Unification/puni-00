@@ -110,6 +110,26 @@ describe('buildPackage', () => {
     );
     expect(ruleHelp.stdout.toString()).toContain('twilight-bureaucrat explain <rule-id>');
 
+    const templateHelp = invoke(executable, ['--help'], externalRoot);
+    expect(templateHelp.exitCode, templateHelp.stderr.toString()).toBe(0);
+    expect(templateHelp.stdout.toString()).toContain('twilight-bureaucrat template <list|show');
+
+    const listed = invoke(executable, ['template', 'list'], externalRoot);
+    expect(listed.exitCode, listed.stderr.toString()).toBe(0);
+    expect(
+      (JSON.parse(listed.stdout.toString()) as { templates: { id: string }[] }).templates.map(
+        (template) => template.id,
+      ),
+    ).toContain('repository');
+
+    const unknownTemplate = invoke(
+      executable,
+      ['template', 'show', 'NO-SUCH-TEMPLATE'],
+      externalRoot,
+    );
+    expect(unknownTemplate.exitCode).not.toBe(0);
+    expect(unknownTemplate.stderr.toString()).toContain('unknown template: NO-SUCH-TEMPLATE');
+
     const explained = invoke(executable, ['explain', 'MOD-INDEX'], externalRoot);
     expect(explained.exitCode, explained.stderr.toString()).toBe(0);
     expect(JSON.parse(explained.stdout.toString()) as { id: string }).toMatchObject({
@@ -158,10 +178,22 @@ describe('buildPackage', () => {
       JSON.stringify({
         schemaVersion: 1,
         policyId: 'rules.package.v1',
+        // Every registered rule needs a stated mode, so a newly registered rule is added here.
+        // Proof: with `F7` registered and absent from this list, this test failed on `rule policy
+        // states no mode for F7` (exit 1 where 0 was expected), seen in the planner's whole-suite
+        // run on 2026-09-20; the sandboxed executor cannot build the package and never ran it.
         ruleModes: [
+          { ruleId: 'F1', mode: 'observe' },
+          { ruleId: 'F7', mode: 'observe' },
           { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+          { ruleId: 'K2', mode: 'observe' },
+          { ruleId: 'K3', mode: 'observe' },
+          { ruleId: 'K4', mode: 'observe' },
+          { ruleId: 'K5', mode: 'observe' },
+          { ruleId: 'K6', mode: 'observe' },
           { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
           { ruleId: 'MOD-INDEX', mode: 'enforce' },
+          { ruleId: 'MOD-LAYOUT', mode: 'observe' },
           { ruleId: 'REL-EXTRACT', mode: 'observe' },
         ],
       }),
@@ -269,5 +301,9 @@ describe('buildPackage', () => {
 
     await buildPackage(packageRoot);
     expect(invoke(executable, ['--version'], externalRoot).stdout.toString()).toBe('0.1.0\n');
-  }, 20_000);
+    // Proof: under the 20-second limit this test took 19458.92ms in the h2puni gate on fd0a777c
+    // and timed out at 20039.60ms in the gate on d748f1a7 (2026-09-20), after the rule model added
+    // five runs of the built binary to its two builds. A limit a loaded host reaches is a gate
+    // that fails at random, so it has three times the observed duration.
+  }, 60_000);
 });

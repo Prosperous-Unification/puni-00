@@ -105,8 +105,20 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // target failed with `Received length: 163`; its command carries the project's seventh
   // parent-relative value in the already-inventoried project.json, so the file count holds
   // at 80 (2026-09-18).
-  expect(paths).toHaveLength(163);
-  expect(new Set(paths.map(({ file }) => file))).toHaveLength(80);
+  // Re-pinned after shared-failures added four configuration files carrying four
+  // parent-relative values (2026-09-20).
+  // Proof: leaving 163 here after the test-axes level targets landed failed with `Received
+  // length: 166`: `wbs-store-sqlite:test:api`, `wbs-store-sqlite:test:unit` and
+  // `wbs-core:test:unit` each carry one parent-relative JUnit path in an already-inventoried
+  // project.json, so the file count holds at 80. Seen in the planner's whole-suite run; the
+  // packet did not name this pin (2026-09-20).
+  // Proof: merging the shared-failures lane (167 rows, 84 files) with the test-axes lane (166
+  // rows, 80 files) needed both: with the rows pinned at 0 the merged tree reported `Received
+  // length: 170`, then with the files pinned at 0, `Received length: 84`: four files and four rows
+  // from shared-failures, three rows from the level targets (2026-09-20). Two lanes meeting at one
+  // hand-moved count is a conflict by construction; work item G2 derives it.
+  expect(paths).toHaveLength(170);
+  expect(new Set(paths.map(({ file }) => file))).toHaveLength(84);
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',
     propertyPath: 'extends',

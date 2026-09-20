@@ -27,6 +27,15 @@ outside the candidate's Git worktree so the candidate cannot select the policy t
 verdict never certifies. In slice B0, a rule that cannot be evaluated disallows the verdict in every
 mode.
 
+Rules are grouped by family. The modules family checks index declarations, the direct-entry limit
+and the module layout. The relationships family checks the kind direction rules K2 to K6 on the
+import graph the package extracts, which resolves path aliases and follows re-exports, so a barrel
+cannot hide the kind of the file behind it. The code-shape family checks F1, that a service, store
+or geometry module is plain TypeScript, and F7, the file size ratchet. A rule in ratchet mode
+refuses a finding inside the consumer's adopted set and reports one outside it as debt; refusing
+because a file was touched needs a comparison base the verdict records, which this package does not
+yet take.
+
 The package installs two commands for the same program: `twilight-bureaucrat`, which documentation
 uses, and the short form `twib`.
 
