@@ -6,11 +6,12 @@ Status: plan for research, written 2026-09-20 at Dany's request. Nothing here is
 
 **Problem.** The WBS plans work the way a team of people does it: a step is a name in one project-wide order, an estimate is three numbers of working days, and a work item is either done or not. Work is now done mostly by agents. On 2026-09-19 and 2026-09-20 one planner agent and thirty executor attempts took eight items of the "PUNI platform plan" from start to merged in about a day and a half, against 36.5 PERT days on the plan. The plan could not say which steps an agent does and which wait for a person, could not show a step shorter than a day, could not hold an estimate in tokens where the schedule could use it, and could not show that an item's planning was done while its implementation was running.
 
-**Outcome.** Three researched, decided and specified changes, each small enough to build after the WBS refactoring:
+**Outcome.** Four researched, decided and specified changes, each small enough to build after the WBS refactoring:
 
 1. Steps form a directed acyclic graph, and a step says whether an agent does it, a person does it, or it is optional.
 2. Estimates can be shorter than a day, the UI can show that, and an item can be estimated in other measures: tokens, story points, sizes.
 3. Every step of a work item has its own status.
+4. Start and end are recorded as full timestamps, not days, because agents start and stop within a day, and the Gantt chart has a timeline dense enough to show steps inside one day.
 
 **Non-goals.** Running agents from the WBS: that is Twilight Dash's. Replacing three-point estimates or the PERT fold. A general workflow engine. Changing how dependencies between work items work, except where a step graph forces it.
 
@@ -20,20 +21,21 @@ Status: plan for research, written 2026-09-20 at Dany's request. Nothing here is
 
 Mapped on 2026-09-20; paths are relative to the repository root.
 
-| Area                       | Today                                                                                                                                                                                               | Where                                                                                                                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Step                       | A name and a position per project. No kind, no owner class, no optional flag, no relation to another step, no reorder.                                                                              | `libs/wbs/adapters/store-sqlite/src/schema.ts` (table `step`), `libs/wbs/application/core/src/ports/step-store.ts`, `libs/wbs/application/core/src/service/step.service.ts` |
-| Step order in the schedule | One slice per leaf and step; a leaf's slices form an unconditional chain in step order. Floor kind `stepOrder`.                                                                                     | `libs/wbs/domain/domain/src/slice-edges.ts` (`sliceEdgesOf`), `schedule.ts`, `slice-groups.ts`                                                                              |
-| Estimate                   | `ThreePointEstimate` in days, fractions allowed, but the default rounding `ceil` makes a step at least one whole day, rounded per step before summing (ADR 0011).                                   | `libs/wbs/domain/domain/src/estimate.ts`, `docs/adr/0011-final-days-are-whole-days-rounded-per-step.md`                                                                     |
-| Calendar                   | Everything after the estimate is working days. An unestimated slice is assumed to take two. The Gantt axis is in working days and the table shows one decimal.                                      | `libs/wbs/domain/domain/src/workday.ts`, `assumed-duration.ts`, `apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts`, `plan-number-format.ts`                              |
-| Measures                   | `token_estimate`, `token_actual`, `hours_actual` per work item and step, rolled up like estimates. API and MCP only: **no column in the UI**, and the schedule never reads them.                    | `libs/wbs/domain/domain/src/stored-vocabularies.ts` (`MEASURE_METRICS`), table `step_measure`, archived change `2026-08-30-token-tracking`                                  |
-| Step progress              | `in_progress` or `done` per work item and step; absence means unknown. `blocked` and `cancelled` were refused on purpose.                                                                           | `libs/wbs/domain/domain/src/progress.ts`, table `step_progress`                                                                                                             |
-| Item status                | Derived, never stored: done only when every step is done (ADR 0024). `setStatus done` writes `done` on every step of every leaf under the item. Facts (`fact_start`, `fact_end`) are per work item. | `work-item.service.ts` (`setStatus`), `docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md`                                                                    |
-| What the scheduler reads   | Neither progress nor facts. They change drawing only.                                                                                                                                               | `schedule.ts`, `canonical-schedule-input.ts`, `gantt-geometry.ts`                                                                                                           |
-| Per-step status in the UI  | None. Only the folded item status has a face.                                                                                                                                                       | `apps/wbs/fe-01/src/components/wbs/plan-columns/status.tsx`, `folded-step-card.tsx`                                                                                         |
-| Agents                     | `PERSON_KINDS = ['person', 'agent']`, a directory label: "a fact the reader can see, not a rule the engine follows".                                                                                | `stored-vocabularies.ts`, `CONTEXT.md`                                                                                                                                      |
+| Area                       | Today                                                                                                                                                                                                                                                                                                                      | Where                                                                                                                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Step                       | A name and a position per project. No kind, no owner class, no optional flag, no relation to another step, no reorder.                                                                                                                                                                                                     | `libs/wbs/adapters/store-sqlite/src/schema.ts` (table `step`), `libs/wbs/application/core/src/ports/step-store.ts`, `libs/wbs/application/core/src/service/step.service.ts` |
+| Step order in the schedule | One slice per leaf and step; a leaf's slices form an unconditional chain in step order. Floor kind `stepOrder`.                                                                                                                                                                                                            | `libs/wbs/domain/domain/src/slice-edges.ts` (`sliceEdgesOf`), `schedule.ts`, `slice-groups.ts`                                                                              |
+| Estimate                   | `ThreePointEstimate` in days, fractions allowed, but the default rounding `ceil` makes a step at least one whole day, rounded per step before summing (ADR 0011).                                                                                                                                                          | `libs/wbs/domain/domain/src/estimate.ts`, `docs/adr/0011-final-days-are-whole-days-rounded-per-step.md`                                                                     |
+| Calendar                   | Everything after the estimate is working days. An unestimated slice is assumed to take two. The Gantt axis is in working days and the table shows one decimal.                                                                                                                                                             | `libs/wbs/domain/domain/src/workday.ts`, `assumed-duration.ts`, `apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts`, `plan-number-format.ts`                              |
+| Measures                   | `token_estimate`, `token_actual`, `hours_actual` per work item and step, rolled up like estimates. API and MCP only: **no column in the UI**, and the schedule never reads them.                                                                                                                                           | `libs/wbs/domain/domain/src/stored-vocabularies.ts` (`MEASURE_METRICS`), table `step_measure`, archived change `2026-08-30-token-tracking`                                  |
+| Step progress              | `in_progress` or `done` per work item and step; absence means unknown. `blocked` and `cancelled` were refused on purpose.                                                                                                                                                                                                  | `libs/wbs/domain/domain/src/progress.ts`, table `step_progress`                                                                                                             |
+| Item status                | Derived, never stored: done only when every step is done (ADR 0024). `setStatus done` writes `done` on every step of every leaf under the item. Facts (`fact_start`, `fact_end`) are per work item.                                                                                                                        | `work-item.service.ts` (`setStatus`), `docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md`                                                                    |
+| Facts and statement times  | `fact_start` and `fact_end` are calendar days as text, `YYYY-MM-DD`, "no time, no zone", per work item. The instant a step's progress was stated (`stated_at`) and an actual or measure was typed (`recorded_at`) are already stored as integers, but they record when somebody said it, not when the work began or ended. | `schema.ts` (`work_item.fact_start`, `fact_end`, `step_progress.stated_at`), `libs/wbs/domain/domain/src/workday.ts` (`IsoDate`, `isoDateOfInstant`)                        |
+| What the scheduler reads   | Neither progress nor facts. They change drawing only.                                                                                                                                                                                                                                                                      | `schedule.ts`, `canonical-schedule-input.ts`, `gantt-geometry.ts`                                                                                                           |
+| Per-step status in the UI  | None. Only the folded item status has a face.                                                                                                                                                                                                                                                                              | `apps/wbs/fe-01/src/components/wbs/plan-columns/status.tsx`, `folded-step-card.tsx`                                                                                         |
+| Agents                     | `PERSON_KINDS = ['person', 'agent']`, a directory label: "a fact the reader can see, not a rule the engine follows".                                                                                                                                                                                                       | `stored-vocabularies.ts`, `CONTEXT.md`                                                                                                                                      |
 
-So each of the three requests has a seed already planted, and each seed stops short of the schedule and the screen.
+So each of the four requests has a seed already planted, and each seed stops short of the schedule and the screen.
 
 ## Field evidence: two days as an agent using this plan
 
@@ -61,6 +63,7 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
   The actual figure is what the executor's command-line tool printed as "tokens used"; whether that counts cached input the way the estimate meant is itself a research question (E6).
 
 - **Status could not say "planned, now implementing".** `setProgress` per step exists and the planner used it once, for 060.1's Plan step; the UI has nowhere to show it. For the other eight the only honest moment to write anything was the end.
+- **Start and end were instants, and the plan could only hold days.** The executor ledger records every attempt to the second: 010.5's single attempt was dispatched at 21:22:24Z and had returned twelve minutes later; 040.3 took five attempts across one night. Marking the eight items done, the only facts the plan accepted were "began 2026-09-19, finished 2026-09-20", which is true of all eight and tells them apart in nothing.
 - **An agent cannot stay connected.** Access tokens last five minutes with no refresh, and a client registration ten. That is a gateway finding, outside this research, but per-step status is only as fresh as the agent's ability to write it.
 
 ## Research questions
@@ -99,10 +102,21 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
 - P7. What is the face of per-step status in the table and on the Gantt, within the glyph language the open status changes already set?
 - P8. Is a history of status changes kept (attempts, rounds), or only the latest statement?
 
+### T. Timestamps, and a timeline that shows a day
+
+- T1. Where do start and end live: per step of a work item (which P3 already asks), per attempt of a step, or still per work item with steps derived? An agent step that is retried has several starts.
+- T2. What is stored: an instant (epoch milliseconds, as `stated_at` already is) with the zone a display concern, or a zoned timestamp? Today's `IsoDate` is "no time, no zone" on purpose; what did that buy, and what breaks when a fact becomes an instant (export and import, saved plans, comparison, the completion prompt, `setStatus`'s `on` and `factStart` parameters)?
+- T3. How do old day-only facts read beside new instants without inventing a time of day? Migrations are additive, so both will exist.
+- T4. Who states the instant: the agent when it starts and stops (through the MCP facade), the tool that launches it, or the plan at the moment a status is written? `stated_at` shows the difference already: when it was said is not when it happened.
+- T5. How dense does the Gantt timeline get: hours, quarter hours, minutes? The axis is in working days today (`gantt-geometry.ts`), with a zoom floor in pixels per day. What are the zoom levels, how are non-working hours drawn for people while agents run through them (E3), and what is the smallest bar that stays clickable?
+- T6. Does a dense actual timeline sit on the same rows as the planned bars, as facts do today (ADR 0024 draws a done item's facts, not its slices), or as a separate "what happened" track per step?
+- T7. At what plan size does a minute-level axis stop being drawable, given the large-plan scrolling work that has just landed?
+
 ## Prior art to read, and what to take from each
 
 - Workflow engines with typed steps: GitHub Actions (`needs`, `if`, environments with required reviewers), Argo Workflows and Airflow (DAG tasks, skipped and upstream-failed states), Temporal (activities, signals for human input). Take: the state sets, how optional and skipped differ, how approval gates are modelled.
 - Agent frameworks with human-in-the-loop: LangGraph interrupts and checkpoints. Take: how a graph pauses for a person and resumes.
+- Timelines at mixed scale: tracing and profiling views (Chrome's Performance panel, Jaeger and Perfetto span charts), CI run timelines (GitHub Actions, Buildkite), and calendar day and week views. Take: how a view moves between days and minutes without losing its place, and how very short spans stay visible.
 - Planning tools: Linear and Jira workflow states and sub-task statuses; MS Project and Primavera resource calendars and task calendars; critical path with mixed calendars. Take: which status models people actually keep up to date, and how mixed calendars are drawn.
 - Estimation: PERT and three-point practice below a day; story points and velocity; T-shirt sizing; reference-class forecasting as the argument for calibrating from actuals.
 - This project's own records: the archived changes `role-progress`, `actual-days`, `token-tracking`, `estimate-weights-and-rounding`, `dep-waits-on-first-role`; ADRs 0010, 0011, 0016, 0024; the open status changes; the Codex and Claude quota measurement of 2026-09-13; batch 1's ledger of thirty attempts.
@@ -113,25 +127,26 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
 2. **Field data.** Export batch 1's ledger into a table of attempts with wall-clock, tokens and outcome. Settle E6 on real logs.
 3. **Model experiments.** Pure-domain prototypes in a scratch directory, not in the product: a step graph feeding `sliceEdgesOf`; a schedule with two calendars; status folds over a graph with skipped steps. Each with property tests. Throwaway code, kept only as evidence.
 4. **One design interview** per theme, combining brainstorming, grilling and domain modelling as the repository's workflow prescribes; terms resolved into `CONTEXT.md` as they are settled.
-5. **ADRs** for what is hard to reverse: the step graph's home (S1), the duration unit and rounding (E1, E2), the agent calendar (E3), the step state set (P1), whether the scheduler reads progress (P4).
+5. **ADRs** for what is hard to reverse: the step graph's home (S1), the duration unit and rounding (E1, E2), the agent calendar (E3), the step state set (P1), whether the scheduler reads progress (P4), facts as instants and where they live (T1, T2).
 6. **OpenSpec changes**, one per outcome, with testable delta specs and ordered TDD tasks, ready to be cut into work packets like batch 1's.
 
 ## Work items to schedule
 
-Three-point estimates in days as the plan uses today, and tokens for a top model at high effort. All of R1 to R6 can start now: they touch no product file. R7 to R9 each need Dany for the interview's decisions.
+Three-point estimates in days as the plan uses today, and tokens for a top model at high effort. All of R1 to R6b can start now: they touch no product file. R7 to R9 each need Dany for the interview's decisions.
 
-| Ref | Item                                                                       | Depends on | Days (O / R / P) | Tokens    |
-| --- | -------------------------------------------------------------------------- | ---------- | ---------------- | --------- |
-| R1  | Desk research: step graphs, kinds, gates, loops                            | —          | 0.5 / 1 / 2      | 1,500,000 |
-| R2  | Desk research: sub-day estimates, calendars, measures and conversion       | —          | 0.5 / 1 / 2      | 1,500,000 |
-| R3  | Desk research: step state models, evidence, history                        | —          | 0.5 / 1 / 2      | 1,200,000 |
-| R4  | Field data: batch 1 attempts table; pin what a token count is              | —          | 0.25 / 0.5 / 1   | 600,000   |
-| R5  | Model experiment: step graph into slice edges, dependency reach on a graph | R1         | 0.5 / 1 / 2      | 2,000,000 |
-| R6  | Model experiment: two calendars on one schedule; progress-aware schedule   | R2, R3     | 1 / 2 / 3        | 3,000,000 |
-| R7  | Design interview, glossary and ADRs: steps                                 | R1, R5     | 0.5 / 1 / 2      | 1,500,000 |
-| R8  | Design interview, glossary and ADRs: estimates and measures                | R2, R4, R6 | 0.5 / 1 / 2      | 1,500,000 |
-| R9  | Design interview, glossary and ADRs: step status                           | R3, R6     | 0.5 / 1 / 2      | 1,500,000 |
-| R10 | OpenSpec changes and packet-ready task lists for the three outcomes        | R7, R8, R9 | 1 / 2 / 4        | 4,000,000 |
+| Ref | Item                                                                                                          | Depends on  | Days (O / R / P) | Tokens    |
+| --- | ------------------------------------------------------------------------------------------------------------- | ----------- | ---------------- | --------- |
+| R1  | Desk research: step graphs, kinds, gates, loops                                                               | —           | 0.5 / 1 / 2      | 1,500,000 |
+| R2  | Desk research: sub-day estimates, calendars, measures and conversion                                          | —           | 0.5 / 1 / 2      | 1,500,000 |
+| R3  | Desk research: step state models, evidence, history, start and end as instants                                | —           | 0.5 / 1 / 2      | 1,500,000 |
+| R4  | Field data: batch 1 attempts table; pin what a token count is                                                 | —           | 0.25 / 0.5 / 1   | 600,000   |
+| R5  | Model experiment: step graph into slice edges, dependency reach on a graph                                    | R1          | 0.5 / 1 / 2      | 2,000,000 |
+| R6  | Model experiment: two calendars on one schedule; progress-aware schedule                                      | R2, R3      | 1 / 2 / 3        | 3,000,000 |
+| R6b | UI experiment: a Gantt axis that zooms from days to minutes, drawn from batch 1's attempt ledger as real data | R2, R4      | 1 / 2 / 4        | 3,000,000 |
+| R7  | Design interview, glossary and ADRs: steps                                                                    | R1, R5      | 0.5 / 1 / 2      | 1,500,000 |
+| R8  | Design interview, glossary and ADRs: estimates and measures                                                   | R2, R4, R6  | 0.5 / 1 / 2      | 1,500,000 |
+| R9  | Design interview, glossary and ADRs: step status, timestamps and the dense timeline                           | R3, R6, R6b | 0.5 / 1 / 2      | 1,800,000 |
+| R10 | OpenSpec changes and packet-ready task lists for the three outcomes                                           | R7, R8, R9  | 1 / 2 / 4        | 4,000,000 |
 
 ## When this can be built
 
@@ -153,3 +168,4 @@ Recorded so they are not a surprise; until answered, the research carries each a
 3. May an alternative measure drive dates, or are measures reporting only?
 4. Does the scheduler read progress, so a finished step stops moving the dates?
 5. Which step states beyond in progress and done are worth their upkeep?
+6. Are start and end kept per attempt, so a retried agent step shows each run, or only first start and last end?
