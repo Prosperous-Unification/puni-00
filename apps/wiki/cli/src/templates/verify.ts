@@ -38,6 +38,8 @@ export interface ModuleScope {
 export type ArtifactScope = FileScope | ModuleScope;
 
 function refuseScope(requirement: TemplateRequirement, scope: ArtifactScope): never {
+  // Proof: returning no findings made `refuses a requirement whose constraint no file artifact
+  // can satisfy` fail because the received function did not throw. Observed 2026-09-20.
   throw new Error(
     `template requirement ${requirement.id} states a ${requirement.constraint.kind} constraint, which no ${scope.scope} artifact can satisfy`,
   );
@@ -138,12 +140,16 @@ function moduleFindings(
   const { subject, files } = scope;
   switch (constraint.kind) {
     case 'required-file':
+      // Proof: returning no findings here made the bare-module test lose both `module.readme` and
+      // `module.contract` from its finding list. Observed 2026-09-20.
       return files.some((file) => file.relativePath === constraint.path)
         ? []
         : [finding(requirement, subject, `the module directory has no ${constraint.path}`)];
     case 'index-sections': {
       const index = files.find((file) => file.relativePath === constraint.path);
       if (index === undefined) return [];
+      // Proof: forcing this list empty made `reports an index that omits one of its sections`
+      // exit 0 instead of 1. Observed 2026-09-20.
       const absent = [
         ...(index.text.startsWith('# ') ? [] : ['its title']),
         ...constraint.sections.filter((section) => !index.text.includes(`\n${section}\n`)),
@@ -153,10 +159,14 @@ function moduleFindings(
         : [finding(requirement, index.path, `the index omits ${absent.join(', ')}`)];
     }
     case 'kind-file-present':
+      // Proof: returning no findings here made the bare-module test lose its `module.kind-file`
+      // finding. Observed 2026-09-20.
       return kindFilesOf(files).length > 0
         ? []
         : [finding(requirement, subject, 'no file declares a kind by its suffix')];
     case 'test-present':
+      // Proof: returning no findings here made the bare-module test lose its `module.test`
+      // finding. Observed 2026-09-20.
       return files.some((file) => file.relativePath.endsWith('.test.ts'))
         ? []
         : [finding(requirement, subject, 'the module has no test file')];
@@ -164,6 +174,8 @@ function moduleFindings(
       return files
         .filter((file) => {
           const segments = file.relativePath.split('/');
+          // Proof: accepting every path with three or fewer segments made `reports a file that
+          // sits below the module directory` exit 0 instead of 1. Observed 2026-09-20.
           return (
             segments.length > 2 ||
             (segments.length === 2 && !constraint.allowedDirectories.includes(segments[0]))
@@ -177,8 +189,12 @@ function moduleFindings(
           ),
         );
     case 'one-kind-per-file':
+      // Proof: passing no module files to the shared handler made `reports a module file that
+      // declares two kinds` exit 0 instead of 1. Observed 2026-09-20.
       return oneKindFindings(requirement, files);
     case 'kind-files-follow-their-template':
+      // Proof: dropping every kind file before delegation made `reports a kind file inside a
+      // module that breaks its own template` exit 0 instead of 1. Observed 2026-09-20.
       return kindFilesOf(files).flatMap((file) => {
         const kinds = declaredKinds(file.path);
         if (kinds.length !== 1) return [];
@@ -284,6 +300,8 @@ function decodeArtifact(repository: string, blob: string, path: string): string 
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`candidate file ${path} is not UTF-8: ${detail}`, { cause });
   }
+  // Proof: skipping this parse made each independent malformed contract, support, and test-file
+  // module case accept the artifact with exit 0 instead of refusing it. Observed 2026-09-20.
   if (path.endsWith('.ts')) importSpecifiers(text, path);
   return text;
 }

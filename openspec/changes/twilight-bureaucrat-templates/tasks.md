@@ -16,7 +16,7 @@
 
 ## 5. Prove the module-scope checks
 
-- [ ] 5.1 Inject P13, P15-P21, and P25 one at a time, compile each fault, observe its named focused test fail, restore exact bytes, and rerun green — tests: each proof's named `templates.test.ts` case.
+- [x] 5.1 Inject P13, P15-P21, and P25 one at a time, compile each fault, observe its named focused test fail, restore exact bytes, and rerun green — tests: each proof's named `templates.test.ts` case.
 
 ## 6. Document and verify the templates
 
