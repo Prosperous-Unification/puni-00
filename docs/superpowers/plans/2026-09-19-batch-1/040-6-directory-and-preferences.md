@@ -1965,11 +1965,13 @@ rm -f -- "$report"
 
 ### Step 11 — Hand over, do not commit
 
-- [ ] `git status --short` → expect exactly this slice's own three paths of section 5 —
-      `composition.ts`, `use-directory-management.ts` and `directory-page.tsx` — as modified or
-      untracked, plus whatever other lanes already had in the tree, untouched. Slice 1's twelve
-      paths are already committed by the planner and do not appear here. Record the list.
-- [ ] Report, under "Ready to commit", those three paths and the subject
+- [ ] `git status --short --untracked-files=all` → expect this slice's own three paths of
+      section 5 — `composition.ts`, `use-directory-management.ts` and `directory-page.tsx` — plus
+      the two slice 1 service files, `directory.resource.ts` and
+      `directory-management.feature.ts`, modified **only** by the dated `Proof:` comments step 7
+      requires. Five paths, and nothing else. Slice 1's other ten paths do not appear. Record the
+      list.
+- [ ] Report, under "Ready to commit", those five paths and the subject
       `refactor(wbs-fe): extract the directory into a resource and a feature service`, with a body
       carrying step 0's baselines, step 9's counts, and every proof of section 8 with the exact
       failure line seen.
@@ -2005,7 +2007,7 @@ This packet is done when every line is true. Nothing here is a judgement call.
 - [ ] The four named devsync checks were run; the whole target is reported as pending planner
       verification.
 - [ ] The host gate is reported as not run.
-- [ ] This slice's own three paths and the commit subject are in the report — the packet's fifteen
+- [ ] This slice's five paths (three of its own, two service files with proof comments only) and the commit subject are in the report — the packet's fifteen
       paths total, twelve already committed at checkpoint A — and nothing was staged or committed.
 
 ## 8. Negative proofs
@@ -2316,3 +2318,7 @@ files" wording now reads "ten files", including the two suites steps 4 created; 
 hand-over, and checkpoint B's checklist, now expect slice 2's own three paths in `git status
 --short` rather than the packet's full fifteen, since slice 1's twelve are already committed by the
 time slice 2 runs. These fixes are in place before slice 2 is dispatched.
+
+### Slice 2, first attempt, 2026-09-20: stopped at the hand-over, and what changed
+
+Steps 6 and 7 were done: the page is wired, its oracle stayed at 47 of 47, and all ten faults failed as named and were restored. The executor then stopped correctly at step 11, because step 7 requires dated `Proof:` comments in the two slice 1 service files while step 11 allowed only three changed paths. The hand-over now expects five. That count of three was introduced by the third review's hand fix, which forgot the proof comments. The planner ran the remaining verification steps outside the sandbox rather than spend another attempt on them: formatting the page, typecheck, lint, build, the unit tier and the whole frontend target.

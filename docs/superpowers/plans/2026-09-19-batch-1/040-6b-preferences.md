@@ -1275,11 +1275,13 @@ rm -f -- "$report"
 
 ### Step 12 — Hand over, do not commit
 
-- [ ] `git status --short` → expect exactly this slice's own six paths of section 5 — the four
-      delivery callers, `project-page.test.tsx` and `remembered-layout.ts` — as modified, plus
-      whatever other lanes already had in the tree, untouched. Slice 1's fifteen paths are already
-      committed by the planner and do not appear here. Record the list.
-- [ ] Report, under "Ready to commit", those six paths and the subject
+- [ ] `git status --short --untracked-files=all` → expect this slice's own six paths of section
+      5 — the four delivery callers, `project-page.test.tsx` and `remembered-layout.ts` — as
+      modified, **plus any slice 1 source file that gained a dated `Proof:` comment from section 8**,
+      changed by that comment only. Nothing else. Record the list and say which paths changed by
+      comments only. (Packet 040.6 stopped here on 2026-09-20 because its hand-over forgot the
+      proof comments.)
+- [ ] Report, under "Ready to commit", those paths and the subject
       `refactor(wbs-fe): put every browser storage key behind the preferences module`, with a body
       carrying step 0's baselines, step 10's counts, and every proof of section 8 with the exact
       failure line seen.
