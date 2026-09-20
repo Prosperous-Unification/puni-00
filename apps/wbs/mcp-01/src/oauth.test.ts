@@ -1011,6 +1011,10 @@ describe('InMemoryMcpOAuth', () => {
     const marker = /(__Host-wbs_mcp_reauth=[^;,]+)/.exec(setCookie)?.[1];
     expect(marker).toBeDefined();
 
+    const tampered = `${marker?.slice(0, -1) ?? ''}${marker?.endsWith('A') ? 'B' : 'A'}`;
+    await oauth.response(new Request(authorizeUrl(clientId), { headers: { cookie: tampered } }));
+    expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+
     await oauth.response(
       new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
     );
@@ -1019,10 +1023,6 @@ describe('InMemoryMcpOAuth', () => {
     await oauth.response(
       new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
     );
-    expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
-
-    const tampered = `${marker?.slice(0, -1) ?? ''}${marker?.endsWith('A') ? 'B' : 'A'}`;
-    await oauth.response(new Request(authorizeUrl(clientId), { headers: { cookie: tampered } }));
     expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
   });
 
