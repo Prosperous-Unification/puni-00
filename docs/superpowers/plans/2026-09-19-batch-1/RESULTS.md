@@ -1,6 +1,6 @@
 # Batch 1 results
 
-Recorded 2026-09-20. Status: **batch concluded, locally verified; host gate run 1 failed on one test, fixed, run 2 pending.** Nine packets are merged on the local branch `batch-1/integration`; one packet is held. Nothing was pushed, published, merged to main or deployed.
+Recorded 2026-09-20. Status: **batch concluded, locally verified, and the host gate passed on `6484986e`** (its first run failed on one timed-out test, fixed since). Nine packets are merged on the local branch `batch-1/integration`; one packet is held. Nothing was pushed, published, merged to main or deployed.
 
 This page reports what was observed. The plan is the [batch README](README.md); the decisions taken without asking are in [ASSUMPTIONS.md](ASSUMPTIONS.md). Attempt reports, mutation patches and failing output are kept outside the repository, in the planner's working directory beside it, under `puni-plan/exec/logs/<attempt>/`, with one line per event in `puni-plan/exec/ledger.jsonl`.
 
@@ -40,8 +40,9 @@ Run on h2puni from a Git bundle sent over SSH, not through GitHub; `bin/h2puni-g
 | Run | Commit     | Result                                                                                                                                                                                                                                                                                                                                                                          |
 | --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `fd0a777c` | **Exit 1.** `h2puni gate: running on fd0a777c5136add31c3405291200502d43f6e399`. OpenSpec and all 34 projects' `test`, `lint`, `typecheck` and `build` passed, the Python solver tests included. `twilight-bureaucrat:test` failed 678 to 1: a test this batch added ran the production CLI five times in sequence and hit Bun's 5 second default at 5025 ms on the loaded host. |
+| 2   | `6484986e` | **Exit 0.** `h2puni gate: running on 6484986e5425da2df5140c81b2b38fbb12bdd9a1`. OpenSpec; all 34 projects' `test`, `lint`, `typecheck` and `build`; Twilight Bureaucrat's `test`, `typecheck` and `build`, then `lint:source`; the launcher check (3 pass); and `wbs-be-01:solver-image-smoke`.                                                                                 |
 
-The failing test now carries an explicit timeout and a `Proof:` comment naming that run, as `src/cli.test.ts` already does for the same cause; a sibling that took 3.4 seconds on the host has one too. No assertion changed. The second run's result is recorded below when it returns.
+The failing test now carries an explicit timeout and a `Proof:` comment naming that run, as `src/cli.test.ts` already does for the same cause; a sibling that took 3.4 seconds on the host has one too. No assertion changed. The second run passed. The commits after `6484986e` on this branch change documents only.
 
 Whole-target totals against main: `tool-devsync:test` 267 to 284; `twilight-bureaucrat:test` 662 to 679; `wbs-fe-01:test:unit` 34 files and 554 tests to 40 and 595; `wbs-fe-01:test` under UTC 107 files and 2781 tests to 114 and 2826, and under Auckland unchanged at 2 files and 3 tests.
 
@@ -98,9 +99,11 @@ One defect reached code and was caught by the planner's type check, not by an ex
 
 ## What to do next
 
-1. On the shared build host, run `bin/h2puni-gate.sh b4188ec3276bc302be00fbfc512ecc4c3eb5844b` and record the printed `h2puni gate: running on <sha>` line and the exit status.
-2. Decide whether `batch-1/integration` goes to main as one pull request or as nine. The repository is public, so merging publishes it.
-3. Run 060.1's experiment in a disposable environment. Its open question is decided: Node for software written for Node is fine.
-4. In the dev WBS project "PUNI platform plan", add the three missing dependencies found during planning (040.1 on 020.1, 110.1 on 010.3, 110.6 on 020.8) and mark these nine items' progress. The connection's tokens last five minutes, so this needs a fresh `/mcp` login.
+1. Merge `batch-1/integration` to main as one pull request; the owner approved that on 2026-09-20. The nine packets stay separate `--no-ff` merges inside it.
+2. Run 060.1's experiment: its preparation slice is dispatched, and the planner runs the container steps from the reviewed scripts.
+3. Fix the findings above that need no decision, on their own branch with their own gate run.
+4. Batch 2 is being planned under `docs/superpowers/plans/2026-09-20-batch-2/`.
+
+The dev WBS project "PUNI platform plan" was updated on 2026-09-20: eight items done, 060.1's planning step done, and the three dependencies found missing during planning added (040.1 on 020.1, 110.1 on 010.3, 110.6 on 020.8).
 
 Rollback is local: every packet is one `--no-ff` merge on `batch-1/integration`, so `git revert -m 1 <merge>` removes one packet, and deleting the branch removes the batch. Main is untouched at `1eeacb0b`.
