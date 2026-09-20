@@ -1402,19 +1402,19 @@ If the extraction turns out to need a behaviour change, stop and report.
 
 ### What the executor runs
 
-| Command                                                                | Expected                                                                                       |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| The focused node-tier suite command of steps 3 and 4                   | Step 3 fails collection; step 4 exits 0 with exactly three passing files and fifteen tests.    |
-| The six-suite oracle command in step 0                                 | Exit 0, step 0's counts, with the project page's `Tests` exactly +1.                           |
-| `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/test-tiers.test.ts)` | Exit 0. The fast-tier list and the files agree.                                                |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                      | Exit 0, no diagnostic.                                                                         |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                           | Exit 0, no warning.                                                                            |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                          | Exit 0.                                                                                        |
-| The storage sweep in the completion checklist                          | Only the one prose comment; no call outside the preferences module and the pre-paint script.   |
-| The four named devsync checks in step 8                                | Each `1 pass`, `0 fail`, or a failure naming only other packets' documents, recorded verbatim. |
-| `NX_DAEMON=false bunx nx format:check --all`                           | Exit 0, or failures naming only files outside section 5.                                       |
-| The OpenSpec block in step 11                                          | One JSON report printed, block exits 0.                                                        |
-| The eight proofs of section 8                                          | Each named test observed failing, restored, rerun green.                                       |
+| Command                                                                | Expected                                                                                                                                                                               |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The focused node-tier suite command of steps 3 and 4                   | Step 3 fails collection; step 4 exits 0 with exactly three passing files and fifteen tests.                                                                                            |
+| The six-suite oracle command in step 0                                 | Exit 0, step 0's counts, with the project page's `Tests` exactly +1.                                                                                                                   |
+| `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/test-tiers.test.ts)` | Exit 0. The fast-tier list and the files agree.                                                                                                                                        |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                      | Exit 0, no diagnostic.                                                                                                                                                                 |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                           | Exit 0, no warning.                                                                                                                                                                    |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                          | Exit 0.                                                                                                                                                                                |
+| The storage sweep in the completion checklist                          | Only JSDoc prose (three lines on 2026-09-20: `use-plan-filter.ts:136`, `gantt-detail.ts:71`, `project-page.tsx:611`); no call outside the preferences module and the pre-paint script. |
+| The four named devsync checks in step 8                                | Each `1 pass`, `0 fail`, or a failure naming only other packets' documents, recorded verbatim.                                                                                         |
+| `NX_DAEMON=false bunx nx format:check --all`                           | Exit 0, or failures naming only files outside section 5.                                                                                                                               |
+| The OpenSpec block in step 11                                          | One JSON report printed, block exits 0.                                                                                                                                                |
+| The eight proofs of section 8                                          | Each named test observed failing, restored, rerun green.                                                                                                                               |
 
 ### What the planner runs afterwards, and the executor reports as pending
 
@@ -1605,3 +1605,7 @@ Slice 1 defers the type check to slice 2, so the executor could not see it: the 
 ### Slice 2, first attempt, 2026-09-20: stopped at proof 1, and what changed
 
 Step 7 was done and step 8 mostly: the four delivery callers are moved, the project page gained its case, typecheck, lint, formatting and the four document checks passed. Proof 1 then failed its two named tests and a third, and the executor stopped on stop condition 3. That is the same packet defect packet 040.3 had: a fault that breaks one more reader than the two it names is still a fault the named tests caught. The condition now records extra failures instead of stopping on them, and the executor preamble says so for every packet. The attempt also left the builders' JSDoc unmoved, because the dispatch note allowed slice 1 files to change by proof comments only; step 8's move of that JSDoc into `preference-keys.ts` is part of this slice, and the hand-over expects it.
+
+### Slice 2, second attempt, 2026-09-20: stopped at the storage sweep, and what changed
+
+Steps 8 to 10 were done: the builders' JSDoc moved into the registry, all eight faults failed their named tests and were restored, and the build passed. The executor then stopped correctly at the storage sweep, which expected one prose mention of `localStorage` outside the module and found three. All three are JSDoc prose; no call exists outside the repository adapter. The expectation was the packet's mistake: it listed one comment and overlooked two that were already in the tree. The planner checked the three lines, corrected the expectation here, and ran the remaining steps outside the sandbox (OpenSpec validation, the whole frontend targets, the document checks) rather than spend another attempt on them.
