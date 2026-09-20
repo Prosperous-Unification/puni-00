@@ -2565,6 +2565,8 @@ status, expected 1 and received 0; do not claim that subsequent assertions ran. 
 the required stderr sentence before the exit status, and that sentence is the proof. Preamble rule
 16 governs additional failing tests.
 
+Section D.5's rule applies here unchanged: **the matcher is not the requirement; the fact is.** Accept a proof when the named test fails at the assertion about the row's fact, whatever matcher your test used, and record the diagnostic you actually saw.
+
 Run each row independently: restore, `cmp` and rerun green between rows, and save a separate patch
 and log for each. **Every Part E proof runs the production CLI. Part C's explicitly identified
 resolution proofs run in process.**
