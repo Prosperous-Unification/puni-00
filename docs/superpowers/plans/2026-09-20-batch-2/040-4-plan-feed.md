@@ -2026,7 +2026,15 @@ Command C reported `Test Files 2 passed (2)`, `Tests 23 passed (23)` unmutated.
 | 20  | A closed reader is told nothing — new comment above `let closed = false;`                  | F    | `isLive: () => isActiveReader(),`                                                                                                | C       | `hands nothing on once it is closed, though the owner still publishes`                        | `expected [ { staleResources: [], …(5) } ] to deeply equal []`; the closed-refusal case failed too                                                                         |
 | 21  | Refusals reach the screen — new comment above the `for` loop                               | F    | `void failures;` in place of the loop body                                                                                       | A, C    | `names an unavailable optimizer and offers no export before a plan is installed`              | A: `expected [] to include 'Optimized scheduling is unavailable i…'`; C: `announces the cause of every refusal of the first read`                                          |
 
-Twenty-one checks, twenty-three observed failures counting the two that fail under two commands.
+> **22 — Active-reader ownership.** In `plan-feed.feature.ts`, replace
+> `isLive: () => !closed && isActiveReader(),` with `isLive: () => !closed,`. Run command C. The
+> named test `hands nothing to a reader that has moved on` must fail because it receives a delivery
+> instead of an empty array. Save the patch and actual Vitest output, restore, compare bytes and
+> rerun green. Only then add a dated `Proof:` comment immediately above `isLive`, naming this
+> mutation and observed failure. Include this proof in slice 6's hand-over; inventory rows, not the
+> existing summary totals, determine completeness.
+
+Twenty-two checks, twenty-four observed failures counting the two that fail under two commands.
 Proof 8's mutation lives in the hook and its comment travels with `const owner = openOwner();`:
 the fault it names is a host that hands the same, already-closed feed to a second lifetime. Restore
 **both** hook edits before asserting anything.
@@ -2038,7 +2046,7 @@ planner weakened it to `if (feed === null) return;` and ran the whole of
 `plan-read-and-write.test.tsx`: **88 of 88 passed**. No test separates it. It is unchanged code, so
 R5 asks nothing new of it; the executor does not mutate it, and the gap is reported as a finding for
 [checks that cannot fail](../../../findings/checks-that-cannot-fail.md). Section 12's stop
-conditions apply to the twenty-one checks above and to nothing else.
+conditions apply to the twenty-two checks above and to nothing else.
 
 ## 9. Guard inventory
 

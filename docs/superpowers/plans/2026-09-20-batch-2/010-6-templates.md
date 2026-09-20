@@ -45,7 +45,7 @@ the planner reviews and commits, the next slice starts from that commit.
 | Slice                                                            | Delivers                                                                         | Tests it adds |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------- |
 | [1](#slice-1--openspec-change-registry-list-and-show)            | The OpenSpec change, the template model, three kind templates, `list`, `show`    | 4             |
-| [2](#slice-2--verifying-one-file-against-its-template)           | The candidate shell, the file-scope constraint handlers, `template verify`       | 16            |
+| [2](#slice-2--verifying-one-file-against-its-template)           | The candidate shell, the file-scope constraint handlers, `template verify`       | 18            |
 | [3](#slice-3--the-negatives-for-the-shell-and-the-file-handlers) | Fifteen watched faults for what slices 1 and 2 added                             | none          |
 | [4](#slice-4--the-module-template)                               | The module template, the module-scope handlers, delegation to the kind templates | 9             |
 | [5](#slice-5--the-negatives-for-the-module-handlers)             | Nine watched faults for what slice 4 added                                       | none          |
@@ -88,7 +88,7 @@ below that disagrees.
   fixture helper alone spawns Git six times. Those arguments are part of the code. Do not drop them.
 - **Counts are relative.** Every count this packet states is "the number you recorded at the start
   of this slice, plus this slice's own additions". The planner's rehearsal observed 4, then 20, then
-  29 template tests on a clone of this branch; treat those as expected deltas of 4, 16 and 9, never
+  31 template tests on a clone of this branch; treat those as expected deltas of 4, 18 and 9, never
   as absolutes.
 - **Line numbers are not anchors.** Where this packet cites a line it is evidence from 2026-09-20,
   not a coordinate: find the code by its text.
@@ -275,18 +275,18 @@ TypeScript options, ESLint configuration and Prettier configuration.
     `twilight-bureaucrat:lint:source` both succeeded, and Prettier reported all files already
     formatted.
 14. **Observed, slice 2.** With slice 2's tests appended and slice 1's `verify.ts` still in place,
-    the file ran **5 pass, 15 fail**. The fifth pass is
+    the file ran **5 pass, 17 fail**. The fifth pass is
     `refuses an unknown candidate selection kind`: the slice 1 writer already refuses every shape
     that is not `list` or `show` with the same usage line, so that test cannot discriminate until
     P23 mutates `candidateRequest`. Section 2.2 states this, so it is not a surprise to stop on.
-15. **Observed, slice 2.** With section 6.5's `verify.ts`, the file ran **20 pass, 0 fail**;
+15. **Observed, slice 2.** With section 6.5's `verify.ts`, the file ran **22 pass, 0 fail**;
     typecheck, source lint and Prettier all clean.
 16. **Observed, slice 4.** With slice 4's nine tests appended and the two authorized edits made, and
-    slice 2's source still in place, the file ran **18 pass, 11 fail**: the nine module tests, plus
+    slice 2's source still in place, the file ran **20 pass, 11 fail**: the nine module tests, plus
     `lists every registered template in identifier order` and
     `refuses an unregistered template identifier and names every registered template`, which change
     because registering the module template changes both the listing and the refusal's registered
-    list. With section 6.7's additions the file ran **29 pass, 0 fail**.
+    list. With section 6.7's additions the file ran **31 pass, 0 fail**.
 17. **Observed.** After slice 4, `twilight-bureaucrat:typecheck`, `twilight-bureaucrat:lint:source`,
     `twilight-bureaucrat:build` and `nx format:check --all` all succeeded, `src/packaging/build.test.ts`
     passed 2 of 2 with slice 1's assertions, and `src/rules/rules.test.ts` was unchanged at 19.
@@ -383,21 +383,21 @@ is not one`; an absolute subject printed `subject must be a candidate-relative p
 
 ## 5. File plan, and what this packet does not own
 
-| Path                                                                              | Slices                                                | Responsibility                                                           |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
-| openspec/changes/twilight-bureaucrat-templates/.openspec.yaml                     | 1                                                     | `schema: sdd-lean`, `created: 2026-09-20`.                               |
-| openspec/changes/twilight-bureaucrat-templates/proposal.md                        | 1                                                     | Intent, at most 400 words.                                               |
-| openspec/changes/twilight-bureaucrat-templates/specs/bureaucrat-templates/spec.md | 1                                                     | The nine requirements of section 9.                                      |
-| openspec/changes/twilight-bureaucrat-templates/tasks.md                           | 1 creates, every slice ticks its own                  | The six slices, each naming its tests and its negatives.                 |
-| openspec/changes/twilight-bureaucrat-templates/verify.md                          | 1 creates, every slice fills its own rows             | The proof table of section 8 and the commands record.                    |
-| apps/wiki/cli/src/templates/template.ts                                           | 1 creates, 4 extends the union, 3 adds proof comments | The template model, its constraints and its pure readers.                |
-| apps/wiki/cli/src/templates/registry.ts                                           | 1 creates, 4 adds the module template                 | The templates, their skeletons, their constraints, and `selectTemplate`. |
-| apps/wiki/cli/src/templates/verify.ts                                             | 1 creates, 2 and 4 extend, 3 and 5 add proof comments | The command writers, the candidate shell, the constraint handlers.       |
-| apps/wiki/cli/src/templates/templates.test.ts                                     | 1 creates, 2 and 4 extend                             | Every template test.                                                     |
-| apps/wiki/cli/src/cli.ts                                                          | 1                                                     | One route block and one word in the usage line. Nothing else.            |
-| apps/wiki/cli/src/bin.ts                                                          | 1                                                     | One word in `validatorCommands` and one help line. Nothing else.         |
-| apps/wiki/cli/src/packaging/build.test.ts                                         | 1                                                     | Three assertions on the built executable.                                |
-| apps/wiki/cli/README.md                                                           | 6                                                     | One new `## Templates` section, appended at the end of the file.         |
+| Path                                                                              | Slices                                                      | Responsibility                                                           |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| openspec/changes/twilight-bureaucrat-templates/.openspec.yaml                     | 1                                                           | `schema: sdd-lean`, `created: 2026-09-20`.                               |
+| openspec/changes/twilight-bureaucrat-templates/proposal.md                        | 1                                                           | Intent, at most 400 words.                                               |
+| openspec/changes/twilight-bureaucrat-templates/specs/bureaucrat-templates/spec.md | 1                                                           | The nine requirements of section 9.                                      |
+| openspec/changes/twilight-bureaucrat-templates/tasks.md                           | 1 creates, every slice ticks its own                        | The six slices, each naming its tests and its negatives.                 |
+| openspec/changes/twilight-bureaucrat-templates/verify.md                          | 1 creates, every slice fills its own rows                   | The proof table of section 8 and the commands record.                    |
+| apps/wiki/cli/src/templates/template.ts                                           | 1 creates, 2 rewrites `lineComments`, 3 adds proof comments | The template model, its constraints and its pure readers.                |
+| apps/wiki/cli/src/templates/registry.ts                                           | 1 creates, 4 adds the module template                       | The templates, their skeletons, their constraints, and `selectTemplate`. |
+| apps/wiki/cli/src/templates/verify.ts                                             | 1 creates, 2 and 4 extend, 3 and 5 add proof comments       | The command writers, the candidate shell, the constraint handlers.       |
+| apps/wiki/cli/src/templates/templates.test.ts                                     | 1 creates, 2 and 4 extend                                   | Every template test.                                                     |
+| apps/wiki/cli/src/cli.ts                                                          | 1                                                           | One route block and one word in the usage line. Nothing else.            |
+| apps/wiki/cli/src/bin.ts                                                          | 1                                                           | One word in `validatorCommands` and one help line. Nothing else.         |
+| apps/wiki/cli/src/packaging/build.test.ts                                         | 1                                                           | Three assertions on the built executable.                                |
+| apps/wiki/cli/README.md                                                           | 6                                                           | One new `## Templates` section, appended at the end of the file.         |
 
 No other file is authorized.
 
@@ -451,11 +451,11 @@ K1 to K9 (assumptions A6 and A10): it resolves no import to a module and reads n
 A verification never certifies (`certifies: false`) and carries no mode: a finding refuses the
 artifact and the command exits 1.
 
-### 6.2 apps/wiki/cli/src/templates/template.ts — slice 1 creates this, slice 4 extends the union
+### 6.2 apps/wiki/cli/src/templates/template.ts — slice 1 creates this, complete
 
-Slice 1 writes this file exactly, except that the constraint union ends at `'sibling-test'`; the six
-module members and the trailing `;` are slice 4's edit (section 6.7). Everything else, `lineComments`
-included, lands in slice 1 and is not touched again.
+Slice 1 writes this file exactly, including the complete constraint union of eleven members. The
+module constraints exist in slice 1; their handlers and registered template arrive in slice 4.
+Everything else, `lineComments` included, lands in slice 1 and is not touched again.
 
 ```ts
 /** The artifact kinds Twilight Bureaucrat holds a template for in slice B5. */
@@ -1238,18 +1238,7 @@ after the line that documents `explain`. The line is, with two leading spaces:
 
 ### 6.7 Slice 4's additions
 
-**template.ts.** Replace the constraint union's last member, `| { readonly kind: 'sibling-test' };`,
-with:
-
-```ts
-  | { readonly kind: 'sibling-test' }
-  | { readonly kind: 'required-file'; readonly path: string }
-  | { readonly kind: 'index-sections'; readonly path: string; readonly sections: readonly string[] }
-  | { readonly kind: 'kind-file-present' }
-  | { readonly kind: 'test-present' }
-  | { readonly kind: 'files-stay-in-module'; readonly allowedDirectories: readonly string[] }
-  | { readonly kind: 'kind-files-follow-their-template' };
-```
+`template.ts` needs no slice 4 edit: the complete constraint union already exists.
 
 **registry.ts.** Insert this block immediately **before** `const templates: readonly Template[] = [`,
 and change that list to
@@ -1544,8 +1533,9 @@ A file whose name declares two kinds is skipped by the delegation branch and rep
 
 ### 1.4 Implementation
 
-- [ ] Create apps/wiki/cli/src/templates/template.ts, exactly section 6.2, **with the constraint
-      union ending at `| { readonly kind: 'sibling-test' };`**. The six module members are slice 4's.
+- [ ] Create `template.ts` with the complete section 6.2 code, including all eleven constraint
+      members. The module constraints exist in slice 1; their handlers and registered template
+      arrive in slice 4.
 - [ ] Create apps/wiki/cli/src/templates/registry.ts, exactly section 6.3.
 - [ ] Create apps/wiki/cli/src/templates/verify.ts, exactly section 6.4.
 - [ ] Make the two dispatcher edits of section 6.6.
@@ -1747,8 +1737,8 @@ Starts from the committed slice 1. Read section 0 in full first.
   ```
 
   Expected: exit 0. Write down **both** counts: the templates file (4 in the rehearsal) and the
-  candidate-reader file, which this slice must leave unchanged. This slice adds **16** template
-  tests, so the templates file ends at its recorded count plus 16.
+  candidate-reader file, which this slice must leave unchanged. This slice adds **18** template
+  tests, so the templates file ends at its recorded count plus 18.
 
 ### 2.2 Tests first
 
@@ -1763,14 +1753,19 @@ kind`, because slice 1's writer already refuses every shape that is not `list` o
 
 ### 2.3 Implementation
 
+- [ ] Before this slice's implementation, replace `template.ts`'s quote-skipping `lineComments`
+      walker with TypeScript parser-based comment extraction. Traverse the parsed nodes, collect
+      leading and trailing comment ranges, retain only `SingleLineCommentTrivia`, deduplicate by
+      source position, and return comments in source order. This edit belongs to this slice and its
+      handover, not slice 1's.
 - [ ] Replace apps/wiki/cli/src/templates/verify.ts with **exactly** section 6.5.
-- [ ] Rerun the focused templates file. Expected: the recorded count plus 16, 0 fail.
+- [ ] Rerun the focused templates file. Expected: the recorded count plus 18, 0 fail.
 - [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice introduces the
       file's types, so the type check belongs to it. Expected: exit 0.
 
 ### 2.4 Slice 2 verification, record and formatting
 
-Section 1.8's table, with the focused templates file at the recorded count plus 16 and the
+Section 1.8's table, with the focused templates file at the recorded count plus 18 and the
 candidate-reader file at its own recorded count, and with these steps, which are this slice's own:
 
 - [ ] Tick **only slice 2's** boxes in tasks.md and write this slice's commands, statuses and
@@ -2011,6 +2006,48 @@ describe('template verify, one file', () => {
         message: 'file states 0 @capability tags, expected exactly 1',
       },
     ]);
+  }, 30_000);
+
+  test('does not count a fake declaration inside a nested template literal', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `const quoted = \`outer \${\`\n// @capability fake\n\`} tail\`;\nexport const sample = quoted;\n`,
+    );
+    const revision = commit(repository, 'a fake tag inside a nested template');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  test('counts a genuine declaration inside a template interpolation', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `import type { Widget } from './contract';\n\nconst label = \`outer \${(() => {\n// @capability widget-editing\nreturn 'inner';\n})()} tail\`;\nexport function createWidget(): Widget {\n  return { ready: true };\n}\n`,
+    );
+    const revision = commit(repository, 'a real declaration inside an interpolation');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verificationOf(invocation).findings).toEqual([]);
   }, 30_000);
 
   test('reports a side-effect import of a repository and ignores comments and strings', () => {
@@ -2263,7 +2300,8 @@ describe('the template record drives verification', () => {
 
 Commit subject: `feat(bureaucrat): verify one file against its template`.
 
-Files: apps/wiki/cli/src/templates/verify.ts, apps/wiki/cli/src/templates/templates.test.ts,
+Files: apps/wiki/cli/src/templates/verify.ts, apps/wiki/cli/src/templates/template.ts,
+apps/wiki/cli/src/templates/templates.test.ts,
 openspec/changes/twilight-bureaucrat-templates/tasks.md,
 openspec/changes/twilight-bureaucrat-templates/verify.md.
 
@@ -2351,13 +2389,13 @@ Starts from the committed slice 3.
   - in `refuses an unregistered template identifier and names every registered template`, the
     expected substring becomes
     `unknown template: NO-SUCH-TEMPLATE (registered: feature-service, module, repository, resource-service)`.
-- [ ] Run the focused file. Expected, observed in the rehearsal: **18 pass, 11 fail** — the nine new
+- [ ] Run the focused file. Expected, observed in the rehearsal: **20 pass, 11 fail** — the nine new
       tests and the two edited ones. Record the failing lines.
 
 ### 4.3 Implementation
 
-- [ ] Apply section 6.7's three additions, in order: the constraint union in template.ts, the module
-      template in registry.ts, the module scope and its handlers in verify.ts.
+- [ ] Apply section 6.7's two additions, in order: the module template in registry.ts, the module
+      scope and its handlers in verify.ts. `template.ts` needs no edit.
 - [ ] Rerun the focused file. Expected: the recorded count plus 9, 0 fail.
 - [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice widens a
       discriminated union and a function's parameter type, so the type check belongs to it.
@@ -2386,8 +2424,8 @@ steps, which are this slice's own:
 
 Commit subject: `feat(bureaucrat): verify a module directory against the module template`.
 
-Files: apps/wiki/cli/src/templates/template.ts, apps/wiki/cli/src/templates/registry.ts,
-apps/wiki/cli/src/templates/verify.ts, apps/wiki/cli/src/templates/templates.test.ts,
+Files: apps/wiki/cli/src/templates/registry.ts, apps/wiki/cli/src/templates/verify.ts,
+apps/wiki/cli/src/templates/templates.test.ts,
 openspec/changes/twilight-bureaucrat-templates/tasks.md,
 openspec/changes/twilight-bureaucrat-templates/verify.md.
 
@@ -2854,11 +2892,11 @@ executed there; the shared planning worktree was never used for execution.
 
 | Finding                                                               | Disposition            | What changed in the steps, the code and the tables                                                                                                                                                                                                                                                                                  |
 | --------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C1 the red run cannot register its tests (static import)              | **Fixed** (reproduced) | The two pure tests now use `await import('./verify')` inside the test body (§2.6, fact 28). Rehearsed: slice 2's red run reads 5 pass, 15 fail instead of refusing the file.                                                                                                                                                        |
-| C2 registering `module` breaks an assertion the executor may not edit | **Fixed** (reproduced) | §4.2 now authorizes and prescribes **two** edits — the listing expectation and the unknown-template message — and states the red run as 18 pass, 11 fail, which the rehearsal observed.                                                                                                                                             |
+| C1 the red run cannot register its tests (static import)              | **Fixed** (reproduced) | The two pure tests now use `await import('./verify')` inside the test body (§2.6, fact 28). Rehearsed: slice 2's red run reads 5 pass, 17 fail instead of refusing the file.                                                                                                                                                        |
+| C2 registering `module` breaks an assertion the executor may not edit | **Fixed** (reproduced) | §4.2 now authorizes and prescribes **two** edits — the listing expectation and the unknown-template message — and states the red run as 20 pass, 11 fail, which the rehearsal observed.                                                                                                                                             |
 | C3 P13's mutation cannot compile                                      | **Fixed** (reproduced) | `return [];` alone is `TS2322`. §5.2 prescribes changing the annotation to `TemplateFinding[]` **and** the body; compiled and watched failing with `Received function did not throw`. §8's claim is now "compiled during the rehearsal", per fault.                                                                                 |
 | C4 P16's mutation fails strict compilation                            | **Fixed** (reproduced) | `const absent = [];` is `TS7034`/`TS7005`. §5.2 prescribes `const absent: string[] = [];`, compiled and watched failing.                                                                                                                                                                                                            |
-| I1 the optional scope test is deterministically deferred              | **Fixed**              | The complete constraint union now lands in slice 1 (§6.2, §1.4), so the scope test compiles and fails in slice 2's red run. The compiler-dependent branch and the slice-5 arrival are gone; slice 2's addition is a fixed 16.                                                                                                       |
+| I1 the optional scope test is deterministically deferred              | **Fixed**              | The complete constraint union now lands in slice 1 (§6.2, §1.4), so the scope test compiles and fails in slice 2's red run. The compiler-dependent branch and the slice-5 arrival are gone; slice 2's addition is a fixed 18.                                                                                                       |
 | I2 declaration text in strings and block comments counts              | **Fixed** (reproduced) | `taggedValues` now reads real line comments through a new `lineComments` walk (§6.2). A new test, `counts a declaration tag only when it is a real line comment`, covers a template literal and a block comment; P24 is its watched fault. The regular-expression limit on regular-expression literals is assumption A11 and JSDoc. |
 | I3 malformed files pass the advertised parse boundary                 | **Fixed** (reproduced) | `decodeArtifact` now parses **every** selected TypeScript file (§6.5). A new module test, `refuses a module whose contract does not parse`, covers a malformed contract and test file; P25 is its watched fault. Requirement 9 states the widened promise.                                                                          |
 | I4 the proof inventory omits new refusals                             | **Fixed**              | P22 (unknown action) and P23 (invalid selection kind) join §8 and §3.2, with a new test for the selection kind. Both were compiled and watched failing.                                                                                                                                                                             |
