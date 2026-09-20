@@ -6192,7 +6192,6 @@ describe('the height the panel is drawn at', () => {
   itDom('keeps its bounded default share while nothing has been dragged', () => {
     const panel = panelAt(null);
     expect(panel.classList.contains('max-h-[40vh]')).toBe(true);
-    expect(panel.classList.contains('will-change-scroll')).toBe(true);
     expect(panel.style.height).toBe('');
   });
 

@@ -1691,9 +1691,6 @@ export const PLAN_TERMINAL_ALLOWANCE = '13rem';
 
 export const TABLE_FRAME: CSSProperties = {
   overflow: 'auto',
-  // Keep wheel motion on the compositor: this frame and the linked chart move
-  // together, and repainting either large surface defeats windowed React work.
-  willChange: 'scroll-position',
   flex: '0 1 auto',
   minHeight: '20rem',
   paddingBottom: PLAN_TERMINAL_ALLOWANCE,

@@ -5191,7 +5191,7 @@ function GanttChart({
         // rather than raised: it is a number dragged against a page that is not
         // on screen, and the handle that set it is behind the overlay.
         className={cn(
-          'border-border isolate overflow-auto border-t will-change-scroll',
+          'border-border isolate overflow-auto border-t',
           fullScreen ? 'min-h-0 flex-1' : 'shrink-0',
           !fullScreen && heightPx === null && 'max-h-[40vh]',
         )}
