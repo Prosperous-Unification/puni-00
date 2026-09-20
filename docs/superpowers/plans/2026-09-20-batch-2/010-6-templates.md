@@ -46,7 +46,7 @@ the planner reviews and commits, the next slice starts from that commit.
 | [1](#slice-1--openspec-change-registry-list-and-show)            | The OpenSpec change, the template model, three kind templates, `list`, `show`    | 4             |
 | [2](#slice-2--verifying-one-file-against-its-template)           | The candidate shell, the file-scope constraint handlers, `template verify`       | 18            |
 | [3](#slice-3--the-negatives-for-the-shell-and-the-file-handlers) | Fifteen watched faults for what slices 1 and 2 added                             | none          |
-| [4](#slice-4--the-module-template)                               | The module template, the module-scope handlers, delegation to the kind templates | 9             |
+| [4](#slice-4--the-module-template)                               | The module template, the module-scope handlers, delegation to the kind templates | 11            |
 | [5](#slice-5--the-negatives-for-the-module-handlers)             | Nine watched faults for what slice 4 added                                       | none          |
 | [6](#slice-6--readme-record-and-format)                          | The README section, the verification record, the final checks                    | none          |
 
@@ -142,9 +142,11 @@ For every proof, in this order:
 test that passes under its fault, a different message, an unrelated failure — copy the saved bytes
 back and `cmp` them before writing the report.
 
-**A fault that also fails other tests is not a stop.** Record which ones. It is a stop only when the
-named test **passes** under the fault, fails with a **different** message than this packet predicts,
-or the mutation does not compile.
+**A fault that also fails other tests is not a stop.** Record which ones. The matcher is not the
+requirement; the fact is: a proof is accepted when the **named** test fails at the assertion about
+the row's fact, whatever matcher it used (executor preamble rule 20). It is a stop only when the
+named test **passes** under the fault, does not fail about the row's fact, or the mutation does not
+compile — restore, check the function and expression the row names, redo once, and report both.
 
 ### 0.5 Two standing facts about this package
 
@@ -279,12 +281,15 @@ TypeScript options, ESLint configuration and Prettier configuration.
     P23 mutates `candidateRequest`. Section 2.2 states this, so it is not a surprise to stop on.
 15. **Observed, slice 2.** With section 6.5's `verify.ts`, the file ran **22 pass, 0 fail**;
     typecheck, source lint and Prettier all clean.
-16. **Observed, slice 4.** With slice 4's nine tests appended and the two authorized edits made, and
-    slice 2's source still in place, the file ran **20 pass, 11 fail**: the nine module tests, plus
+16. **Observed, this dispatch, 2026-09-20.** With slice 4's eleven tests appended (the three-title
+    loop of §4.6 included) and the two authorized edits made, and slice 2's source still in place,
+    the file ran **20 pass, 13 fail**: the eleven module tests, plus
     `lists every registered template in identifier order` and
     `refuses an unregistered template identifier and names every registered template`, which change
     because registering the module template changes both the listing and the refusal's registered
-    list. With section 6.7's additions the file ran **31 pass, 0 fail**.
+    list. With section 6.7's additions the file ran **33 pass, 0 fail**. `twilight-bureaucrat:typecheck`
+    and `bunx eslint` on the three touched files both succeeded, and
+    `src/packaging/build.test.ts` passed 2 of 2.
 17. **Observed.** After slice 4, `twilight-bureaucrat:typecheck`, `twilight-bureaucrat:lint:source`,
     `twilight-bureaucrat:build` and `nx format:check --all` all succeeded, `src/packaging/build.test.ts`
     passed 2 of 2 with slice 1's assertions, and `src/rules/rules.test.ts` was unchanged at 19.
@@ -1913,7 +1918,13 @@ function commit(repository: string, message: string): string {
   return runGit(repository, ['rev-parse', 'HEAD']);
 }
 
-/** A module directory that satisfies every requirement of every template. */
+/**
+ * A module directory that satisfies every requirement of every template.
+ *
+ * `helper.ts` is a plain support file: it declares no kind by its suffix and no declaration tag,
+ * so it satisfies every module-scope constraint and exists only so slice 4's malformed-support-file
+ * test has a support file to corrupt.
+ */
 function createConformingCandidate(): { repository: string; revision: string } {
   const repository = initFixture('twilight-templates-');
   write(repository, 'src/modules/widget/README.md', conformingReadme);
@@ -1934,6 +1945,7 @@ function createConformingCandidate(): { repository: string; revision: string } {
     'src/modules/widget/widget.feature.test.ts',
     "import { test } from 'bun:test';\ntest('gesture', () => {});\n",
   );
+  write(repository, 'src/modules/widget/helper.ts', 'export function helper(): void {}\n');
   write(repository, 'src/modules/widget/view/use-widget.ts', 'export const view = 1;\n');
   return { repository, revision: commit(repository, 'fixture') };
 }
@@ -2415,8 +2427,9 @@ Commit subject: `test(bureaucrat): watch every file-scope template check fail`.
 
 ### 3.5 Slice 3 stop conditions
 
-1. Any named test passes under its fault, fails with a different message, or the mutation does not
-   compile — restore first, then report (section 0.4).
+1. Any named test passes under its fault, does not fail about the row's fact (the matcher is not the
+   requirement; the fact is — executor preamble rule 20), or the mutation does not compile — restore
+   first, then report (section 0.4).
 2. The focused file's count differs from the slice 2 count at any point.
 
 ---
@@ -2428,11 +2441,11 @@ Starts from the committed slice 3.
 ### 4.1 Preparation
 
 - [ ] Run section 0.6's block, then the focused templates file. Expected: the slice 2 count,
-      unchanged. **Record it**; this slice adds **9** tests, so it ends at that count plus 9.
+      unchanged. **Record it**; this slice adds **11** tests, so it ends at that count plus 11.
 
 ### 4.2 Tests first, including two authorized edits
 
-- [ ] Append section 4.6's describe block: 9 tests.
+- [ ] Append section 4.6's describe block: 11 tests.
 - [ ] Make the **two** edits this packet authorizes to existing tests, and no others. Registering a
       fourth template changes both the listing and the refusal message, and the executor may not
       leave either failing:
@@ -2442,14 +2455,21 @@ Starts from the committed slice 3.
   - in `refuses an unregistered template identifier and names every registered template`, the
     expected substring becomes
     `unknown template: NO-SUCH-TEMPLATE (registered: feature-service, module, repository, resource-service)`.
-- [ ] Run the focused file. Expected, observed in the rehearsal: **20 pass, 11 fail** — the nine new
-      tests and the two edited ones. Record the failing lines.
+- [ ] Run the focused file. Let N be the focused template-test baseline recorded in §4.1. This slice
+      adds eleven tests and changes the two authorized registry expectations. Expected: exit 1, N−2
+      passes and thirteen failures — the eleven new tests and the two edited registry tests. On the
+      committed slice 2 baseline (N = 22) this is 20 pass, 13 fail. Record the failing lines.
 
 ### 4.3 Implementation
 
 - [ ] Apply section 6.7's two additions, in order: the module template in registry.ts, the module
       scope and its handlers in verify.ts. `template.ts` needs no edit.
-- [ ] Rerun the focused file. Expected: the recorded count plus 9, 0 fail.
+- [ ] Add one line to `createConformingCandidate` in section 2.6 (and in the file): write
+      `src/modules/widget/helper.ts`, a plain support file with no kind suffix and no declaration
+      tag, so a malformed-support-file test has a file to corrupt. The conforming candidate still
+      conforms: an unsuffixed file declares no kind and satisfies every module-scope constraint.
+- [ ] Rerun the focused file. Expected: the recorded count plus 11, 0 fail — after implementation,
+      N+11 passes and zero failures.
 - [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice widens a
       discriminated union and a function's parameter type, so the type check belongs to it.
       Expected: exit 0.
@@ -2465,11 +2485,13 @@ Starts from the committed slice 3.
 
 ### 4.4 Slice 4 verification, record and formatting
 
-Section 1.8's table, with the focused templates file at the recorded count plus 9, plus these
+Section 1.8's table, with the focused templates file at the recorded count plus 11, plus these
 steps, which are this slice's own:
 
 - [ ] Tick **only slice 4's** boxes in tasks.md and write this slice's commands, statuses and
-      decisive lines into verify.md, leaving every earlier slice's rows as they are.
+      decisive lines into verify.md, leaving every earlier slice's rows as they are. Evidence
+      references in verify.md are basenames relative to the attempt's evidence directory (for
+      example `P25-contract.log`), never absolute clone or temporary paths: the record is published.
 - [ ] Format this slice's own files, run `NX_DAEMON=false bunx nx format:check --all`, then compare
       `git status --short --untracked-files=all` with section 4.5's list.
 
@@ -2618,18 +2640,28 @@ describe('template verify, one module', () => {
     ]);
   }, 30_000);
 
-  test('refuses a module whose contract does not parse', () => {
-    const { repository } = createConformingCandidate();
-    write(repository, 'src/modules/widget/contract.ts', 'export const = ;\n');
-    write(repository, 'src/modules/widget/widget.feature.test.ts', 'export const = ;\n');
-    const revision = commit(repository, 'a malformed contract and test');
-    const invocation = verify('module', repository, revision, 'src/modules/widget');
-    expect(invocation.exitCode).toBe(1);
-    expect(stderrOf(invocation)).toContain(
-      'cannot scan the imports of src/modules/widget/contract.ts',
+  for (const [name, path] of [
+    ['refuses a module whose contract does not parse', 'src/modules/widget/contract.ts'],
+    ['refuses a module whose support file does not parse', 'src/modules/widget/helper.ts'],
+    [
+      'refuses a module whose test file does not parse',
+      'src/modules/widget/widget.feature.test.ts',
+    ],
+  ] as const) {
+    test(
+      name,
+      () => {
+        const { repository } = createConformingCandidate();
+        write(repository, path, 'export const = ;\n');
+        const revision = commit(repository, 'one malformed file');
+        const invocation = verify('module', repository, revision, 'src/modules/widget');
+        expect(invocation.exitCode).toBe(1);
+        expect(stderrOf(invocation)).toContain('cannot scan the imports of ' + path);
+        expect(stdoutOf(invocation)).toBe('');
+      },
+      30_000,
     );
-    expect(stdoutOf(invocation)).toBe('');
-  }, 30_000);
+  }
 
   test("observes this repository's directory module at its committed revision", () => {
     const invocation = verify(
@@ -2659,8 +2691,8 @@ rather than editing the expectation.**
 
 ### 4.7 Slice 4 stop conditions
 
-1. Any new test passes before the implementation lands, or a test other than the eleven named in
-   section 4.2 fails in the red run.
+1. Any new test passes before the implementation lands, or the red run fails a test other than the
+   eleven new module tests and the two authorized registry tests.
 2. The observation test's finding set differs from section 3's fact 20.
 3. The type check reports an error section 6.7 does not contain.
 
@@ -2687,10 +2719,21 @@ Starts from the committed slice 4. Adds no test and changes no behaviour.
 | P19 | `files-stay-in-module`                   | Replace the filter's condition with `segments.length > 3`                                                                                               | `reports a file that sits below the module directory`                   | `Expected: 1 Received: 0`                                                                                |
 | P20 | The module wiring of `one-kind-per-file` | Pass `[]` instead of `files` to `oneKindFindings` in `moduleFindings`                                                                                   | `reports a module file that declares two kinds`                         | `Expected: 1 Received: 0`                                                                                |
 | P21 | Delegation to the kind templates         | Insert `.slice(0, 0)` after `kindFilesOf(files)` in the delegation case                                                                                 | `reports a kind file inside a module that breaks its own template`      | `Expected: 1 Received: 0`                                                                                |
-| P25 | The whole-file parse boundary            | Delete `if (path.endsWith('.ts')) importSpecifiers(text, path);` from `decodeArtifact`                                                                  | `refuses a module whose contract does not parse`                        | `Expected: 1 Received: 0` — the module verifies as conforming                                            |
+| P25 | The whole-file parse boundary            | Delete `if (path.endsWith('.ts')) importSpecifiers(text, path);` from `decodeArtifact`                                                                  | three titles — see the note below                                       | `Expected: 1 Received: 0` for each — the module verifies as conforming                                   |
 
 P15, P17 and P18 name the same test, which asserts the whole finding list; each fault removes a
 different part of it, and the failing output names which. Record all three separately.
+
+P25 names three tests, not one: `refuses a module whose contract does not parse`, `refuses a module
+whose support file does not parse` and `refuses a module whose test file does not parse`. After
+injecting the one fault, compile it, save `P25.patch`, and run each title **separately** with `-t`
+using the test title alone — never Bun's printed `>` describe-plus-title form. Each invocation must
+select exactly one test and fail because the malformed module was accepted: Bun 1.4.2 reports
+`Expected: 1` / `Received: 0`. Save the three outputs as `P25-contract.log`, `P25-support.log` and
+`P25-test.log`. Restore the saved bytes, `cmp` them, and rerun the whole focused file green before
+writing the adjacent `Proof:` comment, which names all three observed failures. A boundary that skips
+parsing only `.test.ts` files must still fail the independent test-file case; if it does not, the
+boundary is still too narrow and the packet, not the test, is wrong.
 
 ### 5.3 Slice 5 verification, record and formatting
 
@@ -2698,7 +2741,10 @@ different part of it, and the failing output names which. Record all three separ
 - [ ] Run the type check, `lint:source`, this slice's Prettier write and
       `NX_DAEMON=false bunx nx format:check --all`, and the OpenSpec validation block.
 - [ ] Fill the `Observed failure` cells of **P13, P15 to P21 and P25** in verify.md with what you
-      saw, tick **slice 5's** boxes in tasks.md, and leave every earlier row untouched.
+      saw — P25's cell records all three observations, `P25-contract.log`, `P25-support.log` and
+      `P25-test.log` — tick **slice 5's** boxes in tasks.md, and leave every earlier row untouched.
+      Evidence references in verify.md are basenames relative to the attempt's evidence directory,
+      never absolute clone or temporary paths: the record is published.
 - [ ] Compare `git status --short --untracked-files=all` with: apps/wiki/cli/src/templates/verify.ts,
       openspec/changes/twilight-bureaucrat-templates/tasks.md and
       openspec/changes/twilight-bureaucrat-templates/verify.md.
@@ -2709,8 +2755,9 @@ Commit subject: `test(bureaucrat): watch every module-scope template check fail`
 
 ### 5.5 Slice 5 stop conditions
 
-1. Any named test passes under its fault, fails with a different message, or the mutation does not
-   compile — restore first, then report.
+1. Any named test passes under its fault, does not fail about the row's fact (the matcher is not the
+   requirement; the fact is — executor preamble rule 20), or the mutation does not compile — restore
+   first, then report.
 2. The focused file's count differs from the slice 4 count.
 
 ---
@@ -2993,3 +3040,23 @@ and interpolation `bun -e` probes all matched the review's predictions, `bunx es
 apps/wiki/cli/src/templates/template.ts` reported nothing, and `NX_DAEMON=false bunx nx run
 twilight-bureaucrat:typecheck` exited 0. The supplied code needed no correction. The rehearsal was
 fully reverted; `git status --short --untracked-files=all` showed only this packet before commit.
+
+### Disposition of the slices 3, 4 and 5 dispatch review
+
+`puni-plan/reviews-batch-2/010-6-templates.review345.md` (verdict: DISPATCH AFTER FIXES for slices 4
+and 5) found one blocking problem and several non-blocking notes. Every finding was checked against
+a real rehearsal of slice 4 in this clone; the rehearsal was fully reverted before this commit.
+
+| Finding                                                                                                                                                                      | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | What changed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocking — §4.6 and §5.2 P25: malformed contract content masks malformed test content; support content untested                                                              | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §4.6's single "malformed contract" test is replaced by the review's three-title loop, one fresh `createConformingCandidate()` per title, corrupting only `contract.ts`, `helper.ts` or `widget.feature.test.ts` respectively. §4.2's red-run expectation now reads "N−2 passes and thirteen failures" before implementation and "N+11 passes and zero failures" after. "Eleven" now appears in §0.1, §4.1, §4.2's first checkbox, §4.3–§4.4 ("plus 11"), and this attempt's fact 16. §4.7's first stop condition names "the eleven new module tests and the two authorized registry tests". §5.2's P25 row and the note beneath it now name all three titles, the three separate `-t` runs, and the three log basenames (`P25-contract.log`, `P25-support.log`, `P25-test.log`); §5.3 says P25's cell records all three observations. |
+| The fixture question                                                                                                                                                         | **Answered — the fixture was missing the file, and is now added.** `createConformingCandidate()` (§2.6) already wrote `src/modules/widget/widget.feature.test.ts`, but wrote no plain support file. Without one, the new support-file test would have corrupted a path the fixture never creates. §2.6 now also writes `src/modules/widget/helper.ts` (a plain file with no kind suffix and no declaration tag), and §4.3 tells the executor to add this one line to the already-existing `createConformingCandidate` when implementing slice 4 — the function is defined by slice 2 but extended by slice 4, per the ownership table. The conforming candidate still conforms: an unsuffixed file declares no kind and satisfies every module-scope constraint, confirmed by the rehearsed green run. |
+| Non-blocking — the matcher rule is not shared consistently (§0.4, §3.5, §5.5 still prescribed a literal-message stop)                                                        | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §0.4's "fault that also fails other tests" paragraph, §3.5's first stop condition and §5.5's first stop condition now defer to "the matcher is not the requirement; the fact is" (executor preamble rule 20): a proof is accepted when the named test fails at the assertion about the row's fact, and a mutation that leaves the named test passing is first a location mistake — restore, check the function and expression the row names, redo once, report both.                                                                                                                                                                                                                                                                                                                                                                  |
+| Non-blocking — evidence basenames                                                                                                                                            | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §4.4 and §5.3 now state the basenames rule explicitly (previously only §2.4 did), matching the already-fixed slice 2 wording.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Non-blocking — all prescribed slice 3/5 mutations behaved as predicted (P1–P24 except P25)                                                                                   | **Not re-verified in this dispatch; unaffected.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | This dispatch's rehearsal touched only the module template, its verify.ts handlers, the eleven tests and P25 — the only places this fix changes. Slice 3 is already committed and untouched; slice 5's other eight mutations (P13, P15–P21) are unaffected by this fix and were not re-run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Non-blocking — packaging needs no edit                                                                                                                                       | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `src/packaging/build.test.ts` passed 2 of 2 with the module template registered, matching the review's `toContain('repository')` analysis.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Non-blocking — pins (workspace-inventory counts, namespacing digest)                                                                                                         | **Confirmed, indirectly.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | This fix adds no project/TypeScript configuration and no new template file; `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache` was run after the revert and is recorded in this attempt's report to the caller.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Planner checklist — slice 4 finishes at baseline+11; only the two authorized registry expectations change                                                                    | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Red: 20 pass, 13 fail on the N = 22 baseline. Green: 33 pass, 0 fail.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Planner checklist — contract, support and test-file refusals each use a fresh candidate with one malformed file, asserting its own path and empty stdout                     | **Confirmed by rehearsal and by reading the code.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Each of the three loop iterations calls `createConformingCandidate()` independently and asserts `stderrOf(invocation)).toContain('cannot scan the imports of ' + path)` and `stdoutOf(invocation)).toBe('')`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Planner checklist — replay all three P25 runs; a boundary that skips `.test.ts` parsing must fail the independent test-file case                                             | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Deleting the whole-file parse line made all three titles fail independently, each selecting exactly one test with `Expected: 1` / `Received: 0`. The review's own weakening — skip parsing only `.test.ts` files — left the contract and support titles passing but failed exactly the test-file title with the same assertion, closing the gap the review found.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Planner checklist — replay slice 3's fifteen proofs; verify the committed `directory` module; run the packaged executable and the planner-only Bureaucrat and devsync suites | **Not run in this dispatch.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Slice 3 is already committed and this fix does not touch it. The `directory` module observation (the eleventh test) passed unchanged in this rehearsal, reporting exactly the `resource.term` finding fact 20 records. The whole `twilight-bureaucrat:test` target, the packaged executable's own CLI invocation, and the planner-only devsync suite beyond `tool-devsync:test` were not run here; this attempt's report to the caller states what was and was not run.                                                                                                                                                                                                                                                                                                                                                               |
