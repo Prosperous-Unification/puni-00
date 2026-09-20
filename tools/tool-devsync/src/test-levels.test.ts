@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+  ADOPTED_CAPABILITY,
   AGGREGATE_TARGETS,
   collectedFiles,
   conformanceFilesIn,
@@ -9,7 +10,10 @@ import {
   levelOf,
   parseLevelCommand,
   readManifest,
+  readSpec,
   reportPathFrom,
+  scenarioIdentifiers,
+  scenariosWithoutIdentifier,
   TEST_TARGET_NAME,
   testFilesInProject,
   testFilesUnder,
@@ -203,5 +207,39 @@ describe('declared level targets', () => {
         "mkdir -p ../tmp/junit && bun test $(find src -name '*.db.test.ts') --test-name-pattern=NO_MATCH --reporter=junit",
       ),
     ).toThrow('may not pass --test-name-pattern=NO_MATCH');
+  });
+});
+
+describe('the adopted capability', () => {
+  it('leaves no scenario without an identifier', async () => {
+    // Proof (C-3): removing PROJECT-ASSIGNMENT-READS-002 from the specification failed this case,
+    // receiving "Assignment write among unrelated projects" instead of an empty list (2026-09-20).
+    expect(scenariosWithoutIdentifier(await readSpec(ADOPTED_CAPABILITY))).toEqual([]);
+  });
+
+  it('allocates the identifiers once and in order', async () => {
+    expect(scenarioIdentifiers(await readSpec(ADOPTED_CAPABILITY))).toEqual([
+      'PROJECT-ASSIGNMENT-READS-001',
+      'PROJECT-ASSIGNMENT-READS-002',
+      'PROJECT-ASSIGNMENT-READS-003',
+    ]);
+  });
+
+  it('refuses a specification that holds no scenario', () => {
+    expect(() => scenariosWithoutIdentifier('### Requirement: alone\n')).toThrow(
+      'no `#### Scenario:`',
+    );
+  });
+
+  it('refuses a specification that holds no requirement', () => {
+    expect(() => scenariosWithoutIdentifier('#### Scenario: [DEMO-001] a\n')).toThrow(
+      'no `### Requirement:`',
+    );
+  });
+
+  it('refuses a specification whose scenario carries no identifier', () => {
+    expect(() =>
+      scenarioIdentifiers('### Requirement: one\n#### Scenario: [DEMO-001] a\n#### Scenario: b\n'),
+    ).toThrow('these scenarios carry no identifier: b');
   });
 });

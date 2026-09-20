@@ -100,13 +100,13 @@ function expectBoundedReads(): void {
 }
 
 describe('project-scoped assignment reads', () => {
-  it('materializes only assigned project rows and names during a tiny tree read', async () => {
+  it('[PROJECT-ASSIGNMENT-READS-001] materializes only assigned project rows and names during a tiny tree read', async () => {
     const tree = await service.tree('project-0');
     expect(tree?.assignedPeople).toEqual([{ id: 'person-0', name: 'person-0' }]);
     expectBoundedReads();
   });
 
-  it('uses an indexed prior assignment read during one assignment write', async () => {
+  it('[PROJECT-ASSIGNMENT-READS-002] uses an indexed prior assignment read during one assignment write', async () => {
     expect(await service.assign('work-0', 'owner', 'step-0', null)).toEqual({
       ok: true,
       value: null,

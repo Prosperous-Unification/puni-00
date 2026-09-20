@@ -270,3 +270,61 @@ export function collectedFiles(root: string, selector: string): readonly string[
 export function reportPathFrom(root: string, report: string): string {
   return `${'../'.repeat(root.split('/').length)}${report}`;
 }
+
+/* ─── slice C adds everything below this line ─────────────────────────────── */
+
+/** The capability whose scenarios this increment allocates identifiers for. */
+export const ADOPTED_CAPABILITY = 'project-assignment-reads';
+
+/** The shape of every scenario identifier: the capability's name, then an ordinal. */
+export const SCENARIO_IDENTIFIER = /^\[([A-Z][A-Z0-9-]*-\d{3})\] \S/;
+
+/** @throws when `specMarkdown` holds no requirement or no scenario heading. */
+function assertSpecification(specMarkdown: string): void {
+  // Proof (C-4): deleting this guard failed "refuses a specification that holds no requirement"
+  // with `Received function did not throw` and `Received value: []` (2026-09-20).
+  if (!/^### Requirement: /m.test(specMarkdown)) {
+    throw new Error('the capability specification holds no `### Requirement:` heading');
+  }
+  // Proof (C-1): deleting this guard failed "refuses a specification that holds no scenario"
+  // with `Received function did not throw` and `Received value: []` (2026-09-20).
+  if (!/^#### Scenario: /m.test(specMarkdown)) {
+    throw new Error('the capability specification holds no `#### Scenario:` heading');
+  }
+}
+
+/** Scenario headings of one capability specification that carry no identifier. */
+export function scenariosWithoutIdentifier(specMarkdown: string): readonly string[] {
+  assertSpecification(specMarkdown);
+  return [...specMarkdown.matchAll(/^#### Scenario: (.*)$/gm)]
+    .filter(([, title]) => !SCENARIO_IDENTIFIER.test(title))
+    .map(([, title]) => title);
+}
+
+/**
+ * Scenario identifiers of one capability specification, in document order.
+ *
+ * @throws when the text is not a capability specification, or when any scenario
+ * heading carries no identifier. A ledger that silently skips the scenarios it
+ * cannot name reports full coverage over a specification it never read.
+ */
+export function scenarioIdentifiers(specMarkdown: string): readonly string[] {
+  const unidentified = scenariosWithoutIdentifier(specMarkdown);
+  // Proof (C-2): deleting this guard failed "refuses a specification whose scenario carries no
+  // identifier" with `Received function did not throw` and `[ "DEMO-001" ]` (2026-09-20).
+  if (unidentified.length > 0) {
+    throw new Error(`these scenarios carry no identifier: ${unidentified.join('; ')}`);
+  }
+  return [...specMarkdown.matchAll(/^#### Scenario: \[([A-Z][A-Z0-9-]*-\d{3})\]/gm)].map(
+    ([, id]) => id,
+  );
+}
+
+/**
+ * One capability specification, read from the workspace.
+ *
+ * @throws when the specification is absent or unreadable.
+ */
+export async function readSpec(capability: string): Promise<string> {
+  return readFile(new URL(`openspec/specs/${capability}/spec.md`, WORKSPACE), 'utf8');
+}
