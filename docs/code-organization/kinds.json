@@ -1,0 +1,185 @@
+{
+  "reviewed": "2026-09-20",
+  "entries": [
+    {
+      "path": "apps/wbs/be-01/src/service/assumed-assignee.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/assumed-assignee directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/auth.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/auth.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/broadcast.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/broadcast directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/calendar-marker.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/calendar-marker.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/capacity.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/capacity.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/clean-name.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/clean-name directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/compensating.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/compensating directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/dependency.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/dependency directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/directory-usage.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/directory-usage directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/directory.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/gateway-broadcaster.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/history.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/login-throttle.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/login-throttle directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimizer-trigger-broadcaster.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/plan-command.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/plan-command directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/plan-commands.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/plan-commands directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/priority-band.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/priority-band.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/project.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/project.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/push-client.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/runtime-portable directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/replay-buffer.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/replay-orchestrator.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/retention-job.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/retention-timer.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/roll-up.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/roll-up directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-default-name.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-input.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-integrity.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-quota.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-retry.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-schedule-body.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan-schedule.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/saved-plan.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/smoke.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/smoke.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/step.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/step.service directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/unit-of-work.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/work-item.service.ts",
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core/service/work-item.service directly"
+    }
+  ]
+}
