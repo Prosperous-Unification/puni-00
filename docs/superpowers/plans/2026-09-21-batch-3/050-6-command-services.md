@@ -130,13 +130,13 @@ the same churn or less, because the memo's dependencies are a superset of `{api,
 
 ### 4.4 Rules F1, K2, K3, K4 and K6, and where each is met
 
-| Rule | Requirement                                                    | Where it is met                                                                                               |
-| ---- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| F1   | A service file never imports React                             | The four module files import only `@/lib/*` and each other; both suites run under `--environment node`.       |
-| K2   | Delivery imports feature-services only                         | `use-plan-read.ts` imports `composition.ts` and `contract.ts`, and no `.resource` file.                       |
-| K3   | A feature imports resource-services, never a repository        | `calendar-markers.feature.ts` imports `calendar-markers.resource.ts` and nothing below it.                    |
-| K4   | A resource imports repository ports, never a feature           | `calendar-markers.resource.ts` imports `./contract` only; the four routes arrive as a port.                   |
-| K6   | No kind imports a sibling of the same kind from another module | Nothing here imports `plan-feed.feature.ts`: the refresh owner arrives through `readRefreshOwner`, as a port. |
+| Rule | Requirement                                                    | Where it is met                                                                                                            |
+| ---- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| F1   | A service file never imports React                             | The four module files import only `@/lib/*` and each other; both suites run under `--environment node`.                    |
+| K2   | Delivery imports feature-services only                         | `use-plan-read.ts` imports one name, `calendarMarkersForReader` from `composition.ts`, and neither service implementation. |
+| K3   | A feature imports resource-services, never a repository        | `calendar-markers.feature.ts` imports `calendar-markers.resource.ts` and nothing below it.                                 |
+| K4   | A resource imports repository ports, never a feature           | `calendar-markers.resource.ts` imports `./contract` only; the four routes arrive as a port.                                |
+| K6   | No kind imports a sibling of the same kind from another module | Nothing here imports `plan-feed.feature.ts`: the refresh owner arrives through `readRefreshOwner`, as a port.              |
 
 ### 4.5 What `twib check` actually says about the new module
 
@@ -193,16 +193,24 @@ The planner cut a private worktree from `da8be091`, wrote every file of sections
 rewired the hook and the table exactly as slice 4 prescribes, ran the checks below and every
 mutation of section 9, then reverted.
 
-| Check                                                                                         | Observed                                             |
-| --------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                             | Exit 0                                               |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                  | Exit 0, after one `eslint --fix` for import order    |
-| The module's two suites, node tier                                                            | `Test Files 2 passed (2)`, `Tests 13 passed (13)`    |
-| The sandbox unit command, with the module                                                     | `42 passed (42)` files, `614 passed (614)` tests     |
-| `plan-chart-seam.test.tsx` + `plan-read-and-write.test.tsx` + `plan-row-render-cost.test.tsx` | `3 passed (3)`, `116 passed (116)`                   |
-| `gantt-panel.test.tsx`                                                                        | `1 passed (1)`, `242 passed (242)`                   |
-| `bun test tools/tool-devsync/src/service-kinds.test.ts`                                       | `17 pass`, `0 fail`                                  |
-| `CI=1 E2E_PORT_SHIFT=3200 NX_DAEMON=false bunx nx run wbs-fe-01:e2e`, whole target            | **Exit 0**: `377 passed`, `40 skipped`, 19.7 minutes |
+| Check                                                                                         | Observed                                                                        |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                             | Exit 0                                                                          |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                  | Exit 0, after one `eslint --fix` for import order                               |
+| The module's two suites, node tier                                                            | `Test Files 2 passed (2)`, `Tests 13 passed (13)`                               |
+| The sandbox unit command, with the module                                                     | `42 passed (42)` files, `614 passed (614)` tests                                |
+| `plan-chart-seam.test.tsx` + `plan-read-and-write.test.tsx` + `plan-row-render-cost.test.tsx` | `3 passed (3)`, `116 passed (116)`                                              |
+| `gantt-panel.test.tsx`                                                                        | `1 passed (1)`, `242 passed (242)`                                              |
+| `bun test tools/tool-devsync/src/service-kinds.test.ts`                                       | `17 pass`, `0 fail`                                                             |
+| `CI=1 E2E_PORT_SHIFT=3200 NX_DAEMON=false bunx nx run wbs-fe-01:e2e`, whole target            | **Exit 0**: `377 passed`, `40 skipped`, 19.7 minutes                            |
+| A real `git commit` of slices 1, 2, 3 and 4 with lefthook enabled                             | Exit 0 each, once slice 4's destructuring was written in its post-Prettier form |
+
+**Every slice was committed for real, in order, with hooks on** (2026-09-21): slice 1 two files,
+slice 2 three files with the sandbox unit command at `41 passed (41)` / `607 passed (607)`, slice 3
+four files at `42 passed (42)` / `614 passed (614)`, slice 4 two files. Slice 4's first attempt
+exited 1 on lefthook's `format` command; the fix is inside slice 4's own checklist, not in a note.
+Those absolute numbers are orientation only: the planner's own baseline before slice 1 was
+`40 passed (40)` files and `601 passed (601)` tests, and the executor compares with its own step 0.
 
 Line deltas, from `git diff --numstat`: `use-plan-read.ts` 21 added / 20 removed (864 → 865 lines),
 `wbs-table.tsx` 9 added / 9 removed (2889 lines, unchanged), `vitest.node-suites.ts` 2 added.
@@ -431,9 +439,10 @@ commit subject and path list so the planner can commit it before the next begins
 
 **How the planner dispatches them.** The launcher lives outside this repository, at
 `/home/df/wd/puni/puni-plan/exec/run-executor.sh`, and it is **not** reachable by a
-repository-relative path. Batch 3 has no built-in directory in its `case` statement, so
-`--batch-dir` is required: without it the launcher exits **64** with
-`unknown batch batch-3: pass --batch-dir`. The first slice:
+repository-relative path. Its `case` now carries a `batch-3)` arm defaulting to
+`docs/superpowers/plans/2026-09-21-batch-3`, so `--batch batch-3` resolves on its own; the explicit
+`--batch-dir` below is kept because it states the directory the attempt reads its packet from and
+costs nothing if that default ever moves. The first slice:
 
 ```sh
 /home/df/wd/puni/puni-plan/exec/run-executor.sh 050-6-command-services slice-1 \
@@ -449,8 +458,9 @@ and every slice after it, once the previous one is reviewed and committed:
   --batch-dir docs/superpowers/plans/2026-09-21-batch-3 --resume
 ```
 
-Four facts about that launcher, read from it on 2026-09-20 and each one a way an attempt fails
-before the executor starts:
+Four facts about that launcher, re-read from it on 2026-09-21 and each one a way an attempt fails
+before the executor starts. An unknown **option** still exits 64, and so would an unknown batch —
+but `batch-3` is no longer one:
 
 - **The base commit is checked against `/home/df/wd/puni/puni-00`, not against the clone.**
   `git -C "$main" cat-file -e "$base^{commit}"` exits **65** with `base commit missing: <sha>` when
@@ -665,6 +675,25 @@ Commit subject: `refactor(wbs-fe): write calendar markers through the calendar m
 Paths: `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`,
 `apps/wbs/fe-01/src/components/wbs/wbs-table.tsx`.
 
+**The first checkbox is a measurement, and it must be taken before anything is edited.** The scan
+below is how this slice knows it found every call site, and once the callbacks are replaced there
+is nothing left to count.
+
+- [ ] **Step 4.0, before touching either file**, record what the scan finds:
+
+  ```sh
+  grep -rnE --include='*.ts' --include='*.tsx' \
+    --exclude='*.test.ts' --exclude='*.test.tsx' \
+    'api\.(create|rename|recolor|delete)CalendarMarker' apps/wbs/fe-01/src/components
+  ```
+
+  Expected: **exit 0** and exactly **four** lines, all in
+  `apps/wbs/fe-01/src/components/wbs/wbs-table.tsx` — the bodies of `createGanttMarker`,
+  `renameGanttMarker`, `recolorGanttMarker` and `deleteGanttMarker`. Call that number **S0**. A
+  different number is a stop **at this point only**: the tree is not the one this packet was
+  written against. Once the edits below are made, four is the wrong answer and zero is expected, so
+  never run this expectation again.
+
 - [ ] In `use-plan-read.ts`, add this import in sorted position **immediately before**
       `import { planFeedForReader } from '@/modules/plan-feed/composition';`:
 
@@ -707,10 +736,30 @@ Paths: `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`,
 
 - [ ] Replace the return statement's last member:
       `return { refreshOrMarkStale, run: writer.run, stepStack, markers };`
-- [ ] In `wbs-table.tsx`, rename the destructured member at the `usePlanRead({` call:
-      `const { refreshOrMarkStale, run, stepStack, markers: markerGestures } = usePlanRead({`.
-      **`markers` is already a name in that component** — the marker list state — so the gestures
-      are bound to `markerGestures`. Binding them to `markers` is a stop condition.
+- [ ] In `wbs-table.tsx`, rename the destructured member at the `usePlanRead({` call. **Write it
+      in exactly this shape, which is the post-Prettier one:**
+
+  ```ts
+  const {
+    refreshOrMarkStale,
+    run,
+    stepStack,
+    markers: markerGestures,
+  } = usePlanRead({
+  ```
+
+  **`markers` is already a name in that component** — the marker list state — so the gestures are
+  bound to `markerGestures`. Binding them to `markers` is a stop condition.
+
+  The five-line form is not taste. The one-line
+  `const { refreshOrMarkStale, run, stepStack, markers: markerGestures } = usePlanRead({` is over
+  the printer's width, and Prettier reflows it to the block above. Written on one line it survives
+  every focused check and then fails the **commit**: the planner reproduced it, and lefthook's
+  `format` command refused the staged file with
+  `[warn] apps/wbs/fe-01/src/components/wbs/wbs-table.tsx`,
+  `[warn] Code style issues found in the above file. Run Prettier with --write to fix.` and exit
+  status 1, on 2026-09-21. It is the only line in this packet Prettier reflows.
+
 - [ ] Replace the bodies and dependency arrays of the four marker callbacks. Each `useCallback`
       type annotation above them is unchanged; only these four two-line bodies and four arrays are:
 
@@ -752,21 +801,8 @@ Paths: `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`,
 - [ ] Confirm the K2 boundary by reading `use-plan-read.ts`'s import list: no
       `calendar-markers.resource`, no `calendar-markers.feature`. If either is there, the rewire is
       wrong.
-- [ ] **Before editing either file**, record what the scan below finds, so the "after" is compared
-      with a number this slice collected rather than with a guess:
-
-  ```sh
-  grep -rnE --include='*.ts' --include='*.tsx' \
-    --exclude='*.test.ts' --exclude='*.test.tsx' \
-    'api\.(create|rename|recolor|delete)CalendarMarker' apps/wbs/fe-01/src/components
-  ```
-
-  Expected before the edits: **exit 0** and exactly **four** lines, all in
-  `apps/wbs/fe-01/src/components/wbs/wbs-table.tsx`. Call that number **S0**. A different number is
-  a stop: the tree is not the one this packet was written against.
-
-- [ ] **After the edits**, run the identical command. Expected: **no output and exit 1**, which is
-      what `grep` returns when nothing matched. Exit 0 with any line left means a call site was
+- [ ] **Step 4.9, after the edits**, run the identical command of step 4.0. Expected: **no output
+      and exit 1**, which is what `grep` returns when nothing matched — `S0` has gone to zero. Exit 0 with any line left means a call site was
       missed. Any exit status other than 0 or 1 is an execution error — a bad pattern, a missing
       directory — and is neither a pass nor a fail: fix the invocation and rerun.
 
@@ -1443,6 +1479,16 @@ digest counts **legacy-root occurrences** in scanned sources, and none of the se
 contains one. The planner staged the whole extraction and measured it: `301 pass`, `0 fail`,
 exit 0. **If a slice does move a pin, that is a finding for G2 and a stop, never a re-pin here.**
 
+**One test in that target is load-sensitive, and a timeout there is not this packet's.**
+`the production index checker resolves current Markdown links and anchors` in
+`tools/tool-devsync/src/repo-namespacing-handoff.test.ts` walks the tree through Git under Bun's
+30-second limit. On a loaded workstation the planner saw it time out at **30181.86 ms** —
+`^ this test timed out after 30000ms.`, 300 pass / 1 fail — on a run that took 90 seconds overall,
+and pass on the immediate rerun (`301 pass`, `0 fail`, 54 seconds). It asserts nothing about this
+packet's files, and `every routed current document resolves its local links and anchors`, which
+does, passed in both runs. Treat a timeout there as load: rerun once, and only a reproducible
+failure is a finding.
+
 **The browser suite, and which specs cover this service.** Exactly one e2e spec drives the
 production marker write: `apps/wbs/fe-01/e2e/live-caret.spec.ts`, the test
 `a peer marker appears without disturbing the editor`, which opens the composer in a second browser
@@ -1505,7 +1551,7 @@ this file — it is `plan-toolbar.tsx:738`, which is lane 5's.
 | 1     | **Calendar markers** | `modules/calendar-markers/`   | the `markers` memo in `use-plan-read.ts`; the four `*GanttMarker` callbacks and the `usePlanRead` destructuring in `wbs-table.tsx`                                                                                                                        | **This packet.** The narrowest seam and the best oracle.                                                                                                                           |
 | 2     | Plan history         | `modules/plan-history/`       | `stepStack` in `use-plan-read.ts` only                                                                                                                                                                                                                    | One callback in one file, and no other file at all. It owns three sentences, so it settles how a command lane words its own outcomes.                                              |
 | 3     | Plan transfer        | `modules/plan-transfer/`      | `use-plan-import.ts` whole; `downloadJson` in `wbs-table.tsx`                                                                                                                                                                                             | Import and export are one lane: one archival document, two directions. Its two `Proof:` comments move with it.                                                                     |
-| 4     | Plan steps           | `modules/plan-steps/`         | the `steps={{…}}` adapter object in `plan-toolbar.tsx`                                                                                                                                                                                                    | First of the toolbar lanes. **Waits for 040.5**, which owns `plan-toolbar.tsx` today.                                                                                              |
+| 4     | Plan steps           | `modules/plan-steps/`         | the `steps={{…}}` adapter object in `plan-toolbar.tsx`                                                                                                                                                                                                    | First of the toolbar lanes. Waits for nothing: `plan-toolbar.tsx` is unowned, and 040.5 is the observability serializer in `libs/wbs/adapters/observability`.                      |
 | 5     | Project settings     | `modules/project-settings/`   | the rest of `plan-toolbar.tsx`'s adapters, `api.freezeProject` and `api.unfreezeProject` among them (`plan-toolbar.tsx:732`, `:738`); `arrangeBySchedule` (`wbs-table.tsx:1101`), `setOptimizationSettings` (`:2042`) and `retryOptimization` (`:2047`)   | The remaining toolbar and chart-wide settings. After lane 4, same file.                                                                                                            |
 | 6     | Plan vocabulary      | `modules/plan-vocabulary/`    | `use-reference-sets.ts` whole                                                                                                                                                                                                                             | The plan cells' additions to the global directory. It reads through the merged `directory` resource-service.                                                                       |
 | 7     | Work item commands   | `modules/work-item-commands/` | `use-plan-fields.ts`, `use-plan-structure.ts`, `use-estimate-drafts.ts`, `use-plan-dependencies.ts`, `plan-columns/actions.tsx`, `plan-columns/depends.tsx`, and in `wbs-table.tsx` exactly `removeDependency` (`:2321`) and `unfreezeWorkItem` (`:2418`) | The largest lane: 28 of the 67 non-test `api.*` call sites under `components/wbs/`, plus two in `wbs-table.tsx`. **Split further at its own Plan step**; do not dispatch it whole. |
@@ -1553,8 +1599,8 @@ Each is false on the tree this packet starts from.
 | Path                                                                                        | Owner                                                                                           |
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `apps/wbs/fe-01/src/lib/wbs-api.ts` and `lib/plan-refresh.ts`                               | Nobody; imported, not edited.                                                                   |
-| `apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx`                                        | 040.5, then lanes 4 and 5 of section 12.                                                        |
-| `apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts`                                | 040.5, then lane 7.                                                                             |
+| `apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx`                                        | Unowned today. Future lanes 4 then 5 of section 12, sequentially, with a commit between them.   |
+| `apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts`                                | Unowned today. Future lane 7 of section 12.                                                     |
 | `apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx`                                         | Nobody; its four marker props are unchanged.                                                    |
 | `apps/wbs/fe-01/src/components/wbs/plan-refusal.ts`                                         | The Notices module; this packet does not need it.                                               |
 | `apps/wbs/fe-01/src/modules/plan-feed/**`, `plan-writer/**`                                 | 040.4 and 040.3, merged.                                                                        |
@@ -1614,14 +1660,14 @@ First high-effort review (Codex `gpt-6-astra`): NOT READY. Revised 2026-09-21. E
 checked against the repository, and each fix was settled by rehearsal in the planner's private
 worktree, then reverted.
 
-| Finding                                                    | Disposition | What changed                                                                                                                                                                                                                                                                                                                                                                                       |
-| ---------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Critical 1 — the launcher cannot run as written            | FIXED       | Confirmed at `/home/df/wd/puni/puni-plan/exec/run-executor.sh`: its `case` has arms for `batch-1` and `batch-2` only, so `batch-3` exits 64 with `unknown batch batch-3: pass --batch-dir`. Section 7 now gives the absolute launcher path and `--batch batch-3 --batch-dir docs/superpowers/plans/2026-09-21-batch-3`, plus the four failure modes read from the script: exits 64, 65, 66 and 67. |
-| Critical 2 — the scan includes tests and necessarily fails | FIXED       | Rehearsed. On the rewired tree the packet's original scan printed **19** lines — 10 in `gantt-panel.test.tsx`, 1 in `gantt-panel.zoned.test.tsx`, 8 in `plan-chart-seam.test.tsx`, exactly as the review counted. The corrected scan carries `--exclude='*.test.ts' --exclude='*.test.tsx'` and was measured at **4 lines / exit 0** before the edits and **no output / exit 1** after.            |
-| Important 3 — branch B wrongly replaces a required check   | FIXED       | Confirmed: `applicationLibraryToolReadmes` is absent, the derived sweep is at `repo-namespacing-handoff.test.ts:483` and the legacy-source pin is still at `:553`; both were run by name and printed `1 pass`, `0 fail`. Branch A is withdrawn entirely, step 1.3 is split into 1.3 and 1.4, and slice 6 now runs five named checks of which none replaces another.                                |
-| Important 4 — ownership and pin instructions are stale     | FIXED       | Batch 3's lanes are 040.5, 050.4, 050.6, G1, G2 and U2, read from the work-item files. Both pinned devsync files are **G2's** and are now out of lane. Section 4.8 is rewritten with the measured evidence, and section 11 carries a per-slice pin table. Measured: the whole extraction staged, `tool-devsync:test --skip-nx-cache` → **`301 pass`, `0 fail`**, exit 0; neither pin moved.        |
-| Important 5 — "more than 100" does not prevent collisions  | FIXED       | Confirmed from `playwright.config.ts`'s `3100 + S`, `3200 + S`, `4200 + S`: 100, 1000 and 1100 all collide. Section 11 now requires disjoint calculated three-port sets, an `ss -ltn` check, the batch's 300-spaced assignments, and `/proc/<pid>/cwd` before signalling anything. Assumption 9 is rewritten.                                                                                      |
-| Minor 6 — two factual claims in section 12 are wrong       | FIXED       | Confirmed: `wbs-table.tsx:2418` is `api.unfreezeWorkItem(rowId)` and `api.unfreezeProject` is `plan-toolbar.tsx:738`. Lane 5 no longer claims it. Section 12 now divides `wbs-table.tsx` by call site with line numbers and says ownership is by region, with sequencing where two lanes touch one file.                                                                                           |
+| Finding                                                    | Disposition | What changed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical 1 — the launcher cannot run as written            | FIXED       | Confirmed at `/home/df/wd/puni/puni-plan/exec/run-executor.sh`: at the time of review 1 its `case` had arms for `batch-1` and `batch-2` only, so `batch-3` exited 64. **Superseded on 2026-09-21**, when a `batch-3)` arm was added defaulting to this packet's own directory — see review 2's Minor 3. Section 7 now gives the absolute launcher path and `--batch batch-3 --batch-dir docs/superpowers/plans/2026-09-21-batch-3`, plus the four failure modes read from the script: exits 64, 65, 66 and 67. |
+| Critical 2 — the scan includes tests and necessarily fails | FIXED       | Rehearsed. On the rewired tree the packet's original scan printed **19** lines — 10 in `gantt-panel.test.tsx`, 1 in `gantt-panel.zoned.test.tsx`, 8 in `plan-chart-seam.test.tsx`, exactly as the review counted. The corrected scan carries `--exclude='*.test.ts' --exclude='*.test.tsx'` and was measured at **4 lines / exit 0** before the edits and **no output / exit 1** after.                                                                                                                        |
+| Important 3 — branch B wrongly replaces a required check   | FIXED       | Confirmed: `applicationLibraryToolReadmes` is absent, the derived sweep is at `repo-namespacing-handoff.test.ts:483` and the legacy-source pin is still at `:553`; both were run by name and printed `1 pass`, `0 fail`. Branch A is withdrawn entirely, step 1.3 is split into 1.3 and 1.4, and slice 6 now runs five named checks of which none replaces another.                                                                                                                                            |
+| Important 4 — ownership and pin instructions are stale     | FIXED       | Batch 3's lanes are 040.5, 050.4, 050.6, G1, G2 and U2, read from the work-item files. Both pinned devsync files are **G2's** and are now out of lane. Section 4.8 is rewritten with the measured evidence, and section 11 carries a per-slice pin table. Measured: the whole extraction staged, `tool-devsync:test --skip-nx-cache` → **`301 pass`, `0 fail`**, exit 0; neither pin moved.                                                                                                                    |
+| Important 5 — "more than 100" does not prevent collisions  | FIXED       | Confirmed from `playwright.config.ts`'s `3100 + S`, `3200 + S`, `4200 + S`: 100, 1000 and 1100 all collide. Section 11 now requires disjoint calculated three-port sets, an `ss -ltn` check, the batch's 300-spaced assignments, and `/proc/<pid>/cwd` before signalling anything. Assumption 9 is rewritten.                                                                                                                                                                                                  |
+| Minor 6 — two factual claims in section 12 are wrong       | FIXED       | Confirmed: `wbs-table.tsx:2418` is `api.unfreezeWorkItem(rowId)` and `api.unfreezeProject` is `plan-toolbar.tsx:738`. Lane 5 no longer claims it. Section 12 now divides `wbs-table.tsx` by call site with line numbers and says ownership is by region, with sequencing where two lanes touch one file.                                                                                                                                                                                                       |
 
 **Nothing in the prescribed code changed.** The review confirmed zero TypeScript diagnostics, all
 13 supplied test bodies passing and all 11 mutations failing their named assertions; the revision
@@ -1632,3 +1678,41 @@ defect was in the instructions around it.
 **Batch 2's `RESULTS.md` is indeed absent from this tree** (the worktree is cut from `da8be091`,
 which predates it). Its lessons reached this packet through the batch 3 brief, which the planner
 read in full before writing it.
+
+## 18. Disposition of review 2
+
+Second high-effort review (Codex `gpt-6-astra`): READY AFTER FIXES. Revised 2026-09-21. It carried
+round one's six findings forward as five FIXED and one PARTLY; the PARTLY is closed below, with
+this round's own findings. Every fix was settled by rehearsal — including four real `git commit`
+runs with lefthook enabled — then reverted.
+
+| Finding                                                      | Disposition | What changed                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Round 1, Important 4 — PARTLY: 040.5 survives in §12 and §14 | FIXED       | Section 12's Plan steps row no longer waits for 040.5, and section 14 assigns `plan-toolbar.tsx` to future lanes 4 then 5 and `use-plan-dependencies.ts` to future lane 7, both marked unowned today. Section 6's lane table and assumption 2 already said so; the three now agree.                                                                                          |
+| Important 1 — the pre-edit scan appears after the edits      | FIXED       | Confirmed: the S0 scan sat below all four replacements, so the listed order stopped on a correct extraction. It is now **step 4.0**, the first checkbox of slice 4, and the post-edit run is **step 4.9**. Rehearsed in the prescribed order: step 4.0 printed four lines at `wbs-table.tsx:1698`, `:1706`, `:1714`, `:1722` and exited 0; step 4.9 printed nothing, exit 1. |
+| Important 2 — obsolete 040.5 ownership in §12 and §14        | FIXED       | The same edits as the row above.                                                                                                                                                                                                                                                                                                                                             |
+| Minor 3 — the launcher description is no longer factual      | FIXED       | Confirmed: `run-executor.sh` now has a `batch-3)` arm defaulting to this packet's directory, so omitting `--batch-dir` does **not** exit 64. Section 7 says so and keeps the explicit flag; the exit-64 claim now attaches only to an unknown option or an unknown batch. Section 17's Critical 1 row carries the correction.                                                |
+| Minor 4 — the K2 row claims a `contract.ts` import           | FIXED       | Confirmed against slice 4, which adds one import and forbids the type import. Section 4.4's K2 row now reads "imports one name, `calendarMarkersForReader` from `composition.ts`, and neither service implementation".                                                                                                                                                       |
+
+**One real defect came out of the commit rehearsal, and it is fixed in the instructions.** Slice 4
+prescribed the destructuring on one line. That line is over Prettier's width, so it passes every
+focused check and then fails the commit: lefthook's `format` command refused the staged file with
+`[warn] apps/wbs/fe-01/src/components/wbs/wbs-table.tsx` and exit status 1 (observed 2026-09-21).
+Slice 4 now prescribes the five-line post-Prettier form, and the re-run commit exited 0. This is
+batch 1's "slice could not be committed with hooks" defect class, caught here by reproducing the
+hook rather than reasoning about it.
+
+**Slices 1, 2, 3 and 4 are dispatchable.** Each was created from this packet's own code blocks,
+checked, and committed with hooks on, in order, in the planner's private worktree: slice 1 two
+files, slice 2 three files (`41 passed (41)` / `607 passed (607)`), slice 3 four files
+(`42 passed (42)` / `614 passed (614)`), slice 4 two files. Slices 5 and 6 add no new file and rest
+on the same evidence: section 9's eleven mutations were all watched failing and restored, and
+section 11's checks were all run.
+
+**A devsync timeout was investigated and is not this packet's.** With the packet staged,
+`tool-devsync:test --skip-nx-cache` failed once at 300 pass / 1 fail — the index checker timing out
+at 30181.86 ms on a loaded machine — and passed on the immediate rerun at `301 pass`, `0 fail`. The
+fact and the instruction to rerun once are recorded in section 11 rather than only here.
+
+**No prescribed code changed** other than the destructuring's line breaks. The review's in-memory
+run of the 13 test bodies and 11 mutations agrees with the planner's on-disk run.
