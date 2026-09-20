@@ -24,7 +24,7 @@ try {
   if (callerId === undefined || callerId.length === 0) {
     throw new Error('HOSTNAME is required for solver supervisor authentication');
   }
-  running = bootBe01({
+  running = await bootBe01({
     appOrigin: cfg.appOrigin,
     dbPath: cfg.DB_PATH,
     port: cfg.PORT,

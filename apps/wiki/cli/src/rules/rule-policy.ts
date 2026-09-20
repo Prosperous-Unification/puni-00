@@ -4,6 +4,7 @@ import {
   ClassificationPolicy,
   OpaqueId,
   RelationshipRequest,
+  RelativePath,
   SchemaVersion,
 } from '../contracts/records';
 import { readExternalArtifact } from '../policy/trust';
@@ -15,14 +16,56 @@ const RuleModeRecord = type({
   mode: "'observe'|'ratchet'|'enforce'",
 }).onUndeclaredKey('reject');
 
+const AdoptedSetRecord = type({
+  adoptedPrefixes: RelativePath.array(),
+})
+  .onUndeclaredKey('reject')
+  // Proof: on 2026-09-20, removing this narrow made the repeated-prefix test receive empty stderr
+  // instead of `unique adopted prefixes`.
+  .narrow((adopted, context) =>
+    new Set(adopted.adoptedPrefixes).size === adopted.adoptedPrefixes.length
+      ? true
+      : context.mustBe('unique adopted prefixes'),
+  );
+
+const SizeCeilingsRecord = type({
+  ceiling: type('number.integer>=1'),
+  roots: RelativePath.array(),
+  pinned: type({ path: RelativePath, maximum: type('number.integer>=1') })
+    .onUndeclaredKey('reject')
+    .array(),
+})
+  .onUndeclaredKey('reject')
+  .narrow((ceilings, context) => {
+    // Proof: on 2026-09-20, deleting this branch removed `at least one measured root` from stderr.
+    if (ceilings.roots.length === 0) return context.mustBe('at least one measured root');
+    // Proof: on 2026-09-20, deleting this branch removed `unique measured roots` from stderr.
+    if (new Set(ceilings.roots).size !== ceilings.roots.length) {
+      return context.mustBe('unique measured roots');
+    }
+    const pinnedPaths = ceilings.pinned.map((pin) => pin.path);
+    // Proof: on 2026-09-20, returning true removed `unique pinned paths` from stderr.
+    return new Set(pinnedPaths).size === pinnedPaths.length
+      ? true
+      : context.mustBe('unique pinned paths');
+  });
+
+const PlainSelectorRecord = type({
+  kind: "'path'|'prefix'",
+  value: RelativePath,
+}).onUndeclaredKey('reject');
+
 // Proof: on 2026-09-20, accepting undeclared policy keys made the schema test receive empty stderr
 // instead of `unexpected must be removed`.
 const RulePolicyRecord = type({
   schemaVersion: SchemaVersion,
   policyId: OpaqueId,
   ruleModes: RuleModeRecord.array(),
+  'adoptedSet?': AdoptedSetRecord,
   'classificationPolicy?': ClassificationPolicy,
+  'plainTypeScriptPaths?': PlainSelectorRecord.array(),
   'relationshipRequest?': RelationshipRequest,
+  'sizeCeilings?': SizeCeilingsRecord,
 }).onUndeclaredKey('reject');
 
 export type RulePolicy = typeof RulePolicyRecord.infer;
@@ -53,8 +96,8 @@ function decodeRulePolicy(bytes: Uint8Array, path: string): RulePolicy {
  * Loads the consumer's rule policy from outside the candidate and checks it against the registry.
  *
  * Every registered rule needs a mode and every named rule must exist: an absent entry is unknown
- * state, and AGENTS.md R5 forbids defaulting it. `ratchet` is refused until the adopted set that
- * gives it meaning arrives with slice B2.
+ * state, and AGENTS.md R5 forbids defaulting it. `ratchet` needs an adopted set; a policy that
+ * ratchets a rule without one is refused.
  * @throws Error naming the offending rule identifier.
  */
 export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy {
@@ -75,12 +118,11 @@ export function loadRulePolicy(candidateRoot: string, path: string): RulePolicy 
         `rule policy names an unregistered rule: ${ruleId} (registered: ${registeredIds()})`,
       );
     }
-    // Proof: on 2026-09-20, deleting this branch made the ratchet test receive empty stderr
-    // instead of the refusal that names slice B2's missing adopted set.
-    if (mode === 'ratchet') {
-      throw new Error(
-        `rule policy sets ${ruleId} to ratchet, which has no adopted set until slice B2`,
-      );
+    // The adopted set is what gives ratchet its meaning; R5 forbids defaulting it.
+    // Proof: on 2026-09-20, deleting this branch made the no-adopted-set test receive empty stderr
+    // instead of naming INV-CLASSIFY.
+    if (mode === 'ratchet' && policy.adoptedSet === undefined) {
+      throw new Error(`rule policy sets ${ruleId} to ratchet but states no adopted set`);
     }
   }
   // Proof: on 2026-09-20, deleting this coverage loop made the missing-mode test receive empty
@@ -107,9 +149,15 @@ export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
     throw new Error(`unknown rule: ${ruleId} (registered: ${registeredIds()})`);
   }
   for (const input of requiredPolicyInputs(rule)) {
+    // Proof: on 2026-09-20, omitting the size-ceilings disjunct removed the required-input sentence
+    // from stderr while the F7 registry fallback still exited 1.
     const absent =
       (input === 'policy.classificationPolicy' && policy.classificationPolicy === undefined) ||
-      (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined);
+      (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined) ||
+      (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined) ||
+      // Proof: on 2026-09-20, omitting this disjunct made the missing-input test receive empty
+      // stderr instead of the required `policy.plainTypeScriptPaths` sentence.
+      (input === 'policy.plainTypeScriptPaths' && policy.plainTypeScriptPaths === undefined);
     if (absent) {
       throw new Error(`rule ${ruleId} needs ${input}, which the rule policy omits`);
     }

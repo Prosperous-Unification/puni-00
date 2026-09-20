@@ -1,0 +1,41 @@
+{
+  "name": "shared-failures",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/domain/failures/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:failures", "runtime:isomorphic", "ring:domain", "product:shared"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint libs/shared/domain/failures/src" }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/domain/failures/src --cache --cache-location .nx/eslintcache-shared-failures"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov",
+        "cwd": "libs/shared/domain/failures"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov",
+        "cwd": "libs/shared/domain/failures"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/domain/failures/tsconfig.json"
+      }
+    }
+  }
+}

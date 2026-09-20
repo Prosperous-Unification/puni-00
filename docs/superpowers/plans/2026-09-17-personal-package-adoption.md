@@ -53,8 +53,15 @@ still predates this amendment, and the facts here replace the matching statement
   schema, the backend's unexpected-error boundary, then the MCP server. Then backend startup
   ownership. Defer the portable core rewiring and the all-tools sweep until the report format
   has held for a release or two; it changed twice in two days.
-- **Browser proof is partial.** The Vite 8.2.2 bundle built and ran in a Node sandbox with
-  Node's globals hidden. It has not run in Chromium.
+- **The browser proof is a check now.** Work item 040.1 added a probe of the three libraries
+  built through `apps/wbs/fe-01/vite.config.ts`: `apps/wbs/fe-01/browser-packages.test.ts`
+  holds the build property — no module is externalized for the browser, and nanoid keeps its
+  browser entry — and `apps/wbs/fe-01/e2e/browser-packages.spec.ts` runs that bundle in the
+  layout gate's Chromium. Import `di-bag`, never `di-bag/node`: Vite answers a Node built-in in
+  browser code with a warning and a stub that throws at page load, and inside `vitest` that
+  warning is not even delivered, so the module identities are what the check reads. Neither
+  check says anything about what application code imports, and neither gives `@shared/failures`
+  the browser fixture this plan's slice 2 asks for; both remain open.
 
 ## Intent
 
@@ -277,8 +284,8 @@ NX_DAEMON=false bunx nx run twilight-bureaucrat:build
 
 **Create:** `libs/shared/domain/failures/{project.json,tsconfig.json,tsconfig.lib.json,tsconfig.spec.json}`, `src/{index.ts,report-failure.ts,report-failure.test.ts}`; alias in `tsconfig.base.json`. Mirror `shared-validation`'s project structure and test/typecheck/lint targets. Put symbol behavior and limits in JSDoc.
 
-- [ ] Open the `adopt-failure-reporting` OpenSpec change before writing any file of this slice. It covers slices 2 and 3: a new Nx project, a new alias and a new exported reporting contract are architecture and contract under R4, whether or not an application caller has adopted them yet. Its delta spec states the reporting behaviour this slice and the next must exhibit, and its `verify.md` collects both slices' observations.
-- [ ] Start with these two acceptance cases, watch them fail against an empty module, then implement `FAILURE_REPORT_LIMITS`, `SENSITIVE_KEYS`, `createFailureRedaction` and `reportFailure` as the contract above defines them:
+- [x] Open the `adopt-failure-reporting` OpenSpec change before writing any file of this slice. It covers slices 2 and 3: a new Nx project, a new alias and a new exported reporting contract are architecture and contract under R4, whether or not an application caller has adopted them yet. Its delta spec states the reporting behaviour this slice and the next must exhibit, and its `verify.md` collects both slices' observations.
+- [x] Start with these two acceptance cases, watch them fail against an empty module, then implement `FAILURE_REPORT_LIMITS`, `SENSITIVE_KEYS`, `createFailureRedaction` and `reportFailure` as the contract above defines them:
 
 ```ts
 import { expect, test } from 'bun:test';
@@ -310,11 +317,16 @@ test('a cause that cannot be inspected is reported as reporting loss, not as a t
 });
 ```
 
-- [ ] Keep report transformation free of Pino, Node/Bun globals, network, and filesystem access. Require the secret policy explicitly; an empty list is appropriate only where the caller owns no secrets.
-- [ ] Build `FAILURE_REPORT_LIMITS` and each boundary's policy as constants, never per call: the library caches one report maker per options object and policy.
-- [ ] Cover `Error.cause`, ordered `AggregateError`, circular objects, `undefined`, `null`, BigInt, throwing getters, revoked proxies, long Unicode strings, sensitive nested keys, secrets inside stack and message strings, and package inspection failures. Assert the budget behaviour by its visible fields — `context_omitted`, `reporting_errors_omitted`, `truncated` — rather than by byte arithmetic. Validate diagnostic and public schemas after redaction and truncation. Never claim output bounds isolate a nonterminating getter or hook.
+- [x] Keep report transformation free of Pino, Node/Bun globals, network, and filesystem access. Require the secret policy explicitly; an empty list is appropriate only where the caller owns no secrets.
+- [x] Build `FAILURE_REPORT_LIMITS` and each boundary's policy as constants, never per call: the library caches one report maker per options object and policy.
+- [x] Cover `Error.cause`, ordered `AggregateError`, circular objects, `undefined`, `null`, BigInt, throwing getters, revoked proxies, long Unicode strings, sensitive nested keys, secrets inside stack and message strings, and package inspection failures. Assert the budget behaviour by its visible fields — `context_omitted`, `reporting_errors_omitted`, `truncated` — rather than by byte arithmetic. Validate diagnostic and public schemas after redaction and truncation. Never claim output bounds isolate a nonterminating getter or hook.
 - [ ] Add integration tests for secret-bearing config/HTTP/CLI fixtures at their actual call sites in later slices. Remove the key rules, the pattern rules, the shared `toReports` call and the never-throw wrapper separately; record which production test fails for each mutation in the change's `verify.md`.
-- [ ] Verify with `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`, `shared-failures:typecheck`, and `shared-failures:lint`. Add a browser execution fixture to the portable test path; Vite build success alone is insufficient.
+- [x] Verify with `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`,
+      `shared-failures:typecheck`, and `shared-failures:lint`.
+- [ ] Add a browser execution fixture for `@shared/failures` to the portable test path; Vite
+      build success alone is insufficient. **Unassigned:** packet 040.1 proves the three
+      libraries in Chromium and never imports this module, so nothing in batch 2 discharges
+      this.
 
 **Deliverable:** one reporting policy reusable by WBS, wiki, and infrastructure without cross-product imports, under an OpenSpec change opened before its first file.
 

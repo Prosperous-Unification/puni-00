@@ -1,8 +1,16 @@
 import type { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import type { checkIndexes } from '../indexes/check-indexes';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
+import type { extractRelationships } from '../relationships';
+import type { PlainSelector } from './direction';
+import type { KindGraph } from './kinds';
+import type { SizeCeilings } from './size-ratchet';
 
-/** Policy disposition for one rule. `ratchet` is declared for later slices; slice B0 refuses it. */
+/**
+ * Policy disposition for one rule. `observe` reports every finding as debt, `enforce` refuses every
+ * finding, and `ratchet` refuses a finding inside the consumer's adopted set and reports the rest as
+ * debt. `ratchet` needs an adopted set; a policy that ratchets without one is refused.
+ */
 export type RuleMode = 'observe' | 'ratchet' | 'enforce';
 
 /** The record `explain` prints. It carries no behaviour, so any caller can serialize it. */
@@ -34,7 +42,7 @@ export interface Finding {
   readonly path: string;
   readonly subject?: string;
   readonly message: string;
-  /** `debt` in observe mode; `refusal` otherwise. */
+  /** `debt` in observe mode, and in ratchet mode outside the adopted set; `refusal` otherwise. */
   readonly effect: 'debt' | 'refusal';
 }
 
@@ -66,6 +74,7 @@ export type RuleEvaluation =
   | { readonly kind: 'not-evaluated'; readonly reason: string };
 
 export type IndexReport = ReturnType<typeof checkIndexes>;
+export type RelationshipReport = ReturnType<typeof extractRelationships>;
 
 export type RuleOutcome<Report> =
   { readonly ok: true; readonly report: Report } | { readonly ok: false; readonly reason: string };
@@ -75,9 +84,41 @@ export interface RuleContext {
   readonly repository: string;
   readonly candidate: CandidateSnapshot;
   readonly classificationPolicy?: ClassificationPolicy;
+  readonly plainTypeScriptPaths?: readonly PlainSelector[];
   readonly relationshipRequest?: RelationshipRequest;
-  /** The index report, computed once per check and shared by the two module rules. */
+  readonly sizeCeilings?: SizeCeilings;
+  /** The index report, computed once per check and shared by the three module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
+  /** Kinds and modules, derived from paths alone; total, so it needs no outcome wrapper. */
+  readonly kinds: KindGraph;
+  /**
+   * The extracted relationships, computed at most once per check and never before a rule asks.
+   * Extraction typechecks the whole candidate, so an unconditional call would make every `check` pay
+   * for it.
+   */
+  relationships(): RuleOutcome<RelationshipReport>;
+}
+
+/**
+ * The modules and paths a consumer has adopted. Ratchet mode refuses a finding inside this set and
+ * reports one outside it as debt, so a repository can adopt the taxonomy module by module without
+ * the untouched remainder failing every candidate.
+ *
+ * Prefixes are candidate-relative and carry no trailing slash, because `RelativePath` forbids one.
+ * An empty list adopts nothing, which makes every ratcheted finding debt; that is a legitimate
+ * starting policy and is not defaulted anywhere. An observation whose path is `.` — the candidate as
+ * a whole, which `REL-EXTRACT` produces — is never adopted, because it names no module to adopt.
+ */
+export interface AdoptedSet {
+  readonly adoptedPrefixes: readonly string[];
+}
+
+/** True when a candidate-relative path is at or under one adopted prefix. */
+export function isAdopted(adoptedSet: AdoptedSet | undefined, path: string): boolean {
+  if (adoptedSet === undefined) return false;
+  return adoptedSet.adoptedPrefixes.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
 }
 
 export interface RegisteredRule extends Rule {
@@ -110,15 +151,32 @@ export function evaluateWrapped(run: () => readonly RuleObservation[]): RuleEval
   }
 }
 
+function effectOf(
+  mode: RuleMode,
+  observation: RuleObservation,
+  adoptedSet: AdoptedSet | undefined,
+): 'debt' | 'refusal' {
+  // Proof: on 2026-09-20, always returning debt made an enforced direct-entry finding exit 0;
+  // the adapter test expected exit 1 and received 0.
+  if (mode === 'observe') return 'debt';
+  if (mode === 'enforce') return 'refusal';
+  // Proof: on 2026-09-20, forcing refusal made the outside-adopted-set test expect exit 0 and
+  // receive 1; forcing debt made the inside-adopted-set test expect exit 1 and receive 0.
+  return isAdopted(adoptedSet, observation.path) ? 'refusal' : 'debt';
+}
+
 /** Policy, not code, decides whether an observation refuses the candidate. */
-export function toFinding(ruleId: string, mode: RuleMode, observation: RuleObservation): Finding {
+export function toFinding(
+  ruleId: string,
+  mode: RuleMode,
+  observation: RuleObservation,
+  adoptedSet: AdoptedSet | undefined,
+): Finding {
   return {
     ruleId,
     path: observation.path,
     ...(observation.subject === undefined ? {} : { subject: observation.subject }),
     message: observation.message,
-    // Proof: on 2026-09-20, always returning debt made an enforced direct-entry finding exit 0;
-    // the adapter test expected exit 1 and received 0.
-    effect: mode === 'observe' ? 'debt' : 'refusal',
+    effect: effectOf(mode, observation, adoptedSet),
   };
 }

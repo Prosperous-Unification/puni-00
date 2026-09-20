@@ -122,8 +122,21 @@ async function observation(child: ReturnType<typeof spawnWorker>): Promise<Worke
   return JSON.parse(stdout.trim()) as WorkerObservation;
 }
 
+/**
+ * How long two freshly spawned Bun workers get to say they are ready. Bounded, so a worker that
+ * never starts ends the test with its own message, and generous, because a loaded gate host starts
+ * a Bun process slowly: at about five seconds CI failed `two Bun processes atomically refuse
+ * overlap and both admit disjoint work` on `worker readiness absent` after 5439ms, on a change that
+ * touched nothing here (2026-09-20). Kept under the preload's 30 second test limit so this message
+ * is the one that is seen.
+ */
+const WORKER_READINESS_MS = 20_000;
+
 function waitForFiles(paths: readonly string[]): void {
-  for (let attempt = 0; attempt < 5000; attempt += 1) {
+  const deadline = Date.now() + WORKER_READINESS_MS;
+  // Proof: with WORKER_READINESS_MS set to 0 the two-process test failed on `worker readiness
+  // absent: …/ready-a, …/ready-b` (2026-09-20), so the bound still ends a wait nobody answers.
+  while (Date.now() < deadline) {
     if (paths.every(existsSync)) return;
     Bun.sleepSync(1);
   }

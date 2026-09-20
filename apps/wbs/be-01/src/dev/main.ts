@@ -45,7 +45,7 @@ try {
     'be-01 starting with the local solver (development only): no cgroup memory ceiling, no durable deadline owner',
   );
 
-  running = bootBe01({
+  running = await bootBe01({
     appOrigin: cfg.appOrigin,
     dbPath: cfg.DB_PATH,
     port: cfg.PORT,
