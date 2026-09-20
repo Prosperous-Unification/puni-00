@@ -183,6 +183,37 @@ Watched production negatives, both restored byte for byte with `cmp` and followe
 
 Planner, after slice E, 2026-09-20: replayed `public-redact-removed` outside the sandbox (the public bag given the limits and no redaction policy): `redacts a secret the disclosure policy selected into the public report` failed showing `alice@example.com` in the public report; restored byte for byte. Whole `shared-failures` and `tool-devsync` test, typecheck and lint pass; format check clean.
 
+### Slice F — causes, limits, inspection and report schemas
+
+Baseline before the coverage was added:
+
+```text
+workspace-projects: 17 pass, 0 fail
+sync: 48 pass, 0 fail
+workspace-inventory: 4 pass, 0 fail
+namespace-layout: 19 pass, 0 fail
+workspace-targets: 19 pass, 0 fail
+current-document link case: 1 pass, 13 filtered out, 0 fail
+OpenSpec: 104 passed, 0 failed
+inventory pins: 167 rows, 84 distinct files
+README pin absent; digest pin present
+```
+
+Focused coverage checks:
+
+| Command                                                                   | Result                                       |
+| ------------------------------------------------------------------------- | -------------------------------------------- |
+| `(cd libs/shared/domain/failures && bun test src/report-failure.test.ts)` | exit 0; 20 pass, 0 fail; 56 assertions       |
+| `NX_DAEMON=false bunx nx run shared-failures:typecheck`                   | exit 0; target completed without diagnostics |
+| `NX_DAEMON=false bunx nx run shared-failures:lint`                        | exit 0; target completed without problems    |
+| `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`        | exit 0; 20 pass, 0 fail; 56 assertions       |
+| `GSETTINGS_BACKEND=memory bunx prettier --write` on the two Slice F files | exit 0; test unchanged; record formatted     |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`     | exit 0; repository formatting clean          |
+
+Slice F adds no production check and therefore owes no negative proof. Slice G removes each
+limit and the shared reporting call separately, using the cases added here as the watched
+production-path negatives.
+
 ## Decision
 
 - [ ] Archive readiness is outside Slice A. Tasks remain open until implementation and evidence are complete.
