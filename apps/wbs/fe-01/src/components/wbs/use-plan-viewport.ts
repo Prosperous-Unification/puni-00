@@ -31,22 +31,25 @@ export const ESTIMATED_ROW_HEIGHT_PX = 26.1875;
  */
 export const ROW_PUBLICATION_STEP_PX = 640;
 
-/** The matching retention bucket for horizontally windowed, unpinned columns. */
-export const COLUMN_PUBLICATION_STEP_PX = 192;
-
 /**
  * Pins a compositor offset to the start of its retained publication bucket.
  * Negative offsets are browser overscroll rather than a logical plan position.
  */
-export function publicationOffset(
-  offsetPx: number,
-  stepPx: number,
-  terminalOffsetPx?: number,
-): number {
+export function publicationOffset(offsetPx: number, stepPx: number): number {
   const clampedOffsetPx = Math.max(0, offsetPx);
-  if (terminalOffsetPx !== undefined && clampedOffsetPx >= terminalOffsetPx - 1)
-    return clampedOffsetPx;
   return Math.floor(clampedOffsetPx / stepPx) * stepPx;
+}
+
+/**
+ * Publishes the physical horizontal offset only when its mounted column window changes.
+ *
+ * Unlike rows, columns cannot round the offset before deriving that window: an imperative
+ * `scrollIntoView()` can reveal a header inside the rounded-away part of a bucket while its body
+ * cell remains unmounted. `sameWindow` below still suppresses every state write that would retain
+ * the same column identities, so physical compositor motion does not fan out through React.
+ */
+export function columnPublicationOffset(offsetPx: number): number {
+  return Math.max(0, offsetPx);
 }
 
 interface FrameViewport {
@@ -196,11 +199,7 @@ export function usePlanViewport({
       if (heightPx <= 0 || widthPx <= 0) return;
       const current = frameReading.current;
       const scrollTop = publicationOffset(frameNode.scrollTop, ROW_PUBLICATION_STEP_PX);
-      const scrollLeft = publicationOffset(
-        frameNode.scrollLeft,
-        COLUMN_PUBLICATION_STEP_PX,
-        Math.max(0, frameNode.scrollWidth - widthPx),
-      );
+      const scrollLeft = columnPublicationOffset(frameNode.scrollLeft);
       if (current.measured && current.heightPx === heightPx && current.widthPx === widthPx) {
         const pinnedRowIds = new Set(pinnedCells.map((cell) => cell.rowId));
         const pinnedColumnIds = new Set(pinnedCells.map((cell) => cell.columnId));
