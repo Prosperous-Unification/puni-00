@@ -1,7 +1,18 @@
 # 040.5 Observability serializer and log schema, with the fingerprint
 
-Work item 040.5. One executor, four slices, all in `libs/wbs/adapters/observability` and one new
-OpenSpec change.
+| Field                                      | Value                                                                                                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item                                  | 040.5 "Observability serializer and log schema, with the fingerprint" in "PUNI platform plan"                                                        |
+| Size class                                 | M                                                                                                                                                    |
+| Slices                                     | A OpenSpec change, B tests and implementation together, C proofs and documentation                                                                   |
+| top-model-high-effort-planning-tokens      | 4000000                                                                                                                                              |
+| mid-level-mid-effort-implementation-tokens | 11000000                                                                                                                                             |
+| top-model-high-effort-review-tokens        | 5000000                                                                                                                                              |
+| Design implemented                         | The "Reporting" contract and ordered slice 3 of `docs/superpowers/plans/2026-09-17-personal-package-adoption.md`, read with its 2026-09-19 amendment |
+| Packet format                              | `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                                                                                |
+
+Three slices, all in `libs/wbs/adapters/observability` and one new OpenSpec change. Slice A is
+dispatchable as it stands; B and C follow its commit.
 
 ## 1. Goal and non-goals
 
@@ -29,6 +40,11 @@ or ingestion query change, and no browser-execution claim. No file outside
   unregistered is not a supported path**: it is reported afresh under a second occurrence id,
   which is exactly what an unregistered imitation must get.
 - A process that owns secrets passes them once, at `createLogger({ service, secrets })`.
+
+Whatever a boundary puts in `err` becomes a record, `undefined` included: Pino drops an
+`undefined` field before any serializer sees it, and a line that silently lost the failure it was
+given is exactly the defaulting AGENTS.md refuses, so `createLogger` normalises that one case
+before Pino's own check. A log call with no `err` property is untouched.
 
 ## 2. Read first
 
@@ -101,6 +117,11 @@ below was observed with `bun -e` or a scratch test in the rehearsal worktree on 
   `serializers: { boomer: () => { throw new Error('serializer exploded'); } }`, the call
   `logger.error({ boomer: {} }, 'bad')` **rethrows** `Error: serializer exploded` into the
   caller and the destination receives **no line at all**.
+- **Pino drops an `undefined` field before any serializer.** `pino/lib/tools.js:168` guards the
+  field loop with `value !== undefined`, so `logger.error({ err: undefined }, 'probe')` emitted
+  `{"level":"error","time":...,"service":"be-01","request_id":"r1","msg":"probe"}` — no `err` at
+  all — and `LogRecord` accepts it, because `err` is optional. `formatters.log` runs at
+  `tools.js:161-163`, **before** that loop, which is where the normalisation has to sit.
 - **`formatters.log` runs before serializers**, so it cannot lift a serialized field to the top
   level: the hook printed `LOGFMT SEES err = {}` for a raw `Error`, while the emitted line
   carried the serializer's output. Occurrence id and fingerprint therefore live **inside** `err`.
@@ -148,6 +169,27 @@ bare REJECT: reason must be a string (was missing) or v must be a string (was mi
 halfLoss REJECT: reason must be a string (was missing) or v must be a string (was missing)
 loss ACCEPT
 ```
+
+### The commit hook, reproduced
+
+`lefthook.yml`'s `pre-commit` runs `bunx eslint {staged_files}` and
+`bunx prettier --check {staged_files}`, and `eslint.config.js:113` applies
+`tseslint.configs.strictTypeChecked` with no unsafe-call or unsafe-assignment relaxation for test
+files. **Rehearsed**: committing the test files alone, before the implementation exists, was
+refused —
+
+```text
+libs/wbs/adapters/observability/src/serializers.test.ts
+    6:7   error  Unsafe assignment of an error typed value         @typescript-eslint/no-unsafe-assignment
+    6:19  error  Unsafe call of a type that could not be resolved  @typescript-eslint/no-unsafe-call
+...
+✖ 21 problems (21 errors, 0 warnings)
+```
+
+and `git commit` exited 1 with no commit created. That is why the tests and the implementation are
+**one** slice: the red run is captured as evidence inside slice B, not as a commit. Committing
+slice B complete was rehearsed and passed every hook command (`7 files changed`), and so was
+slice A's OpenSpec-only commit (`5 files changed`).
 
 ### Callers, and what this change does to them
 
@@ -236,11 +278,18 @@ Recorded rather than asked, per the owner's standing instruction.
   (`report-failure.ts:112`), so a structural test both trusts forged content and runs the value's
   accessors. A module-private `WeakMap` keyed on the outcome object is the only reading of an
   unknown value that can neither throw nor execute foreign code.
-- **A3. The serializer owns no loss counter.** A lost report is `reportFailure`'s own
-  `UNREPORTED_<n>` outcome, already distinct per loss and already proved in `@shared/failures`.
-  `nextSerializerLoss` exists only for the guard of proof 2 and produces `UNSERIALIZED_<n>`; on
-  an intact dependency it is unreachable, and proof 2 is what makes that claim checkable rather
-  than asserted.
+- **A3. There are two loss paths, and the serializer's own has its own counter.** On an intact
+  tree a lost report is `reportFailure`'s `UNREPORTED_<n>` outcome, distinct per loss and proved
+  in `@shared/failures`. The serializer's fallback, `nextSerializerLoss`, produces
+  `UNSERIALIZED_<n>` from a counter of its own and answers only when the shared wrapper itself
+  failed. It is not unreachable and it is not untested: proofs 2 and 10 reach it by breaking that
+  wrapper, and the two `twoLostReports()` tests in section 8 assert nothing about which layer
+  answered, so they hold on both trees and give the fallback's counter and fixed reason a real
+  negative.
+- **A3b. An explicitly logged `undefined` is reported, not dropped and not refused.** Refusing
+  would mean a logger that throws, which the library's README forbids in the one place where
+  swallowing is correct. Reporting `undefined` costs one bounded call — `reportFailure(undefined)`
+  reads no property of anything — and produces an ordinary record an operator can correlate.
 - **A4. A new OpenSpec change and a new capability, `log-failure-records` /
   `failure-log-records`.** No observability or logging capability exists in `openspec/specs` (the
   twelve are authentication, bounded-replay-sweep, core-lib-extraction, dev-deploy,
@@ -278,22 +327,39 @@ Recorded rather than asked, per the owner's standing instruction.
 and restores it; a mutation that ends in a byte-identical `cmp` is not an edit, and it is the only
 file outside the plan the executor may touch, for that one proof.
 
+`libs/wbs/adapters/observability/src/serializers.ts` gains `keepAbsentFailure` beside
+`createFailureSerializer` and `registerReportedFailure`; `logger.ts` gains a `formatters.log`
+hook as well as the `secrets` option.
+
 **Neighbours.** No other batch 2 or batch 3 packet touches these files. 020.2 landed
 `@shared/failures` and this packet only imports it. 020.7 and 040.7 touch `apps/wbs/be-01`; 040.4
 and 110.1 touch the frontend and project targets; 010.6, 010.7 and 110.6 are Twilight Bureaucrat
 and wiki work; G2 owns tests elsewhere in this project's neighbourhood and is why section 12's
-devsync expectation is relative. If a step needs a file outside the table, **stop**.
+devsync expectation is relative. If a step needs a file outside the table, **stop**.## 6. Steps
 
-## 6. Steps
+Three slices. Each is dispatched on its own, starts from the tree the previous slice's commit
+left, records its own baseline, and ends with a commit the planner makes after review. Every
+slice's pre-edit checks describe **its** tree, never an earlier one. No slice needs the network;
+no test binds a port or spawns a process, so no `--network` at dispatch and no explicit Bun
+timeout are required.
 
-Each slice is dispatched on its own and starts from the tree the previous slice's commit left.
-Every slice records its own baseline, and its pre-edit checks describe **that** tree, never an
-earlier one. No slice needs the network; no test binds a port or spawns a process, so no
-`--network` at dispatch and no explicit Bun timeout are required.
+**Evidence between slices.** `run-executor.sh` gives every attempt a fresh temporary root, so a
+later slice cannot see an earlier one's `$TMPDIR`. Two consequences the executor must follow:
+
+- Every slice writes what it observed into `openspec/changes/log-failure-records/verify.md`
+  **before** handing over, and `verify.md` is in every slice's changed-path list. That committed
+  file, not `$TMPDIR`, is how a later slice and the planner read earlier results.
+- A slice that needs an earlier slice's raw evidence files is dispatched with
+  `--seed <that attempt's evidence directory>`, which the launcher merges into
+  `$TMPDIR/<basename>`. No slice of this packet needs that, because `verify.md` carries
+  everything; say so if you find otherwise instead of improvising.
+
+Evidence references inside `verify.md` are **basenames** relative to the attempt's evidence
+directory — never an absolute clone, home or temporary path.
 
 ### Slice A — The OpenSpec change
 
-**Pre-edit checks for this slice.** All must hold before editing; otherwise stop.
+**Pre-edit checks.** All must hold; otherwise stop.
 
 - `libs/wbs/adapters/observability/src/serializers.ts` contains `export const errSerializer`.
 - `libs/wbs/adapters/observability/src/log-schema.ts` contains `name: 'string',`.
@@ -310,8 +376,8 @@ echo "status=$?" >>"$TMPDIR/evidence/a0-observability-baseline.log"
 tail -6 "$TMPDIR/evidence/a0-observability-baseline.log"
 ```
 
-`set -e` is deliberately absent from every baseline block in this packet, because two of them
-expect a nonzero status. Expected here: `status=0` and a line `Ran N tests across M files`.
+`set -e` is deliberately absent from every baseline block in this packet, because one of them
+expects a nonzero status. Expected here: `status=0` and a line `Ran N tests across M files`.
 Write N, M and the `expect() calls` count down; every later count is a delta from them. The
 planner observed `3 pass`, `0 fail`, `8 expect() calls`, `Ran 3 tests across 2 files`.
 
@@ -320,13 +386,16 @@ Record the OpenSpec baseline with the README's **OpenSpec validation** block. Th
 
 **Step A1 — Create the change** with the README's **Creating an OpenSpec change** block, name
 `log-failure-records`. Then write `proposal.md`, `specs/failure-log-records/spec.md` and
-`tasks.md` exactly as section 9 gives them, and start `verify.md` with the heading block of
+`tasks.md` exactly as section 9 gives them, and create `verify.md` with the heading block of
 `openspec/changes/adopt-failure-reporting/verify.md` (change name, date, verifier attempt id).
 
 **Step A2 — Validate.** Run the **OpenSpec validation** block again. Expected: `"items": V+1`,
 `"failed": 0`, block exits 0, and the report names `log-failure-records` as valid.
 
-**Hand over.** Changed paths (five, all new):
+**Step A3 — Record.** Append to `verify.md`: the A0 baseline counts and the two validation
+totals, each with its command and exit status.
+
+**Hand over.** Changed paths, all new:
 
 ```text
 ?? openspec/changes/log-failure-records/.openspec.yaml
@@ -336,23 +405,34 @@ Record the OpenSpec baseline with the README's **OpenSpec validation** block. Th
 ?? openspec/changes/log-failure-records/verify.md
 ```
 
-Commit subject for the planner: `docs(openspec): declare the failure log record contract`.
+`tasks.md` task 1.1 stays unchecked: nothing is implemented yet. Commit subject for the planner:
+`docs(openspec): declare the failure log record contract`. Rehearsed: this commit passes every
+lefthook command.
 
-### Slice B — The tests, red
+### Slice B — The tests and the implementation, together
+
+The tests are written and watched failing **inside** this slice, and never committed alone. The
+repository's pre-commit hook runs `bunx eslint` over staged files under
+`tseslint.configs.strictTypeChecked`, and test files importing a not-yet-existing
+`createFailureSerializer` produce 21 unsafe-call and unsafe-assignment errors, so a red
+checkpoint commit is impossible (rehearsed; see section 3).
 
 **Pre-edit checks.** `openspec/changes/log-failure-records/proposal.md` exists;
-`libs/wbs/adapters/observability/src/serializers.ts` still contains `export const errSerializer`;
-`src/serializers.test.ts` does not exist. Otherwise stop.
+`src/serializers.ts` still contains `export const errSerializer`; `src/log-schema.ts` still
+contains `name: 'string',`; `src/serializers.test.ts` does not exist. Otherwise stop.
 
-**Step B0 — Baseline.** Rerun step A0's block. Expected unchanged from A0.
+**Step B0 — Baseline.** Rerun step A0's block into `"$TMPDIR/evidence/b0-baseline.log"`.
+Expected: `status=0` and A0's counts, which you read from the committed `verify.md`.
 
 **Step B1 — Write `src/serializers.test.ts`**, exactly as section 8 gives it.
 
-**Step B2 — Append section 8's five tests to `src/logger.test.ts`**, inside the existing
-`describe('createLogger', ...)`, directly after the closing `});` of
-`it('child logger inherits context', ...)` and before the file's final `});`.
+**Step B2 — Append section 8's helper and its ten tests to `src/logger.test.ts`.** The helper
+block (`interface LoggedLoss` through the closing `}` of `twoLostReports`) goes at module scope,
+directly above `describe('createLogger', () => {`. The ten tests go inside that `describe`,
+directly after the closing `});` of `it('child logger inherits context', ...)` and before the
+file's final `});`.
 
-**Step B3 — Observe red, with the status captured.**
+**Step B3 — Watch them fail, with the status captured.**
 
 ```sh
 set -uo pipefail
@@ -362,53 +442,26 @@ echo "status=$?" >>"$TMPDIR/evidence/b3-red.log"
 grep -E "^status=|error:|Ran " "$TMPDIR/evidence/b3-red.log"
 ```
 
-Expected: a **nonzero** `status=` line, and a failure naming `createFailureSerializer` as missing
-from `./serializers` — the module has no such export yet. A `status=0` here is a stop: the tests
-are supposed to fail. `0 tests ran` is also a stop.
+Expected: a **nonzero** `status=` line and a failure naming `createFailureSerializer` as missing
+from `./serializers`. `status=0` is a stop — the tests are supposed to fail. `0 tests ran` is a
+stop. **Do not commit here**; keep `b3-red.log` and quote its decisive lines in `verify.md`.
 
-**Hand over.** Changed paths:
+**Step B4 — Replace `src/serializers.ts`** with section 7's listing. The `Proof:` comments are
+written in slice C, after the faults have been observed.
 
-```text
- M libs/wbs/adapters/observability/src/logger.test.ts
-?? libs/wbs/adapters/observability/src/serializers.test.ts
-```
+**Step B5 — Replace `src/logger.ts`** with section 7's listing. It is a whole-file replacement
+because the change touches the imports, the options interface, the policy construction, the
+serializer and the formatters.
 
-Commit subject: `test(observability): pin the failure log record contract`. The tests are red on
-purpose; say so in the report.
-
-### Slice C — The implementation, green
-
-**Pre-edit checks.** `src/serializers.test.ts` exists and contains `registerReportedFailure`;
-`src/serializers.ts` still contains `export const errSerializer`; `src/log-schema.ts` still
-contains `name: 'string',`. Otherwise stop.
-
-**Step C0 — Baseline, expected red.** Rerun step B3's block into
-`"$TMPDIR/evidence/c0-red.log"`. Expected: the same nonzero status and the same missing-export
-failure. Record the count of failing tests; the slice ends with that count at zero.
-
-**Step C1 — Replace `src/serializers.ts`** with section 7's listing. The `Proof:` comments are
-written in slice D, after the faults have been observed.
-
-**Step C2 — Edit `src/logger.ts`.** Three edits, in this order:
-
-- Replace lines 1-4 (`import type { Logger } ...` through
-  `import { errSerializer } from './serializers';`) with section 7's import block.
-- Insert section 7's `secrets` member into `CreateLoggerOptions`, after
-  `destination?: { write(chunk: string): void };`.
-- Replace the single line `    serializers: { err: errSerializer },` inside `createLogger`'s
-  `options` object with section 7's two-comment-plus-one-line replacement. There is exactly one
-  such line in the file.
-
-**Step C3 — Edit `src/log-schema.ts`.** Replace the whole `'err?': { ... },` member (lines 15-19,
+**Step B6 — Edit `src/log-schema.ts`.** Replace the whole `'err?': { ... },` member (lines 15-19,
 from `'err?': {` through the `},` that closes it) with section 7's `'err?': [ ... ],` member, and
 add section 7's JSDoc block directly above `export const LogRecord = type({`.
 
-**Step C4 — Edit `src/index.ts`.** Append `export * from './serializers';` after the
+**Step B7 — Edit `src/index.ts`.** Append `export * from './serializers';` after the
 `'./prometheus'` line; `simple-import-sort/exports` fixes the order if it is wrong.
 
-**Step C5 — Green, typed, linted.** This slice re-declares an exported type, so it runs the type
-check itself, and it runs the downstream one because ten callers pass values to the changed
-serializer:
+**Step B8 — Green, typed, linted.** This slice re-declares an exported type, so it runs the type
+check itself, and the downstream one because ten callers pass values to the changed serializer:
 
 ```sh
 (cd libs/wbs/adapters/observability && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test)
@@ -417,8 +470,8 @@ NX_DAEMON=false bunx nx run wbs-observability:lint
 NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-gw-01,wbs-core
 ```
 
-Expected, all status 0: baseline N + 19 tests across baseline M + 1 files — the planner observed
-`22 pass`, `0 fail`, `54 expect() calls`, `Ran 22 tests across 3 files`; then
+Expected, all status 0: baseline N + 24 tests across baseline M + 1 files — the planner observed
+`27 pass`, `0 fail`, `64 expect() calls`, `Ran 27 tests across 3 files`; then
 `Successfully ran target typecheck for project wbs-observability`; then
 `Successfully ran target lint for project wbs-observability`; then
 `Successfully ran target typecheck for 3 projects`. Start each Nx target under the preamble's
@@ -427,41 +480,50 @@ status-recording wrapper (rule 19).
 A lint failure whose only diagnostics are `simple-import-sort/*` or `prettier/prettier` is fixed
 with `bunx eslint --fix` on the named files (preamble rule 17), not a stop. Anything else stops.
 
+**Step B9 — Record.** Append to `verify.md`: the B0 baseline, the B3 red status and its decisive
+line, and each B8 command with its status and decisive line.
+
 **Hand over.** Changed paths:
 
 ```text
  M libs/wbs/adapters/observability/src/index.ts
  M libs/wbs/adapters/observability/src/log-schema.ts
+ M libs/wbs/adapters/observability/src/logger.test.ts
  M libs/wbs/adapters/observability/src/logger.ts
  M libs/wbs/adapters/observability/src/serializers.ts
+?? libs/wbs/adapters/observability/src/serializers.test.ts
+ M openspec/changes/log-failure-records/verify.md
 ```
 
-Commit subject: `feat(observability): log a failure as its diagnostic report`.
+`tasks.md` task 1.1 is still unchecked: its negatives are slice C's. Commit subject:
+`feat(observability): log a failure as its diagnostic report`. Rehearsed: this commit passes
+every lefthook command.
 
-### Slice D — Negative proofs, documentation, hand-over
+### Slice C — Negative proofs, documentation, hand-over
 
-**Pre-edit checks.** These describe the tree **after** slice C, and are the opposite of slice A's:
+**Pre-edit checks.** These describe the tree **after** slice B, and are the opposite of slice A's:
 `src/serializers.ts` contains `export function createFailureSerializer` and **no longer** contains
 `errSerializer`; `src/log-schema.ts` contains `v: '/^corj\\//',`; the whole-project test run is
 green. Otherwise stop.
 
-**Step D0 — Baseline.** Rerun step A0's block. Expected: `status=0` and slice C's counts.
+**Step C0 — Baseline.** Rerun step A0's block. Expected: `status=0` and slice B's counts, which
+you read from the committed `verify.md`.
 
-**Step D1 — The seven proofs** of section 11, one at a time, each with the README's
+**Step C1 — The ten proofs** of section 11, one at a time, each with the README's
 **Saving a mutation patch** form, each restored with `cp` and verified with `cmp` **before** any
-assertion on a captured status, each followed by a green rerun of the named test. Proof 2 mutates
-two files and needs both restored and both `cmp`-verified.
+assertion on a captured status, each followed by a green rerun of the named test. Proofs 2 and 10
+mutate two files and need both restored and both `cmp`-verified.
 
-**Step D2 — Write the `Proof:` comments** at the locations section 11 names, using the diagnostics
-you actually saw.
+**Step C2 — Write the `Proof:` comments** at the locations section 11 names, using the
+diagnostics you actually saw.
 
-**Step D3 — README.** Apply section 10's edits.
+**Step C3 — README.** Apply section 10's edits.
 
-**Step D4 — `verify.md`.** Append every step's command, status and decisive output line, and the
-seven proofs. Evidence references are **basenames** relative to this attempt's evidence directory
-— never an absolute clone, home or temporary path.
+**Step C4 — `verify.md` and `tasks.md`.** Append the ten proofs to `verify.md`, each naming its
+fault, the test, the observed line and the restore's `cmp` result. Then tick task 1.1 in
+`openspec/changes/log-failure-records/tasks.md`: this slice completes it.
 
-**Step D5 — Format and validate.**
+**Step C5 — Format and validate.**
 
 ```sh
 GSETTINGS_BACKEND=memory bunx prettier --write \
@@ -479,11 +541,13 @@ GSETTINGS_BACKEND=memory bunx prettier --write \
 NX_DAEMON=false bunx nx run wbs-observability:lint
 NX_DAEMON=false bunx nx run wbs-observability:typecheck
 (cd libs/wbs/adapters/observability && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test)
+NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx format:check --all
 ```
 
-Then the repository-wide format **check** (never a repository-wide write) and the README's
-**OpenSpec validation** block. Prettier reflows the ternary `Proof:` comment of proof 3; section
-11 already shows the post-Prettier form.
+`--all` is required: without it the check can select nothing and pass vacuously. Expected exit 0
+from each, and no output from `format:check`. Then run the README's **OpenSpec validation** block
+again; expected `"items": V+1`, `"failed": 0`. Prettier reflows the ternary `Proof:` comment of
+proof 3; section 11 already shows the post-Prettier form.
 
 **Hand over.** Changed paths:
 
@@ -492,15 +556,15 @@ Then the repository-wide format **check** (never a repository-wide write) and th
  M libs/wbs/adapters/observability/src/log-schema.ts
  M libs/wbs/adapters/observability/src/logger.ts
  M libs/wbs/adapters/observability/src/serializers.ts
+ M openspec/changes/log-failure-records/tasks.md
  M openspec/changes/log-failure-records/verify.md
 ```
 
-`libs/shared/domain/failures/src/report-failure.ts` must **not** appear: if it does, proof 2 was
-not restored. Commit subject: `docs(observability): record the failure record proofs`.
+`libs/shared/domain/failures/src/report-failure.ts` must **not** appear: if it does, proof 2 or 10
+was not restored. Commit subject: `docs(observability): record the failure record proofs`.
 
-**Cumulative check against the packet's starting tree.** After slice D,
-`git diff --name-only <the commit slice A started from>` must list exactly the twelve paths of
-section 5 and nothing else.
+**Cumulative check.** After slice C, `git diff --name-only <the commit slice A started from>`
+must list exactly the twelve paths of section 5 and nothing else.
 
 ## 7. The code, exactly
 
@@ -551,6 +615,31 @@ const reportedFailures = new WeakMap<object, FailureReporting>();
 export function registerReportedFailure(reporting: FailureReporting): FailureReporting {
   reportedFailures.set(reporting, reporting);
   return reporting;
+}
+
+/**
+ * Replace an explicitly present `err: undefined` with a reported outcome of that very value.
+ *
+ * Pino drops a property whose value is `undefined` before any serializer sees it
+ * (`pino/lib/tools.js:168` tests `value !== undefined` inside the field loop), so a boundary that
+ * caught `undefined` and logged `{ err }` would get a line carrying no failure record at all —
+ * indistinguishable from a line that was never about a failure. The value is reported here
+ * instead of dropped, and the outcome is registered so the serializer reuses it rather than
+ * reporting a second occurrence. A record with no `err` property is left exactly as it is.
+ *
+ * `formatters.log` is where this must happen: Pino calls it on the whole field object before the
+ * loop that drops undefined values.
+ *
+ * @param fields One log record's fields, as Pino assembled them.
+ * @param redact The policy of the boundary that owns the logger.
+ * @returns The same fields, or a copy whose `err` is a reported outcome.
+ */
+export function keepAbsentFailure(
+  fields: Record<string, unknown>,
+  redact: RedactionPolicy,
+): Record<string, unknown> {
+  if (!('err' in fields) || fields['err'] !== undefined) return fields;
+  return { ...fields, err: registerReportedFailure(reportFailure(undefined, { redact })) };
 }
 
 /** Fixed text: a thrown message may quote the very value the policy was protecting. */
@@ -612,35 +701,53 @@ export function createFailureSerializer(
 }
 ```
 
-### `libs/wbs/adapters/observability/src/logger.ts` — the three edits
-
-Import block, replacing lines 1-4:
+### `libs/wbs/adapters/observability/src/logger.ts` (whole file, post-Prettier)
 
 ```ts
 import { createFailureRedaction } from '@shared/failures';
 import type { Logger } from '@wbs/contracts';
 import pino, { type LoggerOptions } from 'pino';
 
-import { createFailureSerializer } from './serializers';
-```
+import { createFailureSerializer, keepAbsentFailure } from './serializers';
 
-Added member of `CreateLoggerOptions`, after `destination`:
+export { type Logger, noopLogger } from '@wbs/contracts';
 
-```ts
+export type ServiceName = 'be-01' | 'gw-01' | 'fe-01';
+
+export interface CreateLoggerOptions {
+  service: ServiceName;
+  version?: string;
+  level?: string;
+  destination?: { write(chunk: string): void };
   /**
    * The secret values this process owns, scrubbed from every failure record as text. Only what
    * the caller actually holds: a secret nobody named cannot be detected, and a whole config,
    * request or environment object is never passed.
    */
   secrets?: readonly string[];
-```
+}
 
-Replacing the one line `    serializers: { err: errSerializer },`:
+export function createLogger(opts: CreateLoggerOptions): Logger {
+  const level = opts.level ?? process.env['LOG_LEVEL'] ?? 'info';
+  // One policy per logger, built once: `@shared/failures` caches one report maker per policy,
+  // and a policy rebuilt per record would throw that cache away on every failure.
+  const redact = createFailureRedaction(opts.secrets ?? []);
+  const base: Record<string, unknown> = { service: opts.service };
+  if (opts.version) base['version'] = opts.version;
 
-```ts
-    // One policy per logger, built once: `@shared/failures` caches one report maker per policy,
-    // and a policy rebuilt per record would throw that cache away on every failure.
-    serializers: { err: createFailureSerializer(createFailureRedaction(opts.secrets ?? [])) },
+  const options: LoggerOptions = {
+    level,
+    base,
+    timestamp: () => `,"time":${String(Date.now())}`,
+    serializers: { err: createFailureSerializer(redact) },
+    formatters: {
+      level: (label: string) => ({ level: label }),
+      log: (fields: Record<string, unknown>) => keepAbsentFailure(fields, redact),
+    },
+  };
+
+  return opts.destination ? pino(options, opts.destination) : pino(options);
+}
 ```
 
 ### `libs/wbs/adapters/observability/src/log-schema.ts` — the two edits
@@ -678,11 +785,9 @@ Replacing the `'err?'` member:
   ],
 ```
 
-The `v` value is the TypeScript string literal `'/^corj\\//'`, which is the six-character
+The `v` value is the TypeScript string literal `'/^corj\\//'`; evaluated, it is the nine-character
 ArkType pattern `/^corj\//`. Getting the escape wrong makes the diagnostic branch reject every
-real report.
-
-## 8. The tests, exactly
+real report.## 8. The tests, exactly
 
 ### `libs/wbs/adapters/observability/src/serializers.test.ts` (new file, whole)
 
@@ -844,12 +949,53 @@ Notes the executor needs:
 - `unreportableFailure()` is a revoked proxy **as a cause**. A bare revoked proxy is reported
   successfully and would not reach the loss path at all.
 
-### `libs/wbs/adapters/observability/src/logger.test.ts` — five appended tests
+### `libs/wbs/adapters/observability/src/logger.test.ts` — one helper and ten tests
 
-These go **inside** the existing `describe('createLogger', ...)`, so indent every line of the
-listing below by two further spaces when pasting. Prettier formats a fenced block as a standalone
-file and strips that indentation from this document each time it runs, which is why the listing is
-shown at column zero; the file itself is formatted by step D5.
+Prettier formats a fenced block as a standalone file and strips leading indentation from this
+document each time it runs, so both listings are shown at column zero. The helper is already at
+module scope; **indent every line of the tests listing by two further spaces** when pasting it
+inside `describe`.
+
+Module-scope helper, directly above `describe('createLogger', () => {`:
+
+```ts
+interface LoggedLoss {
+  readonly occurrence_id: string;
+  readonly reported: false;
+  readonly reason: string;
+}
+
+/**
+ * Log two failures no report can be built for and read back both loss records.
+ *
+ * Asserts nothing about which layer produced the loss, so it holds both on an intact tree, where
+ * `@shared/failures` returns it, and under the dependency fault of the guard's proof, where the
+ * serializer's own fallback does.
+ */
+function twoLostReports(): [LoggedLoss, LoggedLoss] {
+  const stream: string[] = [];
+  const logger = createLogger({
+    service: 'be-01',
+    destination: {
+      write: (chunk: string) => {
+        stream.push(chunk);
+      },
+    },
+  });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const revocable = Proxy.revocable({}, {});
+    revocable.revoke();
+    logger.error({ err: new Error('boom', { cause: revocable.proxy }) }, 'report lost');
+  }
+  const [first, second] = stream
+    .slice(-2)
+    .map((line) => parseOrThrow(LogRecord, JSON.parse(line) as Record<string, unknown>))
+    .map((record) => record.err as LoggedLoss);
+  return [first, second];
+}
+```
+
+The ten tests, inside `describe('createLogger', ...)`:
 
 ```ts
 it('logs a failure as the diagnostic report and validates against the schema', () => {
@@ -874,6 +1020,60 @@ it('logs a failure as the diagnostic report and validates against the schema', (
   expect(failure.occurrence_id).toMatch(/^AE_/);
   expect(failure.fingerprint).toMatch(/^fp1_/);
   expect(parsed.request_id).toBe('req-9');
+});
+
+it('reports an explicitly present undefined failure instead of dropping it', () => {
+  const stream: string[] = [];
+  const logger = createLogger({
+    service: 'be-01',
+    destination: {
+      write: (chunk: string) => {
+        stream.push(chunk);
+      },
+    },
+  });
+  const caught: unknown = undefined;
+
+  logger.error({ err: caught, request_id: 'req-u' }, 'operation failed');
+
+  const parsed = parseOrThrow(LogRecord, JSON.parse(stream.at(-1)!) as Record<string, unknown>);
+  const failure = parsed.err as { occurrence_id: string; v: string } | undefined;
+  expect(failure).toBeDefined();
+  expect(failure?.occurrence_id).toMatch(/^AE_/);
+});
+
+it('reports the failure it was given, never a substitute', () => {
+  const stream: string[] = [];
+  const logger = createLogger({
+    service: 'be-01',
+    destination: {
+      write: (chunk: string) => {
+        stream.push(chunk);
+      },
+    },
+  });
+
+  logger.error({ err: new Error('the real failure') }, 'operation failed');
+
+  expect(stream.at(-1)!).toContain('Error: the real failure');
+});
+
+it('leaves a record that carries no failure alone', () => {
+  const stream: string[] = [];
+  const logger = createLogger({
+    service: 'be-01',
+    destination: {
+      write: (chunk: string) => {
+        stream.push(chunk);
+      },
+    },
+  });
+
+  logger.info({ request_id: 'req-plain' }, 'nothing failed');
+
+  const parsed = parseOrThrow(LogRecord, JSON.parse(stream.at(-1)!) as Record<string, unknown>);
+  expect(parsed.err).toBeUndefined();
+  expect(parsed.request_id).toBe('req-plain');
 });
 
 it('refuses a public report where the schema expects a failure record', () => {
@@ -940,18 +1140,38 @@ it('writes a line rather than throwing when the failure cannot be read', () => {
   expect(failure.reported).toBe(false);
   expect(failure.occurrence_id).toContain('UNREPORTED_');
 });
+
+it('gives two lost reports two different correlation handles', () => {
+  const losses = twoLostReports();
+  expect(losses[0].reported).toBe(false);
+  expect(losses[1].reported).toBe(false);
+  expect(losses[0].occurrence_id).not.toBe(losses[1].occurrence_id);
+});
+
+it('states one fixed reason on every lost report', () => {
+  const losses = twoLostReports();
+  expect(losses[0].reason).toBe(losses[1].reason);
+  expect(losses[0].reason.length).toBeGreaterThan(0);
+});
+});
 ```
 
-Five separate tests, not two: the schema conformance, the public-report refusal, the loss-reason
-refusal, the redaction and the never-throw path are five checks, and one mutation must not be able
-to hide another.
+Ten separate tests, not four: schema conformance, the absent-failure normalisation, the
+no-substitute rule, the untouched plain record, the public-report refusal, the loss-reason
+refusal, the redaction, the never-throw path, the distinct loss handles and the fixed loss reason
+are ten checks, and one mutation must not be able to hide another.
+
+`twoLostReports()` deliberately asserts nothing about which layer produced the loss, so the last
+two tests hold both on an intact tree, where `@shared/failures` answers with `UNREPORTED_<n>`, and
+under proof 2's dependency fault, where the serializer's fallback answers with `UNSERIALIZED_<n>`.
+That is what gives the fallback counter a reachable negative.
 
 ## 9. OpenSpec
 
 `openspec/changes/log-failure-records/.openspec.yaml` carries `schema: sdd-lean` and
 `created: 2026-09-21`.
 
-### `proposal.md` (374 words, under the 400-word limit)
+### `proposal.md` (385 words, under the 400-word limit)
 
 ```markdown
 ## Why
@@ -963,7 +1183,7 @@ The WBS logger serializes an `err` into `{ type, message, stack }` while the dec
 **Failure log records**
 
 - From: the logger renders a caught value itself, into a shape the log schema contradicts, with no correlation handle, no retry signal and no redaction.
-- To: the logger writes the sanitized diagnostic report of one failure under `err`, and the log schema declares that record as exactly one of a diagnostic report or a visible reporting loss, so an operator can correlate a line with what a user or agent was told.
+- To: the logger writes the sanitized diagnostic report of one failure under `err` — for every value a boundary logged there, `undefined` included — and the log schema declares that record as exactly one of a diagnostic report or a visible reporting loss, so an operator can correlate a line with what a user or agent was told.
 - Impact: contractual for anything reading WBS log lines; the Pino envelope, levels and correlation fields are unchanged.
 
 ## Non-Goals
@@ -1021,6 +1241,28 @@ A log line about a failure SHALL carry that failure's sanitized diagnostic repor
 - **GIVEN** a caught value whose cause is another failure
 - **WHEN** it is logged as a failure
 - **THEN** the record reports that cause as a child of the failure
+
+### Requirement: A failure a boundary logged is never dropped
+
+A log call that carries a failure field SHALL produce a failure record even when the caught value has no value at all, that record SHALL report the value the boundary logged rather than a substitute, and a log call carrying no failure field SHALL produce no failure record.
+
+#### Scenario: The caught value has no value
+
+- **GIVEN** a boundary that caught a value with no value and logs it as the failure
+- **WHEN** the line is emitted
+- **THEN** the line carries a failure record with an occurrence identifier
+
+#### Scenario: The caught value is an ordinary failure
+
+- **GIVEN** a boundary that logs a failure carrying a message
+- **WHEN** the line is emitted
+- **THEN** the record reports that failure rather than a substitute
+
+#### Scenario: The line is not about a failure
+
+- **GIVEN** a log call carrying no failure field
+- **WHEN** the line is emitted
+- **THEN** the line carries no failure record
 
 ### Requirement: The public report never replaces the diagnostic one
 
@@ -1113,6 +1355,7 @@ Serializing a failure for a log line SHALL NOT throw for any value, and a failur
 - **GIVEN** two failures no report can be built for
 - **WHEN** both are logged
 - **THEN** their records carry different correlation handles
+- **AND** both records name the same fixed reason
 
 #### Scenario: A hostile value is logged
 
@@ -1129,12 +1372,12 @@ Serializing a failure for a log line SHALL NOT throw for any value, and a failur
 
 ### `tasks.md`
 
-The reference is a code-span path and **not** a Markdown link: see the devsync finding in section 3.
+The reference is a code-span path and **not** a Markdown link: see the devsync finding in section 3. Task 1.1 is ticked in slice C, not before.
 
 ```markdown
 ## 1. Failure log records
 
-- [ ] 1.1 Replace the `err` serializer with one built over `@shared/failures`, declare the record in `log-schema.ts` and export both — test: `NX_DAEMON=false bunx nx run wbs-observability:test --skip-nx-cache`, `wbs-observability:typecheck`, `wbs-observability:lint`; negatives: trust an unregistered reporting-shaped value, remove the never-throw guard while the shared wrapper is broken, write the public report instead of the diagnostic one, drop the caller's secrets from the policy, relax the schema's diagnostic version, relax the schema's loss reason and restore the pre-change `err` member
+- [ ] 1.1 Replace the `err` serializer with one built over `@shared/failures`, declare the record in `log-schema.ts` and export both — test: `NX_DAEMON=false bunx nx run wbs-observability:test --skip-nx-cache`, `wbs-observability:typecheck`, `wbs-observability:lint`; negatives: drop the explicitly logged absent failure, substitute a report for a present one, trust an unregistered reporting-shaped value, remove the never-throw guard while the shared wrapper is broken, write the public report instead of the diagnostic one, drop the caller's secrets from the policy, relax the schema's diagnostic version, relax the schema's loss reason, restore the pre-change `err` member and, under the broken shared wrapper, replace the fallback handle counter with a constant
 
 ## References
 
@@ -1181,14 +1424,13 @@ In `libs/wbs/adapters/observability/README.md`:
   read, selection and record construction inside one guard.
 ```
 
-The heading "## Five files" stays: the file count does not change.
+The heading "## Five files" stays: the file count does not change.## 11. Negative proofs
 
-## 11. Negative proofs
-
-All seven were rehearsed by the planner on 2026-09-21 in a worktree of `batch-3/planning`, with
-Bun 1.4.2. Each row names the file, the function, the exact expression, the named test and the
-**fact** the test fails on, with the fragment the runner actually printed. Extra failing tests are
-recorded, never a stop (preamble rules 16 and 20).
+All ten were rehearsed by the planner on 2026-09-21 in a worktree of `batch-3/planning`, with Bun
+1.4.2, against the section 7 code **before** its `Proof:` comments were added — which is the tree
+slice C starts from. Each names the file, the function, the exact expression, the named test and
+the **fact** the test fails on, with the fragment the runner actually printed. Extra failing tests
+are recorded, never a stop (preamble rules 16 and 20).
 
 ### Proof 1 — provenance is registration, not shape
 
@@ -1221,7 +1463,7 @@ Three tests, one per facet; run all three under the one fault and record all thr
 
 On an intact dependency nothing can make this guard fire, so the fault is injected **one layer
 down** and the proof is two runs whose difference is the guard. This is R5's "the check removed or
-its dependency broken" and it is why the guard is not listed under
+its dependency broken", which is why the guard is not listed under
 `docs/findings/checks-that-cannot-fail.md`.
 
 **Fault A (dependency only).** In `libs/shared/domain/failures/src/report-failure.ts`,
@@ -1248,18 +1490,43 @@ TypeError: Array.isArray cannot be called on a Proxy that has been revoked
 The guard's whole value is the difference between those two diagnostics. Restore **both** files
 with `cp` and prove **both** with `cmp` before asserting on anything, then rerun the test green.
 
-### Proofs 3 to 7
+### Proof 10 — the fallback's own handle counter
 
-| #   | File, function, exact expression                                                                                             | Fault                                                                                | Named test                                                                 | Observed                                                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 3   | `serializers.ts`, the returned closure, the ternary's true arm `reporting.reports.diagnostic`                                | change it to `reporting.reports.public`                                              | `never writes the public report in place of the diagnostic one`            | `Expected: "corj/v0.14"` / `Received: "appex/public/v4"`                                                    |
-| 4   | `logger.ts`, `createLogger`, the argument `createFailureRedaction(opts.secrets ?? [])` inside the single `serializers:` line | change it to `createFailureRedaction([])`                                            | `scrubs a secret this process owns out of the failure line`                | `Expected to not contain: "hunter2"`, the received line showing `"stack":["Error: token was hunter2", ...]` |
-| 5   | `log-schema.ts`, the `err` union's FIRST branch, the member `v: '/^corj\\//',`                                               | replace it with `'v?': 'string',`                                                    | `refuses a public report where the schema expects a failure record`        | `Expected pattern: /\^corj\//` / `Received function did not throw`                                          |
-| 6   | `log-schema.ts`, the `err` union's SECOND branch, the member `reason: 'string'`                                              | replace it with `'reason?': 'string'`                                                | `refuses a reporting loss that names no reason`                            | `Expected pattern: /reason must be a string/` / `Received function did not throw`                           |
-| 7   | `log-schema.ts`, the whole `'err?': [ ... ],` member                                                                         | replace it with `'err?': { name: 'string', message: 'string', 'stack?': 'string' },` | `logs a failure as the diagnostic report and validates against the schema` | `ValidationError: Validation failed: err.message must be a string (was missing)`                            |
+Same dependency fault, so that the fallback is the layer answering. Run it immediately after proof
+2, while fault A is still installed and the guard is restored.
 
-Proofs 5, 6 and 7 touch three different expressions of one member; each has its own test, and
-none of the three faults may be installed at the same time as another.
+**Step 1 (fault A alone).** `gives two lost reports two different correlation handles` and
+`states one fixed reason on every lost report` in `src/logger.test.ts` both **pass**: they assert
+nothing about which layer produced the loss. Record both passes — that is what shows the fallback
+is really the one answering.
+
+**Step 2 (fault A plus a constant counter).** In `serializers.ts`, `nextSerializerLoss`, replace
+`unserializableFailures += 1;` with `unserializableFailures = 1;`. Run
+`gives two lost reports two different correlation handles`. Observed:
+
+```text
+error: expect(received).not.toBe(expected)
+Expected: not "UNSERIALIZED_1"
+```
+
+Restore both files, `cmp` both, rerun green.
+
+### Proofs 3 to 9
+
+| #   | File, function, exact expression                                                                                                  | Fault                                                                                                               | Named test                                                                 | Observed                                                                                                                            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `serializers.ts`, the returned closure, the ternary's true arm `reporting.reports.diagnostic`                                     | change it to `reporting.reports.public`                                                                             | `never writes the public report in place of the diagnostic one`            | `Expected: "corj/v0.14"` / `Received: "appex/public/v4"`                                                                            |
+| 4   | `logger.ts`, `createLogger`, the argument of the single `createFailureSerializer(redact)` call, and the `redact` binding it reads | change the `const redact = createFailureRedaction(opts.secrets ?? []);` initialiser to `createFailureRedaction([])` | `scrubs a secret this process owns out of the failure line`                | `Expected to not contain: "hunter2"`, the received line showing `"stack":["Error: token was hunter2", ...]`                         |
+| 5   | `log-schema.ts`, the `err` union's FIRST branch, the member `v: '/^corj\\//',`                                                    | replace it with `'v?': 'string',`                                                                                   | `refuses a public report where the schema expects a failure record`        | `Expected pattern: /\^corj\//` / `Received function did not throw`                                                                  |
+| 6   | `log-schema.ts`, the `err` union's SECOND branch, the member `reason: 'string'`                                                   | replace it with `'reason?': 'string'`                                                                               | `refuses a reporting loss that names no reason`                            | `Expected pattern: /reason must be a string/` / `Received function did not throw`                                                   |
+| 7   | `log-schema.ts`, the whole `'err?': [ ... ],` member                                                                              | replace it with `'err?': { name: 'string', message: 'string', 'stack?': 'string' },`                                | `logs a failure as the diagnostic report and validates against the schema` | `ValidationError: Validation failed: err.message must be a string (was missing)`                                                    |
+| 8   | `logger.ts`, `createLogger`, the `log:` entry of `formatters`                                                                     | delete that one line                                                                                                | `reports an explicitly present undefined failure instead of dropping it`   | `error: expect(received).toBeDefined()` / `Received: undefined`                                                                     |
+| 9   | `serializers.ts`, `keepAbsentFailure`, the guard `if (!('err' in fields) \|\| fields['err'] !== undefined) return fields;`        | drop the second disjunct, leaving `if (!('err' in fields)) return fields;`                                          | `reports the failure it was given, never a substitute`                     | `Expected to contain: "Error: the real failure"` / a received line whose `err` reads `"typeof":"undefined","as_string":"undefined"` |
+
+Proofs 5, 6 and 7 touch three different expressions of one member; each has its own test, and none
+of the three faults may be installed at the same time as another. Proofs 8 and 9 are the two
+halves of the normalisation: one that it happens at all, one that it happens only for the absent
+value.
 
 The byte budget and the `no-invoke` inspection rule are **not** proved here: they are checks of
 `@shared/failures` with their own watched negatives at
@@ -1281,12 +1548,16 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'scru
 env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'refuses a public report where the schema expects a failure record'
 env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'refuses a reporting loss that names no reason'
 env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'logs a failure as the diagnostic report and validates against the schema'
+env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'reports an explicitly present undefined failure instead of dropping it'
+env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'reports the failure it was given, never a substitute'
+env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'gives two lost reports two different correlation handles'
+env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/logger.test.ts -t 'states one fixed reason on every lost report'
 ```
 
-Each must report `1 fail` with the rest `filtered out`. `0 tests ran` from one of these verbatim
-filters is a stop.
+Each must report `1 fail` with the rest `filtered out`, except proof 10 step 1, where the two
+named tests must report `1 pass`. `0 tests ran` from one of these verbatim filters is a stop.
 
-### The `Proof:` comments to write in step D2
+### The `Proof:` comments to write in step C2
 
 In `serializers.ts`, inside the returned closure, in their post-Prettier form:
 
@@ -1311,12 +1582,36 @@ In `serializers.ts`, inside the returned closure, in their post-Prettier form:
           reporting.reports.diagnostic
 ```
 
+In `serializers.ts`, `keepAbsentFailure`, directly above its `if`:
+
+```ts
+// Proof: dropping `|| fields['err'] !== undefined` substituted a report of `undefined` for
+// every logged failure and failed "reports the failure it was given, never a substitute" on
+// `Expected to contain: "Error: the real failure"` (2026-09-21).
+```
+
+In `serializers.ts`, `nextSerializerLoss`, directly above the increment:
+
+```ts
+// Proof: with `@shared/failures`' wrapper broken so this fallback answers, replacing this
+// increment with `unserializableFailures = 1` failed "gives two lost reports two different
+// correlation handles" on `Expected: not "UNSERIALIZED_1"` (2026-09-21).
+```
+
 In `logger.ts`, directly above the `serializers:` line:
 
 ```ts
 // Proof: passing `createFailureRedaction([])` instead of the caller's secrets printed
 // `"stack":["Error: token was hunter2"` and failed "scrubs a secret this process owns out of
 // the failure line" (2026-09-21).
+```
+
+In `logger.ts`, directly above the `log:` formatter line:
+
+```ts
+// Proof: removing this hook dropped an explicitly present `err: undefined` before any
+// serializer saw it and failed "reports an explicitly present undefined failure instead of
+// dropping it" on `expect(received).toBeDefined()` / `Received: undefined` (2026-09-21).
 ```
 
 In `log-schema.ts`, directly above `'err?': [`:
@@ -1338,23 +1633,23 @@ Replace the dates with the day the fault was actually observed if it is not 2026
 
 | Command                                                                         | Expected                                                                                                                                      | Slice      |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Step A0's baseline block                                                        | `status=0`, `Ran N tests across M files`                                                                                                      | A0, B0, D0 |
-| The README's **OpenSpec validation** block                                      | block exits 0; `"items": V`, then `V+1`, `"failed": 0`                                                                                        | A0, A2, D5 |
-| Step B3's red block                                                             | **nonzero** `status=`, `createFailureSerializer` missing from `./serializers`                                                                 | B3, C0     |
-| `(cd libs/wbs/adapters/observability && ... bun test)`                          | status 0, baseline N + 19 tests across M + 1 files — planner observed `22 pass`, `0 fail`, `54 expect() calls`, `Ran 22 tests across 3 files` | C5, D5     |
-| `NX_DAEMON=false bunx nx run wbs-observability:typecheck`                       | status 0, `Successfully ran target typecheck for project wbs-observability`                                                                   | C5, D5     |
-| `NX_DAEMON=false bunx nx run wbs-observability:lint`                            | status 0, `Successfully ran target lint for project wbs-observability`                                                                        | C5, D5     |
-| `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-gw-01,wbs-core` | status 0, `Successfully ran target typecheck for 3 projects`                                                                                  | C5         |
-| The nine proof filters of section 11                                            | each `1 fail`, then restored and green                                                                                                        | D1         |
-| `GSETTINGS_BACKEND=memory bunx prettier --write <the eleven owned text files>`  | status 0                                                                                                                                      | D5         |
-| The repository-wide format **check** (never a write)                            | status 0                                                                                                                                      | D5         |
+| Step A0's baseline block                                                        | `status=0`, `Ran N tests across M files`                                                                                                      | A0, B0, C0 |
+| The README's **OpenSpec validation** block                                      | block exits 0; `"items": V`, then `V+1`, `"failed": 0`                                                                                        | A0, A2, C5 |
+| Step B3's red block                                                             | **nonzero** `status=`, `createFailureSerializer` missing from `./serializers`                                                                 | B3         |
+| `(cd libs/wbs/adapters/observability && ... bun test)`                          | status 0, baseline N + 24 tests across M + 1 files — planner observed `27 pass`, `0 fail`, `64 expect() calls`, `Ran 27 tests across 3 files` | B8, C5     |
+| `NX_DAEMON=false bunx nx run wbs-observability:typecheck`                       | status 0, `Successfully ran target typecheck for project wbs-observability`                                                                   | B8, C5     |
+| `NX_DAEMON=false bunx nx run wbs-observability:lint`                            | status 0, `Successfully ran target lint for project wbs-observability`                                                                        | B8, C5     |
+| `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-gw-01,wbs-core` | status 0, `Successfully ran target typecheck for 3 projects`                                                                                  | B8         |
+| The thirteen proof filters of section 11                                        | eleven `1 fail`, and proof 10 step 1's two `1 pass`; each restored and green afterwards                                                       | C1         |
+| `GSETTINGS_BACKEND=memory bunx prettier --write <the eleven owned text files>`  | status 0                                                                                                                                      | C5         |
+| `NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx format:check --all`           | status 0, no output. `--all` is mandatory: without it the check can select nothing                                                            | C5         |
 
 ### What the planner runs afterwards; the executor reports these as pending planner verification
 
 - `GSETTINGS_BACKEND=memory NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`,
   with every file staged (the index checker refuses untracked files). **Compare with the
-  planner's own immediately preceding integration run, not with a number in this packet**: G2
-  owns tests in this neighbourhood and other lanes move the total. This packet contributes **zero**
+  planner's own immediately preceding integration run, not with a number in this packet**: G2 owns
+  tests in this neighbourhood and other lanes move the total. This packet contributes **zero**
   devsync tests, so the pass count must be unchanged, with no failure naming any file of section 5. Both pins named in section 3 must stay put. Rehearsed green on this exact change.
 - `NX_DAEMON=false bunx nx run-many -t test -p wbs-be-01,wbs-gw-01,wbs-core` (SQLite-backed
   `.db.test.ts` files). Expected unchanged against the planner's preceding run; these build real
@@ -1368,7 +1663,7 @@ Slice-scoped: each slice's pre-edit checks are in section 6 and are FALSE on tha
 starting tree. The conditions below apply to every slice.
 
 1. A step needs a file outside section 5's table, other than
-   `libs/shared/domain/failures/src/report-failure.ts` during proof 2. — stop.
+   `libs/shared/domain/failures/src/report-failure.ts` during proofs 2 and 10. — stop.
 2. `import { reportFailure } from '@shared/failures'` fails to resolve. It must not: the alias is
    at `tsconfig.base.json:95` and the module at `libs/shared/domain/failures/src/index.ts:5`. —
    stop.
@@ -1379,24 +1674,26 @@ starting tree. The conditions below apply to every slice.
    `eslint.config.js:25-42` permits that edge. Rehearsed green. — stop.
 4. A named proof test passes under its fault, after you have checked the location once against the
    file, function and expression the row names and redone the edit once. — stop (preamble rule
-   20). For proof 2, fault A leaving the test **green** is the stop; fault A failing it on
-   `Received: "UNSERIALIZED_1"` is the expected result.
+   20). Two deliberate exceptions: proof 2's fault A must fail the test on
+   `Received: "UNSERIALIZED_1"` rather than on a thrown exception, and proof 10's step 1 must
+   **pass** — a failure there is the stop.
 5. A verbatim `-t` filter from section 11 reports `0 tests ran`. — stop.
 6. A lint diagnostic that is not `simple-import-sort/*` or `prettier/prettier`, or one in a file
    you do not own. — stop (preamble rule 17).
 7. After a proof, `cmp` reports a difference against the saved copy. — stop; do not continue with
    a mutated tree.
+8. Slice B's step B3 exits 0. — stop: the tests were supposed to fail before the implementation.
 
 Not stop conditions: extra tests failing beside a named proof (record them); `rm -f` refused by
 the command guard (keep the scratch file, mention it once); `NX Recursive task invocation detected`
-after a still-running target (wait, rerun once, then report pending); slice B ending red.
+after a still-running target (wait, rerun once, then report pending).
 
 ## 14. Out of lane
 
 Do not add `mcp-01` anywhere. Do not edit any of the ten caller sites in section 3, nor
 `apps/wbs/fe-01`, `apps/wbs/mcp-01`, `tools/tool-observability-stack`,
 `openspec/changes/adopt-failure-reporting`, or `libs/shared/domain/failures` other than the
-restore-verified mutation of proof 2. Do not define an exception kind. Do not introduce DI Bag.
+restore-verified mutations of proofs 2 and 10. Do not define an exception kind. Do not introduce DI Bag.
 Do not change `metrics.ts` or `prometheus.ts`. Do not run a repository-wide format write. Do not
 run `wbs-fe-01:test:unit`, `wbs-fe-01:test`, `tool-devsync:test` or `test:package`.
 
@@ -1462,3 +1759,52 @@ wrong, and rehearsing it found a real defect the review had not seen: the commit
 `tasks.md` listing contained a Markdown link that the current-document reader resolved relative to
 the packet, and `tool-devsync:test` failed on it. The prescribed `tasks.md` now uses a code-span
 path, and no listing in this packet contains a Markdown link.
+
+## Disposition of review 2
+
+Every finding was reproduced in the planner's worktree before being acted on, including the two
+the review asked to be reproduced rather than argued.
+
+**Critical 1 — slice B could not pass the commit hook. FIXED.** Reproduced: staging only the two
+test files and running `git commit` was refused by lefthook's `lint` command with
+`✖ 21 problems (21 errors, 0 warnings)`, all `no-unsafe-call` and `no-unsafe-assignment` in
+`serializers.test.ts`, and the commit exited 1 with nothing created. Slices B and C of the
+previous draft are now one slice B: it writes the tests, captures the red run as evidence in
+`$TMPDIR/evidence/b3-red.log` and in `verify.md`, then implements and hands over green. Committing
+that merged slice was rehearsed and passed every hook command, as was slice A's.
+
+**Critical 2 — logging `undefined` produced no failure record. FIXED.** Reproduced against the
+prescribed implementation: `logger.error({ err: undefined }, 'probe')` emitted
+`{"level":"error",...,"request_id":"r1","msg":"probe"}` with no `err`, because
+`pino/lib/tools.js:168` guards its field loop with `value !== undefined`. Section 7 adds
+`keepAbsentFailure`, wired through `formatters.log` — which `tools.js:161-163` calls before that
+loop — so the value is reported and registered rather than dropped; section 3 records the probe;
+section 8 adds three logger tests (the absent value is reported, a present failure is not
+substituted, a record with no `err` is untouched); proofs 8 and 9 are the two watched negatives.
+A1 and A3b record why it is reported rather than refused: refusing means a logger that throws.
+
+**Important 1 — verification evidence could not follow the handovers. FIXED.** Section 6 opens
+with an evidence rule: each attempt gets a fresh temporary root, so every slice appends its own
+observations to `verify.md` before handing over, and `verify.md` is in every slice's changed-path
+list (A3, B9, C4). `--seed` is explained for the case a slice needs raw earlier evidence, with the
+statement that none of these three does. `tasks.md` is in slice C's list and task 1.1 is ticked
+there, not before.
+
+**Important 2 — the fallback counter had no effective proof. FIXED, and the claim corrected.**
+A3 no longer says the counter is gone; it says there are two loss paths and names them. Proof 10
+is new: with `@shared/failures`' wrapper broken, `gives two lost reports two different correlation
+handles` and `states one fixed reason on every lost report` both pass because `twoLostReports()`
+asserts nothing about which layer answered; replacing `unserializableFailures += 1` with
+`unserializableFailures = 1` then fails the first on `Expected: not "UNSERIALIZED_1"`. Both runs
+were observed.
+
+**Minor 1 — the pattern length was wrong. FIXED.** Section 7 now says nine characters.
+
+**Minor 2 — missing dispatch metadata and an incomplete format command. FIXED.** The header table
+carries the size class, the slice list and the three token estimates; section 6 step C5 and
+section 12 name `NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx format:check --all` with its
+expected exit status and the reason `--all` is mandatory.
+
+**Dispatchability.** Slice A is dispatchable as it stands. Slice B is dispatchable once slice A is
+committed, and slice C once slice B is; both have pre-edit checks that are false on any earlier
+tree, so a mis-ordered dispatch stops rather than improvises.
