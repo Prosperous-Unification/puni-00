@@ -209,11 +209,28 @@ Line deltas, from `git diff --numstat`: `use-plan-read.ts` 21 added / 20 removed
 The absolute test numbers are orientation only; every comparison the executor makes is against its
 own step 0.
 
-### 4.8 The README count pin
+### 4.8 The two devsync pins, and why this packet moves neither
 
-`tools/tool-devsync/src/repo-namespacing-handoff.test.ts` held `applicationLibraryToolReadmes` as a
-literal when 040.4 was written, and 110.6 was to replace it with a derived enumeration. Step 1.3
-reads which of the two is there and follows the named branch; it never assumes a number.
+**The README literal is gone.** `grep -nE '^[[:space:]]*applicationLibraryToolReadmes: [0-9]+,$'`
+over `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` prints **nothing** on this baseline:
+110.6 landed, and its derived check
+`the current-document sweep reaches every application, library and tool README` is at
+`repo-namespacing-handoff.test.ts:483`. There is no number to re-pin, and this packet therefore
+**does not edit that file at all**. Every earlier draft's "branch A" is withdrawn.
+
+**The legacy-source check did not go with it.**
+`every legacy source occurrence and relevant text family is pinned` is still at
+`repo-namespacing-handoff.test.ts:553`, with its line-sensitive `digest` and occurrence count.
+Both tests were run by name on this baseline: **`1 pass`, `0 fail`** each. A slice that finds
+either one reporting `0 tests` has a tree this packet was not written against, and stops.
+
+**Neither hand-moved pin moves.** `workspace-inventory.test.ts:110`–`:111` pin `167` rows over `84`
+files, and the digest above pins the legacy-root contexts. This packet adds no Nx target, no
+tsconfig path and no legacy-root occurrence. **Measured, not argued:** with the whole rehearsed
+extraction staged — seven new files, three edited — the planner ran
+`GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache` and saw
+**`301 pass`, `0 fail`** across 24 files, exit 0. Both pinned files belong to work item **G2** in
+this batch, which derives them; nothing here may edit either.
 
 ### 4.9 Targets, tiers and the node-tier word list
 
@@ -376,50 +393,84 @@ every export of `plan-feed/contract.ts`. The hook's return object changes in **o
 
 ## 6. File plan
 
-| File                                                                            | Action  | Responsibility                                                   |
-| ------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
-| `apps/wbs/fe-01/src/modules/calendar-markers/README.md`                         | created | Wiki index: the two kinds, what each owns, its checks            |
-| `apps/wbs/fe-01/src/modules/calendar-markers/contract.ts`                       | created | The types both kinds and the host exchange                       |
-| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.resource.ts`      | created | The four routes and the dirtied-resource knowledge               |
-| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.ts`       | created | Whose write it is, the refusal, the reread                       |
-| `apps/wbs/fe-01/src/modules/calendar-markers/composition.ts`                    | created | The composition site delivery calls                              |
-| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.resource.test.ts` | created | 6 tests                                                          |
-| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.test.ts`  | created | 7 tests                                                          |
-| `apps/wbs/fe-01/vitest.node-suites.ts`                                          | edited  | Two entries, each in the slice that creates its file             |
-| `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`                            | edited  | `runMarkerWrite` becomes the `markers` memo; the return changes  |
-| `apps/wbs/fe-01/src/components/wbs/wbs-table.tsx`                               | edited  | The destructuring and the four `*GanttMarker` callbacks          |
-| `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                       | edited  | One line: the README count pin, **only on branch A of step 1.3** |
+| File                                                                            | Action  | Responsibility                                                  |
+| ------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------- |
+| `apps/wbs/fe-01/src/modules/calendar-markers/README.md`                         | created | Wiki index: the two kinds, what each owns, its checks           |
+| `apps/wbs/fe-01/src/modules/calendar-markers/contract.ts`                       | created | The types both kinds and the host exchange                      |
+| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.resource.ts`      | created | The four routes and the dirtied-resource knowledge              |
+| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.ts`       | created | Whose write it is, the refusal, the reread                      |
+| `apps/wbs/fe-01/src/modules/calendar-markers/composition.ts`                    | created | The composition site delivery calls                             |
+| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.resource.test.ts` | created | 6 tests                                                         |
+| `apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.test.ts`  | created | 7 tests                                                         |
+| `apps/wbs/fe-01/vitest.node-suites.ts`                                          | edited  | Two entries, each in the slice that creates its file            |
+| `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`                            | edited  | `runMarkerWrite` becomes the `markers` memo; the return changes |
+| `apps/wbs/fe-01/src/components/wbs/wbs-table.tsx`                               | edited  | The destructuring and the four `*GanttMarker` callbacks         |
 
-Ten files, or eleven on branch A.
+Ten files. No file outside `apps/wbs/fe-01` is created or edited.
 
-**Neighbouring packets.** 040.5 owns `plan-toolbar.tsx` and `use-plan-dependencies.ts` and is not
-in this batch: leave both exactly as they are. 110.6 and 020.2 share
-`repo-namespacing-handoff.test.ts`; step 1.3 sequences it. 110.1 adds level targets to project
-files and cites backend scenario identifiers; it touches no file here. 040.1 works in
-`apps/wbs/fe-01/e2e`, `tsconfig.spec.json` and a root-level test file — no file here, but it adds
-`browser-packages.test.ts` to the frontend's full suite, which slice 6's reconciliation accounts
-for. 010.6, 010.7 and 020.7 share no file with this packet.
+**The other batch 3 lanes, and what each means for this one.** Batch 3 is 040.5, 050.4, 050.6,
+G1, G2 and U2. None of them owns a file this packet edits, and two of them move totals this packet
+reports.
+
+| Lane                                            | Where it works                                                                              | What this packet owes it                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 040.5 observability serializer and log schema   | `libs/wbs/adapters/observability`, an OpenSpec delta                                        | Nothing. It is **not** a frontend toolbar lane; earlier drafts said so and were wrong.                     |
+| 050.4 frontend fault boundary                   | `apps/wbs/fe-01/src` error boundaries, `apps/wbs/fe-01/e2e`, a browser fixture              | No shared file, but it adds frontend tests and at least one Chromium spec, so it moves `wbs-fe-01` totals. |
+| G1 h2puni gate installs the locked dependencies | `bin/h2puni-gate*.sh`, `tools/tool-devsync/src/toolchain-pins.test.ts` and `poller.test.ts` | Nothing.                                                                                                   |
+| G2 derive the two hand-moved devsync pins       | `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` and `workspace-inventory.test.ts` | **Both pinned files are G2's.** This packet reads them by name and never edits them (section 4.8).         |
+| U2 staffed step cell clipping                   | `plan-columns/estimates.tsx`, `apps/wbs/fe-01/e2e/layout.spec.ts`                           | No shared file, but it too moves `wbs-fe-01` totals and the Chromium count.                                |
+
+**Nothing in batch 3 owns `plan-toolbar.tsx` or `use-plan-dependencies.ts`.** They stay untouched
+here because lanes 4 to 7 of section 12 own them later, not because another packet is editing them
+now.
 
 ## 7. Slices
 
 Six slices. Each is dispatched on its own, starts with step 0, ends green, and carries its own
 commit subject and path list so the planner can commit it before the next begins.
 
-**How the planner dispatches them.** `puni-plan/exec/run-executor.sh` takes `--batch batch-3`. The
-first slice:
+**How the planner dispatches them.** The launcher lives outside this repository, at
+`/home/df/wd/puni/puni-plan/exec/run-executor.sh`, and it is **not** reachable by a
+repository-relative path. Batch 3 has no built-in directory in its `case` statement, so
+`--batch-dir` is required: without it the launcher exits **64** with
+`unknown batch batch-3: pass --batch-dir`. The first slice:
 
 ```sh
-puni-plan/exec/run-executor.sh 050-6-command-services slice-1 <integration-head-sha> --batch batch-3
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-6-command-services slice-1 \
+  <integration-head-sha> --batch batch-3 \
+  --batch-dir docs/superpowers/plans/2026-09-21-batch-3
 ```
 
 and every slice after it, once the previous one is reviewed and committed:
 
 ```sh
-puni-plan/exec/run-executor.sh 050-6-command-services slice-2 <that-commit-sha> --batch batch-3 --resume
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-6-command-services slice-2 \
+  <that-commit-sha> --batch batch-3 \
+  --batch-dir docs/superpowers/plans/2026-09-21-batch-3 --resume
 ```
 
-`--resume` keeps the same clone, so the planner checks the clone's HEAD against the commit it just
-made before dispatching. **No slice needs the network and none binds a port.**
+Four facts about that launcher, read from it on 2026-09-20 and each one a way an attempt fails
+before the executor starts:
+
+- **The base commit is checked against `/home/df/wd/puni/puni-00`, not against the clone.**
+  `git -C "$main" cat-file -e "$base^{commit}"` exits **65** with `base commit missing: <sha>` when
+  the reviewed commit has not reached that repository yet. So each slice's commit is pushed or
+  fetched into `/home/df/wd/puni/puni-00` before the next slice is dispatched.
+- **`--resume` does not check anything out.** It only requires `$clone/.git` to exist (exit **66**,
+  `nothing to resume`), and the attempt then runs on whatever HEAD the clone already has. The base
+  argument is still validated as above but is otherwise unused. So the planner verifies the resumed
+  HEAD itself: `git -C /home/df/wd/puni/batch-3/050-6-command-services rev-parse HEAD` must equal
+  the commit just made.
+- **A first dispatch refuses an existing clone** (exit **67**), and it is the first dispatch that
+  runs `bun install --frozen-lockfile` and installs the hooks. The clone root is
+  `/home/df/wd/puni/batch-3/050-6-command-services` and the branch is
+  `batch-3/050-6-command-services`.
+- **`--seed <dir>` merges into `$TMPDIR/$(basename <dir>)`**, so evidence preserved from slice 5 as
+  `--preserve evidence` arrives in slice 6 as `$TMPDIR/evidence`, not `$TMPDIR/evidence/evidence`.
+  This packet needs no seed: every slice's proofs are its own.
+
+The attempt's temporary root is `/tmp/puni-batch3/<attempt>`. **No slice needs the network and none
+binds a port**, so `--network` is never passed.
 
 ### Step 0 — Baseline, at the start of every slice
 
@@ -457,8 +508,7 @@ Nothing is edited in this step.
 
 Commit subject: `feat(wbs-fe): add the calendar markers module's contract and index`. Paths:
 `apps/wbs/fe-01/src/modules/calendar-markers/contract.ts`,
-`apps/wbs/fe-01/src/modules/calendar-markers/README.md`, and on branch A
-`tools/tool-devsync/src/repo-namespacing-handoff.test.ts`.
+`apps/wbs/fe-01/src/modules/calendar-markers/README.md`.
 
 - [ ] `mkdir -p apps/wbs/fe-01/src/modules/calendar-markers`
 - [ ] Write `contract.ts` exactly as section 5.2 gives it.
@@ -525,44 +575,30 @@ Commit subject: `feat(wbs-fe): add the calendar markers module's contract and in
   of the same project.
   ```
 
-- [ ] **Step 1.3, the pin.** Read it, without assuming a number:
-
-  ```sh
-  grep -nE '^[[:space:]]*applicationLibraryToolReadmes: [0-9]+,$' \
-    tools/tool-devsync/src/repo-namespacing-handoff.test.ts
-  ```
-
-  **Branch B — the command prints nothing** (110.6 landed first). Do not edit that file; it leaves
-  the file plan. Confirm the derived check exists and passes with the new README present:
+- [ ] **Step 1.3, the README sweep.** The new README is an application README, so the derived
+      sweep must cover it and still pass. Run that one test by name, never the whole file, which
+      also holds the index checker:
 
   ```sh
   bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts \
     -t 'the current-document sweep reaches every application, library and tool README'
   ```
 
-  Expected: `1 pass`, `0 fail`. `0 tests` means neither the pin nor the derived check is there:
-  stop and report.
+  Expected: `1 pass`, `0 fail`. **`0 tests` is a stop**, and so is a failure: there is no literal
+  to re-pin on this baseline (section 4.8) and this packet has no authority to edit that file,
+  which belongs to work item G2.
 
-  **Branch A — the command prints exactly one line.** Record the number; call it **N**. First watch
-  the pin fail, running that one test by name and never the whole file, which also holds the index
-  checker:
+- [ ] **Step 1.4, the legacy-source pin is still there and still passes.** It did not leave with
+      the README literal, and a slice that assumes it did would skip a check:
 
   ```sh
   bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts \
     -t 'every legacy source occurrence and relevant text family is pinned'
   ```
 
-  Expected before the re-pin: that one test fails, its diff naming `applicationLibraryToolReadmes`
-  with received **N + 1** against expected **N**. Record the message. Then change the literal to
-  **N + 1** and add one comment in the house style directly above the line, below the ones already
-  there:
-
-  ```ts
-  // Re-pinned <N> -> <N + 1> for `apps/wbs/fe-01/src/modules/calendar-markers/README.md`, the
-  // calendar markers module's index, which the sweep must cover like any application README.
-  ```
-
-  Rerun the named test: `1 pass`, `0 fail`.
+  Expected: `1 pass`, `0 fail`. The new files carry no legacy-root occurrence, so the digest and
+  the occurrence count do not move. `0 tests` or a failure is a stop and is reported to the
+  planner for reconciliation with G2, never fixed here.
 
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` → exit 0. A contract that does not compile
       wastes every slice after this one.
@@ -716,8 +752,31 @@ Paths: `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`,
 - [ ] Confirm the K2 boundary by reading `use-plan-read.ts`'s import list: no
       `calendar-markers.resource`, no `calendar-markers.feature`. If either is there, the rewire is
       wrong.
-- [ ] Confirm by `grep -n 'api\.\(create\|rename\|recolor\|delete\)CalendarMarker' -r apps/wbs/fe-01/src/components`
-      that the command prints nothing.
+- [ ] **Before editing either file**, record what the scan below finds, so the "after" is compared
+      with a number this slice collected rather than with a guess:
+
+  ```sh
+  grep -rnE --include='*.ts' --include='*.tsx' \
+    --exclude='*.test.ts' --exclude='*.test.tsx' \
+    'api\.(create|rename|recolor|delete)CalendarMarker' apps/wbs/fe-01/src/components
+  ```
+
+  Expected before the edits: **exit 0** and exactly **four** lines, all in
+  `apps/wbs/fe-01/src/components/wbs/wbs-table.tsx`. Call that number **S0**. A different number is
+  a stop: the tree is not the one this packet was written against.
+
+- [ ] **After the edits**, run the identical command. Expected: **no output and exit 1**, which is
+      what `grep` returns when nothing matched. Exit 0 with any line left means a call site was
+      missed. Any exit status other than 0 or 1 is an execution error — a bad pattern, a missing
+      directory — and is neither a pass nor a fail: fix the invocation and rerun.
+
+  **The two `--exclude` flags are load-bearing and the fixtures are not to be touched.** Without
+  them the same scan prints **nineteen** lines on a correctly rewired tree — ten in
+  `gantt-panel.test.tsx`, one in `gantt-panel.zoned.test.tsx` and eight in
+  `plan-chart-seam.test.tsx`, for example `plan-chart-seam.test.tsx:877`, which creates a marker as
+  test setup. The planner measured all nineteen on the rehearsed rewire. Those calls are how the
+  oracle arranges its fixtures; editing any of them is stop condition 1.
+
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` → exit 0, no diagnostic.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:lint` → exit 0.
 - [ ] `bunx prettier --write` both files, then `NX_DAEMON=false bunx nx format:check --all` → exit 0.
@@ -779,10 +838,21 @@ No commit of its own unless a check forces a fix; this slice verifies and report
   done
   ```
 
-  Expected: each prints `1 pass`, `0 fail`. On branch B the last name no longer exists, so that run
-  reports `0 tests`: run 110.6's derived check instead and say so. A failure naming a path this
-  packet created is a stop condition; a failure naming only other packets' documents is
-  pre-existing — record it verbatim and carry on.
+  Expected: each prints `1 pass`, `0 fail`. All four exist on this baseline and all four were run
+  by the planner; **none of them is optional and none of them has been replaced**. A run reporting
+  `0 tests` for any name is a stop: it means the file has changed under this packet, which is G2's
+  lane. A failure naming a path this packet created is a stop condition; a failure naming only
+  other packets' documents is pre-existing — record it verbatim and carry on.
+
+- [ ] Add 110.6's derived sweep to that list, which is a fifth named test and not a substitute for
+      any of the four:
+
+  ```sh
+  bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts \
+    -t 'the current-document sweep reaches every application, library and tool README'
+  ```
+
+  Expected: `1 pass`, `0 fail`.
 
 - [ ] Do **not** run `NX_DAEMON=false bunx nx run tool-devsync:test`: its index checker runs
       `git write-tree` and `git add --update` against this clone. Report it as pending planner
@@ -1340,19 +1410,38 @@ the two DOM oracle commands. Slice 6 adds the build, the devsync checks and the 
 | `NX_DAEMON=false bunx nx format:check --all`            | Exit 0, or failures naming only files outside this packet. Every slice.                                   |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:build`           | Exit 0. Slice 6.                                                                                          |
 | `bun test tools/tool-devsync/src/service-kinds.test.ts` | `17 pass`, `0 fail`. Slice 6.                                                                             |
-| The four named devsync checks                           | Each `1 pass`, `0 fail`; on branch B the pin check is replaced by 110.6's derived one. Slice 6.           |
+| The five named devsync checks                           | Each `1 pass`, `0 fail`. All five exist on this baseline; none replaces another. Slice 6.                 |
 | The standard OpenSpec block                             | One JSON report printed, block exits 0. Slice 6.                                                          |
 
 ### What the planner runs afterwards
 
-| Command                                                         | Why the executor cannot run it                                                                                            |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `git add` of each slice's paths, then its commit                | The clone's Git directory is read-only.                                                                                   |
-| `NX_DAEMON=false bunx nx run tool-devsync:test`                 | Its index checker writes Git objects into the clone.                                                                      |
-| `wbs-fe-01:test:unit` and `wbs-fe-01:test`, outside the sandbox | Three of their tests spawn `bun` from Node. Contribution: two files, thirteen tests in the UTC summary.                   |
-| `wbs-fe-01:e2e`                                                 | Needs a browser and the real stack. Run after slice 4 — see below.                                                        |
-| `twib check` with a rule policy                                 | Needs a `node_modules` outside the clone for `TOOL_WIKI_TRUSTED_NODE_MODULES`. Section 4.5 records the planner's results. |
-| `bin/h2puni-gate.sh <sha>`                                      | The host gate cannot run on this machine.                                                                                 |
+| Command                                                                                                                  | Why the executor cannot run it                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git add` of each slice's paths, then its commit                                                                         | The clone's Git directory is read-only.                                                                                                                                                                                                                         |
+| `NX_DAEMON=false bunx nx run tool-devsync:test`                                                                          | Its index checker writes Git objects into the clone.                                                                                                                                                                                                            |
+| `wbs-fe-01:test:unit` and `wbs-fe-01:test`, outside the sandbox                                                          | Three of their tests spawn `bun` from Node. Contribution: two files, thirteen tests in the UTC summary.                                                                                                                                                         |
+| `wbs-fe-01:e2e`                                                                                                          | Needs a browser and the real stack. Run after slice 4 — see below.                                                                                                                                                                                              |
+| `twib check` with a rule policy                                                                                          | Needs a `node_modules` outside the clone for `TOOL_WIKI_TRUSTED_NODE_MODULES`. Section 4.5 records the planner's results.                                                                                                                                       |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`, with every new file **staged** | The index checker writes Git objects, and the inventory reads the index rather than untracked files. The planner measured **`301 pass`, `0 fail`** with the whole extraction staged: neither hand-moved pin moved (section 4.8, and the per-slice table below). |
+| `bin/h2puni-gate.sh <sha>`                                                                                               | The host gate cannot run on this machine.                                                                                                                                                                                                                       |
+
+**The two hand-moved devsync pins, per slice.** G2 owns both files; this packet never edits
+either. The planner checks the whole target after each commit and expects no movement anywhere:
+
+| Slice | What it adds to the tree                                | `workspace-inventory` 167/84 | Legacy digest and 257 occurrences |
+| ----- | ------------------------------------------------------- | ---------------------------- | --------------------------------- |
+| 1     | `contract.ts`, `README.md`                              | unchanged                    | unchanged                         |
+| 2     | the resource, its suite, one `NODE_SUITES` line         | unchanged                    | unchanged                         |
+| 3     | the feature, its suite, `composition.ts`, one more line | unchanged                    | unchanged                         |
+| 4     | edits inside two existing `components/wbs` files        | unchanged                    | unchanged                         |
+| 5     | `Proof:` comments inside the two module source files    | unchanged                    | unchanged                         |
+| 6     | nothing                                                 | unchanged                    | unchanged                         |
+
+Why nothing moves: the inventory counts parent-relative paths declared in **app and library
+configuration**, and this packet adds no Nx target, no tsconfig path and no project file; the
+digest counts **legacy-root occurrences** in scanned sources, and none of the seven new files
+contains one. The planner staged the whole extraction and measured it: `301 pass`, `0 fail`,
+exit 0. **If a slice does move a pin, that is a finding for G2 and a stop, never a re-pin here.**
 
 **The browser suite, and which specs cover this service.** Exactly one e2e spec drives the
 production marker write: `apps/wbs/fe-01/e2e/live-caret.spec.ts`, the test
@@ -1374,10 +1463,24 @@ exit 0, with `live-caret.spec.ts`'s marker case among the passes. So this packet
 measured, not assumed. Run it again after slice 4 all the same, because the executor's tree is not
 this one.
 
-**Two facts about that run, both paid for on 2026-09-20.** The people directory is global to an
-e2e run, so a spec that adds a person is visible to every other. And Playwright's `check()` fails
-on a prop-driven radio, so a marker-composer assertion must read the element's state rather than
-click through `check()`.
+**Choosing `E2E_PORT_SHIFT`, which is arithmetic and not taste.**
+`apps/wbs/fe-01/playwright.config.ts` puts the three tiers at `3100 + S`, `3200 + S` and
+`4200 + S`, so two live runs at shifts `S1` and `S2` collide whenever `|S1 - S2|` is **100, 1000 or
+1100** — 100 puts one run's be-01 on the other's gw-01, 1000 puts a gw-01 on an fe-01, and 1100
+puts a be-01 on an fe-01. Shifts 2100 and 3100 both occupy 6300. So:
+
+1. Compute the three ports for the shift you intend and for every run already alive.
+2. Run `ss -ltn` and confirm all three are free. A shift is a proposal about a host and the host
+   has the last word: `CI=1` makes Playwright refuse a used port rather than measure somebody
+   else's stack.
+3. Follow the batch's coordinated **300-spaced** assignments, which clear all three distances.
+4. Never kill a process you cannot prove is yours: read `/proc/<pid>/cwd` and check it is your
+   clone before signalling anything.
+
+**Two more facts about that run, both paid for on 2026-09-20.** The people directory is global to
+an e2e run, so a spec that adds a person is visible to every other. And Playwright's `check()`
+fails on a prop-driven radio, so a marker-composer assertion must read the element's state rather
+than click through `check()`.
 
 **What none of it proves.** Nothing here proves K2, K3, K4 or K6 mechanically: section 4.5 shows
 those rules cannot be evaluated over this application at all today, and the rollout's ESLint task
@@ -1385,30 +1488,42 @@ does not exist yet. Conformance is established by reading the imports and by the
 
 ## 12. The remaining extractions, in order, with the files each owns
 
-One packet per lane, in this order. No two lanes share a file, and each is named here so a later
-packet can cite the ownership rather than rediscover it.
+One packet per lane, in this order. **Three of them edit `wbs-table.tsx` and two edit
+`plan-toolbar.tsx`**, so ownership is by _region_ rather than by file: each row names the exact
+call sites it takes, no two rows claim the same one, and where two rows touch one file they run in
+the order given, with a commit between them. The later packet cites this table rather than
+rediscovering the boundary.
 
-| Order | Lane                 | Module directory              | Files it owns outside the module                                                                                                                                                                                    | Why here                                                                                                                                                                           |
-| ----- | -------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | **Calendar markers** | `modules/calendar-markers/`   | the `markers` memo in `use-plan-read.ts`; the four `*GanttMarker` callbacks and the `usePlanRead` destructuring in `wbs-table.tsx`                                                                                  | **This packet.** The narrowest seam and the best oracle.                                                                                                                           |
-| 2     | Plan history         | `modules/plan-history/`       | `stepStack` in `use-plan-read.ts` only                                                                                                                                                                              | One callback in one file, and no other file at all. It owns three sentences, so it settles how a command lane words its own outcomes.                                              |
-| 3     | Plan transfer        | `modules/plan-transfer/`      | `use-plan-import.ts` whole; `downloadJson` in `wbs-table.tsx`                                                                                                                                                       | Import and export are one lane: one archival document, two directions. Its two `Proof:` comments move with it.                                                                     |
-| 4     | Plan steps           | `modules/plan-steps/`         | the `steps={{…}}` adapter object in `plan-toolbar.tsx`                                                                                                                                                              | First of the toolbar lanes. **Waits for 040.5**, which owns `plan-toolbar.tsx` today.                                                                                              |
-| 5     | Project settings     | `modules/project-settings/`   | the rest of `plan-toolbar.tsx`'s adapters; `arrangeBySchedule`, `retryOptimization`, `setOptimizationSettings` and `unfreezeProject` in `wbs-table.tsx`                                                             | The remaining toolbar and chart-wide settings. After lane 4, same file.                                                                                                            |
-| 6     | Plan vocabulary      | `modules/plan-vocabulary/`    | `use-reference-sets.ts` whole                                                                                                                                                                                       | The plan cells' additions to the global directory. It reads through the merged `directory` resource-service.                                                                       |
-| 7     | Work item commands   | `modules/work-item-commands/` | `use-plan-fields.ts`, `use-plan-structure.ts`, `use-estimate-drafts.ts`, `use-plan-dependencies.ts`, `plan-columns/actions.tsx`, `plan-columns/depends.tsx`, the dependency and freeze callbacks in `wbs-table.tsx` | The largest lane: 28 of the 67 non-test `api.*` call sites under `components/wbs/`, plus two in `wbs-table.tsx`. **Split further at its own Plan step**; do not dispatch it whole. |
-| 8     | Projects             | `modules/projects/`           | `project-page.tsx`'s `listProjects`, `openProject`, `renameProject`                                                                                                                                                 | The page above the table, not the table.                                                                                                                                           |
-| 9     | Saved plans          | `modules/saved-plans/`        | `saved-plans-panel.tsx`, `saved-plan-list.tsx`, `saved-plan-compare.tsx`, and `src/lib/saved-plan-*.ts`                                                                                                             | A different client (`SavedPlanApi`, not `ProjectApi`) and a different lifetime. Last, and independent of 2 to 8.                                                                   |
+`wbs-table.tsx`'s five `api.` call sites divide as follows, with the marker writes already gone in
+lane 1: `arrangeBySchedule` at `:1101`, `setOptimizationSettings` at `:2042` and `retryOptimization`
+at `:2047` go to lane 5; `removeDependency` at `:2321` and `unfreezeWorkItem` at `:2418` go to
+lane 7; and `downloadJson`'s `api.exportPlan` goes to lane 3. `api.unfreezeProject` is **not** in
+this file — it is `plan-toolbar.tsx:738`, which is lane 5's.
 
-Lanes 2 and 3 are dispatchable immediately after this one; 4 and 5 wait on 040.5; 6, 8 and 9 are
+| Order | Lane                 | Module directory              | Files it owns outside the module                                                                                                                                                                                                                          | Why here                                                                                                                                                                           |
+| ----- | -------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | **Calendar markers** | `modules/calendar-markers/`   | the `markers` memo in `use-plan-read.ts`; the four `*GanttMarker` callbacks and the `usePlanRead` destructuring in `wbs-table.tsx`                                                                                                                        | **This packet.** The narrowest seam and the best oracle.                                                                                                                           |
+| 2     | Plan history         | `modules/plan-history/`       | `stepStack` in `use-plan-read.ts` only                                                                                                                                                                                                                    | One callback in one file, and no other file at all. It owns three sentences, so it settles how a command lane words its own outcomes.                                              |
+| 3     | Plan transfer        | `modules/plan-transfer/`      | `use-plan-import.ts` whole; `downloadJson` in `wbs-table.tsx`                                                                                                                                                                                             | Import and export are one lane: one archival document, two directions. Its two `Proof:` comments move with it.                                                                     |
+| 4     | Plan steps           | `modules/plan-steps/`         | the `steps={{…}}` adapter object in `plan-toolbar.tsx`                                                                                                                                                                                                    | First of the toolbar lanes. **Waits for 040.5**, which owns `plan-toolbar.tsx` today.                                                                                              |
+| 5     | Project settings     | `modules/project-settings/`   | the rest of `plan-toolbar.tsx`'s adapters, `api.freezeProject` and `api.unfreezeProject` among them (`plan-toolbar.tsx:732`, `:738`); `arrangeBySchedule` (`wbs-table.tsx:1101`), `setOptimizationSettings` (`:2042`) and `retryOptimization` (`:2047`)   | The remaining toolbar and chart-wide settings. After lane 4, same file.                                                                                                            |
+| 6     | Plan vocabulary      | `modules/plan-vocabulary/`    | `use-reference-sets.ts` whole                                                                                                                                                                                                                             | The plan cells' additions to the global directory. It reads through the merged `directory` resource-service.                                                                       |
+| 7     | Work item commands   | `modules/work-item-commands/` | `use-plan-fields.ts`, `use-plan-structure.ts`, `use-estimate-drafts.ts`, `use-plan-dependencies.ts`, `plan-columns/actions.tsx`, `plan-columns/depends.tsx`, and in `wbs-table.tsx` exactly `removeDependency` (`:2321`) and `unfreezeWorkItem` (`:2418`) | The largest lane: 28 of the 67 non-test `api.*` call sites under `components/wbs/`, plus two in `wbs-table.tsx`. **Split further at its own Plan step**; do not dispatch it whole. |
+| 8     | Projects             | `modules/projects/`           | `project-page.tsx`'s `listProjects`, `openProject`, `renameProject`                                                                                                                                                                                       | The page above the table, not the table.                                                                                                                                           |
+| 9     | Saved plans          | `modules/saved-plans/`        | `saved-plans-panel.tsx`, `saved-plan-list.tsx`, `saved-plan-compare.tsx`, and `src/lib/saved-plan-*.ts`                                                                                                                                                   | A different client (`SavedPlanApi`, not `ProjectApi`) and a different lifetime. Last, and independent of 2 to 8.                                                                   |
+
+Lanes 2 and 3 are dispatchable immediately after this one. Lanes 4 and 5 wait only on each other,
+because nothing in batch 3 owns `plan-toolbar.tsx`. Lanes 3, 5 and 7 each edit a different region
+of `wbs-table.tsx` and so run one after another with a commit between. Lanes 6, 8 and 9 are
 independent of everything above them.
 
 ## 13. Stop conditions
 
 Each is false on the tree this packet starts from.
 
-1. Any assertion in an existing test has to change to make a suite pass — **except** the one
-   authorized README-count literal of step 1.3 branch A, and nothing else.
+1. Any assertion in an existing test has to change to make a suite pass. There is **no**
+   exception: this packet edits no file outside `apps/wbs/fe-01`, and the two hand-moved devsync
+   pins belong to work item G2.
 2. A `Proof:` comment has no home, or the test it names no longer exists.
 3. The DOM oracle's counts differ from that slice's step 0, or a test outside this packet's files
    fails.
@@ -1423,28 +1538,31 @@ Each is false on the tree this packet starts from.
 7. `stepStack`, `refreshOrMarkStale` or `PlanReadScope` appears to need to move.
 8. A suite fails in the node tier with a reference error naming a browser global, or
    `src/test-tiers.test.ts` refuses either new entry.
-9. Step 1.3 finds neither the literal pin nor 110.6's derived check.
+9. Step 1.3's derived sweep or step 1.4's legacy-source pin reports `0 tests`, or either fails.
 10. `use-plan-read.ts` still imports `calendar-markers.resource` or `calendar-markers.feature`
-    after slice 4, or any `api.*CalendarMarker` call survives under `components/`.
+    after slice 4, or slice 4's post-edit scan — the one with both `--exclude` flags — exits 0 with
+    a line left in a **non-test** file under `components/`. Matches in `*.test.ts` and `*.test.tsx`
+    are the oracle's fixtures and are **not** a stop; the pre-edit `S0` of four and the post-edit
+    exit 1 are the whole of this condition.
 11. `NX_DAEMON=false bunx nx format:check --all` names one of this packet's own files after the
     targeted write.
 12. Any step seems to need `git add`, `git commit`, the network, a bound port or the host gate.
 
 ## 14. Out of lane
 
-| Path                                                          | Owner                                                                                     |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `apps/wbs/fe-01/src/lib/wbs-api.ts` and `lib/plan-refresh.ts` | Nobody; imported, not edited.                                                             |
-| `apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx`          | 040.5, then lanes 4 and 5 of section 12.                                                  |
-| `apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts`  | 040.5, then lane 7.                                                                       |
-| `apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx`           | Nobody; its four marker props are unchanged.                                              |
-| `apps/wbs/fe-01/src/components/wbs/plan-refusal.ts`           | The Notices module; this packet does not need it.                                         |
-| `apps/wbs/fe-01/src/modules/plan-feed/**`, `plan-writer/**`   | 040.4 and 040.3, merged.                                                                  |
-| `docs/code-organization/kinds.json`                           | Nobody here: section 4.6 shows no entry is owed.                                          |
-| `apps/wiki/cli/**` and any rule policy file                   | 010.7. This packet reports what `check` says; it registers no rule and commits no policy. |
-| `apps/wbs/fe-01/project.json`, `tsconfig.spec.json`, `e2e/`   | 110.1 and 040.1.                                                                          |
-| `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`     | 110.6 and 020.2 — step 1.3 sequences it.                                                  |
-| `eslint.config.js`                                            | Task 3 of the rollout.                                                                    |
+| Path                                                                                        | Owner                                                                                           |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `apps/wbs/fe-01/src/lib/wbs-api.ts` and `lib/plan-refresh.ts`                               | Nobody; imported, not edited.                                                                   |
+| `apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx`                                        | 040.5, then lanes 4 and 5 of section 12.                                                        |
+| `apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts`                                | 040.5, then lane 7.                                                                             |
+| `apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx`                                         | Nobody; its four marker props are unchanged.                                                    |
+| `apps/wbs/fe-01/src/components/wbs/plan-refusal.ts`                                         | The Notices module; this packet does not need it.                                               |
+| `apps/wbs/fe-01/src/modules/plan-feed/**`, `plan-writer/**`                                 | 040.4 and 040.3, merged.                                                                        |
+| `docs/code-organization/kinds.json`                                                         | Nobody here: section 4.6 shows no entry is owed.                                                |
+| `apps/wiki/cli/**` and any rule policy file                                                 | 010.7. This packet reports what `check` says; it registers no rule and commits no policy.       |
+| `apps/wbs/fe-01/e2e/` and `apps/wbs/fe-01/tsconfig.spec.json`                               | Work items **050.4** and **U2** in this batch. This packet adds no spec and no test config.     |
+| `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` and `workspace-inventory.test.ts` | Work item **G2**, which derives both hand-moved pins. Read by name, never edited (section 4.8). |
+| `eslint.config.js`                                                                          | Task 3 of the rollout.                                                                          |
 
 ## 15. OpenSpec
 
@@ -1462,7 +1580,9 @@ block, run in slice 6.
 1. **The calendar markers go first.** Section 2 gives the four reasons. The owner can reorder
    section 12 without changing anything in sections 5 to 11.
 2. **The order of the remaining eight lanes** is the planner's, from the call-site inventory in
-   section 4.1 and the file ownership in section 12. Lanes 4 and 5 assume 040.5 lands first.
+   section 4.1 and the file ownership in section 12. Nothing in batch 3 blocks any of them: 040.5
+   is the observability serializer, not a toolbar lane, and `plan-toolbar.tsx` is unowned today.
+   Lanes 4 and 5 follow each other only because they edit the same file.
 3. **The refusal stays a cause, and the sentence stays in delivery**, which is 040.4's discipline
    rather than 040.3's. The consequence is that this module imports nothing from `components/`.
 4. **The module keeps a resource-service even though it performs no read.** The alternative — a
@@ -1479,10 +1599,36 @@ block, run in slice 6.
    already the marker-list state there. A rename of the state would touch the chart props.
 8. **The four gestures keep returning promises** even though every caller `void`s them, because
    that is what lets the module's own tests await one without a timer.
-9. **`E2E_PORT_SHIFT` is the planner's to choose, not the packet's.** The rehearsal's first whole
-   run was lost to a collision: a peer session held shift 2600 and this run asked for 2700, which
-   puts this run's be-01 on that run's gw-01 — the exact hazard
-   `apps/wbs/fe-01/playwright.config.ts` warns about ("keep more than 100 between them"). be-01
+9. **`E2E_PORT_SHIFT` is the planner's to choose, not the packet's, and "more than 100 apart" is
+   not the rule.** The rehearsal's first whole run was lost to a collision: a peer session held
+   shift 2600 and this run asked for 2700, so this run's be-01 landed on that run's gw-01; be-01
    took a SIGTERM eleven seconds in and every navigation then failed `ECONNREFUSED`. The rerun used
-   shift 3200. Whoever runs the browser suite must pick a shift more than 100 from every other live
-   run.
+   3200 and passed. But 100 is only one of three collision distances — **1000 and 1100 collide
+   too**, because the tiers sit 100 and 1100 apart. The rule recorded in section 11 is therefore
+   disjoint calculated three-port sets, an `ss -ltn` check before launch, the batch's 300-spaced
+   assignments, and `/proc/<pid>/cwd` before signalling any process.
+
+## 17. Disposition of review 1
+
+First high-effort review (Codex `gpt-6-astra`): NOT READY. Revised 2026-09-21. Every finding was
+checked against the repository, and each fix was settled by rehearsal in the planner's private
+worktree, then reverted.
+
+| Finding                                                    | Disposition | What changed                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical 1 — the launcher cannot run as written            | FIXED       | Confirmed at `/home/df/wd/puni/puni-plan/exec/run-executor.sh`: its `case` has arms for `batch-1` and `batch-2` only, so `batch-3` exits 64 with `unknown batch batch-3: pass --batch-dir`. Section 7 now gives the absolute launcher path and `--batch batch-3 --batch-dir docs/superpowers/plans/2026-09-21-batch-3`, plus the four failure modes read from the script: exits 64, 65, 66 and 67. |
+| Critical 2 — the scan includes tests and necessarily fails | FIXED       | Rehearsed. On the rewired tree the packet's original scan printed **19** lines — 10 in `gantt-panel.test.tsx`, 1 in `gantt-panel.zoned.test.tsx`, 8 in `plan-chart-seam.test.tsx`, exactly as the review counted. The corrected scan carries `--exclude='*.test.ts' --exclude='*.test.tsx'` and was measured at **4 lines / exit 0** before the edits and **no output / exit 1** after.            |
+| Important 3 — branch B wrongly replaces a required check   | FIXED       | Confirmed: `applicationLibraryToolReadmes` is absent, the derived sweep is at `repo-namespacing-handoff.test.ts:483` and the legacy-source pin is still at `:553`; both were run by name and printed `1 pass`, `0 fail`. Branch A is withdrawn entirely, step 1.3 is split into 1.3 and 1.4, and slice 6 now runs five named checks of which none replaces another.                                |
+| Important 4 — ownership and pin instructions are stale     | FIXED       | Batch 3's lanes are 040.5, 050.4, 050.6, G1, G2 and U2, read from the work-item files. Both pinned devsync files are **G2's** and are now out of lane. Section 4.8 is rewritten with the measured evidence, and section 11 carries a per-slice pin table. Measured: the whole extraction staged, `tool-devsync:test --skip-nx-cache` → **`301 pass`, `0 fail`**, exit 0; neither pin moved.        |
+| Important 5 — "more than 100" does not prevent collisions  | FIXED       | Confirmed from `playwright.config.ts`'s `3100 + S`, `3200 + S`, `4200 + S`: 100, 1000 and 1100 all collide. Section 11 now requires disjoint calculated three-port sets, an `ss -ltn` check, the batch's 300-spaced assignments, and `/proc/<pid>/cwd` before signalling anything. Assumption 9 is rewritten.                                                                                      |
+| Minor 6 — two factual claims in section 12 are wrong       | FIXED       | Confirmed: `wbs-table.tsx:2418` is `api.unfreezeWorkItem(rowId)` and `api.unfreezeProject` is `plan-toolbar.tsx:738`. Lane 5 no longer claims it. Section 12 now divides `wbs-table.tsx` by call site with line numbers and says ownership is by region, with sequencing where two lanes touch one file.                                                                                           |
+
+**Nothing in the prescribed code changed.** The review confirmed zero TypeScript diagnostics, all
+13 supplied test bodies passing and all 11 mutations failing their named assertions; the revision
+re-ran the module from the packet's own code blocks and saw the same numbers — `42 passed (42)`
+files and `614 passed (614)` tests on the sandbox unit command, `wbs-fe-01:typecheck` exit 0. Every
+defect was in the instructions around it.
+
+**Batch 2's `RESULTS.md` is indeed absent from this tree** (the worktree is cut from `da8be091`,
+which predates it). Its lessons reached this packet through the batch 3 brief, which the planner
+read in full before writing it.
