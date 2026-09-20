@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // tool-devsync's `build` target runs shellcheck over `bin/*.sh` and bundles no TypeScript, so the
 // buildable-library half of the boundary rule has no output to protect here. The half that does
@@ -11,6 +12,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import {
+  declaresKindBySuffix,
   entriesMissingRationale,
   entriesMissingRequiredField,
   type KindEntry,
@@ -19,6 +21,8 @@ import {
   readKinds,
   SHIM_DISPOSITION_PREFIX,
 } from './service-kinds';
+
+const WORKSPACE = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** The three roots with one tracked file each, so an emptiness refusal is not the default. */
 const POPULATED_ROOTS: Readonly<Record<string, string>> = {
@@ -222,4 +226,35 @@ test('every entry but a re-export shim owes a written rationale', () => {
   ];
 
   expect(entriesMissingRationale(entries)).toEqual(['b.ts', 'c.ts']);
+});
+
+test('every backend service file with no kind suffix is classified exactly once', async () => {
+  const classified = (await readKinds(WORKSPACE)).map((entry) => entry.path).sort();
+
+  // Proof: deleting assumed-assignee.ts put that path on a `-` line; adding does-not-exist.ts put
+  // it on a `+` line; and changing the former path to assumed-assignee.resource.ts showed both
+  // lines here (2026-09-20).
+  expect(classified).toEqual([...(await listServiceCandidates(WORKSPACE))]);
+});
+
+test('each kind carries the field that keeps it honest', async () => {
+  // Proof: removing calendar-marker.service.ts's term failed here naming that path and `term`
+  // (2026-09-20).
+  expect(entriesMissingRequiredField(await readKinds(WORKSPACE))).toEqual([]);
+});
+
+test('every entry that is not a re-export shim states its rationale', async () => {
+  // Proof: removing optimization-coordinator.ts's rationale failed here naming that path
+  // (2026-09-20).
+  expect(entriesMissingRationale(await readKinds(WORKSPACE))).toEqual([]);
+});
+
+test('no entry classifies a file that already declares its kind by suffix', async () => {
+  const declaredTwice = (await readKinds(WORKSPACE))
+    .map((entry) => entry.path)
+    .filter((path) => declaresKindBySuffix(path));
+
+  // Proof: changing assumed-assignee.ts to assumed-assignee.resource.ts failed here naming the
+  // suffix-declared path (2026-09-20).
+  expect(declaredTwice).toEqual([]);
 });
