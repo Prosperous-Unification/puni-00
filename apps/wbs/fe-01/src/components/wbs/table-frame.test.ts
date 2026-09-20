@@ -721,6 +721,7 @@ describe('the frame the table scrolls inside', () => {
     // its own content never scrolls, which would leave `top: 0` sticking to
     // nothing while the page carried the whole frame away.
     expect(TABLE_FRAME.overflow).toBe('auto');
+    expect(TABLE_FRAME.willChange).toBe('scroll-position');
     // What bounds it is `flex-shrink: 1` inside a parent whose own height is
     // the window's: a plan taller than the remainder is shrunk to exactly the
     // remainder, and this is the only shrinkable item in that column. The
