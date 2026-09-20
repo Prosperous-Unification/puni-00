@@ -296,12 +296,12 @@ export type Claim<T> = { status: 'held'; value: T } | { status: 'absent' | 'refu
 
 export interface Remembered<T> {
   /** The three states, for the callers that answer `absent` and `refused` differently. */
-  readonly claim: () => Claim<T>;
+  claim(): Claim<T>;
   /**
    * The stored value, or null when there is none to read — **writing nothing**,
    * which is what a React render is allowed to do.
    */
-  readonly read: () => T | null;
+  read(): T | null;
   /**
    * The same read, **dropping** a key whose contents are no longer a `T`.
    *
@@ -309,10 +309,10 @@ export interface Remembered<T> {
    * value is read again on every load, and a control that silently falls back
    * looks recovered while storage still holds the answer nobody can use.
    */
-  readonly readAndDrop: () => T | null;
-  readonly write: (value: T) => void;
+  readAndDrop(): T | null;
+  write(value: T): void;
   /** Removes the key — never a default written over it. */
-  readonly forget: () => void;
+  forget(): void;
 }
 
 /**
@@ -1592,3 +1592,7 @@ two non-blocking corrections by hand: checkpoint A's stale "nine files"/"ten pat
 slice 2's own six paths in `git status --short` rather than the packet's full twenty-one, since
 slice 1's fifteen are already committed by the time slice 2 runs. These fixes are in place before
 slice 2 is dispatched.
+
+### Slice 1, 2026-09-20: a type error the packet caused, found by the planner
+
+Slice 1 defers the type check to slice 2, so the executor could not see it: the planner's `wbs-fe-01:typecheck` on slice 1 failed at `remembered-layout.ts:462` and `:576`, `Remembered<string[]>` is not assignable to `Remembered<readonly string[]>`. This packet had prescribed the moved `Remembered<T>` interface with property-style members (`readonly write: (value: T) => void`), which are checked contravariantly; the original in `lib/remembered.ts` used method signatures, which are bivariant, and `remembered-layout.ts` relies on that. The planner restored the method signatures in the clone with a JSDoc saying why, and corrected the interface in this packet. Lesson for later packets: a slice that moves a type runs the type check in that slice.
