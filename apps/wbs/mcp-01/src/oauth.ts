@@ -86,10 +86,10 @@ interface Options {
   transactionLimitPerClient?: number;
   routeEvidence?: (evidence: OAuthRouteEvidence) => void;
   reauthKey?: Buffer;
+  revocationFailure?: () => void;
 }
 
-type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'> &
-  Partial<Pick<BrowserOidcClient, 'revoke'>>;
+type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'>;
 
 export interface OAuthRouteEvidence {
   method: string;
@@ -104,6 +104,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly clients = new Map<string, ClientRecord>();
   private readonly grants = new Map<string, McpAuthorizationGrant>();
   private readonly sessions = new Map<string, McpSession>();
+  private readonly reauthMarkers = new Map<string, number>();
   private readonly pendingAuthorizations: PendingAuthorizations;
   private readonly now: () => number;
   private readonly random: () => string;
@@ -116,6 +117,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly publicKey: KeyObject;
   private readonly verifyUpstream: TokenVerifier['verify'];
   private readonly reauthKey: Buffer;
+  private readonly revocationFailure: () => void;
 
   private readonly clientLimit: number;
   private readonly clientSourceLimit: number;
@@ -144,6 +146,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.verifyUpstream =
       options.verifyUpstream ?? (() => Promise.reject(new Error('upstream verifier is required')));
     this.reauthKey = options.reauthKey ?? randomBytes(32);
+    this.revocationFailure =
+      options.revocationFailure ??
+      (() => {
+        console.error(JSON.stringify({ event: 'mcp_oauth_refresh_revoke_failed' }));
+      });
     this.clientLimit = Math.max(1, options.clientLimit ?? 1_000);
     this.clientSourceLimit = Math.max(1, options.clientSourceLimit ?? 20);
     this.provenClientSourceLimit = Math.max(1, options.provenClientSourceLimit ?? 100);
@@ -362,7 +369,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     client.expiresAt = client.proven
       ? activeFlowExpiry
       : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
-    const asksForLogin = this.validReauthMarker(cookieOf(request, REAUTH_COOKIE));
+    const asksForLogin = this.consumeReauthMarker(cookieOf(request, REAUTH_COOKIE));
     const location = await this.upstream.authorizationUrl({
       nonce,
       redirectUri: this.callbackUrl,
@@ -422,11 +429,8 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
     this.cleanup();
     if (this.grants.size >= this.grantLimit) {
-      return await this.failLogin(
-        pending.authorization,
-        'temporarily_unavailable',
-        tokens.refreshToken,
-      );
+      await this.revokeRefreshToken(tokens.refreshToken);
+      return oauthError('temporarily_unavailable', clearCookie(), 429);
     }
     const code = this.random();
     this.grants.set(code, {
@@ -452,24 +456,41 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     error: CallbackError,
     refreshToken?: string,
   ): Promise<Response> {
-    if (refreshToken !== undefined) {
-      if (this.upstream.revoke === undefined)
-        throw new Error('upstream token revocation is required');
-      await this.upstream.revoke(refreshToken);
-    }
+    await this.revokeRefreshToken(refreshToken);
     const target = new URL(authorization.redirectUri);
     target.searchParams.set('error', error);
     if ('state' in authorization && authorization.state !== undefined) {
       target.searchParams.set('state', authorization.state);
     }
-    return redirect(target.href, [clearCookie(), reauthCookie(this.reauthKey)]);
+    return redirect(target.href, [clearCookie(), this.issueReauthCookie()]);
   }
 
-  private validReauthMarker(marker: string | undefined): boolean {
+  private async revokeRefreshToken(refreshToken: string | undefined): Promise<void> {
+    if (refreshToken === undefined) return;
+    try {
+      await this.upstream.revoke(refreshToken);
+    } catch {
+      this.revocationFailure();
+    }
+  }
+
+  private issueReauthCookie(): string {
+    const markerId = this.random();
+    this.reauthMarkers.set(markerId, this.now() + TTL_MS);
+    return reauthCookie(markerId, this.reauthKey);
+  }
+
+  private consumeReauthMarker(marker: string | undefined): boolean {
     if (marker === undefined) return false;
-    const expected = Buffer.from(reauthMarker(this.reauthKey));
-    const received = Buffer.from(marker);
-    return received.length === expected.length && timingSafeEqual(received, expected);
+    const separator = marker.lastIndexOf('.');
+    if (separator <= 0) return false;
+    const markerId = marker.slice(0, separator);
+    const received = Buffer.from(marker.slice(separator + 1));
+    const expected = Buffer.from(reauthMarker(markerId, this.reauthKey));
+    if (received.length !== expected.length || !timingSafeEqual(received, expected)) return false;
+    const expiresAt = this.reauthMarkers.get(markerId);
+    this.reauthMarkers.delete(markerId);
+    return expiresAt !== undefined && expiresAt > this.now();
   }
 
   private async token(request: Request): Promise<Response> {
@@ -594,6 +615,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     for (const [jti, session] of this.sessions) {
       if (session.expiresAt <= now) this.sessions.delete(jti);
     }
+    for (const [markerId, expiresAt] of this.reauthMarkers) {
+      if (expiresAt <= now) this.reauthMarkers.delete(markerId);
+    }
   }
 }
 
@@ -703,12 +727,12 @@ function clearCookie(): string {
   return `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
-function reauthMarker(key: Buffer): string {
-  return createHmac('sha256', key).update('mcp-login-retry').digest('base64url');
+function reauthMarker(markerId: string, key: Buffer): string {
+  return createHmac('sha256', key).update(markerId).digest('base64url');
 }
 
-function reauthCookie(key: Buffer): string {
-  return `${REAUTH_COOKIE}=${reauthMarker(key)}; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax`;
+function reauthCookie(markerId: string, key: Buffer): string {
+  return `${REAUTH_COOKIE}=${markerId}.${reauthMarker(markerId, key)}; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function clearReauthCookie(): string {

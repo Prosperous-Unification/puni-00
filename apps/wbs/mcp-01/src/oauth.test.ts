@@ -28,6 +28,7 @@ function fixture(
     exchange?: BrowserOidcClient['exchange'];
     verifyUpstream?: (token: string) => Promise<JwtClaims>;
     revoke?: BrowserOidcClient['revoke'];
+    revocationFailure?: () => void;
   } = {},
 ) {
   const { exchange, verifyUpstream, revoke, ...oauthOptions } = limits;
@@ -1016,11 +1017,37 @@ describe('InMemoryMcpOAuth', () => {
     expect(authorizationCalls.at(-1)).toMatchObject({ prompt: 'login' });
 
     await oauth.response(
-      new Request(authorizeUrl(clientId), {
-        headers: { cookie: `${marker ?? ''}tampered` },
-      }),
+      new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
     );
     expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+
+    const tampered = `${marker?.slice(0, -1) ?? ''}${marker?.endsWith('A') ? 'B' : 'A'}`;
+    await oauth.response(new Request(authorizeUrl(clientId), { headers: { cookie: tampered } }));
+    expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+  });
+
+  it('still redirects when provider refresh-token revocation fails', async () => {
+    let revocationFailures = 0;
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'unverifiable-upstream-token',
+          expiresIn: 300,
+          refreshToken: 'provider-refresh-token',
+        }),
+      revoke: () => Promise.reject(new Error('provider unavailable')),
+      revocationFailure: () => {
+        revocationFailures += 1;
+      },
+      verifyUpstream: () => Promise.reject(new Error('invalid upstream identity')),
+    });
+    const clientId = await register(oauth);
+    const failed = await completedAuthorization(oauth, 'v'.repeat(43), clientId);
+    const returned = new URL(failed.response.headers.get('location') ?? 'https://invalid');
+    expect(failed.response.status).toBe(302);
+    expect(returned.searchParams.get('error')).toBe('access_denied');
+    expect(returned.searchParams.get('state')).toBe('claude-state');
+    expect(revocationFailures).toBe(1);
   });
 
   it('maps an exchange exception to server_error at the validated client redirect', async () => {

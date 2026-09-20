@@ -195,19 +195,16 @@ describe('callTool', () => {
   // The other 401. fe-01 shipped this bug once already: an edge challenge
   // reported as `http_401` sent someone hunting through the app for a fault one
   // layer above it. Delete the `www-authenticate` check and this goes red.
-  it('separates the deployment gate’s 401 from be-01’s own', async () => {
+  it('separates the deployment gate’s 401 even when its credential is missing', async () => {
     const be01 = stub(
       new Response('<html>401 Unauthorized</html>', {
         status: 401,
         headers: { 'www-authenticate': 'Basic realm="wbs-dev"' },
       }),
     );
-    const cause = await callTool(
-      READ,
-      { id: 'p1' },
-      { ...CONFIG, WBS_BASIC_AUTH: 'dany:hunter2' },
-      be01.fetch,
-    ).catch((error: unknown) => error);
+    const cause = await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch).catch(
+      (error: unknown) => error,
+    );
     expect(cause).toBeInstanceOf(EdgeGate);
     expect(String(cause)).toContain('WBS_BASIC_AUTH');
     expect(String(cause)).toMatch(/never reached the API/);

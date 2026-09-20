@@ -229,4 +229,58 @@ describe('mcpFetchHandler', () => {
     expect(next.status).toBe(401);
     expect(next.headers.get('www-authenticate')).toContain('error="invalid_token"');
   });
+
+  // Proof: a Basic challenge comes from the deployment edge even when its
+  // credential is missing. Ending the MCP session here creates a reauth loop
+  // that cannot repair deployment configuration.
+  it('keeps the local session after the deployment Basic gate rejects a call', async () => {
+    const verifier = {
+      verify: () => Promise.resolve(claims),
+      upstreamTokenFor: () => Promise.resolve('upstream-token'),
+      callerSessionFor: () =>
+        Promise.resolve({ upstreamToken: 'upstream-token', mcpSessionId: 'session-1' }),
+    };
+    const handle = mcpFetchHandler(
+      () =>
+        createServer({
+          tools: [
+            {
+              name: 'readProject',
+              description: 'Read a project',
+              inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+              method: 'get',
+              path: '/api/projects/{id}',
+              locations: { id: 'path' },
+            },
+          ],
+          config: CONFIG,
+          fetchImpl: () =>
+            Promise.resolve(
+              new Response('<html>401 Unauthorized</html>', {
+                status: 401,
+                headers: { 'www-authenticate': 'Basic realm="wbs-dev"' },
+              }),
+            ),
+          endSession: () => {
+            throw new Error('must not end a session for an edge-gate rejection');
+          },
+        }),
+      CONFIG,
+      verifier,
+      {},
+    );
+
+    const rejected = await handle(
+      rpc({
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'readProject', arguments: { id: 'p1' } },
+      }),
+    );
+    expect(rejected.status).toBe(200);
+    expect(JSON.stringify(await rejected.json())).toMatch(/WBS_BASIC_AUTH/);
+
+    const next = await handle(rpc({ id: 2, method: 'tools/list', params: {} }));
+    expect(next.status).toBe(200);
+  });
 });
