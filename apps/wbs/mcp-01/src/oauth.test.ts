@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { BrowserOidcClient } from '@wbs/auth';
+import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
@@ -25,22 +25,30 @@ function fixture(
     transactionLimit?: number;
     transactionLimitPerClient?: number;
     random?: () => string;
+    exchange?: BrowserOidcClient['exchange'];
+    verifyUpstream?: (token: string) => Promise<JwtClaims>;
+    revoke?: BrowserOidcClient['revoke'];
   } = {},
 ) {
+  const { exchange, verifyUpstream, revoke, ...oauthOptions } = limits;
   let now = 1_700_000_000_000;
   const values = Array.from({ length: 20 }, (_, index) => `random-${String(index + 1)}`);
   const authorizationCalls: unknown[] = [];
   const exchangeCalls: unknown[] = [];
   const routeEvidence: OAuthRouteEvidence[] = [];
-  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'> = {
+  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'> = {
     authorizationUrl: (input) => {
       authorizationCalls.push(input);
       return Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`));
     },
     exchange: (request, checks) => {
       exchangeCalls.push({ request, checks });
-      return Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 300 });
+      return (
+        exchange?.(request, checks) ??
+        Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 300 })
+      );
     },
+    revoke: revoke ?? (() => Promise.resolve()),
   };
   return {
     authorizationCalls,
@@ -51,15 +59,17 @@ function fixture(
       groupPrefix: 'dev',
       now: () => now,
       random: () => values.shift() ?? 'random-exhausted',
-      verifyUpstream: (token) =>
-        token === 'upstream-okta-token'
-          ? Promise.resolve({
-              iss: 'https://idp.example',
-              sub: 'person-1',
-              wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
-            })
-          : Promise.reject(new Error('not an upstream token')),
-      ...limits,
+      verifyUpstream:
+        verifyUpstream ??
+        ((token) =>
+          token === 'upstream-okta-token'
+            ? Promise.resolve({
+                iss: 'https://idp.example',
+                sub: 'person-1',
+                wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+              })
+            : Promise.reject(new Error('not an upstream token'))),
+      ...oauthOptions,
       routeEvidence: (evidence) => routeEvidence.push(evidence),
     }),
     advance: (milliseconds: number) => {
@@ -974,5 +984,96 @@ describe('InMemoryMcpOAuth', () => {
     const secondToken = ((await secondResponse?.json()) as { access_token: string }).access_token;
     advance(300_001);
     expect(oauth.verify(secondToken)).rejects.toThrow();
+  });
+
+  // Proof: returning provider failures locally strands the MCP client on the
+  // callback page and never makes the following authorization ask for login.
+  it('redirects provider errors and consumes a signed reauthentication marker', async () => {
+    const { authorizationCalls, oauth } = fixture();
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?error=access_denied&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const returned = new URL(failed?.headers.get('location') ?? 'https://invalid');
+    expect(returned.origin + returned.pathname).toBe(CALLBACK);
+    expect(returned.searchParams.get('error')).toBe('access_denied');
+    expect(returned.searchParams.get('state')).toBe('claude-state');
+    const setCookie = failed?.headers.get('set-cookie') ?? '';
+    const marker = /(__Host-wbs_mcp_reauth=[^;,]+)/.exec(setCookie)?.[1];
+    expect(marker).toBeDefined();
+
+    await oauth.response(
+      new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
+    );
+    expect(authorizationCalls.at(-1)).toMatchObject({ prompt: 'login' });
+
+    await oauth.response(
+      new Request(authorizeUrl(clientId), {
+        headers: { cookie: `${marker ?? ''}tampered` },
+      }),
+    );
+    expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+  });
+
+  it('maps an exchange exception to server_error at the validated client redirect', async () => {
+    const { oauth } = fixture({
+      exchange: () => Promise.reject(new Error('provider unavailable')),
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=***&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const returned = new URL(failed?.headers.get('location') ?? 'https://invalid');
+    expect(returned.searchParams.get('error')).toBe('server_error');
+    expect(returned.searchParams.get('state')).toBe('claude-state');
+  });
+
+  it('revokes a refresh token when upstream verification refuses the login', async () => {
+    const revoked: string[] = [];
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'untrusted-upstream-token',
+          expiresIn: 300,
+          refreshToken: 'provider-refresh-token',
+        }),
+      verifyUpstream: () => Promise.reject(new Error('untrusted upstream token')),
+      revoke: (token) => {
+        revoked.push(token);
+        return Promise.resolve();
+      },
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=***&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    expect(
+      new URL(failed?.headers.get('location') ?? 'https://invalid').searchParams.get('error'),
+    ).toBe('access_denied');
+    expect(revoked).toEqual(['provider-refresh-token']);
   });
 });

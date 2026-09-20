@@ -1052,6 +1052,18 @@ with a missing value to be filled in later — its author is unknowable rather t
 unknown, which is why nothing substitutes for it.
 _Avoid_: orphan row, legacy row, anonymous row
 
+**MCP session**:
+The server-held mapping from a fronting MCP access token's `jti` to the upstream access
+token and expiry. Ending it makes the next request carrying that MCP token fail with
+`invalid_token`; it does not end the provider's browser session.
+_Avoid_: connector session, provider session, access token
+
+**Reauthentication marker**:
+A signed, short-lived, identity-free browser cookie set after a matched MCP login fails.
+The next authorization consumes it and asks the provider for `prompt=login`, so a refused
+provider account is not silently reused.
+_Avoid_: logout cookie, retry flag, browser binding
+
 ### Architecture
 
 **Radical Modularity**:

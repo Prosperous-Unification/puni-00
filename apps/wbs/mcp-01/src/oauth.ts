@@ -1,8 +1,16 @@
-import { createHash, generateKeyPairSync, type KeyObject, randomBytes } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  generateKeyPairSync,
+  type KeyObject,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 
 import {
   type BrowserOidcClient,
   browserOidcClientFromEnv,
+  type BrowserOidcTokenSet,
   type JwtClaims,
   oidcIdentityFromClaims,
   oidcTokenVerifierFromEnv,
@@ -12,10 +20,11 @@ import { type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
-import { PendingAuthorizations } from './pending-authorizations';
+import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
+const REAUTH_COOKIE = '__Host-wbs_mcp_reauth';
 const TTL_MS = 300_000;
 const UNPROVEN_CLIENT_TTL_MS = 600_000;
 const ACTIVE_CLIENT_TTL_MS = 86_400_000;
@@ -23,6 +32,15 @@ const MAX_AUTHORIZATION_QUERY_BYTES = 2_048;
 const MAX_STATE_BYTES = 512;
 const MAX_REDIRECT_URIS = 10;
 const MAX_REDIRECT_URI_BYTES = 512;
+
+type CallbackError =
+  | 'access_denied'
+  | 'invalid_request'
+  | 'invalid_scope'
+  | 'server_error'
+  | 'temporarily_unavailable'
+  | 'unauthorized_client'
+  | 'unsupported_response_type';
 
 interface ClientRecord {
   proven: boolean;
@@ -66,9 +84,11 @@ interface Options {
   transactionLimit?: number;
   transactionLimitPerClient?: number;
   routeEvidence?: (evidence: OAuthRouteEvidence) => void;
+  reauthKey?: Buffer;
 }
 
-type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'>;
+type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'> &
+  Partial<Pick<BrowserOidcClient, 'revoke'>>;
 
 export interface OAuthRouteEvidence {
   method: string;
@@ -94,6 +114,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly privateKey: KeyObject;
   private readonly publicKey: KeyObject;
   private readonly verifyUpstream: TokenVerifier['verify'];
+  private readonly reauthKey: Buffer;
 
   private readonly clientLimit: number;
   private readonly clientSourceLimit: number;
@@ -121,6 +142,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.publicKey = keys.publicKey;
     this.verifyUpstream =
       options.verifyUpstream ?? (() => Promise.reject(new Error('upstream verifier is required')));
+    this.reauthKey = options.reauthKey ?? randomBytes(32);
     this.clientLimit = Math.max(1, options.clientLimit ?? 1_000);
     this.clientSourceLimit = Math.max(1, options.clientSourceLimit ?? 20);
     this.provenClientSourceLimit = Math.max(1, options.provenClientSourceLimit ?? 100);
@@ -147,7 +169,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       url.pathname === new URL(`${this.issuer}/authorize`).pathname &&
       request.method === 'GET'
     ) {
-      response = await this.authorize(url);
+      response = await this.authorize(request, url);
     } else if (url.pathname === new URL(this.callbackUrl).pathname && request.method === 'GET') {
       response = await this.callback(request, url);
     } else if (
@@ -180,15 +202,26 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
   }
 
-  async upstreamTokenFor(token: string): Promise<string> {
+  async callerSessionFor(
+    token: string,
+  ): Promise<{ readonly upstreamToken: string; readonly mcpSessionId: string | null }> {
     try {
       const payload = await this.verifyLocal(token);
       const session = this.sessionOf(payload);
-      return session.upstreamAccessToken;
+      if (typeof payload.jti !== 'string') throw new Error('verified MCP token has no session id');
+      return { upstreamToken: session.upstreamAccessToken, mcpSessionId: payload.jti };
     } catch {
       await this.verifyUpstream(token);
-      return token;
+      return { upstreamToken: token, mcpSessionId: null };
     }
+  }
+
+  async upstreamTokenFor(token: string): Promise<string> {
+    return (await this.callerSessionFor(token)).upstreamToken;
+  }
+
+  endSession(mcpSessionId: string): void {
+    this.sessions.delete(mcpSessionId);
   }
 
   private async verifyLocal(token: string): Promise<JwtClaims> {
@@ -280,7 +313,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     );
   }
 
-  private async authorize(url: URL): Promise<Response> {
+  private async authorize(request: Request, url: URL): Promise<Response> {
     const params = url.searchParams;
     const clientId = params.get('client_id') ?? '';
     const redirectUri = params.get('redirect_uri') ?? '';
@@ -327,13 +360,18 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     client.expiresAt = client.proven
       ? activeFlowExpiry
       : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
+    const asksForLogin = this.validReauthMarker(cookieOf(request, REAUTH_COOKIE));
     const location = await this.upstream.authorizationUrl({
       nonce,
       redirectUri: this.callbackUrl,
       state: upstreamState,
       verifier,
+      ...(asksForLogin ? { prompt: 'login' as const } : {}),
     });
-    return redirect(location.href, cookie(browserBinding));
+    return redirect(
+      location.href,
+      asksForLogin ? [cookie(browserBinding), clearReauthCookie()] : cookie(browserBinding),
+    );
   }
 
   private async callback(request: Request, url: URL): Promise<Response> {
@@ -346,17 +384,29 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       return oauthError('invalid_request', clearCookie());
     }
 
+    const providerError = url.searchParams.get('error');
+    if (providerError !== null) {
+      return this.failLogin(pending.authorization, callbackError(providerError));
+    }
+
     const callback = new URL(this.callbackUrl);
     callback.search = url.search;
-    const tokens = await this.upstream.exchange(
-      new Request(callback, { headers: request.headers }),
-      {
+    let tokens: BrowserOidcTokenSet;
+    try {
+      tokens = await this.upstream.exchange(new Request(callback, { headers: request.headers }), {
         nonce: pending.nonce,
         state: state ?? '',
         verifier: pending.verifier,
-      },
-    );
-    const upstreamClaims = await this.verifyUpstream(tokens.accessToken);
+      });
+    } catch {
+      return this.failLogin(pending.authorization, 'server_error');
+    }
+    let upstreamClaims: JwtClaims;
+    try {
+      upstreamClaims = await this.verifyUpstream(tokens.accessToken);
+    } catch {
+      return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
+    }
     const identity = oidcIdentityFromClaims(upstreamClaims, {
       groupPrefix: this.groupPrefix,
       groupsClaim: this.groupsClaim,
@@ -365,7 +415,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const scopes = [...identity.scopes]
       .map((scope) => `wbs:${scope}`)
       .filter((scope) => requested.has(scope));
-    if (!scopes.includes('wbs:read')) return oauthError('access_denied', clearCookie());
+    if (!scopes.includes('wbs:read')) {
+      return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
+    }
     this.cleanup();
     if (this.grants.size >= this.grantLimit) {
       return oauthError('temporarily_unavailable', clearCookie(), 429);
@@ -387,6 +439,31 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       target.searchParams.set('state', pending.authorization.state);
     }
     return redirect(target.href, clearCookie());
+  }
+
+  private async failLogin(
+    authorization: AuthorizationContext,
+    error: CallbackError,
+    refreshToken?: string,
+  ): Promise<Response> {
+    if (refreshToken !== undefined) {
+      if (this.upstream.revoke === undefined)
+        throw new Error('upstream token revocation is required');
+      await this.upstream.revoke(refreshToken);
+    }
+    const target = new URL(authorization.redirectUri);
+    target.searchParams.set('error', error);
+    if ('state' in authorization && authorization.state !== undefined) {
+      target.searchParams.set('state', authorization.state);
+    }
+    return redirect(target.href, [clearCookie(), reauthCookie(this.reauthKey)]);
+  }
+
+  private validReauthMarker(marker: string | undefined): boolean {
+    if (marker === undefined) return false;
+    const expected = reauthMarker(this.reauthKey);
+    const received = Buffer.from(marker);
+    return received.length === expected.length && timingSafeEqual(received, expected);
   }
 
   private async token(request: Request): Promise<Response> {
@@ -529,6 +606,7 @@ export function mcpOAuthFromEnv(
     {
       authorizationUrl: (input) => get().authorizationUrl(input),
       exchange: (request, checks) => get().exchange(request, checks),
+      revoke: (refreshToken) => get().revoke(refreshToken),
     },
     {
       groupsClaim: env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups',
@@ -619,8 +697,39 @@ function clearCookie(): string {
   return `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
-function redirect(location: string, setCookie: string): Response {
-  return new Response(null, { headers: { location, 'set-cookie': setCookie }, status: 302 });
+function reauthMarker(key: Buffer): string {
+  return createHmac('sha256', key).update('mcp-login-retry').digest('base64url');
+}
+
+function reauthCookie(key: Buffer): string {
+  return `${REAUTH_COOKIE}=${reauthMarker(key)}; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function clearReauthCookie(): string {
+  return `${REAUTH_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function callbackError(value: string): CallbackError {
+  switch (value) {
+    case 'access_denied':
+    case 'invalid_request':
+    case 'invalid_scope':
+    case 'server_error':
+    case 'temporarily_unavailable':
+    case 'unauthorized_client':
+    case 'unsupported_response_type':
+      return value;
+    default:
+      return 'server_error';
+  }
+}
+
+function redirect(location: string, setCookie: string | readonly string[]): Response {
+  const headers = new Headers({ location });
+  for (const value of typeof setCookie === 'string' ? [setCookie] : setCookie) {
+    headers.append('set-cookie', value);
+  }
+  return new Response(null, { headers, status: 302 });
 }
 
 function oauthError(error: string, setCookie?: string, status = 400): Response {

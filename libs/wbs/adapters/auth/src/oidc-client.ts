@@ -21,6 +21,7 @@ export interface BrowserOidcClient {
     redirectUri: string;
     state: string;
     verifier: string;
+    prompt?: 'login';
   }): Promise<URL>;
   exchange(
     request: Request,
@@ -153,6 +154,7 @@ export function browserOidcClientFromEnv(
         state: input.state,
       };
       if (audience !== undefined && audience !== '') parameters['audience'] = audience;
+      if (input.prompt !== undefined) parameters['prompt'] = input.prompt;
       return buildAuthorizationUrl(await config(), parameters);
     },
     async exchange(request, checks) {
