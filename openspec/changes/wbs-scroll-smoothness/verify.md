@@ -62,6 +62,28 @@ Dependency-integrity trust remains gated: the maintained checker refuses the
 repository's three tracked nested `package.json` files, so these are
 development measurements, not a terminal green gate.
 
+## Retained-window follow-up
+
+The effective tree at `4136f9fa` retains compositor offsets inside a 640px row
+publication bucket backed by 768px overscan. The probe now positions its pointer
+before counters start and caches the complete, stable Gantt label list instead
+of rebuilding a 500/2,000-entry observer array on every animation frame. One
+h2puni repeat at each size measured:
+
+| Rows | React commits | React commit time | Gantt commits | Worst pairing | Worst frame gap |
+| ---: | ------------: | ----------------: | ------------: | ------------: | --------------: |
+| 50 | 30 | 55.7 ms | 0 | 0.018 row | 116.6 ms |
+| 500 | 129 | 548.3 ms | 0 | 0.018 row | 201.3 ms |
+| 2,000 | 129 | 589.2 ms | 0 | 0.016 row | 187.8 ms |
+
+The 500-row React cost is down from the prior chunk's 162 commits / 1,309 ms;
+the 2,000-row cost is down from 1,344 ms, and pairing remained inside the
+0.1-row gate at every size. The 50ms frame gate is still red, so close task 3.1
+remains open. These three frame maxima are not a clean-host verdict: at the
+measurement checkpoint h2puni was at load 8.11 on 8 cores with `containerd` at
+126% CPU and `dockerd` at 86.8% CPU; `/` was also 96% used. A clean CI runner or
+a quiet h2puni window must repeat all five traces before terminal disposition.
+
 ## Rewritten-plan review
 
 Sol (`openai/gpt-5.6-sol`) and Gemini (Antigravity CLI) reviewed section 2 at
