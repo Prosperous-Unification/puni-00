@@ -3,7 +3,7 @@
 import { act, fireEvent, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { viewportColumns, type ViewportColumn } from './plan-viewport';
+import { type ViewportColumn, viewportColumns } from './plan-viewport';
 import { COLUMN_OVERSCAN_PX, publicationOffset, usePlanViewport } from './use-plan-viewport';
 
 const columns: readonly ViewportColumn[] = [
