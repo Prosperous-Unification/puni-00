@@ -57,6 +57,7 @@ describe('usePlanViewport horizontal publication', () => {
     };
 
     expect(mounted()).not.toContain('not-before');
+    expect(scrollTo(-40)).toBe(0);
     expect(scrollTo(1)).toBe(0);
 
     // Production-path negative: the removed 192px rounding fault maps 150px back to zero,
