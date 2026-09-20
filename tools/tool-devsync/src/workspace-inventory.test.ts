@@ -105,7 +105,12 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // target failed with `Received length: 163`; its command carries the project's seventh
   // parent-relative value in the already-inventoried project.json, so the file count holds
   // at 80 (2026-09-18).
-  expect(paths).toHaveLength(163);
+  // Proof: leaving 163 here after the test-axes level targets landed failed with `Received
+  // length: 166`: `wbs-store-sqlite:test:api`, `wbs-store-sqlite:test:unit` and
+  // `wbs-core:test:unit` each carry one parent-relative JUnit path in an already-inventoried
+  // project.json, so the file count holds at 80. Seen in the planner's whole-suite run; the
+  // packet did not name this pin (2026-09-20).
+  expect(paths).toHaveLength(166);
   expect(new Set(paths.map(({ file }) => file))).toHaveLength(80);
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',

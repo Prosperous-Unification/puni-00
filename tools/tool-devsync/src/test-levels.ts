@@ -192,3 +192,81 @@ export async function testFilesInProject(root: string): Promise<string[]> {
   }
   return found.sort();
 }
+
+/* ─── slice B adds everything below this line ────────────────────────────── */
+
+/**
+ * The only flags a declared level target may pass to Bun's runner.
+ *
+ * An allow-list and not a shape check: `--test-name-pattern`, `--preload`,
+ * `--config`, `--bail` and `--todo` all change which tests run, so a target
+ * carrying one would satisfy the file-level isolation check while running a
+ * different set — a check that cannot fail.
+ */
+export const ALLOWED_LEVEL_FLAG =
+  /^--(?:coverage|coverage-reporter=lcov|reporter=junit|reporter-outfile=\S+)$/;
+
+/** The parts of a declared level target's command. */
+export interface LevelCommand {
+  /** The directory the command creates before running, as the command spells it. */
+  readonly reportDirectory: string;
+  /** The shell expression inside `$( … )` that names the files to run. */
+  readonly selector: string;
+  /** Every flag after the selector, in order. */
+  readonly flags: readonly string[];
+}
+
+/**
+ * The only command shape a declared level target may have:
+ * `mkdir -p <dir> && bun test $( <selector> ) <flag>…`.
+ *
+ * Anchored on purpose. A positional argument after the selector is how a target
+ * quietly gains a file of another level without the selector saying so, and a
+ * second command substitution is a second selection rule.
+ *
+ * @throws when the command has any other shape, or carries a flag outside
+ * {@link ALLOWED_LEVEL_FLAG}.
+ */
+export function parseLevelCommand(command: string): LevelCommand {
+  const parsed = /^mkdir -p (\S+) && bun test \$\(([^()]*)\)((?: \S+)*)$/.exec(command);
+  if (parsed === null) {
+    throw new Error(
+      `a declared level target must read \`mkdir -p <dir> && bun test $( <selector> ) <flag>…\`; got: ${command}`,
+    );
+  }
+  const [, reportDirectory, selector, rest] = parsed;
+  const flags = rest.split(/\s+/).filter(Boolean);
+  const refused = flags.filter((flag) => !ALLOWED_LEVEL_FLAG.test(flag));
+  if (refused.length > 0) {
+    throw new Error(
+      `a declared level target may not pass ${refused.join(', ')}; only coverage and JUnit reporting flags are allowed`,
+    );
+  }
+  return { reportDirectory, selector, flags };
+}
+
+/**
+ * The files one declared level target collects, by running the command's own
+ * selector in the target's working directory.
+ *
+ * The selector is run rather than re-implemented: a second copy of the selection
+ * rule is the drift this check exists to catch.
+ *
+ * @throws when the selector fails.
+ */
+export function collectedFiles(root: string, selector: string): readonly string[] {
+  const run = Bun.spawnSync(['sh', '-c', selector], {
+    cwd: new URL(`${root}/`, WORKSPACE).pathname,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  if (run.exitCode !== 0) {
+    throw new Error(`${root}: the file selector failed: ${run.stderr.toString()}`);
+  }
+  return run.stdout.toString().split(/\s+/).filter(Boolean).sort();
+}
+
+/** The report path a target writes, spelled the way its own working directory must spell it. */
+export function reportPathFrom(root: string, report: string): string {
+  return `${'../'.repeat(root.split('/').length)}${report}`;
+}

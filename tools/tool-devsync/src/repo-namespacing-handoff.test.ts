@@ -710,7 +710,10 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // mismatch`. With docs/wiki-policy/relationships*.json back to main's bytes, leaving
     // `21a80db5...` here failed on the observed digest below, count and unclassified list
     // unchanged (2026-09-20).
-    digest: '5a672eac90938e8483b2fbc000606a52b2d5a2ae2f8f256f66d77880dd077ac5',
+    // Proof: leaving `5a672eac...` here after the test-axes lane re-pinned the workspace inventory
+    // failed on the observed digest below, occurrences and the unclassified list unchanged: the
+    // inventory test's new comment lines shift the classified contexts beneath them (2026-09-20).
+    digest: 'f85db082854effce7a9625cc1ae5fe0c0c228526e308921e19782c272aab1c9c',
     occurrences: 257,
     unclassified: [],
   });
