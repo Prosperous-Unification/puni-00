@@ -163,10 +163,14 @@ describe('buildPackage', () => {
         // states no mode for F7` (exit 1 where 0 was expected), seen in the planner's whole-suite
         // run on 2026-09-20; the sandboxed executor cannot build the package and never ran it.
         ruleModes: [
+          { ruleId: 'F1', mode: 'observe' },
           { ruleId: 'F7', mode: 'observe' },
           { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+          { ruleId: 'K2', mode: 'observe' },
           { ruleId: 'K3', mode: 'observe' },
           { ruleId: 'K4', mode: 'observe' },
+          { ruleId: 'K5', mode: 'observe' },
+          { ruleId: 'K6', mode: 'observe' },
           { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
           { ruleId: 'MOD-INDEX', mode: 'enforce' },
           { ruleId: 'MOD-LAYOUT', mode: 'observe' },

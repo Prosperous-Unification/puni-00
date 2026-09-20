@@ -2,6 +2,7 @@ import type { ClassificationPolicy, RelationshipRequest } from '../contracts/rec
 import type { checkIndexes } from '../indexes/check-indexes';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
 import type { extractRelationships } from '../relationships';
+import type { PlainSelector } from './direction';
 import type { KindGraph } from './kinds';
 import type { SizeCeilings } from './size-ratchet';
 
@@ -83,6 +84,7 @@ export interface RuleContext {
   readonly repository: string;
   readonly candidate: CandidateSnapshot;
   readonly classificationPolicy?: ClassificationPolicy;
+  readonly plainTypeScriptPaths?: readonly PlainSelector[];
   readonly relationshipRequest?: RelationshipRequest;
   readonly sizeCeilings?: SizeCeilings;
   /** The index report, computed once per check and shared by the three module rules. */

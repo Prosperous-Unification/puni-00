@@ -50,6 +50,11 @@ const SizeCeilingsRecord = type({
       : context.mustBe('unique pinned paths');
   });
 
+const PlainSelectorRecord = type({
+  kind: "'path'|'prefix'",
+  value: RelativePath,
+}).onUndeclaredKey('reject');
+
 // Proof: on 2026-09-20, accepting undeclared policy keys made the schema test receive empty stderr
 // instead of `unexpected must be removed`.
 const RulePolicyRecord = type({
@@ -58,6 +63,7 @@ const RulePolicyRecord = type({
   ruleModes: RuleModeRecord.array(),
   'adoptedSet?': AdoptedSetRecord,
   'classificationPolicy?': ClassificationPolicy,
+  'plainTypeScriptPaths?': PlainSelectorRecord.array(),
   'relationshipRequest?': RelationshipRequest,
   'sizeCeilings?': SizeCeilingsRecord,
 }).onUndeclaredKey('reject');
@@ -148,7 +154,10 @@ export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
     const absent =
       (input === 'policy.classificationPolicy' && policy.classificationPolicy === undefined) ||
       (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined) ||
-      (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined);
+      (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined) ||
+      // Proof: on 2026-09-20, omitting this disjunct made the missing-input test receive empty
+      // stderr instead of the required `policy.plainTypeScriptPaths` sentence.
+      (input === 'policy.plainTypeScriptPaths' && policy.plainTypeScriptPaths === undefined);
     if (absent) {
       throw new Error(`rule ${ruleId} needs ${input}, which the rule policy omits`);
     }

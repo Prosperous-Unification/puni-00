@@ -137,6 +137,9 @@ export function checkCandidate(request: CheckRequest): Verdict {
     ...(policy.classificationPolicy === undefined
       ? {}
       : { classificationPolicy: policy.classificationPolicy }),
+    ...(policy.plainTypeScriptPaths === undefined
+      ? {}
+      : { plainTypeScriptPaths: policy.plainTypeScriptPaths }),
     ...(policy.relationshipRequest === undefined
       ? {}
       : { relationshipRequest: policy.relationshipRequest }),

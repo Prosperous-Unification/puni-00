@@ -1,6 +1,13 @@
 import { classifyEntries } from '../inventory/classify-entries';
 import { readCandidateBlob } from '../inventory/read-blob';
-import { type Direction, directionObservations, type ImportEdge } from './direction';
+import {
+  type Direction,
+  directionObservations,
+  type ImportEdge,
+  reactObservations,
+  resolvePlainSelectors,
+  sidewaysObservations,
+} from './direction';
 import type { KindGraph } from './kinds';
 import { moduleLayoutObservations } from './kinds';
 import {
@@ -185,6 +192,13 @@ function directionRule(id: string, statement: string, direction: Direction): Reg
 
 const kindDirectionRules: readonly RegisteredRule[] = [
   directionRule(
+    'K2',
+    'Delivery imports feature-services and never a resource-service or a repository.',
+    // Proof: on 2026-09-20, forbidding nothing made the delivery-resource test expect one finding
+    // and receive none.
+    { from: 'delivery', forbidden: ['resource', 'repository'] },
+  ),
+  directionRule(
     'K3',
     'A feature-service imports resource-services and never a repository or delivery, through a barrel or directly.',
     // Proof: on 2026-09-20, omitting delivery made the delivery-import test receive
@@ -198,7 +212,53 @@ const kindDirectionRules: readonly RegisteredRule[] = [
     // `findings: []` instead of the expected K4 finding.
     { from: 'resource', forbidden: ['feature', 'delivery'] },
   ),
+  directionRule(
+    'K5',
+    'A repository adapter imports nothing above it: no resource-service, no feature-service and no delivery.',
+    // Proof: on 2026-09-20, forbidding only delivery made the repository-resource test expect one
+    // finding and receive none.
+    { from: 'repository', forbidden: ['resource', 'feature', 'delivery'] },
+  ),
+  graphRule(
+    'K6',
+    'relationships',
+    'No kind imports a sibling of the same kind from another module.',
+    DirectionAnchor,
+    GraphInputs,
+    sidewaysObservations,
+  ),
 ];
+
+const plainTypeScriptRule: RegisteredRule = {
+  id: 'F1',
+  // Proof: on 2026-09-20, changing this to `relationships` made the explain test expect
+  // `code-shape` and receive `relationships`.
+  family: 'code-shape',
+  statement:
+    'A service, store or geometry module is plain TypeScript and never imports a React package.',
+  source: `${KindSpecSource}#requirement-services-are-plain-typescript`,
+  inputs: ['candidate.entries', 'policy.plainTypeScriptPaths', 'policy.relationshipRequest'],
+  evaluate: (context) => {
+    const selectors = context.plainTypeScriptPaths;
+    if (selectors === undefined) {
+      return {
+        kind: 'not-evaluated',
+        reason: 'the rule policy declares no plain TypeScript paths',
+      };
+    }
+    const resolved = resolvePlainSelectors(
+      selectors,
+      new Set(context.candidate.entries.map((entry) => entry.path)),
+    );
+    if (!resolved.ok) return { kind: 'not-evaluated', reason: resolved.reason };
+    const outcome = context.relationships();
+    if (!outcome.ok) return { kind: 'not-evaluated', reason: outcome.reason };
+    return {
+      kind: 'observed',
+      observations: reactObservations(context.kinds, outcome.report.typescript.imports, selectors),
+    };
+  },
+};
 
 const rules: readonly RegisteredRule[] = [
   classificationRule,
@@ -207,6 +267,7 @@ const rules: readonly RegisteredRule[] = [
   moduleLayoutRule,
   relationshipsRule,
   sizeRatchetRule,
+  plainTypeScriptRule,
   ...kindDirectionRules,
 ];
 

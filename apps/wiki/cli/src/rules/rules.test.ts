@@ -69,7 +69,7 @@ describe('explain production CLI', () => {
     const invocation = runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: F7, INV-CLASSIFY, K3, K4, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)',
+      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)',
     );
   });
 });
@@ -298,16 +298,44 @@ function createKindedCandidate(sources: Record<string, string>): {
   return { repository, revision: commit(repository, 'kinded fixture') };
 }
 
+/**
+ * A trusted modules directory holding the real TypeScript runtime plus a minimal scoped package, so
+ * a fixture can import `@tanstack/react-query` and have it resolve as an external library.
+ */
+function createTrustedModules(): string {
+  const modules = scratch('twilight-rules-modules-');
+  symlinkSync(
+    join(import.meta.dir, '..', '..', '..', '..', '..', 'node_modules', 'typescript'),
+    join(modules, 'typescript'),
+  );
+  mkdirSync(join(modules, '@tanstack', 'react-query'), { recursive: true });
+  writeFileSync(
+    join(modules, '@tanstack', 'react-query', 'package.json'),
+    '{"name":"@tanstack/react-query","version":"0.0.0","types":"index.d.ts"}\n',
+    'utf8',
+  );
+  writeFileSync(
+    join(modules, '@tanstack', 'react-query', 'index.d.ts'),
+    'export declare const useQuery: () => number;\n',
+    'utf8',
+  );
+  return modules;
+}
+
 interface RuleModeEntry {
   ruleId: string;
   mode: 'observe' | 'ratchet' | 'enforce';
 }
 
 const everyRuleObserving: RuleModeEntry[] = [
+  { ruleId: 'F1', mode: 'observe' },
   { ruleId: 'F7', mode: 'observe' },
   { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+  { ruleId: 'K2', mode: 'observe' },
   { ruleId: 'K3', mode: 'observe' },
   { ruleId: 'K4', mode: 'observe' },
+  { ruleId: 'K5', mode: 'observe' },
+  { ruleId: 'K6', mode: 'observe' },
   { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
   { ruleId: 'MOD-INDEX', mode: 'observe' },
   { ruleId: 'MOD-LAYOUT', mode: 'observe' },
@@ -343,6 +371,7 @@ function writeCompleteRulePolicy(ruleModes: RuleModeEntry[], declarationPaths?: 
       typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/entry.ts'] },
       ...(declarationPaths === undefined ? {} : { declarationPaths }),
     },
+    plainTypeScriptPaths: [],
     sizeCeilings: { ceiling: 40, roots: ['src'], pinned: [] },
   });
 }
@@ -1050,6 +1079,213 @@ describe('K3 and K4', () => {
   }, 30_000);
 });
 
+describe('K2, K5, K6 and F1', () => {
+  const relationshipRequest = {
+    schemaVersion: 1,
+    typescript: {
+      configPaths: ['tsconfig.json'],
+      publicEntrypoints: ['src/entry.ts'],
+    },
+  };
+  const checkKindRule = (
+    ruleId: 'F1' | 'K2' | 'K5' | 'K6',
+    sources: Record<string, string>,
+    policyPath = writeCompleteRulePolicy(everyRuleObserving),
+    env?: Record<string, string | undefined>,
+  ): ReturnType<typeof Bun.spawnSync> => {
+    const { repository, revision } = createKindedCandidate(sources);
+    const argv = ['check', 'committed', repository, revision, policyPath, '--rule', ruleId];
+    return env === undefined ? runCli(argv) : runCliWithEnv(argv, env);
+  };
+
+  test('names a delivery component that imports a resource-service', () => {
+    const invocation = checkKindRule('K2', {
+      'src/m/m.resource.ts': 'export const load = (): number => 1;\n',
+      'src/m/view/panel.ts':
+        "import { load } from '../m.resource';\nexport const panel = (): number => load();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'K2',
+        path: 'src/m/view/panel.ts',
+        subject: 'src/m/m.resource.ts',
+        message: "delivery imports resource src/m/m.resource.ts through '../m.resource'",
+        effect: 'debt',
+      },
+    ]);
+  }, 30_000);
+
+  test('allows a delivery component that imports its feature-service', () => {
+    const invocation = checkKindRule('K2', {
+      'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
+      'src/m/view/panel.ts':
+        "import { run } from '../m.feature';\nexport const panel = (): number => run();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 30_000);
+
+  test('names a repository adapter that imports a resource-service', () => {
+    const invocation = checkKindRule('K5', {
+      'src/m/m.resource.ts': 'export const load = (): number => 1;\n',
+      'src/m/m.repository.ts':
+        "import { load } from './m.resource';\nexport const store = (): number => load();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toHaveLength(1);
+    expect(verdictOf(invocation).findings[0]?.path).toBe('src/m/m.repository.ts');
+  }, 30_000);
+
+  test("names a feature that imports another module's feature", () => {
+    const invocation = checkKindRule('K6', {
+      'src/a/a.feature.ts': 'export const run = (): number => 1;\n',
+      'src/b/b.feature.ts':
+        "import { run } from '../a/a.feature';\nexport const call = (): number => run();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toHaveLength(1);
+    expect(verdictOf(invocation).findings[0]).toMatchObject({
+      path: 'src/b/b.feature.ts',
+      message: 'feature in src/b imports feature in src/a',
+    });
+  }, 30_000);
+
+  test('allows two files of one kind inside one module', () => {
+    const invocation = checkKindRule('K6', {
+      'src/m/one.feature.ts': 'export const run = (): number => 1;\n',
+      'src/m/two.feature.ts':
+        "import { run } from './one.feature';\nexport const call = (): number => run();\n",
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 30_000);
+
+  test('names a store the policy declares plain TypeScript', () => {
+    const sources = {
+      'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
+      'src/m/store.ts':
+        "import type { ReactNode } from 'react';\nexport const s = (n: ReactNode): ReactNode => n;\n",
+      'src/more/store.ts':
+        "import type { ReactNode } from 'react';\nexport const s = (n: ReactNode): ReactNode => n;\n",
+    };
+    for (const plainTypeScriptPaths of [
+      [{ kind: 'path', value: 'src/m/store.ts' }],
+      [{ kind: 'prefix', value: 'src/m' }],
+    ]) {
+      const invocation = checkKindRule(
+        'F1',
+        sources,
+        writeRulePolicy(everyRuleObserving, { relationshipRequest, plainTypeScriptPaths }),
+      );
+      expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+      expect(verdictOf(invocation).findings).toHaveLength(1);
+      expect(verdictOf(invocation).findings[0]).toEqual({
+        ruleId: 'F1',
+        path: 'src/m/store.ts',
+        subject: 'external:react',
+        message: "declared plain TypeScript imports external:react through 'react'",
+        effect: 'debt',
+      });
+      expect(verdictOf(invocation).unevaluated).toEqual([]);
+    }
+  }, 30_000);
+
+  test('names a service that imports a scoped React package', () => {
+    const policyPath = writeRulePolicy(everyRuleObserving, {
+      relationshipRequest,
+      plainTypeScriptPaths: [],
+    });
+    const invocation = checkKindRule(
+      'F1',
+      {
+        'src/m/m.resource.ts':
+          "import { useQuery } from '@tanstack/react-query';\nexport const r = (): number => useQuery();\n",
+      },
+      policyPath,
+      { TOOL_WIKI_TRUSTED_NODE_MODULES: createTrustedModules() },
+    );
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toHaveLength(1);
+    expect(verdictOf(invocation).findings[0]).toMatchObject({
+      subject: 'external:@tanstack/react-query',
+      message: "resource imports external:@tanstack/react-query through '@tanstack/react-query'",
+    });
+  }, 30_000);
+
+  test('exempts delivery from the framework boundary', () => {
+    const invocation = checkKindRule(
+      'F1',
+      {
+        'src/m/m.feature.ts': 'export const run = (): number => 1;\n',
+        'src/m/view/panel.ts':
+          "import type { ReactNode } from 'react';\nexport const panel = (node: ReactNode): ReactNode => node;\n",
+      },
+      writeRulePolicy(everyRuleObserving, {
+        relationshipRequest,
+        plainTypeScriptPaths: [],
+      }),
+    );
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 30_000);
+
+  test('refuses a plain TypeScript selector the candidate does not hold', () => {
+    for (const plainTypeScriptPaths of [
+      [{ kind: 'path', value: 'src/m/store.ts' }],
+      [{ kind: 'prefix', value: 'src/stores' }],
+    ]) {
+      const invocation = checkKindRule(
+        'F1',
+        { 'src/m/m.feature.ts': 'export const run = (): number => 1;\n' },
+        writeRulePolicy(everyRuleObserving, { relationshipRequest, plainTypeScriptPaths }),
+      );
+      expect(invocation.exitCode).toBe(1);
+      expect(verdictOf(invocation).findings).toEqual([]);
+      expect(verdictOf(invocation).unevaluated).toEqual([
+        {
+          ruleId: 'F1',
+          reason:
+            plainTypeScriptPaths[0]?.kind === 'path'
+              ? 'the rule policy declares plain TypeScript at src/m/store.ts, which the candidate does not contain'
+              : 'the rule policy declares plain TypeScript under src/stores, which covers no candidate file',
+        },
+      ]);
+    }
+  }, 30_000);
+
+  test('prints the registry record for a kind rule', () => {
+    createIndexedCandidate();
+    const directionInvocation = runCli(['explain', 'K3']);
+    expect(directionInvocation.exitCode, stderrOf(directionInvocation)).toBe(0);
+    expect(JSON.parse(stdoutOf(directionInvocation)) as unknown).toEqual({
+      id: 'K3',
+      family: 'relationships',
+      statement:
+        'A feature-service imports resource-services and never a repository or delivery, through a barrel or directly.',
+      source:
+        'openspec/changes/twilight-bureaucrat-kind-rules/specs/bureaucrat-rules/spec.md#requirement-kind-direction-over-the-import-graph',
+      inputs: ['candidate.entries', 'policy.relationshipRequest'],
+    });
+    const plainInvocation = runCli(['explain', 'F1']);
+    expect(plainInvocation.exitCode, stderrOf(plainInvocation)).toBe(0);
+    expect(verdictOf(plainInvocation).findings).toBeUndefined();
+    expect((JSON.parse(stdoutOf(plainInvocation)) as { family: string }).family).toBe('code-shape');
+  }, 15_000);
+
+  test('refuses F1 when the policy declares no plain TypeScript paths', () => {
+    const invocation = checkKindRule(
+      'F1',
+      { 'src/m/m.feature.ts': 'export const run = (): number => 1;\n' },
+      writeRulePolicy(everyRuleObserving, { relationshipRequest }),
+    );
+    expect(stderrOf(invocation)).toContain(
+      'rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits',
+    );
+    expect(invocation.exitCode).toBe(1);
+  }, 30_000);
+});
+
 describe('check production CLI', () => {
   test('allows the indexed candidate under an enforced module rule and never certifies', () => {
     const { repository, revision } = createIndexedCandidate();
@@ -1346,10 +1582,14 @@ describe('rule adapters over real candidates', () => {
     // Without `--rule` every registered rule runs. An empty `ruleIds` with `allowed: true` is the
     // shape of a check that cannot fail, so the identifiers are asserted exactly.
     expect(verdict.ruleIds).toEqual([
+      'F1',
       'F7',
       'INV-CLASSIFY',
+      'K2',
       'K3',
       'K4',
+      'K5',
+      'K6',
       'MOD-DIRECT-ENTRIES',
       'MOD-INDEX',
       'MOD-LAYOUT',

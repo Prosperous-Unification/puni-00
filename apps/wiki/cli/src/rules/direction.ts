@@ -100,6 +100,9 @@ export function sidewaysObservations(
     for (const target of reachedTargets(imports, edge.target)) {
       const reachedFile = kinded.get(target);
       if (reachedFile === undefined) continue;
+      // Proof: on 2026-09-20, forcing the same-module comparison true removed the cross-module K6
+      // finding; forcing it false added a same-module K6 finding where the two named tests expected
+      // the opposite outcomes.
       if (reachedFile.kind !== source.kind || reachedFile.module === source.module) continue;
       const key = `${edge.source}\u0000${target}`;
       if (reported.has(key)) continue;
@@ -108,6 +111,95 @@ export function sidewaysObservations(
         path: edge.source,
         subject: target,
         message: `${source.kind} in ${source.module} imports ${reachedFile.kind} in ${reachedFile.module}`,
+      });
+    }
+  }
+  return sorted(observations);
+}
+
+/** A store or geometry module the consumer's policy declares plain TypeScript. */
+export type PlainSelector =
+  | { readonly kind: 'path'; readonly value: string }
+  | { readonly kind: 'prefix'; readonly value: string };
+
+export type SelectorOutcome =
+  { readonly ok: true } | { readonly ok: false; readonly reason: string };
+
+/**
+ * Refuses a selector the candidate no longer satisfies. Without this a stale selector silently
+ * leaves F1's coverage, so it is a failure to evaluate rather than an allowed candidate.
+ */
+export function resolvePlainSelectors(
+  selectors: readonly PlainSelector[],
+  entryPaths: ReadonlySet<string>,
+): SelectorOutcome {
+  for (const selector of selectors) {
+    // Proof: on 2026-09-20, deleting this branch made the exact-path invocation expect exit 1 and
+    // receive 0.
+    if (selector.kind === 'path' && !entryPaths.has(selector.value)) {
+      return {
+        ok: false,
+        reason: `the rule policy declares plain TypeScript at ${selector.value}, which the candidate does not contain`,
+      };
+    }
+    if (selector.kind === 'prefix') {
+      const covered = [...entryPaths].some((path) => path.startsWith(`${selector.value}/`));
+      // Proof: on 2026-09-20, neutralizing this refusal made the prefix invocation expect exit 1
+      // and receive 0.
+      if (!covered) {
+        return {
+          ok: false,
+          reason: `the rule policy declares plain TypeScript under ${selector.value}, which covers no candidate file`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function matchesSelector(path: string, selectors: readonly PlainSelector[]): boolean {
+  // Proof: on 2026-09-20, disabling the prefix arm removed its expected store finding; dropping
+  // the trailing slash produced two findings because `src/more/store.ts` also matched `src/m`.
+  return selectors.some((selector) =>
+    selector.kind === 'path' ? path === selector.value : path.startsWith(`${selector.value}/`),
+  );
+}
+
+const ReactTargets = new Set(['external:react', 'external:react-dom']);
+const ReactScopePrefix = 'external:@tanstack/react-';
+
+/**
+ * F1: a service file, a store or a geometry module reaching React. Delivery may; the others may not.
+ * Policy-declared selectors cover stores and geometry because their paths carry no kind marker.
+ */
+export function reactObservations(
+  graph: KindGraph,
+  imports: readonly ImportEdge[],
+  plainSelectors: readonly PlainSelector[],
+): readonly RuleObservation[] {
+  const kinded = kindedByPath(graph);
+  const reported = new Set<string>();
+  const observations: RuleObservation[] = [];
+  for (const edge of imports) {
+    const source = kinded.get(edge.source);
+    // Proof: on 2026-09-20, deleting this skip added a delivery-to-React finding where the delivery
+    // exemption test expected none.
+    if (source?.kind === 'delivery') continue;
+    const declaredPlain = matchesSelector(edge.source, plainSelectors);
+    // Proof: on 2026-09-20, ignoring `declaredPlain` removed the exact-path store finding; the test
+    // expected one and received none.
+    if (source === undefined && !declaredPlain) continue;
+    for (const target of reachedTargets(imports, edge.target)) {
+      // Proof: on 2026-09-20, dropping the scoped prefix removed the expected
+      // `external:@tanstack/react-query` finding.
+      if (!ReactTargets.has(target) && !target.startsWith(ReactScopePrefix)) continue;
+      const key = `${edge.source}\u0000${target}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+      observations.push({
+        path: edge.source,
+        subject: target,
+        message: `${source?.kind ?? 'declared plain TypeScript'} imports ${target} through '${edge.specifier}'`,
       });
     }
   }
