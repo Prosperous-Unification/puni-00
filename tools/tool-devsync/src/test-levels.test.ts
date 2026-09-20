@@ -9,6 +9,8 @@ import {
   LEVEL_TARGETS,
   levelOf,
   parseLevelCommand,
+  passedCitations,
+  readJUnitReport,
   readManifest,
   readSpec,
   reportPathFrom,
@@ -17,6 +19,7 @@ import {
   TEST_TARGET_NAME,
   testFilesInProject,
   testFilesUnder,
+  uncoveredScenarios,
   UNDECLARED_TEST_TARGETS,
 } from './test-levels';
 
@@ -241,5 +244,389 @@ describe('the adopted capability', () => {
     expect(() =>
       scenarioIdentifiers('### Requirement: one\n#### Scenario: [DEMO-001] a\n#### Scenario: b\n'),
     ).toThrow('these scenarios carry no identifier: b');
+  });
+});
+
+describe('the scenario join', () => {
+  const report = (...cases: string[]): string =>
+    [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<testsuites name="bun test">',
+      '  <testsuite name="src/a.test.ts" file="src/a.test.ts">',
+      ...cases,
+      '  </testsuite>',
+      '</testsuites>',
+      '',
+    ].join('\n');
+  const passing = (title: string): string =>
+    `    <testcase name="${title}" classname="d" time="0.1" file="src/a.test.ts" />`;
+  const spec = [
+    '### Requirement: one',
+    '#### Scenario: [DEMO-001] first',
+    '#### Scenario: [DEMO-002] second',
+    '#### Scenario: [DEMO-003] third',
+    '',
+  ].join('\n');
+  const citations = (xml: string): ReadonlySet<string> => passedCitations(readJUnitReport(xml));
+
+  /** Bun 1.4.2's own output, copied from a run of a seven-case scratch file. */
+  const asBunWritesIt = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<testsuites name="bun test" tests="7" assertions="5" failures="1" skipped="2" time="0.00438912">',
+    '  <testsuite name="src/a.test.ts" file="src/a.test.ts" tests="7" assertions="5" failures="1" skipped="2" time="0.001451567" hostname="pop-os">',
+    '    <testsuite name="outer group" file="src/a.test.ts" line="3" tests="6" assertions="4" failures="1" skipped="2" time="0" hostname="pop-os">',
+    '      <testsuite name="inner group" file="src/a.test.ts" line="4" tests="1" assertions="1" failures="0" skipped="0" time="0" hostname="pop-os">',
+    '        <testcase name="[DEMO-001] passes plainly" classname="inner group &gt; outer group" time="0.000018" file="src/a.test.ts" line="5" assertions="1" />',
+    '      </testsuite>',
+    '      <testcase name="[DEMO-002] has &lt;angle&gt; &amp; &quot;quotes&quot; and &apos;apostrophes&apos;" classname="outer group" time="0.000014" file="src/a.test.ts" line="10" assertions="1" />',
+    '      <testcase name="[DEMO-003] has a&#10;newline in its title" classname="outer group" time="0.000015" file="src/a.test.ts" line="14" assertions="1" />',
+    '      <testcase name="is skipped" classname="outer group" time="0" file="src/a.test.ts" line="18" assertions="0">',
+    '        <skipped />',
+    '      </testcase>',
+    '      <testcase name="fails on purpose with &lt;tag&gt; &amp; &quot;quotes&quot;" classname="outer group" time="0.000231" file="src/a.test.ts" line="22" assertions="1">',
+    '        <failure type="AssertionError" message="expect(received).toBe(expected)&#10;&#10;Expected: 5&#10;Received: 4&#10;">AssertionError: expect(received).toBe(expected)&#10;&#10;Expected: 5&#10;Received: 4&#10;&#10;      at src/a.test.ts:23:15&#10;</failure>',
+    '      </testcase>',
+    '      <testcase name="is a todo" classname="outer group" time="0" file="src/a.test.ts" line="26" assertions="0">',
+    '        <skipped message="TODO" />',
+    '      </testcase>',
+    '    </testsuite>',
+    '    <testcase name="top level case" classname="" time="0.000134" file="src/a.test.ts" line="29" assertions="1" />',
+    '  </testsuite>',
+    '</testsuites>',
+    '',
+  ].join('\n');
+
+  it('reads an identifier out of a passing test title', () => {
+    expect([
+      ...citations(report(passing('[DEMO-001] a cited case'), passing('an uncited case'))),
+    ]).toEqual(['DEMO-001']);
+  });
+
+  it('names a scenario that no passing test cites', () => {
+    expect([
+      uncoveredScenarios(spec, citations(report(passing('[DEMO-001] a'), passing('[DEMO-002] b')))),
+      uncoveredScenarios(
+        spec,
+        citations(
+          report(passing('[DEMO-001] a'), passing('[DEMO-002] b'), passing('[DEMO-003] c')),
+        ),
+      ),
+    ]).toEqual([['DEMO-003'], []]);
+  });
+
+  it('does not count a skipped or a failing test as coverage', () => {
+    const skipped =
+      '    <testcase name="[DEMO-001] a" classname="d" file="src/a.test.ts"><skipped /></testcase>';
+    const failing =
+      '    <testcase name="[DEMO-002] b" classname="d" file="src/a.test.ts"><failure message="x">no</failure></testcase>';
+    expect(
+      uncoveredScenarios(spec, citations(report(skipped, failing, passing('[DEMO-003] c')))),
+    ).toEqual(['DEMO-001', 'DEMO-002']);
+  });
+
+  it('does not read a citation out of a comment or out of failure text', () => {
+    const commented = `    <!-- <testcase name="[DEMO-001] a" file="src/a.test.ts" /> -->`;
+    const inText =
+      '    <testcase name="[DEMO-003] c" classname="d" file="src/a.test.ts"><failure message="expected name=&quot;[DEMO-002] b&quot;">t</failure></testcase>';
+    expect([...citations(report(commented, inText))]).toEqual([]);
+  });
+
+  it('reads the report Bun really writes, nesting, escapes and outcomes included', () => {
+    expect(readJUnitReport(asBunWritesIt)).toEqual([
+      { name: '[DEMO-001] passes plainly', file: 'src/a.test.ts', outcome: 'passed' },
+      {
+        name: `[DEMO-002] has <angle> & "quotes" and 'apostrophes'`,
+        file: 'src/a.test.ts',
+        outcome: 'passed',
+      },
+      {
+        name: '[DEMO-003] has a\nnewline in its title',
+        file: 'src/a.test.ts',
+        outcome: 'passed',
+      },
+      { name: 'is skipped', file: 'src/a.test.ts', outcome: 'skipped' },
+      {
+        name: 'fails on purpose with <tag> & "quotes"',
+        file: 'src/a.test.ts',
+        outcome: 'failed',
+      },
+      { name: 'is a todo', file: 'src/a.test.ts', outcome: 'skipped' },
+      { name: 'top level case', file: 'src/a.test.ts', outcome: 'passed' },
+    ]);
+    expect([...passedCitations(readJUnitReport(asBunWritesIt))]).toEqual([
+      'DEMO-001',
+      'DEMO-002',
+      'DEMO-003',
+    ]);
+  });
+
+  it('refuses a report whose root is not testsuites', () => {
+    expect(() =>
+      readJUnitReport(
+        '<?xml version="1.0"?>\n<coverage>\n  <testcase name="[DEMO-001] a" file="src/a.test.ts" />\n</coverage>\n',
+      ),
+    ).toThrow('root is <coverage>, not <testsuites>');
+  });
+
+  it('refuses a testcase whose parent is not a testsuite', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml version="1.0"?>\n<testsuites>\n${passing('[DEMO-001] a')}\n</testsuites>\n`,
+      ),
+    ).toThrow('holds a <testcase> inside <testsuites>, not inside <testsuite>');
+  });
+
+  it('refuses a testcase nested inside a failure element', () => {
+    expect(() =>
+      readJUnitReport(
+        report(
+          '    <testcase name="outer" file="src/a.test.ts">',
+          '      <failure>',
+          '        <testcase name="[DEMO-001] a" file="src/a.test.ts"/>',
+          '      </failure>',
+          '    </testcase>',
+        ),
+      ),
+    ).toThrow('holds a <testcase> inside <failure>, not inside <testsuite>');
+  });
+
+  it('refuses an outcome element outside a testcase', () => {
+    expect(() => readJUnitReport(report('    <failure message="x">no</failure>'))).toThrow(
+      'holds a <failure> inside <testsuite>, not inside <testcase>',
+    );
+  });
+
+  it('refuses an unsupported element inside a testcase', () => {
+    expect(() =>
+      readJUnitReport(
+        report(
+          '    <testcase name="[DEMO-001] a" file="src/a.test.ts"><system-out>x</system-out></testcase>',
+        ),
+      ),
+    ).toThrow('holds an unsupported <system-out> inside a <testcase>');
+  });
+
+  it('refuses a testcase hidden inside an outcome element', () => {
+    for (const outcome of ['failure', 'error', 'skipped']) {
+      expect(() =>
+        readJUnitReport(
+          report(
+            `<testcase name="outer" file="src/a.test.ts"><${outcome}><testsuite>`,
+            passing('[DEMO-001] a'),
+            `</testsuite></${outcome}></testcase>`,
+          ),
+        ),
+      ).toThrow('holds an unsupported <testsuite> inside a <testcase>');
+    }
+  });
+
+  it('refuses a namespaced element name', () => {
+    expect(() =>
+      readJUnitReport(
+        report(
+          '    <testcase name="[DEMO-001] a" file="src/a.test.ts">',
+          '      <x:failure>failed</x:failure>',
+          '    </testcase>',
+        ),
+      ),
+    ).toThrow('has a qualified element name <x:failure>');
+  });
+
+  it('refuses a namespaced attribute name', () => {
+    expect(() =>
+      readJUnitReport(
+        report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" x:kind="odd" />'),
+      ),
+    ).toThrow('has a qualified attribute name x:kind on <testcase>');
+  });
+
+  it('refuses an xmlns attribute', () => {
+    expect(() =>
+      readJUnitReport(
+        report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" xmlns="urn:test" />'),
+      ),
+    ).toThrow('has an xmlns attribute on <testcase>');
+  });
+
+  it('refuses a document type declaration', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml version="1.0"?>\n<!DOCTYPE testsuites>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+      ),
+    ).toThrow('has a document type declaration');
+  });
+
+  it('refuses a CDATA section', () => {
+    expect(() =>
+      readJUnitReport(
+        report(
+          '    <testcase name="[DEMO-001] a" file="src/a.test.ts"><![CDATA[anything]]></testcase>',
+        ),
+      ),
+    ).toThrow('has a CDATA section');
+  });
+
+  it('refuses a CDATA section outside the root element', () => {
+    expect(() =>
+      readJUnitReport(`${report(passing('[DEMO-001] a'))}<![CDATA[trailing junk]]>\n`),
+    ).toThrow('has a CDATA section');
+  });
+
+  it('refuses a processing instruction after the declaration', () => {
+    expect(() => readJUnitReport(report('    <?sortme?>', passing('[DEMO-001] a')))).toThrow(
+      'has a processing instruction <?sortme?>',
+    );
+  });
+
+  it('refuses a testcase that names no test', () => {
+    expect(() => readJUnitReport(report('    <testcase file="src/a.test.ts" />'))).toThrow(
+      'holds a <testcase> with no name',
+    );
+  });
+
+  it('refuses a testcase that names no file', () => {
+    expect(() => readJUnitReport(report('    <testcase name="[DEMO-001] a" />'))).toThrow(
+      'holds a <testcase> with no file',
+    );
+  });
+
+  it('refuses a report that holds no testcase', () => {
+    expect(() => readJUnitReport(report())).toThrow('holds no testcase');
+  });
+
+  it('refuses a document with a second root element', () => {
+    expect(() => readJUnitReport(`${report(passing('[DEMO-001] a'))}<testsuites />\n`)).toThrow(
+      'documents may contain only one root',
+    );
+  });
+
+  it('refuses a report that is not a JUnit document', () => {
+    expect(() => readJUnitReport('[DEMO-001] not xml at all')).toThrow(
+      'text data outside of root node',
+    );
+  });
+
+  it('refuses a malformed XML declaration', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml garbage?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+      ),
+    ).toThrow('XML declaration is incomplete');
+  });
+
+  it('refuses a declaration whose version is not an XML version', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml version="garbage"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+      ),
+    ).toThrow('version number must match');
+  });
+
+  it('refuses a declaration that names no version', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml encoding="UTF-8"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n  </testsuite>\n</testsuites>\n`,
+      ),
+    ).toThrow('expected one of version');
+  });
+
+  it('refuses a second XML declaration inside the root', () => {
+    expect(() =>
+      readJUnitReport(report('    <?xml version="1.0"?>', passing('[DEMO-001] a'))),
+    ).toThrow('an XML declaration must be at the start of the document');
+  });
+
+  it('refuses text outside the root element', () => {
+    expect(() => readJUnitReport(`${report(passing('[DEMO-001] a'))}trailing junk\n`)).toThrow(
+      'text data outside of root node',
+    );
+  });
+
+  it('refuses a malformed processing instruction', () => {
+    expect(() => readJUnitReport(report('    <?broken>', passing('[DEMO-001] a')))).toThrow(
+      'disallowed character in processing instruction name',
+    );
+  });
+
+  it('refuses a malformed comment', () => {
+    expect(() =>
+      readJUnitReport(report('    <!-- bad -- comment -->', passing('[DEMO-001] a'))),
+    ).toThrow('malformed comment');
+  });
+
+  it('refuses an unterminated comment', () => {
+    expect(() =>
+      readJUnitReport(`<?xml version="1.0"?>\n<testsuites>\n  <!-- never ends\n`),
+    ).toThrow('unclosed tag: testsuites');
+  });
+
+  it('refuses an unterminated CDATA section', () => {
+    expect(() =>
+      readJUnitReport(`<?xml version="1.0"?>\n<testsuites>\n  <![CDATA[never ends\n`),
+    ).toThrow('unclosed tag: testsuites');
+  });
+
+  it('refuses an entity it does not know', () => {
+    expect(() =>
+      readJUnitReport(
+        report('    <testcase name="[DEMO-001] a" file="src/a.test.ts">&bogus;</testcase>'),
+      ),
+    ).toThrow('undefined entity');
+  });
+
+  it('refuses a repeated attribute', () => {
+    expect(() =>
+      readJUnitReport(
+        report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" name="[DEMO-002] b" />'),
+      ),
+    ).toThrow('duplicate attribute: name');
+  });
+
+  it('refuses two attributes with no whitespace between them', () => {
+    expect(() =>
+      readJUnitReport(report('    <testcase name="[DEMO-001] a"file="src/a.test.ts" />')),
+    ).toThrow('no whitespace between attributes');
+  });
+
+  it('refuses an attribute whose value is never closed', () => {
+    expect(() =>
+      readJUnitReport(
+        '<?xml version="1.0"?>\n<testsuites><testsuite name="s"><testcase name="[DEMO-001] a" file="src/a.test.ts" broken="/></testsuite></testsuites>\n',
+      ),
+    ).toThrow('disallowed character');
+  });
+
+  it('refuses an unescaped angle bracket in an attribute value', () => {
+    expect(() =>
+      readJUnitReport(report('    <testcase name="a < b" file="src/a.test.ts" />')),
+    ).toThrow('disallowed character');
+  });
+
+  it('refuses an attribute with no value', () => {
+    expect(() =>
+      readJUnitReport(report('    <testcase name="[DEMO-001] a" file="src/a.test.ts" garbage />')),
+    ).toThrow('attribute without value');
+  });
+
+  it('refuses a truncated report', () => {
+    expect(() =>
+      readJUnitReport('<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s"'),
+    ).toThrow('unclosed tag: testsuites');
+  });
+
+  it('refuses a report that closes an element that is not open', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n</testsuites>\n`,
+      ),
+    ).toThrow('unexpected close tag');
+  });
+
+  it('refuses a report that leaves an element open', () => {
+    expect(() =>
+      readJUnitReport(
+        `<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n`,
+      ),
+    ).toThrow('unclosed tag: testsuite');
   });
 });
