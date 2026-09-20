@@ -1,9 +1,20 @@
 import { Buffer } from 'node:buffer';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
+
+import type { CandidateEntry } from '../inventory/read-candidate';
+import { resolveKinds, type ServiceKind } from './kinds';
 
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 
@@ -45,7 +56,7 @@ describe('explain production CLI', () => {
     const invocation = runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: F7, INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, REL-EXTRACT)',
+      'unknown rule: NO-SUCH-RULE (registered: F7, INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, REL-EXTRACT)',
     );
   });
 });
@@ -199,6 +210,47 @@ function createSizedCandidate(
   return { repository, revision: commit(repository, 'sized fixture') };
 }
 
+/** A candidate holding one kinded module under `src/m`, with the module's own files chosen. */
+function createModuleCandidate(options: {
+  moduleReadme?: string;
+  contractMode?: 'regular' | 'symlink' | 'absent';
+}): { repository: string; revision: string } {
+  const repository = initRepository('twilight-rules-module-');
+  write(repository, 'src/m/m.feature.ts', 'export const value = 1;\n');
+  if (options.contractMode === 'regular')
+    write(repository, 'src/m/contract.ts', 'export const c = 1;\n');
+  if (options.contractMode === 'symlink') {
+    write(repository, 'src/elsewhere.ts', 'export const e = 1;\n');
+    symlinkSync('../elsewhere.ts', join(repository, 'src/m/contract.ts'));
+  }
+  if (options.moduleReadme !== undefined)
+    write(repository, 'src/m/README.md', options.moduleReadme);
+  write(
+    repository,
+    'README.md',
+    indexSource('Module fixture', 'module.root', [
+      { kind: 'directory-prefix', prefix: 'src', exclusions: [] },
+    ]),
+  );
+  return { repository, revision: commit(repository, 'module fixture') };
+}
+
+/** A candidate whose kinded module IS the candidate root. */
+function createRootModuleCandidate(): { repository: string; revision: string } {
+  const repository = initRepository('twilight-rules-root-module-');
+  write(repository, 'a.feature.ts', 'export const value = 1;\n');
+  write(repository, 'contract.ts', 'export const c = 1;\n');
+  write(
+    repository,
+    'README.md',
+    indexSource('Root module fixture', 'module.rootmodule', [
+      { kind: 'path', path: 'a.feature.ts' },
+      { kind: 'path', path: 'contract.ts' },
+    ]),
+  );
+  return { repository, revision: commit(repository, 'root module fixture') };
+}
+
 interface RuleModeEntry {
   ruleId: string;
   mode: 'observe' | 'ratchet' | 'enforce';
@@ -209,6 +261,7 @@ const everyRuleObserving: RuleModeEntry[] = [
   { ruleId: 'INV-CLASSIFY', mode: 'observe' },
   { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
   { ruleId: 'MOD-INDEX', mode: 'observe' },
+  { ruleId: 'MOD-LAYOUT', mode: 'observe' },
   { ruleId: 'REL-EXTRACT', mode: 'observe' },
 ];
 
@@ -656,6 +709,161 @@ describe('F7 the size ratchet', () => {
   }, 15_000);
 });
 
+describe('kind resolution', () => {
+  const kindEntry = (path: string): CandidateEntry => ({
+    path,
+    mode: '100644',
+    blob: '0'.repeat(40),
+  });
+  const kindsOf = (paths: string[]): [string, ServiceKind, string][] =>
+    resolveKinds(paths.map(kindEntry)).files.map((file) => [file.path, file.kind, file.module]);
+
+  test('reads a kind from the filename suffix', () => {
+    expect(kindsOf(['m/a.feature.ts', 'm/b.resource.ts', 'm/c.repository.ts'])).toEqual([
+      ['m/a.feature.ts', 'feature', 'm'],
+      ['m/b.resource.ts', 'resource', 'm'],
+      ['m/c.repository.ts', 'repository', 'm'],
+    ]);
+  });
+
+  test('does not read a kind from a test file', () => {
+    const kinded = kindsOf(['m/a.feature.ts', 'm/a.feature.test.ts']);
+    expect(kinded).toHaveLength(1);
+    expect(kinded[0]?.[0]).toBe('m/a.feature.ts');
+  });
+
+  test("calls a file under a module's view directory delivery", () => {
+    const nested = kindsOf(['m/a.feature.ts', 'm/view/panel.tsx', 'm/view/deep/row.tsx']);
+    expect(nested).toContainEqual(['m/view/panel.tsx', 'delivery', 'm']);
+    expect(nested).toContainEqual(['m/view/deep/row.tsx', 'delivery', 'm']);
+    expect(nested).toHaveLength(3);
+
+    const graph = resolveKinds(
+      [
+        'a.feature.ts',
+        'composition.ts',
+        'view/panel.tsx',
+        'view/deep/row.tsx',
+        'inner/b.feature.ts',
+        'inner/view/x.tsx',
+      ].map(kindEntry),
+    );
+    const moduleOfPath = (path: string): string | undefined =>
+      graph.files.find((file) => file.path === path)?.module;
+    expect(moduleOfPath('view/panel.tsx')).toBe('');
+    expect(moduleOfPath('view/deep/row.tsx')).toBe('');
+    expect(moduleOfPath('inner/view/x.tsx')).toBe('inner');
+    expect(graph.compositionRoots).toEqual(['composition.ts']);
+    expect(graph.files.map((file) => file.path)).not.toContain('composition.ts');
+  });
+
+  test('assigns a file to its nearest module', () => {
+    const graph = resolveKinds(
+      ['m/a.feature.ts', 'm/inner/b.feature.ts', 'm/inner/view/x.tsx'].map(kindEntry),
+    );
+    expect(graph.files.find((file) => file.path === 'm/inner/view/x.tsx')?.module).toBe('m/inner');
+    expect(graph.moduleRoots).toEqual(['m', 'm/inner']);
+  });
+});
+
+describe('MOD-LAYOUT', () => {
+  const validModuleReadme = indexSource('M', 'module.m', [
+    { kind: 'path', path: 'm.feature.ts' },
+    { kind: 'path', path: 'contract.ts' },
+  ]);
+  const noContractModuleReadme = indexSource('M', 'module.m', [
+    { kind: 'path', path: 'm.feature.ts' },
+  ]);
+  const checkLayout = (repository: string, revision: string): ReturnType<typeof Bun.spawnSync> =>
+    runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeRulePolicy(everyRuleObserving),
+      '--rule',
+      'MOD-LAYOUT',
+    ]);
+
+  test('allows a module that declares its index and its contract', () => {
+    const { repository, revision } = createModuleCandidate({
+      moduleReadme: validModuleReadme,
+      contractMode: 'regular',
+    });
+    const invocation = checkLayout(repository, revision);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+    expect(verdictOf(invocation).unevaluated).toEqual([]);
+  }, 15_000);
+
+  test('allows a module at the candidate root', () => {
+    const { repository, revision } = createRootModuleCandidate();
+    const invocation = checkLayout(repository, revision);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+    expect(verdictOf(invocation).unevaluated).toEqual([]);
+    expect(verdictOf(invocation).allowed).toBe(true);
+  }, 15_000);
+
+  test('names a module directory that declares no contract', () => {
+    const { repository, revision } = createModuleCandidate({
+      moduleReadme: noContractModuleReadme,
+      contractMode: 'absent',
+    });
+    const invocation = checkLayout(repository, revision);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'MOD-LAYOUT',
+        path: 'src/m',
+        message: 'module directory declares no contract file',
+        effect: 'debt',
+      },
+    ]);
+  }, 15_000);
+
+  test('names a module directory that declares no wiki index', () => {
+    const { repository, revision } = createModuleCandidate({
+      moduleReadme: '# Module\n\nOrdinary prose, no metadata.\n',
+      contractMode: 'regular',
+    });
+    const invocation = checkLayout(repository, revision);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'MOD-LAYOUT',
+        path: 'src/m',
+        message: 'module directory declares no wiki index',
+        effect: 'debt',
+      },
+    ]);
+  }, 15_000);
+
+  test('names a module whose contract is a symlink', () => {
+    const { repository, revision } = createModuleCandidate({
+      moduleReadme: validModuleReadme,
+      contractMode: 'symlink',
+    });
+    const invocation = checkLayout(repository, revision);
+    expect(verdictOf(invocation).findings.map((finding) => finding.message)).toContain(
+      'module directory declares no contract file',
+    );
+  }, 15_000);
+
+  test('refuses a candidate whose index metadata is malformed', () => {
+    const { repository, revision } = createModuleCandidate({
+      moduleReadme: '# M\n\n<!-- module-index {not json} -->\n',
+      contractMode: 'regular',
+    });
+    const invocation = checkLayout(repository, revision);
+    expect(invocation.exitCode).toBe(1);
+    expect(verdictOf(invocation).findings).toEqual([]);
+    expect(verdictOf(invocation).unevaluated).toHaveLength(1);
+    expect(verdictOf(invocation).unevaluated[0]?.ruleId).toBe('MOD-LAYOUT');
+    expect(verdictOf(invocation).unevaluated[0]?.reason).toStartWith(
+      'the index report is unavailable: index metadata malformed',
+    );
+  }, 15_000);
+});
+
 describe('check production CLI', () => {
   test('allows the indexed candidate under an enforced module rule and never certifies', () => {
     const { repository, revision } = createIndexedCandidate();
@@ -956,6 +1164,7 @@ describe('rule adapters over real candidates', () => {
       'INV-CLASSIFY',
       'MOD-DIRECT-ENTRIES',
       'MOD-INDEX',
+      'MOD-LAYOUT',
       'REL-EXTRACT',
     ]);
     expect(verdict.findings).toEqual([]);

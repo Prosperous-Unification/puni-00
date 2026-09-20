@@ -6,6 +6,7 @@ import {
   readCandidate,
   resolveCandidateRoot,
 } from '../inventory/read-candidate';
+import { resolveKinds } from './kinds';
 import { findRule, registeredIds, registeredRules } from './registry';
 import {
   type Finding,
@@ -112,6 +113,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
       : { relationshipRequest: policy.relationshipRequest }),
     ...(policy.sizeCeilings === undefined ? {} : { sizeCeilings: policy.sizeCeilings }),
     indexes: readIndexOutcome(candidateRoot, candidate),
+    kinds: resolveKinds(candidate.entries),
   };
   const findings: Finding[] = [];
   const unevaluated: UnevaluatedRule[] = [];

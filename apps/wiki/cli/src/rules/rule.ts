@@ -1,6 +1,7 @@
 import type { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import type { checkIndexes } from '../indexes/check-indexes';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
+import type { KindGraph } from './kinds';
 import type { SizeCeilings } from './size-ratchet';
 
 /**
@@ -82,8 +83,10 @@ export interface RuleContext {
   readonly classificationPolicy?: ClassificationPolicy;
   readonly relationshipRequest?: RelationshipRequest;
   readonly sizeCeilings?: SizeCeilings;
-  /** The index report, computed once per check and shared by the two module rules. */
+  /** The index report, computed once per check and shared by the three module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
+  /** Kinds and modules, derived from paths alone; total, so it needs no outcome wrapper. */
+  readonly kinds: KindGraph;
 }
 
 /**

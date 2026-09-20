@@ -1,6 +1,7 @@
 import { classifyEntries } from '../inventory/classify-entries';
 import { readCandidateBlob } from '../inventory/read-blob';
 import { extractRelationships } from '../relationships';
+import { moduleLayoutObservations } from './kinds';
 import { evaluateWrapped, type RegisteredRule } from './rule';
 import { measureSizes } from './size-ratchet';
 
@@ -71,6 +72,30 @@ const moduleIndexRule: RegisteredRule = {
       : { kind: 'not-evaluated', reason: context.indexes.reason },
 };
 
+const moduleLayoutRule: RegisteredRule = {
+  id: 'MOD-LAYOUT',
+  family: 'modules',
+  statement: 'A module directory declares the wiki index and the contract the module layout names.',
+  source: `${KindSpecSource}#requirement-module-layout`,
+  inputs: ['candidate.entries'],
+  evaluate: (context) =>
+    context.indexes.ok
+      ? {
+          kind: 'observed',
+          observations: moduleLayoutObservations(
+            context.kinds,
+            context.candidate.entries,
+            new Set(context.indexes.report.indexes.map((index) => index.indexPath)),
+          ),
+        }
+      : // Proof: on 2026-09-20, reporting an empty observed list here made the malformed-index
+        // test expect exit 1 and receive 0.
+        {
+          kind: 'not-evaluated',
+          reason: `the index report is unavailable: ${context.indexes.reason}`,
+        },
+};
+
 const relationshipsRule: RegisteredRule = {
   id: 'REL-EXTRACT',
   family: 'relationships',
@@ -121,6 +146,7 @@ const rules: readonly RegisteredRule[] = [
   classificationRule,
   directEntriesRule,
   moduleIndexRule,
+  moduleLayoutRule,
   relationshipsRule,
   sizeRatchetRule,
 ];
