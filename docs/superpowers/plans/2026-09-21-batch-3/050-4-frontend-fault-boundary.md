@@ -9,9 +9,11 @@ The execution contract, the standard blocks and the hidden frontend constraints 
 every packet uses** (OpenSpec validation, Running one named test, Formatting, Saving a mutation
 patch, Negative proofs with a restore, Frontend tests inside the sandbox) and **Hidden constraints
 every frontend packet must respect**. They are not repeated here. Read them, then
-`/home/df/wd/puni/puni-plan/exec/executor-preamble.txt` rules 1 to 20, then this packet in full.
+the launcher's own `executor-preamble.txt` rules 1 to 20, then this packet in full.
 
-Revised on 2026-09-21 after its first review; the dispositions are in the last section.
+Revised on 2026-09-21 after its first and second reviews; both dispositions are in the last two
+sections. **Slices 0 and 1 are ready to dispatch now**; slices 2 to 5 follow their reviewed
+predecessors.
 
 ## Goal and non-goals
 
@@ -50,8 +52,12 @@ those are 040.5's and packet 2.1's. **No edit to either `tools/tool-devsync` tes
    `console.error(this.props.logAs, thrown, info.componentStack)`. So today the caught value's own
    message reaches the DOM and the caught value itself reaches the console.
 2. `app-fault.tsx:57` and `gantt-fault.tsx:54` are the two lines that print it.
-3. `faultWords` and `NO_MESSAGE` have no other reader: `git grep faultWords` finds only
-   `fault-boundary.tsx` and an unrelated local `const faultWords` in `gantt-panel.test.tsx:3723`.
+3. `faultWords` and `NO_MESSAGE` have no reader in the frontend's sources beyond the file that
+   declares them: `git grep -n faultWords apps/wbs/fe-01/src` prints `fault-boundary.tsx`'s own
+   declaration and an unrelated local `const faultWords` in `gantt-panel.test.tsx:3723`, and
+   nothing else. An **unrestricted** `git grep -l faultWords` also returns
+   `docs/2026-09-02-refactoring-plan.md`, `docs/2026-09-02-refactoring-review/D-fe-rest.md` and
+   this packet; those are prose, not readers, and the scoped command is the one to run.
 4. **`@shared/failures` does not resolve from `wbs-fe-01` today.** `tsconfig.base.json:95` has the
    alias, but fe-01's four tsconfigs (`tsconfig.json`, `tsconfig.app.json`, `tsconfig.spec.json`,
    `tsconfig.e2e.json`) each declare their own `paths` that **replace** the base's, and none of
@@ -83,7 +89,9 @@ it`; an `Error` with an own throwing `message` accessor throws when that propert
    `reportFailure` survives it and reports `message: "[not-inspected]"`. Rendered through the
    boundaries this packet prescribes, **before** Appendix A's guard existed, a chart fault built
    that way failed the test itself with `Error: Should not already be working.` — React's words
-   for a throw out of `componentDidCatch` — with no fallback of either kind on screen.
+   for a throw out of `componentDidCatch` — with no fallback of either kind on screen. Appendix C's
+   selector no longer reads the property at all (fact 16), so the guard in Appendix A is exercised
+   by a selector supplied through the `discloses` prop instead; see N12.
 10. **A revoked `Proxy` thrown as the value never reaches a boundary at all.** React reads it while
     the render is unwinding: the failure is `TypeError: Cannot perform 'get' on a proxy that has
 been revoked` at `react-dom-client.development.js:17331` in `handleThrow`, above
@@ -106,11 +114,37 @@ been revoked` at `react-dom-client.development.js:17331` in `handleThrow`, above
     packet simply does not repeat it, and uses `pageErrors` instead (slice 4, N11).
 14. The field names 040.5 uses — `occurrence_id`, `fingerprint`, reports nested under one object,
     and `reported: false` handles — are the library's and this packet renames none of them.
-15. `test-tiers.test.ts` walks `src/**` and the app root for `*.test.ts(x)`; it does **not** walk
+15. **`RootOptions` is exported by `@types/react-dom/client` (`client.d.ts:37`) on react and
+    react-dom 19.2.8**, with `onUncaughtError`, `onRecoverableError` and `onCaughtError` all
+    optional. So an inert `export const ROOT_FAULT_OPTIONS: RootOptions = {}` type-checks, which is
+    what makes slice 3's red runs collectable, and so a test must assert each handler's **presence**
+    rather than reaching it through `?.`, which would pass over an empty object.
+16. **A selector that reads `thrown.message` runs a hostile accessor and can return a non-string.**
+    `Object.getOwnPropertyDescriptor(hostile, 'message')` on a `GanttDataError` whose instance
+    property was redefined came back as
+    `{ value: { toString: [Function] }, writable: true, enumerable: false, configurable: true }`
+    (probed with `bun`, 2026-09-21). Appendix C reads that descriptor and accepts only a
+    string-valued **data** property, so no accessor runs and `DisclosedFault.sentence` keeps its
+    declared type.
+17. **An object reaching `fault.sentence` is invisible in the DOM.** With the string check weakened
+    to accept any own value, the boundary's fallback threw on the object child, the **same**
+    boundary caught its own fallback's throw, and the second `getDerivedStateFromError` (which is
+    given no selector) re-rendered the generic sentence. The page therefore read exactly as a
+    correct run does; the only visible difference was **two** console lines instead of one
+    (rehearsed 2026-09-21, `expected [ [ …(4) ], [ …(4) ] ] to have a length of 1 but got 2`). The
+    string check is asserted on the console line for that reason, not on the rendered text.
+18. **`src/main.test.tsx` needs an explicit 30 second timeout.** `await import('./main')`
+    transforms `main.tsx`, the whole `App` graph under it and `styles.css` through Vite inside the
+    test body. At Vitest's 5 second default it failed twice in a row on this host with
+    `Error: Test timed out in 5000ms.` and never reached its assertion; with `}, 30_000)` the run
+    took 4.0 to 9.3 seconds and failed on the assertion it is there for (rehearsed 2026-09-21).
+19. `test-tiers.test.ts` walks `src/**` and the app root for `*.test.ts(x)`; it does **not** walk
     `e2e/`. This packet's one new suite is `src/main.test.tsx`, a `.tsx` file, which the tier rule
     puts in the jsdom tier without a `NODE_SUITES` entry. `NODE_SUITES`, the tier partition and the
-    `lint`/`lint:fast` input lists are therefore untouched. Measured: `wbs-fe-01:test:unit` is
-    `42 passed (42)` files and `621 passed (621)` tests before and after.
+    `lint`/`lint:fast` input lists are therefore untouched. Measured 2026-09-21: `wbs-fe-01:test:unit`
+    reported the same file and test counts before and after the rehearsed tree (`42` files, `621`
+    tests on the day) — the packet's new suites are not in that tier, so the planner requires
+    **unchanged**, not a literal.
 
 ## Unknowns
 
@@ -151,27 +185,27 @@ been revoked` at `react-dom-client.development.js:17331` in `handleThrow`, above
 
 ## File plan
 
-| File                                                         | Create/modify | Responsibility                                                   |
-| ------------------------------------------------------------ | ------------- | ---------------------------------------------------------------- |
-| `openspec/changes/adopt-failure-reporting/specs/…/spec.md`   | modify        | Three requirements — **slice 0, before any implementation**      |
-| `openspec/changes/adopt-failure-reporting/tasks.md`          | modify        | Task 3.1's command, and a new unchecked section 4                |
-| `openspec/changes/adopt-failure-reporting/verify.md`         | modify        | **Every slice appends its own observations before handing over** |
-| `apps/wbs/fe-01/vite-config.test.ts`                         | modify        | The alias in `expected`, and one `toContain` — **slice 1 first** |
-| fe-01's four `tsconfig*.json`                                | modify        | The `@shared/failures` path; `.spec` also gains `vite/client`    |
-| `apps/wbs/fe-01/vite.config.ts`, `vitest.config.ts`          | modify        | The same alias in both resolve maps                              |
-| `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts`   | create        | What a caught value discloses, and what was lost deciding        |
-| `apps/wbs/fe-01/src/components/chrome/fault-boundary.tsx`    | modify        | State and callbacks carry a disclosure, not a message            |
-| `apps/wbs/fe-01/src/components/chrome/app-fault.tsx`         | modify        | Generic sentence plus a reference paragraph                      |
-| `apps/wbs/fe-01/src/components/wbs/gantt-fault.tsx`          | modify        | The `GanttDataError` selector and the chart's own reference      |
-| `apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`    | modify        | Four edited cases, ten new ones                                  |
-| `apps/wbs/fe-01/src/components/chrome/root-fault-options.ts` | create        | react-dom's own handlers, so the console stays clean             |
-| `apps/wbs/fe-01/src/main.tsx`                                | modify        | Create the app's root with those options                         |
-| `apps/wbs/fe-01/src/main.test.tsx`                           | create        | That the root is created with them                               |
-| `apps/wbs/fe-01/e2e/browser-packages-bundle.ts`              | rename        | To `browser-probe-bundle.ts`, taking its entry as an argument    |
-| `apps/wbs/fe-01/e2e/browser-packages.spec.ts`                | modify        | Its one call site                                                |
-| `apps/wbs/fe-01/browser-packages.test.ts`                    | modify        | Its import, type name and one call site                          |
-| `apps/wbs/fe-01/e2e/fault-boundary-probe.ts`                 | create        | The production boundary and root options rendered in a browser   |
-| `apps/wbs/fe-01/e2e/fault-boundary.spec.ts`                  | create        | The Chromium case                                                |
+| File                                                         | Create/modify | Responsibility                                                    |
+| ------------------------------------------------------------ | ------------- | ----------------------------------------------------------------- |
+| `openspec/changes/adopt-failure-reporting/specs/…/spec.md`   | modify        | Three requirements — **slice 0, before any implementation**       |
+| `openspec/changes/adopt-failure-reporting/tasks.md`          | modify        | Task 3.1's command, and a new unchecked section 4                 |
+| `openspec/changes/adopt-failure-reporting/verify.md`         | modify        | **Every slice appends its own observations before handing over**  |
+| `apps/wbs/fe-01/vite-config.test.ts`                         | modify        | The alias in `expected`, and one `toContain` — **slice 1 first**  |
+| fe-01's four `tsconfig*.json`                                | modify        | The `@shared/failures` path; `.spec` also gains `vite/client`     |
+| `apps/wbs/fe-01/vite.config.ts`, `vitest.config.ts`          | modify        | The same alias in both resolve maps                               |
+| `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts`   | create        | What a caught value discloses, and what was lost deciding         |
+| `apps/wbs/fe-01/src/components/chrome/fault-boundary.tsx`    | modify        | State and callbacks carry a disclosure, not a message             |
+| `apps/wbs/fe-01/src/components/chrome/app-fault.tsx`         | modify        | Generic sentence plus a reference paragraph                       |
+| `apps/wbs/fe-01/src/components/wbs/gantt-fault.tsx`          | modify        | The `GanttDataError` selector and the chart's own reference       |
+| `apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`    | modify        | Four edited cases, thirteen new ones (ten in slice 2, three in 3) |
+| `apps/wbs/fe-01/src/components/chrome/root-fault-options.ts` | create        | Inert in step 3.1, react-dom's own handlers in step 3.4           |
+| `apps/wbs/fe-01/src/main.tsx`                                | modify        | Create the app's root with those options                          |
+| `apps/wbs/fe-01/src/main.test.tsx`                           | create        | That the root is created with them                                |
+| `apps/wbs/fe-01/e2e/browser-packages-bundle.ts`              | rename        | To `browser-probe-bundle.ts`, taking its entry as an argument     |
+| `apps/wbs/fe-01/e2e/browser-packages.spec.ts`                | modify        | Its one call site                                                 |
+| `apps/wbs/fe-01/browser-packages.test.ts`                    | modify        | Its import, type name and one call site                           |
+| `apps/wbs/fe-01/e2e/fault-boundary-probe.ts`                 | create        | The production boundary and root options rendered in a browser    |
+| `apps/wbs/fe-01/e2e/fault-boundary.spec.ts`                  | create        | The Chromium case                                                 |
 
 **Out of lane.** `libs/shared/domain/failures/**` (020.2's, and this packet only imports it);
 `libs/wbs/adapters/observability/**` and `apps/wbs/be-01/**` (040.5's); `apps/wbs/fe-01/src/modules/**`
@@ -241,7 +275,7 @@ edit reverted: `1 tests failed`, the inventory pin only, the digest test green.
 anything, stop: another lane has started this.
 
 - [ ] 1.0 Baseline: `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run vite-config.test.ts)`. Record the
-      count; observed `18 passed (18)`.
+      count as `B_VITE`; rehearsed 2026-09-21 as 18. Steps 1.3 and 1.7 are stated against it.
 - [ ] 1.1 **The assertion first.** In `apps/wbs/fe-01/vite-config.test.ts`, add the key to the
       `expected` object, directly after its `'@shared/validation': resolve(APP_ROOT, …)` entry:
 
@@ -259,8 +293,9 @@ anything, stop: another lane has started this.
   expect(Object.keys(appAliases)).toContain('@shared/failures');
   ```
 
-- [ ] 1.3 Run the baseline command again. **Expected red: `1 failed | 17 passed (18)`**. The one
-      failing case is the alias-map case named in N1's table below, and it fails on
+- [ ] 1.3 Run the baseline command again. **Expected red: exactly one of `B_VITE` failing**
+      (rehearsed 2026-09-21 as `1 failed | 17 passed (18)`). The one failing case is the alias-map
+      case named in N1's table below, and it fails on
       "expected [ '@', '@wbs/domain/workday', …(19) ] to include '@shared/failures'" (rehearsed
       2026-09-21). Zero failures here is a stop.
 - [ ] 1.4 Add this line immediately **above** the `@shared/validation` entry in the `paths` block of
@@ -290,7 +325,7 @@ anything, stop: another lane has started this.
   '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
   ```
 
-- [ ] 1.7 Verify: the 1.0 command — **18 tests pass, the count from 1.0 unchanged**; then
+- [ ] 1.7 Verify: the 1.0 command — **`B_VITE` passing, none failing**; then
       `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`, exit 0.
 - [ ] 1.8 **Negative N1.** Delete the `'@shared/failures'` entry from `vitest.config.ts` only,
       leaving `vite.config.ts` alone, and run
@@ -322,11 +357,16 @@ landed). Either being false is a stop.
 
 ### 2a. The failing cases first
 
-- [ ] 2.0 Baselines, all recorded now and compared later:
-      `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/chrome/app-fault.test.tsx)` —
-      observed `6 passed (6)`; and
-      `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/wbs/gantt-panel.test.tsx src/app.test.tsx)`
-      — observed `256 passed (256)`.
+- [ ] 2.0 Baselines. Record **the numbers this run prints**; every expectation below is stated
+      against them, not against a literal.
+  - `B_FAULT` = the test count of
+    `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/chrome/app-fault.test.tsx)`.
+    Rehearsed 2026-09-21 as 6; the file's `describe` blocks are unchanged by slices 0 and 1, so a
+    different number means another lane has edited it — stop and report.
+  - `B_NEIGHBOURS` = the test count of
+    `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/wbs/gantt-panel.test.tsx src/app.test.tsx)`.
+    Rehearsed 2026-09-21 as 249. Neither file is edited by this packet, so this number must come
+    back unchanged at 2.13.
 - [ ] 2.1 In `app-fault.test.tsx`, add this import beside the existing
       `import { GanttFaultBoundary } from '@/components/wbs/gantt-fault';`:
 
@@ -359,9 +399,14 @@ landed). Either being false is a stop.
   parameter typed `unknown`, and adding one fails lint as an unused directive (watched 2026-09-20).
 
 - [ ] 2.3 Rename the case `says what was thrown, offers a reload, and leaves a document behind` to
-      `discloses a generic sentence and a reference, offers a reload, and leaves a document behind`,
-      and replace its numbered block 1 with blocks 1 and 2 below, renumbering the three that follow
-      to 3, 4 and 5:
+      `discloses a generic sentence and a reference, offers a reload, and leaves a page` — **that
+      exact wording, which is two words shorter than it wants to be on purpose**: the longer
+      `…and leaves a document behind` pushes `itDom('…', () => {` past Prettier's print width, and
+      Prettier then reflows the whole call across three lines and reindents the entire case body,
+      which the commit hook's `format` step reported as
+      `[warn] apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx` and refused the commit for
+      (watched 2026-09-21). Then replace its numbered block 1 with blocks 1 and 2 below,
+      renumbering the three that follow to 3, 4 and 5:
 
   ```ts
   // 1. The public report's own generic message, and **not** the thrown
@@ -405,12 +450,27 @@ landed). Either being false is a stop.
   expect(appFaultWords()).not.toContain('the table cannot render this row');
   ```
 
-- [ ] 2.7 Append the whole describe block in **Appendix D1** to the end of the file.
-- [ ] 2.8 Run the 2.0 file command. **Expected red: `7 failed | 3 passed (10)`** (rehearsed
-      2026-09-21). The seven are the four edited or renamed cases plus the three new ones that
-      assert generic text; `costs a chart rather than a page…` passes already, because
-      `GanttDataError`'s message is what today's boundary prints anyway. Fewer than seven failures,
-      or zero tests, is a stop.
+- [ ] 2.7 Append **Appendix D1** and then **Appendix D2** to the end of the file, in that order.
+      D1 is four cases over an ordinary secret-bearing failure; D2 is the bare-boundary helpers and
+      six cases over a caught value that cannot be inspected — the guard, the reporting loss and the
+      selector's two refusals. Between them they add **ten** tests.
+
+  Neither block imports `act`, `createRoot` or `ReactNode`: every case renders through
+  `@testing-library`'s `render`, which was rehearsed 2026-09-21 as sufficient for all six hostile
+  values — react-dom's own default handlers never read a value this code refuses to read. An
+  earlier draft routed them through a hand-built `createRoot(host, ROOT_FAULT_OPTIONS)` root; that
+  helper needed those three imports, no case needed the helper, and it is gone.
+
+- [ ] 2.8 Run the 2.0 file command. **Expected red:** the file now registers `B_FAULT + 10` tests,
+      and all but three of them fail. Rehearsed 2026-09-21: `13 failed | 3 passed (16)`. The three
+      that pass are these, and no others:
+  - `renders its children while nothing throws`
+  - `reloads the document when the reader asks`
+  - `costs a chart rather than a page when the chart is what threw`, because `GanttDataError`'s own
+    message is what today's boundary prints anyway
+
+  Identify the red by those three names, not by the totals. Zero tests, or any of the three
+  failing, is a stop.
 
 ### 2b. The implementation
 
@@ -452,37 +512,63 @@ landed). Either being false is a stop.
 
 - [ ] 2.12 Rewrite `gantt-fault.tsx` to the listing in **Appendix C**, which adds the selector, the
       `discloses` prop, the `fault.sentence` expression and the chart's own reference element.
-- [ ] 2.13 Run the 2.0 file command again. **Expected green: `10 passed (10)`.** Then run the 2.0
-      neighbour command again: **the number recorded there, unchanged.**
+- [ ] 2.13 Run the 2.0 file command again. **Expected green: `B_FAULT + 10` passed, none failing**
+      (rehearsed 2026-09-21 as `16 passed (16)`). Then run the 2.0 neighbour command again:
+      **`B_NEIGHBOURS`, unchanged.**
 - [ ] 2.14 `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0. This slice moves a prop type
       from `(message: string) => ReactNode` to `(fault: DisclosedFault) => ReactNode` and changes a
       state field, so the type check runs in this same slice.
 - [ ] 2.15 `NX_DAEMON=false bunx nx run wbs-fe-01:lint` — exit 0. An import-order or prettier
       diagnostic is preamble rule 17, not a stop.
 
-### 2c. Negatives, all rehearsed 2026-09-20 and 2026-09-21
+### 2c. Negatives, every row rehearsed on 2026-09-21 unless it says otherwise
 
 Each row is one mutation, injected alone into a production file, saved as a patch under
 `$TMPDIR/evidence`, observed, restored with `cmp`, rerun green. The test file is
-`apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx` throughout; run it whole.
+`apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx` throughout; run it whole. Counts in the
+last column are the rehearsal's own and are history, not a requirement: the requirement is that the
+**named** test fails on the stated fact.
 
-| #   | Fault, by function and expression                                                                                                             | Named test that must fail                                                       | Diagnostic actually seen                                                                                                                             |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N2  | In `discloseFault`, the **final** `return`'s `sentence:` becomes `selected ?? (thrown instanceof Error ? thrown.message : disclosed.message)` | `puts neither the message, the cause nor a stack into the DOM`                  | `AssertionError: alice@example.com: expected '<div><main data-app-fault="true" clas…' not to contain 'alice@example.com'` (4 other cases failed too) |
-| N3  | In `FaultBoundary.componentDidCatch`, append `, thrown` to the `console.error(…)` argument list                                               | `logs the boundary, the disclosed sentence and the reference, and nothing else` | `AssertionError: expected [ 'the app could not render', …(4) ] to deeply equal [ 'the app could not render', …(3) ]`                                 |
-| N4  | Delete the whole `<p … data-app-fault-reference>` element from `app-fault.tsx`'s fallback                                                     | `shows the same reference on the page as it logged`                             | `AssertionError: expected 'WBS tool v2The app stopped: Something…' to contain 'AE_9JCX62C7WAJCWRRK7F4YAF908H'` (2 other cases failed too)            |
-| N5  | Delete the `discloses={ganttWords}` prop from `gantt-fault.tsx`'s `<FaultBoundary>`                                                           | `costs a chart rather than a page when the chart is what threw`                 | `AssertionError: expected 'The chart cannot be drawn: Something …' to contain 'slice sanding names a predecessor'`                                   |
-| N6  | In `ganttWords`, change `thrown instanceof GanttDataError` to `thrown instanceof Error`                                                       | `discloses the chart’s own modelled sentence and no other error’s`              | `AssertionError: expected 'The chart cannot be drawn: saving pla…' to contain 'Something went wrong'`                                                |
+| #   | Fault, by function and expression                                                                                                                                         | Named test that must fail                                                       | Fact it fails on, and the diagnostic seen                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N2  | In `discloseFault`, the **final** `return`'s `sentence:` becomes `selected ?? (thrown instanceof Error ? thrown.message : disclosed.message)`                             | `puts neither the message, the cause nor a stack into the DOM`                  | A secret in the caught value's message reaches the markup. `AssertionError: alice@example.com: expected '<div><main data-app-fault="true" clas…' not to contain 'alice@example.com'` (8 other cases failed too) |
+| N3  | In `FaultBoundary.componentDidCatch`, append `, thrown` to the `console.error(…)` argument list                                                                           | `logs the boundary, the disclosed sentence and the reference, and nothing else` | The console line is a fixed four-argument tuple. `AssertionError: expected [ 'the app could not render', …(4) ] to deeply equal [ 'the app could not render', …(3) ]` (2 others failed too)                     |
+| N4  | Delete the whole `<p … data-app-fault-reference>` element from `app-fault.tsx`'s fallback                                                                                 | `shows the same reference on the page as it logged`                             | The page carries the handle the console logged. `AssertionError: expected 'WBS tool v2The app stopped: Something…' to contain 'AE_ZK3K8WQEJ81HVXVJT0RXV6KMWT'` (2 others failed too)                            |
+| N5  | Delete the `discloses={ganttWords}` prop from `gantt-fault.tsx`'s `<FaultBoundary>`                                                                                       | `costs a chart rather than a page when the chart is what threw`                 | The chart's selector is wired at all. `AssertionError: expected 'The chart cannot be drawn: Something …' to contain 'slice sanding names a predecessor'`                                                        |
+| N6  | In `ganttWords`, change `thrown instanceof GanttDataError` to `thrown instanceof Error`                                                                                   | `discloses the chart’s own modelled sentence and no other error’s`              | The selector is narrow to one kind. `AssertionError: expected 'The chart cannot be drawn: saving pla…' to contain 'Something went wrong'`                                                                       |
+| N7  | Delete the whole `<p … data-gantt-fault-reference>` element from `gantt-fault.tsx`'s fallback                                                                             | `shows the chart’s own reference, matching what it logged`                      | The chart's fallback carries its own handle. `AssertionError: expected undefined to be 'Reference AE_HW6PEJ1JN06MF37SQ7NBZVZX…' // Object.is equality` (1 other failed too)                                     |
+| N8  | In `ganttWords`, replace the descriptor block with `return thrown instanceof GanttDataError ? thrown.message : null;`                                                     | `never invokes an accessor to read the chart’s sentence`                        | Deciding a disclosure runs no accessor on the caught value. `AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times`                                                      |
+| N9  | In `ganttWords`, change `typeof own.value !== 'string'` to `typeof own.value === 'undefined'`                                                                             | `never discloses a chart message that is not a string`                          | A non-string own `message` is refused. `AssertionError: expected [ [ …(4) ], [ …(4) ] ] to have a length of 1 but got 2` — the boundary caught its own fallback's throw (fact 17)                               |
+| N10 | In `discloseFault`, move the whole `let selected … try { … } catch { … }` block **above** the `if (!reporting.reported)` return, with the catch setting `selected = null` | `never offers an unreportable value to a disclosure selector`                   | A value the reporter could not describe is never offered to a selector. `AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times` (1 other failed too)                     |
+| N11 | In `discloseFault`, delete the `try`/`catch` around `select?.(thrown)`, leaving the bare assignment                                                                       | `survives a disclosure selector that throws`                                    | A throwing selector is a modelled outcome and not a second failure. `Error: the selector could not read it` — thrown out of the test rather than asserted                                                       |
 
 N5 and N6 are two mutations because one test would otherwise stand behind both checks: N5 proves
-the selector is wired, N6 proves it is narrow. N5 also fails
-`gantt-panel.test.tsx > a chart that cannot be drawn > says why, and leaves the plan alone` on
-`expected 'The chart cannot be drawn: Something …' to contain 'a-slice-nobody-sent'`; record it,
-do not stop (preamble rule 16).
+the selector is wired, N6 proves it is narrow. N8 and N9 are likewise two, because the descriptor
+block holds two checks — that no accessor runs and that only a string is accepted — and N8 alone
+leaves the string check green (rehearsed: `1 failed | 18 passed (19)`). N10 and N11 are two because
+the ordering and the guard are two checks over one `try` block.
+
+Extra failures, all recorded rather than stopped on (preamble rule 16): N2 also failed
+`discloses a generic sentence and a reference, offers a reload, and leaves a page`,
+`catches what the chart’s boundary is not under`,
+`logs the boundary, the disclosed sentence and the reference, and nothing else`,
+`discloses the chart’s own modelled sentence and no other error’s`,
+`never invokes an accessor to read the chart’s sentence`,
+`never discloses a chart message that is not a string` and both `onUncaughtError` cases; N3 also
+failed `names the reporting loss in the console and gives it a handle` and
+`shows the chart’s own reference, matching what it logged`; N4 also failed the renamed
+document-behind case and `discloses nothing of a thrown value that was not an error at all`; N7
+also failed `names the reporting loss in the console and gives it a handle`; N10 also failed
+`survives a disclosure selector that throws` on `expected 'nothing' to be 'the selector'`. N5
+additionally fails `gantt-panel.test.tsx > a chart that cannot be drawn > says why, and leaves the
+plan alone` on `expected 'The chart cannot be drawn: Something …' to contain 'a-slice-nobody-sent'`.
 
 - [ ] 2.16 After watching each, add the adjacent `Proof:` comments naming the injected fault and
       the observed diagnostic: N2 above the final `sentence:` line in `discloseFault`; N3 above the
-      `console.error` call; N4 above the reference `<p>`; N5 and N6 above `ganttWords`.
+      `console.error` call in `componentDidCatch`; N4 above the reference `<p>` in `app-fault.tsx`;
+      N5, N6, N8 and N9 above `ganttWords` — one comment per mutation, each naming its own test —
+      N7 above the reference `<p>` in `gantt-fault.tsx`; N10 above the `if (!reporting.reported)`
+      return; N11 above the `try` in `discloseFault`.
 - [ ] 2.17 Append slice 2's observations to the change's `verify.md`.
 
 **Ready to commit.** `feat(fe-01): disclose a public report from the fault boundaries`, paths:
@@ -498,72 +584,105 @@ do not stop (preamble rule 16).
 ## Slice 3 — react-dom's own handlers, and the root that carries them
 
 **Pre-edit check.** `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts` exists and exports
-`DisclosureLoss` (slice 2 landed), and `src/main.tsx` contains `createRoot(el).render(` with one
-argument. Either being false is a stop.
+`discloseFault`, `DisclosedFault` and `DisclosureLoss`; `src/components/chrome/fault-boundary.tsx`
+takes a `discloses` prop and its `fallback` takes a `DisclosedFault`; and `src/main.tsx` contains
+`createRoot(el).render(` with one argument. Any of those being false is a stop. (Slice 2 deletes
+`faultWords`, so its absence is expected here and is not a stop — see "Stop conditions".)
 
 Verified fact 8 is why this slice exists: in the production build react-dom writes
 `Error: <the thrown message>` and a stack to the console for every caught fault, so slice 2 alone
-leaves the raw message in the console beside a clean page. Verified fact 9 is the other half: the
-same default handlers **read** the caught value, so a hostile one kills the render.
+leaves the raw message in the console beside a clean page.
 
-### 3a. The failing cases first
+### 3a. The inert options, then the failing cases
 
-- [ ] 3.0 Baseline: run `app-fault.test.tsx`; expected `10 passed (10)` from slice 2. Confirm
-      `src/main.test.tsx` does not exist.
-- [ ] 3.1 Create `apps/wbs/fe-01/src/main.test.tsx` with exactly the listing in **Appendix E**, and
+- [ ] 3.0 Baseline: run `app-fault.test.tsx` and record its count as `B_FAULT3`; it is slice 2's
+      `B_FAULT + 10`, rehearsed as 16. Confirm `src/main.test.tsx` does not exist and
+      `src/components/chrome/root-fault-options.ts` does not exist.
+- [ ] 3.1 **The module first, empty.** Create
+      `apps/wbs/fe-01/src/components/chrome/root-fault-options.ts` with exactly this:
+
+  ```ts
+  import type { RootOptions } from 'react-dom/client';
+
+  /**
+   * Placeholder for react-dom's own fault handlers, replaced in step 3.4.
+   *
+   * Declared, exported and empty so that this slice's two red runs collect and fail on their own
+   * assertions rather than on a missing module. `RootOptions` declares all three handlers
+   * optional (`@types/react-dom/client.d.ts:37`), so an empty object type-checks.
+   */
+  export const ROOT_FAULT_OPTIONS: RootOptions = {};
+  ```
+
+  This is a scaffold and not the implementation: nothing imports it yet, and step 3.4 replaces the
+  whole file. Without it both red runs below fail to **collect**, which is not a red checkpoint —
+  it is indistinguishable from a typo in the import path.
+
+- [ ] 3.2 Create `apps/wbs/fe-01/src/main.test.tsx` with exactly the listing in **Appendix E**, and
       run `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/main.test.tsx)`. **Expected red:
       `1 failed (1)`**, on
-      `AssertionError: expected undefined to be { …(3) } // Object.is equality` — `main.tsx` passes
-      one argument today (rehearsed 2026-09-21). This is the only case that fails when the options
-      object is perfect and nothing hands it to the root.
-- [ ] 3.2 In `app-fault.test.tsx`, add
-      `import { ROOT_FAULT_OPTIONS } from './root-fault-options';` after the `./app-fault` import,
-      and append the whole block in **Appendix D2**. Run the file: **expected red, 6 of 16 failing**
-      — three cases on a module that does not exist yet and three on the handlers it would export.
-      A collection error naming `./root-fault-options` is the expected shape; `0 tests` is a stop.
+      `AssertionError: expected undefined to be {} // Object.is equality` — `main.tsx` passes one
+      argument today and the scaffold is `{}` (rehearsed 2026-09-21). After step 3.4 the same
+      mutation reads `expected undefined to be { …(3) }`; that is N12's diagnostic, not this one.
+      The case carries an explicit `30_000` timeout for the reason in verified fact 18; a run that
+      ends in `Error: Test timed out in 5000ms.` means the timeout was dropped from the listing.
+- [ ] 3.3 In `app-fault.test.tsx`, add
+      `import { ROOT_FAULT_OPTIONS } from './root-fault-options';` after the `./fault-boundary`
+      import, and append the whole block in **Appendix D3**. Run the file. **Expected red:** the file
+      registers `B_FAULT3 + 3` tests and exactly the three new ones fail, each on
+      `AssertionError: expected undefined to be type of 'function'` — the scaffold declares no
+      handler (rehearsed 2026-09-21: `3 failed | 16 passed (19)`). Each case reads its handler out of
+      `ROOT_FAULT_OPTIONS` and asserts `toBeTypeOf('function')` **before** calling it, because a
+      bare `ROOT_FAULT_OPTIONS.onUncaughtError?.(…)` over an empty object is a no-op that asserts
+      nothing. `0 tests` is a stop, and so is any failure outside those three.
 
 ### 3b. The implementation
 
-- [ ] 3.3 Create `apps/wbs/fe-01/src/components/chrome/root-fault-options.ts` with exactly the
-      listing in **Appendix F**.
-- [ ] 3.4 In `apps/wbs/fe-01/src/main.tsx`, add
+- [ ] 3.4 Replace the whole contents of
+      `apps/wbs/fe-01/src/components/chrome/root-fault-options.ts` — the scaffold from 3.1 — with
+      the listing in **Appendix F**.
+- [ ] 3.5 In `apps/wbs/fe-01/src/main.tsx`, add
       `import { ROOT_FAULT_OPTIONS } from './components/chrome/root-fault-options';` after
       `import { App } from './app';`, and replace `createRoot(el).render(` with:
 
   ```tsx
   // The options are not decoration: react-dom's own default writes the thrown error and its
-  // stack to the console for every fault a boundary catches, and its handlers read the caught
-  // value, which a hostile one does not survive. See {@link ROOT_FAULT_OPTIONS}.
+  // stack to the console for every fault a boundary catches. See {@link ROOT_FAULT_OPTIONS}.
   createRoot(el, ROOT_FAULT_OPTIONS).render(
   ```
 
-- [ ] 3.5 Run both test files. **Expected green: `16 passed (16)` and `1 passed (1)`.** Then
+- [ ] 3.6 Run both test files. **Expected green:** `B_FAULT3 + 3` passing in `app-fault.test.tsx`
+      and `1 passed (1)` in `main.test.tsx`, none failing (rehearsed 2026-09-21 as
+      `2 passed (2)` files and `20 passed (20)` tests for the pair). Then
       `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` and `wbs-fe-01:lint` — both exit 0 — and
       `NX_DAEMON=false bunx nx run wbs-fe-01:build`, exit 0 with a `✓ built in …` line.
 
-### 3c. Negatives
+### 3c. Negatives, every row rehearsed 2026-09-21
 
-| #   | Fault                                                                                                      | Named test that must fail                                                                   | Diagnostic actually seen                                                                                                   |
-| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| N7  | In `src/main.tsx`, remove the second argument so the call reads `createRoot(el).render(`                   | `the application’s root > is created with the options that keep a fault out of the console` | `AssertionError: expected undefined to be { …(3) } // Object.is equality`, `1 failed (1)` (2026-09-21)                     |
-| N8  | In `onUncaughtError`, replace `fault.sentence` with `String(thrown)`                                       | `discloses a public report for a fault no boundary caught`                                  | rehearse and record: the row's fact is that argument 2 is `'Something went wrong'` and not text read from the caught value |
-| N9  | In `discloseFault`, move the `select?.(thrown)` call **above** the `if (!reporting.reported)` early return | `names the reporting loss in the console and gives it a handle`                             | rehearse and record: the row's fact is that a value the reporter could not describe is never offered to a selector         |
-| N10 | In `discloseFault`, delete the `try`/`catch` around `select?.(thrown)`, leaving the bare assignment        | `keeps a throwing message getter inside the chart’s boundary`                               | `Error: Should not already be working.` — React's words for a throw out of `componentDidCatch` (2026-09-20)                |
+| #   | Fault, by function and expression                                                              | Named test that must fail                                                                   | Fact it fails on, and the diagnostic seen                                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N12 | In `src/main.tsx`, remove the second argument so the call reads `createRoot(el).render(`       | `the application’s root > is created with the options that keep a fault out of the console` | The application's own root is created with these options. `AssertionError: expected undefined to be { …(3) } // Object.is equality`, the expected object printing all three handler keys, `1 failed (1)`      |
+| N13 | In `onUncaughtError`, replace `fault.sentence` with `String(thrown)`                           | `discloses a public report for a fault no boundary caught`                                  | Argument 2 is the public report's generic message and not text read from the caught value. `AssertionError: expected [ 'no boundary caught this', …(3) ] to deeply equal [ 'no boundary caught this', …(3) ]` |
+| N14 | In `onRecoverableError`, append `, thrown` to the `console.error(…)` argument list             | `discloses a public report for a fault React recovered from`                                | The recovered-fault line is the same fixed four-argument tuple. `AssertionError: expected [ 'React recovered from this', …(4) ] to deeply equal [ 'React recovered from this', …(3) ]`                        |
+| N15 | In `onRecoverableError`, delete `fault.occurrenceId` from the `console.error(…)` argument list | `discloses a public report for a fault React recovered from`                                | That line carries the handle. `AssertionError: expected [ 'React recovered from this', …(2) ] to deeply equal [ 'React recovered from this', …(3) ]`                                                          |
 
-N7 is not interchangeable with removing `onCaughtError` from the options object: that is slice 4's
-N12, and it proves the handler's content rather than the root's wiring. N9 and N10 are separate
-mutations because one test must not stand behind two checks.
+N12 is not interchangeable with removing `onCaughtError` from the options object: that is slice 4's
+N17, and it proves the handler's content rather than the root's wiring. N14 and N15 are two
+mutations over one handler because appending the caught value and dropping the handle are two
+checks; the named test fails on a different argument shape for each, and each was watched alone.
+Each of N13, N14 and N15 failed **only** its named test in rehearsal (`1 failed | 18 passed (19)`).
 
-- [ ] 3.6 After watching each, add the adjacent `Proof:` comments: N7 above the `createRoot` call in
-      `main.tsx`; N8 above `onUncaughtError`'s `console.error`; N9 above the
-      `if (!reporting.reported)` return; N10 above the `try` in `discloseFault`.
-- [ ] 3.7 Append slice 3's observations to the change's `verify.md`.
+- [ ] 3.7 After watching each, add the adjacent `Proof:` comments: N12 above the `createRoot` call
+      in `main.tsx`; N13 above `onUncaughtError`'s `console.error`; N14 and N15 above
+      `onRecoverableError`'s `console.error`.
+- [ ] 3.8 Append slice 3's observations to the change's `verify.md`.
 
 **Ready to commit.** `feat(fe-01): keep react-dom's own fault line out of the console`, paths:
 `apps/wbs/fe-01/src/components/chrome/root-fault-options.ts`,
-`apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts` (N9 and N10 proof comments),
 `apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`, `apps/wbs/fe-01/src/main.tsx`,
 `apps/wbs/fe-01/src/main.test.tsx`, `openspec/changes/adopt-failure-reporting/verify.md`.
+`fault-disclosure.ts` is **not** in this list: every proof comment this slice writes lands in
+`root-fault-options.ts` or `main.tsx`.
 
 ---
 
@@ -578,7 +697,7 @@ carries a `Proof:` comment**: the planner adds those after observing the failure
 rule 9.
 
 - [ ] 4.0 Baseline: `(cd apps/wbs/fe-01 && TZ=UTC bunx vitest run browser-packages.test.ts)` —
-      record the count; observed `3 passed (3)`.
+      record the count as `B_BUNDLE`; rehearsed 2026-09-21 as 3. Step 4.4 requires it unchanged.
 - [ ] 4.1 Copy `apps/wbs/fe-01/e2e/browser-packages-bundle.ts` to
       `apps/wbs/fe-01/e2e/browser-probe-bundle.ts` and leave the original in place for the planner
       to remove from the index, saying so in the report. Then in the **new** file:
@@ -595,9 +714,21 @@ rule 9.
     replace only the `rollupOptions` line: that nests `build` inside `build` and fails the type
     check with `Object literal may only specify known properties, and 'build' does not exist in
 type 'BuildEnvironmentOptions'`;
-  - in the chunk-count `throw`, replace the text `the browser build of the three libraries emitted`
-    with an interpolation of `entry` in its place, and soften the comment above it so it no longer
-    names the three libraries.
+  - replace the chunk-count `throw` and the `Proof:` comment above it — the two-line comment
+    beginning `// Proof: adding the empty probe as a second entry` and the whole `if (chunks.length
+!== 1) { … }` statement — with exactly this, which is the complete text and not a phrase to
+    splice:
+
+    ```ts
+    // Proof: adding the empty probe as a second entry on 2026-09-20 failed all three
+    // registered cases with `the browser build of the three libraries emitted 2 chunks,
+    // not one` — the message this one replaces, over the entry this helper now takes.
+    if (chunks.length !== 1) {
+      throw new Error(
+        `the browser build of ${entry} emitted ${String(chunks.length)} chunks, not one`,
+      );
+    }
+    ```
 - [ ] 4.2 In `e2e/browser-packages.spec.ts`, change the import to
       `import { buildBrowserProbeBundle } from './browser-probe-bundle';` and the call to
       `await buildBrowserProbeBundle('e2e/browser-packages-probe.ts')`. In
@@ -610,7 +741,7 @@ type 'BuildEnvironmentOptions'`;
 - [ ] 4.3 Create `apps/wbs/fe-01/e2e/fault-boundary-probe.ts` with the listing in **Appendix H**
       and `apps/wbs/fe-01/e2e/fault-boundary.spec.ts` with the listing in **Appendix I**.
 - [ ] 4.4 Executor verification: `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0;
-      `wbs-fe-01:lint` — exit 0; and the 4.0 command again — **the count from 4.0, unchanged**,
+      `wbs-fe-01:lint` — exit 0; and the 4.0 command again — **`B_BUNDLE`, unchanged**,
       which is 040.1's build property still holding over the renamed helper.
 - [ ] 4.5 Append slice 4's observations to the change's `verify.md`, naming the Chromium command as
       not run and why.
@@ -637,31 +768,37 @@ type 'BuildEnvironmentOptions'`;
 
 | #   | Fault                                                                                                                                                    | Named test                                                          | Diagnostic actually seen (2026-09-20 and 21)                                                                                                                                                                  |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N11 | Prepend `import 'di-bag/node';` to `src/components/chrome/fault-disclosure.ts`                                                                           | `the root fault boundary discloses a public report and nothing raw` | `expect(received).toEqual(expected)` at `expect(pageErrors).toEqual([])`: `+ Array [ "Error: DI_BAG_INVALID_CONFIGURATION: withConfiguration runtime requires isNativePromise; see …", ]`                     |
-| N12 | Delete `onCaughtError: () => undefined,` from `ROOT_FAULT_OPTIONS`                                                                                       | same test                                                           | `expect(received).toEqual(expected)` on the console filter: `- Array []` against `+ Array [ "alice@example.com", ]`. react-dom had written `Error: saving plan p-7 for alice@example.com failed` and a stack. |
-| N13 | In `discloseFault`, `sentence:` becomes `selected ?? (thrown instanceof Error ? thrown.message : disclosed.message)`                                     | same test                                                           | `expect(received).toContain(expected)`: expected `"The app stopped: Something went wrong"`, received `"WBS tool v2The app stopped: saving plan p-7 for alice@example.com failed. …Reference AE_V2WX…Reload"`  |
-| N14 | Add `void fetch('https://unexpected.invalid/fault').catch(() => undefined);` as the first statement of the probe's `proveTheBoundaryDisclosesNothingRaw` | same test                                                           | `expect(received).toEqual(expected)` at `expect(unexpectedRequests).toEqual([])`: `+ Array [ "https://unexpected.invalid/fault", ]`                                                                           |
+| N16 | Prepend `import 'di-bag/node';` to `src/components/chrome/fault-disclosure.ts`                                                                           | `the root fault boundary discloses a public report and nothing raw` | `expect(received).toEqual(expected)` at `expect(pageErrors).toEqual([])`: `+ Array [ "Error: DI_BAG_INVALID_CONFIGURATION: withConfiguration runtime requires isNativePromise; see …", ]`                     |
+| N17 | Delete `onCaughtError: () => undefined,` from `ROOT_FAULT_OPTIONS`                                                                                       | same test                                                           | `expect(received).toEqual(expected)` on the console filter: `- Array []` against `+ Array [ "alice@example.com", ]`. react-dom had written `Error: saving plan p-7 for alice@example.com failed` and a stack. |
+| N18 | In `discloseFault`, `sentence:` becomes `selected ?? (thrown instanceof Error ? thrown.message : disclosed.message)`                                     | same test                                                           | `expect(received).toContain(expected)`: expected `"The app stopped: Something went wrong"`, received `"WBS tool v2The app stopped: saving plan p-7 for alice@example.com failed. …Reference AE_V2WX…Reload"`  |
+| N19 | Add `void fetch('https://unexpected.invalid/fault').catch(() => undefined);` as the first statement of the probe's `proveTheBoundaryDisclosesNothingRaw` | same test                                                           | `expect(received).toEqual(expected)` at `expect(unexpectedRequests).toEqual([])`: `+ Array [ "https://unexpected.invalid/fault", ]`                                                                           |
 
-N11 is task 3.1's browser-portability negative, kept because that task's own wording requires one,
+N16 is task 3.1's browser-portability negative, kept because that task's own wording requires one,
 and it is asserted through `pageErrors` rather than `externalizedForBrowser` — see verified fact 13
 for why the latter cannot fail over this graph, and why 040.1's own use of it is unharmed.
 
-- [ ] 4.7 The planner writes the `Proof:` comments from what it saw: N11 and N12 above
-      `expect(pageErrors).toEqual([])` and above the console filter in `fault-boundary.spec.ts`,
-      N13 above `expect(proof?.pageText)`, N14 above `expect(unexpectedRequests)`. It also replays
-      Appendix G's chunk-count behaviour once — delete the `rolldownOptions` property and rerun the
-      spec, expecting
-      `Error: the browser build of e2e/fault-boundary-probe.ts emitted 3 chunks, not one`
-      (observed 2026-09-20) — and writes that comment above the `rolldownOptions` property.
+- [ ] 4.7 The planner writes the `Proof:` comments from what it saw, **all four in
+      `fault-boundary.spec.ts`**: N16 above `expect(pageErrors).toEqual([])`, N17 above the console
+      filter, N18 above `expect(proof?.pageText)`, N19 above `expect(unexpectedRequests)`. Each
+      mutation is injected into the file its row names — `fault-disclosure.ts` for N16 and N18,
+      `root-fault-options.ts` for N17, the probe for N19 — but the comment belongs beside the
+      assertion that failed, so **no source file under `src/` is edited by this slice**; the
+      "ready to commit" list below says the same. It also replays the chunk-count behaviour once:
+      delete the `rolldownOptions` property from **Appendix G**, rerun the spec, and judge it by the
+      chunk count it reports rather than by the sentence's prose (preamble rule 20). Observed
+      2026-09-20: three chunks where one is required, thrown as an `Error` naming the probe entry
+      and the count. That comment goes above the `rolldownOptions` property in
+      `browser-probe-bundle.ts`.
 
 **Ready to commit.** `test(fe-01): prove the fault boundary in Chromium`, paths:
 `apps/wbs/fe-01/e2e/browser-probe-bundle.ts`, `apps/wbs/fe-01/e2e/browser-packages-bundle.ts`
 (deleted), `apps/wbs/fe-01/e2e/browser-packages.spec.ts`,
 `apps/wbs/fe-01/e2e/fault-boundary-probe.ts`, `apps/wbs/fe-01/e2e/fault-boundary.spec.ts`,
 `apps/wbs/fe-01/browser-packages.test.ts`,
-`apps/wbs/fe-01/src/components/chrome/root-fault-options.ts` (N12's proof comment),
-`apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts` (N11's and N13's proof comments),
-`openspec/changes/adopt-failure-reporting/verify.md`.
+`openspec/changes/adopt-failure-reporting/verify.md`. No file under
+`apps/wbs/fe-01/src/` is in this list: every browser `Proof:` comment lands beside the assertion
+that failed, which is in `fault-boundary.spec.ts`, and the chunk-count one in
+`browser-probe-bundle.ts`.
 
 ---
 
@@ -689,12 +826,14 @@ for why the latter cannot fail over this graph, and why 040.1's own use of it is
 
 ### Planner-only checks
 
-- `NX_DAEMON=false bunx nx run wbs-fe-01:test` — observed `119 passed (119)` files and
-  `2879 passed (2879)` tests on the rehearsed tree, against a baseline of 118 and 2868: this packet
-  adds eleven tests, ten in `app-fault.test.tsx` and one in `main.test.tsx`, and one file. The
-  zoned second run prints `2 passed (2)` files and `3 passed (3)` tests, unchanged.
-- `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` — observed `42 passed (42)` files and
-  `621 passed (621)` tests, unchanged.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:test` — the planner records the baseline on
+  `batch-3/planning` and requires **one more file and fourteen more tests**: thirteen added to
+  `app-fault.test.tsx` and one new `main.test.tsx`. Do not compare against a literal from this
+  packet; the file count moves by one and the test count by fourteen, whatever the totals are on the
+  day. The zoned second run's numbers must be unchanged: this packet adds no zoned file.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit` — **unchanged** from the planner's own
+  baseline, both counts. This packet's new suites are `.tsx` files in the jsdom tier and not in this
+  one (verified fact 14).
 - The whole `wbs-fe-01:e2e` suite, once, because slice 2 changes text two boundaries render. No
   other spec asserts on it: `git grep` for `The app stopped`, `The chart cannot be drawn`,
   `data-app-fault` and `data-gantt-fault` finds only `app-fault.tsx`, `gantt-fault.tsx`,
@@ -704,18 +843,33 @@ for why the latter cannot fail over this graph, and why 040.1's own use of it is
 
 ## Stop conditions
 
-Each slice's own pre-edit check is stated above its steps, because a condition that is true of the
-starting tree becomes false the moment its slice lands. These are the whole-packet ones, and every
-one is false on the tree slice 0 starts from:
+A condition that is true of the starting tree becomes false the moment its slice lands, so these
+are stated **per applicable slice** and not as a single whole-packet list. Each slice's own
+pre-edit check is above its steps; these are the conditions about state no single slice edits.
+
+**Before slices 0, 1 and 2 only** — this is the tree as it stands before slice 2 rewrites the
+boundary:
 
 1. `apps/wbs/fe-01/src/components/chrome/fault-boundary.tsx` does not export `faultWords`, or
    `git grep -n faultWords apps/wbs/fe-01/src` finds a reader outside that file and
-   `gantt-panel.test.tsx`'s own local constant.
+   `gantt-panel.test.tsx`'s own local constant. **Step 2.10 deliberately deletes `faultWords`, so
+   from slice 3 onward its absence is the expected state and this condition no longer applies.**
+
+**Before slices 3, 4 and 5**, in its place:
+
+1a. `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts` does not exist, or does not export
+`discloseFault`, `DisclosedFault` and `DisclosureLoss`; or `fault-boundary.tsx` still exports
+`faultWords`, which would mean slice 2 was reverted.
+
+**Before every slice:**
+
 2. `libs/shared/domain/failures/src/index.ts` does not export `reportFailure` and
    `createFailureRedaction`.
 3. The public report of an ordinary `Error` does not carry `message: 'Something went wrong'`, or
    its `occurrence_id` does not match `/^AE_[0-9A-Z]+$/`.
-4. A slice's red run reports zero tests, or fewer failures than the slice names.
+4. A slice's red run reports zero tests, or a test the slice names as already passing fails, or a
+   test the slice names as failing passes. The **totals** printed in this packet are the rehearsal's
+   and are not themselves a condition: the condition is the named tests.
 5. A named negative's test passes after the mutation. Check the location once against the function
    and expression the row names, redo it once, then stop (preamble rule 20).
 6. A step seems to need `tools/tool-devsync/src/workspace-inventory.test.ts` or
@@ -1018,11 +1172,23 @@ import { GanttDataError } from './gantt-geometry';
  * not list` — so they disclose nothing the reader did not send. Everything else reaching
  * this boundary is unmodelled, and gets the public report's generic message instead.
  *
+ * **It reads a property descriptor and never the property.** `thrown.message` would run an
+ * own accessor on a value this function was handed precisely because it could not be
+ * trusted, and would return whatever that accessor returned — an object reaching
+ * `DisclosedFault.sentence`, which promises a string. So the own descriptor is inspected
+ * instead and only a string-valued **data** property is accepted: an accessor, an absent
+ * property and a non-string value are all the same modelled outcome, `null`, and the
+ * generic public message is what the panel discloses.
+ *
  * @param thrown The caught value.
- * @returns The panel's own sentence, or `null` for anything else.
+ * @returns The panel's own sentence, or `null` for an accessor, an absent `message`, a
+ *   non-string `message`, or any value that is not a {@link GanttDataError}.
  */
 function ganttWords(thrown: unknown): string | null {
-  return thrown instanceof GanttDataError ? thrown.message : null;
+  if (!(thrown instanceof GanttDataError)) return null;
+  const own = Object.getOwnPropertyDescriptor(thrown, 'message');
+  if (own === undefined || !('value' in own) || typeof own.value !== 'string') return null;
+  return own.value;
 }
 
 interface GanttFaultProps {
@@ -1126,8 +1292,6 @@ describe('what a caught fault discloses', () => {
       </AppFaultBoundary>,
     );
 
-    // React writes its own `console.error` for every caught fault, so this
-    // boundary's line is found by what it says rather than by position.
     const ours = logged.mock.calls.filter((call) => call[0] === 'the app could not render');
     expect(ours).toHaveLength(1);
     expect(ours[0]).toEqual([
@@ -1163,135 +1327,141 @@ describe('what a caught fault discloses', () => {
 });
 ```
 
-## Appendix D2 — slice 3's cases, appended to `app-fault.test.tsx`
+## Appendix D2 — slice 2's cases for a caught value that cannot be inspected
+
+Appended to `app-fault.test.tsx` directly after Appendix D1.
 
 ```tsx
-describe('what React itself is allowed to say', () => {
-  itDom('says nothing of its own about a fault a boundary already reported', () => {
-    // react-dom writes the thrown error and its stack to `console.error` for every caught
-    // fault, production build included — watched in Chromium, 2026-09-20. The boundary has
-    // already reported it, naming which boundary caught it, so the root's handler is
-    // silent rather than saying the same event again with less in it.
-    expect(ROOT_FAULT_OPTIONS.onCaughtError?.(new Error('alice@example.com'), {})).toBeUndefined();
-    expect(logged.mock.calls).toHaveLength(0);
-  });
-
-  itDom('discloses a public report for a fault no boundary caught', () => {
-    ROOT_FAULT_OPTIONS.onUncaughtError?.(new Error('alice@example.com'), {});
-
-    expect(logged.mock.calls).toHaveLength(1);
-    expect(logged.mock.calls[0]).toEqual([
-      'no boundary caught this',
-      'Something went wrong',
-      expect.any(String),
-      'nothing',
-    ]);
-    expect(String(logged.mock.calls[0][2])).toMatch(/^AE_[0-9A-Z]+$/);
-  });
-
-  itDom('discloses a public report for a fault React recovered from', () => {
-    ROOT_FAULT_OPTIONS.onRecoverableError?.(new Error('alice@example.com'), {});
-
-    expect(logged.mock.calls).toHaveLength(1);
-    expect(logged.mock.calls[0]).toEqual([
-      'React recovered from this',
-      'Something went wrong',
-      expect.any(String),
-      'nothing',
-    ]);
-    expect(String(logged.mock.calls[0][2])).toMatch(/^AE_[0-9A-Z]+$/);
-  });
-});
-
-/** Every root {@link renderInProductionRoot} made, unmounted after each case. */
-const productionRoots: ReturnType<typeof createRoot>[] = [];
-
-afterEach(() => {
-  for (const root of productionRoots.splice(0)) {
-    act(() => {
-      root.unmount();
-    });
-  }
-});
+/** What a bare {@link FaultBoundary} put on screen, or null while it did not. */
+const bareFaultWords = (): string | null =>
+  document.querySelector('[data-bare-fault]')?.textContent ?? null;
 
 /**
- * Render through a root created exactly as `main.tsx` creates the application's.
+ * Render the production {@link FaultBoundary} over a throwing child with one selector.
  *
- * `@testing-library`'s `render` builds its own root with react-dom's **default** handlers,
- * and those handlers read the caught value: a revoked proxy thrown under a boundary made
- * React's own default throw `TypeError: Cannot perform 'get' on a proxy that has been
- * revoked` out of the render, with no fallback of either kind on screen (watched
- * 2026-09-20). That safety is a property of {@link ROOT_FAULT_OPTIONS}, and it can only be
- * asserted through a root that has them.
- *
- * @param element What to render.
- * @returns The host element, so a case can read what was drawn into it.
+ * @param thrown The value the child throws.
+ * @param discloses The selector under test.
  */
-function renderInProductionRoot(element: ReactNode): HTMLElement {
-  const host = document.createElement('div');
-  document.body.append(host);
-  const root = createRoot(host, ROOT_FAULT_OPTIONS);
-  productionRoots.push(root);
-  act(() => {
-    root.render(element);
-  });
-  return host;
+function renderBareBoundary(thrown: unknown, discloses: (thrown: unknown) => string | null): void {
+  render(
+    <FaultBoundary
+      logAs="the bare boundary could not render"
+      discloses={discloses}
+      resetKey="one"
+      fallback={(fault) => (
+        <p data-bare-fault>
+          {fault.sentence} / {fault.occurrenceId} / {fault.lost}
+        </p>
+      )}
+    >
+      <ThrowingValue thrown={thrown} />
+    </FaultBoundary>,
+  );
 }
+
+/** The one console line a bare boundary case wrote. */
+const bareLogLine = (): unknown[] => {
+  const ours = logged.mock.calls.filter((call) => call[0] === 'the bare boundary could not render');
+  expect(ours).toHaveLength(1);
+  return ours[0];
+};
 
 describe('a caught value that cannot be inspected', () => {
   /**
-   * A `GanttDataError` whose `message` throws when it is read.
+   * A `GanttDataError` whose `message` is an own accessor that counts its own reads.
    *
-   * An **own** accessor, defined on the instance: `Error`'s constructor writes `message` as
-   * an own data property, so a `get message()` on a subclass prototype is shadowed and
-   * never runs (watched 2026-09-20 — the case read `never read` instead of throwing).
-   *
+   * @param onRead Called whenever the accessor runs.
    * @returns The hostile value, ready to throw.
    */
-  const withAThrowingMessage = (): GanttDataError => {
+  const withAMessageAccessor = (onRead: () => void): GanttDataError => {
     const hostile = new GanttDataError('never read');
     Object.defineProperty(hostile, 'message', {
       get: () => {
+        onRead();
         throw new Error('selector accessor ran');
       },
+      configurable: true,
     });
     return hostile;
   };
 
-  itDom('keeps a throwing message getter inside the chart’s boundary', () => {
-    // The fault this is here to stop: `ganttWords` reads `thrown.message`, and a throw
-    // inside `componentDidCatch` is not caught by the boundary already handling the fault
-    // — it escapes upward, and the chart takes the page with it. Reporting itself survives
-    // this value, because `inspection: 'no-invoke'` reports the property as
-    // `[not-inspected]`, so only the selector is exposed.
-    renderInProductionRoot(
+  itDom('never invokes an accessor to read the chart’s sentence', () => {
+    const read = vi.fn();
+    render(
       <AppFaultBoundary>
         <p>the editor</p>
         <GanttFaultBoundary generation={1}>
-          <ThrowingValue thrown={withAThrowingMessage()} />
+          <ThrowingValue thrown={withAMessageAccessor(read)} />
         </GanttFaultBoundary>
       </AppFaultBoundary>,
     );
 
+    expect(read).not.toHaveBeenCalled();
     expect(chartFaultWords()).toContain('Something went wrong');
     expect(chartFaultWords()).not.toContain('selector accessor ran');
-    // The page is still there, which is what a throw out of `componentDidCatch` costs.
     expect(appFaultWords()).toBeNull();
     expect(screen.getByText('the editor')).toBeDefined();
     const ours = logged.mock.calls.filter(
       (call) => call[0] === 'the Gantt panel could not draw this plan',
     );
     expect(ours).toHaveLength(1);
-    expect(ours[0][3]).toBe('the selector');
+    expect(ours[0][3]).toBe('nothing');
+  });
+
+  itDom('never discloses a chart message that is not a string', () => {
+    const hostile = new GanttDataError('never read');
+    Object.defineProperty(hostile, 'message', {
+      value: { toString: () => 'coerced' },
+      configurable: true,
+    });
+    render(
+      <AppFaultBoundary>
+        <p>the editor</p>
+        <GanttFaultBoundary generation={1}>
+          <ThrowingValue thrown={hostile} />
+        </GanttFaultBoundary>
+      </AppFaultBoundary>,
+    );
+
+    // Asserted on the console line and not only on the DOM: an object reaching
+    // `fault.sentence` is a value React may render as nothing at all, so the rendered
+    // text alone cannot tell a string apart from an object (watched 2026-09-21).
+    const ours = logged.mock.calls.filter(
+      (call) => call[0] === 'the Gantt panel could not draw this plan',
+    );
+    expect(ours).toHaveLength(1);
+    expect(ours[0][1]).toBe('Something went wrong');
+    expect(chartFaultWords()).not.toContain('coerced');
+    expect(appFaultWords()).toBeNull();
+    expect(screen.getByText('the editor')).toBeDefined();
+  });
+
+  itDom('never offers an unreportable value to a disclosure selector', () => {
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const select = vi.fn(() => 'the selector ran');
+
+    renderBareBoundary(new Error('boom', { cause: proxy }), select);
+
+    expect(select).not.toHaveBeenCalled();
+    expect(bareFaultWords()).toContain('the failure could not be described');
+    expect(bareLogLine()[3]).toBe('the report');
+  });
+
+  itDom('survives a disclosure selector that throws', () => {
+    renderBareBoundary(new Error('alice@example.com'), () => {
+      throw new Error('the selector could not read it');
+    });
+
+    expect(bareFaultWords()).toContain('Something went wrong');
+    expect(bareFaultWords()).not.toContain('the selector could not read it');
+    expect(bareLogLine()[3]).toBe('the selector');
   });
 
   itDom('names the reporting loss in the console and gives it a handle', () => {
-    // `toReports` throws on a revoked `Proxy` as a cause — `@shared/failures` models that
-    // as `reported: false`, and this is the boundary's half of it: fixed text, a local
-    // handle, and no second attempt to read the value that already defeated the reporter.
     const { proxy, revoke } = Proxy.revocable({}, {});
     revoke();
-    renderInProductionRoot(
+    render(
       <GanttFaultBoundary generation={1}>
         <ThrowingValue thrown={new Error('boom', { cause: proxy })} />
       </GanttFaultBoundary>,
@@ -1312,7 +1482,7 @@ describe('a caught value that cannot be inspected', () => {
   });
 
   itDom('shows the chart’s own reference, matching what it logged', () => {
-    renderInProductionRoot(
+    render(
       <GanttFaultBoundary generation={1}>
         <ThrowingGanttData words="slice sanding names a predecessor this payload has not got" />
       </GanttFaultBoundary>,
@@ -1324,6 +1494,52 @@ describe('a caught value that cannot be inspected', () => {
     expect(document.querySelector('[data-gantt-fault-reference]')?.textContent).toBe(
       `Reference ${String(logLine?.[2])}`,
     );
+  });
+});
+```
+
+## Appendix D3 — slice 3's cases, appended to `app-fault.test.tsx`
+
+```tsx
+describe('what React itself is allowed to say', () => {
+  itDom('says nothing of its own about a fault a boundary already reported', () => {
+    const { onCaughtError } = ROOT_FAULT_OPTIONS;
+    expect(onCaughtError).toBeTypeOf('function');
+
+    expect(onCaughtError?.(new Error('alice@example.com'), {})).toBeUndefined();
+    expect(logged.mock.calls).toHaveLength(0);
+  });
+
+  itDom('discloses a public report for a fault no boundary caught', () => {
+    const { onUncaughtError } = ROOT_FAULT_OPTIONS;
+    expect(onUncaughtError).toBeTypeOf('function');
+
+    onUncaughtError?.(new Error('alice@example.com'), {});
+
+    expect(logged.mock.calls).toHaveLength(1);
+    expect(logged.mock.calls[0]).toEqual([
+      'no boundary caught this',
+      'Something went wrong',
+      expect.any(String),
+      'nothing',
+    ]);
+    expect(String(logged.mock.calls[0][2])).toMatch(/^AE_[0-9A-Z]+$/);
+  });
+
+  itDom('discloses a public report for a fault React recovered from', () => {
+    const { onRecoverableError } = ROOT_FAULT_OPTIONS;
+    expect(onRecoverableError).toBeTypeOf('function');
+
+    onRecoverableError?.(new Error('alice@example.com'), {});
+
+    expect(logged.mock.calls).toHaveLength(1);
+    expect(logged.mock.calls[0]).toEqual([
+      'React recovered from this',
+      'Something went wrong',
+      expect.any(String),
+      'nothing',
+    ]);
+    expect(String(logged.mock.calls[0][2])).toMatch(/^AE_[0-9A-Z]+$/);
   });
 });
 ```
@@ -1364,7 +1580,11 @@ describe('the application’s root', () => {
     expect(createRoot).toHaveBeenCalledTimes(1);
     expect(createRoot.mock.calls[0][0]).toBe(document.getElementById('root'));
     expect(createRoot.mock.calls[0][1]).toBe(ROOT_FAULT_OPTIONS);
-  });
+    // 30 seconds and not Vitest's 5: `await import('./main')` transforms `main.tsx`, the
+    // whole `App` graph under it and `styles.css` through Vite inside the test body, and
+    // that took longer than 5000ms on every run of a loaded host (watched twice,
+    // 2026-09-21, `Error: Test timed out in 5000ms.`).
+  }, 30_000);
 });
 ```
 
@@ -1631,7 +1851,7 @@ The text below is what was validated on 2026-09-21; it goes at the end of
 ```markdown
 ### Requirement: A browser fault boundary discloses a public report and nothing raw
 
-A caught render fault SHALL disclose the public report's generic message and its occurrence identifier, and SHALL disclose neither the caught value's message, nor its cause, nor a stack to the page or to the browser console.
+A caught render fault SHALL disclose exactly one of three things and nothing else: the public report's generic message with its occurrence identifier, for a fault nothing modelled; a validated sentence selected by the caught value's own kind, with that occurrence identifier, for a kind whose sentences are public by construction; or fixed loss text with a local correlation handle, when reporting could not describe the caught value at all. In every one of the three cases it SHALL disclose no text read from the caught value other than a sentence a kind's own selector validated, and SHALL disclose neither the caught value's cause nor a stack to the page or to the browser console.
 
 #### Scenario: A secret-bearing render fault reaches the root boundary
 
@@ -1642,10 +1862,17 @@ A caught render fault SHALL disclose the public report's generic message and its
 
 #### Scenario: A modelled chart fault is disclosed by its own kind
 
-- **GIVEN** a chart data fault whose sentence its own module composed
+- **GIVEN** a chart data fault whose sentence its own module composed as an own string-valued property
 - **WHEN** the chart's fault boundary catches it
 - **THEN** the panel shows that sentence and the occurrence identifier
 - **AND** an unmodelled error caught by the same boundary shows the generic public message instead
+
+#### Scenario: A kind's own sentence cannot be read as a string
+
+- **GIVEN** a chart data fault whose own message is an accessor, or is not a string
+- **WHEN** the chart's fault boundary decides what to disclose
+- **THEN** the panel shows the generic public message and the occurrence identifier
+- **AND** no accessor on the caught value is invoked
 
 ### Requirement: Deciding what a fault discloses never throws
 
@@ -1655,7 +1882,8 @@ Deciding what a caught fault discloses SHALL model a failure to inspect the caug
 
 - **GIVEN** a caught value whose inspection makes the reporter throw
 - **WHEN** a fault boundary decides what to disclose
-- **THEN** the boundary renders fixed text and a local correlation handle
+- **THEN** the boundary renders fixed text and a local correlation handle, which is the third disclosure case and carries no public report
+- **AND** the boundary's disclosure selector is never applied to that value
 - **AND** the boundary above it renders nothing
 
 #### Scenario: A kind's disclosure selector throws
@@ -1690,7 +1918,7 @@ Then add this section, with its box unchecked:
 ```markdown
 ## 4. Frontend fault boundary (needs 1.1)
 
-- [ ] 4.1 Disclose a public report and an occurrence identifier from both frontend fault boundaries, keep react-dom's own raw console line out, and make deciding a disclosure incapable of throwing — test: `apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`, `src/main.test.tsx` and the Chromium case above; negatives: disclose the caught value's message, log the caught value, drop the occurrence identifier, drop the chart's own disclosure selector, widen that selector to every error, drop the root options argument in `main.tsx`, remove `onCaughtError` from those options, call the selector before the reporting-loss return, remove the selector guard, reach an unexpected origin, and drop the `@shared/failures` alias from the suite config
+- [ ] 4.1 Disclose a public report and an occurrence identifier from both frontend fault boundaries, keep react-dom's own raw console line out, and make deciding a disclosure incapable of throwing — test: `apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`, `src/main.test.tsx` and the Chromium case above; negatives: disclose the caught value's message, log the caught value, drop either occurrence-identifier element, drop the chart's own disclosure selector, widen that selector to every error, read the caught value's `message` property directly instead of its descriptor, accept a non-string sentence, call the selector before the reporting-loss return, remove the selector guard, drop the root options argument in `main.tsx`, remove `onCaughtError` from those options, append the caught value to the recovered-fault line, drop that line's identifier, reach an unexpected origin, and drop the `@shared/failures` alias from the suite config
 ```
 
 ## Disposition of review 1
@@ -1758,3 +1986,98 @@ command — FIXED: step 1.8 gives it.
 
 **Rejected:** nothing outright. Two findings were accepted with a measured correction, both stated
 above: the reachable hostile values in Critical 2, and the enforcement mechanism in Important 7.
+
+## Disposition of review 2
+
+Every finding was reproduced in the private worktree before being acted on: slices 1 to 3 were
+applied in full, run red and green, each mutation injected alone, and the whole tree committed once
+with lefthook on and then reset. Nothing below is reasoned from the listing alone.
+
+**Round one items the second review reopened.**
+
+- **Critical 2, selector accessors — FIXED** in Appendix C. `ganttWords` now reads
+  `Object.getOwnPropertyDescriptor(thrown, 'message')` and accepts only a string-valued data
+  property, so an accessor never runs and `sentence` keeps its declared type. Two cases in Appendix
+  D2 cover it and N8 and N9 break it separately.
+- **Critical 3, the impossible red run — FIXED.** Step 3.1 creates an inert
+  `export const ROOT_FAULT_OPTIONS: RootOptions = {}` before either red run; steps 3.2 and 3.3 then
+  fail on their own assertions. Rehearsed: `1 failed (1)` and `3 failed | 16 passed (19)`.
+- **Important 1, the chart mutation and the specification — FIXED.** N7 removes
+  `data-gantt-fault-reference`; Appendix J now states the three disclosure cases explicitly.
+- **Important 2, impossible checkpoints — FIXED** with the scaffold above.
+- **Important 5, stop condition 1 — FIXED.** The conditions are now stated per applicable slice, and
+  condition 1 applies to slices 0 to 2 only; slices 3 to 5 get condition 1a over `discloseFault`.
+- **Important 6, N9 and the recoverable handler — FIXED.** N10 is a structural reorder that a new
+  case catches on a call count; N14 and N15 mutate `onRecoverableError` separately.
+- **Minor 1, the stray `</p>;` — FIXED** in the listing itself.
+
+**Critical.**
+
+1. **Neither red run is possible — FIXED**, step 3.1. Reproduced exactly as described: with no
+   scaffold both files fail to collect. With it, `main.test.tsx` fails on
+   `expected undefined to be {}` and `app-fault.test.tsx` on three
+   `expected undefined to be type of 'function'` assertions — the explicit presence checks the
+   review asked for, because `ROOT_FAULT_OPTIONS.onUncaughtError?.(…)` over an empty object asserts
+   nothing.
+2. **Three missing imports — FIXED, by removing the need for them.** The finding is right that the
+   old Appendix D2 used `createRoot`, `act` and `ReactNode` with no import. Rather than add three
+   imports, the hand-built production root is gone: all six hostile-value cases were rehearsed under
+   `@testing-library`'s `render` and pass, because with Appendix C's descriptor selector no code
+   path reads the caught value, so react-dom's own default handlers have nothing to choke on. The
+   root's wiring is proven by `main.test.tsx` and by the Chromium case. `wbs-fe-01:typecheck` and
+   `wbs-fe-01:lint` both exit 0 on the rehearsed tree.
+3. **N9 passed under its fault — FIXED.** Confirmed: the old fixture threw an ordinary `Error`, so
+   the selector returned `null` and nothing the named test asserted moved. Appendix D2 adds
+   `never offers an unreportable value to a disclosure selector`, which supplies a `vi.fn()` selector
+   through the production `FaultBoundary`'s `discloses` prop and asserts it was never called; N10 is
+   now the exact reorder of the guarded selector block above the reporting-loss return, and the
+   named test fails on
+   `AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times`.
+   The guard itself moved to its own case and its own mutation, N11, which fails with
+   `Error: the selector could not read it` escaping the test.
+4. **Hostile values in rendering — FIXED**, and the review's proposed proof turned out to be
+   unprovable through the DOM. The descriptor check is in. Both requested render tests exist:
+   `never invokes an accessor to read the chart’s sentence` asserts zero accessor calls and the
+   surviving editor, and `never discloses a chart message that is not a string` covers the
+   invalid-value outcome. But the second one, asserted on the rendered text, **could not be made to
+   fail**: with the string check weakened, the boundary caught its own fallback's throw and
+   re-rendered the generic sentence, so the page read identically. It is asserted on the console line
+   instead, and now fails on `expected [ [ …(4) ], [ …(4) ] ] to have a length of 1 but got 2`.
+   Verified fact 17 records that behaviour, because it is the trap a later reader would fall into.
+5. **A successful slice 2 blocked later dispatches — FIXED**, see Important 5 above.
+
+**Important.**
+
+1. **Missing R5 mutations — FIXED.** N7 (chart reference element), N14 (caught value appended to
+   `onRecoverableError`) and N15 (its identifier dropped) are new, each watched alone, each failing
+   only its named test except where the packet records the extra failures.
+2. **Appendix J contradicted itself — FIXED.** Its first requirement now names the three cases —
+   generic public report, a kind's validated sentence, fixed loss text with a local handle — and
+   scopes the no-raw-text prohibition to them; a fourth scenario covers a kind's sentence that
+   cannot be read as a string. The exact text was appended to the real delta spec and validated:
+   107 items, 0 failed.
+3. **Hard-coded counts — FIXED.** Slices 1, 2, 3 and 4 name their baselines (`B_VITE`, `B_FAULT`,
+   `B_NEIGHBOURS`, `B_FAULT3`, `B_BUNDLE`) and state every expectation as that baseline plus the
+   tests the slice adds; red runs are identified by test name and assertion fact, and the rehearsal
+   totals are labelled as history. Stop condition 4 no longer enforces a number. Two of the old
+   literals were simply wrong, which is how they were caught: the neighbour baseline is 249 and not
+   256, and the pair of new suites adds fourteen tests and not eleven.
+
+**Minor.**
+
+1. **`</p>;` — FIXED** in step 2.11's listing.
+2. **Verified fact 3's grep — FIXED**: the packet now quotes
+   `git grep -n faultWords apps/wbs/fe-01/src` and says what the unrestricted form also returns.
+3. **Step 4.1's helper wording and 4.7's destinations — FIXED.** Step 4.1 gives the complete
+   replacement `if (chunks.length !== 1) { … }` statement with its comment; step 4.7 puts all four
+   browser proof comments in `fault-boundary.spec.ts`, judges the chunk-count negative by its chunk
+   count, and slice 4's changed-path list no longer names any file under `src/`.
+
+**Rehearsed and not reported by either review.** `src/main.test.tsx` failed twice on
+`Error: Test timed out in 5000ms.` before reaching any assertion, because `await import('./main')`
+builds the whole application graph inside the test body; Appendix E now carries an explicit
+`}, 30_000)` and verified fact 18 says why. And the renamed root-boundary case, at its first
+spelling, pushed `itDom('…', () => {` past Prettier's print width; the commit hook's `format` step
+refused the commit with `[warn] apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx`, so step
+2.3 prescribes the shorter title and says what happens to a longer one. With both fixed, the whole
+rehearsed tree committed under lefthook with `format` and `lint` green.
