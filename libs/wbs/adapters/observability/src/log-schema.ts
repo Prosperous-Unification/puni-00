@@ -25,6 +25,12 @@ export const LogRecord = type({
   'trace_id?': 'string',
   'span_id?': 'string',
   'version?': 'string',
+  // Proof: relaxing the diagnostic branch's `v` to `'v?': 'string'` accepted a public report and
+  // failed "refuses a public report where the schema expects a failure record"; making the loss
+  // branch's `reason` optional accepted a half-written loss and failed "refuses a reporting loss
+  // that names no reason"; restoring the pre-change `{ name, message, stack? }` member failed
+  // "logs a failure as the diagnostic report and validates against the schema" with
+  // `err.message must be a string (was missing)` (2026-09-21).
   'err?': [
     {
       v: '/^corj\\//',

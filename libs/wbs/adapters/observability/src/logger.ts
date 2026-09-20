@@ -33,9 +33,15 @@ export function createLogger(opts: CreateLoggerOptions): Logger {
     level,
     base,
     timestamp: () => `,"time":${String(Date.now())}`,
+    // Proof: passing `createFailureRedaction([])` instead of the caller's secrets printed
+    // `"stack":["Error: token was hunter2"` and failed "scrubs a secret this process owns out of
+    // the failure line" (2026-09-21).
     serializers: { err: createFailureSerializer(redact) },
     formatters: {
       level: (label: string) => ({ level: label }),
+      // Proof: removing this hook dropped an explicitly present `err: undefined` before any
+      // serializer saw it and failed "reports an explicitly present undefined failure instead of
+      // dropping it" on `expect(received).toBeDefined()` / `Received: undefined` (2026-09-21).
       log: (fields: Record<string, unknown>) => keepAbsentFailure(fields, redact),
     },
   };
