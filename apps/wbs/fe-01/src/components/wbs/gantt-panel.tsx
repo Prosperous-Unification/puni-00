@@ -5749,11 +5749,15 @@ function GanttChart({
             the same terminal extent lets either face drive the last row/fraction
             without its follower clamping. A child, not panel padding: padding
             would consume the chart's visible height under border-box sizing. */}
-        <div
-          aria-hidden="true"
-          data-gantt-terminal-allowance
-          style={{ height: PLAN_TERMINAL_ALLOWANCE }}
-        />
+        {!fullScreen &&
+          rowCount * ROW_PX >
+            (typeof window === 'undefined' ? Number.POSITIVE_INFINITY : window.innerHeight) && (
+            <div
+              aria-hidden="true"
+              data-gantt-terminal-allowance
+              style={{ height: PLAN_TERMINAL_ALLOWANCE }}
+            />
+          )}
 
         {/*
           The bottom edge of a panel with chart still under it, said in a way
