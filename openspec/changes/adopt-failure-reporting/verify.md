@@ -214,6 +214,46 @@ Slice F adds no production check and therefore owes no negative proof. Slice G r
 limit and the shared reporting call separately, using the cases added here as the watched
 production-path negatives.
 
+### Slice G — watched report-limit negatives
+
+Baseline before the five fault injections:
+
+```text
+workspace-projects: 17 pass, 0 fail
+sync: 48 pass, 0 fail
+workspace-inventory: 4 pass, 0 fail
+namespace-layout: 19 pass, 0 fail
+workspace-targets: 19 pass, 0 fail
+current-document link case: 1 pass, 13 filtered out, 0 fail
+OpenSpec: 104 passed, 0 failed
+inventory pins: 167 rows, 84 distinct files
+README pin absent; digest pin present
+```
+
+Focused implementation checks completed before formatting:
+
+| Command                                                                | Result                                              |
+| ---------------------------------------------------------------------- | --------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run shared-failures:typecheck`                | exit 0; target completed without diagnostics        |
+| `NX_DAEMON=false bunx nx run shared-failures:lint`                     | exit 0; target completed without problems           |
+| `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`     | exit 0; 20 pass, 0 fail; 56 assertions              |
+| `grep -rn 'WRITTEN IN SLICE' libs/shared/domain/failures`              | exit 1; no placeholder remains                      |
+| `GSETTINGS_BACKEND=memory bunx prettier --write` on both Slice G files | exit 0; production file unchanged; record formatted |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`  | exit 0; repository formatting clean                 |
+
+Watched production negatives, all restored byte for byte with `cmp` and followed by a full-file
+run of 20 pass, 0 fail:
+
+| Proof                   | Fault                                        | Named failing test                                                         | Observed failure                                                                   | Evidence                                                                                                                   |
+| ----------------------- | -------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| G1 `shared-call-split`  | Replaced one `toReports` call with two calls | `correlates a primitive failure without publishing its contents`           | `toBe` compared two different `AE_…` occurrence ids                                | `shared-call-split.patch` and `shared-call-split.out` in the attempt's evidence directory                                  |
+| G2 `inspection-default` | Removed `inspection: 'no-invoke'`            | `does not run a throwing getter while reporting`                           | `reporting_errors` contained `error: "Error: ran"`; the constants test also failed | `inspection-default.patch`, `inspection-default.out` and `inspection-default-full.out` in the attempt's evidence directory |
+| G3 `budget-removed`     | Removed `maxReportSize`                      | `bounds a very long Unicode message and marks it truncated`                | `truncated` was `undefined`; the constants test also failed                        | `budget-removed.patch`, `budget-removed.out` and `budget-removed-full.out` in the attempt's evidence directory             |
+| G4 `depth-removed`      | Removed `maxDepth`                           | `stops the cause walk at the depth limit and says so on the deepest child` | Expected `"max_depth"`, received `undefined`; the constants test also failed       | `depth-removed.patch`, `depth-removed.out` and `depth-removed-full.out` in the attempt's evidence directory                |
+| G5 `children-removed`   | Removed `maxChildren`                        | `stops at the child limit and says so on the root`                         | Expected `"max_children"`, received `undefined`; the constants test also failed    | `children-removed.patch`, `children-removed.out` and `children-removed-full.out` in the attempt's evidence directory       |
+
+Planner, after slice G, 2026-09-20: slice G changed only `Proof:` comments in `report-failure.ts`. Replayed `depth-removed` outside the sandbox (`maxDepth` taken out of the shared limits): `stops the cause walk at the depth limit and says so on the deepest child` failed with `Expected: "max_depth"`, and the constants test failed with it (recorded, not a stop); restored byte for byte. Project test, typecheck and lint pass.
+
 ## Decision
 
 - [ ] Archive readiness is outside Slice A. Tasks remain open until implementation and evidence are complete.

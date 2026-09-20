@@ -23,9 +23,17 @@ import {
  * `'[not-inspected]'`.
  */
 export const FAILURE_REPORT_LIMITS: AppexCorjOptions = {
+  // Proof: removing the byte budget left `truncated` undefined in the
+  // long-Unicode-message test (2026-09-20).
   maxReportSize: 32_768,
+  // Proof: removing the depth limit left `children_omitted` undefined instead of
+  // `max_depth` on the deepest child (2026-09-20).
   maxDepth: 4,
+  // Proof: removing the child limit left root `children_omitted` undefined instead
+  // of `max_children` in the aggregate test (2026-09-20).
   maxChildren: 16,
+  // Proof: removing `no-invoke` ran the throwing getter and reported
+  // `error: "Error: ran"` in the getter test (2026-09-20).
   inspection: 'no-invoke',
 };
 
@@ -138,6 +146,8 @@ export function reportFailure(
       reported: true,
       // Proof: removing `redact` from the public bag disclosed `alice@example.com`
       // in the public-details test (2026-09-20).
+      // Proof: splitting this shared call produced two different `AE_…` ids in the
+      // primitive-correlation test (2026-09-20).
       reports: toReports(caught, {
         diagnostic: { ...bag, context: options.context },
         public: bag,
