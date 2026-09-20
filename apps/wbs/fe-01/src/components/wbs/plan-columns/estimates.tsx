@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { type StepView } from '@/lib/wbs-api';
 
 import { useCardOpenOn } from '../cell-card-store';
@@ -109,6 +111,13 @@ export function createEstimatesColumns({
             live.current.cellCards,
             cellKey(row.original.id, `${step.id}-final`),
           );
+          // Whether this cell is being typed in, which is the one thing that decides
+          // whether the trio is at full strength. Local state and not a read off
+          // `live`: the box is the cell's only focusable thing, and a store entry for
+          // "which cell has the focus" already exists for the cards and answers a
+          // different question — it survives a pointer visiting another cell.
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          const [typing, setTyping] = useState(false);
           // A folded step must not be able to hide a complaint: a typed
           // trio that saves nothing stays visible as a mark on the figure
           // the fold leaves behind.
@@ -222,6 +231,10 @@ export function createEstimatesColumns({
               // and leaving the cell has to take a half-typed `@ka` with
               // it. Nothing else in here can hold the focus.
               onBlur={() => {
+                // Proof: deleting only this reset left the box at full strength after blur;
+                // `gives the trio back its strength on focus and quiets it again on blur`
+                // failed on `expected 'inherit' to be '10px'`. Watched 2026-09-20.
+                setTyping(false);
                 live.current.leaveFoldedCell();
                 // The focus-opened card goes with the focus. Guarded like
                 // every other clear: a blur can land after the next cell has
@@ -364,6 +377,7 @@ export function createEstimatesColumns({
                   // replaces is remembered first — see `enterFoldedCell`.
                   aria-describedby={carded ? cardId : undefined}
                   onFocus={(e) => {
+                    setTyping(true);
                     live.current.enterFoldedCell(e.currentTarget);
                     // The focus opens the card the pointer opens — through
                     // its own state, so a mouse crossing the table cannot
@@ -383,8 +397,9 @@ export function createEstimatesColumns({
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    font: 'inherit',
-                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                    fontStyle: 'inherit',
+                    lineHeight: 'inherit',
                     // Grows, and that is only safe because what sits to
                     // its right is now the **same width on every row** —
                     // see {@link ASSIGNEE_SLOT_PX}. Growing against a
@@ -403,6 +418,22 @@ export function createEstimatesColumns({
                     // is back to what it was.
                     flex: 1,
                     minWidth: 0,
+                    // The one state this cell has: quiet at rest, the row's own type while
+                    // somebody is typing in it. A complaint is never quiet — a refusal that
+                    // receded would be the cell hiding its own objection.
+                    // Proof: replacing this branch with the full-strength arm made `quiets the
+                    // trio while the cell is not being typed in` fail on `expected 'inherit' to
+                    // be '10px'`. Dropping `typing` made the focus-and-blur test fail on
+                    // `expected '10px' to be 'inherit'`; dropping `problem !== null ||` made the
+                    // refused-trio test fail on `expected '10px' to be 'inherit'`. Watched
+                    // separately, 2026-09-20.
+                    ...(problem !== null || typing
+                      ? { fontSize: 'inherit', fontWeight: 600 }
+                      : {
+                          fontSize: QUIET_TRIO_PX,
+                          fontWeight: 400,
+                          color: 'var(--muted-foreground)',
+                        }),
                     ...(problem === null
                       ? {}
                       : {
@@ -473,6 +504,17 @@ export function createEstimatesColumns({
                     boxSizing: 'border-box',
                     padding: 2,
                     border: '2px solid transparent',
+                    // The resting box's type, spelled again, for the reason the padding and
+                    // the border above are: `e2e/layout.spec.ts`'s `stands a parent’s figure in
+                    // the same slot as its leaves’` compares this span's computed size and
+                    // weight with an unfocused leaf box's, and one column that reads in two
+                    // sizes is two columns.
+                    // Proof: dropping these three declarations made `quiets a parent’s rolled-up
+                    // trio exactly as a leaf’s` fail on `expected '' to be '10px'`. Watched
+                    // 2026-09-20.
+                    fontSize: QUIET_TRIO_PX,
+                    fontWeight: 400,
+                    color: 'var(--muted-foreground)',
                   }}
                 >
                   {atRest}
@@ -872,3 +914,18 @@ export function createEstimatesColumns({
  * (`folded-step-card.tsx`), which is what makes the clip affordable.
  */
 export const ASSIGNEE_SLOT_PX = 32;
+
+/**
+ * The type the typed trio recedes to while its cell is not being written in.
+ *
+ * 10px is this table's caption size — the heading row's (`styles.css`) and the
+ * size the derived figure was drawn at from 2026-08-30 until this change — so
+ * it is a size this column is already known to be readable at. It is also what
+ * pays for the result growing to the row's own 13px: at 13px the trio
+ * `20/24/30` wants about 50px of a box in a 96px column shared with a 32px
+ * assignee slot, and at 10px it wants about 39px. The measurement that decides
+ * it is Chromium's, in `e2e/layout.spec.ts`'s `holds a trio and its figure on
+ * one line of a folded step cell`; `plan-estimates.test.tsx` asserts against
+ * this constant rather than against the number, so changing it changes no test.
+ */
+export const QUIET_TRIO_PX = 10;

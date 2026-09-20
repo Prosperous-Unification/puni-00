@@ -7,6 +7,7 @@ import { recordCalls } from '@/testing/record-calls';
 
 import { STEP_FINAL_HINT } from './column-hints';
 import { initialsOf } from './initials';
+import { QUIET_TRIO_PX } from './plan-columns/estimates';
 import type * as TableFrameModule from './table-frame';
 import { WbsTable } from './wbs-table';
 
@@ -823,19 +824,26 @@ describe('assigning from a folded step’s cell with @', () => {
 });
 
 describe('one cell for the whole trio', () => {
+  const quiet = `${String(QUIET_TRIO_PX)}px`;
+
   /** The folded step's cell: holds the trio shorthand, takes `o/r/p`. */
   const combinedCell = (number: string, step = 'Dev') =>
     screen.getByLabelText<HTMLInputElement>(`${step} estimate for ${number}`);
 
   /**
-   * The muted figure beside that cell, or null where the cell says it already.
+   * The folded cell's main reading — the step's result — or null where there
+   * is none: an unestimated step, or an unfolded one whose own figure says it.
    *
    * By its own attribute rather than by reading the whole cell: the assignee's
    * initials sit in the same box, and a text assertion over both would pass on
    * a figure that had moved into the wrong span.
    */
   const foldedFinal = (number: string, stepId = 'step-dev') =>
-    rowFor(number).querySelector(`[data-folded-final="${stepId}"]`);
+    rowFor(number).querySelector<HTMLElement>(`[data-folded-final="${stepId}"]`);
+
+  /** The parent's rolled-up trio span, or null on a leaf. */
+  const rolledTrio = (number: string, stepId = 'step-dev') =>
+    rowFor(number).querySelector<HTMLElement>(`[data-rolled-trio="${stepId}"]`);
 
   /** Types shorthand into the folded cell and leaves it, the way a person does. */
   const typeCombined = (number: string, value: string) => {
@@ -1269,6 +1277,70 @@ describe('one cell for the whole trio', () => {
       );
     });
     expect(foldedFinal('010')?.textContent).toBe('· 4');
+  });
+
+  itDom('quiets the trio while the cell is not being typed in', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 3.7');
+    });
+
+    const cell = combinedCell('010');
+    expect(cell.style.fontSize).toBe(quiet);
+    expect(cell.style.fontWeight).toBe('400');
+    expect(cell.style.color).toBe('var(--muted-foreground)');
+  });
+
+  itDom('gives the trio back its strength on focus and quiets it again on blur', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/8');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 3.7');
+    });
+
+    fireEvent.focus(combinedCell('010'));
+    expect(combinedCell('010').style.fontSize).toBe('inherit');
+    expect(combinedCell('010').style.fontWeight).toBe('600');
+
+    fireEvent.blur(combinedCell('010'));
+    expect(combinedCell('010').style.fontSize).toBe(quiet);
+    expect(combinedCell('010').style.fontWeight).toBe('400');
+  });
+
+  itDom('leaves a refused trio at full strength, because a complaint may not recede', async () => {
+    await oneRow();
+    typeCombined('010', '2/3/10');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 4');
+    });
+
+    const cell = typeCombined('010', '9/9/');
+
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(cell.style.fontSize).toBe('inherit');
+  });
+
+  itDom('quiets a parent’s rolled-up trio exactly as a leaf’s', async () => {
+    const api = await oneRow();
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    typeCombined('010.1', '2/3/10');
+    await waitFor(() => {
+      expect(api.rows.find((row) => row.id === 'w2')?.estimates['step-dev']).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 4');
+    });
+
+    expect(rolledTrio('010')?.style.fontSize).toBe(quiet);
+    expect(rolledTrio('010')?.style.fontWeight).toBe('400');
+    expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
   });
 
   itDom('is a cell of the keyboard grid, so a column can be typed down', async () => {
