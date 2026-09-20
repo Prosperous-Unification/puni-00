@@ -1128,8 +1128,8 @@ _Avoid_: layer (for this), tier (that is a deployable process), level
 
 **Adapter**:
 A concrete thing that satisfies a port: a drizzle repository, an in-memory store, the Elysia
-mount, the browser digest. `Repository` is the SQLite adapter's suffix and means nothing
-outside that source.
+mount, the browser digest. `Repository` is the SQLite adapter's filename suffix; as a service
+kind the same word names a port and its adapter together.
 _Avoid_: implementation (when the seam is the topic), driver, provider
 
 **Source**:
@@ -1211,6 +1211,34 @@ The one place ports are bound to adapters and services are built, in core, calle
 over the SQLite source and by tests over the in-memory one. The batch runner calls its
 services half again over a scope.
 _Avoid_: DI container, wiring file, bootstrap (for this)
+
+**Service kind**:
+Which of four roles a service file plays — repository, resource-service, feature-service or
+delivery — declared by its filename suffix or by a classification entry, and fixing the one
+direction it may import in. ADR 0029.
+_Avoid_: layer, stereotype, tier, category
+
+**Repository**:
+The kind that reaches one external thing — a table store, a third-party API, browser storage,
+a socket — and holds no decisions. A pair: the port core owns and the adapter that satisfies
+it, so depending on a repository means depending on the port.
+_Avoid_: DAO, data layer, store (alone)
+
+**Resource-service**:
+The kind that holds the quirks and invariants of one resource, an aggregate named after one
+glossary term. It imports repository ports and the domain library, never a feature-service.
+_Avoid_: service (alone — that is the directory term), manager, store service
+
+**Feature-service**:
+The kind that delivers one piece of user-facing value by coordinating resource-services, named
+after one requirement group of one capability. It owns the transaction and never reaches a
+repository.
+_Avoid_: service (alone — that is the directory term), use case, orchestrator
+
+**Delivery**:
+The kind at the edge people or machines touch — a controller, a tool handler, a component and
+its hooks. It holds no policy and imports feature-services only.
+_Avoid_: presentation, UI layer, endpoint (that is a bound route)
 
 ### Deployment
 

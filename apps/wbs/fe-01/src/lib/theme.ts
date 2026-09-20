@@ -10,7 +10,8 @@ import {
   useState,
 } from 'react';
 
-import { remembered } from './remembered';
+import { rememberedPreferences } from '@/modules/preferences/composition';
+import { THEME_KEY } from '@/modules/preferences/preference-keys';
 
 /**
  * What a reader has asked for, which is not the same as what is painted.
@@ -35,7 +36,7 @@ export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark']
  * reason: a palette is an answer about **this screen in this room**, and having
  * to say it again in the next project is the fault remembering it away is for.
  */
-export const THEME_KEY = 'wbs.theme';
+export { THEME_KEY };
 
 /** The query the platform answers with its own light/dark setting. */
 export const DARK_QUERY = '(prefers-color-scheme: dark)';
@@ -47,8 +48,8 @@ function isThemeChoice(claimed: unknown): claimed is ThemeChoice {
   return claimed === 'system' || claimed === 'light' || claimed === 'dark';
 }
 
-/** The choice as stored, judged by {@link isThemeChoice} — see {@link remembered}. */
-const storedChoice = remembered(THEME_KEY, isThemeChoice);
+/** The choice as stored, judged by {@link isThemeChoice}. */
+const storedChoice = rememberedPreferences.themeChoice(isThemeChoice);
 
 /**
  * The choice as this browser last said it — and `system` where it has never
@@ -64,6 +65,9 @@ export function rememberedTheme(): ThemeChoice {
   // three, and drops the key` failed on `expected '"midnight"' to be null` —
   // the unreadable key left in storage to be read again next time — and
   // `refuses storage that is not JSON at all` with it.
+  // Proof: the shared refusal drop made a no-op failed three resource cases,
+  // including `a read that drops removes the refused key; a plain read writes
+  // nothing`, on `expected '"midnight"' to be undefined`. Observed 2026-09-20.
   return storedChoice.readAndDrop() ?? 'system';
 }
 

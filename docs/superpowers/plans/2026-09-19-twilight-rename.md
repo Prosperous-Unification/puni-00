@@ -94,7 +94,7 @@ The shared contracts library holds the three records the tools exchange: candida
 
 **Files:** modify `docs/twilight-structure/spec.md`, `docs/twilight-structure/sdlc-stages.md`, `docs/twilight-structure/product-experience.md`, `docs/twilight-structure/client-repositories.md`, `docs/twilight-structure/knowledge.md`, `docs/twilight-structure/assumptions.md`, `docs/wiki/README.md`.
 
-- [ ] In each file, find every use of the old meaning:
+- [x] In each file, find every use of the old meaning:
 
 ```sh
 git grep -n -E "Twilight Structure|\bTwilight\b" -- docs/twilight-structure/spec.md \
@@ -103,11 +103,11 @@ git grep -n -E "Twilight Structure|\bTwilight\b" -- docs/twilight-structure/spec
   docs/twilight-structure/assumptions.md docs/wiki/README.md
 ```
 
-- [ ] For each hit, apply the one-line test from the spec. A sentence about running, building, deploying, testing or environments becomes Twilight Dash. A sentence about discovery, specification or planning with a person becomes Twilight Navigator. A sentence about rules, templates, evidence validity or coverage judgment becomes Twilight Bureaucrat. A sentence about what a customer buys becomes Vesper Shipyards. A sentence about all tools together keeps Twilight Structure.
-- [ ] In `sdlc-stages.md`, replace the closing section's separate compiler and verifier tool with the split from the spec, and add the stage ownership sentence: request through planning are Twilight Navigator's, implementation through release are Twilight Dash's, every stage gate is Twilight Bureaucrat's.
-- [ ] In `spec.md`, keep the dated requirement rows verbatim, because they record what the user said on that date. Add one dated paragraph under Intent that maps the catalogue to the new names.
-- [ ] Leave every file under the evidence and research directories unchanged.
-- [ ] Remove the reading note's last sentence from the Twilight README once this task and Task 3 are complete.
+- [x] For each hit, apply the one-line test from the spec. A sentence about running, building, deploying, testing or environments becomes Twilight Dash. A sentence about discovery, specification or planning with a person becomes Twilight Navigator. A sentence about rules, templates, evidence validity or coverage judgment becomes Twilight Bureaucrat. A sentence about what a customer buys becomes Vesper Shipyards. A sentence about all tools together keeps Twilight Structure.
+- [x] In `sdlc-stages.md`, replace the closing section's separate compiler and verifier tool with the split from the spec, and add the stage ownership sentence: request through planning are Twilight Navigator's, implementation through release are Twilight Dash's, every stage gate is Twilight Bureaucrat's.
+- [x] In `spec.md`, keep the dated requirement rows verbatim, because they record what the user said on that date. Add one dated paragraph under Intent that maps the catalogue to the new names.
+- [x] Leave every file under the evidence and research directories unchanged.
+- [x] Remove the reading note's last sentence from the Twilight README once this task and Task 3 are complete. Done on 2026-09-20.
 - [ ] Verify:
 
 ```sh
@@ -121,11 +121,11 @@ bunx nx format:check --all
 
 **Files:** modify prose in `openspec/changes/twilight-control-plane/{proposal.md,design.md,tasks.md}` and its delta specs, `openspec/changes/twilight-review-hardening/`, `openspec/changes/twilight-sdlc-pilot/` where it states current intent, and the two Bureaucrat package changes. Identifiers and directory names stay.
 
-- [ ] Replace the unit table in the control-plane design with the names from [Planned unit names](#planned-unit-names) and delete the verifier tool's row.
-- [ ] In the design's boundary diagram and prose, name the runtime Twilight Dash, the planning port's owner Twilight Navigator, and the knowledge and verification operations Twilight Bureaucrat.
-- [ ] Assign each proposed capability an owning tool in its delta spec's purpose: assistant interaction and repository planning to Twilight Navigator; control plane and delivery environments to Twilight Dash.
-- [ ] Record the lease migration as an open design item in the control-plane design: admission verdicts stay with Twilight Bureaucrat, lease acquisition, heartbeat and fencing move to Twilight Dash.
-- [ ] Do not touch `verify.md` files. They record what was observed under the old names.
+- [x] Replace the unit table in the control-plane design with the names from [Planned unit names](#planned-unit-names) and delete the verifier tool's row.
+- [x] In the design's boundary diagram and prose, name the runtime Twilight Dash, the planning port's owner Twilight Navigator, and the knowledge and verification operations Twilight Bureaucrat.
+- [x] Assign each proposed capability an owning tool in its delta spec's purpose: assistant interaction and repository planning to Twilight Navigator; control plane and delivery environments to Twilight Dash.
+- [x] Record the lease migration as an open design item in the control-plane design: admission verdicts stay with Twilight Bureaucrat, lease acquisition, heartbeat and fencing move to Twilight Dash.
+- [x] Do not touch `verify.md` files. They record what was observed under the old names. Done on 2026-09-20.
 - [ ] Verify the structured report, not the exit code:
 
 ```sh
@@ -138,10 +138,10 @@ bunx @fission-ai/openspec@1.12.0 validate --all --json |
 
 ### Task 4: Reword decisions and current plans
 
-**Files:** modify `docs/adr/0027-planning-commits-are-the-transaction-boundary.md`, `docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md`, `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`, `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`, `docs/superpowers/plans/2026-09-17-k3s-fleet.md`, `infra/README.md`.
+**Files:** modify `docs/adr/0027-planning-commits-are-the-transaction-boundary.md`, `docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md`, `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`, `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`, `docs/superpowers/plans/2026-09-17-k3s-fleet.md`, `docs/infra/README.md`.
 
-- [ ] An accepted ADR keeps its decision text. Add one dated line under its status naming the owning tool: ADR 0027 belongs to Twilight Navigator's planning contract and ADR 0028 to Twilight Dash's worker pool.
-- [ ] In the fleet documents, state once that the fleet and its delivery tooling are Twilight Dash's, and leave task identifiers and evidence links unchanged.
+- [x] An accepted ADR keeps its decision text. Add one dated line under its status naming the owning tool: ADR 0027 belongs to Twilight Navigator's planning contract and ADR 0028 to Twilight Dash's worker pool.
+- [x] In the fleet documents, state once that the fleet and its delivery tooling are Twilight Dash's, and leave task identifiers and evidence links unchanged. Done on 2026-09-20.
 - [ ] Verify with the same two commands as Task 2.
 
 **Deliverable:** decisions and active plans point at the tool that owns them.

@@ -1,12 +1,4 @@
-import {
-  type ReactNode,
-  type SubmitEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 import { Button } from '@/components/ui/button';
@@ -24,22 +16,16 @@ import { CreatablePicker } from '@/components/wbs/creatable-picker';
 import {
   type DirectoryApi,
   type DirectoryEffect,
-  type DirectoryRefusal,
   directoryRefusalSentence,
-  type DirectoryRemoval,
   type DirectoryUsage,
-  type DirectoryWrite,
-  httpDirectoryApi,
   isPersonKind,
   type PersonKindView,
   type PersonView,
   type ServiceView,
-  type TagView,
   type TeamView,
-  type WorkItemTypeView,
 } from '@/lib/wbs-api';
-
-import { failureText } from '../wbs/plan-refusal';
+import type { DirectoryKind } from '@/modules/directory-management/contract';
+import { useDirectoryManagement } from '@/modules/directory-management/view/use-directory-management';
 
 export interface DirectoryPageProps {
   token: string;
@@ -51,14 +37,7 @@ export interface DirectoryPageProps {
   account?: ReactNode;
 }
 
-/**
- * Which of the directory's four vocabularies a row belongs to.
- *
- * One name for what was three separate inline unions — `Confirming.kind`,
- * `commitRename`'s parameter and `askToRemove`'s — the moment a fourth arm
- * arrived. Two copies that agree are a fact; four are a chore.
- */
-export type DirectoryKind = 'person' | 'team' | 'tag' | 'service' | 'type';
+export type { DirectoryKind };
 
 /** A removal be-01 refused, and the decision the reader has not made yet. */
 interface Confirming {
@@ -196,19 +175,13 @@ const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_inpu
  * refusal on it.
  */
 export function DirectoryPage({ token, api: apiOverride, nav, account }: DirectoryPageProps) {
-  const directory = useMemo(() => apiOverride ?? httpDirectoryApi(token), [apiOverride, token]);
+  const { management, shown } = useDirectoryManagement(token, apiOverride);
+  const { people, teams, tags, services, workItemTypes, busy, problem } = shown;
 
-  const [people, setPeople] = useState<PersonView[]>([]);
-  const [teams, setTeams] = useState<TeamView[]>([]);
-  const [tags, setTags] = useState<TagView[]>([]);
-  const [workItemTypes, setWorkItemTypes] = useState<WorkItemTypeView[]>([]);
   const [newTag, setNewTag] = useState('');
   const [newWorkItemType, setNewWorkItemType] = useState('');
-  const [services, setServices] = useState<ServiceView[]>([]);
   const [newService, setNewService] = useState('');
-  const [problem, setProblem] = useState<DirectoryRefusal | null>(null);
   const [confirming, setConfirming] = useState<Confirming | null>(null);
-  const [busy, setBusy] = useState(false);
   const [newPerson, setNewPerson] = useState('');
   const [newTeam, setNewTeam] = useState('');
   /**
@@ -231,62 +204,6 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const chipKey = (personId: string, teamId: string): string => `${personId}:${teamId}`;
 
   /**
-   * The read entitled to write the screen — `wbs-table.tsx`'s `latestRefresh`,
-   * for its reason and one more of this page's own.
-   *
-   * Three call sites fire {@link read} and none is gated on the others:
-   * arrival, `window.focus` and `visibilitychange`. Two of them overlap the
-   * moment somebody switches windows twice, they finish in whatever order the
-   * network gives them, and an earlier one landing last would replace the
-   * panels with a directory older than what is on screen — with nothing
-   * guaranteed to arrive afterwards and repair it.
-   *
-   * The page being non-optimistic does not cover this: that is an argument
-   * about **writes**, and every write here re-reads. The hazard is in the
-   * reads.
-   *
-   * C3 had a second, sharper reason here — `commitSize` short-circuited on the
-   * size it believed be-01 held, so typing what a stale screen showed sent
-   * nothing at all. That box moved to the plan's own `TeamsPanel` in
-   * `capacity-per-project`, and the short-circuit went with it. The guard stays:
-   * the stale-name hazard is enough on its own, and every one of the three call
-   * sites is still ungated without it.
-   */
-  const latestRead = useRef(0);
-
-  const read = useCallback(async () => {
-    const generation = latestRead.current + 1;
-    latestRead.current = generation;
-    const [foundPeople, foundTeams, foundTags, foundServices, foundWorkItemTypes] =
-      await Promise.all([
-        directory.listPeople(),
-        directory.listTeams(),
-        directory.listTags(),
-        directory.listServices(),
-        directory.listWorkItemTypes(),
-      ]);
-    // Proof: this line deleted, `and only the newest read may write the screen`
-    // alone failed, on `expected null not to be null` — a superseded read
-    // putting the name somebody had just changed back on the panel. Watched
-    // 2026-08-13.
-    if (generation !== latestRead.current) return;
-    setPeople(foundPeople);
-    setTeams(foundTeams);
-    setTags(foundTags);
-    setWorkItemTypes(foundWorkItemTypes);
-    setServices(foundServices);
-  }, [directory]);
-
-  const reportFailedRead = useCallback((thrown: unknown) => {
-    setProblem({ reason: 'refused', code: failureText(thrown, 'request_failed') });
-  }, []);
-
-  // Arrival.
-  useEffect(() => {
-    void read().catch(reportFailedRead);
-  }, [read, reportFailedRead]);
-
-  /**
    * Coming back to the page, by either of the two ways a browser reports it.
    *
    * Both, because they are not the same event: `focus` fires for a window
@@ -297,7 +214,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    */
   useEffect(() => {
     const again = () => {
-      void read().catch(reportFailedRead);
+      void management.read().catch(management.reportFailedRead);
     };
     const whenVisible = () => {
       if (document.visibilityState === 'visible') again();
@@ -308,7 +225,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       window.removeEventListener('focus', again);
       document.removeEventListener('visibilitychange', whenVisible);
     };
-  }, [read, reportFailedRead]);
+  }, [management]);
 
   /**
    * Puts the focus on the chip a keyboard removal left, once the panels have
@@ -331,34 +248,6 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     // be worse than leaving it where the browser put it.
     if (node !== undefined) node.focus();
   }, [people, busy]);
-
-  /**
-   * Runs one directory change, reports what refused it, and re-reads either way.
-   *
-   * Re-reads on the refusal too: a `taken` leaves the entry exactly as be-01
-   * has it, and redrawing from the answer is what puts the surviving name back
-   * on the panel rather than leaving the typed one sitting there looking
-   * accepted.
-   */
-  const attempt = useCallback(
-    async (change: () => Promise<void>): Promise<void> => {
-      setBusy(true);
-      setProblem(null);
-      try {
-        await change();
-      } catch (thrown: unknown) {
-        setProblem({ reason: 'refused', code: failureText(thrown, 'request_failed') });
-      }
-      try {
-        await read();
-      } catch (thrown: unknown) {
-        reportFailedRead(thrown);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [read, reportFailedRead],
-  );
 
   const withoutDraft = (current: Record<string, string>, id: string): Record<string, string> =>
     Object.fromEntries(Object.entries(current).filter(([at]) => at !== id));
@@ -383,82 +272,11 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const nameShown = (entry: { id: string; name: string }): string =>
     renamed[entry.id] ?? entry.name;
 
-  /**
-   * What renaming and removing mean for each vocabulary, in **one** place.
-   *
-   * `commitRename`, `askToRemove` and `confirmRemoval` each carried a copy of
-   * the same three-branch ternary over `kind`, and the copies agreed. A fourth
-   * arm is where that agreement stops being a fact about the code and becomes
-   * something somebody has to keep true in three places — the argument task 7.4
-   * settled for the export's three label cells, one screen over.
-   *
-   * The entry type is narrowed to `{ id; name }` on purpose: these two call
-   * sites read `ok` and `survivingName` and nothing else, and a person, a team,
-   * a tag and a service differ in ways no caller here looks at.
-   */
-  const writesFor: Record<
-    DirectoryKind,
-    {
-      rename: (id: string, name: string) => Promise<DirectoryWrite<{ id: string; name: string }>>;
-      remove: (id: string, cascade: boolean) => Promise<DirectoryRemoval>;
-    }
-  > = {
-    // A person's rename is a **patch** and so is a team's since 7.5 — both
-    // entities have a second field on the same route — while a tag and a
-    // service have nothing but a name. That difference is the reason this is a
-    // map rather than a naming convention.
-    person: {
-      rename: (id, name) => directory.patchPerson(id, { name }),
-      remove: (id, cascade) => directory.removePerson(id, cascade),
-    },
-    team: {
-      rename: (id, name) => directory.patchTeam(id, { name }),
-      remove: (id, cascade) => directory.removeTeam(id, cascade),
-    },
-    tag: {
-      rename: (id, name) => directory.renameTag(id, name),
-      remove: (id, cascade) => directory.removeTag(id, cascade),
-    },
-    service: {
-      rename: (id, name) => directory.renameService(id, name),
-      remove: (id, cascade) => directory.removeService(id, cascade),
-    },
-    // A type has nothing but a name, like a tag and a service — the map's own
-    // reason for existing, one dimension over.
-    type: {
-      rename: (id, name) => directory.renameWorkItemType(id, name),
-      remove: (id, cascade) => directory.removeWorkItemType(id, cascade),
-    },
-  };
-
-  /**
-   * Sends the name typed over an entry's, if it says something different.
-   *
-   * A name of whitespace alone never leaves this page: the answer is the same
-   * either way and this one arrives without a round trip, which is what the
-   * scenario "nothing is sent and the page says the name is empty" asks for.
-   *
-   * Proof: this guard removed, `sends nothing when the name is whitespace
-   * alone, and says so` failed on `Unable to find role="alert"`, with
-   * `patchPerson` having been called `{ name: '' }`. Watched 2026-08-09.
-   */
   function commitRename(kind: DirectoryKind, entry: { id: string; name: string }): void {
-    const clean = nameShown(entry).trim();
-    if (clean === '') {
-      setProblem({ reason: 'refused', code: 'name_required' });
-      return;
-    }
-    if (clean === entry.name) {
+    const outcome = management.renameEntry(kind, entry, nameShown(entry), () => {
       forgetDraft(entry.id);
-      return;
-    }
-    void attempt(async () => {
-      const written = await writesFor[kind].rename(entry.id, clean);
-      forgetDraft(entry.id);
-      if (!written.ok) {
-        setProblem({ reason: 'taken', survivingName: written.survivingName });
-      }
     });
+    if (outcome === 'unchanged') forgetDraft(entry.id);
   }
 
   /*
@@ -469,42 +287,12 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     The two local decisions and both of their watched negatives moved with them.
   */
 
-  /**
-   * Marks somebody a person or an agent.
-   *
-   * **No draft, and that is the whole of 7.2's third scenario.** Every other
-   * editable thing on this card is a box somebody types into, so it needs
-   * somewhere to hold the half-typed value — `renamed` — and a rule for what
-   * happens to it when the write comes back. A two-option control has no
-   * half-typed state: what is shown is `person.kind`, which is what the last
-   * read answered, so a refused write leaves the displayed kind at what be-01
-   * still holds without anything here having to put it back. Optimism would
-   * have to be added on purpose, and the case that watches this would then be
-   * watching a rollback rather than the absence of one.
-   *
-   * Sent alone rather than beside the name: `commitRename` is the surface for
-   * the name and it fires on blur, so folding both into one patch would make
-   * choosing `agent` also send whatever half-typed name was standing in the box
-   * beside it.
-   */
   function commitKind(person: PersonView, kind: PersonKindView): void {
-    if (kind === person.kind) return;
-    void attempt(async () => {
-      const written = await directory.patchPerson(person.id, { kind });
-      if (!written.ok) {
-        setProblem({ reason: 'taken', survivingName: written.survivingName });
-      }
-    });
+    management.chooseKind(person, kind);
   }
 
-  /** Sets exactly the teams a person belongs to — the set the chips show. */
   function setMemberships(person: PersonView, teamIds: readonly string[]): void {
-    void attempt(async () => {
-      const written = await directory.patchPerson(person.id, { teamIds });
-      if (!written.ok) {
-        setProblem({ reason: 'taken', survivingName: written.survivingName });
-      }
-    });
+    management.setMemberships(person, teamIds);
   }
 
   /** The teams a person is in, in be-01's own order rather than the order they joined. */
@@ -536,149 +324,55 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
 
   function submitNewPerson(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const clean = newPerson.trim();
-    if (clean === '') {
-      setProblem({ reason: 'refused', code: 'name_required' });
-      return;
-    }
-    void attempt(async () => {
-      await directory.addPerson(clean, []);
+    management.addPerson(newPerson, () => {
       setNewPerson('');
     });
   }
 
   function submitNewTeam(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const clean = newTeam.trim();
-    if (clean === '') {
-      setProblem({ reason: 'refused', code: 'name_required' });
-      return;
-    }
-    void attempt(async () => {
-      await directory.addTeam(clean);
+    management.addTeam(newTeam, () => {
       setNewTeam('');
     });
   }
 
-  /**
-   * Adds a tag — {@link submitNewTeam}'s shape, and the surface tags are made
-   * on at all.
-   *
-   * The plan's own tag cell deliberately cannot create one (`tags`' non-goal):
-   * a typo made in a cell becomes a second spelling of something that already
-   * exists, and this page is where a reader can see the whole vocabulary and
-   * rename the mistake.
-   */
   function submitNewTag(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const clean = newTag.trim();
-    if (clean === '') {
-      setProblem({ reason: 'refused', code: 'name_required' });
-      return;
-    }
-    void attempt(async () => {
-      await directory.addTag(clean);
+    management.addTag(newTag, () => {
       setNewTag('');
     });
   }
 
-  /**
-   * Adds a work item type — {@link submitNewTag}'s shape, and the **only** one
-   * of these four whose argument is the opposite of the tag's.
-   *
-   * A tag cannot be created from its plan cell, so this page is where the
-   * vocabulary is made. A type *can* be, and has to be: its column is hidden by
-   * default (`table-frame.ts`), so a reader who has never opened `Columns` will
-   * never see a Types cell, and a vocabulary only makeable here would be one
-   * nobody finds. This form is the second way in rather than the only one — for
-   * seeing the whole list at once and renaming a typo, which is the half of the
-   * tag argument that does apply.
-   */
   function submitNewWorkItemType(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const clean = newWorkItemType.trim();
-    if (clean === '') {
-      setProblem({ reason: 'refused', code: 'name_required' });
-      return;
-    }
-    void attempt(async () => {
-      await directory.addWorkItemType(clean);
+    management.addWorkItemType(newWorkItemType, () => {
       setNewWorkItemType('');
     });
   }
 
-  /**
-   * Adds a service — {@link submitNewTag}'s shape and its argument, one
-   * dimension over.
-   *
-   * The plan's own service cell cannot create one either (`service-split`
-   * task 7.1's non-goal): this page is where a reader sees the whole vocabulary
-   * at once and can rename `Payements` rather than living beside it.
-   */
   function submitNewService(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const clean = newService.trim();
-    if (clean === '') {
-      setProblem({ reason: 'refused', code: 'name_required' });
-      return;
-    }
-    void attempt(async () => {
-      await directory.addService(clean);
+    management.addService(newService, () => {
       setNewService('');
     });
   }
 
-  /**
-   * Asks for a removal **without** a cascade, which is always the first ask.
-   *
-   * be-01 removes an entry nothing points at outright and refuses one that is
-   * used, with the **directory usage**. Sending the cascade on the first ask
-   * would remove the thing and then show somebody what it took.
-   *
-   * Proof: the two `false`s here pinned to `true`, **six** cases failed —
-   * five on `Unable to find role="dialog"` (no confirmation ever drawn) and
-   * `removes an entry nothing points at on the first request` on
-   * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
-   * fault `steps-panel` already knows. Watched 2026-08-09.
-   */
   function askToRemove(kind: DirectoryKind, entry: { id: string; name: string }): void {
-    void attempt(async () => {
-      const outcome = await writesFor[kind].remove(entry.id, false);
-      if (outcome.ok) return;
-      setConfirming({ kind, id: entry.id, name: entry.name, usage: outcome.usage });
+    management.askToRemove(kind, entry, (usage) => {
+      setConfirming({ kind, id: entry.id, name: entry.name, usage });
     });
   }
 
   function confirmRemoval(): void {
     if (confirming === null) return;
     const asked = confirming;
-    void attempt(async () => {
-      const outcome = await writesFor[asked.kind].remove(asked.id, true);
-      // A second `in_use` against a confirmed cascade is be-01 refusing what it
-      // just described; there is nothing left to confirm against, so it is
-      // raised rather than turned into a second dialog.
-      if (!outcome.ok) throw new Error('in_use');
+    management.confirmRemoval(asked.kind, asked.id, () => {
       setConfirming(null);
     });
   }
 
-  /**
-   * Sets exactly the services a team is responsible for — {@link setMemberships}
-   * one entity over, and a **full replacement** for its reason.
-   *
-   * This writes the ownership map and nothing else. It labels no work item, it
-   * moves no date and it is not the row's service: a team owning `Payments`
-   * says who is responsible for it, and a row delivering `Payments` says what
-   * that row is part of. The two meeting is exactly the *built by a non-owner*
-   * signal, which reads this map rather than being written into it.
-   */
   function setOwnedServices(team: TeamView, serviceIds: readonly string[]): void {
-    void attempt(async () => {
-      const written = await directory.patchTeam(team.id, { serviceIds });
-      if (!written.ok) {
-        setProblem({ reason: 'taken', survivingName: written.survivingName });
-      }
-    });
+    management.setOwnedServices(team, serviceIds);
   }
 
   /**
@@ -833,18 +527,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                               setMemberships(person, [...person.teamIds, teamId]);
                             }}
                             onCreate={(name) => {
-                              void attempt(async () => {
-                                const team = await directory.addTeam(name);
-                                const written = await directory.patchPerson(person.id, {
-                                  teamIds: [...person.teamIds, team.id],
-                                });
-                                if (!written.ok) {
-                                  setProblem({
-                                    reason: 'taken',
-                                    survivingName: written.survivingName,
-                                  });
-                                }
-                              });
+                              management.addTeamForPerson(person, name);
                             }}
                             onClear={() => {
                               // Unreachable: the ✕ is drawn only for a chosen
@@ -1004,18 +687,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                               setOwnedServices(team, [...(team.serviceIds ?? []), serviceId]);
                             }}
                             onCreate={(name) => {
-                              void attempt(async () => {
-                                const service = await directory.addService(name);
-                                const written = await directory.patchTeam(team.id, {
-                                  serviceIds: [...(team.serviceIds ?? []), service.id],
-                                });
-                                if (!written.ok) {
-                                  setProblem({
-                                    reason: 'taken',
-                                    survivingName: written.survivingName,
-                                  });
-                                }
-                              });
+                              management.addServiceForTeam(team, name);
                             }}
                             onClear={() => {
                               // Unreachable, `Add a team for …`'s reason: the ✕

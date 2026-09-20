@@ -225,6 +225,21 @@
       "path": "docs/superpowers/plans/2026-09-17-personal-package-adoption.md",
       "reason": "forward plan naming the shared-failures project it creates",
       "excuses": ["nx-selector"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-19-batch-1/020-1-pin-and-install.md",
+      "reason": "task packet quoting replacement plan text that names the planned shared failures project",
+      "excuses": ["nx-selector"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-19-batch-1/110-5-reword-current-documents.md",
+      "reason": "task packet mapping planned Twilight Nx projects that do not exist yet, and quoting replacement text whose links are relative to the file it replaces",
+      "excuses": ["nx-selector", "links"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-19-batch-1/010-3-record-the-decision.md",
+      "reason": "task packet quoting the verbatim body of files it creates under openspec/changes, whose links are relative to that location",
+      "excuses": ["links"]
     }
   ]
 }

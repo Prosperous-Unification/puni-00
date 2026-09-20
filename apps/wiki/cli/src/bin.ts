@@ -22,6 +22,8 @@ const validatorCommands = new Set([
   'submit-admission',
   'lint-local',
   'lint-ci',
+  'explain',
+  'check',
   'validate-policy-activation',
 ]);
 
@@ -29,6 +31,8 @@ const help = `usage: twilight-bureaucrat <command> ...
 
 commands:
   twilight-bureaucrat validate-record <kind> <json>
+  twilight-bureaucrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
+  twilight-bureaucrat explain <rule-id> [<repository> <rule-policy-json>]
   twilight-bureaucrat lint <committed|staged|working> <repository> <revision-or-base>
   twilight-bureaucrat prepare-activation <flags>
   twilight-bureaucrat prepare-relocation-activation <flags>

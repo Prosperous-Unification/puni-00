@@ -26,8 +26,9 @@ WebSocket protocol. The Twilight tools are designed elsewhere, Twilight Bureaucr
 they must be able to check, run and generate.
 
 **Constraints.** Rules R1 to R5 govern. Every enforced rule ships with a production-path
-negative proof. Behavioural and architectural steps go through OpenSpec. WBS source arrives by
-sync from the upstream WBS repository, so WBS slices land upstream first.
+negative proof. Behavioural and architectural steps go through OpenSpec. Dany declared WBS
+detached from its former upstream repository on 2026-09-19, so WBS slices land in this
+repository directly.
 
 ## Assumptions
 

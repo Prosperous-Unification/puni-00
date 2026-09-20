@@ -209,6 +209,19 @@ verification record. B0 comes first because every later slice adds rules to its 
 
 ## Open items
 
+Found while planning slice B0 on 2026-09-19:
+
+- **No existing check types its violations.** The index check, the classification and the relationship extraction all throw a plain error for a candidate violation and for an infrastructure failure alike, so no adapter can tell them apart. B0 therefore takes findings only from a check's structured output and treats every throw as not evaluated, which disallows the verdict in every mode. The consequence: in B0 only the direct-entries rule and the relationship rule can report debt; the index rule and the classification rule either pass or are not evaluated. Teaching those check functions to return violations as data is the first task of slice B1, because the principle that debt is visible is only partly met until then.
+- **Relationship extraction needs an Nx workspace file in the candidate.** A fixture repository for a rules test must carry `nx.json` and `package.json`.
+- **The existing checks throw; they do not return findings.** The rule model in B0 is therefore a disposition layer over adapters that catch, and a wrapped refusal has no path or subject. A family that needs per-path findings must change its check functions.
+- **Ratchet mode needs an adopted set, which B0 does not have.** B0's policy loader refuses `ratchet` by name and points at slice B2, instead of treating it as observe or enforce.
+- **Every slice that adds a source file changes the validator identity** that a provisioned activation binds, so the activation must be prepared again after each one.
+- **`explain` cannot show a rule's last negative proof in B0.** There is no proof register before slice B4. B0's `explain` prints the statement, the source and the mode; the last proof is deferred to B4 and the first change says so in a requirement.
+- **A failure to evaluate is not a violation.** B0 distinguishes a rule that observed the candidate from a rule that could not be evaluated, for example because an input was missing or a tool could not run. An unevaluated rule makes the verdict disallowed in every mode, observe included.
+- **`check` sits beside the two lint commands in B0.** Those commands need a trusted binding, check receipts, an audit and lint evidence, and they emit a certification record. A B0 verdict carries `certifies: false` and reuses the same check functions and the same trust boundary.
+
+Earlier items:
+
 1. Whether a rule's fast lint copy and its authoritative graph check are generated from one
    declaration, so they cannot disagree.
 2. How a consumer overrides a template without losing upgrades to the default.

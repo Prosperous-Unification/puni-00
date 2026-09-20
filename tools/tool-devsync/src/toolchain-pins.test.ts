@@ -493,3 +493,53 @@ describe('the CI gate scope', () => {
     expect(checkout?.with?.['fetch-depth']).toBe(0);
   });
 });
+
+/**
+ * The three owner-maintained libraries are pinned exactly, because their report formats are
+ * stored data: the diagnostic format changed twice in two days in September 2026.
+ *
+ * The second test reads lock KEYS and the version each key resolves, which is what the
+ * lockfile can say. That the copies a duplicate would produce are actually one module at
+ * runtime is a different claim, proved by the resolution probe in the task's verification.
+ */
+const OWNER_PACKAGES = {
+  'di-bag': '0.4.0',
+  'application-exception': '0.5.0',
+  'caught-object-report-json': '11.0.1',
+} as const;
+
+// Proof: `"di-bag": "^0.4.0"` failed `are pinned to exact versions in the root manifest` on the
+// expected map. Installing application-exception 0.4.0, which needs the report library at ^10,
+// put an `application-exception/caught-object-report-json` key at 10.0.0 in bun.lock and failed
+// `resolve to one copy of the report library, at the pinned version` on the two-element list,
+// while the resolution probe failed on two copies under node_modules. A bun.lock-only edit of
+// the version inside the single key failed the same test on `11.0.0` (2026-09-20).
+// With the Nx cache warm for `tool-devsync:test`, the caret edit to package.json alone and the
+// version edit to bun.lock alone each forced a fresh run that failed its test, 266 pass and
+// 1 fail, where the unedited tree was answered from cache (planner, 2026-09-20).
+describe('the owner-maintained libraries', () => {
+  it('are pinned to exact versions in the root manifest', async () => {
+    const manifest = JSON.parse(await read('package.json')) as {
+      dependencies?: Record<string, string>;
+    };
+    const pinned = Object.fromEntries(
+      Object.keys(OWNER_PACKAGES).map((name) => [name, manifest.dependencies?.[name]]),
+    );
+    expect(pinned).toEqual({ ...OWNER_PACKAGES });
+  });
+
+  it('resolve to one copy of the report library, at the pinned version', async () => {
+    const lock = await read('bun.lock');
+    // The key names the copy — a nested one is `"<parent>/caught-object-report-json"` — and
+    // the first array element names the version. Asserting the key alone would accept a
+    // single entry resolving 10.0.0.
+    const copies = lock.split('\n').flatMap((line) => {
+      const entry =
+        /^ {4}"((?:[^"]+\/)?caught-object-report-json)": \["caught-object-report-json@([^"]+)"/.exec(
+          line,
+        );
+      return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
+    });
+    expect(copies).toEqual(['caught-object-report-json@11.0.1']);
+  });
+});

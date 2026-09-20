@@ -3,7 +3,7 @@
 The R5 entries recorded in puni-00 rather than upstream wbs-tool-v1. They continue
 [the upstream catalogue](checks-that-cannot-fail.md#r5-catalogue-heading), which is pinned
 block-for-block by `root-migration.v1.json` and so cannot take additions. With these, the
-count is **twenty-eight**.
+count is **twenty-nine**.
 
 Two more on 2026-09-06 in `twilight-review-hardening` and the Twilight plan review, and
 **neither shipped**. Marking each generated workflow copy with the source a human should edit
@@ -31,3 +31,18 @@ number passed until its directory joined the hooks spec project's include, then 
 with TS2322. The lint regression runs the configured CI command and reads its reported
 paths; deleting the helper argument fails that assertion even though the command exits 0.
 **A shared helper needs an owner in every gate that claims to cover it.**
+
+One more on 2026-09-19, found while planning the plan writer's extraction, and it **is on
+main** — the twenty-ninth. In `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts` the gesture
+runner checks `isCurrent()` on its success path, after the ledger is read and before the covering
+reread, and the `Proof:` comment beside it says that dropping the check made an old arrangement
+toast into its busy replacement in `does not announce an old arrangement in its busy replacement`.
+With that one line removed, `plan-read-and-write.test.tsx` passed 88 of 88 under the UTC suite:
+the post-reread check now catches that departed reader, so the named test no longer pins the
+guard and the comment describes a failure that no longer happens. The guard is not redundant,
+though. A Codex review built the case that separates the two checks: the feed owner is replaced
+while a successful gesture is in flight and the reader stays active. With the guard the gesture is
+refused without a reread; without it the gesture lands and rereads the tree. No test held that
+case. The plan writer's extraction adds it as a unit test and proves the guard against it, and the
+stale comment is rewritten only after that failure has been watched. **Eighty-eight green tests
+showed a coverage gap, not an unbreakable check; the planner first read them the wrong way round.**

@@ -1,5 +1,7 @@
 # Infrastructure operator guide
 
+The fleet and its delivery tooling belong to Twilight Dash.
+
 Start here to run the k3s fleet and deliver WBS onto it. Each row below names one command and
 its required inputs, and links to the doc that explains it. Flags, refusals and evidence live
 in those docs, not here.

@@ -8,7 +8,7 @@ authoritative locations and avoid a second copy of their contracts.
 
 #### Scenario: A new reader locates the active plan
 
-- **WHEN** a reader starts at `LLM_README.md` and follows Twilight navigation
+- **WHEN** a reader starts at `LLM_README.md` and follows Twilight Structure navigation
 - **THEN** the current SDLC, assumptions, first product plan, and pilot evidence
   are directly discoverable without reading historical research first
 
@@ -30,8 +30,8 @@ The pilot MUST refactor a representative documentation area, record where each
 affected page's knowledge lives, and check internal navigation. Unrelated WBS
 docs and existing work MUST be preserved.
 
-#### Scenario: An existing Twilight link is followed
+#### Scenario: An existing Twilight Structure link is followed
 
-- **WHEN** a reader follows a pre-pilot Twilight document URL
+- **WHEN** a reader follows a pre-pilot Twilight Structure document URL
 - **THEN** the path still resolves and identifies its current canonical destination
   or clearly labels retained historical material

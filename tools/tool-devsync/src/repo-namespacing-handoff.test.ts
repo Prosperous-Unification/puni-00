@@ -556,7 +556,14 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       // README is a real application README the sweep must cover, not an exemption.
       // Re-pinned 18 -> 19 for `apps/wiki/cli/fixtures/consumer/README.md`, the packed-install
       // consumer fixture's README, which the sweep must cover like any application README.
-      applicationLibraryToolReadmes: 19,
+      // Re-pinned 19 -> 20 for `apps/wbs/fe-01/src/modules/plan-writer/README.md`, the first
+      // frontend module index, which the sweep must cover like any application README.
+      // Re-pinned 20 -> 22 for `apps/wbs/fe-01/src/modules/directory/README.md` and
+      // `apps/wbs/fe-01/src/modules/directory-management/README.md`, the directory's two module
+      // indexes, which the sweep must cover like any application README.
+      // Re-pinned 22 -> 23 for `apps/wbs/fe-01/src/modules/preferences/README.md`, the preferences
+      // module index, which the sweep must cover like any application README.
+      applicationLibraryToolReadmes: 23,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',

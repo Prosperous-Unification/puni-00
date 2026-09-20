@@ -18,7 +18,7 @@
 - Enforced from the start: F1, F2, F3, F7. Recommended practice first: F4, F5, F6, F8.
 - No behaviour changes in an extraction task. An extraction that needs a behaviour change stops and opens its own OpenSpec change.
 - Every new or changed check gets a production-path negative: watch it fail with the check removed or the fault injected, then add the adjacent `Proof:` comment naming the fault and the observed test.
-- WBS source arrives by sync from the upstream WBS repository. Tasks that touch WBS application or library source are authored upstream and arrive here by sync; tasks that touch only this repository's documents, policies and tools are authored here.
+- Dany declared WBS detached from its former upstream repository on 2026-09-19. Every task in this plan, including the ones that touch WBS application and library source, is authored in this repository.
 - DI Bag versions and their adoption order are owned by the [package adoption plan](2026-09-17-personal-package-adoption.md). This plan consumes its results and does not install packages.
 - Bun and Nx only. Commit with hooks enabled. Never `--no-verify`. On the shared build host, gate with the gate script and the commit hash; do not check the commit out first.
 
@@ -124,7 +124,7 @@ test('a feature names its capability and a resource names its glossary term', as
 });
 ```
 
-- [ ] Define candidates narrowly and explicitly in `listServiceCandidates`: non-test TypeScript files under the core's services and use-cases directories, the backend application's service directory, and any file carrying a kind suffix anywhere. Frontend hooks are not candidates until they are extracted; a file that gains a kind suffix becomes one automatically.
+- [ ] Define two listings, as packet 020.8 of batch 1 specifies them. `listServiceCandidates` returns the non-test TypeScript files under the core's services and use-cases directories and the backend application's service directory that carry no kind suffix; each of them owes a classification entry. `listSuffixDeclaredFiles` returns every file anywhere whose name carries a kind suffix; those owe nothing, and a file with both a suffix and an entry is refused. Frontend hooks are not candidates until they are extracted.
 - [ ] Run the test and watch it fail on the missing classification file. Then fill the file by reading each candidate's callers and tests. The spec's backend table is a first reading from file names, not an answer.
 - [ ] Negatives, each watched failing through the real test: delete one entry; add an entry for a path that does not exist; remove the set comparison from the test and confirm an unclassified file no longer fails. Test an absent classification file separately from a malformed one. Add the `Proof:` comments after observing them.
 - [ ] Verify:
@@ -264,7 +264,7 @@ git ls-files apps libs | grep -E '\.tsx?$' |
 
 ### Task 6: Extract the frontend services
 
-Authored upstream. One service per task, each its own commit and review, in this order. The existing tests of the source hook are the oracle and stay green without edits to their assertions.
+One service per task, each its own commit and review, in this order. The existing tests of the source hook are the oracle and stay green without edits to their assertions.
 
 | Order | Service          | Source today                                                                                     | Why this order                                          |
 | ----- | ---------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
@@ -290,7 +290,7 @@ The session lifetime is keyed by user identity. The session check sets an empty 
 
 ### Task 7: Split the backend core's services into modules
 
-Authored upstream, after Task 2's classification is reviewed.
+Starts after Task 2's classification is reviewed.
 
 - [ ] Resolve every support file first, following its recorded disposition: move domain code to the domain library, make a disguised repository a port and adapter, or make the file a private member of the one module that uses it.
 - [ ] Create one module directory per resource and per feature, with the layout from the spec. Move files with `git mv`, so history follows them. The flat services directory holds about 45 files today, past the forty-entry navigation limit of the wiki design.
@@ -329,7 +329,7 @@ Its design is the [Twilight Bureaucrat rules design](../specs/2026-09-19-twiligh
 2, 3, 4 -> 9
 ```
 
-Tasks 2, 3, 4 and 5 are independent after Task 1 and can run in parallel lanes, because they touch different files. Tasks 6 and 7 are upstream work and can proceed in parallel with each other.
+Tasks 2, 3, 4 and 5 are independent after Task 1 and can run in parallel lanes, because they touch different files. Tasks 6 and 7 touch different trees, the frontend application and the backend core, so they can proceed in parallel with each other.
 
 ## Verification
 

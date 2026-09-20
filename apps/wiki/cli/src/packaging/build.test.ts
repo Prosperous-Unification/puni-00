@@ -103,6 +103,117 @@ describe('buildPackage', () => {
     expect(validation.exitCode, validation.stderr.toString()).toBe(0);
     expect(validation.stdout.toString()).toBe('valid benchmark-corpus\n');
 
+    const ruleHelp = invoke(executable, ['--help'], externalRoot);
+    expect(ruleHelp.exitCode, ruleHelp.stderr.toString()).toBe(0);
+    expect(ruleHelp.stdout.toString()).toContain(
+      'twilight-bureaucrat check <committed|staged|working>',
+    );
+    expect(ruleHelp.stdout.toString()).toContain('twilight-bureaucrat explain <rule-id>');
+
+    const explained = invoke(executable, ['explain', 'MOD-INDEX'], externalRoot);
+    expect(explained.exitCode, explained.stderr.toString()).toBe(0);
+    expect(JSON.parse(explained.stdout.toString()) as { id: string }).toMatchObject({
+      id: 'MOD-INDEX',
+    });
+
+    const packageCandidate = join(externalRoot, 'candidate');
+    await mkdir(join(packageCandidate, 'src'), { recursive: true });
+    for (const argv of [
+      ['init', '--initial-branch=main'],
+      ['config', 'user.email', 'rules@example.test'],
+      ['config', 'user.name', 'Rules Fixture'],
+    ]) {
+      expect(Bun.spawnSync(['git', '-C', packageCandidate, ...argv]).exitCode).toBe(0);
+    }
+    const packageIndex = {
+      schemaVersion: 1,
+      moduleId: 'module.package-fixture',
+      memberships: [{ kind: 'directory-prefix', prefix: 'src', exclusions: [] }],
+      relationshipSelectors: [],
+      applicableChecks: [],
+      inapplicableSections: [
+        { section: 'relationships', reason: 'The fixture declares no relationships.' },
+        { section: 'invariants', reason: 'The fixture has no cross-file invariant.' },
+        { section: 'checks', reason: 'The rule registry is the fixture boundary check.' },
+      ],
+      externalConsumers: {
+        kind: 'none-known',
+        knowledgeLimit: 'Only consumers visible in this immutable candidate were considered.',
+      },
+    };
+    await writeFile(
+      join(packageCandidate, 'README.md'),
+      `# Package fixture\n\n<!-- module-index ${JSON.stringify(packageIndex)} -->\n`,
+      'utf8',
+    );
+    await writeFile(join(packageCandidate, 'src/entry.ts'), 'export const entry = 1;\n', 'utf8');
+    expect(Bun.spawnSync(['git', '-C', packageCandidate, 'add', '--all']).exitCode).toBe(0);
+    expect(
+      Bun.spawnSync(['git', '-C', packageCandidate, 'commit', '--message', 'candidate']).exitCode,
+    ).toBe(0);
+
+    const packagePolicy = join(externalRoot, 'rule-policy.json');
+    await writeFile(
+      packagePolicy,
+      JSON.stringify({
+        schemaVersion: 1,
+        policyId: 'rules.package.v1',
+        ruleModes: [
+          { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+          { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
+          { ruleId: 'MOD-INDEX', mode: 'enforce' },
+          { ruleId: 'REL-EXTRACT', mode: 'observe' },
+        ],
+      }),
+      'utf8',
+    );
+    const allowed = invoke(
+      executable,
+      ['check', 'committed', packageCandidate, 'HEAD', packagePolicy, '--rule', 'MOD-INDEX'],
+      externalRoot,
+    );
+    expect(allowed.exitCode, allowed.stderr.toString()).toBe(0);
+    // An allowed verdict must be allowed for the stated reason: no finding and nothing unevaluated.
+    // `allowed: true` alone would also accept a verdict that reported debt it had silently downgraded.
+    expect(
+      JSON.parse(allowed.stdout.toString()) as {
+        allowed: boolean;
+        certifies: boolean;
+        findings: unknown[];
+        ruleIds: string[];
+        unevaluated: unknown[];
+      },
+    ).toMatchObject({
+      allowed: true,
+      certifies: false,
+      findings: [],
+      ruleIds: ['MOD-INDEX'],
+      unevaluated: [],
+    });
+
+    const refusedCandidate = join(externalRoot, 'refused');
+    await mkdir(refusedCandidate);
+    for (const argv of [
+      ['init', '--initial-branch=main'],
+      ['config', 'user.email', 'rules@example.test'],
+      ['config', 'user.name', 'Rules Fixture'],
+    ]) {
+      expect(Bun.spawnSync(['git', '-C', refusedCandidate, ...argv]).exitCode).toBe(0);
+    }
+    await writeFile(join(refusedCandidate, 'orphan.ts'), 'export const orphan = 1;\n', 'utf8');
+    expect(Bun.spawnSync(['git', '-C', refusedCandidate, 'add', '--all']).exitCode).toBe(0);
+    expect(
+      Bun.spawnSync(['git', '-C', refusedCandidate, 'commit', '--message', 'no index']).exitCode,
+    ).toBe(0);
+    const refused = invoke(
+      executable,
+      ['check', 'committed', refusedCandidate, 'HEAD', packagePolicy, '--rule', 'MOD-INDEX'],
+      externalRoot,
+    );
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stdout.toString()).toContain('"allowed":false');
+    expect(refused.stdout.toString()).toContain('selected candidate contains no module indexes');
+
     const lint = invoke(
       executable,
       ['lint', 'working', resolve(import.meta.dir, '../../../../..'), 'HEAD'],
@@ -158,5 +269,9 @@ describe('buildPackage', () => {
 
     await buildPackage(packageRoot);
     expect(invoke(executable, ['--version'], externalRoot).stdout.toString()).toBe('0.1.0\n');
-  }, 20_000);
+    // Proof: under the 20-second limit this test took 19458.92ms in the h2puni gate on fd0a777c
+    // and timed out at 20039.60ms in the gate on d748f1a7 (2026-09-20), after the rule model added
+    // five runs of the built binary to its two builds. A limit a loaded host reaches is a gate
+    // that fails at random, so it has three times the observed duration.
+  }, 60_000);
 });

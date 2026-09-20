@@ -1,4 +1,4 @@
-# Operating Twilight
+# Operating Vesper Shipyards
 
 Status: proposed product behavior, 2026-09-06. Contracts and implementation order
 live in the [control-plane change](../../openspec/changes/twilight-control-plane/proposal.md).
@@ -26,7 +26,7 @@ decision and starts nothing twice.
 | Knowledge workspace  | Ask cited questions, inspect sources, accept a knowledge proposal, resolve a contradiction, preview compaction                     | Owning context, provenance, status, stale references and incoming links                                                                                            |
 | Review inbox         | Decide an approval, assign/dispose findings, inspect disagreements                                                                 | Exact candidate, requested capability, budget, rubric, reviewers, dissent and scope of the decision                                                                |
 
-WBS remains the work-planning editor. Twilight links or embeds it with a scoped
+WBS remains the work-planning editor. Twilight Navigator links or embeds it with a scoped
 repository and planning revision, not an independent editable task board. The
 [Backlog-backed migration](client-repositories.md) supplies the later storage change.
 A candidate's evidence view separates pinned prior receipts from completions it
