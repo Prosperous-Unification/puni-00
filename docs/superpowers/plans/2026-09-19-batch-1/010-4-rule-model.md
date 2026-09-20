@@ -1340,8 +1340,10 @@ sandbox rules, the named-test filter form and the fault procedure this part depe
       `export function loadTrustedPolicy(` (section 6.7).
 - [ ] Rename `resolveWorktreeRoot` to `resolveCandidateRoot` in
       apps/wiki/cli/src/inventory/read-candidate.ts, export it, and update its single caller.
-      Verified on 2026-09-20: the definition is at line 116, the only use is at line 446, and
-      `git grep -n resolveWorktreeRoot` finds exactly those two lines.
+      Before editing, run `git grep -n resolveWorktreeRoot -- apps/wiki/cli/src`. Expected:
+      exactly the definition and single caller in inventory/read-candidate.ts (lines 116 and 446
+      on 2026-09-20). Documentation references are excluded. Rename that definition and caller
+      only.
 - [ ] Create apps/wiki/cli/src/rules/rule-policy.ts (section 6.7).
 - [ ] Add part 2's code to apps/wiki/cli/src/rules/check.ts (section 6.7), leaving part 1's
       `Proof:` comment inside `selectRule` exactly where part 1 put it.
@@ -1373,7 +1375,7 @@ nothing at all.
 | P3  | The root passed to the policy loader, rules/check.ts             | In `checkCandidate`, pass `request.repository` instead of `candidateRoot` to `loadRulePolicy`                                              | the same test — containment is then measured from `<repository>/src`, so a policy at the worktree root counts as outside it, loads, and the run exits 0 with the same first assertion failing against an empty stderr                                                                                                                                                                 | check.ts, beside the `loadRulePolicy` call             |
 | P4  | The mode-coverage loop in `loadRulePolicy`, rules/rule-policy.ts | Delete the final `for (const rule of registeredRules())` loop                                                                              | `rule policy boundary refuses a policy that states no mode for a registered rule` — the omitted mode belongs to INV-CLASSIFY, which the narrowed run never selects, so `ruleMode` is never asked for it: the run prints an allowed MOD-INDEX verdict and exits 0, and the first assertion fails, `toContain` on `rule policy states no mode for INV-CLASSIFY` against an empty stderr | rule-policy.ts, beside the coverage loop               |
 | P5  | The unregistered-rule branch in `loadRulePolicy`                 | Replace its condition with `false`                                                                                                         | `rule policy boundary refuses a policy that names an unregistered rule` — exit 0 with an allowed verdict (fact 37); the diagnostic assertion fails against an empty stderr                                                                                                                                                                                                            | rule-policy.ts, beside that branch                     |
-| P6  | The duplicate-identifier branch in `loadRulePolicy`              | Delete it                                                                                                                                  | `rule policy boundary refuses a policy that states a mode for one rule twice` — the last entry silently wins, exit 0, empty stderr                                                                                                                                                                                                                                                    | rule-policy.ts, beside that branch                     |
+| P6  | The duplicate-identifier branch in `loadRulePolicy`              | Delete it                                                                                                                                  | `rule policy boundary refuses a policy that states a mode for one rule twice` — the first entry silently wins (`ruleMode()` uses `.find()`), exit 0, empty stderr                                                                                                                                                                                                                     | rule-policy.ts, beside that branch                     |
 | P7  | The `mode === 'ratchet'` branch in `loadRulePolicy`              | Delete it                                                                                                                                  | `rule policy boundary refuses ratchet until the adopted set exists` — exit 0, empty stderr                                                                                                                                                                                                                                                                                            | rule-policy.ts, beside that branch                     |
 | P8  | `assertPolicyInputs`, rules/rule-policy.ts                       | Make the function return immediately                                                                                                       | `rule policy boundary refuses a selected rule whose policy input is absent` — the run still **exits 1**, because the registry's own branch then reports `the rule policy carries no classification policy` as unevaluated; the diagnostic assertion fails, `rule INV-CLASSIFY needs policy.classificationPolicy, which the rule policy omits` against an empty stderr                 | rule-policy.ts, inside `assertPolicyInputs`            |
 | P9  | The UTF-8, JSON and schema boundaries in `decodeRulePolicy`      | Three separate injections, restored between each: a non-fatal decoder; delete the `JSON.parse` try; drop `.onUndeclaredKey('reject')`      | `rule policy boundary refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly` — one assertion fails per injection, naming the boundary whose sentence disappeared                                                                                                                                                                                    | rule-policy.ts, one comment per boundary               |
@@ -1382,6 +1384,8 @@ nothing at all.
 | P11 | `candidateRequest`'s selection-kind refusal, rules/check.ts      | Treat any other word as `committed`                                                                                                        | the same test — `bogus` is read as a selection, the unnarrowed run reaches `assertPolicyInputs` and exits 1 with `rule INV-CLASSIFY needs policy.classificationPolicy…`, so the first assertion fails: `usage: twilight-bureaucrat check <committed\|staged\|working>` is absent from that stderr                                                                                     | check.ts, inside `candidateRequest`                    |
 | P12 | The `process.exitCode = 1` line in `writeCheckCommand`           | Delete the line                                                                                                                            | `check production CLI refuses an unindexed candidate in every mode and exits 1` — the verdict is still correct, the exit status becomes 0, and `expect(observed.exitCode).toBe(1)` fails with `Received: 0`                                                                                                                                                                           | check.ts, beside the exit-code line                    |
 | P21 | The stated mode `explainRule` attaches, rules/check.ts           | Return `{ ...rule, policyId: policy.policyId }`, dropping `mode`                                                                           | `explain with a rule policy prints the policy identifier and the stated mode` — the printed record carries `policyId` and no `mode`, so the `toEqual` on the explanation fails naming the missing `mode: 'enforce'`                                                                                                                                                                   | check.ts, beside the policy branch of `explainRule`    |
+
+**P9 keeps three evidence pairs.** Use distinct evidence identifiers `P9-utf8`, `P9-json` and `P9-schema`. Substitute each identifier for `P<n>` in section 0.3's patch and log filenames. Preserve all three pairs, restore and compare passing bytes between injections, and record all three observed failures in P9's verification row. Never overwrite an earlier injection's evidence.
 
 Every policy-boundary test narrows to `--rule MOD-INDEX`. Fact 37 showed that a run without
 `--rule` reaches `assertPolicyInputs` and exits 1 for an unrelated reason, which would hide P4
@@ -1897,8 +1901,9 @@ Each of these is false on this part's real starting tree, which is part 1 commit
    registry.ts, check.ts and rules.test.ts is absent, or `explain MOD-INDEX` does not print its
    record.
 2. The baseline run of section 2.1 does not report `2 pass`, `0 fail`.
-3. The `resolveWorktreeRoot` rename changes any existing test's result, or `git grep -n
-resolveWorktreeRoot` finds a use other than the definition at line 116 and the call at line 446.
+3. The rename changes an existing test's result, or the pre-edit search
+   `git grep -n resolveWorktreeRoot -- apps/wiki/cli/src` finds anything other than the definition
+   and single caller in inventory/read-candidate.ts.
 4. A policy-boundary test cannot be made to fail under its mutation, fails with a different message
    than section 2.4 predicts, or the mutation does not compile. A proof that cannot fail is the
    defect this repository exists to prevent: stop and report. A fault that additionally breaks
@@ -2277,10 +2282,16 @@ executor may invent them. So:
   ```sh
   (cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" \
     bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)
-  grep -c '^## Rules' "$repo_root/apps/wiki/cli/README.md" || true
+  if rg -n '^## Rules' "$repo_root/apps/wiki/cli/README.md"; then
+    echo 'Rules section already exists; stop.' >&2
+    exit 1
+  else
+    heading_status=$?
+    test "$heading_status" -eq 1
+  fi
   ```
 
-  Expected: exit 0 with `19 pass`, `0 fail`; the README has no `## Rules` section yet. Write the
+  Expected: exit 0 with `19 pass`, `0 fail`; the heading check exits 0 only when the README is readable and the heading is absent, and any other result is a stop. Write the
   test count down as this part's baseline: this part adds no rule test, so it must not move.
 
 ### 4.2 The installed binary
@@ -2769,3 +2780,7 @@ part 3, and no rule-test change in part 4.
 - Section 11's old disposition row still says `BUN_INSTALL_CACHE_DIR` was "fixed" by pointing it at
   the task directory. That row is history and is contradicted by the attempt note below it and by
   section 0.1, which overrides it.
+
+### Dispatch review of part 2, 2026-09-20 (Codex gpt-6-astra, high effort): DISPATCH AFTER FIXES
+
+Three findings, all correct, applied by the planner by hand. The `resolveWorktreeRoot` search matched this packet as well as the source, so its stop condition was true on the baseline; it is now scoped to `apps/wiki/cli/src`. P9's three injections shared one evidence filename and would have overwritten each other; they now have three identifiers. Part 4's heading check masked an unreadable README with `|| true`; it now accepts exactly status 1. One note was also applied: under P6's fault the first duplicate entry wins, not the last.
