@@ -407,6 +407,11 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       writeCheckCommand(args);
     });
   }
+  if ((args.length === 2 || args.length === 3 || args.length === 7) && args[0] === 'template') {
+    return import('./templates/verify').then(({ writeTemplateCommand }) => {
+      writeTemplateCommand(args);
+    });
+  }
   if (args.length === 4 && args[0] === 'validate-policy-activation') {
     return import('./policy/trust').then(({ writePolicyActivationCommand }) => {
       writePolicyActivationCommand(args, validatorEntryPaths());
@@ -415,7 +420,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // Proof: replacing this refusal with a successful return made the external package test
   // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-bureaucrat <validate-record|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-bureaucrat <validate-record|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|template|validate-policy-activation> ...`,
   );
 }
 
