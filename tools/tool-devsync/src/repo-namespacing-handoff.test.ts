@@ -712,7 +712,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // unchanged (2026-09-20).
     // Proof: shared-failures added the inventory re-pin comment above the recursive tsconfig
     // selectors; the old digest failed on the value below at the same 257 occurrences (2026-09-20).
-    digest: '6b79b78a1af8ebdb2e8fe0aea99092465e906b26b4ddeecfe16f71d375dee693',
+    // Proof: merging the shared-failures lane (`6b79b78a...`) with the Chromium proof lane left
+    // that value wrong: the merged tree failed on the observed digest below at the same 257
+    // occurrences and no unclassified entries, so only classified contexts' line numbers moved;
+    // which lane's lines moved them was not traced (2026-09-20). Two lanes meeting at one
+    // line-sensitive digest is a conflict by construction.
+    digest: '4b3aac6c5f311ce9564fa310bf426c44918da39cefc4c7054cfeaaa3ecb065be',
     occurrences: 257,
     unclassified: [],
   });
