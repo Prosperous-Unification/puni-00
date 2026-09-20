@@ -12,6 +12,7 @@ import {
   browserOidcClientFromEnv,
   type BrowserOidcTokenSet,
   type JwtClaims,
+  type OidcIdentity,
   oidcIdentityFromClaims,
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
@@ -401,16 +402,16 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     } catch {
       return this.failLogin(pending.authorization, 'server_error');
     }
-    let upstreamClaims: JwtClaims;
+    let identity: OidcIdentity;
     try {
-      upstreamClaims = await this.verifyUpstream(tokens.accessToken);
+      const upstreamClaims: JwtClaims = await this.verifyUpstream(tokens.accessToken);
+      identity = oidcIdentityFromClaims(upstreamClaims, {
+        groupPrefix: this.groupPrefix,
+        groupsClaim: this.groupsClaim,
+      });
     } catch {
       return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
     }
-    const identity = oidcIdentityFromClaims(upstreamClaims, {
-      groupPrefix: this.groupPrefix,
-      groupsClaim: this.groupsClaim,
-    });
     const requested = new Set(pending.authorization.scope.split(' ').filter(Boolean));
     const scopes = [...identity.scopes]
       .map((scope) => `wbs:${scope}`)
@@ -420,7 +421,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
     this.cleanup();
     if (this.grants.size >= this.grantLimit) {
-      return oauthError('temporarily_unavailable', clearCookie(), 429);
+      return await this.failLogin(
+        pending.authorization,
+        'temporarily_unavailable',
+        tokens.refreshToken,
+      );
     }
     const code = this.random();
     this.grants.set(code, {

@@ -1076,4 +1076,42 @@ describe('InMemoryMcpOAuth', () => {
     ).toBe('access_denied');
     expect(revoked).toEqual(['provider-refresh-token']);
   });
+
+  it('redirects and revokes when the verified account lacks wbs:read', async () => {
+    const revoked: string[] = [];
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'provider-refresh-token',
+        }),
+      verifyUpstream: () =>
+        Promise.resolve({
+          iss: 'https://idp.example',
+          sub: 'person-without-wbs',
+          wbs_groups: [],
+        }),
+      revoke: (token) => {
+        revoked.push(token);
+        return Promise.resolve();
+      },
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=***&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    expect(
+      new URL(failed?.headers.get('location') ?? 'https://invalid').searchParams.get('error'),
+    ).toBe('access_denied');
+    expect(revoked).toEqual(['provider-refresh-token']);
+  });
 });
