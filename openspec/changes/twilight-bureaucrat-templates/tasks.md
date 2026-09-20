@@ -4,7 +4,7 @@
 
 ## 2. Verify one file
 
-- [ ] 2.1 Add the candidate shell and file-scope constraint handlers for `template verify` — tests: the 16 `template verify, one file` cases and two `the template record drives verification` cases; negatives P2-P12, P14, and P22-P24 are watched in slice 3.
+- [x] 2.1 Add the candidate shell and file-scope constraint handlers for `template verify` — tests: the 16 `template verify, one file` cases and two `the template record drives verification` cases; negatives P2-P12, P14, and P22-P24 are watched in slice 3.
 
 ## 3. Prove the file-scope checks
 

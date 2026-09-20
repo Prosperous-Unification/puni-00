@@ -1,7 +1,9 @@
 import { Buffer } from 'node:buffer';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 
@@ -89,4 +91,503 @@ describe('template registry CLI', () => {
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
   }, 30_000);
+});
+
+const scratchRoots: string[] = [];
+
+afterEach(() => {
+  for (const root of scratchRoots.splice(0)) rmSync(root, { force: true, recursive: true });
+});
+
+function runGit(repository: string, argv: string[]): string {
+  const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  expect(invocation.exitCode, invocation.stderr.toString('utf8')).toBe(0);
+  return invocation.stdout.toString('utf8').trim();
+}
+
+function write(root: string, path: string, source: string): void {
+  const absolutePath = join(root, path);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, source, 'utf8');
+}
+
+const conformingReadme = `# Widget
+
+One sentence on the value this module delivers.
+
+## What it owns
+
+- The widget gesture.
+
+## What it does not own
+
+- The widget's stored shape.
+
+## Relationships
+
+The exported types are in \`contract.ts\`.
+
+## Checks
+
+The \`test\` target runs \`widget.feature.test.ts\`.
+`;
+
+const conformingFeature = `import type { Widget } from './contract';
+
+/** One gesture. */
+// @capability widget-editing
+export function createWidget(): Widget {
+  return { ready: true };
+}
+`;
+
+const conformingRepository = `/** Raw access to the store. */
+// @port ./contract#WidgetPort
+export function store(): void {}
+`;
+
+function initFixture(prefix: string): string {
+  const repository = mkdtempSync(join(tmpdir(), prefix));
+  scratchRoots.push(repository);
+  runGit(repository, ['init', '--initial-branch=main']);
+  runGit(repository, ['config', 'user.email', 'templates@example.test']);
+  runGit(repository, ['config', 'user.name', 'Templates Fixture']);
+  return repository;
+}
+
+/** Commits whatever the test has just written and returns the new revision. */
+function commit(repository: string, message: string): string {
+  runGit(repository, ['add', '--all']);
+  runGit(repository, ['commit', '--message', message]);
+  return runGit(repository, ['rev-parse', 'HEAD']);
+}
+
+/** A module directory that satisfies every requirement of every template. */
+function createConformingCandidate(): { repository: string; revision: string } {
+  const repository = initFixture('twilight-templates-');
+  write(repository, 'src/modules/widget/README.md', conformingReadme);
+  write(
+    repository,
+    'src/modules/widget/contract.ts',
+    'export interface Widget {\n  readonly ready: boolean;\n}\n',
+  );
+  write(repository, 'src/modules/widget/widget.feature.ts', conformingFeature);
+  write(repository, 'src/modules/widget/store.repository.ts', conformingRepository);
+  write(
+    repository,
+    'src/modules/widget/store.repository.test.ts',
+    "import { test } from 'bun:test';\ntest('adapter', () => {});\n",
+  );
+  write(
+    repository,
+    'src/modules/widget/widget.feature.test.ts',
+    "import { test } from 'bun:test';\ntest('gesture', () => {});\n",
+  );
+  write(repository, 'src/modules/widget/view/use-widget.ts', 'export const view = 1;\n');
+  return { repository, revision: commit(repository, 'fixture') };
+}
+
+interface Verification {
+  schemaVersion: number;
+  templateId: string;
+  templateVersion: string;
+  subject: string;
+  conforms: boolean;
+  findings: { requirementId: string; path: string; message: string }[];
+  certifies: boolean;
+}
+
+function verificationOf(invocation: ReturnType<typeof Bun.spawnSync>): Verification {
+  return JSON.parse(stdoutOf(invocation)) as Verification;
+}
+
+function verify(
+  templateId: string,
+  repository: string,
+  revision: string,
+  subject: string,
+): ReturnType<typeof Bun.spawnSync> {
+  return runCli(['template', 'verify', templateId, 'committed', repository, revision, subject]);
+}
+
+describe('template verify, one file', () => {
+  test('allows a repository adapter that names its port and has its sibling test', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = verify(
+      'repository',
+      repository,
+      revision,
+      'src/modules/widget/store.repository.ts',
+    );
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verificationOf(invocation)).toEqual({
+      schemaVersion: 1,
+      templateId: 'repository',
+      templateVersion: '1.0.0',
+      subject: 'src/modules/widget/store.repository.ts',
+      conforms: true,
+      findings: [],
+      certifies: false,
+    });
+  }, 30_000);
+
+  test('reports a file whose name lacks the kind suffix', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/contract.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.suffix',
+        path: 'src/modules/widget/contract.ts',
+        message: 'file name does not end in .feature.ts',
+      },
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/contract.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a service that states two declaration tags', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `${conformingFeature}// @capability widget-sharing\n`,
+    );
+    const revision = commit(repository, 'two capabilities');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'file states 2 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  test('counts a declaration tag only when it is a real line comment', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `const quoted = \`\n// @capability quoted-widget\n\`;\n/*\n// @capability commented-widget\n*/\nexport const sample = quoted;\n`,
+    );
+    const revision = commit(repository, 'tags that are not declarations');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  test('does not count a fake declaration inside a nested template literal', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `const quoted = \`outer \${\`\n// @capability fake\n\`} tail\`;\nexport const sample = quoted;\n`,
+    );
+    const revision = commit(repository, 'a fake tag inside a nested template');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.capability',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
+      },
+    ]);
+  }, 30_000);
+
+  test('counts a genuine declaration inside a template interpolation', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `import type { Widget } from './contract';\n\nconst label = \`outer \${(() => {\n// @capability widget-editing\nreturn 'inner';\n})()} tail\`;\nexport function createWidget(): Widget {\n  return { ready: true };\n}\n`,
+    );
+    const revision = commit(repository, 'a real declaration inside an interpolation');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verificationOf(invocation).findings).toEqual([]);
+  }, 30_000);
+
+  test('reports a side-effect import of a repository and ignores comments and strings', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.feature.ts',
+      `import './store.repository';\n// import { store } from './other.repository';\nconst sample = "from './third.repository'";\n${conformingFeature}export const used = sample;\n`,
+    );
+    const revision = commit(repository, 'a side-effect import');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'feature.no-repository-import',
+        path: 'src/modules/widget/widget.feature.ts',
+        message: 'the file imports ./store.repository, which declares the repository kind',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a resource that imports a feature and a repository that imports a resource', () => {
+    const { repository } = createConformingCandidate();
+    write(
+      repository,
+      'src/modules/widget/widget.resource.ts',
+      "import { createWidget } from './widget.feature';\n/** A resource. */\n// @term widget\nexport const widget = createWidget;\n",
+    );
+    write(
+      repository,
+      'src/modules/widget/store.repository.ts',
+      `import { widget } from './widget.resource';\n${conformingRepository}export const held = widget;\n`,
+    );
+    const revision = commit(repository, 'forbidden imports');
+    const resource = verify(
+      'resource-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.resource.ts',
+    );
+    expect(resource.exitCode).toBe(1);
+    expect(verificationOf(resource).findings).toEqual([
+      {
+        requirementId: 'resource.no-feature-import',
+        path: 'src/modules/widget/widget.resource.ts',
+        message: 'the file imports ./widget.feature, which declares the feature kind',
+      },
+    ]);
+    const adapter = verify(
+      'repository',
+      repository,
+      revision,
+      'src/modules/widget/store.repository.ts',
+    );
+    expect(adapter.exitCode).toBe(1);
+    expect(verificationOf(adapter).findings).toEqual([
+      {
+        requirementId: 'repository.no-service-import',
+        path: 'src/modules/widget/store.repository.ts',
+        message: 'the file imports ./widget.resource, which declares the resource kind',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a repository adapter with no sibling test', () => {
+    const { repository } = createConformingCandidate();
+    rmSync(join(repository, 'src/modules/widget/store.repository.test.ts'));
+    const revision = commit(repository, 'drop the conformance test');
+    const invocation = verify(
+      'repository',
+      repository,
+      revision,
+      'src/modules/widget/store.repository.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings).toEqual([
+      {
+        requirementId: 'repository.conformance-test',
+        path: 'src/modules/widget/store.repository.ts',
+        message: 'no sibling store.repository.test.ts proves this file',
+      },
+    ]);
+  }, 30_000);
+
+  test('reports a standalone file whose name declares two kinds', () => {
+    const { repository } = createConformingCandidate();
+    write(repository, 'src/modules/widget/widget.feature.resource.ts', conformingFeature);
+    const revision = commit(repository, 'two kinds in one name');
+    const invocation = verify(
+      'resource-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.resource.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(verificationOf(invocation).findings.map((finding) => finding.requirementId)).toEqual([
+      'resource.one-kind',
+      'resource.term',
+    ]);
+  }, 30_000);
+
+  test('refuses a file that does not parse', () => {
+    const { repository } = createConformingCandidate();
+    write(repository, 'src/modules/widget/widget.feature.ts', 'import { a } from ;;;\n');
+    const revision = commit(repository, 'unparsable');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain(
+      'cannot scan the imports of src/modules/widget/widget.feature.ts',
+    );
+    expect(stdoutOf(invocation)).toBe('');
+  }, 30_000);
+
+  test('refuses a candidate file that is not UTF-8', () => {
+    const { repository } = createConformingCandidate();
+    writeFileSync(
+      join(repository, 'src/modules/widget/widget.feature.ts'),
+      Buffer.from([0x2f, 0x2f, 0x20, 0xff, 0x0a]),
+    );
+    const revision = commit(repository, 'invalid bytes');
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain(
+      'candidate file src/modules/widget/widget.feature.ts is not UTF-8',
+    );
+  }, 30_000);
+
+  test('refuses a subject that selects nothing', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = verify(
+      'feature-service',
+      repository,
+      revision,
+      'src/modules/widget/absent.feature.ts',
+    );
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain(
+      'subject selects no candidate file: src/modules/widget/absent.feature.ts',
+    );
+  }, 30_000);
+
+  test('refuses a subject that is not candidate-relative', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = verify('feature-service', repository, revision, '/etc/passwd');
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain(
+      'subject must be a candidate-relative path: /etc/passwd',
+    );
+  }, 30_000);
+
+  test('refuses a file template pointed at a directory', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = verify('feature-service', repository, revision, 'src/modules/widget');
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain(
+      'template feature-service verifies one file; src/modules/widget is not one',
+    );
+  }, 30_000);
+
+  test('refuses an unknown candidate selection kind', () => {
+    const { repository, revision } = createConformingCandidate();
+    const invocation = runCli([
+      'template',
+      'verify',
+      'feature-service',
+      'bogus',
+      repository,
+      revision,
+      'src/modules/widget/widget.feature.ts',
+    ]);
+    expect(invocation.exitCode).toBe(1);
+    expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
+    expect(stdoutOf(invocation)).toBe('');
+  }, 30_000);
+});
+
+describe('the template record drives verification', () => {
+  const probeFile = {
+    path: 'a/b.feature.ts',
+    relativePath: 'b.feature.ts',
+    text: 'export const value = 1;\n',
+  };
+  const probeTemplate = {
+    id: 'feature-service',
+    version: '9.9.9',
+    subject: 'file',
+    generates: 'a probe',
+    files: [],
+    requirements: [
+      {
+        id: 'probe.tag',
+        statement: 'the probe names one capability',
+        rules: [],
+        constraint: { kind: 'declares-one', tag: 'capability' },
+      },
+    ],
+  } as const;
+
+  test('evaluates exactly the requirements the template states', async () => {
+    const { verifyArtifact } = await import('./verify');
+    expect(verifyArtifact(probeTemplate, probeFile.path, [probeFile], () => []).findings).toEqual([
+      {
+        requirementId: 'probe.tag',
+        path: 'a/b.feature.ts',
+        message: 'file states 0 @capability tags, expected exactly 1',
+      },
+    ]);
+    expect(
+      verifyArtifact({ ...probeTemplate, requirements: [] }, probeFile.path, [probeFile], () => [])
+        .conforms,
+    ).toBe(true);
+  });
+
+  test('refuses a requirement whose constraint no file artifact can satisfy', async () => {
+    const { verifyArtifact } = await import('./verify');
+    const mismatched = {
+      ...probeTemplate,
+      requirements: [
+        {
+          id: 'probe.module',
+          statement: 'the probe carries an index',
+          rules: [],
+          constraint: { kind: 'required-file', path: 'README.md' },
+        },
+      ],
+    } as const;
+    expect(() => verifyArtifact(mismatched, probeFile.path, [probeFile], () => [])).toThrow(
+      'template requirement probe.module states a required-file constraint, which no file artifact can satisfy',
+    );
+  });
 });

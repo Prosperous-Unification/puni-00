@@ -1,3 +1,5 @@
+import ts from 'typescript';
+
 /** The artifact kinds Twilight Bureaucrat holds a template for in slice B5. */
 export type TemplateId = 'feature-service' | 'module' | 'repository' | 'resource-service';
 
@@ -137,54 +139,35 @@ export function importSpecifiers(text: string, path: string): string[] {
 }
 
 /**
- * Every line comment in the source, found by walking it rather than matching it.
- *
- * Strings, template literals and block comments are skipped, so `@capability` inside one of them is
- * not a declaration. A regular expression over the raw source counted those, observed on
- * 2026-09-20. The walk does not model regular-expression literals: two adjacent slashes inside one,
- * which only a character class can produce, would start a comment here. Nothing in a declaration
- * depends on that case, and the alternative is a full parser.
+ * Returns actual line comments in source order, including comments inside template interpolations.
+ * Traversing tokens includes comments in otherwise empty blocks; literal text is never scanned.
  */
 export function lineComments(text: string): string[] {
-  const comments: string[] = [];
-  let index = 0;
-  while (index < text.length) {
-    const char = text[index];
-    if (char === '/' && text[index + 1] === '/') {
-      const newline = text.indexOf('\n', index);
-      const stop = newline === -1 ? text.length : newline;
-      comments.push(text.slice(index, stop));
-      index = stop;
-      continue;
-    }
-    if (char === '/' && text[index + 1] === '*') {
-      const end = text.indexOf('*/', index + 2);
-      index = end === -1 ? text.length : end + 2;
-      continue;
-    }
-    if (char === "'" || char === '"' || char === '`') {
-      index = endOfQuoted(text, index, char);
-      continue;
-    }
-    index += 1;
-  }
-  return comments;
-}
+  const source = ts.createSourceFile(
+    'declarations.ts',
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const comments = new Map<number, string>();
 
-/** The index just past the quoted run that starts at `start`, or the end of the source. */
-function endOfQuoted(text: string, start: number, quote: string): number {
-  let index = start + 1;
-  while (index < text.length) {
-    const char = text[index];
-    if (char === '\\') {
-      index += 2;
-      continue;
+  function collect(ranges: readonly ts.CommentRange[] | undefined): void {
+    for (const range of ranges ?? []) {
+      if (range.kind === ts.SyntaxKind.SingleLineCommentTrivia) {
+        comments.set(range.pos, text.slice(range.pos, range.end));
+      }
     }
-    if (char === quote) return index + 1;
-    if (quote !== '`' && char === '\n') return index;
-    index += 1;
   }
-  return text.length;
+
+  function visit(node: ts.Node): void {
+    collect(ts.getLeadingCommentRanges(text, node.getFullStart()));
+    collect(ts.getTrailingCommentRanges(text, node.getEnd()));
+    for (const child of node.getChildren(source)) visit(child);
+  }
+
+  visit(source);
+  return [...comments].sort(([left], [right]) => left - right).map(([, comment]) => comment);
 }
 
 /**

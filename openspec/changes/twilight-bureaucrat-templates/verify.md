@@ -52,3 +52,22 @@
 - `bin/h2puni-gate.sh` was not run because the host gate is unavailable on this machine.
 
 Planner, after slice 1, 2026-09-20: replayed P1 outside the sandbox (`selectTemplate` returning the first registered template for an unknown identifier): `refuses an unregistered template identifier and names every registered template` failed with `Expected: 1`, `Received: 0`, 3 pass and 1 fail; restored byte for byte, then 4 pass. The whole `twilight-bureaucrat` `test`, `test:package` (the packaged executable answers `--help` with the template command and `template list`), `lint:source` and `typecheck` succeeded; `tool-devsync:test` succeeded.
+
+### Slice 2
+
+- Preparation rule suite: exit 0; `19 pass`, `0 fail`, `Ran 19 tests across 1 file.`
+- Template and candidate-reader baseline: exit 0; `5 pass`, `0 fail`, `Ran 5 tests across 2 files.` Four passes belonged to `templates.test.ts`; one belonged to `read-candidate.test.ts`.
+- Test-first template file: exit 1; `5 pass`, `17 fail`, `Ran 22 tests across 1 file.` The CLI case `allows a repository adapter that names its port and has its sibling test` expected exit 0, received exit 1, and printed the template usage refusal. The pure case `evaluates exactly the requirements the template states` failed with `TypeError: verifyArtifact is not a function`.
+- Post-implementation template file: exit 0; `22 pass`, `0 fail`, `Ran 22 tests across 1 file.`
+- `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0; `Successfully ran target typecheck for project twilight-bureaucrat`.
+- Final template and candidate-reader files: exit 0; `23 pass`, `0 fail`, `Ran 23 tests across 2 files.` Twenty-two passes belonged to `templates.test.ts`; the candidate-reader baseline remained one pass.
+- `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`: exit 0; `Successfully ran target lint:source for project twilight-bureaucrat`; no lint diagnostics.
+- `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`: exit 0; `Successfully ran target build for project twilight-bureaucrat`.
+- Owned-file `bunx prettier --write`: exit 0; all five slice 2 paths were unchanged.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0; no format diagnostics.
+- Strict `OPENSPEC_TELEMETRY=0` validation: exit 0; `105` passed and `0` failed. The JSON report is retained under the attempt's evidence directory.
+- Negative proofs P2-P12, P14, and P22-P24 were not run because they belong to slice 3.
+- Not run here, pending planner verification because the whole targets may require Git writes or staged files: `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package`, and `tool-devsync:test`.
+- `bin/h2puni-gate.sh` was not run because the host gate is unavailable on this machine.
+
+Planner, after slice 2, 2026-09-20: the focused templates file passes 22 of 22 (slice 1's four plus eighteen). The whole `twilight-bureaucrat` `test`, `test:package`, `lint:source` and `typecheck` succeeded; `tool-devsync:test` succeeded; format check clean. Slice 2 injects no fault of its own: its checks get their negatives in slice 3.
