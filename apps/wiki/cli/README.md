@@ -19,6 +19,17 @@ targets declared in [project.json](project.json). The diagnostic
 `twilight-bureaucrat:lint` target cannot certify itself and is not one of
 these receipts.
 
+## Rules
+
+`check` evaluates the registered rules over one candidate and prints a verdict. `explain` prints a
+rule's registry record and, when given a rule policy, its stated mode. A rule policy is read from
+outside the candidate's Git worktree so the candidate cannot select the policy that judges it. A
+verdict never certifies. In slice B0, a rule that cannot be evaluated disallows the verdict in every
+mode.
+
+The package installs two commands for the same program: `twilight-bureaucrat`, which documentation
+uses, and the short form `twib`.
+
 ## Trust boundary
 
 Candidate changes can propose future validator or policy bytes, but they cannot select the

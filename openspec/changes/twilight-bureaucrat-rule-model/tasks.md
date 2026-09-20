@@ -1,10 +1,10 @@
 ## Part 1: OpenSpec change, rule model, registry, and static explain
 
-- [ ] Add the OpenSpec artifacts and validate them.
-- [ ] Add `rules.test.ts`; observe both static `explain` tests fail before implementation and pass afterward.
-- [ ] Add the rule model, four-rule registry, shared candidate blob reader, and static `explain` command.
-- [ ] Inject P1 by bypassing the unknown-rule refusal; observe the unregistered-rule test fail, restore, and rerun it green.
-- [ ] Run the focused rule and moved-reader suites, typecheck, source lint, and OpenSpec validation.
+- [x] Add the OpenSpec artifacts and validate them.
+- [x] Add `rules.test.ts`; observe both static `explain` tests fail before implementation and pass afterward.
+- [x] Add the rule model, four-rule registry, shared candidate blob reader, and static `explain` command.
+- [x] Inject P1 by bypassing the unknown-rule refusal; observe the unregistered-rule test fail, restore, and rerun it green.
+- [x] Run the focused rule and moved-reader suites, typecheck, source lint, and OpenSpec validation.
 
 ## Part 2: Trusted policy boundary and check
 
@@ -21,7 +21,7 @@
 
 ## Part 4: Built executable, documentation, and record
 
-- [ ] Extend the package build test with installed `explain`, allowed `check`, and refused `check` coverage.
-- [ ] Document the rule commands, non-certifying verdict, external policy boundary, unevaluated behavior, and `twib` alias.
-- [ ] Record every command result and P1 through P19 in `verify.md`.
-- [ ] Run the combined rule and packaging suites, typecheck, source lint, build, owned-file formatting, repository format check, and OpenSpec validation.
+- [x] Extend the package build test with installed `explain`, allowed `check`, and refused `check` coverage.
+- [x] Document the rule commands, non-certifying verdict, external policy boundary, unevaluated behavior, and `twib` alias.
+- [x] Record every command result and P1 through P19 in `verify.md`.
+- [x] Run the combined rule and packaging suites, typecheck, source lint, build, owned-file formatting, repository format check, and OpenSpec validation.
