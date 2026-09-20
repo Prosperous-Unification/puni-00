@@ -371,6 +371,144 @@
       "rationale": "composeServices and PlanCommandRunner use it for the priority band aggregate's edit rules over PriorityBandStore and ProjectStore, with Clock and Broadcaster ports"
     },
     {
+      "path": "libs/wbs/application/core/src/service/project.service.ts",
+      "kind": "resource",
+      "term": "project",
+      "rationale": "project, solution and saved-plan routes plus several resource services call it for project aggregate creation, access and settings rules over ProjectStore, with Clock, Broadcaster and optimizer-availability ports"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/replay-buffer.ts",
+      "kind": "support",
+      "disposition": "realtime replay buffer; move to the realtime module",
+      "rationale": "composeServices constructs it and GatewayBroadcaster plus ReplayOrchestrator share its injected-clock bounded event buffer for realtime publication and recovery"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/replay-orchestrator.ts",
+      "kind": "feature",
+      "capability": "realtime",
+      "rationale": "the replay use case calls it to coordinate ReplayBuffer with EventLogStore and return one complete replay-or-refusal outcome for realtime resume"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/retention-job.ts",
+      "kind": "support",
+      "disposition": "private member of retention-sweep.ts",
+      "rationale": "retention-sweep.ts is its only production importer and uses its two port-backed pruning functions while coordinating the bounded replay sweep"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/retention-timer.ts",
+      "kind": "support",
+      "disposition": "periodic retention trigger; move to the bounded replay sweep module",
+      "rationale": "composeServices constructs it to invoke the retentionSweep feature over EventLogStore and PlanEventStore on an injected Intervals schedule and Clock, with lifecycle and failure reporting"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/roll-up.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "WorkItemService calls its estimate, actual, measure and progress folds as pure transformations over work-item and step values with no store or clock access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-default-name.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "SavedPlanService calls its pure UTC name rendering over an already supplied creation instant, with no store or clock access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-input.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "SavedPlanService calls planInputRowsOf to transform detached PlanInputReads into canonical saved-plan values without asking a store, clock or runtime port"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-integrity.ts",
+      "kind": "support",
+      "disposition": "saved-plan integrity policy; move to the saved plan module",
+      "rationale": "SavedPlanService verifies stored bodies through its Digest port, saved-plan routes map its version failure, and the SQLite adapter shares its byte measurement for the saved plan aggregate"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-quota.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "SavedPlanService calls its pure body-size, plan-count and project-byte limit decisions over supplied saved-plan holdings with no store or clock access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-retry.ts",
+      "kind": "support",
+      "disposition": "unreferenced; candidate for deletion, confirm before the ratchet task",
+      "rationale": "git grep for saved-plan-retry, saveWithBoundedRetry and every exported retry symbol found only this file, tests, documentation and the core barrel, with no production importer"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-schedule-body.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "SavedPlanService calls its pure schedule-body and stable-serialization transformations over captured schedule values with no store, clock or runtime port"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
+      "kind": "support",
+      "disposition": "private member of saved-plan.service.ts",
+      "rationale": "saved-plan.service.ts is its only production importer and uses its detached scheduling derivation; the file's capture helper asks SavedPlanCaptureStore, so it is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/saved-plan.service.ts",
+      "kind": "feature",
+      "capability": "core-lib-extraction",
+      "rationale": "saved-plan routes and the save-plan use case call it to coordinate SavedPlanCaptureStore, SavedPlanStore, Scheduler and Digest for user-visible save, read, compare, rename and delete operations covered by the extracted core capability"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/smoke.service.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "smokeRoutes is its only production caller and uses echo as a pure text transformation with no store, clock or external port"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/step.service.ts",
+      "kind": "resource",
+      "term": "step",
+      "rationale": "step routes and PlanCommandRunner call it for step aggregate add, rename, usage and removal rules over StepStore and ProjectStore, with Clock and Broadcaster ports"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/work-item.service.ts",
+      "kind": "resource",
+      "term": "work item",
+      "rationale": "project and work-item routes, ImportService and PlanCommandRunner call it for the work item aggregate's tree, estimate, assignment, dependency, scheduling and revision rules over its admitted stores and ports"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/working-plan-directory.ts",
+      "kind": "support",
+      "disposition": "private member of working-plan.ts",
+      "rationale": "working-plan.ts is its only production importer and uses its DirectoryStore wrapper to refresh retained plan rows after directory writes, so the port-backed helper is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/working-plan-edges.ts",
+      "kind": "support",
+      "disposition": "private member of working-plan.ts",
+      "rationale": "working-plan.ts is its only production importer and uses its DependencyStore wrapper to refresh retained edge endpoints after writes, so the port-backed helper is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/working-plan-rows.ts",
+      "kind": "support",
+      "disposition": "private member of working-plan.ts",
+      "rationale": "working-plan.ts is its only production importer and uses its WorkItemStore wrapper to refresh retained identities and placements after row writes, so the port-backed helper is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/working-plan-subtrees.ts",
+      "kind": "support",
+      "disposition": "private member of working-plan.ts",
+      "rationale": "working-plan.ts is its only production importer and uses its SubtreeStore wrapper to refresh copied, reparented and affected rows after atomic subtree writes, so the port-backed helper is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/working-plan-values.ts",
+      "kind": "support",
+      "disposition": "private member of working-plan.ts",
+      "rationale": "working-plan.ts is its only production importer and uses its generic step-value store wrapper to refresh retained work-item identities after value writes, so the port-backed helper is not pure domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/working-plan.ts",
+      "kind": "resource",
+      "term": "working plan",
+      "rationale": "PlanCommandRunner is its only production caller and uses it for the working plan aggregate's batch-lifetime retained reads, refresh invariants and closed-state refusal over the admitted transactional stores"
+    },
+    {
       "path": "libs/wbs/application/core/src/use-cases/replay.ts",
       "kind": "feature",
       "capability": "realtime",
