@@ -44,6 +44,6 @@ The alternative Dany named first, stronger numbers with fainter slashes, is kept
 
 ## Work item
 
-| Ref | Item                                                                                                                                                                       | Depends on | Days (O / R / P) | Tokens  |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------- | ------- |
-| U1  | Estimate cell at rest: the result is the main reading and the trio recedes; OpenSpec change, tests with negatives, pixel Chromium fit and contrast measured light and dark | —          | 0.5 / 1 / 2      | 800,000 |
+| Ref | Item                                                                                                                                                                 | Depends on | Days (O / R / P) | Tokens  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------- | ------- |
+| U1  | Estimate cell at rest: the result is the main reading and the trio recedes; OpenSpec change, tests with negatives, Chromium fit and contrast measured light and dark | —          | 0.5 / 1 / 2      | 800,000 |
