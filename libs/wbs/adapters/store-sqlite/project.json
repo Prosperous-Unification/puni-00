@@ -33,6 +33,16 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:api": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml",
+        "cwd": "libs/wbs/adapters/store-sqlite",
+        "forwardAllArgs": false
+      }
+    },
     "test:conformance": {
       "executor": "nx:run-commands",
       "cache": false,
@@ -47,7 +57,7 @@
       "executor": "nx:run-commands",
       "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
       "options": {
-        "command": "bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov",
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.unit.xml",
         "cwd": "libs/wbs/adapters/store-sqlite"
       },
       "outputs": ["{projectRoot}/coverage"]

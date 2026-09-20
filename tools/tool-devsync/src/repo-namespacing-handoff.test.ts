@@ -717,7 +717,15 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // occurrences and no unclassified entries, so only classified contexts' line numbers moved;
     // which lane's lines moved them was not traced (2026-09-20). Two lanes meeting at one
     // line-sensitive digest is a conflict by construction.
-    digest: '4b3aac6c5f311ce9564fa310bf426c44918da39cefc4c7054cfeaaa3ecb065be',
+    // Proof: leaving `5a672eac...` here after the test-axes lane re-pinned the workspace inventory
+    // failed on the observed digest below, occurrences and the unclassified list unchanged: the
+    // inventory test's new comment lines shift the classified contexts beneath them (2026-09-20).
+    // Proof: merging the first batch 2 group (`4b3aac6c...`) with the test-axes lane (`f85db082...`)
+    // left neither right: the merged tree failed on the observed digest below at the same 257
+    // occurrences and no unclassified entries. While the two files were still unmerged in the index
+    // the same run reported 261 occurrences, because `git ls-files` lists a conflicted path once
+    // per stage: resolve and stage before reading this pin (2026-09-20). Work item G2 derives it.
+    digest: '224f86cbd141955bf725bbc1e44bdcb9c31eae8b37e50d972cfbe3627e5781c3',
     occurrences: 257,
     unclassified: [],
   });

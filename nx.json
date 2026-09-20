@@ -74,6 +74,14 @@
         }
       }
     },
+    "test:api": {
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      }
+    },
     "test:conformance": {
       "options": {
         "env": {

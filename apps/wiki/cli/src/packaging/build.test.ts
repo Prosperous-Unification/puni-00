@@ -110,6 +110,26 @@ describe('buildPackage', () => {
     );
     expect(ruleHelp.stdout.toString()).toContain('twilight-bureaucrat explain <rule-id>');
 
+    const templateHelp = invoke(executable, ['--help'], externalRoot);
+    expect(templateHelp.exitCode, templateHelp.stderr.toString()).toBe(0);
+    expect(templateHelp.stdout.toString()).toContain('twilight-bureaucrat template <list|show');
+
+    const listed = invoke(executable, ['template', 'list'], externalRoot);
+    expect(listed.exitCode, listed.stderr.toString()).toBe(0);
+    expect(
+      (JSON.parse(listed.stdout.toString()) as { templates: { id: string }[] }).templates.map(
+        (template) => template.id,
+      ),
+    ).toContain('repository');
+
+    const unknownTemplate = invoke(
+      executable,
+      ['template', 'show', 'NO-SUCH-TEMPLATE'],
+      externalRoot,
+    );
+    expect(unknownTemplate.exitCode).not.toBe(0);
+    expect(unknownTemplate.stderr.toString()).toContain('unknown template: NO-SUCH-TEMPLATE');
+
     const explained = invoke(executable, ['explain', 'MOD-INDEX'], externalRoot);
     expect(explained.exitCode, explained.stderr.toString()).toBe(0);
     expect(JSON.parse(explained.stdout.toString()) as { id: string }).toMatchObject({
