@@ -540,6 +540,8 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // classified tool-dagger main changed the pinned occurrence count/digest and failed this test.
   // Proof: changing solver-orphan-fixture.Dockerfile line 4 to `COPY apps/be-01/...` failed with
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
+  // Re-pinned after dev-poll made its live source default injectable for isolated rehearsal;
+  // the classified occurrence count and categories remain unchanged (2026-09-19).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
       'current recursive selector': 31,
@@ -690,7 +692,22 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `539a2b35...` here after merging wbs-tool-v1 through 73e00574 failed on the
     // observed digest below at the same 257 occurrences and no unclassified entries; upstream's
     // local-solver moves shifted classified contexts only (2026-09-18).
-    digest: 'c6f0ee2fc904b62aca11eda7d94bb96ee78dbf061a145910bea077f4a51f8f4b',
+    // Proof: leaving `c6f0ee2f...` here after nx.json gained its per-target `env` defaults and
+    // docs/wiki-policy/relationships*.json their matching `env` facts failed on the observed
+    // digest below with the occurrence count and the unclassified list unchanged: the added lines
+    // shift classified contexts only (2026-09-20).
+    // Proof: merging main's `25601def...` (the dev deploy cut-over and the scrolling work) with
+    // this branch's `d17f003c...` left neither right: the merged tree failed on the observed
+    // digest below, again with the occurrence count and the unclassified list unchanged
+    // (2026-09-20). Two lanes re-pinning one line-sensitive digest is a conflict by construction.
+    // Proof: the `env` facts above were wrong and are gone again. Twilight Bureaucrat's static
+    // extractor merges a target default shallowly, so a target with its own `options` never shows
+    // the default's `options.env`, and the host gate failed `pins exact pre-index tuples and
+    // passes observe lint from external trust` on `fact check.core.test authority-selector
+    // mismatch`. With docs/wiki-policy/relationships*.json back to main's bytes, leaving
+    // `21a80db5...` here failed on the observed digest below, count and unclassified list
+    // unchanged (2026-09-20).
+    digest: '5a672eac90938e8483b2fbc000606a52b2d5a2ae2f8f256f66d77880dd077ac5',
     occurrences: 257,
     unclassified: [],
   });

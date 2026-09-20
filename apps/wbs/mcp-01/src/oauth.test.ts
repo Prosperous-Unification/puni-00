@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import type { BrowserOidcClient } from '@wbs/auth';
+import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { InMemoryMcpOAuth } from './oauth';
+import { InMemoryMcpOAuth, type OAuthRouteEvidence } from './oauth';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -25,39 +25,57 @@ function fixture(
     transactionLimit?: number;
     transactionLimitPerClient?: number;
     random?: () => string;
+    authorizationUrl?: BrowserOidcClient['authorizationUrl'];
+    exchange?: BrowserOidcClient['exchange'];
+    verifyUpstream?: (token: string) => Promise<JwtClaims>;
+    revoke?: BrowserOidcClient['revoke'];
+    revocationFailure?: () => void;
   } = {},
 ) {
+  const { authorizationUrl, exchange, verifyUpstream, revoke, ...oauthOptions } = limits;
   let now = 1_700_000_000_000;
   const values = Array.from({ length: 20 }, (_, index) => `random-${String(index + 1)}`);
   const authorizationCalls: unknown[] = [];
   const exchangeCalls: unknown[] = [];
-  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'> = {
+  const routeEvidence: OAuthRouteEvidence[] = [];
+  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'> = {
     authorizationUrl: (input) => {
       authorizationCalls.push(input);
-      return Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`));
+      return (
+        authorizationUrl?.(input) ??
+        Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`))
+      );
     },
     exchange: (request, checks) => {
       exchangeCalls.push({ request, checks });
-      return Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 300 });
+      return (
+        exchange?.(request, checks) ??
+        Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 300 })
+      );
     },
+    revoke: revoke ?? (() => Promise.resolve()),
   };
   return {
     authorizationCalls,
     exchangeCalls,
+    routeEvidence,
     oauth: new InMemoryMcpOAuth(CONFIG, provider, {
       groupsClaim: 'wbs_groups',
       groupPrefix: 'dev',
       now: () => now,
       random: () => values.shift() ?? 'random-exhausted',
-      verifyUpstream: (token) =>
-        token === 'upstream-okta-token'
-          ? Promise.resolve({
-              iss: 'https://idp.example',
-              sub: 'person-1',
-              wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
-            })
-          : Promise.reject(new Error('not an upstream token')),
-      ...limits,
+      verifyUpstream:
+        verifyUpstream ??
+        ((token) =>
+          token === 'upstream-okta-token'
+            ? Promise.resolve({
+                iss: 'https://idp.example',
+                sub: 'person-1',
+                wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+              })
+            : Promise.reject(new Error('not an upstream token'))),
+      ...oauthOptions,
+      routeEvidence: (evidence) => routeEvidence.push(evidence),
     }),
     advance: (milliseconds: number) => {
       now += milliseconds;
@@ -233,6 +251,46 @@ async function promoteClient(oauth: InMemoryMcpOAuth, source: string): Promise<s
 }
 
 describe('InMemoryMcpOAuth', () => {
+  // Proof: serializing request bodies or query strings here exposes credentials;
+  // these records retain only bounded grant classifications and the route path.
+  it('records OAuth route evidence without request secrets', async () => {
+    const { oauth, routeEvidence } = fixture();
+    await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/register?secret=query-secret', {
+        body: JSON.stringify({
+          grant_types: ['authorization_code', 'refresh_token', 'body-secret'],
+          redirect_uris: [CALLBACK],
+          token_endpoint_auth_method: 'none',
+        }),
+        headers: { authorization: 'Bearer header-secret', 'content-type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'token-secret' }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+
+    expect(routeEvidence).toEqual([
+      {
+        method: 'POST',
+        path: '/mcp/oauth/register',
+        registration_grant_types: ['authorization_code', 'refresh_token', 'other'],
+        status: 201,
+      },
+      {
+        grant_type: 'refresh_token',
+        method: 'POST',
+        path: '/mcp/oauth/token',
+        status: 400,
+      },
+    ]);
+    expect(JSON.stringify(routeEvidence)).not.toContain('secret');
+  });
+
   // Break caught: accepting an arbitrary HTTPS callback lets an attacker
   // register their origin and exfiltrate a signed-in user's authorization code.
   it('limits dynamic registration to the real connector and loopback clients', async () => {
@@ -931,5 +989,198 @@ describe('InMemoryMcpOAuth', () => {
     const secondToken = ((await secondResponse?.json()) as { access_token: string }).access_token;
     advance(300_001);
     expect(oauth.verify(secondToken)).rejects.toThrow();
+  });
+
+  // Proof: returning provider failures locally strands the MCP client on the
+  // callback page and never makes the following authorization ask for login.
+  it('redirects provider errors and consumes a signed reauthentication marker', async () => {
+    const { authorizationCalls, oauth } = fixture();
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?error=access_denied&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const returned = new URL(failed?.headers.get('location') ?? 'https://invalid');
+    expect(returned.origin + returned.pathname).toBe(CALLBACK);
+    expect(returned.searchParams.get('error')).toBe('access_denied');
+    expect(returned.searchParams.get('state')).toBe('claude-state');
+    const setCookie = failed?.headers.get('set-cookie') ?? '';
+    const marker = /(__Host-wbs_mcp_reauth=[^;,]+)/.exec(setCookie)?.[1];
+    expect(marker).toBeDefined();
+
+    const tampered = `${marker?.slice(0, -1) ?? ''}${marker?.endsWith('A') ? 'B' : 'A'}`;
+    await oauth.response(new Request(authorizeUrl(clientId), { headers: { cookie: tampered } }));
+    expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+
+    await oauth.response(
+      new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
+    );
+    expect(authorizationCalls.at(-1)).toMatchObject({ prompt: 'login' });
+
+    await oauth.response(
+      new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
+    );
+    expect(authorizationCalls.at(-1)).not.toMatchObject({ prompt: 'login' });
+  });
+
+  it('restores a reserved reauthentication marker when provider discovery fails', async () => {
+    let authorizationAttempts = 0;
+    const { authorizationCalls, oauth } = fixture({
+      authorizationUrl: (input) => {
+        authorizationAttempts += 1;
+        if (authorizationAttempts === 2) {
+          return Promise.reject(new Error('provider discovery unavailable'));
+        }
+        return Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`));
+      },
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?error=access_denied&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const marker = /(__Host-wbs_mcp_reauth=[^;,]+)/.exec(
+      failed?.headers.get('set-cookie') ?? '',
+    )?.[1];
+
+    const discoveryFailure = await oauth
+      .response(new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }))
+      .catch((error: unknown) => error);
+    expect(discoveryFailure).toBeInstanceOf(Error);
+    expect(String(discoveryFailure)).toContain('provider discovery unavailable');
+    await oauth.response(
+      new Request(authorizeUrl(clientId), { headers: { cookie: marker ?? '' } }),
+    );
+    expect(authorizationCalls.at(-1)).toMatchObject({ prompt: 'login' });
+  });
+
+  it('still redirects when provider refresh-token revocation fails', async () => {
+    let revocationFailures = 0;
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'unverifiable-upstream-token',
+          expiresIn: 300,
+          refreshToken: 'provider-refresh-token',
+        }),
+      revoke: () => Promise.reject(new Error('provider unavailable')),
+      revocationFailure: () => {
+        revocationFailures += 1;
+      },
+      verifyUpstream: () => Promise.reject(new Error('invalid upstream identity')),
+    });
+    const clientId = await register(oauth);
+    const failed = await completedAuthorization(oauth, 'v'.repeat(43), clientId);
+    const returned = new URL(failed.response.headers.get('location') ?? 'https://invalid');
+    expect(failed.response.status).toBe(302);
+    expect(returned.searchParams.get('error')).toBe('access_denied');
+    expect(returned.searchParams.get('state')).toBe('claude-state');
+    expect(revocationFailures).toBe(1);
+  });
+
+  it('maps an exchange exception to server_error at the validated client redirect', async () => {
+    const { oauth } = fixture({
+      exchange: () => Promise.reject(new Error('provider unavailable')),
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=***&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const returned = new URL(failed?.headers.get('location') ?? 'https://invalid');
+    expect(returned.searchParams.get('error')).toBe('server_error');
+    expect(returned.searchParams.get('state')).toBe('claude-state');
+  });
+
+  it('revokes a refresh token when upstream verification refuses the login', async () => {
+    const revoked: string[] = [];
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'untrusted-upstream-token',
+          expiresIn: 300,
+          refreshToken: 'provider-refresh-token',
+        }),
+      verifyUpstream: () => Promise.reject(new Error('untrusted upstream token')),
+      revoke: (token) => {
+        revoked.push(token);
+        return Promise.resolve();
+      },
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=***&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    expect(
+      new URL(failed?.headers.get('location') ?? 'https://invalid').searchParams.get('error'),
+    ).toBe('access_denied');
+    expect(revoked).toEqual(['provider-refresh-token']);
+  });
+
+  it('redirects and revokes when the verified account lacks wbs:read', async () => {
+    const revoked: string[] = [];
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'provider-refresh-token',
+        }),
+      verifyUpstream: () =>
+        Promise.resolve({
+          iss: 'https://idp.example',
+          sub: 'person-without-wbs',
+          wbs_groups: [],
+        }),
+      revoke: (token) => {
+        revoked.push(token);
+        return Promise.resolve();
+      },
+    });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const failed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=***&state=${String(upstreamState)}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    expect(
+      new URL(failed?.headers.get('location') ?? 'https://invalid').searchParams.get('error'),
+    ).toBe('access_denied');
+    expect(revoked).toEqual(['provider-refresh-token']);
   });
 });

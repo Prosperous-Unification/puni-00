@@ -6,13 +6,22 @@ import { createServer } from './server';
 
 const config = loadConfig();
 const tools = toolsFromDocument(readDocument());
-const oauth = mcpOAuthFromEnv(config, process.env);
+const oauth = mcpOAuthFromEnv(config, process.env, (evidence) => {
+  console.error(JSON.stringify({ event: 'mcp_oauth_route', ...evidence }));
+});
 const verifier =
   config.MCP_AUTH_MODE === 'standalone'
     ? oauth
     : { verify: () => Promise.reject(new Error('gateway mode must not verify locally')) };
 const http = startHttpServer(
-  () => createServer({ tools, config }),
+  () =>
+    createServer({
+      tools,
+      config,
+      endSession: (sessionId) => {
+        oauth.endSession(sessionId);
+      },
+    }),
   config,
   verifier,
   process.env,

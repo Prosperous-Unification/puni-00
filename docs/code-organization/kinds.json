@@ -433,8 +433,8 @@
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-retry.ts",
       "kind": "support",
-      "disposition": "unreferenced; candidate for deletion, confirm before the ratchet task",
-      "rationale": "git grep for saved-plan-retry, saveWithBoundedRetry and every exported retry symbol found only this file, tests, documentation and the core barrel, with no production importer"
+      "disposition": "unadopted caller retry; wire it into the save route or delete it with saved-plans task 4.5",
+      "rationale": "saved-plans design (Fail-fast, not queue) and its task 4.5 provide this bounded retry as something the caller of a refused save may make; commit 4ee1ab89 added it with its unit and database tests and no route ever called it, so only those tests, the core barrel and service-boundaries.test.ts name it. It is designed behaviour without a caller, not dead code"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule-body.ts",

@@ -10,8 +10,17 @@ import {
   lastWorkdayOf,
   wholeDaysCovering,
 } from '@wbs/domain/workday';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  memo,
+  type PointerEvent as ReactPointerEvent,
+  Profiler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,8 +53,9 @@ import { InlineMarkdown } from './inline-markdown';
 import { markerRulesAreTooDense } from './marker-rule-density';
 import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
+import { recordGanttScrollCommit } from './scroll-performance';
 import { shortIsoDate } from './short-date';
-import { hierarchyIndentFor } from './table-frame';
+import { hierarchyIndentFor, PLAN_TERMINAL_ALLOWANCE } from './table-frame';
 import { nameWords, numberWords, rowWords } from './work-item-words';
 
 export { rowWords } from './work-item-words';
@@ -2730,7 +2740,30 @@ export function ganttSvgFileName(now: Date): string {
  * @throws GanttDataError out of {@link layOutGantt} when the payload's slices
  * name something the payload has not got. See there.
  */
-export function GanttPanel({
+export const GanttPanel = memo(
+  function GanttPanel(props: GanttProps) {
+    return (
+      <Profiler id="gantt-panel" onRender={recordGanttScrollCommit}>
+        <GanttPanelContent {...props} />
+      </Profiler>
+    );
+  },
+  (before, after) =>
+    before.generation === after.generation &&
+    before.startDate === after.startDate &&
+    before.scheduleError === after.scheduleError &&
+    before.heightPx === after.heightPx &&
+    before.roomPx === after.roomPx &&
+    before.dayPx === after.dayPx &&
+    before.labelsShown === after.labelsShown &&
+    before.pointed === after.pointed &&
+    before.markers === after.markers &&
+    before.plan.narrowedByFilter === after.plan.narrowedByFilter &&
+    before.plan.rows.length === after.plan.rows.length &&
+    before.plan.rows.every((row, index) => row.id === after.plan.rows[index]?.id),
+);
+
+function GanttPanelContent({
   plan,
   startDate,
   scheduleError,
@@ -3111,6 +3144,7 @@ function GanttChart({
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
   const [scrolledPx, setScrolledPx] = useState(0);
+  const scrolledPxReading = useRef(0);
   /**
    * The panel's own scroll box, so what is below its bottom edge can be
    * measured off the boxes the browser really laid out.
@@ -3127,6 +3161,7 @@ function GanttChart({
    * exists to answer (Dany, 2026-08-29).
    */
   const [moreBelow, setMoreBelow] = useState(false);
+  const moreBelowReading = useRef(false);
   /**
    * How wide the chart's own content is inside the scroll box, in CSS pixels,
    * or `null` where nothing has laid it out.
@@ -3156,6 +3191,7 @@ function GanttChart({
   // The scrollport's own width in CSS pixels, for the marker-rule density
   // measure. Zero until something is laid out — see {@link measureTheViewport}.
   const [viewportPx, setViewportPx] = useState(0);
+  const viewportPxReading = useRef(0);
   /**
    * Whether anything is below the fold, off one laid-out scroll box.
    *
@@ -3172,7 +3208,10 @@ function GanttChart({
    * are already watching.
    */
   const measureTheFold = useCallback((port: HTMLElement): void => {
-    setMoreBelow(chartBelowTheFold(port) > AT_THE_LAST_ROW_PX);
+    const next = chartBelowTheFold(port) > AT_THE_LAST_ROW_PX;
+    if (next === moreBelowReading.current) return;
+    moreBelowReading.current = next;
+    setMoreBelow(next);
   }, []);
   /**
    * How wide the scrollport is — the `100px` the marker-rule density is
@@ -3196,6 +3235,8 @@ function GanttChart({
    * define `clientWidth` on the box the way the browser would have.
    */
   const measureTheViewport = useCallback((port: HTMLElement): void => {
+    if (port.clientWidth === viewportPxReading.current) return;
+    viewportPxReading.current = port.clientWidth;
     setViewportPx(port.clientWidth);
   }, []);
   /**
@@ -3388,6 +3429,8 @@ function GanttChart({
   const [openMarkers, setOpenMarkers] = useState<{ offset: number; anchor: AnchorRect } | null>(
     null,
   );
+  const hasOpenSurface = useRef(false);
+  hasOpenSurface.current = open !== null || openDay !== null || openMarkers !== null;
   /**
    * The calendar-marker composer's day, and it is the **date** rather than the
    * offset the cell was drawn at.
@@ -3578,6 +3621,8 @@ function GanttChart({
   }, []);
   const dismiss = useCallback(() => {
     cancelOpening();
+    if (!hasOpenSurface.current) return;
+    hasOpenSurface.current = false;
     setOpen(null);
     setOpenDay(null);
     setOpenMarkers(null);
@@ -5152,26 +5197,34 @@ function GanttChart({
           !fullScreen && heightPx === null && 'max-h-[40vh]',
         )}
         style={
-          fullScreen || heightPx === null
+          fullScreen
             ? undefined
             : {
-                height: heightPx,
-                // The same bound the height was already clamped to, stated to
-                // the browser as well: `height` comes from a room measured on a
-                // render that has been laid out, and this is what holds the
-                // frame between a column changing and the observer that
-                // re-measures it saying so. No floor beside it — the clamp is
-                // the floor, and a `min-height` here would be a line whose
-                // removal nothing could see.
-                //
-                // Proof: with `'80vh'` restored here, `the panel's ceiling is
-                // its column, not the window` failed on `expected '80vh' to be
-                // '488px'`. Watched 2026-08-29.
-                maxHeight: roomPx ?? '100%',
+                ...(heightPx === null
+                  ? {}
+                  : {
+                      height: heightPx,
+                      // The same bound the height was already clamped to, stated to
+                      // the browser as well: `height` comes from a room measured on a
+                      // render that has been laid out, and this is what holds the
+                      // frame between a column changing and the observer that
+                      // re-measures it saying so. No floor beside it — the clamp is
+                      // the floor, and a `min-height` here would be a line whose
+                      // removal nothing could see.
+                      //
+                      // Proof: with `'80vh'` restored here, `the panel's ceiling is
+                      // its column, not the window` failed on `expected '80vh' to be
+                      // '488px'`. Watched 2026-08-29.
+                      maxHeight: roomPx ?? '100%',
+                    }),
               }
         }
         onScroll={(scrollEvent) => {
-          setScrolledPx(scrollEvent.currentTarget.scrollLeft);
+          const nextScrolledPx = scrollEvent.currentTarget.scrollLeft;
+          if (nextScrolledPx !== scrolledPxReading.current) {
+            scrolledPxReading.current = nextScrolledPx;
+            setScrolledPx(nextScrolledPx);
+          }
           // The fold moved: a reader who has scrolled to the last row is owed
           // the fade going away, and one who scrolls back up is owed it
           // returning. The event's own target is the box, so nothing here has
@@ -5691,6 +5744,23 @@ function GanttChart({
             </div>
           </div>
         </div>
+
+        {/* The table keeps this trailing room for open pickers. Giving the chart
+            the same terminal extent lets either face drive the last row/fraction
+            without its follower clamping. A child, not panel padding: padding
+            would consume the chart's visible height under border-box sizing. */}
+        {/* Only large plans need extra terminal travel. Adding it to short plans
+            forces an otherwise fitted chart to overflow and changes card/drag
+            geometry. Proof: making this unconditional failed five short-plan
+            Chromium cases in gantt.spec.ts; the 50-row bidirectional terminal
+            proof remains green with the threshold. */}
+        {!fullScreen && rowCount >= 50 && (
+          <div
+            aria-hidden="true"
+            data-gantt-terminal-allowance
+            style={{ height: PLAN_TERMINAL_ALLOWANCE }}
+          />
+        )}
 
         {/*
           The bottom edge of a panel with chart still under it, said in a way

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +9,7 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
 
 import type * as GanttGeometryModule from './gantt-geometry';
+import type * as PlanChartInputModule from './plan-chart-input';
 import type * as TableFrameModule from './table-frame';
 import { type SubscriptionHandlers, WbsTable, type WbsTableProps } from './wbs-table';
 
@@ -29,6 +30,7 @@ const itDom = hasDom ? it : it.skip;
  * The mock is call-through: every other case sees the real module.
  */
 const layoutCalls = vi.hoisted(() => ({ count: 0 }));
+const ownerRenders = vi.hoisted(() => ({ count: 0 }));
 vi.mock('./gantt-geometry', async (importOriginal) => {
   const real = await importOriginal<typeof GanttGeometryModule>();
   return {
@@ -54,6 +56,17 @@ vi.mock('./gantt-geometry', async (importOriginal) => {
  * The mock is call-through: every other test sees the real module unchanged.
  */
 const cellStyleCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('./plan-chart-input', async (importOriginal) => {
+  const real = await importOriginal<typeof PlanChartInputModule>();
+  return {
+    ...real,
+    usePlanChartInput: (...args: Parameters<typeof real.usePlanChartInput>) => {
+      ownerRenders.count += 1;
+      return real.usePlanChartInput(...args);
+    },
+  };
+});
 
 vi.mock('./table-frame', async (importOriginal) => {
   const real = await importOriginal<typeof TableFrameModule>();
@@ -655,6 +668,81 @@ describe('what a keystroke costs the chart', () => {
    * built inline, as it was — watched failing on `expected 1 to be +0`
    * (2026-09-02).
    */
+  itDom(
+    'does not render the plan owner or commit the chart for 120 compositor-only table scroll frames',
+    async () => {
+      await planWithTheChartOpen();
+      ownerRenders.count = 0;
+
+      const frame = screen.getByRole('table').parentElement;
+      if (!(frame instanceof HTMLElement)) throw new Error('no table frame rendered');
+      Object.defineProperties(frame, {
+        clientHeight: { configurable: true, value: 320 },
+        clientWidth: { configurable: true, value: 800 },
+      });
+      const queued: FrameRequestCallback[] = [];
+      const animationFrame = vi
+        .spyOn(window, 'requestAnimationFrame')
+        .mockImplementation((callback) => {
+          queued.push(callback);
+          return queued.length;
+        });
+      window.__wbsScrollProbe = {
+        recordHeightCalls: 0,
+        recordHeightMs: 0,
+        placeRowsCalls: 0,
+        placeRowsMs: 0,
+        reactCommits: 0,
+        reactCommitMs: 0,
+        ganttCommits: 0,
+        ganttCommitMs: 0,
+        anchorWrites: 0,
+        scrollLinkWrites: 0,
+      };
+      try {
+        for (let input = 1; input <= 120; input += 1) {
+          frame.scrollTop = input;
+          fireEvent.scroll(frame);
+          const callback = queued.shift();
+          if (callback === undefined)
+            throw new Error(`scroll input ${String(input)} queued no frame`);
+          act(() => {
+            callback(performance.now());
+          });
+        }
+        // Force a real viewport-state publication as the positive control: a
+        // dimension change cannot take the same-window early return. With the
+        // hook back in WbsTable this increments ownerRenders; below the owner it
+        // redraws only the viewport child.
+        Object.defineProperty(frame, 'clientHeight', { configurable: true, value: 321 });
+        frame.scrollTop = 121;
+        fireEvent.scroll(frame);
+        const resized = queued.shift();
+        if (resized === undefined) throw new Error('viewport resize queued no frame');
+        act(() => {
+          resized(performance.now());
+        });
+
+        expect(ownerRenders.count).toBe(0);
+        expect(window.__wbsScrollProbe.ganttCommits).toBe(0);
+
+        // A real plan-owner-only menu input is still observed by the render counter. The row's
+        // Actions column is intentionally unmounted at this narrow horizontal viewport.
+        click('Freeze #');
+        expect(ownerRenders.count).toBeGreaterThan(0);
+
+        // A real chart input still crosses the memo boundary and redraws it.
+        const scale = document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]');
+        if (scale === null) throw new Error('no chart scale control');
+        fireEvent.change(scale, { target: { value: '12' } });
+        expect(window.__wbsScrollProbe.ganttCommits).toBeGreaterThan(0);
+      } finally {
+        animationFrame.mockRestore();
+        delete window.__wbsScrollProbe;
+      }
+    },
+  );
+
   itDom('does not lay the chart out again for a gesture that changes no bar', async () => {
     await planWithTheChartOpen();
 

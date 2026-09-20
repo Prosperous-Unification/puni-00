@@ -1,6 +1,6 @@
 # Batch 1 results
 
-Recorded 2026-09-20. Status: **batch concluded, locally verified; host gate run 1 failed on one test, fixed, run 2 pending.** Nine packets are merged on the local branch `batch-1/integration`; one packet is held. Nothing was pushed, published, merged to main or deployed.
+Recorded 2026-09-20. Status: **batch concluded, locally verified, and the host gate passed on `49c5cfab`**, the batch merged with main (two earlier runs each failed on one test this batch had pushed to its time limit, fixed since). Nine packets are merged on the local branch `batch-1/integration`; one packet is held. Nothing was pushed, published, merged to main or deployed.
 
 This page reports what was observed. The plan is the [batch README](README.md); the decisions taken without asking are in [ASSUMPTIONS.md](ASSUMPTIONS.md). Attempt reports, mutation patches and failing output are kept outside the repository, in the planner's working directory beside it, under `puni-plan/exec/logs/<attempt>/`, with one line per event in `puni-plan/exec/ledger.jsonl`.
 
@@ -40,8 +40,11 @@ Run on h2puni from a Git bundle sent over SSH, not through GitHub; `bin/h2puni-g
 | Run | Commit     | Result                                                                                                                                                                                                                                                                                                                                                                          |
 | --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `fd0a777c` | **Exit 1.** `h2puni gate: running on fd0a777c5136add31c3405291200502d43f6e399`. OpenSpec and all 34 projects' `test`, `lint`, `typecheck` and `build` passed, the Python solver tests included. `twilight-bureaucrat:test` failed 678 to 1: a test this batch added ran the production CLI five times in sequence and hit Bun's 5 second default at 5025 ms on the loaded host. |
+| 2   | `6484986e` | **Exit 0.** `h2puni gate: running on 6484986e5425da2df5140c81b2b38fbb12bdd9a1`. OpenSpec; all 34 projects' `test`, `lint`, `typecheck` and `build`; Twilight Bureaucrat's `test`, `typecheck` and `build`, then `lint:source`; the launcher check (3 pass); and `wbs-be-01:solver-image-smoke`.                                                                                 |
+| 3   | `d748f1a7` | **Exit 1.** The branch merged with main's eight new commits. Everything passed except one Twilight Bureaucrat test, `builds the canonical executable for use outside the repository`, which timed out at 20.04 s under its 20-second limit; it had taken 19.46 s in run 1, after this batch added five runs of the built binary to it.                                          |
+| 4   | `49c5cfab` | **Exit 0.** `h2puni gate: running on 49c5cfab5492d20759f7fe0adfe9ae41968b6049`. That test now has three times its observed duration as its limit. All steps passed, the solver image smoke included.                                                                                                                                                                            |
 
-The failing test now carries an explicit timeout and a `Proof:` comment naming that run, as `src/cli.test.ts` already does for the same cause; a sibling that took 3.4 seconds on the host has one too. No assertion changed. The second run's result is recorded below when it returns.
+The failing test now carries an explicit timeout and a `Proof:` comment naming that run, as `src/cli.test.ts` already does for the same cause; a sibling that took 3.4 seconds on the host has one too. No assertion changed. Run 4 is the gate on what merges: the batch, main as of 2026-09-20, and both timing fixes. The commits after `49c5cfab` change documents only. The run also showed that 24 other Twilight Bureaucrat tests take between 3.5 and 4.94 seconds on that host under Bun's 5-second default; the follow-up branch raises the default for the suites that load the shared test preload.
 
 Whole-target totals against main: `tool-devsync:test` 267 to 284; `twilight-bureaucrat:test` 662 to 679; `wbs-fe-01:test:unit` 34 files and 554 tests to 40 and 595; `wbs-fe-01:test` under UTC 107 files and 2781 tests to 114 and 2826, and under Auckland unchanged at 2 files and 3 tests.
 
@@ -54,19 +57,19 @@ Whole-target totals against main: `tool-devsync:test` 267 to 284; `twilight-bure
 
 ## What it cost
 
-Executor tokens actually used, summed over every attempt of a work item, read from the attempt logs (Codex `gpt-5.6-sol`, medium effort). Planning, the Codex reviews and the planner's own verification are not in these figures.
+The executor tool's printed "tokens used", summed over every attempt of a work item (Codex `gpt-5.6-sol`, medium effort). That figure is **uncached input plus output only**: the executor's own session records show about 194 million tokens processed for the batch in all, 97 percent of them cached input. Planning, the Codex reviews and the planner's own verification are in neither figure.
 
-| Work item        | Attempts | Executor tokens |
-| ---------------- | -------- | --------------- |
-| 010.5            | 1        | 168,731         |
-| 020.1            | 1        | 178,720         |
-| 010.3            | 2        | 348,973         |
-| 040.3            | 5        | 539,452         |
-| 110.5            | 4        | 657,790         |
-| 010.4            | 5        | 914,392         |
-| 040.6 and 040.6b | 5        | 964,458         |
-| 020.8            | 7        | 1,186,639       |
-| **Total**        | **30**   | **4,959,155**   |
+| Work item        | Attempts | "Tokens used" |
+| ---------------- | -------- | ------------- |
+| 010.5            | 1        | 168,731       |
+| 020.1            | 1        | 178,720       |
+| 010.3            | 2        | 348,973       |
+| 040.3            | 5        | 539,452       |
+| 110.5            | 4        | 657,790       |
+| 010.4            | 5        | 914,392       |
+| 040.6 and 040.6b | 5        | 964,458       |
+| 020.8            | 7        | 1,186,639     |
+| **Total**        | **30**   | **4,959,155** |
 
 ## Two results that look like regressions and are not
 
@@ -98,9 +101,11 @@ One defect reached code and was caught by the planner's type check, not by an ex
 
 ## What to do next
 
-1. On the shared build host, run `bin/h2puni-gate.sh b4188ec3276bc302be00fbfc512ecc4c3eb5844b` and record the printed `h2puni gate: running on <sha>` line and the exit status.
-2. Decide whether `batch-1/integration` goes to main as one pull request or as nine. The repository is public, so merging publishes it.
-3. Run 060.1's experiment in a disposable environment. Its open question is decided: Node for software written for Node is fine.
-4. In the dev WBS project "PUNI platform plan", add the three missing dependencies found during planning (040.1 on 020.1, 110.1 on 010.3, 110.6 on 020.8) and mark these nine items' progress. The connection's tokens last five minutes, so this needs a fresh `/mcp` login.
+1. Merge `batch-1/integration` to main as one pull request; the owner approved that on 2026-09-20. The nine packets stay separate `--no-ff` merges inside it.
+2. Run 060.1's experiment: its preparation slice is dispatched, and the planner runs the container steps from the reviewed scripts.
+3. Fix the findings above that need no decision, on their own branch with their own gate run.
+4. Batch 2 is being planned under `docs/superpowers/plans/2026-09-20-batch-2/`.
+
+The dev WBS project "PUNI platform plan" was updated on 2026-09-20: eight items done, 060.1's planning step done, and the three dependencies found missing during planning added (040.1 on 020.1, 110.1 on 010.3, 110.6 on 020.8).
 
 Rollback is local: every packet is one `--no-ff` merge on `batch-1/integration`, so `git revert -m 1 <merge>` removes one packet, and deleting the branch removes the batch. Main is untouched at `1eeacb0b`.

@@ -5,7 +5,14 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 
 ## Language
 
+### Checkout commit
+
+The commit the dev source tree on disk is at. It describes the checkout being served,
+not the commit captured when a process or container first started.
+
 ### WBS
+
+**First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
 
 **Project**:
 One work breakdown structure and everything scoped to it — its work items, its steps and
@@ -1044,6 +1051,18 @@ A row written before the audit columns existed, whose `created_by` is null. Not 
 with a missing value to be filled in later — its author is unknowable rather than
 unknown, which is why nothing substitutes for it.
 _Avoid_: orphan row, legacy row, anonymous row
+
+**MCP session**:
+The server-held mapping from a fronting MCP access token's `jti` to the upstream access
+token and expiry. Ending it makes the next request carrying that MCP token fail with
+`invalid_token`; it does not end the provider's browser session.
+_Avoid_: connector session, provider session, access token
+
+**Reauthentication marker**:
+A signed, short-lived, identity-free browser cookie set after a matched MCP login fails.
+The next authorization consumes it and asks the provider for `prompt=login`, so a refused
+provider account is not silently reused.
+_Avoid_: logout cookie, retry flag, browser binding
 
 ### Architecture
 

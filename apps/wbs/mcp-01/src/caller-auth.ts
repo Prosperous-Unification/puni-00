@@ -6,6 +6,9 @@ import type { McpConfig } from './config';
 
 interface DownstreamTokenResolver {
   upstreamTokenFor(token: string, verified?: JwtClaims): Promise<string>;
+  callerSessionFor?(
+    token: string,
+  ): Promise<{ readonly upstreamToken: string; readonly mcpSessionId: string | null }>;
 }
 
 function resolvesDownstreamToken(
@@ -27,14 +30,23 @@ export async function authenticateCaller(
   const token = match[1];
   const claims = mode === 'standalone' ? await verifier.verify(token) : decodeJwt(token);
   const identity = oidcIdentityFromClaims(claims, { groupPrefix, groupsClaim });
-  const forwardedToken =
+  const resolved =
     mode === 'standalone' && resolvesDownstreamToken(verifier)
-      ? await verifier.upstreamTokenFor(token, claims as JwtClaims)
-      : token;
+      ? verifier.callerSessionFor === undefined
+        ? {
+            upstreamToken: await verifier.upstreamTokenFor(token, claims as JwtClaims),
+            mcpSessionId: null,
+          }
+        : await verifier.callerSessionFor(token)
+      : { upstreamToken: token, mcpSessionId: null };
   return {
-    token: forwardedToken,
+    token: resolved.upstreamToken,
     clientId: identity.subject,
     scopes: [...identity.scopes],
-    extra: { issuer: identity.issuer, subject: identity.subject },
+    extra: {
+      issuer: identity.issuer,
+      subject: identity.subject,
+      mcpSessionId: resolved.mcpSessionId,
+    },
   };
 }
