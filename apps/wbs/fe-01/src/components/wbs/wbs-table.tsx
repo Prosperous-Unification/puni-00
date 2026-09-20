@@ -5,6 +5,7 @@ import {
   type ComponentProps,
   memo,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -100,7 +101,7 @@ import {
   usePlanStructure,
   usePlanStructureEffects,
 } from './use-plan-structure';
-import { usePlanViewport } from './use-plan-viewport';
+import { type PlanViewport, usePlanViewport } from './use-plan-viewport';
 import { usePlanAssignments, usePlanLabels, useReferenceSets } from './use-reference-sets';
 import { type TreeRow } from './wbs-rows';
 
@@ -278,6 +279,80 @@ function ViewportColumnSpacer({ columnCount }: { columnCount: number }) {
       style={{ ...CELL, padding: 0 }}
     />
   );
+}
+
+interface PlanViewportOwnerProps {
+  frameRef: Parameters<typeof usePlanViewport>[0]['frameRef'];
+  rowIds: Parameters<typeof usePlanViewport>[0]['rowIds'];
+  columns: Parameters<typeof usePlanViewport>[0]['columns'];
+  pinnedCells: Parameters<typeof usePlanViewport>[0]['pinnedCells'];
+  enabled: boolean;
+  layout: Omit<Parameters<typeof usePlanLayoutEffects>[0], 'frameRef' | 'rendererRows'>;
+  requestedFocus: { cell: CellRef; landing: CellLanding } | null;
+  committedLogicalCells: readonly CellRef[];
+  gridElement: RefObject<HTMLElement | null>;
+  clearRequestedFocus: () => void;
+  children: (viewport: PlanViewport) => ReactNode;
+}
+
+/**
+ * Owns the scroll-published table window below the complete plan owner.
+ *
+ * A retained viewport bucket is still React state, but changing it must redraw
+ * only the mounted rows and columns. Keeping that state in {@link WbsTable}
+ * scheduled every toolbar, modal and chart derivation on each bucket crossing.
+ */
+function PlanViewportOwner({
+  frameRef,
+  rowIds,
+  columns,
+  pinnedCells,
+  enabled,
+  layout,
+  requestedFocus,
+  committedLogicalCells,
+  gridElement,
+  clearRequestedFocus,
+  children,
+}: PlanViewportOwnerProps) {
+  const viewport = usePlanViewport({ frameRef, rowIds, columns, pinnedCells, enabled });
+  usePlanLayoutEffects({ ...layout, frameRef, rendererRows: viewport.rowLayout });
+  useLayoutEffect(() => {
+    if (requestedFocus === null) return;
+    if (
+      !committedLogicalCells.some(
+        (cell) =>
+          cell.rowId === requestedFocus.cell.rowId &&
+          cell.columnId === requestedFocus.cell.columnId,
+      )
+    ) {
+      clearRequestedFocus();
+      return;
+    }
+    const grid = gridElement.current;
+    if (grid === null) return;
+    const attached = cellIn(grid, requestedFocus.cell);
+    if (attached === undefined) return;
+    attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (requestedFocus.landing === 'focus') attached.focus();
+    else
+      focusCellAt(
+        attached,
+        requestedFocus.landing === 'all'
+          ? 'all'
+          : requestedFocus.landing === 'start'
+            ? 0
+            : attached.value.length,
+      );
+    clearRequestedFocus();
+  }, [
+    clearRequestedFocus,
+    committedLogicalCells,
+    gridElement,
+    requestedFocus,
+    viewport,
+  ]);
+  return children(viewport);
 }
 
 /** What {@link PlanCell} needs beyond the `<td>` attributes it passes on. */
@@ -1776,31 +1851,6 @@ export function WbsTable({
       ),
     [activeCell, requestedFocus],
   );
-  const viewport = usePlanViewport({
-    frameRef,
-    rowIds: shownRowIds,
-    columns: viewportColumns,
-    pinnedCells,
-    enabled: renderer === 'table',
-  });
-  usePlanLayoutEffects({
-    frameRef,
-    ganttOpen,
-    renderer,
-    chartRead,
-    ganttColumn,
-    setGanttRoomPx,
-    rendererRows: viewport.rowLayout,
-  });
-  const mountedRows = viewport.rows.entries.map((entry) => ({
-    entry,
-    row: shownRows[entry.index],
-  }));
-  // Proof: replacing this set with every leaf id made `an unfolded plan mounts only its
-  // viewport columns` fail on `Expected: 0, Received: 43` for the offscreen Actions cells.
-  // Watched in Chromium, 2026-09-08.
-  const mountedColumnIds = new Set(viewport.columns.entries.map((entry) => entry.id));
-
   const requestCellAttachment = useCallback(
     (cell: CellRef, landing: CellLanding): boolean => {
       const grid = gridElement.current;
@@ -1829,35 +1879,9 @@ export function WbsTable({
   useLayoutEffect(() => {
     attachCell.current = requestCellAttachment;
   }, [attachCell, requestCellAttachment]);
-  useLayoutEffect(() => {
-    if (requestedFocus === null) return;
-    if (
-      !committedLogicalCells.some(
-        (cell) =>
-          cell.rowId === requestedFocus.cell.rowId &&
-          cell.columnId === requestedFocus.cell.columnId,
-      )
-    ) {
-      setRequestedFocus(null);
-      return;
-    }
-    const grid = gridElement.current;
-    if (grid === null) return;
-    const attached = cellIn(grid, requestedFocus.cell);
-    if (attached === undefined) return;
-    attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    if (requestedFocus.landing === 'focus') attached.focus();
-    else
-      focusCellAt(
-        attached,
-        requestedFocus.landing === 'all'
-          ? 'all'
-          : requestedFocus.landing === 'start'
-            ? 0
-            : attached.value.length,
-      );
+  const clearRequestedFocus = useCallback(() => {
     setRequestedFocus(null);
-  }, [committedLogicalCells, gridElement, requestedFocus, viewport]);
+  }, []);
 
   /**
    * What the headings' hints may bend for, in one object beside the layout's.
@@ -2217,7 +2241,34 @@ export function WbsTable({
         </p>
       )}
 
-      {renderer === 'cards' ? (
+      <PlanViewportOwner
+        frameRef={frameRef}
+        rowIds={shownRowIds}
+        columns={viewportColumns}
+        pinnedCells={pinnedCells}
+        enabled={renderer === 'table'}
+        layout={{
+          ganttOpen,
+          renderer,
+          chartRead,
+          ganttColumn,
+          setGanttRoomPx,
+        }}
+        requestedFocus={requestedFocus}
+        committedLogicalCells={committedLogicalCells}
+        gridElement={gridElement}
+        clearRequestedFocus={clearRequestedFocus}
+      >
+        {(viewport) => {
+          const mountedRows = viewport.rows.entries.map((entry) => ({
+            entry,
+            row: shownRows[entry.index],
+          }));
+          // Proof: replacing this set with every leaf id made `an unfolded plan mounts only its
+          // viewport columns` fail on `Expected: 0, Received: 43` for the offscreen Actions cells.
+          // Watched in Chromium, 2026-09-08.
+          const mountedColumnIds = new Set(viewport.columns.entries.map((entry) => entry.id));
+          return renderer === 'cards' ? (
         /*
           The same rows, the same order, the same open branches: `shownRows` is
           the table model's answer and both renderers draw it. What the cards
@@ -2642,7 +2693,9 @@ export function WbsTable({
             </table>
           </div>
         </>
-      )}
+          );
+        }}
+      </PlanViewportOwner>
 
       {/*
         Under the plan and inside the section, so the frame splits vertically:

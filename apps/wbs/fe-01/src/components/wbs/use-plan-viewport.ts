@@ -56,7 +56,7 @@ function sameWindow(left: ViewportSlice, right: ViewportSlice): boolean {
   return left.entries.every((entry, index) => entry.id === right.entries[index]?.id);
 }
 
-interface PlanViewport {
+export interface PlanViewport {
   rows: ViewportSlice;
   rowLayout: readonly ViewportEntry[];
   columns: ViewportSlice;
