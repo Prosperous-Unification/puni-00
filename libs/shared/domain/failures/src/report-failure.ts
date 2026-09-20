@@ -1,7 +1,9 @@
 import {
   type AppexCorjOptions,
+  type CapturedReports,
   createRedactionPolicy,
   type RedactionPolicy,
+  toReports,
 } from 'application-exception';
 
 /**
@@ -48,6 +50,13 @@ export const SENSITIVE_KEYS: readonly string[] = [
   'internalAuthSecret',
 ];
 
+/**
+ * What a caller is told when reporting itself failed. Fixed text: the thrown message may quote
+ * the very value the policy was protecting.
+ */
+const REPORTING_LOST_REASON =
+  'reporting threw; the failure stands and both of its reports are lost';
+
 /** The literal form of `text` inside a regular expression. */
 function quoteForPattern(text: string): string {
   return text.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
@@ -84,4 +93,64 @@ export function createFailureRedaction(secrets: readonly string[]): RedactionPol
       .filter((secret) => secret.length > 0)
       .map((secret) => new RegExp(quoteForPattern(secret), 'g')),
   });
+}
+
+/**
+ * Both reports of one failure, or a visible refusal saying that reporting itself failed.
+ *
+ * Reporting loss is modelled and never silent, and it is never a successful operation: the
+ * original failure is unchanged and still the caller's to handle.
+ */
+export type FailureReporting =
+  | { readonly reported: true; readonly reports: CapturedReports }
+  | { readonly reported: false; readonly occurrenceId: string; readonly reason: string };
+
+/** Losses in this process, so two of them never share a correlation handle. */
+let unreportedFailures = 0;
+
+/**
+ * Report one caught value to both audiences under this repository's limits and the caller's
+ * policy, without ever throwing.
+ *
+ * One `toReports` call resolves the occurrence id once and shares it, so the operator's record
+ * and the answer given to a user or an agent correlate even for a thrown primitive. The same
+ * policy and the same limits go to both bags, so the public report is redacted too. Reporting can
+ * still fail — a revoked `Proxy` as a cause makes the library throw — and a boundary that is
+ * already handling a failure must not be handed a second one, so that outcome comes back as
+ * `reported: false` with a local handle and a fixed reason. The reporter is not called again, and
+ * nothing is read off the caught value afterwards: reading it is what threw.
+ *
+ * @param caught The value that was thrown. Any value, including primitives, `null` and hostile
+ *   objects.
+ * @param options What the calling boundary brings to the report.
+ * @param options.redact The policy both reports share, built once at startup.
+ * @param options.context Caller data reported beside the caught value, dropped whole when the
+ *   report is over budget.
+ * @returns Both reports, or the modelled loss.
+ */
+export function reportFailure(
+  caught: unknown,
+  options: { readonly redact: RedactionPolicy; readonly context?: unknown },
+): FailureReporting {
+  const bag = { redact: options.redact, corj: FAILURE_REPORT_LIMITS };
+  try {
+    return {
+      reported: true,
+      // Proof: removing `redact` from the public bag disclosed `alice@example.com`
+      // in the public-details test (2026-09-20).
+      reports: toReports(caught, {
+        diagnostic: { ...bag, context: options.context },
+        public: bag,
+      }),
+    };
+    // Proof: replacing the wrapper with a bare block let a revoked cause throw
+    // `Array.isArray cannot be called on a Proxy that has been revoked` (2026-09-20).
+  } catch {
+    unreportedFailures += 1;
+    return {
+      reported: false,
+      occurrenceId: `UNREPORTED_${String(unreportedFailures)}`,
+      reason: REPORTING_LOST_REASON,
+    };
+  }
 }

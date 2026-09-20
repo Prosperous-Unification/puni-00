@@ -141,6 +141,48 @@ Watched production negatives, all restored byte for byte with `cmp` and followed
 
 Planner, after slice D, 2026-09-20: replayed `patterns-removed` outside the sandbox: `scrubs a caller-owned secret from message and stack, not only from its property` failed with `Received: "Error: token was hunter2"`, and `treats a secret as literal text, not as a pattern` failed with it (recorded, not a stop); restored byte for byte. Whole `shared-failures` and `tool-devsync` test, typecheck and lint pass; format check clean. Evidence paths in this record are relative to each attempt's evidence directory, which is kept beside the planning files and not in this repository.
 
+### Slice E — never-throw wrapper and public report
+
+Baseline before the wrapper was added:
+
+```text
+workspace-projects: 17 pass, 0 fail
+sync: 48 pass, 0 fail
+workspace-inventory: 4 pass, 0 fail
+namespace-layout: 19 pass, 0 fail
+workspace-targets: 19 pass, 0 fail
+current-document link case: 1 pass, 13 filtered out, 0 fail
+OpenSpec: 104 passed, 0 failed
+inventory pins: 167 rows, 84 distinct files
+README pin absent; digest pin present
+```
+
+The four wrapper tests were written before `reportFailure`. The red run exited 1 with:
+
+```text
+SyntaxError: Export named 'reportFailure' not found in module 'libs/shared/domain/failures/src/report-failure.ts' (the clone's absolute prefix removed)
+```
+
+Focused implementation checks:
+
+| Command                                                                                                                                                   | Result                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `NX_DAEMON=false bunx nx run shared-failures:typecheck`                                                                                                   | exit 0; target completed without diagnostics |
+| `NX_DAEMON=false bunx nx run shared-failures:lint`                                                                                                        | exit 0; target completed without problems    |
+| `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`                                                                                        | exit 0; 10 pass, 0 fail                      |
+| `GSETTINGS_BACKEND=memory bunx prettier --write libs/shared/domain/failures/src/report-failure.ts libs/shared/domain/failures/src/report-failure.test.ts` | exit 0; both files unchanged                 |
+| `GSETTINGS_BACKEND=memory bunx prettier --write libs/shared/domain/failures/src/index.ts openspec/changes/adopt-failure-reporting/verify.md`              | exit 0; owned files formatted                |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`                                                                                     | exit 0                                       |
+
+Watched production negatives, both restored byte for byte with `cmp` and followed by a full-file run of 10 pass, 0 fail:
+
+| Proof                      | Fault                                        | Named failing test                                                               | Observed failure                                                             | Evidence                                                                                                                           |
+| -------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| E4 `wrapper-removed`       | Replaced the `try`/`catch` with a bare block | `a cause that cannot be inspected is reported as reporting loss, not as a throw` | `TypeError: Array.isArray cannot be called on a Proxy that has been revoked` | `wrapper-removed.patch` in the attempt's evidence directory; `wrapper-removed.out` in the attempt's evidence directory             |
+| E5 `public-redact-removed` | Removed `redact` from the public options bag | `redacts a secret the disclosure policy selected into the public report`         | Public `as_json` diff disclosed `"user": "alice@example.com"`                | `public-redact-removed.patch` in the attempt's evidence directory; `public-redact-removed.out` in the attempt's evidence directory |
+
+Planner, after slice E, 2026-09-20: replayed `public-redact-removed` outside the sandbox (the public bag given the limits and no redaction policy): `redacts a secret the disclosure policy selected into the public report` failed showing `alice@example.com` in the public report; restored byte for byte. Whole `shared-failures` and `tool-devsync` test, typecheck and lint pass; format check clean.
+
 ## Decision
 
 - [ ] Archive readiness is outside Slice A. Tasks remain open until implementation and evidence are complete.
