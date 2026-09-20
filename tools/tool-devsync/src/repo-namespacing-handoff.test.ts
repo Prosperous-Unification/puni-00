@@ -710,7 +710,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // mismatch`. With docs/wiki-policy/relationships*.json back to main's bytes, leaving
     // `21a80db5...` here failed on the observed digest below, count and unclassified list
     // unchanged (2026-09-20).
-    digest: '5a672eac90938e8483b2fbc000606a52b2d5a2ae2f8f256f66d77880dd077ac5',
+    // Proof: shared-failures added the inventory re-pin comment above the recursive tsconfig
+    // selectors; the old digest failed on the value below at the same 257 occurrences (2026-09-20).
+    digest: '6b79b78a1af8ebdb2e8fe0aea99092465e906b26b4ddeecfe16f71d375dee693',
     occurrences: 257,
     unclassified: [],
   });
