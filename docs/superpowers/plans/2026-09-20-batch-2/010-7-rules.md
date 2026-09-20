@@ -2331,6 +2331,14 @@ actual matcher diagnostic with its expected and received values. D4 fails first 
 expected 1 and received 0; do not claim that subsequent assertions ran. Preamble rule 16 governs
 additional failing tests.
 
+**The matcher is not the requirement; the fact is.** A row's mismatch names the matcher the
+rehearsal's test happened to use (`toHaveLength`, `toEqual`, `toBe`). Your test may assert the same
+fact with another matcher, and then Bun prints another diagnostic: `toEqual` printing a received
+`[]` where one finding was expected proves exactly what `Expected length: 1`, `Received length: 0`
+proves. Accept the proof when the NAMED test fails at the assertion about the row's fact (what was
+expected and what was received agree with the row); record the diagnostic you actually saw. It is a
+stop only when the named test passes, does not run, or fails about a different fact.
+
 Run each row independently: restore and confirm green between rows, and save a separate patch and
 log for each. **Every part D proof runs the production CLI.**
 
