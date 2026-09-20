@@ -155,7 +155,9 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
   }
   await session.send('IO.close', { handle: stream });
   const events =
-    (JSON.parse(raw) as { traceEvents?: { name?: string; dur?: number }[] }).traceEvents ?? [];
+    (JSON.parse(raw) as {
+      traceEvents?: { name?: string; dur?: number; args?: Record<string, unknown> }[];
+    }).traceEvents ?? [];
   const durationMs = (name: string) =>
     events
       .filter((event) => event.name === name)
@@ -170,7 +172,11 @@ async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
         .filter((event) => (event.dur ?? 0) >= 10_000)
         .sort((left, right) => (right.dur ?? 0) - (left.dur ?? 0))
         .slice(0, 20)
-        .map((event) => ({ name: event.name ?? '(unnamed)', durationMs: (event.dur ?? 0) / 1_000 })),
+        .map((event) => ({
+          name: event.name ?? '(unnamed)',
+          durationMs: (event.dur ?? 0) / 1_000,
+          args: event.args,
+        })),
     },
   };
 }
