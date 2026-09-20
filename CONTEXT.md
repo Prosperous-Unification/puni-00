@@ -12,6 +12,8 @@ not the commit captured when a process or container first started.
 
 ### WBS
 
+**First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
+
 **Project**:
 One work breakdown structure and everything scoped to it — its work items, its steps and
 its restriction. Nothing is shared between projects.

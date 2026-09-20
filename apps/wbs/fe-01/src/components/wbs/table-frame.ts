@@ -1686,9 +1686,12 @@ export const GANTT_DOCK_SLACK: CSSProperties = {
   minHeight: 0,
 };
 
+/** Trailing room that keeps an open table picker reachable at the plan's end. */
+export const PLAN_TERMINAL_ALLOWANCE = '13rem';
+
 export const TABLE_FRAME: CSSProperties = {
   overflow: 'auto',
   flex: '0 1 auto',
   minHeight: '20rem',
-  paddingBottom: '13rem',
+  paddingBottom: PLAN_TERMINAL_ALLOWANCE,
 };

@@ -1,8 +1,40 @@
 import { describe, expect, it } from 'vitest';
 
 import { viewportColumns, viewportRows } from './plan-viewport';
+import {
+  columnPublicationOffset,
+  publicationOffset,
+  ROW_PUBLICATION_STEP_PX,
+} from './use-plan-viewport';
 
 describe('plan viewport', () => {
+  it('retains compositor offsets until a row publication boundary', () => {
+    expect([
+      publicationOffset(0, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(96, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX - 1, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX * 2 - 1, ROW_PUBLICATION_STEP_PX),
+      publicationOffset(ROW_PUBLICATION_STEP_PX * 2, ROW_PUBLICATION_STEP_PX),
+    ]).toEqual([
+      0,
+      0,
+      0,
+      ROW_PUBLICATION_STEP_PX,
+      ROW_PUBLICATION_STEP_PX,
+      ROW_PUBLICATION_STEP_PX * 2,
+    ]);
+    expect(publicationOffset(-40, ROW_PUBLICATION_STEP_PX)).toBe(0);
+  });
+
+  it('keeps the physical column offset while logical-slice equality deduplicates publication', () => {
+    // CI run 35483045062 exposed this exact gap: scrollIntoView moved the frame to 150px,
+    // but rounding that offset to zero left the visible not-before header without its body cell.
+    expect(columnPublicationOffset(150)).toBe(150);
+    expect(columnPublicationOffset(2398)).toBe(2398);
+    expect(columnPublicationOffset(-40)).toBe(0);
+  });
+
   it('slices measured variable-height rows by viewport and overscan', () => {
     expect(
       viewportRows({

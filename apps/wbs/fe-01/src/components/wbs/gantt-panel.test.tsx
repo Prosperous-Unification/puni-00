@@ -57,6 +57,7 @@ import type * as InitialsModule from './initials';
 import { initialsOf } from './initials';
 import { createPointedRows } from './pointed-row-store';
 import type * as ShortDateModule from './short-date';
+import { PLAN_TERMINAL_ALLOWANCE, TABLE_FRAME } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -6166,12 +6167,23 @@ describe('the height a remembered claim is drawn at', () => {
 });
 
 describe('the height the panel is drawn at', () => {
-  const panelAt = (heightPx: number | null, roomPx: number | null = null): HTMLElement => {
+  const panelAt = (
+    heightPx: number | null,
+    roomPx: number | null = null,
+    rowCount = 1,
+  ): HTMLElement => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('r1', 0, 2, { number: '010', name: 'One' })],
-          slices: [sliceAt('r1-dev', 'r1', 0, 2)],
+          rows: Array.from({ length: rowCount }, (_, index) =>
+            rowAt(`r${String(index)}`, 0, 2, {
+              number: String(index + 1).padStart(3, '0'),
+              name: `Row ${String(index + 1)}`,
+            }),
+          ),
+          slices: Array.from({ length: rowCount }, (_, index) =>
+            sliceAt(`r${String(index)}-dev`, `r${String(index)}`, 0, 2),
+          ),
         })}
         startDate={null}
         scheduleError={null}
@@ -6198,6 +6210,17 @@ describe('the height the panel is drawn at', () => {
     const panel = panelAt(400);
     expect(panel.style.height).toBe('400px');
     expect(panel.classList.contains('max-h-[40vh]')).toBe(false);
+  });
+
+  itDom('has the table’s reachable terminal extent', () => {
+    const panel = panelAt(400, null, 50);
+    const allowance = panel.querySelector<HTMLElement>('[data-gantt-terminal-allowance]');
+    expect(allowance?.style.height).toBe(PLAN_TERMINAL_ALLOWANCE);
+    expect(allowance?.style.height).toBe(TABLE_FRAME.paddingBottom);
+  });
+
+  itDom('does not force a short fitted chart to overflow', () => {
+    expect(panelAt(400).querySelector('[data-gantt-terminal-allowance]')).toBeNull();
   });
 
   itDom('the panel’s ceiling is its column, not the window', () => {
@@ -7590,6 +7613,38 @@ describe('the waits the filter left undrawn', () => {
     );
 
     expect(droppedSentence()).toBeNull();
+  });
+
+  itDom('publishes the dropped-wait sentence when filtering changes without changing rows', () => {
+    const pointed = pointedAtRow(null);
+    const view = render(
+      <GanttPanel
+        plan={narrowedPast({ narrowedByFilter: false })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />,
+    );
+
+    view.rerender(
+      <GanttPanel
+        plan={narrowedPast()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />,
+    );
+    pressTheDetail();
+
+    expect(droppedSentence()).toContain('this filter is hiding');
   });
 
   itDom('says nothing when a filter drew every wait it has', () => {

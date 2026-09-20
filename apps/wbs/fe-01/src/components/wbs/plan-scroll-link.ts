@@ -1,3 +1,5 @@
+import { recordScrollProbe } from './scroll-performance';
+
 /**
  * The one scroll position the plan's two faces share.
  *
@@ -295,7 +297,10 @@ export function linkPlanScroll(
     followerPort.scrollTop = before + move;
     // A write that changed nothing fires no event, so claiming an echo for it
     // would swallow the follower's next real scroll instead.
-    if (followerPort.scrollTop !== before) echo = followerPort;
+    if (followerPort.scrollTop !== before) {
+      recordScrollProbe('scrollLinkWrites');
+      echo = followerPort;
+    }
   };
 
   const onFrameScroll = () => {

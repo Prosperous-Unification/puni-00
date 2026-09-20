@@ -23,11 +23,21 @@ While either face scrolls, the Gantt panel's first visible row id SHALL equal th
 - **WHEN** a row above the renderer's viewport gets a measured height different from its estimate while the reader scrolls upward
 - **THEN** by the next frame the panel's first visible row id equals the renderer's
 
-### Requirement: Height readings cost one commit per frame
+#### Scenario: either face reaches a short plan's clamped end
 
-However many rows report heights within one animation frame, the plan renderer SHALL apply them in one state commit, and computing a row's offset SHALL NOT scan every earlier row.
+- **WHEN** either face drives a 50-row plan to either clamped end
+- **THEN** both faces expose the same first-visible-row id and within-row fraction without rolling the driver back
 
-#### Scenario: forty rows measured at once
+### Requirement: Compositor motion does not continuously commit React state
 
-- **WHEN** 40 newly mounted rows of a 2,000-row plan report heights in the same frame
-- **THEN** the heights state commits once, and the offset computation reads O(log n) index nodes per row
+The plan renderer SHALL publish a new row or column window only when that mounted interval or the viewport dimensions change. Raw scroll offsets inside the published windows SHALL NOT cause a React commit.
+
+#### Scenario: repeated wheel input inside the mounted windows
+
+- **WHEN** controlled wheel inputs move within the current row and column windows
+- **THEN** no commit publishes a raw offset
+
+#### Scenario: a viewport boundary changes
+
+- **WHEN** scrolling crosses a row or column window boundary, or the frame is resized
+- **THEN** the renderer publishes the changed window or dimensions and mounts the required cells
