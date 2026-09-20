@@ -333,7 +333,8 @@ function PlanViewportOwner({
     if (grid === null) return;
     const attached = cellIn(grid, requestedFocus.cell);
     if (attached === undefined) return;
-    attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (typeof attached.scrollIntoView === 'function')
+      attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     if (requestedFocus.landing === 'focus') attached.focus();
     else
       focusCellAt(
