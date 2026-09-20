@@ -1,7 +1,8 @@
+import { createFailureRedaction } from '@shared/failures';
 import type { Logger } from '@wbs/contracts';
 import pino, { type LoggerOptions } from 'pino';
 
-import { errSerializer } from './serializers';
+import { createFailureSerializer, keepAbsentFailure } from './serializers';
 
 export { type Logger, noopLogger } from '@wbs/contracts';
 
@@ -12,10 +13,19 @@ export interface CreateLoggerOptions {
   version?: string;
   level?: string;
   destination?: { write(chunk: string): void };
+  /**
+   * The secret values this process owns, scrubbed from every failure record as text. Only what
+   * the caller actually holds: a secret nobody named cannot be detected, and a whole config,
+   * request or environment object is never passed.
+   */
+  secrets?: readonly string[];
 }
 
 export function createLogger(opts: CreateLoggerOptions): Logger {
   const level = opts.level ?? process.env['LOG_LEVEL'] ?? 'info';
+  // One policy per logger, built once: `@shared/failures` caches one report maker per policy,
+  // and a policy rebuilt per record would throw that cache away on every failure.
+  const redact = createFailureRedaction(opts.secrets ?? []);
   const base: Record<string, unknown> = { service: opts.service };
   if (opts.version) base['version'] = opts.version;
 
@@ -23,9 +33,10 @@ export function createLogger(opts: CreateLoggerOptions): Logger {
     level,
     base,
     timestamp: () => `,"time":${String(Date.now())}`,
-    serializers: { err: errSerializer },
+    serializers: { err: createFailureSerializer(redact) },
     formatters: {
       level: (label: string) => ({ level: label }),
+      log: (fields: Record<string, unknown>) => keepAbsentFailure(fields, redact),
     },
   };
 
