@@ -126,6 +126,12 @@ async function scrollTrace(page: Page, direction: 1 | -1): Promise<FrameSample[]
 }
 
 async function timelineTrace<T>(session: CDPSession, action: () => Promise<T>) {
+  if (process.env['WBS_SCROLL_TIMELINE'] === '0') {
+    return {
+      value: await action(),
+      timeline: { layoutMs: 0, paintMs: 0, updateLayoutTreeMs: 0 },
+    };
+  }
   await session.send('Tracing.start', {
     categories: 'devtools.timeline',
     transferMode: 'ReturnAsStream',
