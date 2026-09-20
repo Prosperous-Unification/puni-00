@@ -110,6 +110,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
     ...(policy.relationshipRequest === undefined
       ? {}
       : { relationshipRequest: policy.relationshipRequest }),
+    ...(policy.sizeCeilings === undefined ? {} : { sizeCeilings: policy.sizeCeilings }),
     indexes: readIndexOutcome(candidateRoot, candidate),
   };
   const findings: Finding[] = [];

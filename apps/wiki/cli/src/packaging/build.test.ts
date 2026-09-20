@@ -158,7 +158,12 @@ describe('buildPackage', () => {
       JSON.stringify({
         schemaVersion: 1,
         policyId: 'rules.package.v1',
+        // Every registered rule needs a stated mode, so a newly registered rule is added here.
+        // Proof: with `F7` registered and absent from this list, this test failed on `rule policy
+        // states no mode for F7` (exit 1 where 0 was expected), seen in the planner's whole-suite
+        // run on 2026-09-20; the sandboxed executor cannot build the package and never ran it.
         ruleModes: [
+          { ruleId: 'F7', mode: 'observe' },
           { ruleId: 'INV-CLASSIFY', mode: 'observe' },
           { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
           { ruleId: 'MOD-INDEX', mode: 'enforce' },

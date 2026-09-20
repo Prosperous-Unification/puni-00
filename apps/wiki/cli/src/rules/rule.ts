@@ -1,6 +1,7 @@
 import type { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
 import type { checkIndexes } from '../indexes/check-indexes';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
+import type { SizeCeilings } from './size-ratchet';
 
 /**
  * Policy disposition for one rule. `observe` reports every finding as debt, `enforce` refuses every
@@ -80,6 +81,7 @@ export interface RuleContext {
   readonly candidate: CandidateSnapshot;
   readonly classificationPolicy?: ClassificationPolicy;
   readonly relationshipRequest?: RelationshipRequest;
+  readonly sizeCeilings?: SizeCeilings;
   /** The index report, computed once per check and shared by the two module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
 }

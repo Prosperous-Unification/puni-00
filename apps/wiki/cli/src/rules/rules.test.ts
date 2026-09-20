@@ -45,7 +45,7 @@ describe('explain production CLI', () => {
     const invocation = runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, REL-EXTRACT)',
+      'unknown rule: NO-SUCH-RULE (registered: F7, INV-CLASSIFY, MOD-DIRECT-ENTRIES, MOD-INDEX, REL-EXTRACT)',
     );
   });
 });
@@ -178,12 +178,34 @@ function createDirectEntryDebtCandidate(): { repository: string; revision: strin
   return { repository, revision: commit(repository, 'over the limit') };
 }
 
+/** A candidate whose `src` tree holds files of chosen line counts, for the size ratchet. */
+function createSizedCandidate(
+  sizes: Record<string, number>,
+  roots: string[] = ['src'],
+): { repository: string; revision: string } {
+  const repository = initRepository('twilight-rules-sizes-');
+  for (const [path, lines] of Object.entries(sizes)) {
+    write(repository, path, 'export const value = 1;\n'.repeat(lines));
+  }
+  write(
+    repository,
+    'README.md',
+    indexSource(
+      'Sizes fixture',
+      'module.sizes',
+      roots.map((prefix) => ({ kind: 'directory-prefix', prefix, exclusions: [] })),
+    ),
+  );
+  return { repository, revision: commit(repository, 'sized fixture') };
+}
+
 interface RuleModeEntry {
   ruleId: string;
   mode: 'observe' | 'ratchet' | 'enforce';
 }
 
 const everyRuleObserving: RuleModeEntry[] = [
+  { ruleId: 'F7', mode: 'observe' },
   { ruleId: 'INV-CLASSIFY', mode: 'observe' },
   { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'observe' },
   { ruleId: 'MOD-INDEX', mode: 'observe' },
@@ -219,6 +241,7 @@ function writeCompleteRulePolicy(ruleModes: RuleModeEntry[], declarationPaths?: 
       typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/entry.ts'] },
       ...(declarationPaths === undefined ? {} : { declarationPaths }),
     },
+    sizeCeilings: { ceiling: 40, roots: ['src'], pinned: [] },
   });
 }
 
@@ -475,15 +498,174 @@ describe('ratchet mode', () => {
   }, 15_000);
 });
 
+describe('F7 the size ratchet', () => {
+  const ceilings = { ceiling: 40, roots: ['src'], pinned: [] };
+  const checkF7 = (
+    repository: string,
+    revision: string,
+    sizeCeilings?: Record<string, unknown>,
+  ): ReturnType<typeof Bun.spawnSync> =>
+    runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeRulePolicy(everyRuleObserving, sizeCeilings === undefined ? {} : { sizeCeilings }),
+      '--rule',
+      'F7',
+    ]);
+
+  test('allows a candidate whose files are under the ceiling', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
+    const invocation = checkF7(repository, revision, ceilings);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+    expect(verdictOf(invocation).unevaluated).toEqual([]);
+  }, 15_000);
+
+  test('allows a file exactly at the ceiling', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/exact.ts': 40 });
+    const invocation = checkF7(repository, revision, ceilings);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 15_000);
+
+  test('reports an unpinned file over the ceiling with both numbers', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/big.ts': 50 });
+    const invocation = checkF7(repository, revision, ceilings);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'F7',
+        path: 'src/big.ts',
+        message: '50 lines exceeds the ceiling 40',
+        effect: 'debt',
+      },
+    ]);
+  }, 15_000);
+
+  test('allows a pinned file under its pinned maximum', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/big.ts': 50 });
+    const invocation = checkF7(repository, revision, {
+      ...ceilings,
+      pinned: [{ path: 'src/big.ts', maximum: 60 }],
+    });
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 15_000);
+
+  test('reports a pinned file that has grown past its pin', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/big.ts': 50 });
+    const invocation = checkF7(repository, revision, {
+      ...ceilings,
+      pinned: [{ path: 'src/big.ts', maximum: 45 }],
+    });
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'F7',
+        path: 'src/big.ts',
+        message: '50 lines exceeds its pinned maximum 45',
+        effect: 'debt',
+      },
+    ]);
+  }, 15_000);
+
+  test('reports a pinned file that has fallen under the ceiling', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/big.ts': 30 });
+    const invocation = checkF7(repository, revision, {
+      ...ceilings,
+      pinned: [{ path: 'src/big.ts', maximum: 60 }],
+    });
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'F7',
+        path: 'src/big.ts',
+        message: '30 lines is at or under the ceiling 40: remove the pin',
+        effect: 'debt',
+      },
+    ]);
+  }, 15_000);
+
+  test('refuses a size policy that pins a file the candidate does not hold', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
+    const invocation = checkF7(repository, revision, {
+      ...ceilings,
+      pinned: [{ path: 'src/gone.ts', maximum: 60 }],
+    });
+    expect(invocation.exitCode).toBe(1);
+    expect(verdictOf(invocation).findings).toEqual([]);
+    expect(verdictOf(invocation).unevaluated).toEqual([
+      {
+        ruleId: 'F7',
+        reason: 'the size policy pins src/gone.ts, which the candidate does not measure',
+      },
+    ]);
+  }, 15_000);
+
+  test('measures neither a test file nor a declaration file', () => {
+    const { repository, revision } = createSizedCandidate({
+      'src/big.test.ts': 50,
+      'src/big.d.ts': 50,
+    });
+    const invocation = checkF7(repository, revision, ceilings);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 15_000);
+
+  test('measures nothing outside the declared roots', () => {
+    const { repository, revision } = createSizedCandidate(
+      { 'src/keep.ts': 10, 'src2/big.ts': 50 },
+      ['src', 'src2'],
+    );
+    const invocation = checkF7(repository, revision, ceilings);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([]);
+  }, 15_000);
+
+  test('refuses a size policy with no root, a repeated root or a repeated pin', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
+    const emptyRoots = checkF7(repository, revision, { ...ceilings, roots: [] });
+    expect(stderrOf(emptyRoots)).toContain('at least one measured root');
+    expect(emptyRoots.exitCode).toBe(1);
+
+    const repeatedRoots = checkF7(repository, revision, {
+      ...ceilings,
+      roots: ['src', 'src'],
+    });
+    expect(stderrOf(repeatedRoots)).toContain('unique measured roots');
+    expect(repeatedRoots.exitCode).toBe(1);
+
+    const repeatedPins = checkF7(repository, revision, {
+      ...ceilings,
+      pinned: [
+        { path: 'src/small.ts', maximum: 60 },
+        { path: 'src/small.ts', maximum: 70 },
+      ],
+    });
+    expect(stderrOf(repeatedPins)).toContain('unique pinned paths');
+    expect(repeatedPins.exitCode).toBe(1);
+  }, 20_000);
+
+  test('refuses F7 when the policy states no size ceilings', () => {
+    const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
+    const invocation = checkF7(repository, revision);
+    expect(stderrOf(invocation)).toContain(
+      'rule F7 needs policy.sizeCeilings, which the rule policy omits',
+    );
+    expect(invocation.exitCode).toBe(1);
+  }, 15_000);
+});
+
 describe('check production CLI', () => {
   test('allows the indexed candidate under an enforced module rule and never certifies', () => {
     const { repository, revision } = createIndexedCandidate();
-    const policyPath = writeRulePolicy([
-      { ruleId: 'INV-CLASSIFY', mode: 'observe' },
-      { ruleId: 'MOD-DIRECT-ENTRIES', mode: 'enforce' },
-      { ruleId: 'MOD-INDEX', mode: 'enforce' },
-      { ruleId: 'REL-EXTRACT', mode: 'observe' },
-    ]);
+    const policyPath = writeRulePolicy(
+      everyRuleObserving.map((entry) =>
+        entry.ruleId === 'MOD-DIRECT-ENTRIES' || entry.ruleId === 'MOD-INDEX'
+          ? { ...entry, mode: 'enforce' as const }
+          : entry,
+      ),
+    );
     const invocation = runCli([
       'check',
       'committed',
@@ -770,6 +952,7 @@ describe('rule adapters over real candidates', () => {
     // Without `--rule` every registered rule runs. An empty `ruleIds` with `allowed: true` is the
     // shape of a check that cannot fail, so the identifiers are asserted exactly.
     expect(verdict.ruleIds).toEqual([
+      'F7',
       'INV-CLASSIFY',
       'MOD-DIRECT-ENTRIES',
       'MOD-INDEX',

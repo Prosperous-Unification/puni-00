@@ -28,6 +28,28 @@ const AdoptedSetRecord = type({
       : context.mustBe('unique adopted prefixes'),
   );
 
+const SizeCeilingsRecord = type({
+  ceiling: type('number.integer>=1'),
+  roots: RelativePath.array(),
+  pinned: type({ path: RelativePath, maximum: type('number.integer>=1') })
+    .onUndeclaredKey('reject')
+    .array(),
+})
+  .onUndeclaredKey('reject')
+  .narrow((ceilings, context) => {
+    // Proof: on 2026-09-20, deleting this branch removed `at least one measured root` from stderr.
+    if (ceilings.roots.length === 0) return context.mustBe('at least one measured root');
+    // Proof: on 2026-09-20, deleting this branch removed `unique measured roots` from stderr.
+    if (new Set(ceilings.roots).size !== ceilings.roots.length) {
+      return context.mustBe('unique measured roots');
+    }
+    const pinnedPaths = ceilings.pinned.map((pin) => pin.path);
+    // Proof: on 2026-09-20, returning true removed `unique pinned paths` from stderr.
+    return new Set(pinnedPaths).size === pinnedPaths.length
+      ? true
+      : context.mustBe('unique pinned paths');
+  });
+
 // Proof: on 2026-09-20, accepting undeclared policy keys made the schema test receive empty stderr
 // instead of `unexpected must be removed`.
 const RulePolicyRecord = type({
@@ -37,6 +59,7 @@ const RulePolicyRecord = type({
   'adoptedSet?': AdoptedSetRecord,
   'classificationPolicy?': ClassificationPolicy,
   'relationshipRequest?': RelationshipRequest,
+  'sizeCeilings?': SizeCeilingsRecord,
 }).onUndeclaredKey('reject');
 
 export type RulePolicy = typeof RulePolicyRecord.infer;
@@ -120,9 +143,12 @@ export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
     throw new Error(`unknown rule: ${ruleId} (registered: ${registeredIds()})`);
   }
   for (const input of requiredPolicyInputs(rule)) {
+    // Proof: on 2026-09-20, omitting the size-ceilings disjunct removed the required-input sentence
+    // from stderr while the F7 registry fallback still exited 1.
     const absent =
       (input === 'policy.classificationPolicy' && policy.classificationPolicy === undefined) ||
-      (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined);
+      (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined) ||
+      (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined);
     if (absent) {
       throw new Error(`rule ${ruleId} needs ${input}, which the rule policy omits`);
     }

@@ -2,8 +2,11 @@ import { classifyEntries } from '../inventory/classify-entries';
 import { readCandidateBlob } from '../inventory/read-blob';
 import { extractRelationships } from '../relationships';
 import { evaluateWrapped, type RegisteredRule } from './rule';
+import { measureSizes } from './size-ratchet';
 
 const SpecSource = 'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md';
+const KindSpecSource =
+  'openspec/changes/twilight-bureaucrat-kind-rules/specs/bureaucrat-rules/spec.md';
 
 const classificationRule: RegisteredRule = {
   id: 'INV-CLASSIFY',
@@ -95,11 +98,31 @@ const relationshipsRule: RegisteredRule = {
   },
 };
 
+const sizeRatchetRule: RegisteredRule = {
+  id: 'F7',
+  family: 'code-shape',
+  statement:
+    'A production source file does not grow past the size ceiling, and a file already above it only shrinks.',
+  source: `${KindSpecSource}#requirement-source-file-size-is-ratcheted`,
+  inputs: ['candidate.entries', 'policy.sizeCeilings'],
+  evaluate: (context) => {
+    const ceilings = context.sizeCeilings;
+    if (ceilings === undefined) {
+      return { kind: 'not-evaluated', reason: 'the rule policy carries no size ceilings' };
+    }
+    const measured = measureSizes(context.repository, context.candidate.entries, ceilings);
+    return measured.ok
+      ? { kind: 'observed', observations: measured.report }
+      : { kind: 'not-evaluated', reason: measured.reason };
+  },
+};
+
 const rules: readonly RegisteredRule[] = [
   classificationRule,
   directEntriesRule,
   moduleIndexRule,
   relationshipsRule,
+  sizeRatchetRule,
 ];
 
 /** The registry, sorted by identifier so a verdict's rule list is stable. */
