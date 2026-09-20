@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { SaxesParser } from 'saxes';
@@ -490,6 +490,8 @@ export function readJUnitReport(xml: string): readonly JUnitCase[] {
   if (malformed !== undefined) throw malformed;
   // Proof (D-16): deleting this guard failed "refuses a report that holds no testcase" because
   // the reader returned an empty array (2026-09-20).
+  // Proof (E-4): an otherwise valid API report with no testcase made the coverage command refuse
+  // it with `the JUnit report:1:0: holds no testcase` (2026-09-20).
   if (cases.length === 0) throw parser.makeError('holds no testcase');
   return cases;
 }
@@ -506,7 +508,11 @@ export function passedCitations(cases: readonly JUnitCase[]): ReadonlySet<string
     // Proof (D-1): deleting this guard failed the skipped-or-failing coverage case because both
     // DEMO-001 and DEMO-002 disappeared from the uncovered list; the failure-text case failed too
     // (2026-09-20).
+    // Proof (E-2): skipping PROJECT-ASSIGNMENT-READS-001 and regenerating the API report made its
+    // coverage row `**no**` while the other two stayed `yes` (2026-09-20).
     if (one.outcome !== 'passed') continue;
+    // Proof (E-1): removing PROJECT-ASSIGNMENT-READS-001 from the passing API test title and
+    // regenerating its report made only that scenario's coverage row `**no**` (2026-09-20).
     const id = SCENARIO_IDENTIFIER.exec(one.name)?.[1];
     if (id !== undefined) cited.add(id);
   }
@@ -519,4 +525,63 @@ export function uncoveredScenarios(
   cited: ReadonlySet<string>,
 ): readonly string[] {
   return scenarioIdentifiers(specMarkdown).filter((id) => !cited.has(id));
+}
+
+/**
+ * @throws when the report names a file the target does not collect — the report
+ * of another target, or of a run against another tree.
+ */
+export function assertReportCovers(
+  target: LevelTarget,
+  cases: readonly JUnitCase[],
+  collected: readonly string[],
+): void {
+  const known = new Set(collected);
+  const foreign = [...new Set(cases.map(({ file }) => file))].filter((file) => !known.has(file));
+  // Proof (E-3): replacing the API report with the SQLite Unit report made the coverage command
+  // refuse its seven foreign files and say it was the report of another run (2026-09-20).
+  if (foreign.length > 0) {
+    throw new Error(
+      `${target.project}:${target.target} did not collect ${foreign.sort().join(', ')}; ` +
+        `${target.report} is the report of another run`,
+    );
+  }
+}
+
+/**
+ * @throws when a file the report names has changed since the report was written.
+ *
+ * The design's manual-report rule in the small: a report goes stale when
+ * something it measured changed, and a stale report read as coverage is a
+ * green row for a test nobody ran. A heuristic, and stated as one: it compares
+ * the modification times of the test files the report itself names, not of
+ * their production dependencies and not of the specification, so a changed
+ * dependency with an unchanged test file does not make the report stale here.
+ */
+export async function assertReportIsCurrent(
+  target: LevelTarget,
+  cases: readonly JUnitCase[],
+): Promise<void> {
+  const written = (await stat(new URL(target.report, WORKSPACE))).mtimeMs;
+  const stale: string[] = [];
+  for (const file of new Set(cases.map(({ file }) => file))) {
+    const source = (await stat(new URL(`${target.root}/${file}`, WORKSPACE))).mtimeMs;
+    if (source > written) stale.push(file);
+  }
+  // Proof (E-5): appending a trailing newline to assignment-scope.db.test.ts after its report was
+  // written made the coverage command name the stale file and the API target to rerun (2026-09-20).
+  if (stale.length > 0) {
+    throw new Error(
+      `${target.report} is older than ${stale.sort().join(', ')}; rerun ${target.project}:${target.target}`,
+    );
+  }
+}
+
+/** One declared level target, by its `project:target` name. */
+export function levelTargetNamed(qualified: string): LevelTarget {
+  const found = LEVEL_TARGETS.find(({ project, target }) => `${project}:${target}` === qualified);
+  // Proof (E-9): naming aggregate target `wbs-core:test` made the coverage command refuse it as
+  // not a declared level target (2026-09-20).
+  if (found === undefined) throw new Error(`${qualified} is not a declared level target`);
+  return found;
 }

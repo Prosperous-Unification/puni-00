@@ -3,11 +3,13 @@ import { describe, expect, it } from 'bun:test';
 import {
   ADOPTED_CAPABILITY,
   AGGREGATE_TARGETS,
+  assertReportCovers,
   collectedFiles,
   conformanceFilesIn,
   KNOWN_OUTSIDE_TEST_ROOTS,
   LEVEL_TARGETS,
   levelOf,
+  levelTargetNamed,
   parseLevelCommand,
   passedCitations,
   readJUnitReport,
@@ -628,5 +630,20 @@ describe('the scenario join', () => {
         `<?xml version="1.0"?>\n<testsuites>\n  <testsuite name="s">\n${passing('[DEMO-001] a')}\n`,
       ),
     ).toThrow('unclosed tag: testsuite');
+  });
+});
+
+describe('the report a declared level target wrote', () => {
+  it('names a level target that is declared, and refuses one that is not', () => {
+    expect(levelTargetNamed('wbs-core:test:unit').report).toBe('tmp/junit/wbs-core.unit.xml');
+    expect(() => levelTargetNamed('wbs-core:test')).toThrow('is not a declared level target');
+  });
+
+  it('refuses a report naming a file the target does not collect', () => {
+    const target = levelTargetNamed('wbs-core:test:unit');
+    const cases = [{ name: '[DEMO-001] a', file: 'src/other.test.ts', outcome: 'passed' as const }];
+    expect(() => {
+      assertReportCovers(target, cases, ['src/a.test.ts']);
+    }).toThrow('did not collect src/other.test.ts');
   });
 });
