@@ -95,6 +95,8 @@ export function checkCandidate(request: CheckRequest): Verdict {
   // Proof: on 2026-09-20, passing the caller's interior directory here made the containment test
   // receive empty stderr instead of the required inside-candidate refusal.
   const policy = loadRulePolicy(candidateRoot, request.rulePolicyPath);
+  // Proof: on 2026-09-20, selecting no rules by default made the all-rules adapter test receive
+  // `ruleIds: []` while the verdict still said `allowed: true`.
   const selected: readonly RegisteredRule[] =
     request.ruleId === undefined ? registeredRules() : [selectRule(request.ruleId)];
   for (const rule of selected) assertPolicyInputs(policy, rule.id);
@@ -133,6 +135,8 @@ export function checkCandidate(request: CheckRequest): Verdict {
     }),
     policy: policy.policyId,
     // A rule that could not be evaluated is not an allowed candidate, in any mode.
+    // Proof: on 2026-09-20, dropping the unevaluated guard made a failed prerequisite exit 0;
+    // the adapter test expected exit 1 and received 0.
     allowed: unevaluated.length === 0 && !findings.some((finding) => finding.effect === 'refusal'),
     ruleIds: selected.map((rule) => rule.id),
     findings,

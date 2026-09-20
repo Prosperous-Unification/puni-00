@@ -15,9 +15,9 @@
 
 ## Part 3: Failure classification and adapter proofs
 
-- [ ] Add five real-candidate adapter tests and observe all seventeen rule tests pass without new implementation.
-- [ ] Inject and observe P13 through P19 against their named adapter tests, restoring and rerunning after each fault.
-- [ ] Run the focused rule, relationship, and index suites, typecheck, and source lint.
+- [x] Add six real-candidate adapter tests and observe all nineteen rule tests pass without new implementation.
+- [x] Inject and observe P13 through P19 plus P22 against their named adapter tests, restoring and rerunning after each fault.
+- [x] Run the focused rule, relationship, and index suites, typecheck, source lint, and OpenSpec validation.
 
 ## Part 4: Built executable, documentation, and record
 

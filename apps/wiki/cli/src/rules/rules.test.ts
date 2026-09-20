@@ -184,6 +184,27 @@ function writeRulePolicy(ruleModes: RuleModeEntry[], extra: Record<string, unkno
   return path;
 }
 
+/** The complete policy: the shipped classification policy and a request the fixture satisfies. */
+function writeCompleteRulePolicy(ruleModes: RuleModeEntry[], declarationPaths?: string[]): string {
+  const shippedClassificationPolicyPath = join(
+    import.meta.dir,
+    '..',
+    'contracts',
+    'fixtures',
+    'classification-policy.v1.json',
+  );
+  return writeRulePolicy(ruleModes, {
+    classificationPolicy: JSON.parse(
+      readFileSync(shippedClassificationPolicyPath, 'utf8'),
+    ) as unknown,
+    relationshipRequest: {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/entry.ts'] },
+      ...(declarationPaths === undefined ? {} : { declarationPaths }),
+    },
+  });
+}
+
 afterEach(() => {
   for (const root of scratchRoots.splice(0)) rmSync(root, { force: true, recursive: true });
 });
@@ -477,5 +498,209 @@ describe('explain with a rule policy', () => {
       policyId: 'rules.test.v1',
       mode: 'enforce',
     });
+  });
+});
+
+describe('rule adapters over real candidates', () => {
+  test('reports an index over the direct-entry limit with its exact counts', () => {
+    const repository = initRepository('twilight-rules-debt-');
+    const members = Array.from({ length: 41 }, (unused, index) => `src/module${String(index)}.ts`);
+    for (const member of members) write(repository, member, 'export const value = 1;\n');
+    write(
+      repository,
+      'README.md',
+      indexSource(
+        'Debt fixture',
+        'module.debt',
+        members.map((path) => ({ kind: 'path', path }) as const),
+      ),
+    );
+    const revision = commit(repository, 'over the limit');
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeRulePolicy(everyRuleObserving),
+      '--rule',
+      'MOD-DIRECT-ENTRIES',
+    ]);
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(verdictOf(invocation).findings).toEqual([
+      {
+        ruleId: 'MOD-DIRECT-ENTRIES',
+        path: 'README.md',
+        message: 'index declares 41 direct entries, limit 40',
+        effect: 'debt',
+      },
+    ]);
+  });
+
+  test('turns direct-entry debt into a refusal under enforce', () => {
+    const repository = initRepository('twilight-rules-debt-enforce-');
+    const members = Array.from({ length: 41 }, (unused, index) => `src/module${String(index)}.ts`);
+    for (const member of members) write(repository, member, 'export const value = 1;\n');
+    write(
+      repository,
+      'README.md',
+      indexSource(
+        'Debt fixture',
+        'module.debt',
+        members.map((path) => ({ kind: 'path', path }) as const),
+      ),
+    );
+    const revision = commit(repository, 'over the limit');
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeRulePolicy(
+        everyRuleObserving.map((entry) =>
+          entry.ruleId === 'MOD-DIRECT-ENTRIES' ? { ...entry, mode: 'enforce' as const } : entry,
+        ),
+      ),
+      '--rule',
+      'MOD-DIRECT-ENTRIES',
+    ]);
+    expect(invocation.exitCode).toBe(1);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.findings.map(({ effect }) => effect)).toEqual(['refusal']);
+  });
+
+  test('refuses a rule whose prerequisite failed, in observe mode', () => {
+    const { repository, revision } = createUnindexedCandidate();
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeRulePolicy(everyRuleObserving),
+      '--rule',
+      'MOD-DIRECT-ENTRIES',
+    ]);
+    expect(invocation.exitCode).toBe(1);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.findings).toEqual([]);
+    expect(verdict.unevaluated).toEqual([
+      {
+        ruleId: 'MOD-DIRECT-ENTRIES',
+        reason: 'the index report is unavailable: selected candidate contains no module indexes',
+      },
+    ]);
+  });
+
+  test('refuses an unclassifiable entry in observe mode', () => {
+    const { repository } = createIndexedCandidate();
+    write(repository, 'src/unknown.zzz', 'unclassifiable\n');
+    const revision = commit(repository, 'add an unclassifiable entry');
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving),
+      '--rule',
+      'INV-CLASSIFY',
+    ]);
+    expect(invocation.exitCode).toBe(1);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.findings).toEqual([]);
+    expect(verdict.unevaluated).toEqual([
+      {
+        ruleId: 'INV-CLASSIFY',
+        reason: 'ordinary content src/unknown.zzz matched 0 classification rules',
+      },
+    ]);
+  });
+
+  test('reports a declared relationship that the candidate leaves unresolved', () => {
+    const { repository } = createIndexedCandidate();
+    write(
+      repository,
+      'relationships.v1.json',
+      `${JSON.stringify({
+        schemaVersion: 1,
+        declarationId: 'fixture.relationships',
+        selectorVersion: 1,
+        coverage: 'selected-facts-only',
+        facts: [],
+        edges: [
+          {
+            relationshipId: 'dynamic-shell-read',
+            kind: 'reads',
+            status: 'unresolved',
+            // Both endpoints must be selected candidate paths: an endpoint the candidate does not
+            // contain is refused before the unresolved list is built.
+            source: { kind: 'path', path: 'package.json' },
+            target: { kind: 'path', path: 'src/entry.ts' },
+            reason: 'the shell computes the variable name at runtime',
+          },
+        ],
+      })}\n`,
+    );
+    write(
+      repository,
+      'README.md',
+      indexSource('Rules fixture', 'module.fixture', [
+        { kind: 'path', path: 'nx.json' },
+        { kind: 'path', path: 'package.json' },
+        { kind: 'path', path: 'relationships.v1.json' },
+        { kind: 'path', path: 'tsconfig.json' },
+        { kind: 'directory-prefix', prefix: 'src', exclusions: [] },
+      ]),
+    );
+    const revision = commit(repository, 'declare an unresolved relationship');
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving, ['relationships.v1.json']),
+      '--rule',
+      'REL-EXTRACT',
+    ]);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(0);
+    const verdict = verdictOf(invocation);
+    expect(verdict.unevaluated).toEqual([]);
+    expect(verdict.findings).toEqual([
+      {
+        ruleId: 'REL-EXTRACT',
+        path: '.',
+        subject: 'dynamic-shell-read',
+        message:
+          'declared relationship is unresolved: the shell computes the variable name at runtime',
+        effect: 'debt',
+      },
+    ]);
+  });
+
+  test('allows the canonical candidate under every registered rule', () => {
+    const { repository, revision } = createIndexedCandidate();
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving),
+    ]);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(0);
+    const verdict = verdictOf(invocation);
+    // Without `--rule` every registered rule runs. An empty `ruleIds` with `allowed: true` is the
+    // shape of a check that cannot fail, so the identifiers are asserted exactly.
+    expect(verdict.ruleIds).toEqual([
+      'INV-CLASSIFY',
+      'MOD-DIRECT-ENTRIES',
+      'MOD-INDEX',
+      'REL-EXTRACT',
+    ]);
+    expect(verdict.findings).toEqual([]);
+    expect(verdict.unevaluated).toEqual([]);
+    expect(verdict.allowed).toBe(true);
+    expect(verdict.certifies).toBe(false);
+    expect(verdict.policy).toBe('rules.test.v1');
   });
 });

@@ -104,6 +104,8 @@ export function evaluateWrapped(run: () => readonly RuleObservation[]): RuleEval
   try {
     return { kind: 'observed', observations: run() };
   } catch (cause) {
+    // Proof: on 2026-09-20, turning caught failures into an empty observed list made an
+    // unclassifiable candidate exit 0; the adapter test expected exit 1 and received 0.
     return { kind: 'not-evaluated', reason: reasonOf(cause) };
   }
 }
@@ -115,6 +117,8 @@ export function toFinding(ruleId: string, mode: RuleMode, observation: RuleObser
     path: observation.path,
     ...(observation.subject === undefined ? {} : { subject: observation.subject }),
     message: observation.message,
+    // Proof: on 2026-09-20, always returning debt made an enforced direct-entry finding exit 0;
+    // the adapter test expected exit 1 and received 0.
     effect: mode === 'observe' ? 'debt' : 'refusal',
   };
 }
