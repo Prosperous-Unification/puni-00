@@ -7,8 +7,8 @@
 ## 2. Let the resting trio end in an ellipsis
 
 - [x] 2.1 Add the jsdom oracle for which arm carries the declaration.
-- [ ] 2.2 Declare `text-overflow: ellipsis` on the resting arm only.
-- [ ] 2.3 Record the green run.
+- [x] 2.2 Declare `text-overflow: ellipsis` on the resting arm only.
+- [x] 2.3 Record the green run.
 
 ## 3. Pin the staffed, fractional case in Chromium
 

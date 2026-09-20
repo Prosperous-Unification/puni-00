@@ -438,6 +438,19 @@ export function createEstimatesColumns({
                           fontSize: QUIET_TRIO_PX,
                           fontWeight: 400,
                           color: trioRepeatsResult ? 'transparent' : 'var(--muted-foreground)',
+                          // The trio is what yields when all three do not fit, and it yields
+                          // **visibly**: `20/24/30` beside `24.3` on a staffed row has 16px more
+                          // trio than box, and without this the box cut `20/24` off mid-glyph and
+                          // said nothing about the rest. Only at rest — the full-strength arm
+                          // above declares no `text-overflow`, so a box being typed in scrolls its
+                          // whole value the way a text box does, and the hover card carries the
+                          // trio in full either way.
+                          // Proof, both watched 2026-09-21. This line dropped: `ends a resting
+                          // trio in an ellipsis, and only while it is resting` failed on
+                          // `expected '' to be 'ellipsis'`. The same declaration added to the
+                          // full-strength arm above: the same test failed on its focus
+                          // assertion, `expected 'ellipsis' to be ''`.
+                          textOverflow: 'ellipsis',
                         }),
                     ...(problem === null
                       ? {}
