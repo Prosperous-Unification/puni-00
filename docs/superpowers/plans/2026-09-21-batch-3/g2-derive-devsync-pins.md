@@ -273,27 +273,29 @@ executor runs it directly.
   without either.
 - **A6.** Directory-walk exclusions are `node_modules`, `dist` and any
   dot-entry. A future configuration file outside a project root makes the check
-  fail loudly; that is the correct answer to "is every app or library config
-  known".
+  fail loudly **when it carries a parent-relative value**; one carrying none
+  contributes nothing to either side and passes unnoticed. Detecting every orphan
+  configuration regardless of content is a different requirement, deliberately not
+  taken on here.
 - **A7.** The unmerged-index refusal **throws** rather than de-duplicating the
   stage rows. De-duplicating would let a half-finished merge report a coherent
   digest for a tree nobody can reproduce.
 
 ## 5. File plan
 
-| File                                                                     | Slice           | Create/modify               | Responsibility                                              |
-| ------------------------------------------------------------------------ | --------------- | --------------------------- | ----------------------------------------------------------- |
-| `openspec/changes/derive-devsync-pins/proposal.md`                       | A               | create                      | Intent: problem, outcome, non-goals, constraints.           |
-| `openspec/changes/derive-devsync-pins/specs/derive-devsync-pins/spec.md` | A               | create                      | The delta requirements both checks must satisfy.            |
-| `openspec/changes/derive-devsync-pins/tasks.md`                          | A               | create                      | The five TDD slices.                                        |
-| `openspec/changes/derive-devsync-pins/verify.md`                         | A, then all     | create, then append         | Commands, results and the R5 proof table.                   |
-| `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                | B, C            | modify                      | Derive the context key, refuse an unmerged index.           |
-| `tools/tool-devsync/src/workspace-inventory.test.ts`                     | D, E            | modify                      | Derive the inventory; carry its new `Proof:` comments.      |
-| `tools/tool-devsync/workspace-inventory.mjs`                             | E               | **mutate and restore only** | Four negative proofs. Left byte-identical.                  |
-| `tools/tool-dagger/src/main.ts`                                          | C               | **mutate and restore only** | Two proofs and one experiment. Left byte-identical.         |
-| `apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile`                | C (C1 only)     | **mutate and restore only** | One negative proof. Left byte-identical.                    |
-| `apps/wbs/be-01/tsconfig.json`                                           | E (E4, E5 only) | **mutate and restore only** | The malformed-configuration negatives. Left byte-identical. |
-| `apps/wbs/be-01/project.json`                                            | E (E8 only)     | **mutate and restore only** | The parent-relative-target experiment. Left byte-identical. |
+| File                                                                     | Slice           | Create/modify               | Responsibility                                                                |
+| ------------------------------------------------------------------------ | --------------- | --------------------------- | ----------------------------------------------------------------------------- |
+| `openspec/changes/derive-devsync-pins/proposal.md`                       | A               | create                      | Intent: problem, outcome, non-goals, constraints.                             |
+| `openspec/changes/derive-devsync-pins/specs/derive-devsync-pins/spec.md` | A               | create                      | The delta requirements both checks must satisfy.                              |
+| `openspec/changes/derive-devsync-pins/tasks.md`                          | A               | create                      | The five TDD slices.                                                          |
+| `openspec/changes/derive-devsync-pins/verify.md`                         | A, then all     | create, then append         | Commands, results and the R5 proof table.                                     |
+| `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                | B, C            | modify                      | Derive the context key, refuse an unmerged index.                             |
+| `tools/tool-devsync/src/workspace-inventory.test.ts`                     | D, E            | modify                      | Derive the inventory; carry its new `Proof:` comments.                        |
+| `tools/tool-devsync/workspace-inventory.mjs`                             | E               | **mutate and restore only** | Four negative proofs. Left byte-identical.                                    |
+| `tools/tool-dagger/src/main.ts`                                          | B (B0, B9), C   | **mutate and restore only** | One experiment before and after, and two proofs. Left byte-identical.         |
+| `apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile`                | C (C1 only)     | **mutate and restore only** | One negative proof. Left byte-identical.                                      |
+| `apps/wbs/be-01/tsconfig.json`                                           | E (E4, E5 only) | **mutate and restore only** | The malformed-configuration negatives. Left byte-identical.                   |
+| `apps/wbs/be-01/project.json`                                            | D (D0, D6)      | **mutate and restore only** | The parent-relative-target experiment, before and after. Left byte-identical. |
 
 `.openspec.yaml` under the change directory is generated by the `new change`
 command in slice A and is expected in `git status`.
@@ -631,8 +633,63 @@ docs(openspec): open the change that derives the two devsync pins
 
 All inside `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`.
 
-- [ ] B1. Replace the whole of `candidatePaths` with a refusal plus a shared
-      runner. Today it reads:
+- [ ] B0. **Observe the serialisation this slice removes, before removing it.**
+      By **the proof shape**, patch name `digest-line-insertion-before`: in
+      `tools/tool-dagger/src/main.ts`, insert one comment line,
+      `// An unrelated explanatory line added by another lane.`, immediately above
+      `const DOCKERFILE: Record<Tier, string> = {`. Run
+      `every legacy source occurrence and relevant text family is pinned`.
+      **Expected: it FAILS**, `0 pass`, `1 fail`, on the digest alone. Rehearsed:
+      `- "digest": "4b3aac6c…"` / `+ "digest": "d66405a1…"`, with `occurrences`
+      and every category absent from the diff. Save that output as the
+      before-state. Restore, `cmp`, rerun green. If it PASSES, the tree is not the
+      one this slice expects — STOP. B10 repeats this exact mutation after the
+      re-key and requires it to pass; the two runs together are the evidence.
+      `tools/tool-dagger/src/main.ts` is authorised for this slice by section 5.
+
+- [ ] B1. Add the refusal's **stub** and its test before the refusal itself, so
+      the test is observed red for a behavioural reason rather than a missing
+      symbol. Immediately above `function candidatePaths(): string[] {`, insert:
+
+  ```ts
+  /** Stub: refuses nothing yet. B3 replaces it once the test below is red. */
+  function refuseUnmergedIndex(_unmergedListing: string): void {}
+  ```
+
+  Leave `candidatePaths` itself untouched for now, and do not call the stub.
+
+- [ ] B2. Add this test **immediately before** the test named
+      `the current-document sweep reaches every application, library and tool README`.
+      Its comment states the mechanism; B4 adds the `Proof:` comments after the
+      failures are observed.
+
+  ```ts
+  test('an unmerged index is refused instead of counted', () => {
+    const conflicted = [
+      '100644 5626abf0f72e58d7a153368ba57db4c673c0e171 1\tdocs/current.md',
+      '100644 ba2906d0666cf726c7eaadd2cd3db615dedfdf3a 2\tdocs/current.md',
+      '100644 2299c37978265a95cbe835a4b0f0bbf15aad5549 3\tdocs/current.md',
+      '',
+    ].join('\0');
+
+    // `git ls-files --cached` lists a conflicted path once per stage, so a merge in progress would
+    // otherwise triple that file's occurrences and silently move every count and digest.
+    expect(() => {
+      refuseUnmergedIndex(conflicted);
+    }).toThrow('cannot enumerate candidate source: index is unmerged: docs/current.md');
+    expect(() => {
+      refuseUnmergedIndex('');
+    }).not.toThrow();
+  });
+  ```
+
+  Run it alone, by its unanchored title. **Expected: it FAILS.** Rehearsed
+  diagnostic: `Received function did not throw` and `Received value: undefined`,
+  under the expected substring, with `0 pass`, `1 fail`. A run that PASSES here
+  means the stub was not a no-op — STOP.
+
+- [ ] B3. Replace the stub, and `candidatePaths` with it, by the real refusal and
+      a shared runner. `candidatePaths` today reads:
 
   ```ts
   function candidatePaths(): string[] {
@@ -678,7 +735,7 @@ All inside `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`.
     }
   }
 
-  function gitOutput(argv: readonly string[]): string {
+  function readGitOutput(argv: readonly string[]): string {
     const invocation = Bun.spawnSync(['git', ...argv], {
       cwd: WORKSPACE,
       stdout: 'pipe',
@@ -693,44 +750,21 @@ All inside `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`.
   }
 
   function candidatePaths(): string[] {
-    refuseUnmergedIndex(gitOutput(['ls-files', '--unmerged', '-z']));
-    return gitOutput(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+    refuseUnmergedIndex(readGitOutput(['ls-files', '--unmerged', '-z']));
+    return readGitOutput(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
       .split('\0')
       .filter(Boolean);
   }
   ```
 
   The non-zero-exit refusal message is unchanged, so no existing expectation of
-  it moves.
+  it moves. The stub's JSDoc line goes with it.
 
-- [ ] B2. Add this test **immediately before** the test named
-      `the current-document sweep reaches every application, library and tool README`.
-      Its comment is a statement of mechanism; B4 adds the `Proof:` comments after
-      the failure is observed.
-
-  ```ts
-  test('an unmerged index is refused instead of counted', () => {
-    const conflicted = [
-      '100644 5626abf0f72e58d7a153368ba57db4c673c0e171 1\tdocs/current.md',
-      '100644 ba2906d0666cf726c7eaadd2cd3db615dedfdf3a 2\tdocs/current.md',
-      '100644 2299c37978265a95cbe835a4b0f0bbf15aad5549 3\tdocs/current.md',
-      '',
-    ].join('\0');
-
-    // `git ls-files --cached` lists a conflicted path once per stage, so a merge in progress would
-    // otherwise triple that file's occurrences and silently move every count and digest.
-    expect(() => {
-      refuseUnmergedIndex(conflicted);
-    }).toThrow('cannot enumerate candidate source: index is unmerged: docs/current.md');
-    expect(() => {
-      refuseUnmergedIndex('');
-    }).not.toThrow();
-  });
-  ```
-
-- [ ] B3. Run the filtered sweep. Expected: **T + 1** passes, **F** failures
-      matching `baseline-failures.txt`, `1 filtered out`. The digest is untouched
-      so far, so this run proves the refusal is inert on a clean index.
+  Run the named test again. **Expected: it PASSES.** Then run the filtered sweep:
+  **T + 1** passes, **F** failures matching `baseline-failures.txt`,
+  `1 filtered out`. **T + 1** is this slice's expected sweep total from here to
+  its end, including after each restoration in B4. The digest is untouched so
+  far, so this run also proves the refusal is inert on a clean index.
 
 - [ ] B4. Negative proof for the refusal, on the production path, by **the proof
       shape**, patch name `unmerged-probe`. In `candidatePaths`, change the
@@ -825,12 +859,29 @@ All inside `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`.
   set -euo pipefail
   GSETTINGS_BACKEND=memory bunx prettier --write tools/tool-devsync/src/repo-namespacing-handoff.test.ts
   GSETTINGS_BACKEND=memory bunx prettier --check tools/tool-devsync/src/repo-namespacing-handoff.test.ts
-  NX_DAEMON=false bunx nx run tool-devsync:typecheck >"$TMPDIR/evidence/typecheck-b.log" 2>&1
-  echo "status=$?" >>"$TMPDIR/evidence/typecheck-b.log"
-  NX_DAEMON=false bunx nx run tool-devsync:lint >"$TMPDIR/evidence/lint-b.log" 2>&1
-  echo "status=$?" >>"$TMPDIR/evidence/lint-b.log"
+  run_target tool-devsync:typecheck typecheck-b
+  run_target tool-devsync:lint lint-b
   tail -1 "$TMPDIR/evidence/typecheck-b.log"; tail -1 "$TMPDIR/evidence/lint-b.log"
   ```
+
+  where `run_target` is **the status-recording wrapper**, defined once per
+  attempt and used by every slice that runs an Nx target:
+
+  ```sh
+  run_target() {
+    if NX_DAEMON=false bunx nx run "$1" >"$TMPDIR/evidence/$2.log" 2>&1
+    then echo "status=0" >>"$TMPDIR/evidence/$2.log"
+    else echo "status=$?" >>"$TMPDIR/evidence/$2.log"
+    fi
+  }
+  ```
+
+  The status is captured **inside an `if`**. Writing
+  `nx run … >log 2>&1` followed by `echo "status=$?" >>log` under
+  `set -euo pipefail` loses exactly the records that matter: the failing command
+  aborts the shell before the `echo` runs — reproduced, the `echo` never
+  executed and the block exited 1 with an empty status line. Preamble rule 19
+  wants the status of the failures, so it must survive them.
 
   Expected: prettier `--check` prints
   `All matched files use Prettier code style!` and exits 0; both logs end
@@ -844,8 +895,18 @@ All inside `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`.
   `baseline-failures.txt`, `1 filtered out`, and the batch 1 README's **OpenSpec
   validation** block with totals equal to step 0's.
 
-- [ ] B9. Append every command and result to `verify.md`, with a
-      `## Failure proofs` row for B4. Tick task 2.1.
+- [ ] B9. **Repeat B0's mutation, which must now pass.** By **the proof shape**
+      but with the **opposite** expectation, patch name
+      `digest-line-insertion-after`: inject the same single comment line into
+      `tools/tool-dagger/src/main.ts` at the same place, and run the same named
+      test. **Expected: it PASSES**, `1 pass`, `0 fail`. Restore, `cmp`, rerun
+      green. If it FAILS, stop and report: the derived key did not remove the
+      serialisation B0 observed. B0's failing output and this run's passing output
+      are the same mutation before and after, and go into `verify.md` together.
+
+- [ ] B10. Append every command and result to `verify.md`, with a
+      `## Failure proofs` row for B4 and the B0/B9 pair under `## Results`. Tick
+      task 2.1.
 
 **Ready to commit.** Working tree at hand-over — slice A is already committed, so
 its files are tracked and unmodified:
@@ -905,27 +966,16 @@ separate mutations of the test file. Each restores its file from its own
       recording the equal-digest observation from C4; fault 5 appended to the
       existing `Proof:` block above `const SELF`.
 
-- [ ] C7. The experiment the re-key exists for, recorded as an observation, not a
-      test. By **the proof shape** but with the **opposite** expectation, patch
-      name `digest-unrelated-comment-line`: in `tools/tool-dagger/src/main.ts`,
-      insert one comment line,
-      `// An unrelated explanatory line added by another lane.`, immediately above
-      `const DOCKERFILE: Record<Tier, string> = {`. Run the named test.
-      **Expected: it PASSES**, `1 pass`, `0 fail`. On the section 3 worktree the
-      pre-change line-numbered key failed the same edit, moving the digest from
-      `4b3aac6c…` to `d66405a1…`; that comparison is the planner's, recorded here,
-      and the executor is not asked to reproduce it. Restore, `cmp`, rerun green.
-      If it FAILS, stop and report: the derived key did not remove the
-      serialisation.
-
-- [ ] C8. Verify: prettier `--write` then `--check` on the test file;
-      `tool-devsync:typecheck` and `tool-devsync:lint` under B8's
-      status-recording wrapper, both `status=0`; the filtered sweep at **T**
+- [ ] C7. Verify: prettier `--write` then `--check` on the test file;
+      `tool-devsync:typecheck` and `tool-devsync:lint` through B8's `run_target`
+      wrapper, both logs ending `status=0`; the filtered sweep at **T**
       passes and **F** failures matching `baseline-failures.txt`; the batch 1
       README's **OpenSpec validation** block with totals equal to step 0's.
 
-- [ ] C9. Append to `verify.md`: a `## Failure proofs` row for each of C1 to C5,
-      and the C4 isolation observation and C7 under `## Results`. Tick task 3.1.
+- [ ] C8. Append to `verify.md`: a `## Failure proofs` row for each of C1 to C5
+      and the C4 isolation observation under `## Results`. Tick task 3.1. The
+      line-insertion experiment belongs to slice B (B0 and B9) and is not repeated
+      here.
 
 **Ready to commit.** Working tree at hand-over:
 
@@ -946,6 +996,20 @@ test(devsync): prove the derived digest refuses every recorded fault
 All inside `tools/tool-devsync/src/workspace-inventory.test.ts`. The derived
 enumeration is added and proven to **agree** with the existing literals, by an
 assertion that actually runs it, before those literals are removed.
+
+- [ ] D0. **Observe the serialisation this slice removes, before removing it.**
+      By **the proof shape**, patch name `inventory-target-path-before`: in
+      `apps/wbs/be-01/project.json`, edit the **existing** `serve` target's
+      command — the **only** occurrence of the string `bun --watch src/main.ts` —
+      to `bun --watch ../be-01/src/main.ts`, which adds exactly one
+      parent-relative value and creates no target. Run
+      `pins the complete moved depth-sensitive configuration inventory`.
+      **Expected: it FAILS**, `0 pass`, `1 fail`. Rehearsed diagnostic:
+      `Expected length: 167` / `Received length: 168` — the numbers on the
+      dispatch tree will differ, by the same one. Save that output as the
+      before-state. Restore, `cmp`, rerun green. If it PASSES, the literals are
+      already gone — STOP, D has landed. D6 repeats this exact mutation after the
+      literals are removed and requires it to pass.
 
 - [ ] D1. Replace the file's import block. Today it reads:
 
@@ -1133,17 +1197,27 @@ assertion that actually runs it, before those literals are removed.
   explicitly — a match is a failure, status 1 is the success, any other status is
   an error — so nothing is masked and no required check is reported by an `echo`.
 
-  Then `tool-devsync:typecheck` and `tool-devsync:lint` under B8's
-  status-recording wrapper, both `status=0`. This slice introduces a new
+  Then `tool-devsync:typecheck` and `tool-devsync:lint` through B8's
+  `run_target` wrapper, both logs ending `status=0`. This slice introduces a new
   interface, so the type check runs **in this slice**.
 
-- [ ] D6. Re-run the inventory file: **I** passes, `0 fail`. Re-run the filtered
+- [ ] D6. **Repeat D0's mutation, which must now pass.** By **the proof shape**
+      but with the **opposite** expectation, patch name
+      `inventory-target-path-after`: make the same single edit to the `serve`
+      target's command and run the whole inventory file. **Expected: it PASSES**,
+      **I** passes, `0 fail`. Restore `apps/wbs/be-01/project.json`, `cmp`, rerun
+      green. If it FAILS, stop and report: the derived form did not remove the
+      serialisation D0 observed. D0's failing output and this run's passing output
+      are the same mutation before and after, and go into `verify.md` together.
+
+- [ ] D7. Re-run the inventory file: **I** passes, `0 fail`. Re-run the filtered
       namespacing sweep: **T** passes, **F** failures matching
       `baseline-failures.txt`, `1 filtered out`, and the digest **unchanged** —
       slice B made it blind to the line movement this slice causes. If the digest
       test fails here, STOP: the derived key is not doing its job.
 
-- [ ] D7. Append every command and result to `verify.md`. Tick task 4.1.
+- [ ] D8. Append every command and result to `verify.md`, with the D0/D6 pair
+      under `## Results`. Tick task 4.1.
 
 **Ready to commit.** Working tree at hand-over:
 
@@ -1202,31 +1276,18 @@ trace, so record that line for each.
       `expect(sortPathKeys(paths)).toEqual(sortPathKeys(oracle));`, and fault 6
       above `expect(oracle.length).toBeGreaterThan(100);`.
 
-- [ ] E8. The experiment the pin's removal exists for, recorded as an
-      observation, not a test. By **the proof shape** but with the **opposite**
-      expectation, patch name `inventory-parent-relative-target`: in
-      `apps/wbs/be-01/project.json`, edit the **existing** `serve` target's
-      command — the **only** occurrence of the string `bun --watch src/main.ts` —
-      to `bun --watch ../be-01/src/main.ts`, which adds exactly one
-      parent-relative value and creates no target. Run the whole inventory file.
-      **Expected: it PASSES**, **I** passes, `0 fail`. On the section 3 worktree
-      the pre-change form failed the same edit with `Expected length: 167` /
-      `Received length: 168`; that comparison is the planner's and the executor is
-      not asked to reproduce it. Restore `apps/wbs/be-01/project.json`, `cmp`,
-      rerun green. If it FAILS, stop and report: the derived form did not remove
-      the serialisation.
-
-- [ ] E9. Verify: prettier `--write` then `--check` on
+- [ ] E8. Verify: prettier `--write` then `--check` on
       `tools/tool-devsync/src/workspace-inventory.test.ts`;
-      `tool-devsync:typecheck` and `tool-devsync:lint` under B8's
-      status-recording wrapper, both `status=0`; the inventory file green at **I**
+      `tool-devsync:typecheck` and `tool-devsync:lint` through B8's `run_target`
+      wrapper, both logs ending `status=0`; the inventory file green at **I**
       passes; the filtered sweep at **T** passes and **F** failures matching
       `baseline-failures.txt`; the stripped namespacing pin lines equal to
       step 0's; the batch 1 README's **OpenSpec validation** block with totals
       equal to step 0's.
 
-- [ ] E10. Append to `verify.md`: a `## Failure proofs` row for each of E1 to E6,
-      and E8 under `## Results`. Tick task 5.1.
+- [ ] E9. Append to `verify.md`: a `## Failure proofs` row for each of E1 to E6.
+      Tick task 5.1. The parent-relative-target experiment belongs to slice D (D0
+      and D6) and is not repeated here.
 
 **Ready to commit.** Working tree at hand-over:
 
@@ -1247,24 +1308,24 @@ test(devsync): prove the derived inventory refuses a narrowed collector
 Commands, expected exit status, and the line to look for. Counts marked
 **relative** are compared with the slice's own step 0.
 
-| Command                                                                                     | Slice      | Exit | Line to look for                                                         |
-| ------------------------------------------------------------------------------------------- | ---------- | ---- | ------------------------------------------------------------------------ |
-| `bun test … src/repo-namespacing-handoff.test.ts -t '^(?!the production index checker).*'`  | every      | 0    | **T** (B and C: **T + 1**) pass, **F** fail, `1 filtered out` (relative) |
-| the same with `-t 'every legacy source occurrence and relevant text family is pinned'`      | B, C       | 1/0  | `0 pass` when a fault is injected, `1 pass` when green                   |
-| `bun test … src/workspace-inventory.test.ts` (from `tools/tool-devsync`)                    | D, E       | 0    | **I** pass, `0 fail` (relative)                                          |
-| the same with `-t 'pins the complete moved depth-sensitive configuration inventory'`        | E          | 1    | `0 pass`, `3 filtered out`, `1 fail` (each negative)                     |
-| `NX_DAEMON=false bunx nx run tool-devsync:typecheck` (status-recording wrapper)             | B, C, D, E | 0    | `status=0`                                                               |
-| `NX_DAEMON=false bunx nx run tool-devsync:lint` (status-recording wrapper)                  | B, C, D, E | 0    | `status=0`                                                               |
-| `GSETTINGS_BACKEND=memory bunx prettier --check <owned files>`                              | every      | 0    | `All matched files use Prettier code style!`                             |
-| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate derive-devsync-pins --json` | A          | 0    | `"passed": 1`, `"failed": 0`                                             |
-| the batch 1 README's **OpenSpec validation** block                                          | every      | 0    | `passed` = **P** (A: **P + 1**), `failed` `0` (relative)                 |
+| Command                                                                                     | Slice      | Exit | Line to look for                                                                           |
+| ------------------------------------------------------------------------------------------- | ---------- | ---- | ------------------------------------------------------------------------------------------ |
+| `bun test … src/repo-namespacing-handoff.test.ts -t '^(?!the production index checker).*'`  | every      | 0    | **T** pass — **T + 1** in B only, from B3 onward — **F** fail, `1 filtered out` (relative) |
+| the same with `-t 'every legacy source occurrence and relevant text family is pinned'`      | B, C       | 1/0  | `0 pass` when a fault is injected, `1 pass` when green                                     |
+| `bun test … src/workspace-inventory.test.ts` (from `tools/tool-devsync`)                    | D, E       | 0    | **I** pass, `0 fail` (relative)                                                            |
+| the same with `-t 'pins the complete moved depth-sensitive configuration inventory'`        | E          | 1    | `0 pass`, `3 filtered out`, `1 fail` (each negative)                                       |
+| `NX_DAEMON=false bunx nx run tool-devsync:typecheck` (status-recording wrapper)             | B, C, D, E | 0    | `status=0`                                                                                 |
+| `NX_DAEMON=false bunx nx run tool-devsync:lint` (status-recording wrapper)                  | B, C, D, E | 0    | `status=0`                                                                                 |
+| `GSETTINGS_BACKEND=memory bunx prettier --check <owned files>`                              | every      | 0    | `All matched files use Prettier code style!`                                               |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate derive-devsync-pins --json` | A          | 0    | `"passed": 1`, `"failed": 0`                                                               |
+| the batch 1 README's **OpenSpec validation** block                                          | every      | 0    | `passed` = **P** (A: **P + 1**), `failed` `0` (relative)                                   |
 
 ## 10. Planner-only
 
 Nothing here is the executor's; each is reported as "pending planner
 verification".
 
-**Pre-step, before slice D is dispatched.** Declare `jsonc-parser` exactly pinned
+**Pre-step, before slice A is dispatched.** Declare `jsonc-parser` exactly pinned
 (section 3.4), commit it, and dispatch from that commit:
 
 ```sh
@@ -1277,7 +1338,9 @@ Expected, rehearsed: `Checked 1602 installs across 1447 packages (no changes)`,
 one added line in `bun.lock`, no network, prettier exit 0. Subject:
 `build: declare the jsonc-parser version the devsync inventory already imports`.
 Without this the executor still works — the package resolves by hoisting — but
-the version is unpinned.
+the version is unpinned. It is scheduled before **A**, not before D, because
+task 1.1 records it as part of opening the change and the executor may not touch
+`package.json` or `bun.lock` itself.
 
 **Before each slice.** Record the whole-target baseline on the dispatch tree:
 
@@ -1297,14 +1360,46 @@ untracked files — and run the same command. Expected deltas, never absolutes:
 | ----- | ----------------------------------- |
 | A     | **W** pass, **V** files, exit 0     |
 | B     | **W + 1** pass, **V** files, exit 0 |
-| C     | **W + 1** pass, **V** files, exit 0 |
-| D     | **W + 1** pass, **V** files, exit 0 |
-| E     | **W + 1** pass, **V** files, exit 0 |
+| C     | **W** pass, **V** files, exit 0     |
+| D     | **W** pass, **V** files, exit 0     |
+| E     | **W** pass, **V** files, exit 0     |
 
-Dated historical observation only: on the section 3 worktree **W** was 301 and
-**V** was 24 before slice B, and 302 after it. Another lane adding a test to this
-target moves **W** without touching either of G2's files, which is why the deltas
-above, not those numbers, are the contract.
+**Only B adds a test.** C and E add `Proof:` comments, and D replaces assertions
+inside an existing test, so each of them measures its own **W** — which already
+includes B's test — and must return exactly that. A slice expecting **W + 1**
+against its own baseline would reject its own success.
+
+These deltas come from one clean rehearsal of A through E in order on the
+section 3 worktree, each stage measured after the previous one landed:
+
+| Stage    | filtered sweep      | inventory file | `tool-devsync:test`      | `validate --all` |
+| -------- | ------------------- | -------------- | ------------------------ | ---------------- |
+| before A | 13 pass, 0 fail     | 4 pass         | 301 pass across 24 files | 107 passed       |
+| after A  | 13 pass, 0 fail     | 4 pass         | 301 pass across 24 files | **108** passed   |
+| after B  | **14** pass, 0 fail | 4 pass         | **302** pass, 24 files   | 108 passed       |
+| after C  | 14 pass, 0 fail     | 4 pass         | 302 pass, 24 files       | 108 passed       |
+| after D  | 14 pass, 0 fail     | 4 pass         | 302 pass, 24 files       | 108 passed       |
+| after E  | 14 pass, 0 fail     | 4 pass         | 302 pass, 24 files       | 108 passed       |
+
+Dated planner observations only, 2026-09-21. Another lane adding a test to this
+target moves **W** without touching either of G2's files, which is why the
+deltas, not these numbers, are the contract.
+
+**Two tests in this target time out under host load**, at Bun's 5 second default,
+and neither belongs to G2: `durable dev poller > runs the deployer from a
+complete, clean, uninstalled target-revision tree` and `every cached target
+declares what it reads > names every file a suite reads from outside its own
+project`. They failed once during the rehearsal at 5036 ms and 5004 ms on a busy
+host and passed on an immediate re-run with nothing changed. If a whole-target run
+shows exactly those two failing with timings just over 5000 ms, re-run before
+treating it as a regression, and record both runs.
+
+**The pre-commit hook was exercised for real.** Committing the fully rehearsed
+tree — both test files plus the five OpenSpec files — in a private worktree ran
+lefthook's `format`, `lint`, `plaintext-secrets`, `migration-lint`, `doc-caps` and
+`tool-wiki` commands and the `prepare-commit-msg` and `commit-msg` stages, and the
+commit succeeded. Nothing this packet prescribes is refused by a hook, a lint rule
+or the formatter.
 
 **At the end.**
 `NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx format:check --all`, then
@@ -1340,13 +1435,13 @@ A successful earlier slice must never trip a later slice's prerequisite, so each
 row below is checked **only** in the slice named, and each states the tree that
 slice is entitled to.
 
-| Slice | Checked at its step 0                                                                                                                                                                                           | Stop when                    |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| A     | `test ! -e openspec/changes/derive-devsync-pins`                                                                                                                                                                | the directory already exists |
-| B     | `grep -cF 'String(offset + 1)}:${match[0]}' tools/tool-devsync/src/repo-namespacing-handoff.test.ts` prints `1`, and `openspec/changes/derive-devsync-pins` **exists**                                          | either is false              |
-| C     | `grep -cF ':${match[0]}:${category}:' tools/tool-devsync/src/repo-namespacing-handoff.test.ts` prints `1` — slice B has landed                                                                                  | it is false                  |
-| D     | `grep -cE 'toHaveLength\([0-9]+\)' tools/tool-devsync/src/workspace-inventory.test.ts` prints `2`, and slice B's re-keyed context is present by C's grep                                                        | either is false              |
-| E     | `grep -cF 'readOraclePaths' tools/tool-devsync/src/workspace-inventory.test.ts` prints at least `2`, and `grep -cE 'toHaveLength\([0-9]+\)'` on the same file prints nothing with status 1 — slice D has landed | either is false              |
+| Slice | Checked at its step 0                                                                                                                                                                                                                                                | Stop when                    |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| A     | `test ! -e openspec/changes/derive-devsync-pins`                                                                                                                                                                                                                     | the directory already exists |
+| B     | `grep -cF 'String(offset + 1)}:${match[0]}' tools/tool-devsync/src/repo-namespacing-handoff.test.ts` prints `1`, and `openspec/changes/derive-devsync-pins` **exists**                                                                                               | either is false              |
+| C     | `grep -cF ':${match[0]}:${category}:' tools/tool-devsync/src/repo-namespacing-handoff.test.ts` prints `1` — slice B has landed                                                                                                                                       | it is false                  |
+| D     | `grep -cE 'toHaveLength\([0-9]+\)' tools/tool-devsync/src/workspace-inventory.test.ts` prints `2`, and slice B's re-keyed context is present by C's grep                                                                                                             | either is false              |
+| E     | `grep -cF 'readOraclePaths' tools/tool-devsync/src/workspace-inventory.test.ts` prints at least `2`, and `grep -cE 'toHaveLength\([0-9]+\)'` on the same file prints `0` and exits **1**, its status captured inside an `if` exactly as D5 does — slice D has landed | either is false              |
 
 Checked on the tree of section 3, before any slice ran: A's condition held (the
 directory was absent), B's grep printed `1`, and D's grep printed `2`. C's, D's
@@ -1383,8 +1478,10 @@ Post-proof conditions, evaluated only **after** restoration (section 7):
    re-check.
 8. A negative moves `occurrences` or a category count where its row says
    "unchanged", or leaves them unchanged where its row says they move.
-9. C7 or E8 — the two experiments — **fails**. The derived form would not have
-   removed the serialisation, which is the packet's whole purpose.
+9. B0 or D0 — the before-state of an experiment — **passes**, or B9 or D6 — its
+   after-state — **fails**. Each pair is one mutation observed before and after
+   the change it justifies; a pair that does not flip means the derived form did
+   not remove the serialisation, which is the packet's whole purpose.
 
 ## 13. Hand-over
 
@@ -1472,3 +1569,37 @@ here as a fact. And `git ls-files` lists a conflicted path once per stage:
 probed, a conflicted file appeared **three** times, which would multiply every
 occurrence in it. Slice B adds `refuseUnmergedIndex`, its own test, and a
 production-path negative (B4); step 0 refuses to start on an unmerged index.
+
+## 16. Disposition of review 2
+
+Review 2's three PARTLY findings are closed first, then its own findings.
+
+| Finding                                                          | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Critical 1** — later slices fail the prescribed count checks   | **FIXED.** Settled by one clean rehearsal of A through E in order, each stage measured after the previous landed; the table is in section 10. Only B adds a test. Section 9's sweep row now says **T + 1 in B only**, and section 10's delta table says **W** for A, C, D and E and **W + 1** for B. B3 states that **T + 1** is B's total from B3 to its end, so B4's restoration returns to that, not to B's step 0.                                                                                                                                                                                                                                                                                                         |
+| **Critical 2** — E's prerequisite is impossible                  | **FIXED.** Reproduced: `grep -c` on an absent pattern prints `0` and exits 1, so "prints nothing with status 1" can never hold. Section 12.1's E row now requires output `0` and status **1**, captured inside an `if` exactly as D5's absence block does.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Important 1** — implementation precedes the behavioural red    | **FIXED.** B0 injects the unrelated comment line and observes the pre-change digest fail (`4b3aac6c…` → `d66405a1…`) **before** the re-key; B9 repeats the same mutation and requires it to pass. D0 edits the `serve` command and observes `Expected length: 167` / `Received length: 168` **before** the literals go; D6 repeats it green. The refusal is now stub-first: B1 adds a no-op `refuseUnmergedIndex`, B2 adds the test and observes it red — rehearsed diagnostic `Received function did not throw` / `Received value: undefined` — and only B3 implements it. Both mutation paths are authorised in section 5. The duplicate experiments that used to sit in C7 and E8 are removed, and those slices renumbered. |
+| **Important 2** — the wrapper loses the status on failure        | **FIXED.** Reproduced: under `set -euo pipefail` a failing command aborts before `echo "status=$?"`, so the status line was never written. B8 now defines `run_target`, which captures the status **inside an `if`** and appends it on both paths; C7, D5 and E8 use it by name.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Minor 1** — task 1.1 ticked before the declaration is required | **FIXED.** The planner pre-step moved from "before slice D" to "before slice A", so task 1.1 is accurate when A ticks it and the executor never needs `package.json` or `bun.lock`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Minor 2** — `gitOutput` is not verb-object                     | **FIXED.** Renamed `readGitOutput` at its declaration and both call sites.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Minor 3** — A6 overstates orphan detection                     | **FIXED.** A6 now claims only that an orphan configuration **carrying a parent-relative value** fails the check, and says that detecting every orphan regardless of content is a separate requirement not taken on here.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Verified** items                                               | Accepted. The two the review could not run — on-disk mutation proofs and full Nx targets — were run in this revision's rehearsal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+
+**Found while revising, beyond the review.** Two tests in `tool-devsync:test`
+time out at Bun's 5 second default under host load and belong to no lane here:
+`durable dev poller > runs the deployer from a complete, clean, uninstalled
+target-revision tree` and `every cached target declares what it reads > names
+every file a suite reads from outside its own project`. They failed once at
+5036 ms and 5004 ms during the rehearsal and passed on an immediate re-run with
+nothing changed; section 10 tells the planner to re-run rather than treat that
+shape as a regression. Separately, the whole prescribed tree was committed once
+in a private worktree so lefthook actually ran: `format`, `lint`,
+`plaintext-secrets`, `migration-lint`, `doc-caps`, `tool-wiki` and both message
+stages all passed, and the rehearsal commit was then reset.
+
+**Dispatchable now.** Slices A and B are ready to dispatch as written: A's
+prerequisite and baselines were observed on the real tree, and B's every step —
+the before-experiment, the stub-first red, the implementation, the production-path
+negative, the re-key, the re-pin and the after-experiment — was rehearsed end to
+end. C, D and E are rehearsed too, but each depends on its predecessor having
+landed, so they are dispatched in turn.
