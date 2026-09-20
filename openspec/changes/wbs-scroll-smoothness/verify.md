@@ -92,6 +92,28 @@ zero Gantt commits, and 0.018-row pairing. The strict result therefore remains
 red; the controls are diagnostic only and do not replace the required recorded
 five-trace run.
 
+## Residual scheduler attribution
+
+The controls at `75a1b7e2` narrowed the remaining 500-row stall further. An
+idle sampler with zero inputs, commits, link writes, height reads, or viewport
+work stayed green at 42.4ms on the same host. Real scrolling remained red when
+CDP timeline collection and video were both disabled (247.2ms), when the whole
+Gantt was hidden (287.8ms), and when the follower's native `scrollTop` was
+replaced by an inert synthetic property (238.9ms). The follower control did
+break pairing as intended, but left 129 WBS commits in place, so chart paint and
+the native follower scroll are not the residual source.
+
+The recorded trace named every top main-thread event: React scheduler
+`performWorkUntilDeadline` calls in the production profiling bundle occupied
+228.7, 217.4, 188.2, 180.5, 172.7, 170.0, 168.7, 164.4 and 156.2ms. The exact
+head also prevents viewport no-op state dispatches and keeps shown-row guard
+updates silent while pointer publication is suspended; focused store/seam
+coverage is 33/33 green. The remaining close work is therefore table-side React
+scheduling below the full `WbsTable` owner, not Gantt isolation, paint, the
+scroll link, CDP tracing, video, or idle host scheduling. Task 3.1 remains red;
+the next implementation chunk should localize viewport publication below that
+owner, then repeat the recorded 50/500/2,000 probes.
+
 ## Rewritten-plan review
 
 Sol (`openai/gpt-5.6-sol`) and Gemini (Antigravity CLI) reviewed section 2 at
