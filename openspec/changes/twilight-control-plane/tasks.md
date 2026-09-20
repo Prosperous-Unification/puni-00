@@ -1,4 +1,4 @@
-# Twilight delivery plan
+# Twilight Dash delivery plan
 
 Start with **Task 1.0: make the inherited scenarios explicitly exhaustive**, then
 prove the compiler and durable-runtime boundary. This is
@@ -81,18 +81,20 @@ one key space; Executable restore compatibility (A39, A47).
 - [ ] 1.2 After 1.1 passes, deliver the compiler, contracts and non-vacuous Nx targets.
 - [ ] 1.3 Before Task 2, record go/no-go evidence from a bounded authenticated ACP capability/usage probe and one manual gVisor runtime-class smoke on an identified candidate host.
 
-**Owns:** new `tools/tool-twilight/project.json`, `tools/tool-twilight/src/compile.ts`,
-`tools/tool-twilight/src/validate-scenarios.ts`,
-`tools/tool-twilight/src/validate-scenarios.test.ts`, the
-`tool-twilight:scenario-check` Nx target, its required CI invocation,
+**Owns:** new `apps/twilight-dash/cli/project.json`,
+`apps/twilight-dash/cli/src/compile.ts`,
+`apps/wiki/cli/src/scenarios/validate-scenarios.ts`,
+`apps/wiki/cli/src/scenarios/validate-scenarios.test.ts`, the
+`twilight-bureaucrat:scenario-check` Nx target, its required CI invocation,
 `registered:repository-gate`, `registered:browser-gate` and
 `registered:scenario-coverage`,
-`tools/tool-twilight/src/testing/fixture-registry.ts`,
-`libs/twilight-contracts/src/workflow.ts`, `libs/twilight-contracts/src/profile.ts`,
-`libs/twilight-runtime/src/workflow/compile.ts`,
-`libs/twilight-runtime/src/workflow/compile.test.ts`,
-`libs/twilight-runtime/src/workflow/checkpoint.db.test.ts`,
-`libs/twilight-runtime/src/workflow/restore.ts`, `restore.db.test.ts`, and the
+`libs/twilight/domain/contracts/testing/fixture-registry.ts`,
+`libs/twilight/domain/contracts/src/workflow.ts`,
+`libs/twilight/domain/contracts/src/profile.ts`,
+`libs/twilight-dash/adapters/runtime/src/workflow/compile.ts`,
+`libs/twilight-dash/adapters/runtime/src/workflow/compile.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/workflow/checkpoint.db.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/workflow/restore.ts`, `restore.db.test.ts`, and the
 shipped `openspec/schemas/twilight-v1/execution.yaml`, which this task turns from a
 proposed document into a validated input. Fold Nx/tsconfig setup into this task.
 
@@ -192,10 +194,10 @@ must increment it after approval. Bypass compatibility to prove those assertions
 can fail. Task 8 adds the uncertain-effect upgrade/rollback fixture once Task 4 exists.
 
 **Commands established by this task:**
-`bunx nx run tool-twilight:compile -- --repository <fixture>
+`bunx nx run twilight-dash-cli:compile -- --repository <fixture>
 --organization-snapshot <snapshot> --json` and
-`bunx nx run tool-twilight:scenario-check -- --change <name>` and
-`bunx nx test twilight-runtime`. CI invokes `tool-twilight:scenario-check` for all
+`bunx nx run twilight-bureaucrat:scenario-check -- --change <name>` and
+`bunx nx test twilight-dash-runtime`. CI invokes `twilight-bureaucrat:scenario-check` for all
 active changes. Add lint and source/spec typechecks that compile
 actual files; inject a deliberate type error to prove those targets see them.
 
@@ -214,12 +216,12 @@ one owner; Plan resource units are carried without conversion (A43).
 - [ ] 2.1 Validate a clean client fixture and read one revision-bound plan without copying puni content.
 - [ ] 2.2 Carry per-task resource units through the planning port and prove no unit is converted.
 
-**Owns:** `libs/twilight-contracts/src/repository.ts`,
-`libs/twilight-runtime/src/repository/manifest.ts`,
-`libs/twilight-runtime/src/planning/openspec-plan.ts`,
-`libs/twilight-runtime/src/planning/units.ts`,
-`tools/tool-twilight/src/repository.test.ts`, and
-`tools/tool-twilight/fixtures/client-minimal/`.
+**Owns:** `libs/twilight/domain/contracts/src/repository.ts`,
+`libs/twilight-dash/adapters/runtime/src/repository/manifest.ts`,
+`libs/twilight-dash/adapters/runtime/src/planning/openspec-plan.ts`,
+`libs/twilight-dash/adapters/runtime/src/planning/units.ts`,
+`apps/twilight-dash/cli/src/repository.test.ts`, and
+`apps/twilight-dash/cli/fixtures/client-minimal/`.
 
 **Depends on:** Task 1 contract. **Produces:**
 `readRepository(root: string): RepositoryManifest` and
@@ -275,19 +277,19 @@ Revision-bound human decisions; Caller identity and human-decision provenance;
 Current authority constrains pinned runs; Profile overrides and epochs are explicit
 (A30, A36, A38, A40, A42).
 
-- [ ] 3.1 Extract be-01's migration runner into a shared library and write the first Twilight migration through it.
+- [ ] 3.1 Extract be-01's migration runner into a shared library and write the first Twilight Dash migration through it.
 - [ ] 3.2 Implement and verify OIDC caller identity and interactive decision-token issuance.
 - [ ] 3.3 Implement `authorizeAction` as the single authority boundary.
 - [ ] 3.4 Expose submit/revise/adopt/read/command/decision operations with atomic transition and outbox records.
 
 **Owns:** `libs/migrations/` (extracted runner, `down.sql` rule and lint),
-`apps/twilight-be/src/app.ts`, `runs.ts`, `artifacts.ts`, `approvals.ts`,
+`apps/twilight-dash/be/src/app.ts`, `runs.ts`, `artifacts.ts`, `approvals.ts`,
 `decision-tokens.ts`, `auth.ts`, `auth.integration.test.ts`,
-`libs/twilight-contracts/src/operations.ts`,
-`libs/twilight-domain/src/run.ts`, `approval.ts`,
-`libs/twilight-runtime/src/authority/authorize.ts`, `authorize.test.ts`,
-`libs/twilight-runtime/src/repository/run-store.ts`, migrations plus `down.sql`,
-`apps/twilight-be/src/run-lifecycle.db.test.ts`.
+`libs/twilight/domain/contracts/src/operations.ts`,
+`libs/twilight-dash/domain/domain/src/run.ts`, `approval.ts`,
+`libs/twilight-dash/adapters/runtime/src/authority/authorize.ts`, `authorize.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/repository/run-store.ts`, migrations plus `down.sql`,
+`apps/twilight-dash/be/src/run-lifecycle.db.test.ts`.
 
 **Depends on:** Task 1; Task 2 to bind real repo/plan identity. **Consumes:** the
 command contracts in design. **Produces:** the shared operation contracts every
@@ -301,16 +303,16 @@ the checkpointer call, keeping the `down.sql` rule, migration lint and the
 `bun:sqlite` import lint; its existing `.db.test.ts` cases run unchanged against
 the extracted module.
 If extraction would change be-01 behavior, stop and record an ADR before any
-Twilight migration is written.
+Twilight Dash migration is written.
 
 3.2: reuse `JwksTokenVerifier` and `browserOidcClientFromEnv` from `libs/auth`
 after reading their tests and the existing be-01 auth/boot callers. Configure a
-separate Twilight OIDC client/audience and durable server-side browser session; no
+separate Twilight Dash OIDC client/audience and durable server-side browser session; no
 copied WBS identity database or auto-provisioned organization membership. Implement
 the browser-session-only decision-token endpoint. Test wrong audience/issuer,
 callback replay, missing CSRF/origin binding, revocation, single-use expiry and
 wrong intended consumer; a real local OIDC/JWKS test issuer plus the browser flow
-supplies the positive control. Prove that a Twilight-MCP-audience token is refused
+supplies the positive control. Prove that a Twilight Dash MCP audience token is refused
 by BE directly and that the service credential cannot act without a verified actor.
 Extend the protected local-operator command class with an interactive decision path
 for `resolve_effect` and `release`: it requires local installation-operator
@@ -416,14 +418,14 @@ distinct time quantities; Model pricing is revision-bound and category-complete
 - [ ] 4.4 Schedule feasible ready deliverables and request constrained capacity within existing grants.
 - [ ] 4.5 Prove dispatch latency and isolation under the coordinator acceptance load.
 
-**Owns:** `libs/twilight-domain/src/admission.ts`, `ledger.ts`,
-`libs/twilight-runtime/src/execution/admit.ts`, `lease.ts`, `effects.ts`,
+**Owns:** `libs/twilight-dash/domain/domain/src/admission.ts`, `ledger.ts`,
+`libs/twilight-dash/adapters/runtime/src/execution/admit.ts`, `lease.ts`, `effects.ts`,
 `worker-provisioner.ts`,
-`libs/twilight-runtime/src/ledger/ledger.ts`, `rate-card.ts`,
-`apps/twilight-be/src/effects.ts`, `capacity.ts`, `rate-card.ts`, `ledger.ts`,
-`apps/twilight-be/src/admission-race.db.test.ts`,
-`libs/twilight-runtime/src/execution/effects.db.test.ts`,
-`libs/twilight-runtime/src/ledger/ledger.db.test.ts`.
+`libs/twilight-dash/adapters/runtime/src/ledger/ledger.ts`, `rate-card.ts`,
+`apps/twilight-dash/be/src/effects.ts`, `capacity.ts`, `rate-card.ts`, `ledger.ts`,
+`apps/twilight-dash/be/src/admission-race.db.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/execution/effects.db.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/ledger/ledger.db.test.ts`.
 
 **Depends on:** Task 3. **Produces:**
 `admitActivity(command: AdmissionRequest): Promise<AdmissionDecision>`,
@@ -545,8 +547,8 @@ pinned conversion revision; removing it makes the ranking unavailable.
 **Estimate:** 12–22 human hours; 3–7 agent hours; 200k–560k tokens, one build slot
 and two lightweight child-process slots for race tests.
 
-4.4 owns `libs/twilight-runtime/src/scheduling/ready.ts`, `capacity.ts`,
-`libs/twilight-runtime/src/execution/worker-provisioner.ts` and
+4.4 owns `libs/twilight-dash/adapters/runtime/src/scheduling/ready.ts`, `capacity.ts`,
+`libs/twilight-dash/adapters/runtime/src/execution/worker-provisioner.ts` and
 `scheduling.db.test.ts`; consumes Task 2's `WorkPlan`, Task 3's execution envelope
 and `admitActivity`. It produces `selectReady` (selected IDs, scores and blocked
 reasons) and `requestCapacity` (requested/granted/refused with pool and reason),
@@ -574,7 +576,7 @@ their own locks and independent launch counters, not from the agent-pool count.
 200k–500k tokens, plus separately authorized load-test service charges. These
 unmeasured values supplement admission/accounting work and grant no spending.
 
-4.5 uses `libs/twilight-runtime/src/execution/dispatch-load.test.ts` and a controlled
+4.5 uses `libs/twilight-dash/adapters/runtime/src/execution/dispatch-load.test.ts` and a controlled
 external receiver. Run `scalingAcceptance.coordinator` through `dispatchEffect`,
 record host/fixture identities, offered/completed rate, queueing and latency samples.
 Record the host storage and fsync characteristics beside those samples.
@@ -595,17 +597,17 @@ configuration; Observable evidence with focus access (client halves) (A36).
 - [ ] 5.3 Deliver configuration preview/publication, effective-policy and floor operations, and prove repository CAS and CLI digest parity.
 - [ ] 5.4 Deliver the focus brief, resume behavior and Chromium accessibility checks.
 
-**Owns:** `apps/twilight-fe/src/routes/runs.tsx`, `workbench.tsx`,
+**Owns:** `apps/twilight-dash/fe/src/routes/runs.tsx`, `workbench.tsx`,
 `workflow-editor.tsx`, `approval.tsx`, `capacity.tsx`, `evidence.tsx`,
-`recovery.tsx`, `levers.tsx`, `efficiency.tsx`, `apps/twilight-mcp/src/server.ts`,
-`apps/twilight-be/src/policy.ts`, `apps/twilight-fe/e2e/workflow.spec.ts`,
-`apps/twilight-mcp/src/server.test.ts`.
+`recovery.tsx`, `levers.tsx`, `efficiency.tsx`, `apps/twilight-dash/mcp/src/server.ts`,
+`apps/twilight-dash/be/src/policy.ts`, `apps/twilight-dash/fe/e2e/workflow.spec.ts`,
+`apps/twilight-dash/mcp/src/server.test.ts`.
 
 **Depends on:** Tasks 2–4. **Consumes:** the operation contracts from Task 3.
 Read `apps/wbs/mcp-01/src/http.ts`, `oauth.ts`, `server.ts` and their request/auth
 tests before deciding reuse of the existing Streamable HTTP transport and verifier.
 Do not reuse its per-request bearer forwarding (A36; refusals proven in 3.2). Do
-not carry WBS-specific identity or permission rules into Twilight merely because
+not carry WBS-specific identity or permission rules into Twilight Dash merely because
 the transport matches. **Produces:** schema-derived forms and MCP descriptions
 calling that BE; no alternate state transitions or permissions in the clients;
 `get_effective_policy` and `publish_floor`. Start with the shipped hooks and one
@@ -696,14 +698,14 @@ provides an expandable worker substrate (runtime half) (A34, A41, A49–A50).
 - [ ] 6.2d Reconcile duplicate start, scheduling, eviction, drain, node loss, API loss and rebootstrap.
 - [ ] 6.3 Run one live activity inside the effect boundary with scoped credentials, cancellation and escalation.
 
-**Owns:** `apps/twilight-worker/src/main.ts`,
-`libs/twilight-runtime/src/agents/acp.ts`, `capabilities.ts`, `escalation.ts`,
-`libs/twilight-runtime/src/agents/acp-contract.test.ts`,
-`libs/twilight-runtime/src/execution/k3s-worker-provisioner.ts`,
+**Owns:** `apps/twilight-dash/worker/src/main.ts`,
+`libs/twilight-dash/adapters/runtime/src/agents/acp.ts`, `capabilities.ts`, `escalation.ts`,
+`libs/twilight-dash/adapters/runtime/src/agents/acp-contract.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/execution/k3s-worker-provisioner.ts`,
 `k3s-worker-provisioner.test.ts`, `job-spec.ts`, `job-spec.test.ts`,
-`apps/twilight-worker/src/containment.test.ts`,
-`tools/tool-twilight/src/k3s-preflight.ts`, `k3s-preflight.test.ts`,
-`deploy/twilight/k3s/`, `docs/runbook-twilight-worker-pool.md` and versioned
+`apps/twilight-dash/worker/src/containment.test.ts`,
+`apps/twilight-dash/cli/src/k3s-preflight.ts`, `k3s-preflight.test.ts`,
+`deploy/twilight-dash/k3s/`, `docs/runbook-twilight-dash-worker-pool.md` and versioned
 integration fixtures.
 
 **Depends on:** Tasks 3–4. **Produces:** `AgentSessionPort` for start/stream/cancel/
@@ -735,7 +737,7 @@ client shows it.
 and security documentation. Provision one dedicated server with attempt scheduling
 disabled and two agent nodes on identified hosts. Do not install on `h3mon` or
 `h4claw`: `h3mon` remains the external observer, while `h4claw` runs OpenClaw,
-Twilight's control services and application deployment. `k3s-preflight` validates
+Twilight Dash's control services and application deployment. `k3s-preflight` validates
 unique node identity, supported architecture/kernel/cgroups/container runtime,
 CPU/memory/disk, clock, required ports, private reachability, conflicting CNI or
 firewall state, and the absence of a worker label on the server. Missing or
@@ -786,7 +788,7 @@ reports unknown until worker, workspace, provider and usage evidence reconciles.
 After server rebootstrap from pinned deployment inputs, reconcile every recorded
 attempt before launching a replacement. Join and drain nodes manually in M1; do
 not call a VPS provider. Stream correlated logs, scheduler reasons, node/Pod/Job
-state and telemetry gaps to Twilight and `h3mon`, then stop that export and require
+state and telemetry gaps to Twilight Dash and `h3mon`, then stop that export and require
 both surfaces to show the gap. OpenSandbox remains uninstalled unless this slice
 records a missing interactive-workspace contract and a separate accepted adapter
 change.
@@ -843,13 +845,13 @@ independent evaluation definition (A48).
 - [ ] 7.3 Pipeline scoped deliverables through an automated, independently provisioned integration queue.
 - [ ] 7.4 Execute opt-in bounded speculative attempts with independent selection and complete loser accounting.
 
-**Owns:** `libs/twilight-runtime/src/hooks/registry.ts`,
-`libs/twilight-domain/src/review.ts`, `outcome.ts`,
-`libs/twilight-runtime/src/evidence/store.ts`, `redact.ts`,
-`apps/twilight-be/src/events.ts`, `evidence.ts`, `outcomes.ts`, `defects.ts`,
-`apps/twilight-fe/src/routes/evidence.tsx`, `apps/twilight-mcp/src/server.ts`,
-`apps/twilight-be/src/review-flow.db.test.ts`,
-`apps/twilight-fe/e2e/evidence.spec.ts`.
+**Owns:** `libs/twilight-dash/adapters/runtime/src/hooks/registry.ts`,
+`libs/twilight-dash/domain/domain/src/review.ts`, `outcome.ts`,
+`libs/twilight-dash/adapters/runtime/src/evidence/store.ts`, `redact.ts`,
+`apps/twilight-dash/be/src/events.ts`, `evidence.ts`, `outcomes.ts`, `defects.ts`,
+`apps/twilight-dash/fe/src/routes/evidence.tsx`, `apps/twilight-dash/mcp/src/server.ts`,
+`apps/twilight-dash/be/src/review-flow.db.test.ts`,
+`apps/twilight-dash/fe/e2e/evidence.spec.ts`.
 
 This task registers `registered:integration-queue`,
 `registered:task-acceptance`, `registered:scenario-test-coverage`, `registered:tool-secrets`,
@@ -935,10 +937,10 @@ assertion fail. No private model reasoning is part of the contract.
 **Estimate:** 10–20 human hours; 3–6 agent hours; 150k–420k tokens, one reviewer
 slot reserved alongside the implementation slot.
 
-7.3 owns `libs/twilight-runtime/src/integration/queue.ts`, `compose.ts`,
+7.3 owns `libs/twilight-dash/adapters/runtime/src/integration/queue.ts`, `compose.ts`,
 `integration.test.ts`, the candidate preparation portion of
-`apps/twilight-be/src/candidates.ts` and
-`apps/twilight-fe/e2e/integration.spec.ts`. Consume WorkPlan contracts, envelope,
+`apps/twilight-dash/be/src/candidates.ts` and
+`apps/twilight-dash/fe/e2e/integration.spec.ts`. Consume WorkPlan contracts, envelope,
 source/plan locks, evidence and gate adapters; produce immutable candidate records
 through `composeCandidate`. Task 7 MUST NOT implement or invoke `publishCandidate`.
 Expose queue/member/base/check/
@@ -969,7 +971,7 @@ verification remains mandatory; all named Proof comments wait for actual failure
 300k–800k tokens, plus explicitly authorized integration/speculation experiments.
 Re-estimate from actual gate duration and conflict rates; these are not deadlines.
 
-7.4 owns `libs/twilight-runtime/src/agents/speculation.ts` and
+7.4 owns `libs/twilight-dash/adapters/runtime/src/agents/speculation.ts` and
 `speculation.test.ts`. Consume the envelope, shared budget account and session port;
 return selected candidate identity plus terminal/unresolved loser records. Use the
 independent task oracle from 7.1/7.2; this slice depends on those completed slices. A controlled first
@@ -990,9 +992,9 @@ and retained-version recovery) (A39, A45).
 - [ ] 8.3 Rehearse incompatible-upgrade refusal and retained-closure recovery.
 - [ ] 8.4 Pass the fixed-quality scaling matrix before M1 acceptance, independently of WBS migration.
 
-**Owns:** `apps/twilight-fe/e2e/first-run.spec.ts`,
-`tools/tool-twilight/src/template.ts`,
-`tools/tool-twilight/fixtures/client-minimal/`, initial versioned starter package,
+**Owns:** `apps/twilight-dash/fe/e2e/first-run.spec.ts`,
+`apps/twilight-dash/cli/src/template.ts`,
+`apps/twilight-dash/cli/fixtures/client-minimal/`, initial versioned starter package,
 and the change's eventual `verify.md`/runbook updates.
 
 **Depends on:** Tasks 1–7. Complete 8.1, 8.3 and 8.4 before 8.2 promotes the
@@ -1047,7 +1049,7 @@ it to main only through the repository's existing manual review and merge path.
 8.2: at M1 acceptance, set `schema: twilight-v1` in puni-00 and the generated
 client template. Before switching, pin every existing change's current schema in
 its `.openspec.yaml` so old changes retain their workflow. Prove a new change
-selects Twilight in both repos and a pre-existing `sdd-lean` change is still
+selects the `twilight-v1` workflow schema in both repos and a pre-existing `sdd-lean` change is still
 interpreted under that schema. The trial remains opt-in until this is tested.
 
 8.3: rehearse incompatible-upgrade refusal using Task 1's retained packages and
@@ -1068,9 +1070,9 @@ provisioning costs; no aggregate completion date is asserted from unmeasured sli
 
 8.4 runs under `factory-core`; its accepted outcome ends at core handoff and
 excludes Task 13's serialized staging and interactive-browser path. It owns
-`tools/tool-twilight/src/scaling.ts`, `scaling.test.ts` and versioned
-`fixtures/scaling/` with independently authored outcome assertions. Run through an
-Nx `tool-twilight:scaling` target created with this behavior, consuming the real
+`apps/twilight-dash/cli/src/scaling.ts`, `scaling.test.ts` and versioned
+`apps/twilight-dash/cli/fixtures/scaling/` with independently authored outcome assertions. Run through an
+Nx `twilight-dash-cli:scaling` target created with this behavior, consuming the real
 scheduler, ACP workers, integration queue and gate adapters. The canonical capacities,
 repetitions and speedup/coordinator budgets are `execution.yaml.scalingAcceptance`;
 do not copy constants into fixtures or derive test advances from the challenged value.
@@ -1322,8 +1324,9 @@ trace content or exceed its declared analysis allowance.
 
 - [ ] 12.1 Add ingest/answer/reconcile/compact operations with claim provenance and client isolation.
 
-**Depends on:** Tasks 7–8. **Owns next increment:** `libs/twilight-runtime/src/knowledge/`,
-knowledge FE/MCP operations and `tool-twilight:verify-knowledge`. Read-only index
+**Depends on:** Tasks 7–8. **Owns next increment:**
+`libs/twilight-dash/adapters/runtime/src/knowledge/`, knowledge FE/MCP operations and
+`twilight-bureaucrat:verify-knowledge`. Read-only index
 navigation from M0 remains sufficient until this increment exists.
 
 Use [knowledge operations](../../../docs/twilight-structure/knowledge.md). Require
@@ -1356,10 +1359,10 @@ on that backend. Retrieval quality requires judgment, not a parser-only green.
 sweeps ride the same hook and trigger machinery). **Owns next increment:**
 environment and deployment adapters, cloud-browser integration, report/coverage
 records, the `personal-delivery` floor publication, release command UI/MCP authority and runbooks.
-Own `libs/twilight-runtime/src/environments/{environment,branch-dev,staging,dev-main}.ts`,
-`libs/twilight-runtime/src/environments/*.test.ts`,
-`libs/twilight-runtime/src/browser/report.ts`,
-`apps/twilight-be/src/{environments,candidates,release}.ts`, the matching FE/MCP
+Own `libs/twilight-dash/adapters/runtime/src/environments/{environment,branch-dev,staging,dev-main}.ts`,
+`libs/twilight-dash/adapters/runtime/src/environments/*.test.ts`,
+`libs/twilight-dash/adapters/runtime/src/browser/report.ts`,
+`apps/twilight-dash/be/src/{environments,candidates,release}.ts`, the matching FE/MCP
 operations, `implementation.branch-dev`, `triggerWorkflows.dev-sweep`,
 `staging.deploy`, `acceptance.cloud-browser`, `acceptance.browser-report`,
 `publication.main`, `handoff.dev-main` and `release.production`
@@ -1438,7 +1441,7 @@ without resetting the delivery run clock.
 Adopts the M4 delta's upgrade rollback contract from the
 [design](design.md#environments-publication-and-release) (A39).
 
-- [ ] 14.1 Use Twilight to improve its own template and roll the same verified version into a second client fixture.
+- [ ] 14.1 Use Twilight Structure to improve its own template and roll the same verified version into a second client fixture.
 
 **Depends on:** Tasks 10–13. **Owns next increment:** template upgrade planner,
 compatibility fixtures, self-improvement evaluation and operator recovery route.
@@ -1472,16 +1475,16 @@ or rollback is promised for unsupported old/new combinations.
 **Estimate:** 16–32 human hours plus a complete canary cycle; use measured M1–M3
 ledgers for agent budgets instead of extrapolating today's untested estimates.
 
-## Task 15: Connect the always-available secretary to Twilight
+## Task 15: Connect the always-available secretary to Twilight Navigator
 
 - [ ] 15.1 Prove the pinned OpenClaw adapter and independently admitted secretary/worker capacity.
-- [ ] 15.2 Submit software-delivery requests through Twilight and return durable references without widening authority.
+- [ ] 15.2 Submit software-delivery requests through Twilight Navigator and return durable references without widening authority.
 
 **Depends on:** Tasks 5–7. **Owns next increment:**
-`libs/twilight-assistant/src/{openclaw,workers,assignments,sessions}.ts`, their unit
-and adapter tests, `apps/twilight-be/src/assistant.ts`, corresponding FE/MCP
+`libs/twilight-navigator/adapters/assistant/src/{openclaw,workers,assignments,sessions}.ts`, their unit
+and adapter tests, `apps/twilight-dash/be/src/assistant.ts`, corresponding FE/MCP
 operations, `submitAssistantRequest`, `renameWorker`, `bindWorkerSession` and the
-secretary/provider reserve admission contract. OpenClaw owns conversation execution; Twilight owns delivery authority and
+secretary/provider reserve admission contract. OpenClaw owns conversation execution; Twilight Dash owns delivery authority and
 durable work state (A52). A recurring worker is a stable presentation identity, not
 an OpenClaw configured agent, and renaming changes no history or permission (A55).
 
@@ -1498,7 +1501,7 @@ turns; drive worker usage to total provider capacity minus the configured
 interactive reserve, observe another worker queue, and admit a secretary turn;
 removing the reserve must make that assertion fail. Saturated workers queue with
 the limiting pool; unavailable secretary
-capacity is reported rather than answered; a general request creates no Twilight
+capacity is reported rather than answered; a general request creates no Twilight Dash
 run; a software request returns correlated durable references; adversarial chat
 cannot expand an envelope or release; rename during work preserves stable identity,
 history and grants; replacing an OpenClaw session/model remains the same worker.
@@ -1512,9 +1515,9 @@ history and grants; replacing an OpenClaw session/model remains the same worker.
 - [ ] 16.2 Deliver the secretary-led overview with worker, assignment, environment, evidence and intervention routes.
 
 **Depends on:** Tasks 13 and 15. **Owns next increment:**
-`libs/twilight-assistant/src/{corpus,search,work-events,projection}.ts`, their tests,
-`apps/twilight-be/src/{session-search,work-view}.ts`,
-`apps/twilight-fe/src/work-view/`, its whole-browser suite, and
+`libs/twilight-navigator/adapters/assistant/src/{corpus,search,work-events,projection}.ts`, their tests,
+`apps/twilight-dash/be/src/{session-search,work-view}.ts`,
+`apps/twilight-dash/fe/src/work-view/`, its whole-browser suite, and
 `searchSessions`, `readSession`, `readWorkView`. Retain
 redacted personal session content without an age default; warn and offer export at
 the provisional 10 GiB storage ceiling before deletion (A54, A66). Distinguish runtime observation,

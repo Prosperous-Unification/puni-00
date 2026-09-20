@@ -1,6 +1,6 @@
 ## Why
 
-Twilight needs a usable shared workflow for its own development and client
+Twilight Structure needs a usable shared workflow for its own development and client
 monorepos. Today planning, agent execution, approvals, and evidence have no
 common user-facing authority or durable run identity. More concurrent sessions
 alone do not establish faster accepted delivery. The objective is minimum elapsed
@@ -55,7 +55,7 @@ rollback contract (M4) receive their own deltas.
 
 ## Domain Terms
 
-Use the [Twilight glossary](../../../docs/twilight-structure/CONTEXT.md).
+Use the [Twilight Structure glossary](../../../docs/twilight-structure/CONTEXT.md).
 
 ## Decisions Recorded
 
@@ -67,6 +67,6 @@ are ADRs because they are hard to reverse and had real alternatives.
 
 ## Impact
 
-Proposed new Twilight applications/libraries/tooling; shared repo template and
+Proposed new Twilight Dash applications/libraries/tooling; shared repo template and
 later WBS adapter. [Assumptions](../../../docs/twilight-structure/assumptions.md)
-and the [Twilight index](../../../docs/twilight-structure/README.md) explain the plan's bounds.
+and the [Twilight Structure index](../../../docs/twilight-structure/README.md) explain the plan's bounds.
