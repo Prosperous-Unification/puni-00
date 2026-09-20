@@ -51,3 +51,23 @@ Slice C observations, 2026-09-21:
 - C9: `final-focused-devsync.log` reproduced the C0 sandbox baseline after the edits: 43
   passed, and only the same two named `durable dev poller` cases failed with
   `Invalid cross-device link`; planner verification remains pending.
+
+Slice D observations, 2026-09-21:
+
+- D0: `d0-prerequisite.txt` recorded
+  `installs=1 proofs=4 proofs-before-install=1`.
+- D0: `openspec-validation-d0.NAwoFG.json` recorded 109 passed and 0 failed; this is D.
+- D0: `d0-harness.log` recorded exit 0, `all cases passed`, and 95 `ok:` lines; this
+  is Dh.
+- D1: `AGENTS.md` now states that the host gate installs the locked dependencies frozen
+  after checkout and before the CI-equivalent checks.
+- D2: the findings catalogue now records the thirtieth incident and reports a total of
+  thirty.
+- D3: `d3-doc-caps.log` recorded exit 0 with no diagnostics.
+- D4: no action, as prescribed; formatting follows the final evidence edits in D6.
+- D5: `openspec-validation-d5.EeaOKX.json` recorded 109 passed and 0 failed, unchanged
+  from D.
+- D5: `d5-harness.log` recorded exit 0, `all cases passed`, and 95 `ok:` lines,
+  unchanged from Dh.
+- D5: `d5-tool-wiki-lint.log` recorded exit 0 and one inactive JSON report with reason
+  `external activation root is not provisioned`.
