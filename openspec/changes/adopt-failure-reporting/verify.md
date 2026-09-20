@@ -4,6 +4,9 @@
 **Verified at**: `2026-09-20`
 **Verifier**: Codex executor, attempt `020-2-shared-failures.A.20260920T135157Z`
 
+Slice H completion was recorded by Codex executor attempt
+`020-2-shared-failures.H.20260920T152633Z`; the slice-specific history below is preserved.
+
 ## 1. Structural Validation
 
 - [x] Baseline before this change: 103 items passed, 0 failed.
@@ -25,7 +28,10 @@ The proposal is below the 400-word limit:
 
 ## 3. Task Completion
 
-- [ ] Implementation tasks remain open. Slice A creates the contract before module code exists.
+- [x] Task 1.1, the shared reporting module and its eleven watched negatives, is complete.
+- [ ] Task 2.1, adoption at the observability, backend and MCP boundaries, remains unassigned in
+      batch 2.
+- [ ] Task 3.1, browser execution of `@shared/failures`, remains explicitly unassigned.
 
 ## 4. Delta Spec Sync
 
@@ -35,7 +41,23 @@ The proposal is below the 400-word limit:
 
 ## 5. Failure Proofs
 
-No implementation safety check exists in Slice A. Later slices append the eleven watched production negatives required by task 1.
+Every artifact name below is relative to the named proof's originating attempt evidence directory.
+The planner's separately recorded replays remain in the slice history below; no artifact reference
+is invented for them.
+
+| Proof                      | Fault                                                                   | Named failing test                                                                | Observed diagnostic                                                                                                              | Artifacts                                                                           |
+| -------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| C2 `restart-entry-omitted` | Omitted `libs/shared/domain/failures/project.json` from `RESTART_PATHS` | `RESTART_PATHS coverage > names every library project.json that exists on disk`   | C attempt `020-2-shared-failures.C.20260920T141109Z` baseline: `Expected to contain: "libs/shared/domain/failures/project.json"` | `restart-entry-omitted.patch`; baseline failure output `sync-before.txt`            |
+| D3 `keys-removed`          | Replaced `keys: SENSITIVE_KEY_PATTERNS` with `[]`                       | `skips a sensitive property whatever its capitalisation`                          | Diff exposed `Authorization: "Bearer live-token"`                                                                                | `keys-removed.patch`; `keys-removed.out`                                            |
+| D4 `keys-case-sensitive`   | Replaced the regex key list with plain strings                          | `skips a sensitive property whatever its capitalisation`                          | `Received  + 1`; capitalised `Authorization` exposed `Bearer live-token`                                                         | `keys-case-sensitive.patch`; `keys-case-sensitive.out`                              |
+| D5 `patterns-removed`      | Replaced the caller-owned pattern expression with `[]`                  | `scrubs a caller-owned secret from message and stack, not only from its property` | `Received: "Error: token was hunter2"`                                                                                           | `patterns-removed.patch`; `patterns-removed.out`                                    |
+| E4 `wrapper-removed`       | Replaced the `try`/`catch` with a bare block                            | `a cause that cannot be inspected is reported as reporting loss, not as a throw`  | `TypeError: Array.isArray cannot be called on a Proxy that has been revoked`                                                     | `wrapper-removed.patch`; `wrapper-removed.out`                                      |
+| E5 `public-redact-removed` | Removed `redact` from the public options bag                            | `redacts a secret the disclosure policy selected into the public report`          | Public `as_json` diff disclosed `"user": "alice@example.com"`                                                                    | `public-redact-removed.patch`; `public-redact-removed.out`                          |
+| G1 `shared-call-split`     | Replaced one `toReports` call with two calls                            | `correlates a primitive failure without publishing its contents`                  | `toBe` compared two different `AE_…` occurrence ids                                                                              | `shared-call-split.patch`; `shared-call-split.out`                                  |
+| G2 `inspection-default`    | Removed `inspection: 'no-invoke'`                                       | `does not run a throwing getter while reporting`                                  | `reporting_errors` contained `error: "Error: ran"`; the constants test also failed                                               | `inspection-default.patch`; `inspection-default.out`; `inspection-default-full.out` |
+| G3 `budget-removed`        | Removed `maxReportSize`                                                 | `bounds a very long Unicode message and marks it truncated`                       | `truncated` was `undefined`; the constants test also failed                                                                      | `budget-removed.patch`; `budget-removed.out`; `budget-removed-full.out`             |
+| G4 `depth-removed`         | Removed `maxDepth`                                                      | `stops the cause walk at the depth limit and says so on the deepest child`        | Expected `"max_depth"`, received `undefined`; the constants test also failed                                                     | `depth-removed.patch`; `depth-removed.out`; `depth-removed-full.out`                |
+| G5 `children-removed`      | Removed `maxChildren`                                                   | `stops at the child limit and says so on the root`                                | Expected `"max_children"`, received `undefined`; the constants test also failed                                                  | `children-removed.patch`; `children-removed.out`; `children-removed-full.out`       |
 
 ## 6. Executor Checks
 
@@ -96,7 +118,16 @@ Executor attempt on the clone holding slices A and B, then the planner. The exec
 | C6   | `LLM_README.md` names the new library on an existing row                                                            | routed-link case passes; the router stays at 130 lines                                                                                                                                                             |
 | C7   | Alias case; `namespace-layout` and `workspace-targets`; `tool-devsync:typecheck`; `tool-devsync:lint`; format check | 1 pass; 38 pass; exit 0; exit 0; exit 0                                                                                                                                                                            |
 
-Negative proof for C2, planner, 2026-09-20: with `'libs/shared/domain/failures/project.json'` removed from `RESTART_PATHS`, `RESTART_PATHS coverage > names every library project.json that exists on disk` failed with `Expected to contain: "libs/shared/domain/failures/project.json"`; restored with `cmp`, then `sync.test.ts` 48 pass, 0 fail. Slice C's own starting red state is the proof for C1 and C3: both checks were watched failing before the registration that satisfies them.
+Negative proof for C2, executor baseline and planner replay, 2026-09-20: attempt
+`020-2-shared-failures.C.20260920T141109Z` began with the restart entry absent;
+`RESTART_PATHS coverage > names every library project.json that exists on disk` failed with
+`Expected to contain: "libs/shared/domain/failures/project.json"`. The matching artifacts are
+`restart-entry-omitted.patch` and baseline output `sync-before.txt`, relative to that attempt's
+evidence directory. The later `restart-entry-omitted.out` is not evidence because it records a
+zero-test run. Separately, the planner replayed the same fault, restored with `cmp`, then observed
+`sync.test.ts` at 48 pass, 0 fail; no artifact reference is claimed for that replay. Slice C's own
+starting red state is the proof for C1 and C3: both checks were watched failing before the
+registration that satisfies them.
 
 ### Slice D — redaction policy
 
@@ -254,6 +285,33 @@ run of 20 pass, 0 fail:
 
 Planner, after slice G, 2026-09-20: slice G changed only `Proof:` comments in `report-failure.ts`. Replayed `depth-removed` outside the sandbox (`maxDepth` taken out of the shared limits): `stops the cause walk at the depth limit and says so on the deepest child` failed with `Expected: "max_depth"`, and the constants test failed with it (recorded, not a stop); restored byte for byte. Project test, typecheck and lint pass.
 
+### Slice H — completion record
+
+The Slice H baseline was clean. The README count is derived, the digest pin is present, and the
+inventory pins remain 167 rows and 84 distinct files.
+
+| Command or check                                                      | Result                                  |
+| --------------------------------------------------------------------- | --------------------------------------- |
+| `workspace-projects.test.ts`                                          | exit 0; 17 pass, 0 fail                 |
+| `sync.test.ts`                                                        | exit 0; 48 pass, 0 fail                 |
+| `workspace-inventory.test.ts`                                         | exit 0; 4 pass, 0 fail                  |
+| `namespace-layout.test.ts`                                            | exit 0; 19 pass, 0 fail                 |
+| `workspace-targets.test.ts`                                           | exit 0; 19 pass, 0 fail                 |
+| Routed current-document link case                                     | exit 0; 1 pass, 13 filtered out, 0 fail |
+| OpenSpec validation before the Slice H edits                          | exit 0; 104 passed, 0 failed            |
+| OpenSpec validation after the Slice H edits                           | exit 0; 104 passed, 0 failed            |
+| Prettier write on the OpenSpec change and adoption plan               | exit 0; owned files formatted           |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` | exit 0; repository formatting clean     |
+
 ## Decision
 
-- [ ] Archive readiness is outside Slice A. Tasks remain open until implementation and evidence are complete.
+- [x] Task 1 is implemented and its evidence is complete.
+- [ ] The change is not archive-ready: tasks 2 and 3 remain open.
+
+## Checks Not Run by This Executor
+
+- Whole `NX_DAEMON=false bunx nx run tool-devsync:test`: pending planner verification because its
+  index-checker case writes Git objects in this read-only clone.
+- `bin/h2puni-gate.sh`: unavailable on this machine and explicitly reserved for the host gate.
+- Browser execution of `@shared/failures`: no batch 2 fixture imports this module; task 3 remains
+  unassigned.

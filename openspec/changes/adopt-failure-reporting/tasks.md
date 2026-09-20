@@ -1,6 +1,6 @@
 ## 1. Shared reporting module
 
-- [ ] 1.1 Add `shared-failures`, its alias, limits, sensitive keys, redaction builder, never-throw wrapper and acceptance coverage — test: `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`, `shared-failures:typecheck` and `shared-failures:lint`; negatives: omit the project restart entry, remove key rules, make keys case-sensitive, remove pattern rules, remove the never-throw wrapper, remove public redaction, split the shared reporting call, restore accessor invocation, remove the byte budget, remove the depth limit and remove the child limit
+- [x] 1.1 Add `shared-failures`, its alias, limits, sensitive keys, redaction builder, never-throw wrapper and acceptance coverage — test: `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`, `shared-failures:typecheck` and `shared-failures:lint`; negatives: omit the project restart entry, remove key rules, make keys case-sensitive, remove pattern rules, remove the never-throw wrapper, remove public redaction, split the shared reporting call, restore accessor invocation, remove the byte budget, remove the depth limit and remove the child limit
 
 ## 2. Reporting adoption (needs 1.1)
 
