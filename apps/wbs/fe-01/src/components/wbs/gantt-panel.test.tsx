@@ -6167,12 +6167,23 @@ describe('the height a remembered claim is drawn at', () => {
 });
 
 describe('the height the panel is drawn at', () => {
-  const panelAt = (heightPx: number | null, roomPx: number | null = null): HTMLElement => {
+  const panelAt = (
+    heightPx: number | null,
+    roomPx: number | null = null,
+    rowCount = 1,
+  ): HTMLElement => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('r1', 0, 2, { number: '010', name: 'One' })],
-          slices: [sliceAt('r1-dev', 'r1', 0, 2)],
+          rows: Array.from({ length: rowCount }, (_, index) =>
+            rowAt(`r${String(index)}`, 0, 2, {
+              number: String(index + 1).padStart(3, '0'),
+              name: `Row ${String(index + 1)}`,
+            }),
+          ),
+          slices: Array.from({ length: rowCount }, (_, index) =>
+            sliceAt(`r${String(index)}-dev`, `r${String(index)}`, 0, 2),
+          ),
         })}
         startDate={null}
         scheduleError={null}
@@ -6202,10 +6213,14 @@ describe('the height the panel is drawn at', () => {
   });
 
   itDom('has the table’s reachable terminal extent', () => {
-    const panel = panelAt(400);
+    const panel = panelAt(400, null, 50);
     const allowance = panel.querySelector<HTMLElement>('[data-gantt-terminal-allowance]');
     expect(allowance?.style.height).toBe(PLAN_TERMINAL_ALLOWANCE);
     expect(allowance?.style.height).toBe(TABLE_FRAME.paddingBottom);
+  });
+
+  itDom('does not force a short fitted chart to overflow', () => {
+    expect(panelAt(400).querySelector('[data-gantt-terminal-allowance]')).toBeNull();
   });
 
   itDom('the panel’s ceiling is its column, not the window', () => {
@@ -7623,7 +7638,7 @@ describe('the waits the filter left undrawn', () => {
         pointed={pointed}
       />,
     );
-    askForTheDetail();
+    pressTheDetail();
 
     expect(droppedSentence()).toContain('this filter is hiding');
   });

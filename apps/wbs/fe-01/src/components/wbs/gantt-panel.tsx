@@ -5749,15 +5749,18 @@ function GanttChart({
             the same terminal extent lets either face drive the last row/fraction
             without its follower clamping. A child, not panel padding: padding
             would consume the chart's visible height under border-box sizing. */}
-        {!fullScreen &&
-          rowCount * ROW_PX >
-            (typeof window === 'undefined' ? Number.POSITIVE_INFINITY : window.innerHeight) && (
-            <div
-              aria-hidden="true"
-              data-gantt-terminal-allowance
-              style={{ height: PLAN_TERMINAL_ALLOWANCE }}
-            />
-          )}
+        {/* Only large plans need extra terminal travel. Adding it to short plans
+            forces an otherwise fitted chart to overflow and changes card/drag
+            geometry. Proof: making this unconditional failed five short-plan
+            Chromium cases in gantt.spec.ts; the 50-row bidirectional terminal
+            proof remains green with the threshold. */}
+        {!fullScreen && rowCount >= 50 && (
+          <div
+            aria-hidden="true"
+            data-gantt-terminal-allowance
+            style={{ height: PLAN_TERMINAL_ALLOWANCE }}
+          />
+        )}
 
         {/*
           The bottom edge of a panel with chart still under it, said in a way
