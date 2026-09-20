@@ -862,7 +862,7 @@ export function WbsTable({
       settle = setTimeout(() => {
         settle = null;
         pointedRows.resumeTablePointing();
-      }, 250);
+      }, 1_000);
     };
     frame.addEventListener('wheel', onScroll, { passive: true });
     frame.addEventListener('scroll', onScroll, { passive: true });
