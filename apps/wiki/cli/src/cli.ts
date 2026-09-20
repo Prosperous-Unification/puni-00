@@ -397,9 +397,14 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       writeCiLintCommand(args, validatorEntryPaths());
     });
   }
-  if (args.length === 2 && args[0] === 'explain') {
+  if ((args.length === 2 || args.length === 4) && args[0] === 'explain') {
     return import('./rules/check').then(({ writeExplainCommand }) => {
       writeExplainCommand(args);
+    });
+  }
+  if ((args.length === 5 || args.length === 7) && args[0] === 'check') {
+    return import('./rules/check').then(({ writeCheckCommand }) => {
+      writeCheckCommand(args);
     });
   }
   if (args.length === 4 && args[0] === 'validate-policy-activation') {
@@ -410,7 +415,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // Proof: replacing this refusal with a successful return made the external package test
   // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-bureaucrat <validate-record|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-bureaucrat <validate-record|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|check|explain|validate-policy-activation> ...`,
   );
 }
 

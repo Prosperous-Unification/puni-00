@@ -8,10 +8,10 @@
 
 ## Part 2: Trusted policy boundary and check
 
-- [ ] Add the ten policy-boundary and `check` tests; observe them fail before implementation and all twelve rule tests pass afterward.
-- [ ] Add external policy loading, complete mode validation, candidate-root containment, verdict construction, and the `check` route.
-- [ ] Inject and observe P2 through P12 against their named focused tests, restoring and rerunning after each fault.
-- [ ] Run the focused rule, candidate-reader, and trusted-policy suites, typecheck, and source lint.
+- [x] Add eleven policy-boundary, `check`, and policy-aware `explain` tests; observe them fail before implementation and all thirteen rule tests pass afterward.
+- [x] Add external policy loading, complete mode validation, candidate-root containment, verdict construction, and the `check` route.
+- [x] Inject and observe P2 through P12 plus P20 and P21 against their named focused tests, restoring and rerunning after each fault.
+- [x] Run the focused rule, candidate-reader, and trusted-policy suites, typecheck, source lint, and OpenSpec validation.
 
 ## Part 3: Failure classification and adapter proofs
 
