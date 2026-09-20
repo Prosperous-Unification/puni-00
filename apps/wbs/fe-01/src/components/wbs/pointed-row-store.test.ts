@@ -78,6 +78,24 @@ describe('the pointed-row store', () => {
     expect(pointed.pointedAt()).toBe('b');
   });
 
+  it('publishes only the final table row after scroll pointing resumes', () => {
+    const pointed = showing('a', 'b', 'c');
+    pointed.pointTable('a');
+    const told: (string | null)[] = [];
+    pointed.subscribe(() => told.push(pointed.pointedAt()));
+
+    pointed.suspendTablePointing();
+    pointed.pointTable('b');
+    pointed.leaveTable('b');
+    pointed.pointTable('c');
+    expect(pointed.pointedAt()).toBe('a');
+    expect(told).toEqual([]);
+
+    pointed.resumeTablePointing();
+    expect(pointed.pointedAt()).toBe('c');
+    expect(told).toEqual(['c']);
+  });
+
   it('tells a subscriber when the answer changes, and lets it leave', () => {
     const pointed = showing('a');
     const told: (string | null)[] = [];

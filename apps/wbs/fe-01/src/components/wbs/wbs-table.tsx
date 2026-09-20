@@ -843,6 +843,36 @@ export function WbsTable({
    * `[data-table-frame]`, and so does the browser gate.
    */
   const frameRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * A wheel keeps the row under a stationary pointer changing even though the
+   * reader is scrolling, not pointing. Hold those transient row readings and
+   * publish only the last one after the gesture settles. The wheel listener is
+   * deliberately before the scroll listener: Chromium updates hover as the
+   * default wheel action moves content, so waiting for `scroll` lets the first
+   * moving row flash through. Keyboard and linked scrolls still enter through
+   * `scroll`; they do not create pointer crossings before it.
+   */
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (frame === null) return;
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      pointedRows.suspendTablePointing();
+      if (settle !== null) clearTimeout(settle);
+      settle = setTimeout(() => {
+        settle = null;
+        pointedRows.resumeTablePointing();
+      }, 250);
+    };
+    frame.addEventListener('wheel', onScroll, { passive: true });
+    frame.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      frame.removeEventListener('wheel', onScroll);
+      frame.removeEventListener('scroll', onScroll);
+      if (settle !== null) clearTimeout(settle);
+      pointedRows.resumeTablePointing();
+    };
+  }, [pointedRows]);
   const { refreshOrMarkStale, run, stepStack, runMarkerWrite } = usePlanRead({
     setDrafts,
     projectId,

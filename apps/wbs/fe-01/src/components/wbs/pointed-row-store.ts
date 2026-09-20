@@ -53,6 +53,10 @@ export interface PointedRows {
   pointedAt: () => string | null;
   /** The pointer arrived on a plan renderer row. */
   pointTable: (rowId: string) => void;
+  /** Holds table-pointer changes without publishing them while the table scrolls. */
+  suspendTablePointing: () => void;
+  /** Publishes the last table row now under the pointer after scrolling settles. */
+  resumeTablePointing: () => void;
   /**
    * The pointer left a plan renderer row. Clears only if that row is still the
    * pointed one: when the pointer moves straight to the next row, the arrival
@@ -73,6 +77,7 @@ export interface PointedRows {
 /** One {@link PointedRows} for one mounted plan. */
 export function createPointedRows(): PointedRows {
   let tablePointed: string | null = null;
+  let tablePointingSuspended = false;
   let chartPointed: string | null = null;
   let chartFocused: string | null = null;
   let shownRows: ReadonlySet<string> = new Set();
@@ -97,12 +102,20 @@ export function createPointedRows(): PointedRows {
     pointedAt: () => resolved,
     pointTable: (rowId) => {
       tablePointed = rowId;
+      if (!tablePointingSuspended) resolve();
+    },
+    suspendTablePointing: () => {
+      tablePointingSuspended = true;
+    },
+    resumeTablePointing: () => {
+      if (!tablePointingSuspended) return;
+      tablePointingSuspended = false;
       resolve();
     },
     leaveTable: (rowId) => {
       if (tablePointed !== rowId) return;
       tablePointed = null;
-      resolve();
+      if (!tablePointingSuspended) resolve();
     },
     pointChart: (rowId, from) => {
       if (from === 'pointer') chartPointed = rowId;
