@@ -103,6 +103,7 @@
     "fast-check": "^4.9.0",
     "jiti": "2.7.0",
     "jsdom": "^30.0.1",
+    "jsonc-parser": "3.2.0",
     "lefthook": "^2.1.12",
     "mermaid": "^11.17.2",
     "nx": "23.2.0",
