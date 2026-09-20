@@ -2250,8 +2250,8 @@ Starts from the committed part 3. Read section 0 in full first.
 
 **This part records only what it observes itself.** Parts 1 to 3 ran in their own clones, and their
 reports and evidence directories live **outside every repository**, under
-`/home/df/wd/puni/puni-plan/exec/logs/<attempt>/report.md` and
-`/home/df/wd/puni/puni-plan/exec/logs/<attempt>/evidence/`. This clone cannot read them, and no
+`puni-plan/exec/logs/<attempt>/report.md` and
+`puni-plan/exec/logs/<attempt>/evidence/`. This clone cannot read them, and no
 executor may invent them. So:
 
 - Fill the `Observed failure` cell of a proof row **only** when this attempt injected that fault and
@@ -2720,7 +2720,7 @@ predecessor's commit leaves behind.
   section 3.6 requires the diff of the three source files to contain added comments and nothing
   else.
 - _Part 4, evidence._ Parts 1 to 3 run in separate clones and their reports and evidence live
-  outside every repository, under `/home/df/wd/puni/puni-plan/exec/logs/<attempt>/`. Part 4 cannot
+  outside every repository, under `puni-plan/exec/logs/<attempt>/`. Part 4 cannot
   read them, so it no longer claims to. Parts 2 and 3 now write their own observed failing lines
   into verify.md as they go; part 4 writes only its own, writes `pending planner transcription` into
   every cell still empty (P1 at minimum), and is forbidden both from reconstructing output from a

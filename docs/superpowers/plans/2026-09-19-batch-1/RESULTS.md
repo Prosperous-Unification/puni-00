@@ -1,23 +1,23 @@
 # Batch 1 results
 
-Recorded 2026-09-20. Status: **batch concluded, locally verified, host gate pending.** Nine packets are merged on the local branch `batch-1/integration`; one packet is held. Nothing was pushed, published, merged to main or deployed.
+Recorded 2026-09-20. Status: **batch concluded, locally verified; host gate run 1 failed on one test, fixed, run 2 pending.** Nine packets are merged on the local branch `batch-1/integration`; one packet is held. Nothing was pushed, published, merged to main or deployed.
 
-This page reports what was observed. The plan is the [batch README](README.md); the decisions taken without asking are in [ASSUMPTIONS.md](ASSUMPTIONS.md). Attempt reports, mutation patches and failing output are kept outside the repository, under `/home/df/wd/puni/puni-plan/exec/logs/<attempt>/`, with one line per event in `/home/df/wd/puni/puni-plan/exec/ledger.jsonl`.
+This page reports what was observed. The plan is the [batch README](README.md); the decisions taken without asking are in [ASSUMPTIONS.md](ASSUMPTIONS.md). Attempt reports, mutation patches and failing output are kept outside the repository, in the planner's working directory beside it, under `puni-plan/exec/logs/<attempt>/`, with one line per event in `puni-plan/exec/ledger.jsonl`.
 
 ## What landed
 
-| Work item | Result                                                                                                                                                                                                                                                                       | Attempts |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 010.5     | The Twilight Bureaucrat package installs `twib` beside `twilight-bureaucrat`; the install test spawns both launchers.                                                                                                                                                        | 1        |
-| 020.1     | `di-bag` 0.4.0, `application-exception` 0.5.0 and `caught-object-report-json` 11.0.1 pinned exactly at the root, with a test for the pins and one for a single resolved copy of the report library. The adoption plan is rewritten against the released versions.            | 1        |
-| 010.3     | ADR 0029, five glossary terms, and two proposed OpenSpec changes: `service-taxonomy` (19 requirements, 45 scenarios) and `test-axes` (14 requirements, 25 scenarios).                                                                                                        | 2        |
-| 040.3     | The plan gesture policy moved out of `use-plan-read.ts` into a framework-free plan writer module; the hook builds it once and delegates.                                                                                                                                     | 5        |
-| 010.4     | Twilight Bureaucrat gains a rule model, a registry of four rules, `explain`, a rule policy read through the trusted-input boundary, `check` with a verdict that never certifies, the four adapters proven end to end, and both commands routed through the built executable. | 5        |
-| 110.5     | The current Twilight documents name the owning tool: Twilight Navigator plans, Twilight Dash runs, Twilight Bureaucrat verifies, Vesper Shipyards is the product. ADRs 0027 and 0028 gain a dated ownership line.                                                            | 4        |
-| 020.8     | `docs/code-organization/kinds.json` classifies all 95 backend service files (11 features, 3 repositories, 9 resources, 72 support, of which 36 are re-export shims), and four tests hold the inventory complete against the real repository.                                 | 7        |
-| 040.6     | The directory page reads one snapshot from a directory resource service and sends its gestures to a directory-management feature service. 344 lines left the page.                                                                                                           | 2        |
-| 040.6b    | Every browser storage key sits behind the preferences module; one repository adapter is the only non-test code that calls `localStorage`.                                                                                                                                    | 3        |
-| 060.1     | **Held.** Its desk research stands; the hands-on experiment needs a disposable environment, and whether running the evaluated system on Node conflicts with the Bun-only rule is Dany's decision.                                                                            | 0        |
+| Work item | Result                                                                                                                                                                                                                                                                                                                       | Attempts |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 010.5     | The Twilight Bureaucrat package installs `twib` beside `twilight-bureaucrat`; the install test spawns both launchers.                                                                                                                                                                                                        | 1        |
+| 020.1     | `di-bag` 0.4.0, `application-exception` 0.5.0 and `caught-object-report-json` 11.0.1 pinned exactly at the root, with a test for the pins and one for a single resolved copy of the report library. The adoption plan is rewritten against the released versions.                                                            | 1        |
+| 010.3     | ADR 0029, five glossary terms, and two proposed OpenSpec changes: `service-taxonomy` (19 requirements, 45 scenarios) and `test-axes` (14 requirements, 25 scenarios).                                                                                                                                                        | 2        |
+| 040.3     | The plan gesture policy moved out of `use-plan-read.ts` into a framework-free plan writer module; the hook builds it once and delegates.                                                                                                                                                                                     | 5        |
+| 010.4     | Twilight Bureaucrat gains a rule model, a registry of four rules, `explain`, a rule policy read through the trusted-input boundary, `check` with a verdict that never certifies, the four adapters proven end to end, and both commands routed through the built executable.                                                 | 5        |
+| 110.5     | The current Twilight documents name the owning tool: Twilight Navigator plans, Twilight Dash runs, Twilight Bureaucrat verifies, Vesper Shipyards is the product. ADRs 0027 and 0028 gain a dated ownership line.                                                                                                            | 4        |
+| 020.8     | `docs/code-organization/kinds.json` classifies all 95 backend service files (11 features, 3 repositories, 9 resources, 72 support, of which 36 are re-export shims), and four tests hold the inventory complete against the real repository.                                                                                 | 7        |
+| 040.6     | The directory page reads one snapshot from a directory resource service and sends its gestures to a directory-management feature service. 344 lines left the page.                                                                                                                                                           | 2        |
+| 040.6b    | Every browser storage key sits behind the preferences module; one repository adapter is the only non-test code that calls `localStorage`.                                                                                                                                                                                    | 3        |
+| 060.1     | **Held.** It needs a container daemon, whose authority no working directory confines, so its experiment has to run in a disposable environment, not in an executor's sandbox. Its desk research stands. Its one open decision is settled: Dany decided on 2026-09-20 that running software written for Node on Node is fine. | 0        |
 
 Executors were Codex `gpt-5.6-sol` at medium effort, one at a time, each in its own clone and sandbox. The planner reviewed every diff, replayed at least one injected fault per packet, ran the checks the sandbox cannot, committed with hooks on, and merged.
 
@@ -33,14 +33,40 @@ Run once on a clean checkout of `b4188ec3`, the integration head, outside the ex
 | Twilight Bureaucrat: `typecheck`, `lint:source`, `build`, `test`, `test:package`    | All exit 0; `test` 679 pass, `test:package` 44 pass.                                                                                         |
 | Frontend browser suite, `wbs-fe-01:e2e`                                             | 374 passed, 37 skipped, 17.3 minutes.                                                                                                        |
 
+### The host gate
+
+Run on h2puni from a Git bundle sent over SSH, not through GitHub; `bin/h2puni-gate.sh` did the checkout under the heavy lock.
+
+| Run | Commit     | Result                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `fd0a777c` | **Exit 1.** `h2puni gate: running on fd0a777c5136add31c3405291200502d43f6e399`. OpenSpec and all 34 projects' `test`, `lint`, `typecheck` and `build` passed, the Python solver tests included. `twilight-bureaucrat:test` failed 678 to 1: a test this batch added ran the production CLI five times in sequence and hit Bun's 5 second default at 5025 ms on the loaded host. |
+
+The failing test now carries an explicit timeout and a `Proof:` comment naming that run, as `src/cli.test.ts` already does for the same cause; a sibling that took 3.4 seconds on the host has one too. No assertion changed. The second run's result is recorded below when it returns.
+
 Whole-target totals against main: `tool-devsync:test` 267 to 284; `twilight-bureaucrat:test` 662 to 679; `wbs-fe-01:test:unit` 34 files and 554 tests to 40 and 595; `wbs-fe-01:test` under UTC 107 files and 2781 tests to 114 and 2826, and under Auckland unchanged at 2 files and 3 tests.
 
 **Not verified.**
 
-- `bin/h2puni-gate.sh <sha>`: not run. This machine is not the shared build host. The solver image smoke step needs that host too.
-- `wbs-solver-py:test`: not runnable here. Python `ortools` and `jsonschema` are not installed on this machine, so every test module fails to import. The batch touches nothing under that project.
+- `bin/h2puni-gate.sh <sha>`: the first run failed on one timed-out test, fixed since; see "The host gate" above for the latest run.
+- Nothing else in the all-projects step: `wbs-solver-py:test`, which this machine could not run at first for want of Python `ortools` and `jsonschema`, passed on h2puni in the gate and then here (213 tests) from a virtual environment built from the project's hash-verified lock.
 - A Twilight Bureaucrat activation provisioned outside a clone. The new source files change the validator identity, so such an activation has to be prepared again; no test pins the identity as a literal.
 - The classification in `kinds.json` is judgement. Every rationale was read and two entries were changed after checking importers, but no test can prove a kind is right.
+
+## What it cost
+
+Executor tokens actually used, summed over every attempt of a work item, read from the attempt logs (Codex `gpt-5.6-sol`, medium effort). Planning, the Codex reviews and the planner's own verification are not in these figures.
+
+| Work item        | Attempts | Executor tokens |
+| ---------------- | -------- | --------------- |
+| 010.5            | 1        | 168,731         |
+| 020.1            | 1        | 178,720         |
+| 010.3            | 2        | 348,973         |
+| 040.3            | 5        | 539,452         |
+| 110.5            | 4        | 657,790         |
+| 010.4            | 5        | 914,392         |
+| 040.6 and 040.6b | 5        | 964,458         |
+| 020.8            | 7        | 1,186,639       |
+| **Total**        | **30**   | **4,959,155**   |
 
 ## Two results that look like regressions and are not
 
@@ -74,7 +100,7 @@ One defect reached code and was caught by the planner's type check, not by an ex
 
 1. On the shared build host, run `bin/h2puni-gate.sh b4188ec3276bc302be00fbfc512ecc4c3eb5844b` and record the printed `h2puni gate: running on <sha>` line and the exit status.
 2. Decide whether `batch-1/integration` goes to main as one pull request or as nine. The repository is public, so merging publishes it.
-3. Decide 060.1's open question, then run its experiment in a disposable environment.
+3. Run 060.1's experiment in a disposable environment. Its open question is decided: Node for software written for Node is fine.
 4. In the dev WBS project "PUNI platform plan", add the three missing dependencies found during planning (040.1 on 020.1, 110.1 on 010.3, 110.6 on 020.8) and mark these nine items' progress. The connection's tokens last five minutes, so this needs a fresh `/mcp` login.
 
 Rollback is local: every packet is one `--no-ff` merge on `batch-1/integration`, so `git revert -m 1 <merge>` removes one packet, and deleting the branch removes the batch. Main is untouched at `1eeacb0b`.

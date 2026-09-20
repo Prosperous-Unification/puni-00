@@ -238,10 +238,12 @@ published_at: "desc" } })` and links each entry as `/posts/${post.id}`, and `src
     falling back to the upstream-documented npm command inside the throwaway directory is
     itself recorded as a finding for Dany, never presented as permitted.
   - _Whether a product in this repository may ship a container image containing a Node runtime._
-    That is an open decision for Dany, not something this packet or the executor may settle.
-    EmDash requires Node 22.16 or later (3.2), so adopting EmDash means adopting that decision.
-    The research note presents it as an open decision with the evidence, under its own heading,
-    and the recommendation is conditional on Dany taking it.
+    **Decided by Dany on 2026-09-20: yes.** "Running specialized software written for Node on Node
+    is fine." The rule governs this repository's own toolchain, not the runtime a third-party
+    system was written for. EmDash requires Node 22.16 or later (3.2), and that no longer blocks
+    it. The research note records the decision with its date under its own heading, keeps the
+    evidence, and no longer makes the recommendation conditional on it. This does not extend to
+    the repository's own code or tooling: no npm, pnpm, yarn or second task runner here.
 
 ### 3.4 The plugin sandbox off Cloudflare
 
@@ -465,12 +467,13 @@ conditions, a numbered list, each testable. If reject, the one hard requirement 
 If blocked, what could not be observed and what would unblock it. No adoption verdict may be
 given while any hard requirement is blocked.>
 
-## The open decision this recommendation depends on
+## The decision this recommendation rests on
 
 <A Node runtime inside the website's container image. The repository rule is "Bun and Nx only,
-never npm, pnpm, yarn or a second task runner". EmDash requires Node 22.16 or later. State the
-evidence on both sides and leave the decision to Dany. Do not describe the rule as permitting
-it.>
+never npm, pnpm, yarn or a second task runner". EmDash requires Node 22.16 or later. Dany decided
+on 2026-09-20 that running specialized software written for Node on Node is fine: the rule
+governs this repository's own toolchain. Record the decision, its date and its scope (it does not
+license npm or a second task runner for code written here), and keep the evidence.>
 
 ## Hard requirements
 
