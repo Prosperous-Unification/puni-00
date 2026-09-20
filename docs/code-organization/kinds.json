@@ -67,9 +67,27 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/login-throttle directly"
     },
     {
+      "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts",
+      "kind": "feature",
+      "capability": "scheduler-runtime-port",
+      "rationale": "buildServices and AppOptions use it to coordinate optimization generation, queue, cache and admission repositories with solver child lifecycles and outcome broadcasts for optimized scheduling and Retry"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts",
+      "kind": "support",
+      "disposition": "private member of optimization-coordinator.ts",
+      "rationale": "OptimizationCoordinator is its only production importer and uses its reader alias while the file otherwise re-exports the core optimizer projection types without accessing the cache"
+    },
+    {
       "path": "apps/wbs/be-01/src/service/optimizer-trigger-broadcaster.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
+      "kind": "support",
+      "disposition": "composition wiring; move to the backend composition root",
+      "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
     },
     {
       "path": "apps/wbs/be-01/src/service/plan-command.ts",
@@ -167,6 +185,39 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/smoke.service directly"
     },
     {
+      "path": "apps/wbs/be-01/src/service/solver-child-lifecycle.ts",
+      "kind": "support",
+      "disposition": "private member of optimization-coordinator.ts",
+      "rationale": "OptimizationCoordinator is its only production importer (the other two are its database tests) and calls it to drain one child, heartbeat its solver-slot repository row and release capacity; it holds lifecycle policy, not raw process access"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/solver-exit-outcome.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "OptimizationCoordinator calls evaluateSolverOutcome as a pure transformation of ScheduleInput, a solver request and a captured process outcome with no store, clock, socket or process access"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts",
+      "kind": "repository",
+      "rationale": "the local solver spawner and backend entrypoints use it to probe the installed solver and spawn the wbs-solver-launcher child process behind injected process boundaries"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/solver-request-pair.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "OptimizationCoordinator calls it to derive two solver requests from one ScheduleInput and quantised baseline without reading a store, clock, socket or process"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts",
+      "kind": "repository",
+      "rationale": "solverSupervisorSpawner and diagnostic scripts call it as the bounded protocol adapter for one external Unix supervisor socket and its streamed child output"
+    },
+    {
+      "path": "apps/wbs/be-01/src/service/solver-supervisor-spawner.ts",
+      "kind": "repository",
+      "rationale": "main uses it to adapt a ReservedSpawnRequest to the external host supervisor client and expose that socket-backed attempt as the coordinator's child-process port"
+    },
+    {
       "path": "apps/wbs/be-01/src/service/step.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/step.service directly"
@@ -180,6 +231,30 @@
       "path": "apps/wbs/be-01/src/service/work-item.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/work-item.service directly"
+    },
+    {
+      "path": "libs/wbs/application/core/src/use-cases/replay.ts",
+      "kind": "feature",
+      "capability": "realtime",
+      "rationale": "internalRoutes and the portable composition call it to admit an internal principal before replaying resume points through the ReplayOrchestrator port for realtime recovery"
+    },
+    {
+      "path": "libs/wbs/application/core/src/use-cases/retention-sweep.ts",
+      "kind": "feature",
+      "capability": "bounded-replay-sweep",
+      "rationale": "RetentionTimer calls it to coordinate count-bounded EventLogStore pruning and age-bounded PlanEventStore pruning for the bounded replay sweep"
+    },
+    {
+      "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts",
+      "kind": "feature",
+      "capability": "core-lib-extraction",
+      "rationale": "workItemRoutes and the portable composition call it to enforce write-scope admission before coordinating project or directory command batches through PlanCommandRunner"
+    },
+    {
+      "path": "libs/wbs/application/core/src/use-cases/save-plan.ts",
+      "kind": "feature",
+      "capability": "core-lib-extraction",
+      "rationale": "savedPlanRoutes and the portable composition call it to coordinate ProjectService access, SavedPlanService persistence and Broadcaster publication for one save operation"
     }
   ]
 }
