@@ -79,7 +79,7 @@ run_modules_resolution() {
 }
 
 prepare_gate_steps_path() {
-  local fixture_root=$1 include_jq=$2 include_tee=${3:-yes}
+  local fixture_root=$1 include_jq=$2 include_tee=${3:-yes} include_bun=${4:-yes}
   mkdir -p "$fixture_root/bin" "$fixture_root/reports"
   ln -s "$(type -P mktemp)" "$fixture_root/bin/mktemp"
   ln -s "$(type -P rm)" "$fixture_root/bin/rm"
@@ -88,6 +88,18 @@ prepare_gate_steps_path() {
   fi
   if [[ $include_tee == yes ]]; then
     ln -s "$(type -P tee)" "$fixture_root/bin/tee"
+  fi
+  if [[ $include_bun == yes ]]; then
+    # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
+    printf '%s\n' \
+      '#!/bin/bash' \
+      'printf '\''bun %s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
+      'if [[ ${GATE_BUN_MODE:-ok} == fail ]]; then' \
+      '  printf '\''error: lockfile had changes, but lockfile is frozen\n'\'' >&2' \
+      '  exit 1' \
+      'fi' \
+      >"$fixture_root/bin/bun"
+    chmod +x "$fixture_root/bin/bun"
   fi
   # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
   printf '%s\n' \
@@ -112,10 +124,11 @@ prepare_gate_steps_path() {
 }
 
 run_gate_steps_fixture() {
-  local fixture_root=$1 mode=$2
+  local fixture_root=$1 mode=$2 bun_mode=${3:-ok}
   GATE_CALL_LOG="$fixture_root/calls" \
     GATE_LATER_MARKER="$fixture_root/later" \
     GATE_OPEN_SPEC_MODE="$mode" \
+    GATE_BUN_MODE="$bun_mode" \
     PATH="$fixture_root/bin" \
     TMPDIR="$fixture_root/reports" \
     /bin/bash "$repo_root/bin/h2puni-gate-steps.sh" "$repo_root" HEAD \
@@ -479,7 +492,7 @@ status=0
 run_gate_steps_fixture "$failed_spec_fixture" failed || status=$?
 expect_status 1 "$status" 'an exit-zero OpenSpec report with a failed spec refuses the gate steps'
 expect_equal '@fission-ai/openspec@1.12.0 validate --all --json' \
-  "$(head -n 1 "$failed_spec_fixture/calls" 2>/dev/null)" 'the gate invokes the pinned validator contract'
+  "$(sed -n 2p "$failed_spec_fixture/calls" 2>/dev/null)" 'the gate invokes the pinned validator contract'
 if [[ -e $failed_spec_fixture/later ]]; then
   fail 'the failed OpenSpec report allowed later Nx work'
 else
@@ -698,6 +711,70 @@ else
   pass 'a gate refused while queued still ran its own EXIT trap'
 fi
 rm -rf "$lock.d" "$lock.queue"
+
+# 34. The gate tree is a long-lived shared checkout whose node_modules is whatever an earlier gate
+# left there. On 2026-09-20 that was 2026-09-18's install, missing di-bag, application-exception and
+# caught-object-report-json; the first batch 2 group gate failed
+# apps/wbs/be-01/src/production-entrypoint.test.ts on `Could not resolve: "di-bag"`, and every host
+# gate since batch 1 had reported a verdict about dependencies the commit does not describe. The
+# steps install the locked dependencies themselves, first, before anything reads node_modules.
+install_order_fixture="$scratch/install-order"
+prepare_gate_steps_path "$install_order_fixture" yes
+status=0
+run_gate_steps_fixture "$install_order_fixture" passed || status=$?
+expect_status 0 "$status" 'a passing install and report admit the remaining gate steps'
+if grep -qx 'bun install --frozen-lockfile' "$install_order_fixture/calls"; then
+  pass 'the gate installs against the frozen lockfile'
+else
+  fail 'the gate does not install against the frozen lockfile'
+fi
+install_line=$(grep -n '^bun install' "$install_order_fixture/calls" | head -1 | cut -d: -f1)
+validate_line=$(grep -n '^@fission-ai/openspec@1\.12\.0 validate' "$install_order_fixture/calls" | head -1 | cut -d: -f1)
+if [[ -n $install_line && -n $validate_line && $install_line -lt $validate_line ]]; then
+  pass 'the install precedes OpenSpec validation'
+else
+  fail "the install does not precede OpenSpec validation (install line '$install_line', validate line '$validate_line')"
+fi
+
+# 35. A lockfile that disagrees with the manifests is a gate failure with the installer's own
+# message, never a gate that carries on against whatever is already unpacked.
+failed_install_fixture="$scratch/failed-install"
+prepare_gate_steps_path "$failed_install_fixture" yes
+status=0
+run_gate_steps_fixture "$failed_install_fixture" passed fail || status=$?
+expect_status 1 "$status" 'a refused frozen install refuses the gate steps'
+if grep -q 'lockfile is frozen' "$failed_install_fixture/stderr"; then
+  pass 'the refused install keeps the installer message in gate output'
+else
+  fail 'the refused install hid the installer message'
+fi
+if grep -q '^@fission-ai/openspec' "$failed_install_fixture/calls"; then
+  fail 'the refused install allowed OpenSpec validation'
+else
+  pass 'the refused install stops before OpenSpec validation'
+fi
+if [[ -e $failed_install_fixture/later ]]; then
+  fail 'the refused install allowed later Nx work'
+else
+  pass 'the refused install stops before later Nx work'
+fi
+
+# 36. An absent installer is a required-tool failure, not permission to gate an uninstalled tree.
+missing_bun_fixture="$scratch/missing-bun"
+prepare_gate_steps_path "$missing_bun_fixture" yes yes no
+status=0
+run_gate_steps_fixture "$missing_bun_fixture" passed || status=$?
+expect_status 127 "$status" 'a missing installer refuses the gate steps'
+if grep -q '^@fission-ai/openspec' "$missing_bun_fixture/calls" 2>/dev/null; then
+  fail 'the missing installer allowed OpenSpec validation'
+else
+  pass 'the missing installer stops before OpenSpec validation'
+fi
+if [[ -e $missing_bun_fixture/later ]]; then
+  fail 'the missing installer allowed later Nx work'
+else
+  pass 'the missing installer stops before later Nx work'
+fi
 
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2

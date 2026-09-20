@@ -5,6 +5,13 @@ repo=${1:?repository is required}
 : "${2:?committed revision is required}"
 cd "$repo"
 
+# The gate tree is a long-lived shared checkout, so its node_modules is whatever an earlier gate
+# left behind; on 2026-09-20 that was 2026-09-18's install and the first batch 2 group gate failed
+# apps/wbs/be-01/src/production-entrypoint.test.ts on `Could not resolve: "di-bag"`. Frozen,
+# because a lockfile that disagrees with the manifests is a gate failure, not something to
+# resolve on the host.
+bun install --frozen-lockfile
+
 openspec_report=$(mktemp)
 trap 'rm -f -- "$openspec_report"' EXIT
 # Proof: h2puni-gate.test.sh injects failed=1, passed="0", passed=1.5 and failed-then-passing
