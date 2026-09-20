@@ -78,6 +78,12 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
 - S6. How do work item dependencies reach into a step graph? Today `DependencyReach` (ADR 0010) picks which slice a dependency waits on in a chain. What is "first" and "last" in a graph?
 - S7. What happens to existing projects: is a chain simply the graph with one edge per neighbour, so nothing migrates?
 - S8. How is a graph edited and shown in a table whose step columns are one ordered list?
+- S9. Can Dany's own `configurable-tree-traversal` (0.7.0 on 2026-09-20, MIT, one dependency, synchronous, iterative so deep structures do not grow the call stack) carry the step graph's walks? Dany offered it on 2026-09-20. What it gives: depth-first pre-order, in-order and post-order and breadth-first level-order over an abstract tree adapter with lazily resolved children; visitor commands, of which `DISABLE_SUBTREE_TRAVERSAL` and `HALT_TRAVERSAL` matter here; pause and resume of a runner. What a graph needs that a tree does not: a step with two predecessors is one vertex, and the library's README says shared objects in separate branches are traversed independently and that "custom graph adapters must define their own identity and cycle policy". So the questions are concrete:
+  - Does an adapter that keeps a visited set, and answers a repeated vertex with `DISABLE_SUBTREE_TRAVERSAL` or an empty child, give a correct topological order from the post-order visits, and a cycle refusal from an on-path set, for every graph the property tests generate?
+  - Is that clearer and no slower than the forty lines of Kahn's algorithm it replaces, at the sizes a plan has (tens of steps, thousands of work items)?
+  - The work item tree is a real tree: are the roll-up (post-order fold) and numbering (pre-order) a better first use than the step graph?
+  - Pause and resume could express "walk until a human gate, stop, continue", but runners are in-memory continuations, not serializable, so they cannot be the stored state of a plan. Is there a use inside one request?
+  - The domain library is isomorphic and ships in the browser bundle. The package is CommonJS and depends on `uuid`. It needs the same proof the three other owner-maintained libraries got in 040.1: pinned exactly, one resolved copy, and the production Vite bundle running in Chromium with no Node built-in pulled in.
 
 ### E. Estimates: shorter than a day, and in other measures
 
@@ -119,6 +125,7 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
 - Timelines at mixed scale: tracing and profiling views (Chrome's Performance panel, Jaeger and Perfetto span charts), CI run timelines (GitHub Actions, Buildkite), and calendar day and week views. Take: how a view moves between days and minutes without losing its place, and how very short spans stay visible.
 - Planning tools: Linear and Jira workflow states and sub-task statuses; MS Project and Primavera resource calendars and task calendars; critical path with mixed calendars. Take: which status models people actually keep up to date, and how mixed calendars are drawn.
 - Estimation: PERT and three-point practice below a day; story points and velocity; T-shirt sizing; reference-class forecasting as the argument for calibrating from actuals.
+- Dany's `configurable-tree-traversal`: its README, `docs/`, the adapter and visitor-command contracts, and its benchmark. Take: what S9 asks.
 - This project's own records: the archived changes `role-progress`, `actual-days`, `token-tracking`, `estimate-weights-and-rounding`, `dep-waits-on-first-role`; ADRs 0010, 0011, 0016, 0024; the open status changes; the Codex and Claude quota measurement of 2026-09-13; batch 1's ledger of thirty attempts.
 
 ## Method and deliverables
@@ -134,19 +141,19 @@ Observed while planning and executing batch 1 through the MCP facade. Each line 
 
 Three-point estimates in days as the plan uses today, and tokens for a top model at high effort. All of R1 to R6b can start now: they touch no product file. R7 to R9 each need Dany for the interview's decisions.
 
-| Ref | Item                                                                                                          | Depends on  | Days (O / R / P) | Tokens    |
-| --- | ------------------------------------------------------------------------------------------------------------- | ----------- | ---------------- | --------- |
-| R1  | Desk research: step graphs, kinds, gates, loops                                                               | —           | 0.5 / 1 / 2      | 1,500,000 |
-| R2  | Desk research: sub-day estimates, calendars, measures and conversion                                          | —           | 0.5 / 1 / 2      | 1,500,000 |
-| R3  | Desk research: step state models, evidence, history, start and end as instants                                | —           | 0.5 / 1 / 2      | 1,500,000 |
-| R4  | Field data: batch 1 attempts table; pin what a token count is                                                 | —           | 0.25 / 0.5 / 1   | 600,000   |
-| R5  | Model experiment: step graph into slice edges, dependency reach on a graph                                    | R1          | 0.5 / 1 / 2      | 2,000,000 |
-| R6  | Model experiment: two calendars on one schedule; progress-aware schedule                                      | R2, R3      | 1 / 2 / 3        | 3,000,000 |
-| R6b | UI experiment: a Gantt axis that zooms from days to minutes, drawn from batch 1's attempt ledger as real data | R2, R4      | 1 / 2 / 4        | 3,000,000 |
-| R7  | Design interview, glossary and ADRs: steps                                                                    | R1, R5      | 0.5 / 1 / 2      | 1,500,000 |
-| R8  | Design interview, glossary and ADRs: estimates and measures                                                   | R2, R4, R6  | 0.5 / 1 / 2      | 1,500,000 |
-| R9  | Design interview, glossary and ADRs: step status, timestamps and the dense timeline                           | R3, R6, R6b | 0.5 / 1 / 2      | 1,800,000 |
-| R10 | OpenSpec changes and packet-ready task lists for the three outcomes                                           | R7, R8, R9  | 1 / 2 / 4        | 4,000,000 |
+| Ref | Item                                                                                                                                                                                                   | Depends on  | Days (O / R / P) | Tokens    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ---------------- | --------- |
+| R1  | Desk research: step graphs, kinds, gates, loops                                                                                                                                                        | —           | 0.5 / 1 / 2      | 1,500,000 |
+| R2  | Desk research: sub-day estimates, calendars, measures and conversion                                                                                                                                   | —           | 0.5 / 1 / 2      | 1,500,000 |
+| R3  | Desk research: step state models, evidence, history, start and end as instants                                                                                                                         | —           | 0.5 / 1 / 2      | 1,500,000 |
+| R4  | Field data: batch 1 attempts table; pin what a token count is                                                                                                                                          | —           | 0.25 / 0.5 / 1   | 600,000   |
+| R5  | Model experiment: step graph into slice edges, dependency reach on a graph; the same walks written twice, once by hand and once over `configurable-tree-traversal`, under the same property tests (S9) | R1          | 0.5 / 1.5 / 3    | 2,500,000 |
+| R6  | Model experiment: two calendars on one schedule; progress-aware schedule                                                                                                                               | R2, R3      | 1 / 2 / 3        | 3,000,000 |
+| R6b | UI experiment: a Gantt axis that zooms from days to minutes, drawn from batch 1's attempt ledger as real data                                                                                          | R2, R4      | 1 / 2 / 4        | 3,000,000 |
+| R7  | Design interview, glossary and ADRs: steps                                                                                                                                                             | R1, R5      | 0.5 / 1 / 2      | 1,500,000 |
+| R8  | Design interview, glossary and ADRs: estimates and measures                                                                                                                                            | R2, R4, R6  | 0.5 / 1 / 2      | 1,500,000 |
+| R9  | Design interview, glossary and ADRs: step status, timestamps and the dense timeline                                                                                                                    | R3, R6, R6b | 0.5 / 1 / 2      | 1,800,000 |
+| R10 | OpenSpec changes and packet-ready task lists for the three outcomes                                                                                                                                    | R7, R8, R9  | 1 / 2 / 4        | 4,000,000 |
 
 ## When this can be built
 
