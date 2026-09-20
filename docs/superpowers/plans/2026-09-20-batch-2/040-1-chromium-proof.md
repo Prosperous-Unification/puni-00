@@ -812,13 +812,15 @@ on the same commit, because other packets in this batch move the same totals.
 | OpenSpec validation block                                                                | executor | `failed` 0, `passed` unchanged from that slice's own baseline                                            |
 | `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT NX_DAEMON=false bunx nx run wbs-fe-01:test` | planner  | The UTC leg gains **one file and three tests** over the recorded baseline; the Auckland leg is unchanged |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:test:unit`                                        | planner  | Unchanged from the recorded baseline, in files and in tests                                              |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:e2e`                                              | planner  | **One passing test more** than the recorded baseline; skips unchanged                                    |
+| `CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false bunx nx run wbs-fe-01:e2e`                     | planner  | **One passing test more** than the recorded baseline; skips unchanged                                    |
 | `bin/h2puni-gate.sh <sha>`                                                               | planner  | On the shared build host only; not run in an attempt                                                     |
 
 The planner-only rows are planner-only for the reasons the execution contract gives: Node may not
 spawn `bun` in the sandbox, and there is no Chromium there.
 
 ## 10. Negative proofs
+
+> **Isolation, for every planner browser run (slice 2 dispatch review, 2026-09-20).** Run every browser baseline, fault and restored-green check with `CI=1` and the same `E2E_PORT_SHIFT`. Shift 1900 selects ports 5000, 5100 and 6100. `CI=1` disables existing-server reuse (`playwright.config.ts` sets `reuseExistingServer: !isCi`). If any port is occupied, stop and select another valid shift for all three tiers; never enable reuse or terminate an unrelated server. The focused command is `CI=1 E2E_PORT_SHIFT=1900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts browser-packages.spec.ts`.
 
 Every message below was watched in this repository on 2026-09-20, in the runner named. None of
 these runs reports zero tests: the Vitest ones register three cases and the Chromium one registers
@@ -850,7 +852,7 @@ first and leaves the request observer unproven.
 
 ```sh
 bun run tools/dev/setup.ts
-NX_DAEMON=false bunx nx run wbs-fe-01:e2e
+CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false bunx nx run wbs-fe-01:e2e
 ```
 
 `bun run tools/dev/setup.ts` is what the `e2e` target runs first and what writes the three `.env`
