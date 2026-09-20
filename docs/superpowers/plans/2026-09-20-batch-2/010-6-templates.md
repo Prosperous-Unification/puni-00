@@ -14,12 +14,11 @@ Batch rules, the execution contract and the standard blocks are in
 copying them, except where it must show an exact command. The batch 1
 [results](../2026-09-19-batch-1/RESULTS.md) list the defects that stopped real attempts.
 
-**Revision 3, 2026-09-20**, after a second review refused revision 2. Every slice of this revision
-was **rehearsed end to end in a throwaway worktree cut from this branch**: each slice's red run, its
-green run, its type check, its lint and its format check were executed, and **every fault in
-section 8 was compiled and watched failing its named test**. The counts, the failing lines and the
-red-run surprises below are observations, not predictions. The disposition of every finding of both
-reviews is the last section.
+**Revision 3, 2026-09-20**, after a second review refused revision 2. Earlier rehearsal reports
+describe the code before the slice 2 parser rewrite and two additional tests. Those changes have not
+been rehearsed end to end. Historical results are context, not evidence for this attempt; record
+only commands and outcomes actually observed. The disposition of every finding of both reviews is
+the last section.
 
 ## 0. How this packet is executed
 
@@ -86,10 +85,9 @@ below that disagrees.
   5 seconds and the h2puni gate timed out a five-run test at 5,025 ms. Every test in this packet
   that starts Git or the command line carries `30_000`, including the ones that look short: the
   fixture helper alone spawns Git six times. Those arguments are part of the code. Do not drop them.
-- **Counts are relative.** Every count this packet states is "the number you recorded at the start
-  of this slice, plus this slice's own additions". The planner's rehearsal observed 4, then 20, then
-  31 template tests on a clone of this branch; treat those as expected deltas of 4, 18 and 9, never
-  as absolutes.
+- **Counts are relative.** Record each suite's baseline before editing. Slice 2 adds exactly 18
+  template tests; the candidate-reader and rule-suite counts stay unchanged. Its red and green
+  expectations are specified in §2.2. Historical rehearsal totals do not override these deltas.
 - **Line numbers are not anchors.** Where this packet cites a line it is evidence from 2026-09-20,
   not a coordinate: find the code by its text.
 - **This packet adds no Nx target and no README file.** A new test-running target name would have to
@@ -367,19 +365,19 @@ is not one`; an absolute subject printed `subject must be a candidate-relative p
 
 ## 4. Unknowns, and the assumptions recorded instead of asking
 
-| #   | Question                                                                            | Recorded assumption                                                                                                                                                                                                                                                                  |
-| --- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A1  | How a suffixed service names its capability, term or port machine-readably          | One **line comment** per file: `// @capability <id>`, `// @term <term>`, `// @port <specifier>`, stated exactly once and counted only when it is a real line comment (fact 22). A JSDoc tag is impossible without editing the root ESLint configuration (fact 10).                   |
-| A2  | Whether the templates ship as files or as data                                      | As data: each template carries its skeleton and its constraints inline in TypeScript. No Markdown or TypeScript template file is added, so no document check or README pin moves (fact 12).                                                                                          |
-| A3  | Whether a template finding has a mode                                               | No. Templates carry no policy: a finding is a finding, `conforms` is false, the command exits 1. Modes belong to the rule model, which 010.7 extends.                                                                                                                                |
-| A4  | Whether `template verify` certifies                                                 | No. `certifies: false`, for the same reason a B0 verdict does not: it binds no evidence, no authority and no validator identity.                                                                                                                                                     |
-| A5  | How a consumer overrides or pins a template                                         | Deferred, as the design's open item 2 says. `version` is printed by `list` and `show` so a policy can pin it later; nothing reads it yet.                                                                                                                                            |
-| A6  | Whether these requirements are the real K1 to K9 rules                              | No. They are template conformance over the bytes of one artifact; the authoritative K rules read the import graph and are 010.7's. Each requirement's `rules` field names the rule it partly serves.                                                                                 |
-| A7  | Whether the module template should require `module.ts`, `check.ts`, `tsconfig.json` | Not yet. `di-bag` is installed (fact 8) but **no module in the repository has adopted it**, so requiring its wiring would refuse every real module. They join the template as a version bump when the first module adopts DI Bag.                                                    |
-| A8  | Whether the real modules should be made to conform                                  | No. This packet edits no file under `apps/wbs`. Their missing declaration tags are a finding for the frontend packets, and slice 4's last test pins that observation so it cannot drift silently.                                                                                    |
-| A9  | Whether the module README skeleton carries `module-index` metadata                  | **No, and the delta spec says so.** No frontend module README carries the envelope today (fact 9); prescribing it would make the template's own output non-conforming to the repository and put a second index authority under `fe-01`.                                              |
-| A10 | Whether a type-only import of a repository is caught                                | No. The transpiler elides it (fact 21), so `imports-no-kind` cannot see it. The requirement is stated as "states no import", and the type-level dependency is left to 010.7's graph rule. Written into the delta spec as a stated limit.                                             |
-| A11 | Whether the declaration scanner models regular-expression literals                  | No. `lineComments` skips strings, template literals and block comments; two adjacent slashes inside a regular-expression character class would start a comment for it. No declaration depends on that case, the alternative is a full parser, and the JSDoc of the function says so. |
+| #   | Question                                                                            | Recorded assumption                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | How a suffixed service names its capability, term or port machine-readably          | One **line comment** per file: `// @capability <id>`, `// @term <term>`, `// @port <specifier>`, stated exactly once and counted only when it is a real line comment (fact 22). A JSDoc tag is impossible without editing the root ESLint configuration (fact 10).                                                                                                                                   |
+| A2  | Whether the templates ship as files or as data                                      | As data: each template carries its skeleton and its constraints inline in TypeScript. No Markdown or TypeScript template file is added, so no document check or README pin moves (fact 12).                                                                                                                                                                                                          |
+| A3  | Whether a template finding has a mode                                               | No. Templates carry no policy: a finding is a finding, `conforms` is false, the command exits 1. Modes belong to the rule model, which 010.7 extends.                                                                                                                                                                                                                                                |
+| A4  | Whether `template verify` certifies                                                 | No. `certifies: false`, for the same reason a B0 verdict does not: it binds no evidence, no authority and no validator identity.                                                                                                                                                                                                                                                                     |
+| A5  | How a consumer overrides or pins a template                                         | Deferred, as the design's open item 2 says. `version` is printed by `list` and `show` so a policy can pin it later; nothing reads it yet.                                                                                                                                                                                                                                                            |
+| A6  | Whether these requirements are the real K1 to K9 rules                              | No. They are template conformance over the bytes of one artifact; the authoritative K rules read the import graph and are 010.7's. Each requirement's `rules` field names the rule it partly serves.                                                                                                                                                                                                 |
+| A7  | Whether the module template should require `module.ts`, `check.ts`, `tsconfig.json` | Not yet. `di-bag` is installed (fact 8) but **no module in the repository has adopted it**, so requiring its wiring would refuse every real module. They join the template as a version bump when the first module adopts DI Bag.                                                                                                                                                                    |
+| A8  | Whether the real modules should be made to conform                                  | No. This packet edits no file under `apps/wbs`. Their missing declaration tags are a finding for the frontend packets, and slice 4's last test pins that observation so it cannot drift silently.                                                                                                                                                                                                    |
+| A9  | Whether the module README skeleton carries `module-index` metadata                  | **No, and the delta spec says so.** No frontend module README carries the envelope today (fact 9); prescribing it would make the template's own output non-conforming to the repository and put a second index authority under `fe-01`.                                                                                                                                                              |
+| A10 | Whether a type-only import of a repository is caught                                | No. The transpiler elides it (fact 21), so `imports-no-kind` cannot see it. The requirement is stated as "states no import", and the type-level dependency is left to 010.7's graph rule. Written into the delta spec as a stated limit.                                                                                                                                                             |
+| A11 | Whether the declaration scanner models regular-expression literals                  | Only slice 1's scanner had this limit: its quote-skipping walk could mistake two adjacent slashes inside a regular-expression character class for a comment start, and its JSDoc said so. Slice 2 replaces `lineComments` with a TypeScript-parser walk (§2.3), which tokenizes a regular-expression literal correctly and does not share this limit; no test depends on the distinction either way. |
 
 ## 5. File plan, and what this packet does not own
 
@@ -455,7 +453,8 @@ artifact and the command exits 1.
 
 Slice 1 writes this file exactly, including the complete constraint union of eleven members. The
 module constraints exist in slice 1; their handlers and registered template arrive in slice 4.
-Everything else, `lineComments` included, lands in slice 1 and is not touched again.
+Slice 1 contains the original declaration scanner. Slice 2 replaces `lineComments` and removes
+`endOfQuoted` exactly as §2.3 specifies.
 
 ```ts
 /** The artifact kinds Twilight Bureaucrat holds a template for in slice B5. */
@@ -1745,19 +1744,63 @@ Starts from the committed slice 1. Read section 0 in full first.
 - [ ] Append section 2.6's helpers and its two describe blocks to
       apps/wiki/cli/src/templates/templates.test.ts. Merge the new imports into the file's existing
       import block at the top; never leave an `import` in the middle of the file.
-- [ ] Run the focused templates file. Expected, observed in the rehearsal: **5 pass, 15 fail**. The
-      five that pass are the four slice 1 tests **and** `refuses an unknown candidate selection
-kind`, because slice 1's writer already refuses every shape that is not `list` or `show` with
-      the same usage line; that test only starts to discriminate under P23. Anything else passing is
-      a stop. Record one failing line of a CLI test and one of a pure test.
+- [ ] Run the focused templates file. Expected: exit 1, N+1 passes and 17 failures, totaling N+18
+      tests, where N is the template-test baseline recorded in §2.1. On the committed slice 1
+      baseline, this is 5 pass and 17 fail. The passing tests are the existing baseline tests and
+      `refuses an unknown candidate selection kind`; the latter already passes because slice 1
+      rejects the entire verify command with the expected usage message. Every other added test must
+      fail. Record one failing CLI assertion and one failing pure-test assertion. After
+      implementation, expect N+18 passes and zero failures: 22 passes on this baseline.
+
+The matcher is not the requirement; the fact is — accept a proof when the NAMED test fails at the
+assertion about the row's fact, whatever matcher your test used, and record the diagnostic you
+actually saw; it is a stop only when the named test passes, does not run, or fails about a different
+fact. Every fault location names the function and the exact expression; where two similar
+expressions exist, say which.
 
 ### 2.3 Implementation
 
-- [ ] Before this slice's implementation, replace `template.ts`'s quote-skipping `lineComments`
-      walker with TypeScript parser-based comment extraction. Traverse the parsed nodes, collect
-      leading and trailing comment ranges, retain only `SingleLineCommentTrivia`, deduplicate by
-      source position, and return comments in source order. This edit belongs to this slice and its
-      handover, not slice 1's.
+- [ ] Before this slice's implementation, add `import ts from 'typescript';` to `template.ts`.
+      Replace the existing `lineComments` JSDoc and implementation with the following code, and
+      delete `endOfQuoted`. Keep `taggedValues` unchanged. Include tokens through
+      `getChildren(source)`; do not substitute `forEachChild`. Syntax refusal remains the existing
+      `importSpecifiers` boundary. Add no unobserved `Proof:` comment; P24 remains pending slice 3.
+      This edit belongs to this slice and its handover, not slice 1's.
+
+  ```ts
+  /**
+   * Returns actual line comments in source order, including comments inside template interpolations.
+   * Traversing tokens includes comments in otherwise empty blocks; literal text is never scanned.
+   */
+  export function lineComments(text: string): string[] {
+    const source = ts.createSourceFile(
+      'declarations.ts',
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const comments = new Map<number, string>();
+
+    function collect(ranges: readonly ts.CommentRange[] | undefined): void {
+      for (const range of ranges ?? []) {
+        if (range.kind === ts.SyntaxKind.SingleLineCommentTrivia) {
+          comments.set(range.pos, text.slice(range.pos, range.end));
+        }
+      }
+    }
+
+    function visit(node: ts.Node): void {
+      collect(ts.getLeadingCommentRanges(text, node.getFullStart()));
+      collect(ts.getTrailingCommentRanges(text, node.getEnd()));
+      for (const child of node.getChildren(source)) visit(child);
+    }
+
+    visit(source);
+    return [...comments].sort(([left], [right]) => left - right).map(([, comment]) => comment);
+  }
+  ```
+
 - [ ] Replace apps/wiki/cli/src/templates/verify.ts with **exactly** section 6.5.
 - [ ] Rerun the focused templates file. Expected: the recorded count plus 18, 0 fail.
 - [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice introduces the
@@ -1769,7 +1812,9 @@ Section 1.8's table, with the focused templates file at the recorded count plus 
 candidate-reader file at its own recorded count, and with these steps, which are this slice's own:
 
 - [ ] Tick **only slice 2's** boxes in tasks.md and write this slice's commands, statuses and
-      decisive lines into verify.md, leaving every earlier slice's rows as they are.
+      decisive lines into verify.md, leaving every earlier slice's rows as they are. Evidence
+      references in verify.md are basenames relative to the attempt's evidence directory (for
+      example `P24.log`), never absolute clone or temporary paths: the record is published.
 - [ ] Format this slice's own files, run `NX_DAEMON=false bunx nx format:check --all`, then compare
       `git status --short --untracked-files=all` with section 2.7's list.
 
@@ -2305,6 +2350,14 @@ apps/wiki/cli/src/templates/templates.test.ts,
 openspec/changes/twilight-bureaucrat-templates/tasks.md,
 openspec/changes/twilight-bureaucrat-templates/verify.md.
 
+**This slice does not touch `apps/wiki/cli/src/packaging/build.test.ts`.** Slice 1 already wrote
+the full `verify` usage text into both `cli.ts`'s usage line and `bin.ts`'s help line (§6.6), and
+`build.test.ts`'s `--help` assertion only checks `toContain('twilight-bureaucrat template
+<list|show')` — a prefix slice 1 already satisfies. Its `template list` assertion is `toContain`
+over the id list, and slice 2 registers no new template identifier. Adding the `verify` action here
+changes no help text and no `--help` or `template list` output the packaging test pins; do not edit
+that file in this slice.
+
 ---
 
 ## Slice 3 — the negatives for the shell and the file handlers
@@ -2322,23 +2375,23 @@ each fault, watches the named test fail, restores, and writes the adjacent `Proo
 Each was compiled and watched failing during the rehearsal; the observed failure is quoted so a
 different one is recognisable as a stop.
 
-| #   | File        | Check                                | Fault                                                                                                                                                                                                                                 | Named test                                                                      | Observed failure                                                                                                                           |
-| --- | ----------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| P2  | verify.ts   | The candidate-relative subject guard | Delete the `subject must be a candidate-relative path` throw                                                                                                                                                                          | `refuses a subject that is not candidate-relative`                              | `Expected to contain: "subject must be a candidate-relative path: /etc/passwd" Received: "subject selects no candidate file: /etc/passwd"` |
-| P3  | verify.ts   | The empty-selection refusal          | Replace the throw with `if (!mistaken) return verification(template, subject, []);` and keep the subject-kind throw for the other branch                                                                                              | `refuses a subject that selects nothing`                                        | `Expected: 1 Received: 0`                                                                                                                  |
-| P4  | verify.ts   | The subject-kind refusal             | Replace the whole `mistaken` initializer with `const mistaken = false;`                                                                                                                                                               | `refuses a file template pointed at a directory`                                | `Expected to contain: "template feature-service verifies one file; …" Received: "subject selects no candidate file: src/modules/widget"`   |
-| P5  | verify.ts   | The refused-verification exit status | Delete `if (!verified.conforms) process.exitCode = 1;`                                                                                                                                                                                | `reports a file whose name lacks the kind suffix`                               | `Expected: 1 Received: 0`                                                                                                                  |
-| P6  | verify.ts   | The UTF-8 boundary                   | Drop `{ fatal: true }` from the `TextDecoder`                                                                                                                                                                                         | `refuses a candidate file that is not UTF-8`                                    | `Expected to contain: "candidate file … is not UTF-8" Received: ""`                                                                        |
-| P7  | template.ts | The import-scan boundary             | Replace the `catch` body with `return [];`                                                                                                                                                                                            | `refuses a file that does not parse`                                            | `Expected to contain: "cannot scan the imports of …" Received: ""` — the capability finding and exit 1 remain, only the refusal disappears |
-| P8  | verify.ts   | `name-suffix`                        | Return `[]` for the `name-suffix` case                                                                                                                                                                                                | `reports a file whose name lacks the kind suffix`                               | `toEqual` fails: one of the two expected findings is missing                                                                               |
-| P9  | verify.ts   | `one-kind-per-file`                  | Change `declaredKinds(file.path).length > 1` to `> 2` in `oneKindFindings`                                                                                                                                                            | `reports a standalone file whose name declares two kinds`                       | `toEqual` fails: `resource.one-kind` is missing                                                                                            |
-| P10 | verify.ts   | `declares-one`                       | Change `stated.length === 1` to `stated.length < 99`                                                                                                                                                                                  | `reports a service that states two declaration tags`                            | `Expected: 1 Received: 0`                                                                                                                  |
-| P11 | verify.ts   | `imports-no-kind`                    | Replace `declaredKinds(specifier)` with `([] as FileKind[])`, **adding `type FileKind` to the `./template` import**, which slice 2's file does not yet have                                                                           | `reports a side-effect import of a repository and ignores comments and strings` | `Expected: 1 Received: 0`                                                                                                                  |
-| P12 | verify.ts   | `sibling-test`                       | Return `[]` for the `sibling-test` case                                                                                                                                                                                               | `reports a repository adapter with no sibling test`                             | `Expected: 1 Received: 0`                                                                                                                  |
-| P14 | verify.ts   | Requirement-driven evaluation        | Change `template.requirements.flatMap` to `template.requirements.slice(1).flatMap`                                                                                                                                                    | `evaluates exactly the requirements the template states`                        | `toEqual` fails: the single expected finding is missing                                                                                    |
-| P22 | verify.ts   | The unknown-action refusal           | Delete the final `throw new Error(Usage);` from `writeTemplateCommand`                                                                                                                                                                | `refuses an unknown template action`                                            | `Expected: 1 Received: 0`                                                                                                                  |
-| P23 | verify.ts   | The selection-kind refusal           | Replace the throw in `candidateRequest` with `return { kind: 'committed', revision };`                                                                                                                                                | `refuses an unknown candidate selection kind`                                   | `Expected: 1 Received: 0`                                                                                                                  |
-| P24 | template.ts | Line-comment declaration scanning    | Replace `taggedValues`' body with the multiline regular expression over the raw source: ``new RegExp(`^[ \t]*//[ \t]*@${tag}[ \t]+(\S+)[ \t]*$`, 'gm')`` and `for (const match of text.matchAll(declaration)) values.push(match[1]);` | `counts a declaration tag only when it is a real line comment`                  | `toEqual` fails: the expected `0 @capability tags` finding is absent, because the quoted and commented text were counted                   |
+| #   | File        | Check                                | Fault                                                                                                                                                                                                                                 | Named test                                                                      | Observed failure                                                                                                                                                                                                                                                                     |
+| --- | ----------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P2  | verify.ts   | The candidate-relative subject guard | Delete the `subject must be a candidate-relative path` throw                                                                                                                                                                          | `refuses a subject that is not candidate-relative`                              | `Expected to contain: "subject must be a candidate-relative path: /etc/passwd" Received: "subject selects no candidate file: /etc/passwd"`                                                                                                                                           |
+| P3  | verify.ts   | The empty-selection refusal          | Replace the throw with `if (!mistaken) return verification(template, subject, []);` and keep the subject-kind throw for the other branch                                                                                              | `refuses a subject that selects nothing`                                        | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P4  | verify.ts   | The subject-kind refusal             | Replace the whole `mistaken` initializer with `const mistaken = false;`                                                                                                                                                               | `refuses a file template pointed at a directory`                                | `Expected to contain: "template feature-service verifies one file; …" Received: "subject selects no candidate file: src/modules/widget"`                                                                                                                                             |
+| P5  | verify.ts   | The refused-verification exit status | Delete `if (!verified.conforms) process.exitCode = 1;`                                                                                                                                                                                | `reports a file whose name lacks the kind suffix`                               | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P6  | verify.ts   | The UTF-8 boundary                   | Drop `{ fatal: true }` from the `TextDecoder`                                                                                                                                                                                         | `refuses a candidate file that is not UTF-8`                                    | `Expected to contain: "candidate file … is not UTF-8" Received: ""`                                                                                                                                                                                                                  |
+| P7  | template.ts | The import-scan boundary             | Replace the `catch` body with `return [];`                                                                                                                                                                                            | `refuses a file that does not parse`                                            | `Expected to contain: "cannot scan the imports of …" Received: ""` — the capability finding and exit 1 remain, only the refusal disappears                                                                                                                                           |
+| P8  | verify.ts   | `name-suffix`                        | Return `[]` for the `name-suffix` case                                                                                                                                                                                                | `reports a file whose name lacks the kind suffix`                               | `toEqual` fails: one of the two expected findings is missing                                                                                                                                                                                                                         |
+| P9  | verify.ts   | `one-kind-per-file`                  | Change `declaredKinds(file.path).length > 1` to `> 2` in `oneKindFindings`                                                                                                                                                            | `reports a standalone file whose name declares two kinds`                       | `toEqual` fails: `resource.one-kind` is missing                                                                                                                                                                                                                                      |
+| P10 | verify.ts   | `declares-one`                       | Change `stated.length === 1` to `stated.length < 99`                                                                                                                                                                                  | `reports a service that states two declaration tags`                            | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P11 | verify.ts   | `imports-no-kind`                    | Replace `declaredKinds(specifier)` with `([] as FileKind[])`, **adding `type FileKind` to the `./template` import**, which slice 2's file does not yet have                                                                           | `reports a side-effect import of a repository and ignores comments and strings` | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P12 | verify.ts   | `sibling-test`                       | Return `[]` for the `sibling-test` case                                                                                                                                                                                               | `reports a repository adapter with no sibling test`                             | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P14 | verify.ts   | Requirement-driven evaluation        | Change `template.requirements.flatMap` to `template.requirements.slice(1).flatMap`                                                                                                                                                    | `evaluates exactly the requirements the template states`                        | `toEqual` fails: the single expected finding is missing                                                                                                                                                                                                                              |
+| P22 | verify.ts   | The unknown-action refusal           | Delete the final `throw new Error(Usage);` from `writeTemplateCommand`                                                                                                                                                                | `refuses an unknown template action`                                            | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P23 | verify.ts   | The selection-kind refusal           | Replace the throw in `candidateRequest` with `return { kind: 'committed', revision };`                                                                                                                                                | `refuses an unknown candidate selection kind`                                   | `Expected: 1 Received: 0`                                                                                                                                                                                                                                                            |
+| P24 | template.ts | Line-comment declaration scanning    | Replace `taggedValues`' body with the multiline regular expression over the raw source: ``new RegExp(`^[ \t]*//[ \t]*@${tag}[ \t]+(\S+)[ \t]*$`, 'gm')`` and `for (const match of text.matchAll(declaration)) values.push(match[1]);` | `counts a declaration tag only when it is a real line comment`                  | `toEqual` fails: the finding is still present, but its message changes from `"file states 0 @capability tags, expected exactly 1"` to `"file states 2 @capability tags, expected exactly 1"`, because the quoted and commented text were counted. The finding does not become empty. |
 
 Bare `[].includes(forbidden)` does **not** compile (`TS2345`), which is why P11 casts. P11's import
 addition is part of the mutation: remove it again when restoring, and `cmp` proves you did.
@@ -2912,3 +2965,31 @@ executed there; the shared planning worktree was never used for execution.
 Round-one findings the second review marked PARTLY are closed above: C1 by §0.0, C5 by P22 and P23,
 I5 by the six test-first slices and the two proof slices that add no test, and I8 by §§2.4, 4.4 and
 5.3. Nothing is left half-answered, and no slice was cut.
+
+### Disposition of the slice 2 dispatch review
+
+`puni-plan/reviews-batch-2/010-6-templates.reviewS2.md` (verdict: DISPATCH AFTER FIXES) re-checked
+round-one's C1–C4, I1–I9 and M1–M3 against this revision and found them still fixed, except I2 and
+I3, marked PARTLY. Every finding below was checked against a real rehearsal in this clone; the
+rehearsal's counts, probes, ESLint and typecheck results are recorded in the report this commit's
+handover carries.
+
+| Finding                                                                                           | Disposition                      | What changed                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1–C4, I1, I4–I9, M1–M3 (round-one, re-confirmed fixed)                                           | **Carried**                      | The review re-checked these against revision 3 and found them still fixed; this attempt made no further change to their fixes.                                                                                                                                                                                       |
+| I2 the nested-template tests exist, but the parser implementation remains underspecified (PARTLY) | **Fixed**                        | §2.3's first implementation step now supplies the exact parser-based `lineComments` code (`ts.createSourceFile`, `getChildren(source)` traversal, `SingleLineCommentTrivia` only, deduplicated by position). §6.2's "Everything else…" sentence now says slice 2 replaces `lineComments` and removes `endOfQuoted`.  |
+| I3 independent malformed support-file and test-file negatives remain absent (PARTLY)              | **Rejected for slice 2**         | The review itself files this against slice 4 ("this concerns slice 4"); slice 2 verifies one file and states no directory-scope constraint, so it has no support-file or test-file scope to add a negative for. No slice 2 edit follows from it.                                                                     |
+| Blocking 1 — §2.2's red count is wrong (`5 pass, 15 fail`)                                        | **Fixed**                        | §2.2's expected-result paragraph, §0.2's counts bullet and the introductory rehearsal claim now read exactly as the review's replacement text: `N+1` passes and 17 failures red, `N+18` passes green, 5 pass/17 fail and 22 pass/0 fail on the committed baseline.                                                   |
+| Blocking 2 — "traverse the parsed nodes" permits a `forEachChild` walk that misses real comments  | **Fixed**                        | §2.3 now names `import ts from 'typescript';`, supplies the exact `getChildren(source)`-based `lineComments`, and says `forEachChild` must not be substituted. Rehearsed in this clone: `bun -e` confirmed a comment directly before a closing brace is found by `getChildren(source)` and missed by `forEachChild`. |
+| Non-blocking — slice 2 need not touch `build.test.ts`                                             | **Confirmed, stated in §2.7**    | §2.7 now states explicitly that slice 1 already wrote the full `verify` usage text into both dispatchers, so the packaging test's `--help` and `template list` assertions are unaffected; slice 2 does not touch that file.                                                                                          |
+| Non-blocking — A11 and the old scanner JSDoc describe a limitation the parser rewrite removes     | **Fixed**                        | A11 in §4 now states the regular-expression-literal limit belonged only to slice 1's quote-skipping walker and that slice 2's parser-based `lineComments` does not share it.                                                                                                                                         |
+| Non-blocking — P24's actual Bun 1.4.2 mismatch differs from the packet's prediction               | **Fixed**                        | §3.2's P24 row now states the finding changes from `"file states 0 @capability tags…"` to `"file states 2 @capability tags…"` rather than becoming absent.                                                                                                                                                           |
+| Non-blocking — use evidence basenames in verify.md, never attempt-specific absolute paths         | **Fixed**                        | §2.4's tick/verify.md bullet now states evidence references are basenames relative to the attempt's evidence directory, never absolute clone or temporary paths.                                                                                                                                                     |
+| Non-blocking — "what the planner must verify after the executor returns"                          | **Not actionable in the packet** | This is guidance for the planner's own post-attempt check, not an instruction for the executor; no packet edit follows from it.                                                                                                                                                                                      |
+
+Rehearsal of the supplied `lineComments` code in this clone: 6/6 focused tests passed (the 4
+committed slice 1 tests plus the two nested-template tests from §2.6), the closing-brace, nested-fake
+and interpolation `bun -e` probes all matched the review's predictions, `bunx eslint
+apps/wiki/cli/src/templates/template.ts` reported nothing, and `NX_DAEMON=false bunx nx run
+twilight-bureaucrat:typecheck` exited 0. The supplied code needed no correction. The rehearsal was
+fully reverted; `git status --short --untracked-files=all` showed only this packet before commit.
