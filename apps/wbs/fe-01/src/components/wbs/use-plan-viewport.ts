@@ -93,6 +93,7 @@ export function usePlanViewport({
     heightPx: typeof window === 'undefined' ? 900 : window.innerHeight,
     widthPx: typeof window === 'undefined' ? 1400 : window.innerWidth,
   }));
+  const frameReading = useRef(frame);
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
   const heightReadings = useRef<ReadonlyMap<string, number>>(heights);
   const currentRowIds = useRef(rowIds);
@@ -186,54 +187,49 @@ export function usePlanViewport({
       const heightPx = frameNode.clientHeight;
       const widthPx = frameNode.clientWidth;
       if (heightPx <= 0 || widthPx <= 0) return;
-      setFrame((current) => {
-        const scrollTop = publicationOffset(frameNode.scrollTop, ROW_PUBLICATION_STEP_PX);
-        const scrollLeft = publicationOffset(frameNode.scrollLeft, COLUMN_PUBLICATION_STEP_PX);
-        if (
-          current.measured &&
-          current.heightPx === heightPx &&
-          current.widthPx === widthPx
-        ) {
-          const pinnedRowIds = new Set(pinnedCells.map((cell) => cell.rowId));
-          const pinnedColumnIds = new Set(pinnedCells.map((cell) => cell.columnId));
-          const currentRows = viewportRows({
-            rowIds,
-            heights: heightReadings.current,
-            estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
-            scrollTop: current.scrollTop,
-            viewportHeight: current.heightPx,
-            overscanPx: ROW_OVERSCAN_PX,
-            pinnedIds: pinnedRowIds,
-          });
-          const nextRows = viewportRows({
-            rowIds,
-            heights: heightReadings.current,
-            estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
-            scrollTop,
-            viewportHeight: heightPx,
-            overscanPx: ROW_OVERSCAN_PX,
-            pinnedIds: pinnedRowIds,
-          });
-          const currentColumns = viewportColumns({
-            columns,
-            scrollLeft: current.scrollLeft,
-            viewportWidth: current.widthPx,
-            overscanPx: COLUMN_OVERSCAN_PX,
-            pinnedIds: pinnedColumnIds,
-          });
-          const nextColumns = viewportColumns({
-            columns,
-            scrollLeft,
-            viewportWidth: widthPx,
-            overscanPx: COLUMN_OVERSCAN_PX,
-            pinnedIds: pinnedColumnIds,
-          });
-          if (sameWindow(currentRows, nextRows) && sameWindow(currentColumns, nextColumns)) {
-            return current;
-          }
-        }
-        return { measured: true, scrollTop, scrollLeft, heightPx, widthPx };
-      });
+      const current = frameReading.current;
+      const scrollTop = publicationOffset(frameNode.scrollTop, ROW_PUBLICATION_STEP_PX);
+      const scrollLeft = publicationOffset(frameNode.scrollLeft, COLUMN_PUBLICATION_STEP_PX);
+      if (current.measured && current.heightPx === heightPx && current.widthPx === widthPx) {
+        const pinnedRowIds = new Set(pinnedCells.map((cell) => cell.rowId));
+        const pinnedColumnIds = new Set(pinnedCells.map((cell) => cell.columnId));
+        const currentRows = viewportRows({
+          rowIds,
+          heights: heightReadings.current,
+          estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
+          scrollTop: current.scrollTop,
+          viewportHeight: current.heightPx,
+          overscanPx: ROW_OVERSCAN_PX,
+          pinnedIds: pinnedRowIds,
+        });
+        const nextRows = viewportRows({
+          rowIds,
+          heights: heightReadings.current,
+          estimatedHeight: ESTIMATED_ROW_HEIGHT_PX,
+          scrollTop,
+          viewportHeight: heightPx,
+          overscanPx: ROW_OVERSCAN_PX,
+          pinnedIds: pinnedRowIds,
+        });
+        const currentColumns = viewportColumns({
+          columns,
+          scrollLeft: current.scrollLeft,
+          viewportWidth: current.widthPx,
+          overscanPx: COLUMN_OVERSCAN_PX,
+          pinnedIds: pinnedColumnIds,
+        });
+        const nextColumns = viewportColumns({
+          columns,
+          scrollLeft,
+          viewportWidth: widthPx,
+          overscanPx: COLUMN_OVERSCAN_PX,
+          pinnedIds: pinnedColumnIds,
+        });
+        if (sameWindow(currentRows, nextRows) && sameWindow(currentColumns, nextColumns)) return;
+      }
+      const next = { measured: true, scrollTop, scrollLeft, heightPx, widthPx };
+      frameReading.current = next;
+      setFrame(next);
     };
     const scheduleRead = (): void => {
       if (scheduledFrame !== null) return;
