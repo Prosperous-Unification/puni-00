@@ -2,8 +2,8 @@
 # Extract and run the requested commit's deployer outside the checkout it may reset.
 set -euo pipefail
 
-if [ "$#" -ne 5 ]; then
-  echo 'usage: dev-poll-sync.sh <source-checkout> <installed-bin-dir> <bun> <target-sha> <bun-version>' >&2
+if [ "$#" -lt 5 ]; then
+  echo 'usage: dev-poll-sync.sh <source-checkout> <installed-bin-dir> <bun> <target-sha> <bun-version> [sync-args...]' >&2
   exit 2
 fi
 
@@ -12,6 +12,8 @@ BIN=$2
 BUN=$3
 SHA=$4
 EXPECTED_BUN_VERSION=$5
+shift 5
+SYNC_ARGS=("$@")
 
 if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "refusing invalid target SHA: $SHA" >&2
@@ -174,4 +176,4 @@ trap - EXIT HUP INT TERM
 # Proof: poller.test.ts requires both the target Docker build inputs and this
 # working directory to resolve inside the immutable candidate.
 cd "$CANDIDATE"
-exec "$BUN" "$CANDIDATE/tools/tool-devsync/src/sync.ts" "$SHA"
+exec "$BUN" "$CANDIDATE/tools/tool-devsync/src/sync.ts" "$SHA" "${SYNC_ARGS[@]}"
