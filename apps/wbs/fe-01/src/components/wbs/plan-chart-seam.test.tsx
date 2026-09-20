@@ -9,6 +9,7 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
 
 import type * as GanttGeometryModule from './gantt-geometry';
+import type * as PlanChartInputModule from './plan-chart-input';
 import type * as TableFrameModule from './table-frame';
 import { type SubscriptionHandlers, WbsTable, type WbsTableProps } from './wbs-table';
 
@@ -29,6 +30,7 @@ const itDom = hasDom ? it : it.skip;
  * The mock is call-through: every other case sees the real module.
  */
 const layoutCalls = vi.hoisted(() => ({ count: 0 }));
+const ownerRenders = vi.hoisted(() => ({ count: 0 }));
 vi.mock('./gantt-geometry', async (importOriginal) => {
   const real = await importOriginal<typeof GanttGeometryModule>();
   return {
@@ -54,6 +56,17 @@ vi.mock('./gantt-geometry', async (importOriginal) => {
  * The mock is call-through: every other test sees the real module unchanged.
  */
 const cellStyleCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('./plan-chart-input', async (importOriginal) => {
+  const real = await importOriginal<typeof PlanChartInputModule>();
+  return {
+    ...real,
+    usePlanChartInput: (...args: Parameters<typeof real.usePlanChartInput>) => {
+      ownerRenders.count += 1;
+      return real.usePlanChartInput(...args);
+    },
+  };
+});
 
 vi.mock('./table-frame', async (importOriginal) => {
   const real = await importOriginal<typeof TableFrameModule>();
@@ -655,8 +668,9 @@ describe('what a keystroke costs the chart', () => {
    * built inline, as it was — watched failing on `expected 1 to be +0`
    * (2026-09-02).
    */
-  itDom('does not commit the chart for 120 compositor-only table scroll frames', async () => {
+  itDom('does not render the plan owner or commit the chart for 120 compositor-only table scroll frames', async () => {
     await planWithTheChartOpen();
+    ownerRenders.count = 0;
 
     const frame = screen.getByRole('table').parentElement;
     if (!(frame instanceof HTMLElement)) throw new Error('no table frame rendered');
@@ -693,7 +707,12 @@ describe('what a keystroke costs the chart', () => {
           callback(performance.now());
         });
       }
+      expect(ownerRenders.count).toBe(0);
       expect(window.__wbsScrollProbe.ganttCommits).toBe(0);
+
+      // A real plan-owner input is still observed by the render counter.
+      click('Actions for 010');
+      expect(ownerRenders.count).toBeGreaterThan(0);
 
       // A real chart input still crosses the memo boundary and redraws it.
       const scale = document.querySelector<HTMLSelectElement>('[data-gantt-day-scale]');
