@@ -18,13 +18,23 @@ export function createPlanFeed({
   announceRefusal,
   setConnected,
 }: PlanFeedHost): PlanFeed {
+  // Proof: changing `isLive` below to `() => isActiveReader()` delivered a
+  // snapshot in `hands nothing on once it is closed, though the owner still
+  // publishes`; the closed-reader refusal case failed too (2026-09-20).
   let closed = false;
   const reading = createPlanReading({
     openOwner,
     openStream,
+    // Proof: replacing this expression with `() => !closed` delivered a
+    // snapshot in `hands nothing to a reader that has moved on` instead of an
+    // empty array (2026-09-20).
     isLive: () => !closed && isActiveReader(),
     deliver: publish,
     reportFailures: (failures) => {
+      // Proof: replacing this loop with `void failures` left the optimizer
+      // toast list empty in `names an unavailable optimizer and offers no
+      // export before a plan is installed`, and announced no cause in the
+      // feature suite (2026-09-20).
       for (const failure of failures) announceRefusal({ cause: failure.cause });
     },
     reportConnection: setConnected,
