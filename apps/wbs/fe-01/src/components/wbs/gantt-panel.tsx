@@ -5306,15 +5306,7 @@ function GanttChart({
                   // rail has no declared column width to protect, so a depth-6
                   // label stands two steps deeper than a depth-4 one, where the
                   // Number cell's capped indent would draw them flush.
-                  style={{
-                    height: ROW_PX,
-                    paddingLeft: hierarchyIndentFor(label.depth) + 8,
-                    // The complete label rail remains in the DOM for keyboard
-                    // navigation and export, while Chromium may skip layout and
-                    // paint for rows far outside this scrollport.
-                    contentVisibility: 'auto',
-                    containIntrinsicSize: `${String(LABEL_COLUMN_PX)}px ${String(ROW_PX)}px`,
-                  }}
+                  style={{ height: ROW_PX, paddingLeft: hierarchyIndentFor(label.depth) + 8 }}
                   // The lit tint after `hover:bg-accent` so it wins where both
                   // apply, which is every time the pointer is on the label
                   // itself. `data-[…]` rather than a ternary on the class string:
