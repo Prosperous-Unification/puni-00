@@ -151,7 +151,11 @@ clean.
   named `Project settings` and offers the tabs `Teams`, `Priorities`, `Steps`, `Estimating`,
   `Optimization`. So `Keep the fraction` is reachable from a browser test.
 - PERT over `20/24/30` is `(20 + 4 × 24 + 30) / 6 = 24.3333…`, which `showDay` prints as `24.3`.
-  That is the widest result this column has to hold, and it exists only under `Keep the fraction`.
+  That is the **selected fractional fixture** — the result the widest trio anyone has typed here
+  produces — and it exists only under `Keep the fraction`. It is **not** the widest result this
+  column must hold: `libs/wbs/domain/domain/src/estimate.ts:15` bounds each authored point at
+  `MAX_ESTIMATE_DAYS = 44_739_242` and `plan-number-format.ts:21` imposes no display-width limit, so
+  a parent's roll-up can print far wider. Every fit statement in this packet is about this fixture.
 
 ### There are no pixel baselines in this repository
 
@@ -238,8 +242,12 @@ decision this packet takes; each can be reopened.
 
 1. **The quiet trio stays visible at 96px.** It does not yield to the result and move into the hover
    card. Reason: it is the only place the three numbers are without a hover, and section 6's
-   arithmetic says it fits with room to spare. The fallback, if Chromium disagrees, is in section 9's
-   decision rule D1 — and it is the design's own fallback, not an invention.
+   arithmetic gives it headroom in the cases this column is regression-tested on, and those cases
+   were **watched green in Chromium** (section 6). It does **not** fit in every case: the staffed,
+   fractional fixture clips by 16px after this change and by 28px before it, both measured
+   2026-09-20. That is a documented, pre-existing defect of the 96px column (section 13), not a
+   claim this assumption may paper over, and no value of `QUIET_TRIO_PX` closes it. If the
+   **committed** cases go red, section 9's D1 stops and replans rather than shrinking the trio.
 2. **No spread or uncertainty mark in this change.** The design calls it scope and a question; it
    stays a question.
 3. **The trio recedes to 10px and `var(--muted-foreground)`.** 10 because that is already this
@@ -323,7 +331,7 @@ neighbour is **pending verification** once its packet is written.
   is not expected to edit `e2e/layout.spec.ts` or `e2e/dark-mode.spec.ts`; if it turns out to, this
   packet owns both files and 040.1 defers.
 
-## 6. The design, and why it fits in 96px
+## 6. The design, and what 96px will and will not hold
 
 ### The two elements
 
@@ -1140,7 +1148,11 @@ in this slice**, before the planner's first browser run (P1), because this slice
   // folded step cell` failed on `the trio does not fit the box beside its
   // figure — Expected: <= 0, Received: 8`. Watched in Chromium, 2026-08-30.
   // The same test is what holds the budget now, with the sizes the other
-  // way round and with a staffed, fractional case added to it.
+  // way round: the committed cases are the seeded one and the unstaffed
+  // wide one, and they now also pin that the box is unfocused at 10px and
+  // that this span takes the row's own size, ink and tabular numerals. The
+  // staffed, fractional case is not committed — it clips before this change
+  // as well as after it; see `verify.md`'s finding.
   ```
 
 #### Step 3c — green, checks, evidence
@@ -1152,13 +1164,15 @@ in this slice**, before the planner's first browser run (P1), because this slice
       is named separately below; it is not this slice's increment.
 - [ ] Run the one-file oracle. Expected: **`Tests  N+4`**, N being this slice's own step 0 number.
       Rehearsed: N is **69** here and the green is **73**.
-- [ ] Record, as a separate named figure, the **cumulative delta against the original packet
-      baseline** — the counts slice 0 read on the commit before slice 2, which this packet observed
-      as `N₀ = 65` and `M₀ = 153`: `N − N₀ = 8` and `M − M₀ = 8`, the eight tests slices 2 and 3 add
-      between them. State it in `verify.md` as "cumulative, against the pre-slice-2 baseline", never
-      as this slice's expected increment. A slice whose own baseline already includes slice 2's four
-      tests and which is asked for `+8` will stop on a correct green run; that is the defect this
-      wording exists to prevent.
+- [ ] Name the two numbers this slice ends on **`N_after` and `M_after`**, so nothing is computed
+      from a starting count twice. This slice requires `N_after = N + 4` and `M_after = M + 4`, with
+      N and M its own step 0 figures. The **cumulative** delta is then calculated from those final
+      counts against the pre-slice-2 baseline this packet observed, `N₀ = 65` and `M₀ = 153`:
+      `N_after − N₀ = 8` and `M_after − M₀ = 8`, the eight tests slices 2 and 3 add between them.
+      Rehearsed: `N = 69`, `N_after = 73`, `M = 157`, `M_after = 161`. State the cumulative pair in
+      `verify.md` as "cumulative, against the pre-slice-2 baseline", never as this slice's expected
+      increment. A slice whose own baseline already holds slice 2's four tests and which is asked
+      for `+8` stops on a correct green run; that is the defect this wording exists to prevent.
 - [ ] Run the sandbox unit command. Expected: unchanged from this slice's own U.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` → exit 0. It covers `e2e/**/*.ts` as well as
       `src` (section 3), so it is a real check on the browser edits just made.
@@ -1236,9 +1250,14 @@ Then:
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` → exit 0. Both of these check the browser
       specs as well as `src`; what cannot happen in the sandbox is **running a browser**, and that is
       the only thing P1 to P5 are for.
-- [ ] Re-run the OpenSpec validation block. Expected: exit 0 and the same passed count as slice 1.
+- [ ] Re-run the OpenSpec validation block. Expected: exit 0 and `summary.totals.passed` equal to
+      **this slice's own V**, recorded at its step 0. This slice adds no OpenSpec item, so the
+      number must not move within the attempt; slice 1's figure belongs to slice 1's attempt and is
+      not this one's reference (batch README, "Counts are relative, never absolute", and each
+      attempt takes its own base commit).
 - [ ] Re-run the one-file oracle, the two-file oracle and the sandbox unit command. Expected:
-      unchanged from slice 3.
+      equal to **this slice's own N, M and U**, recorded at its step 0. This slice adds no test, so
+      none of the three may move within the attempt. Do not compare them with slice 3's numbers.
 
 ## 8. Negative proofs
 
@@ -1272,10 +1291,21 @@ slice 2, where the file holds 69). A run reporting `0 tests` is a stop.
 | N6b | 3     | `trioRepeatsResult ? 'transparent' :` dropped from the **rolled-trio span**                     | `hides a parent’s rolled-up trio`         | `AssertionError: expected 'var(--muted-foreground)' to be 'transparent'` |
 | N7  | 3     | `final !== ''` dropped, leaving `const showsResult = !unfolded;`                                | `leaves an unestimated folded cell empty` | `AssertionError: expected <span …(2)></span> to be null`                 |
 | N8  | 3     | `fontSize: 10,` added back to the result span's style                                           | `draws the result in the row`             | `AssertionError: expected '10px' to be ''`                               |
+| N8b | 3     | `fontWeight: 'normal',` added back to the result span's style                                   | `draws the result in the row`             | `AssertionError: expected 'normal' to be ''`                             |
+| N8c | 3     | `color: 'var(--muted-foreground)',` added back to the result span's style                       | `draws the result in the row`             | `AssertionError: expected 'var(--muted-foreground)' to be ''`            |
+| N8d | 3     | `fontVariantNumeric: 'tabular-nums',` removed from the result span's style                      | `draws the result in the row`             | `AssertionError: expected '' to be 'tabular-nums'`                       |
 
 Every message above was produced in this repository on 2026-09-20 by injecting that exact fault and
 running that exact command. If a message differs, that is a stop — the packet's claim about the check
 is then wrong, which is the point of naming it.
+
+**N8 to N8d are four checks, not one.** `draws the result in the row’s own type, with tabular
+numerals` asserts four independent declarations, and a single size mutation leaves three of them
+unproven. Each fault restores exactly one of the declarations the change removed (or removes the one
+it added) and fails that declaration's own assertion; all four were injected and watched separately
+on 2026-09-20, and each left the other three assertions passing. Their Chromium counterparts — the
+same faults measured as computed style rather than as inline style — are CN-a to CN-d in section 9's
+P1b.
 
 **N2 and N2b are two different checks and both are required.** N2 removes `typing` from the style
 condition and proves that focusing changes the styling — it fails at the test's **post-focus**
@@ -1375,32 +1405,71 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT CI=1 NX_DAEMON=false \
 including the five assertions slice 3 adds to the wide case — `wide.boxFocused` false,
 `wide.boxType` `10px`, `figureType` `13px` equal to `rowType`, `figureInk` equal to `rowInk`
 (`oklch(0.129 0.042 264.695)`), `figureNumerals` `tabular-nums`. So the expected outcome here is not
-a prediction. Copy `test-results` out afterwards even on green: P5 reads the light screenshot it
-holds.
+a prediction. Copy `test-results` out afterwards even on green — it holds the traces and any error
+context — but **not** because it holds the light screenshot: `wbs-table.png` is written by
+`leaves a picture of the table for the eye that has to judge the widths`
+(`e2e/layout.spec.ts:1018` to `1025`), which this grep does not select. P5 names its own sources.
 
 Read the two cases of the fit test in order — the seeded `4` and the wide `25` — and the parent test's
 `trioMetrics` comparison.
 
-**Decision rule D1, stated in advance.** D1 is now a contingency, not an expectation: the committed
-cases were watched green.
+**Decision rule D1, stated in advance.** D1 is a contingency, not an expectation: the committed
+cases were watched green on 2026-09-20.
 
 - Green → record the measurements and go on.
 - Red on `the trio does not fit the box beside its figure — Expected: <= 0, Received: R` in the
-  **seeded or wide** case → something differs from the rehearsed tree. Do **not** touch the assertion
-  or `ROW_HEIGHT_BUDGET`. In order: (a) take `QUIET_TRIO_PX` to 9 and rerun; (b) if still red, 8.
-  **Nothing else changes with it**: the tests read `quiet`, derived from the constant, so they stay
-  green; the delta specification names no pixel size, so it stays as written; the flat-trio
-  transparency lives on the colour line and is untouched. What does change is the constant's JSDoc,
-  which gains the measured `R` and the new value with the date, and `verify.md`. Both files are
-  already in the slice path lists.
-- Still red at 8 → **stop and replan.** Hand back the measured `R` at 10, 9 and 8 and reopen
-  assumption 1 against the design's own fallback (the trio yields at this width and lives in the
-  hover card). That fallback is a different change with its own specification and tests.
+  **seeded or wide** case → **stop and replan.** Do not touch the assertion, `ROW_HEIGHT_BUDGET`, or
+  `QUIET_TRIO_PX`.
+
+  There is no size-shrinking fallback in this packet, and that is deliberate. An earlier draft let
+  the planner take the constant to 9 or 8 "without changing a test". That is false for the browser:
+  slice 3a's `expect(wide.boxType).toBe('10px')` and P3's `expect(staffed.boxType).toBe('10px')` are
+  literal strings, and `e2e/layout.spec.ts`'s `measure()` reads the **production** input's computed
+  size, so a changed constant reaches both assertions and reds them. The jsdom tests are safe —
+  they read `quiet`, derived from the constant — but the browser ones are not, and importing the
+  React column module into a Playwright spec to recover the number is a dependency-resolution
+  question this packet has not verified and will not guess at.
+
+  So if the committed cases go red at 10px, hand back the measured `R`, the fact that the rehearsed
+  tree was green, and the diff between the two trees. Reopening the size is a replan with its own
+  browser assertions, not a decision-rule edit.
+
 - Red on the row-height assertion (`a row holding a trio and a figure is taller than one holding
 neither`, or the `ROW_HEIGHT_BUDGET` bound) → the `font: inherit` to longhands swap changed the
   line box. Put `lineHeight: 'inherit'` back if it was lost, and if the row is still tall, report it:
   it is a finding about the grid's `line-height: 1.4` rule (`styles.css:602` to `606`), not something
   to fix by widening the budget.
+
+### P1b — the computed-style faults, watched in the browser
+
+The five assertions slice 3a adds are new checks, so R5 wants each of them watched failing on the
+production path. Four have a production fault; the fifth is a measurement precondition and is
+treated as such. **Every one below was injected and run on 2026-09-20** against the real stack, so
+the `Received` values are observed. The command is P1's, narrowed to the fit test:
+
+```sh
+env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT CI=1 NX_DAEMON=false \
+  bunx nx run wbs-fe-01:e2e -- --grep "holds a trio and its figure on one line of a folded step cell"
+```
+
+Save the passing bytes of `estimates.tsx` first and restore with `cp` + `cmp` after each one, as in
+P4.
+
+| #    | Fault in `estimates.tsx`                                                                      | Assertion that must fail           | Watched `Received`                                                    |
+| ---- | --------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| CN-a | The box's rest arm deleted: the spread replaced by `{ fontSize: 'inherit', fontWeight: 600 }` | `wide.boxType` is `10px`           | `"13px"`                                                              |
+| CN-b | `fontSize: 10,` added back to the result span                                                 | `figureType` equals `rowType`      | `"10px"` against `"13px"`                                             |
+| CN-c | `color: 'var(--muted-foreground)',` added back to the result span                             | `figureInk` equals `rowInk`        | `"oklch(0.554 0.046 257.417)"` against `"oklch(0.129 0.042 264.695)"` |
+| CN-d | `fontVariantNumeric: 'tabular-nums',` removed from the result span                            | `figureNumerals` is `tabular-nums` | `"normal"`                                                            |
+
+`expect(wide.boxFocused).toBe(false)` has **no production fault and needs none**: it is a
+precondition on the measurement, not a check on the cell. Its failure mode was nevertheless observed
+— P3's staffed block, measured before its blur, reports `focused=true boxType=13px` — and that
+observation is what the assertion exists to catch. Record it beside the four above rather than
+inventing a mutation for it.
+
+After all four: restore, rerun green, and write the dated `Proof:` lines beside the five assertions
+naming the injected fault and the `Received` value seen.
 
 ### P2 — after slice 4 is committed: the whole gate
 
@@ -1500,8 +1569,58 @@ Procedure, in this order, each step's result attributable to exactly one case:
 - Then `git stash` is unavailable to the planner only inside a sandbox; here, restore from the saved
   bytes and prove it: `cp "$TMPDIR/evidence/layout.spec.ts.passing" apps/wbs/fe-01/e2e/layout.spec.ts`
   then `cmp` the two. Rerun P1's command and require green again.
-- Optionally repeat the whole measurement on unchanged `main` in a second clone to reproduce
-  `Received: 28`; this packet observed it there.
+- **The unchanged-`main` comparison, optional but supplied in full.** The block above cannot be
+  reused there: on `main` the result reads `· 24.3`, the box inherits the grid's 13px
+  (`estimates.tsx:386` takes `font: 'inherit'`, `styles.css:605` sets 13px), the span renders
+  `· {final}` (`estimates.tsx:520`), and `measure()` returns neither `boxType` nor `boxFocused`
+  (`e2e/layout.spec.ts:1159` to `1167`). In a second clone at unchanged `main`, apply exactly this —
+  two fields on `measure()` and a staffed block with the baseline's own expectations, and **none** of
+  the revised wide-case style assertions:
+
+  ```ts
+  // In `measure()`'s returned object, directly after `clipped:`
+  boxType: getComputedStyle(box).fontSize,
+  boxFocused: document.activeElement === box,
+  ```
+
+  ```ts
+  // After `holdsItsContents(wide);`, with the wide case still pinning `· 25`
+  await page.getByRole('button', { name: 'Project settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Project settings' });
+  await settings.getByRole('tab', { name: 'Estimating' }).click();
+  const keepFraction = settings.getByLabel('Keep the fraction', { exact: false });
+  await keepFraction.click();
+  await expect(keepFraction).toBeChecked();
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeHidden();
+
+  const staffedCell = page.getByLabel('Dev estimate for 010');
+  await staffedCell.click();
+  await staffedCell.fill('20/24/30 @Nia');
+  const addNia = page.getByRole('option', { name: 'Add “Nia”' });
+  await expect(addNia).toBeVisible();
+  await addNia.click();
+
+  await staffedCell.blur();
+  await expect(staffedCell).toHaveValue('20/24/30');
+
+  const rowOf010 = page.getByLabel('Name of 010').locator('xpath=ancestor::tr[1]');
+  await expect(rowOf010.locator('[data-folded-assignee]')).not.toHaveCount(0);
+  await expect(rowOf010.locator('[data-folded-final]')).toHaveText('· 24.3');
+
+  const staffed = await measure();
+  expect(staffed.boxFocused).toBe(false);
+  expect(staffed.boxType).toBe('13px');
+  console.log('STAFFED-BASELINE ' + JSON.stringify(staffed));
+  holdsItsContents(staffed);
+  ```
+
+  Run and read the `STAFFED-BASELINE` line. Watched on 2026-09-20 with this exact patch:
+  `said "· 24.3"`, `boxType "13px"`, `boxFocused false`, box 31.42px, figure 25.58px,
+  **`clipped: 28`**, and the test red on the clipping message. Restore from saved bytes and prove it
+  with `cmp`. If this comparison is skipped, `verify.md` must label 28px as **this packet's
+  historical observation, not fresh verification of the reviewed commit**.
+
 - Record in `verify.md`, under a heading of its own: **"Finding — the staffed, fractional step cell
   does not fit, before or after this change"**, with both numbers, the statement that this change
   improves it by 12px without closing it, and the note that D1's ladder cannot close 16px because
@@ -1655,7 +1774,54 @@ touched only by formatting or by a required `Proof:` comment included**.
   `lineHeight: 'inherit'` is there to prevent it; P1's row-height assertion is what would catch it.
 - Whether the owner wants the phone card face to follow (assumption 6). Recorded as a follow-up.
 
-## 13. Disposition of review 1
+## 13. Finding for a separate work item
+
+**The staffed, fractional step cell clips on unchanged `main`, and this change does not fix it.**
+This is not a defect of U1 and not a blocker for it; it is a pre-existing limit of the 96px step
+column that U1's measurements uncovered. It is written here so it can be scheduled on its own.
+
+**What was measured**, in Chromium on 2026-09-20, viewport 1400x900, both runs after an explicit
+blur so the cell was at rest:
+
+| Tree             | Cell reads | `<td>` | Trio box | Result  | `clipped` |
+| ---------------- | ---------- | ------ | -------- | ------- | --------- |
+| unchanged `main` | `· 24.3`   | 104px  | 31.42px  | 25.58px | **28**    |
+| with U1's change | `24.3`     | 104px  | 30.69px  | 25.31px | **16**    |
+
+`clipped` is `box.scrollWidth - box.clientWidth` — how much of the typed trio the box is hiding. The
+assertion that reports it is `e2e/layout.spec.ts`'s
+`expect(measured.clipped, 'the trio does not fit the box beside its figure').toBeLessThanOrEqual(0)`.
+
+**What it means.** A folded step cell holding the widest trio anyone has typed here (`20/24/30`)
+beside a fractional result (`24.3`, under the `Keep the fraction` rounding) on a row that has an
+assignee cannot show its whole trio. U1 improves it by 12px — the trio recedes to the caption size
+and the result loses its `· ` — and 16px short is still short. **No value of `QUIET_TRIO_PX` closes
+it**: the figure and the 32px assignee slot fix the box's share of the 104px cell at about 30.7px,
+and the trio at 8px still wants about 37px. The remedies are all outside U1's scope — a wider step
+column, a narrower or optional assignee slot, a shortened result, or the design's own fallback of
+moving the trio into the hover card at this width.
+
+**How to reproduce**, in about fifteen minutes with a browser installed:
+
+1. Check out unchanged `main` (or the reviewed commit, for the second row).
+2. Apply the baseline measurement patch in section 9's P3 — two fields on `measure()` and the
+   staffed block — which is given there in full for both trees.
+3. Run, with a fresh stack rather than a reused dev server:
+
+   ```sh
+   env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT CI=1 E2E_PORT_SHIFT=41 NX_DAEMON=false \
+     bunx nx run wbs-fe-01:e2e -- --grep "holds a trio and its figure on one line of a folded step cell"
+   ```
+
+4. Read the `STAFFED-BASELINE` (or `STAFFED`) line the block prints. The test is expected to be red
+   on the clipping message; the printed line is the measurement.
+5. Restore the spec from saved bytes and prove it with `cmp`.
+
+**Suggested shape of the work item:** decide what a 96px step column owes a wide trio beside a
+fractional result and a named assignee, then make the fit assertion pass for that case. It wants a
+design answer before a code one, so it is a question for the owner rather than a defect to patch.
+
+## 14. Disposition of review 1
 
 Every finding was checked against this repository before acting. All fifteen are accepted; none was
 rejected. Where a finding offered two fixes, the one chosen is named.
@@ -1744,7 +1910,7 @@ numerals` with negative **N8**, watched at `expected '10px' to be ''`, plus the 
     (`e2e/layout.spec.ts:1018` to `1026`), and a planner-only dark screenshot taken by temporarily
     adding one `page.screenshot` line to the new dark-mode test, written to the uncommitted
     `test-results/` `outputDir` and proved removed with `git diff --exit-code`. **Superseded by
-    review 2, findings 6 and 7** (section 14): the artifact is cleared by intervening runs, the path
+    review 2, findings 6 and 7** (section 15): the artifact is cleared by intervening runs, the path
     resolved from the wrong directory, and the restoration check rejected a required proof comment.
     P5 now preserves evidence under `$TMPDIR/evidence`, uses `testInfo.outputPath`, and restores by
     `cmp` against saved bytes.
@@ -1765,7 +1931,7 @@ numerals` with negative **N8**, watched at `expected '10px' to be ''`, plus the 
     `## ADDED Requirements`. Assumption 7 now rests on domain ownership alone and explicitly
     withdraws the claim that a missing main specification prevents a delta from validating.
 
-## 14. Disposition of review 2
+## 15. Disposition of review 2
 
 Every finding was checked against this repository before acting, and this round a browser was
 available, so the browser findings were settled by running them rather than by reasoning. All
@@ -1853,3 +2019,74 @@ twelve are accepted; none was rejected.
     `plan-estimates.test.tsx:830` to `835`. Slice 2a replaces the whole block alongside the helper
     widening, describing the folded cell's main reading and the two cases where it is absent, and
     notes that the one slice of prose drift in slice 2 is preferred to editing the same JSDoc twice.
+
+## 16. Disposition of review 3
+
+Review 3 raised no Critical. All four Important and all four Minor findings are accepted and fixed;
+none was rejected. Chromium was available again, so every new proof below was **injected and run**
+on 2026-09-20 rather than predicted.
+
+**Important**
+
+1. **The permitted fallback breaks the supplied browser assertion** — FIXED, by removing the
+   fallback. Verified: slice 3a's `expect(wide.boxType).toBe('10px')` and P3's
+   `expect(staffed.boxType).toBe('10px')` are literal strings, and `e2e/layout.spec.ts`'s `measure()`
+   reads the **production** input's computed size, so a changed `QUIET_TRIO_PX` reaches both. D1 no
+   longer offers 9 or 8: red on a committed case at 10px is now **stop and replan**, with the reason
+   stated at the rule so nobody reinstates it. The jsdom tests keep reading the constant through
+   `quiet`. Importing the React column module into a Playwright spec was considered and rejected —
+   its dependency resolution is unverified and this packet does not guess.
+2. **The cumulative formula still demands the wrong result** — FIXED, in slice 3c, using the review's
+   own naming. The slice now names its end counts `N_after` and `M_after`, requires
+   `N_after = N + 4` and `M_after = M + 4`, and computes the cumulative pair from those final
+   figures: `N_after − N₀ = 8`, `M_after − M₀ = 8`, with the rehearsed values `N = 69`,
+   `N_after = 73`, `M = 157`, `M_after = 161` written beside them.
+3. **New style assertions with no negative** — FIXED, with seven new observed proofs. jsdom:
+   **N8b** (`fontWeight: 'normal'` restored) → `expected 'normal' to be ''`; **N8c**
+   (`color: 'var(--muted-foreground)'` restored) → `expected 'var(--muted-foreground)' to be ''`;
+   **N8d** (`fontVariantNumeric` removed) → `expected '' to be 'tabular-nums'`, alongside N8's
+   `expected '10px' to be ''`. Each was injected separately and left the other three assertions
+   passing. Chromium: a new **P1b** section carries CN-a to CN-d with the `Received` values watched
+   in the browser — `"13px"` for the box's size, `"10px"` against `"13px"` for the result's,
+   `"oklch(0.554 0.046 257.417)"` against `"oklch(0.129 0.042 264.695)"` for its ink, and `"normal"`
+   for its numerals. `expect(wide.boxFocused).toBe(false)` is documented as a measurement
+   precondition with no production fault; its failure mode was observed in P3 instead
+   (`focused=true boxType=13px` before the blur), and P1b says so rather than inventing a mutation.
+4. **The unchanged-`main` reproduction cannot use the supplied procedure** — FIXED, and re-verified.
+   Verified the review's three grounds: `estimates.tsx:386` takes `font: 'inherit'`,
+   `styles.css:605` sets 13px, `estimates.tsx:520` renders `· {final}`, and the baseline `measure()`
+   (`e2e/layout.spec.ts:1159` to `1167`) has neither `boxType` nor `boxFocused`. P3 now supplies a
+   **baseline-specific patch in full** — the two `measure()` fields plus a staffed block expecting
+   `· 24.3` and `13px`, with none of the revised wide-case style assertions. It was applied to
+   unchanged `main` and run on 2026-09-20: `STAFFED-BASELINE` reported `said "· 24.3"`,
+   `boxType "13px"`, `boxFocused false`, box 31.42px, figure 25.58px, **`clipped: 28`**. So 28px is
+   fresh verification, not a historical note — and P3 still says what to write in `verify.md` if a
+   planner skips the comparison.
+
+**Minor**
+
+5. **Superseded fit claims remain normative prose** — FIXED. Section 3 now calls `24.3` the
+   **selected fractional fixture** and cites `estimate.ts:15`'s `MAX_ESTIMATE_DAYS = 44_739_242` and
+   `plan-number-format.ts:21`'s absence of a width limit as the reason it is not the widest result.
+   Assumption 1 no longer says "room to spare": it states that the committed cases were watched
+   green, that the staffed fixture clips by 16px after and 28px before, and that D1 stops rather
+   than shrinking the trio.
+6. **The production comment claims a permanent test the packet excludes** — FIXED. Verified: the
+   committed test holds only the seeded and unstaffed wide cases. Slice 3b's final sentence now
+   describes exactly that coverage plus the three new pins, and points at `verify.md`'s finding for
+   the staffed case.
+7. **P1 does not produce the light screenshot** — FIXED. Verified: `wbs-table.png` is written by
+   `leaves a picture of the table for the eye that has to judge the widths`
+   (`e2e/layout.spec.ts:1018` to `1025`), which P1's grep does not select. P1 now says to preserve
+   its output for traces and error context and explicitly disclaims the screenshot; P5 names its own
+   two sources (P2's preserved copy, or a rerun of that one named test).
+8. **Slice 4's expected counts revert to earlier slices' baselines** — FIXED. Slice 4 now compares
+   its OpenSpec count against **its own V** and its three test counts against **its own N, M and U**,
+   with the note that it adds nothing so none may move within the attempt, and that another attempt's
+   figures are not its reference (batch README, "Counts are relative, never absolute"; each attempt
+   takes its own base commit).
+
+**Also added**, at the coordinator's request: **section 13, "Finding for a separate work item"** —
+the staffed, fractional cell clipping on unchanged `main`, with both measured rows, what it means,
+why no `QUIET_TRIO_PX` closes it, and a five-step reproduction, written so it can be scheduled
+independently of U1.
