@@ -382,7 +382,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       });
     } catch (error) {
       if (reauthMarker !== undefined && reauthMarker.expiresAt > this.now()) {
-        this.reauthMarkers.set(reauthMarker.markerId, reauthMarker.expiresAt);
+        this.storeReauthMarker(reauthMarker.markerId, reauthMarker.expiresAt);
       }
       throw error;
     }
@@ -487,13 +487,18 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 
   private issueReauthCookie(): string {
     this.cleanup();
-    if (this.reauthMarkers.size >= MAX_REAUTH_MARKERS) {
-      const oldest = this.reauthMarkers.keys().next().value;
-      if (oldest !== undefined) this.reauthMarkers.delete(oldest);
-    }
     const markerId = this.random();
-    this.reauthMarkers.set(markerId, this.now() + TTL_MS);
+    this.storeReauthMarker(markerId, this.now() + TTL_MS);
     return reauthCookie(markerId, this.reauthKey);
+  }
+
+  private storeReauthMarker(markerId: string, expiresAt: number): void {
+    while (this.reauthMarkers.size >= MAX_REAUTH_MARKERS) {
+      const oldest = this.reauthMarkers.keys().next().value;
+      if (oldest === undefined) break;
+      this.reauthMarkers.delete(oldest);
+    }
+    this.reauthMarkers.set(markerId, expiresAt);
   }
 
   private takeReauthMarker(
