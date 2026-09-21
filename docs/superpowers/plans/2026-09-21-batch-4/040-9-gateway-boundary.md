@@ -372,7 +372,7 @@ cd ../../..
 NX_DAEMON=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-gw-01:lint --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-gw-01:build --skip-nx-cache
-bunx openspec validate adopt-failure-reporting --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate adopt-failure-reporting --strict --json
 ```
 
 - [ ] **Step 4: Run the whole gateway target once after focused green.**

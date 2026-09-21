@@ -490,7 +490,7 @@ GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all
       failures:
 
 ```sh
-bunx openspec validate adopt-failure-reporting --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate adopt-failure-reporting --strict --json
 ```
 
       If the installed CLI rejects that focused syntax, stop in preflight, record `--help`, and
