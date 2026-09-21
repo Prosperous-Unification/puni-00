@@ -10,7 +10,7 @@ The [code organization design](../../../docs/superpowers/specs/2026-09-19-code-o
 
 ## Decisions
 
-Fast lint checks imports visible inside one file. Twilight Bureaucrat's authoritative file-level import graph sees through barrels and aliases.
+Fast lint checks imports visible inside one file. Twilight Burokrat's authoritative file-level import graph sees through barrels and aliases.
 
 Each taxonomy rule's mode lives in the consumer's trusted policy: observe reports debt, ratchet refuses new, touched and adopted-set regressions while retaining other debt, and enforce refuses every violation in declared coverage. Inventory integrity remains enforced in every mode.
 

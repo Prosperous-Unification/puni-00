@@ -45,18 +45,18 @@ async function refusalMessage(action: Promise<void>): Promise<string> {
 
 describe('buildPackage', () => {
   test('refuses a build that does not produce exactly one executable', async () => {
-    const externalRoot = await mkdtemp(join(tmpdir(), 'twilight-bureaucrat-empty-build-'));
+    const externalRoot = await mkdtemp(join(tmpdir(), 'twilight-burokrat-empty-build-'));
     scratchRoots.push(externalRoot);
 
     expect(
       await refusalMessage(
         buildPackage(externalRoot, () => Promise.resolve({ logs: [], outputs: [], success: true })),
       ),
-    ).toContain('Cannot build Twilight Bureaucrat');
+    ).toContain('Cannot build Twilight Burokrat');
   });
 
   test('builds the canonical executable for use outside the repository', async () => {
-    const externalRoot = await mkdtemp(join(tmpdir(), 'twilight-bureaucrat-bin-'));
+    const externalRoot = await mkdtemp(join(tmpdir(), 'twilight-burokrat-bin-'));
     scratchRoots.push(externalRoot);
     const packageRoot = join(externalRoot, 'package');
     await buildPackage(packageRoot);
@@ -106,13 +106,13 @@ describe('buildPackage', () => {
     const ruleHelp = invoke(executable, ['--help'], externalRoot);
     expect(ruleHelp.exitCode, ruleHelp.stderr.toString()).toBe(0);
     expect(ruleHelp.stdout.toString()).toContain(
-      'twilight-bureaucrat check <committed|staged|working>',
+      'twilight-burokrat check <committed|staged|working>',
     );
-    expect(ruleHelp.stdout.toString()).toContain('twilight-bureaucrat explain <rule-id>');
+    expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
 
     const templateHelp = invoke(executable, ['--help'], externalRoot);
     expect(templateHelp.exitCode, templateHelp.stderr.toString()).toBe(0);
-    expect(templateHelp.stdout.toString()).toContain('twilight-bureaucrat template <list|show');
+    expect(templateHelp.stdout.toString()).toContain('twilight-burokrat template <list|show');
 
     const listed = invoke(executable, ['template', 'list'], externalRoot);
     expect(listed.exitCode, listed.stderr.toString()).toBe(0);

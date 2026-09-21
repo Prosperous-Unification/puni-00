@@ -248,7 +248,7 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
 
     // The merged candidate is checked out, then the absent test package ends the block.
     const admitted = execute(admit, { ...env, CANDIDATE_SHA: merged });
-    expect(admitted.stderr).toContain('twilight-bureaucrat/admit.sh');
+    expect(admitted.stderr).toContain('twilight-burokrat/admit.sh');
     const checkedOut = Bun.spawnSync([
       'git',
       '-C',
@@ -271,7 +271,7 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     });
     expect(refused.code).toBe(78);
     expect(refused.stderr).toContain('requires the installed-package route');
-    expect(existsSync(join(runnerTemp, 'twilight-bureaucrat/admission.json'))).toBe(false);
+    expect(existsSync(join(runnerTemp, 'twilight-burokrat/admission.json'))).toBe(false);
   });
 });
 

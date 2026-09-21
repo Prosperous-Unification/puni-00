@@ -166,7 +166,7 @@ policy without restating them.
 `listServiceCandidates` is **asynchronous**, as the rollout plan declares it, and genuinely so:
 `Bun.spawn` plus `child.exited`, not `spawnSync` behind an `async` keyword. `readKinds` must be
 asynchronous anyway, the two are always awaited together, and a synchronous signature would have to
-be broken when the check moves into Twilight Bureaucrat.
+be broken when the check moves into Twilight Burokrat.
 
 ```ts
 export const KINDS_POLICY_PATH = 'docs/code-organization/kinds.json';

@@ -1,7 +1,7 @@
 # Twilight Structure
 
 **Naming changed on 2026-09-19.** Twilight Structure now names the tool suite: Twilight
-Navigator plans, Twilight Dash executes and Twilight Bureaucrat holds the rules. The
+Navigator plans, Twilight Dash executes and Twilight Burokrat holds the rules. The
 customer-facing product has the code name Vesper Shipyards. Read
 [names and boundaries](names.md) first. The documents indexed below use these names in
 that meaning. Historical evidence, research notes and verification records keep their

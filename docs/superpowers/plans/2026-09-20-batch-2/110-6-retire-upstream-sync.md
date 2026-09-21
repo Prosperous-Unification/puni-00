@@ -70,7 +70,7 @@ Searched the tracked tree for `wbs-tool-v1`, `upstream`, `sync/`,
   `plaintext-secrets`, `migration-lint`, `doc-caps` and `tool-wiki`, plus
   `prepare-commit-msg` and `commit-msg` stages. None mentions upstream or sync.
 - `.github/workflows/` holds `ci.yml`, `deploy-k3s.yml`, `infra-check.yml`,
-  `trusted-wiki.yml` and `twilight-bureaucrat-release.yml`. No sync job and no
+  `trusted-wiki.yml` and `twilight-burokrat-release.yml`. No sync job and no
   `sync/**` branch filter; `ci.yml` and `infra-check.yml` filter `branches: [main]`.
 - `.nxignore` names `CLAUDE.md`, `GEMINI.md` and `.worktrees`. Nothing sync.
 - `bin/dev-poll-sync.sh`, `bin/dev-poll.sh`, `tools/tool-devsync/src/sync.ts` and
@@ -623,13 +623,13 @@ test(devsync): derive the document sweep's own excluded path
 **Planner-only, with the expected relative delta.** The executor lists each as
 pending planner verification and runs none of them:
 
-| Check                                                                                                                     | Why planner-only                                                                         | Expected delta                                                                              |
-| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run tool-devsync:test`                                                                           | Section 3.9: the index-checker test writes Git objects into the clone.                   | Slice A: unchanged count, green. Slice B: **+1** test. Slice C: unchanged.                  |
-| The same file run unfiltered                                                                                              | Same reason. The executor never runs it.                                                 | One more test than the filtered run.                                                        |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:test` and `NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package` | Whole targets; the first includes the root-migration suite, which reads the real router. | No change: section 3.3 shows the pins sit under headings the current router does not carry. |
-| `bin/h2puni-gate.sh <sha>`                                                                                                | Shared build host.                                                                       | Not run in an attempt; report it as not run.                                                |
-| The whole-tree `tool-wiki` pre-commit hook                                                                                | Runs at commit time under lefthook.                                                      | Planner sees it on commit.                                                                  |
+| Check                                                                                                                 | Why planner-only                                                                         | Expected delta                                                                              |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run tool-devsync:test`                                                                       | Section 3.9: the index-checker test writes Git objects into the clone.                   | Slice A: unchanged count, green. Slice B: **+1** test. Slice C: unchanged.                  |
+| The same file run unfiltered                                                                                          | Same reason. The executor never runs it.                                                 | One more test than the filtered run.                                                        |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `NX_DAEMON=false bunx nx run twilight-burokrat:test:package` | Whole targets; the first includes the root-migration suite, which reads the real router. | No change: section 3.3 shows the pins sit under headings the current router does not carry. |
+| `bin/h2puni-gate.sh <sha>`                                                                                            | Shared build host.                                                                       | Not run in an attempt; report it as not run.                                                |
+| The whole-tree `tool-wiki` pre-commit hook                                                                            | Runs at commit time under lefthook.                                                      | Planner sees it on commit.                                                                  |
 
 **What none of it proves.** That the `upstream` remote and the sync branches are
 gone: no check in the repository can see Git remotes, and section 9 is a human
@@ -828,7 +828,7 @@ failing output for each negative proof.
 | I4 Fault commands do not preserve status or guarantee restoration  | Fixed       | "The proof shape" captures status in an `if`, restores and `cmp`s **before** any status is read, and section 12 repeats that stop conditions are evaluated after restoration.                  |
 | I5 Branch cleanup meets an existing worktree attachment            | Fixed       | Confirmed the sync branch is checked out under a temporary path. Section 9 adds the preflight, forbids forced deletion, and drops the redundant prune step.                                    |
 | M1 Inventory facts contain incorrect counts and anchors            | Fixed       | Re-measured: 22 scripts, six pre-commit commands, 92 migration tuples, 24 `Proof:` entries, `snapshotWorkingTree` at line 349. The inaccurate blanket explanation went with Slice D.           |
-| M2 Several verification entries are not runnable commands          | Fixed       | Full `NX_DAEMON=false bunx nx run twilight-bureaucrat:test` and `:test:package` forms; `NX_DAEMON=false` added to the format check; every path written out in full.                            |
+| M2 Several verification entries are not runnable commands          | Fixed       | Full `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `:test:package` forms; `NX_DAEMON=false` added to the format check; every path written out in full.                              |
 
 ### Second review, 2026-09-20 (Codex gpt-6-astra, high effort): NOT READY
 

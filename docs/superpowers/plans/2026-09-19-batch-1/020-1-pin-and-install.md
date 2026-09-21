@@ -21,15 +21,15 @@
 
 ## 2. Read first
 
-| File                                                             | Why                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AGENTS.md`                                                      | Rules R1 to R5. Bun only; never npm.                                                                                                                                                                                                                                                                                     |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`            | The "Execution contract" in full, the standard blocks, and the file-ownership table that keeps this packet out of 020.8's lane.                                                                                                                                                                                          |
-| `docs/superpowers/plans/2026-09-19-batch-1/ASSUMPTIONS.md`       | The two assumptions recorded under "Libraries" for this packet: the proposed report budget, and the two slice-7 strings corrected here.                                                                                                                                                                                  |
-| `docs/superpowers/plans/2026-09-17-personal-package-adoption.md` | The amendment at the top is authoritative; the sections named in section 5 are what you rewrite.                                                                                                                                                                                                                         |
-| `package.json`                                                   | The root manifest. It declares no `workspaces`, so it owns every dependency this task installs. Separate manifests exist and are not touched: `apps/wiki/cli/package.json` packages `twilight-bureaucrat`, and `apps/wiki/cli/fixtures/consumer/package.json` and `infra/ci/bureaucrat/package.json` serve that package. |
-| `nx.json`                                                        | `namedInputs.sharedGlobals` and the `test` target default. This is why the new tests' reads are already cache inputs, and why nothing in `tools/tool-devsync/project.json` needs changing.                                                                                                                               |
-| `tools/tool-devsync/src/toolchain-pins.test.ts`                  | The pin tests you extend. Read the header comment about Nx inputs.                                                                                                                                                                                                                                                       |
+| File                                                             | Why                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                      | Rules R1 to R5. Bun only; never npm.                                                                                                                                                                                                                                                                                 |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`            | The "Execution contract" in full, the standard blocks, and the file-ownership table that keeps this packet out of 020.8's lane.                                                                                                                                                                                      |
+| `docs/superpowers/plans/2026-09-19-batch-1/ASSUMPTIONS.md`       | The two assumptions recorded under "Libraries" for this packet: the proposed report budget, and the two slice-7 strings corrected here.                                                                                                                                                                              |
+| `docs/superpowers/plans/2026-09-17-personal-package-adoption.md` | The amendment at the top is authoritative; the sections named in section 5 are what you rewrite.                                                                                                                                                                                                                     |
+| `package.json`                                                   | The root manifest. It declares no `workspaces`, so it owns every dependency this task installs. Separate manifests exist and are not touched: `apps/wiki/cli/package.json` packages `twilight-burokrat`, and `apps/wiki/cli/fixtures/consumer/package.json` and `infra/ci/burokrat/package.json` serve that package. |
+| `nx.json`                                                        | `namedInputs.sharedGlobals` and the `test` target default. This is why the new tests' reads are already cache inputs, and why nothing in `tools/tool-devsync/project.json` needs changing.                                                                                                                           |
+| `tools/tool-devsync/src/toolchain-pins.test.ts`                  | The pin tests you extend. Read the header comment about Nx inputs.                                                                                                                                                                                                                                                   |
 
 ## 3. Verified facts, 2026-09-19
 
@@ -46,9 +46,9 @@ Repository state:
 - `nx.json` defines `sharedGlobals` as an explicit list that includes `{workspaceRoot}/package.json` and `{workspaceRoot}/bun.lock`; `namedInputs.default` is `["{projectRoot}/**/*", "sharedGlobals"]`; the `test` target default takes `["default", "^production"]`; and `tool-devsync`'s own `test` inputs begin with `"default"` and also list `{workspaceRoot}/**/*`. Both files the new tests read are therefore already declared inputs, twice over. Nothing in `tools/tool-devsync/project.json` needs adding, and this packet does not own that file.
 - `tools/tool-devsync/src` holds **20** `*.test.ts` files, all of which `tool-devsync:test` runs. `tools/tool-devsync/src/toolchain-pins.test.ts` alone held **17 passing tests, 0 failures, 70 `expect()` calls** when run on its own on 2026-09-19. Seventeen is this file's number, never the target's.
 - `toolchain-pins.test.ts` defines `WORKSPACE` and an async `read(path)` helper and uses `describe`, `it` and `expect` from `bun:test`. `tools/tool-devsync/tsconfig.spec.json` includes `src/**/*.test.ts`, so `tool-devsync:typecheck` compiles the file this task changes.
-- `readProjects('<workspace>')` returns **35** projects. `tool-fleet` (`tools/tool-fleet`) is one of them and is absent from the adoption plan's coverage table. The Bureaucrat project's current Nx name is `twilight-bureaucrat` (`apps/wiki/cli`); the coverage table still calls it `wiki-cli`, and so does slice 7's lint instruction.
+- `readProjects('<workspace>')` returns **35** projects. `tool-fleet` (`tools/tool-fleet`) is one of them and is absent from the adoption plan's coverage table. The Burokrat project's current Nx name is `twilight-burokrat` (`apps/wiki/cli`); the coverage table still calls it `wiki-cli`, and so does slice 7's lint instruction.
 - The classic compiler alias is `"typescript": "npm:@typescript/typescript6@6.0.2"`. `require('typescript/package.json').version` is `6.0.2` and `require('typescript').version` is `6.0.3`. The compiler API consumers see is 6.0.3, which is di-bag's documented floor, so no alias bump is needed. The existing `the two TypeScripts` tests assert only the major, so they are unaffected.
-- `apps/wiki/cli/src/packaging/build.ts` reads the root `package.json` and the installed `typescript` package directory, and its only Git call is `git rev-parse HEAD`, which is read-only. `twilight-bureaucrat:build` is therefore both runnable here and the check that a root-manifest change did not break packaging; a frontend build is not.
+- `apps/wiki/cli/src/packaging/build.ts` reads the root `package.json` and the installed `typescript` package directory, and its only Git call is `git rev-parse HEAD`, which is read-only. `twilight-burokrat:build` is therefore both runnable here and the check that a root-manifest change did not break packaging; a frontend build is not.
 
 ### Why the warm-cache proof cannot be an executor step
 
@@ -420,11 +420,11 @@ Write nothing about the Nx cache in this comment. That observation belongs to th
 ```sh
 NX_DAEMON=false bunx nx run-many -t typecheck --projects=wbs-core,wbs-be-01,wbs-fe-01
 NX_DAEMON=false bunx nx run wbs-fe-01:build
-NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck
-NX_DAEMON=false bunx nx run twilight-bureaucrat:build
+NX_DAEMON=false bunx nx run twilight-burokrat:typecheck
+NX_DAEMON=false bunx nx run twilight-burokrat:build
 ```
 
-Expected: all four exit 0. `twilight-bureaucrat:build` runs `apps/wiki/cli/src/packaging/build.ts`, which reads the root `package.json` and the installed `typescript` package directory; its only Git call is a read-only `git rev-parse HEAD`. It is the check that the manifest change did not break packaging.
+Expected: all four exit 0. `twilight-burokrat:build` runs `apps/wiki/cli/src/packaging/build.ts`, which reads the root `package.json` and the installed `typescript` package directory; its only Git call is a read-only `git rev-parse HEAD`. It is the check that the manifest change did not break packaging.
 
 ```sh
 bunx prettier --write tools/tool-devsync/src/toolchain-pins.test.ts \
@@ -524,7 +524,7 @@ Reporting requirements:
 The logging migration retains the Pino envelope (`level`, `time`, `msg`, service and correlation fields) and changes `err` to the sanitized diagnostic report. Update `log-schema.ts` in the same slice, adding `fingerprint` beside `occurrence_id`: both reports carry one now, and a schema that omits it drops a retry signal. Do not manufacture legacy `name/message/stack` fields from possibly omitted compact values.
 ````
 
-**9e.** In `## Coverage of every current project`, replace the `wiki-cli` row's first two cells with `twilight-bureaucrat` and `apps/wiki/cli`, keeping its third cell, and insert this row in the tools block between `tool-devsync` and `tool-git-hooks`:
+**9e.** In `## Coverage of every current project`, replace the `wiki-cli` row's first two cells with `twilight-burokrat` and `apps/wiki/cli`, keeping its third cell, and insert this row in the tools block between `tool-devsync` and `tool-git-hooks`:
 
 ```markdown
 | `tool-fleet` | `tools/tool-fleet` | R/E/D at fleet command and host-connection boundaries; a host it cannot reach is a failing command, never a skipped one. |
@@ -542,7 +542,7 @@ The logging migration retains the Pino envelope (`level`, `time`, `msg`, service
 ```sh
 bun add --exact di-bag@0.4.0 application-exception@0.5.0 caught-object-report-json@11.0.1
 NX_DAEMON=false bunx nx run tool-devsync:typecheck
-NX_DAEMON=false bunx nx run twilight-bureaucrat:build
+NX_DAEMON=false bunx nx run twilight-burokrat:build
 ```
 
 - [ ] Hold the pins in `toolchain-pins.test.ts`, asserting the exact manifest versions and that `bun.lock` carries exactly one `caught-object-report-json` key at 11.0.1. Prove both by mutation: a caret on one pin, a lockfile-only edit of that version, and installing `application-exception` 0.4.0, whose `caught-object-report-json ^10` cannot share the pinned copy.
@@ -600,7 +600,7 @@ test('a cause that cannot be inspected is reported as reporting loss, not as a t
 **Deliverable:** one reporting policy reusable by WBS, wiki, and infrastructure without cross-product imports, under an OpenSpec change opened before its first file.
 ````
 
-**9g.** In slice 7, replace ``Use `wiki-cli:lint:source` for source lint`` with ``Use `twilight-bureaucrat:lint:source` for source lint``, and replace ``all 34 baseline projects plus `shared-failures` `` with ``all 35 baseline projects plus `shared-failures` ``.
+**9g.** In slice 7, replace ``Use `wiki-cli:lint:source` for source lint`` with ``Use `twilight-burokrat:lint:source` for source lint``, and replace ``all 34 baseline projects plus `shared-failures` `` with ``all 35 baseline projects plus `shared-failures` ``.
 
 **9h.** In the opening `**Spec:**` paragraph, replace the final sentence `Create the OpenSpec implementation packets in slice 1 before changing behavior.` with:
 
@@ -702,8 +702,8 @@ Step 11 still runs the strict validation block, because this task commits to a r
 | Probe B of step 6                                                                       | Exit 0, two identical paths, `one copy`.                                      |
 | `NX_DAEMON=false bunx nx run-many -t typecheck --projects=wbs-core,wbs-be-01,wbs-fe-01` | Exit 0.                                                                       |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                           | Exit 0.                                                                       |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                             | Exit 0.                                                                       |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                                 | Exit 0. The packaging check that reads the root manifest.                     |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                               | Exit 0.                                                                       |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:build`                                   | Exit 0. The packaging check that reads the root manifest.                     |
 | `NX_DAEMON=false bunx nx format:check --all`                                            | Exit 0.                                                                       |
 | The OpenSpec block of step 11                                                           | One JSON report, block exits 0, item count unchanged from step 0.             |
 

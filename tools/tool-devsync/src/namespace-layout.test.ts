@@ -82,19 +82,19 @@ describe('namespace layout validation', () => {
     const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
     expect(
       findNamespaceLayoutViolations([
-        project('apps/wiki/cli', 'twilight-bureaucrat', [...tags, 'product:twilight-bureaucrat']),
+        project('apps/wiki/cli', 'twilight-burokrat', [...tags, 'product:twilight-burokrat']),
       ]),
     ).toEqual([]);
     expect(
       findNamespaceLayoutViolations([
         project('apps/wiki/cli', 'wiki-cli', [...tags, 'product:wiki']),
-        project('apps/wiki/other', 'twilight-bureaucrat', [...tags, 'product:twilight-bureaucrat']),
+        project('apps/wiki/other', 'twilight-burokrat', [...tags, 'product:twilight-burokrat']),
       ]),
     ).toEqual([
-      'apps/wiki/cli: directory product twilight-bureaucrat disagrees with product:wiki',
-      'apps/wiki/cli: project name must be twilight-bureaucrat, found wiki-cli',
-      'apps/wiki/other: directory product wiki disagrees with product:twilight-bureaucrat',
-      'apps/wiki/other: project name must be wiki-other, found twilight-bureaucrat',
+      'apps/wiki/cli: directory product twilight-burokrat disagrees with product:wiki',
+      'apps/wiki/cli: project name must be twilight-burokrat, found wiki-cli',
+      'apps/wiki/other: directory product wiki disagrees with product:twilight-burokrat',
+      'apps/wiki/other: project name must be wiki-other, found twilight-burokrat',
     ]);
   });
 

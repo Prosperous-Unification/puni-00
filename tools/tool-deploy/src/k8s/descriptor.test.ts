@@ -37,7 +37,7 @@ function admission(overrides: Record<string, unknown> = {}): Record<string, unkn
     schemaVersion: 1,
     sourceSha,
     package: {
-      name: 'twilight-bureaucrat',
+      name: 'twilight-burokrat',
       version: '0.1.0',
       integrity: `sha512-${'c'.repeat(86)}==`,
       toolkitIdentity: 'd'.repeat(64),

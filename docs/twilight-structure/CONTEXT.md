@@ -17,7 +17,7 @@ _Avoid_: Twilight, the factory, as a product name
 
 **Twilight Structure**:
 The suite of tools the product runs on: Twilight Navigator, Twilight Dash and Twilight
-Bureaucrat. Short form twist. Until 2026-09-19 this term named the factory service itself.
+Burokrat. Short form twist. Until 2026-09-19 this term named the factory service itself.
 _Avoid_: Using it for the product or for the execution runtime
 
 **Twilight Navigator**:
@@ -30,7 +30,7 @@ The execution tool of the suite: it runs, builds, tests, deploys, generates code
 environments. Short form twid.
 _Avoid_: Twilight Structure, control plane, as the tool's name
 
-**Twilight Bureaucrat**:
+**Twilight Burokrat**:
 The rules tool of the suite: it judges whether an artifact conforms, from a Git revision and
 recorded evidence alone, and holds templates and structure. Short form twib.
 _Avoid_: Tool Wiki, wiki CLI

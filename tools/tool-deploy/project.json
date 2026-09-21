@@ -61,7 +61,7 @@
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
         "{workspaceRoot}/.github/workflows/infra-check.yml",
-        "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts",
+        "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
         "{workspaceRoot}/infra/ci/deploy-runner/**/*"
       ],
       "options": {
@@ -117,7 +117,7 @@
     "default": [
       "{projectRoot}/**/*",
       "{workspaceRoot}/deploy/k8s/**/*",
-      "{workspaceRoot}/tools/tool-devsync/src/bureaucrat-consumer.ts",
+      "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
       "sharedGlobals"
     ],
     "production": [

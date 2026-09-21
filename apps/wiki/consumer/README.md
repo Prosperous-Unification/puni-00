@@ -1,9 +1,9 @@
 # Running the Tool Wiki in your repository
 
-The reusable toolkit is distributed as the `twilight-bureaucrat` package. Its installed
-`twilight-bureaucrat prepare-activation` command resolves the packaged toolkit from its own module
+The reusable toolkit is distributed as the `twilight-burokrat` package. Its installed
+`twilight-burokrat prepare-activation` command resolves the packaged toolkit from its own module
 directory; it does not load this source checkout. The trusted workflow template always consumes a
-separately prepared immutable activation; its base-owned `infra/ci/bureaucrat/consumer.json`
+separately prepared immutable activation; its base-owned `infra/ci/burokrat/consumer.json`
 selects whether the archive's launcher or the pinned, installed package launcher runs it.
 
 The Tool Wiki is released as a **toolkit**: the parts that are the same for every repository and
@@ -18,10 +18,10 @@ and it is green for that commit and no other. See
 ## 1. Copy the workflow
 
 Copy `trusted-wiki.yml` to `.github/workflows/trusted-wiki.yml` in your repository, unchanged, and
-copy this repository's `infra/ci/bureaucrat/` (`bootstrap.sh`, `admit.sh`, `consumer.json`,
+copy this repository's `infra/ci/burokrat/` (`bootstrap.sh`, `admit.sh`, `consumer.json`,
 `package.json`) to the same path. The workflow reads that directory only from the pull request's
 base commit. Keep `"admission": "archive-launcher"` until you have a `bun.lock` pinning a published
-`twilight-bureaucrat` and an activation prepared from that package; the switch is described in
+`twilight-burokrat` and an activation prepared from that package; the switch is described in
 `docs/runbook-tool-wiki-activation.md`, "Package-backed admission". Everything else comes from the
 three variables below and from the archive itself. Make `trusted-wiki` a required check in your ruleset — it runs on
 `pull_request_target`, so it is base-owned and a pull request cannot edit the workflow that judges

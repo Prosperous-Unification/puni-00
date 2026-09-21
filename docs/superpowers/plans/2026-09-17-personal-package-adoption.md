@@ -221,7 +221,7 @@ Resource rules:
 | `wbs-gw-01`                      | `apps/wbs/gw-01`                               | R/E/D: startup, backend failures, socket/presence ownership; preserve WS codes.                                                            |
 | `wbs-mcp-01`                     | `apps/wbs/mcp-01`                              | R/E/D: tool-call boundary and startup; preserve tool envelopes and caller identity.                                                        |
 | `wbs-fe-01`                      | `apps/wbs/fe-01`                               | R/E: safe fault reporting and existing refusal states. D not applicable now; keep props, factories, hooks, and typed React/router context. |
-| `twilight-bureaucrat`            | `apps/wiki/cli`                                | R/E/D at CLI dispatch/resource ownership; preserve stdout formats, trusted closure, and release/activation refusals.                       |
+| `twilight-burokrat`              | `apps/wiki/cli`                                | R/E/D at CLI dispatch/resource ownership; preserve stdout formats, trusted closure, and release/activation refusals.                       |
 | `wbs-core`                       | `libs/wbs/application/core`                    | E/D at typed operational failures and `compose.ts`; R via injected logger/caller, no global sink.                                          |
 | `wbs-conformance`                | `libs/wbs/application/conformance`             | Exercise D replacements/ownership and E propagation in conformance; no production reporter.                                                |
 | `wbs-observability`              | `libs/wbs/adapters/observability`              | R: replace serializer and log schema together; logger construction supplied by application D roots.                                        |
@@ -268,7 +268,7 @@ Complete each slice with a focused failing test, minimal implementation, passing
 ```sh
 bun add --exact di-bag@0.4.0 application-exception@0.5.0 caught-object-report-json@11.0.1
 NX_DAEMON=false bunx nx run tool-devsync:typecheck
-NX_DAEMON=false bunx nx run twilight-bureaucrat:build
+NX_DAEMON=false bunx nx run twilight-burokrat:build
 ```
 
 - [ ] Hold the pins in `toolchain-pins.test.ts`, asserting the exact manifest versions and that `bun.lock` carries exactly one `caught-object-report-json` key at 11.0.1. Prove both by mutation: a caret on one pin, a lockfile-only edit of that version, and installing `application-exception` 0.4.0, whose `caught-object-report-json ^10` cannot share the pinned copy.
@@ -403,7 +403,7 @@ test('a cause that cannot be inspected is reported as reporting loss, not as a t
 - [ ] Migrate wiki and harness operational exception kinds with their classifiers. Wiki report/attestation JSON and trust checks stay unchanged. Harness diagnostics must not become raw model input, authorize retries, or count as a successful agent run.
 - [ ] Prove the wiki's rebuilt standalone bundle runs without the workspace dependency tree using its release tests. Update trusted module closure only where the actual bundler leaves runtime imports; do not assume adding a root dependency makes it available to an activation bundle. Do not release/activate as part of this implementation test.
 - [ ] Keep Python solver wire schemas unchanged; its Bun host wraps local process/parse failures, records diagnostics, and preserves solver refusal/cancellation dispositions. Run `wbs-solver-py:test` and the supervisor tests for this boundary.
-- [ ] Populate every inventory disposition with implementation paths and tests, including retained native/control-flow error types. No entry may say merely “audited” or “later”. Run the touched projects' existing `test`, `typecheck`, and `lint` targets, and `build` only where declared. Use `twilight-bureaucrat:lint:source` for source lint; preserve the separate trusted wiki lint gate.
+- [ ] Populate every inventory disposition with implementation paths and tests, including retained native/control-flow error types. No entry may say merely “audited” or “later”. Run the touched projects' existing `test`, `typecheck`, and `lint` targets, and `build` only where declared. Use `twilight-burokrat:lint:source` for source lint; preserve the separate trusted wiki lint gate.
 
 **Deliverable:** all 35 baseline projects plus `shared-failures` have complete dispositions backed by code and behavioral tests; packaged tools remain standalone and fail correctly.
 

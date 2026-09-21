@@ -179,7 +179,7 @@ square-bracket scenario identifiers on existing test titles. This packet only **
 edits none, so a prefix campaign and this packet cannot collide; if a title in either changed file
 already carries a bracketed prefix when the slice opens, keep it verbatim.
 
-Nothing here is under `apps/wiki/cli`, so the Twilight Bureaucrat validator identity does not move.
+Nothing here is under `apps/wiki/cli`, so the Twilight Burokrat validator identity does not move.
 
 ## 6. Slices
 

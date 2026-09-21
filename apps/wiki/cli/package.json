@@ -1,10 +1,10 @@
 {
-  "name": "twilight-bureaucrat",
+  "name": "twilight-burokrat",
   "version": "0.1.0",
   "description": "Module knowledge and trusted repository admission toolkit",
   "type": "module",
   "bin": {
-    "twilight-bureaucrat": "dist/bin.mjs",
+    "twilight-burokrat": "dist/bin.mjs",
     "twib": "dist/bin.mjs"
   },
   "files": [

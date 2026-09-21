@@ -3,8 +3,8 @@ import { basename, join, resolve } from 'node:path';
 
 import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 
-const PackageName = 'twilight-bureaucrat';
-const ReleaseTag = /^twilight-bureaucrat-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+const PackageName = 'twilight-burokrat';
+const ReleaseTag = /^twilight-burokrat-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 const CommitIdentity = /^[0-9a-f]{40}$/;
 const Digest = /^[0-9a-f]{64}$/;
 const requiredMembers = [
@@ -151,7 +151,7 @@ export async function preparePackageRelease(
 ): Promise<PackageReleaseRecord> {
   const repository = realpathSync(resolve(request.repository));
   const match = ReleaseTag.exec(request.tag);
-  // Proof: both `twilight-bureaucrat-v1` and the legacy `wiki-v0.1.0` reached tag resolution when
+  // Proof: both `twilight-burokrat-v1` and the legacy `wiki-v0.1.0` reached tag resolution when
   // this syntax boundary was disabled; the watched malformed-tag cases then failed.
   if (match === null) throw new Error(`release tag is malformed: ${request.tag}`);
   const version = `${match[1]}.${match[2]}.${match[3]}`;
@@ -182,7 +182,7 @@ export async function preparePackageRelease(
     readFileSync(join(repository, 'apps/wiki/cli/package.json'), 'utf8'),
     'source package manifest',
   );
-  // Proof: tagging the same commit as `twilight-bureaucrat-v0.2.0` let a 0.1.0 tarball reach the
+  // Proof: tagging the same commit as `twilight-burokrat-v0.2.0` let a 0.1.0 tarball reach the
   // registry lookup until this join refused the tag and source-manifest versions.
   if (sourceManifest['name'] !== PackageName || sourceManifest['version'] !== version) {
     throw new Error(

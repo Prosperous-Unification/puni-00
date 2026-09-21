@@ -193,7 +193,7 @@ It holds thirteen tests.
   excuse a document no longer needs, so **both entries must go in the same slice that creates the
   project.**
 - The case `the production index checker resolves current Markdown links and anchors` spawns the
-  Twilight Bureaucrat command-line, which runs `git write-tree`. **You cannot run it**; your
+  Twilight Burokrat command-line, which runs `git write-tree`. **You cannot run it**; your
   `.git` is read-only. Run tests by name; never the whole file.
 - `every routed current document resolves its local links and anchors` **passed** on the planning
   worktree on 2026-09-20 with all eight batch 2 packets present. An earlier failure from packet
@@ -1644,7 +1644,7 @@ slice's own step 0; the parenthesised numbers are the planning day's.
 **What none of this proves.** That `@shared/failures` runs in a browser — nothing in batch 2 does
 (section 4). That any WBS boundary reports anything: no caller imports the alias when this packet
 ends, so the project has no dependents, which is expected. That the whole `tool-devsync:test`
-target passes — it spawns the Twilight Bureaucrat index checker, which writes Git objects.
+target passes — it spawns the Twilight Burokrat index checker, which writes Git objects.
 
 ## 9. Not the executor's: the planner's prerequisites and checks
 

@@ -162,7 +162,7 @@ const FAULTS: readonly Fault[] = [
     family: 'shellcheck',
     description: 'admit.sh gains an unquoted expansion of an unset variable',
     inject: (tree) =>
-      edit(tree, 'infra/ci/bureaucrat/admit.sh', (text) => `${text}\necho $puni_unquoted_fault\n`),
+      edit(tree, 'infra/ci/burokrat/admit.sh', (text) => `${text}\necho $puni_unquoted_fault\n`),
   },
   {
     family: 'workflows',

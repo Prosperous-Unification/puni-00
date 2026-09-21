@@ -4,7 +4,7 @@ Size class L. Token estimates: top-model-high-effort planning 6,000,000; mid-lev
 implementation 22,000,000; top-model-high-effort review 9,000,000.
 
 Implements slice **B5** of the
-[Twilight Bureaucrat rules design](../../specs/2026-09-19-twilight-bureaucrat-rules-design.md):
+[Twilight Burokrat rules design](../../specs/2026-09-19-twilight-burokrat-rules-design.md):
 the template registry, `template verify`, and the first four templates. The artifact shapes come
 from the [code organization design](../../specs/2026-09-19-code-organization-design.md) and
 [ADR 0029](../../../adr/0029-services-have-a-kind-and-one-direction.md).
@@ -93,7 +93,7 @@ below that disagrees.
 - **This packet adds no Nx target and no README file.** A new test-running target name would have to
   carry the `CLAUDECODE=0` and `AGENT=0` defaults that
   `tools/tool-devsync/src/workspace-targets.test.ts` requires; every test here runs under the
-  existing `twilight-bureaucrat:test` target. No Markdown file is created either, so the application
+  existing `twilight-burokrat:test` target. No Markdown file is created either, so the application
   README coverage count in `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` — whether
   packet 110.6 has already replaced that pin with a derived value or not — has nothing to move.
   Wanting a new target or a new README is a stop.
@@ -119,7 +119,7 @@ For every proof, in this order:
 
 1. `cp <file> "$task_tmp/"` — the passing bytes.
 2. Edit the file to inject exactly the named fault.
-3. **Compile it**: `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck` must exit 0. Every
+3. **Compile it**: `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck` must exit 0. Every
    fault in section 8 was compiled this way during the rehearsal. **If it does not compile, restore
    the saved bytes first, `cmp` them, and only then stop and report**: an unrestored mutation must
    never be left on the tree, not even for a stop.
@@ -155,7 +155,7 @@ compile — restore, check the function and expression the row names, redo once,
   files join it. Checked on 2026-09-20: no test pins that identity as a literal —
   `pilot-policy.test.ts`, `trusted-policy.test.ts` and `gate-entrypoints.test.ts` all recompute it
   by calling `resolveValidatorArtifactPaths` themselves. The rehearsal ran the whole
-  `twilight-bureaucrat:build` target with the new files in place and it succeeded. An activation
+  `twilight-burokrat:build` target with the new files in place and it succeeded. An activation
   provisioned **outside** the clone must be prepared again; that is the planner's question.
 - **There are two dispatchers.** `apps/wiki/cli/src/cli.ts` routes the validator's commands;
   `apps/wiki/cli/src/bin.ts` keeps the installed binary's own allow-list and help text. A command
@@ -184,7 +184,7 @@ Each slice then records its own starting counts, which its own preparation secti
 
 ## 1. Goal and non-goals
 
-**Goal.** Give Twilight Bureaucrat the templates it owns: a registry of four templates — module,
+**Goal.** Give Twilight Burokrat the templates it owns: a registry of four templates — module,
 feature-service, resource-service and repository — each carrying the skeleton Twilight Dash
 instantiates **and the machine-readable constraints its generated artifact must satisfy**; and
 three command routes, `template list`, `template show <id>` and
@@ -195,31 +195,31 @@ of a Git revision, evaluate exactly the constraints the registry states, and nev
 template finding, and nothing here runs in the gate or fails an existing check. No consumer
 template override or version pinning (design open item 2), no capability, scenario,
 manual-procedure, ADR or change-packet template, no generation: Twilight Dash instantiates,
-Twilight Bureaucrat verifies. No module index metadata in the README skeleton and no import-graph
+Twilight Burokrat verifies. No module index metadata in the README skeleton and no import-graph
 resolution — both are bounded deferrals, stated in section 4 and in the delta spec. No existing
 file under `apps/wbs` is edited, so no service gains a declaration tag here.
 
 ## 2. Read first
 
-| File                                                                  | Why                                                                                                                      |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| AGENTS.md                                                             | R1 to R5. R5 governs every check this packet adds.                                                                       |
-| docs/superpowers/plans/2026-09-19-batch-1/README.md                   | "Rules for every executor", "Standard blocks every packet uses", the execution contract.                                 |
-| docs/superpowers/plans/2026-09-19-batch-1/RESULTS.md                  | "What the executors stopped on".                                                                                         |
-| docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md | "Templates", "Commands" and slice B5. The design this packet implements.                                                 |
-| docs/superpowers/specs/2026-09-19-code-organization-design.md         | "Module layout", the direction rules K1 to K9, "What each kind must have". The source of every requirement.              |
-| docs/adr/0029-services-have-a-kind-and-one-direction.md               | The decision the kind templates encode.                                                                                  |
-| docs/code-organization/README.md                                      | How an unsuffixed backend service declares its kind today, and why a suffixed one needs a declaration of its own.        |
-| apps/wiki/cli/src/cli.ts                                              | The validator dispatcher: the route chain and the usage line in its final `throw`.                                       |
-| apps/wiki/cli/src/bin.ts                                              | The installed binary's dispatcher: the `validatorCommands` set and the `help` literal.                                   |
-| apps/wiki/cli/src/rules/check.ts                                      | The shape this packet copies: a command writer that prints one record and sets `process.exitCode`.                       |
-| apps/wiki/cli/src/rules/rules.test.ts                                 | The test style: `runCli`, `stdoutOf`, `stderrOf`, temporary Git fixtures, the `afterEach` cleanup.                       |
-| apps/wiki/cli/src/inventory/read-candidate.ts                         | `readCandidate`, `resolveCandidateRoot`, `CandidateSnapshot`.                                                            |
-| apps/wiki/cli/src/inventory/read-blob.ts                              | `readCandidateBlob`, the only way this packet reads candidate bytes.                                                     |
-| apps/wiki/cli/src/policy/trust.ts                                     | `resolveValidatorArtifactPaths`, which already uses `Bun.Transpiler.scanImports`: the precedent section 6 follows.       |
-| apps/wbs/fe-01/src/modules/preferences/                               | A real module of the shape the module template describes: README, contract, three kind files, tests.                     |
-| apps/wiki/cli/README.md                                               | This project's module index. Its memberships carry the `src` directory prefix, so new files under it need no index edit. |
-| openspec/changes/twilight-bureaucrat-rule-model/                      | The artifact shapes of a Bureaucrat OpenSpec change: `.openspec.yaml`, proposal, delta spec, tasks, verify.              |
+| File                                                                | Why                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| AGENTS.md                                                           | R1 to R5. R5 governs every check this packet adds.                                                                       |
+| docs/superpowers/plans/2026-09-19-batch-1/README.md                 | "Rules for every executor", "Standard blocks every packet uses", the execution contract.                                 |
+| docs/superpowers/plans/2026-09-19-batch-1/RESULTS.md                | "What the executors stopped on".                                                                                         |
+| docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md | "Templates", "Commands" and slice B5. The design this packet implements.                                                 |
+| docs/superpowers/specs/2026-09-19-code-organization-design.md       | "Module layout", the direction rules K1 to K9, "What each kind must have". The source of every requirement.              |
+| docs/adr/0029-services-have-a-kind-and-one-direction.md             | The decision the kind templates encode.                                                                                  |
+| docs/code-organization/README.md                                    | How an unsuffixed backend service declares its kind today, and why a suffixed one needs a declaration of its own.        |
+| apps/wiki/cli/src/cli.ts                                            | The validator dispatcher: the route chain and the usage line in its final `throw`.                                       |
+| apps/wiki/cli/src/bin.ts                                            | The installed binary's dispatcher: the `validatorCommands` set and the `help` literal.                                   |
+| apps/wiki/cli/src/rules/check.ts                                    | The shape this packet copies: a command writer that prints one record and sets `process.exitCode`.                       |
+| apps/wiki/cli/src/rules/rules.test.ts                               | The test style: `runCli`, `stdoutOf`, `stderrOf`, temporary Git fixtures, the `afterEach` cleanup.                       |
+| apps/wiki/cli/src/inventory/read-candidate.ts                       | `readCandidate`, `resolveCandidateRoot`, `CandidateSnapshot`.                                                            |
+| apps/wiki/cli/src/inventory/read-blob.ts                            | `readCandidateBlob`, the only way this packet reads candidate bytes.                                                     |
+| apps/wiki/cli/src/policy/trust.ts                                   | `resolveValidatorArtifactPaths`, which already uses `Bun.Transpiler.scanImports`: the precedent section 6 follows.       |
+| apps/wbs/fe-01/src/modules/preferences/                             | A real module of the shape the module template describes: README, contract, three kind files, tests.                     |
+| apps/wiki/cli/README.md                                             | This project's module index. Its memberships carry the `src` directory prefix, so new files under it need no index edit. |
+| openspec/changes/twilight-burokrat-rule-model/                      | The artifact shapes of a Burokrat OpenSpec change: `.openspec.yaml`, proposal, delta spec, tasks, verify.                |
 
 ## 3. Verified facts
 
@@ -227,7 +227,7 @@ Checked in the worktree on 2026-09-20. Facts 13 to 33 were **observed by executi
 in a throwaway worktree cut from this branch, with the repository's own Nx targets, Bun test runner,
 TypeScript options, ESLint configuration and Prettier configuration.
 
-1. Nx project `twilight-bureaucrat`, `sourceRoot` `apps/wiki/cli/src`. Its `test` target runs
+1. Nx project `twilight-burokrat`, `sourceRoot` `apps/wiki/cli/src`. Its `test` target runs
    `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../tools/test/scratch/preload.ts`
    with `cwd` `apps/wiki/cli`. `src/packaging/build.test.ts` is **not** excluded, so the executor
    can run it; the rehearsal ran it in 19 seconds, 2 tests.
@@ -238,8 +238,8 @@ TypeScript options, ESLint configuration and Prettier configuration.
    the validator runs.
 4. **No test pins cli.ts's usage string or bin.ts's help text as a whole.** `build.test.ts` asserts
    `toContain('unknown command')` and `toContain` of two help lines; `install.test.ts` asserts
-   `toContain('twilight-bureaucrat validate-record')`; `trusted-policy.test.ts` asserts
-   `toContain('usage: twilight-bureaucrat')`. The rehearsal added one word and one help line and
+   `toContain('twilight-burokrat validate-record')`; `trusted-policy.test.ts` asserts
+   `toContain('usage: twilight-burokrat')`. The rehearsal added one word and one help line and
    `build.test.ts` passed.
 5. `readCandidate(root, request)` returns `{ selection, entries, untracked }` with entries
    `{ path, mode, blob }`. `resolveCandidateRoot` resolves a caller's interior directory to the Git
@@ -271,8 +271,8 @@ TypeScript options, ESLint configuration and Prettier configuration.
 13. **Observed, slice 1.** With the test file present and no source, the four registry tests failed
     0 to 4. With the dispatcher route removed, `bun run src/cli.ts template list` printed
     `unknown command: template`. With section 6's slice 1 files and the two dispatcher edits in
-    place, the same four tests passed, `twilight-bureaucrat:typecheck` and
-    `twilight-bureaucrat:lint:source` both succeeded, and Prettier reported all files already
+    place, the same four tests passed, `twilight-burokrat:typecheck` and
+    `twilight-burokrat:lint:source` both succeeded, and Prettier reported all files already
     formatted.
 14. **Observed, slice 2.** With slice 2's tests appended and slice 1's `verify.ts` still in place,
     the file ran **5 pass, 17 fail**. The fifth pass is
@@ -287,11 +287,11 @@ TypeScript options, ESLint configuration and Prettier configuration.
     `lists every registered template in identifier order` and
     `refuses an unregistered template identifier and names every registered template`, which change
     because registering the module template changes both the listing and the refusal's registered
-    list. With section 6.7's additions the file ran **33 pass, 0 fail**. `twilight-bureaucrat:typecheck`
+    list. With section 6.7's additions the file ran **33 pass, 0 fail**. `twilight-burokrat:typecheck`
     and `bunx eslint` on the three touched files both succeeded, and
     `src/packaging/build.test.ts` passed 2 of 2.
-17. **Observed.** After slice 4, `twilight-bureaucrat:typecheck`, `twilight-bureaucrat:lint:source`,
-    `twilight-bureaucrat:build` and `nx format:check --all` all succeeded, `src/packaging/build.test.ts`
+17. **Observed.** After slice 4, `twilight-burokrat:typecheck`, `twilight-burokrat:lint:source`,
+    `twilight-burokrat:build` and `nx format:check --all` all succeeded, `src/packaging/build.test.ts`
     passed 2 of 2 with slice 1's assertions, and `src/rules/rules.test.ts` was unchanged at 19.
 18. **Observed.** `template show nope` printed
     `unknown template: nope (registered: …)` to stderr, exit 1; `template summon` printed the usage
@@ -350,7 +350,7 @@ is not one`; an absolute subject printed `subject must be a candidate-relative p
     file before any test runs while slice 1's module exports only `writeTemplateCommand`, which
     would make slice 2's red run impossible to read.
 29. **Observed.** Every fault in section 8 was applied to the state its slice runs on, compiled with
-    `twilight-bureaucrat:typecheck`, run with its `-t` pattern — each selected exactly one test —
+    `twilight-burokrat:typecheck`, run with its `-t` pattern — each selected exactly one test —
     observed failing, restored by copying back and `cmp`, and rerun green.
 30. **Observed, the two faults the second review rejected.** `refuseScope` is annotated `never`, so
     `return [];` alone is `TS2322`; the prescribed fault changes the annotation to
@@ -386,21 +386,21 @@ is not one`; an absolute subject printed `subject must be a candidate-relative p
 
 ## 5. File plan, and what this packet does not own
 
-| Path                                                                              | Slices                                                      | Responsibility                                                           |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
-| openspec/changes/twilight-bureaucrat-templates/.openspec.yaml                     | 1                                                           | `schema: sdd-lean`, `created: 2026-09-20`.                               |
-| openspec/changes/twilight-bureaucrat-templates/proposal.md                        | 1                                                           | Intent, at most 400 words.                                               |
-| openspec/changes/twilight-bureaucrat-templates/specs/bureaucrat-templates/spec.md | 1                                                           | The nine requirements of section 9.                                      |
-| openspec/changes/twilight-bureaucrat-templates/tasks.md                           | 1 creates, every slice ticks its own                        | The six slices, each naming its tests and its negatives.                 |
-| openspec/changes/twilight-bureaucrat-templates/verify.md                          | 1 creates, every slice fills its own rows                   | The proof table of section 8 and the commands record.                    |
-| apps/wiki/cli/src/templates/template.ts                                           | 1 creates, 2 rewrites `lineComments`, 3 adds proof comments | The template model, its constraints and its pure readers.                |
-| apps/wiki/cli/src/templates/registry.ts                                           | 1 creates, 4 adds the module template                       | The templates, their skeletons, their constraints, and `selectTemplate`. |
-| apps/wiki/cli/src/templates/verify.ts                                             | 1 creates, 2 and 4 extend, 3 and 5 add proof comments       | The command writers, the candidate shell, the constraint handlers.       |
-| apps/wiki/cli/src/templates/templates.test.ts                                     | 1 creates, 2 and 4 extend                                   | Every template test.                                                     |
-| apps/wiki/cli/src/cli.ts                                                          | 1                                                           | One route block and one word in the usage line. Nothing else.            |
-| apps/wiki/cli/src/bin.ts                                                          | 1                                                           | One word in `validatorCommands` and one help line. Nothing else.         |
-| apps/wiki/cli/src/packaging/build.test.ts                                         | 1                                                           | Three assertions on the built executable.                                |
-| apps/wiki/cli/README.md                                                           | 6                                                           | One new `## Templates` section, appended at the end of the file.         |
+| Path                                                                          | Slices                                                      | Responsibility                                                           |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| openspec/changes/twilight-burokrat-templates/.openspec.yaml                   | 1                                                           | `schema: sdd-lean`, `created: 2026-09-20`.                               |
+| openspec/changes/twilight-burokrat-templates/proposal.md                      | 1                                                           | Intent, at most 400 words.                                               |
+| openspec/changes/twilight-burokrat-templates/specs/burokrat-templates/spec.md | 1                                                           | The nine requirements of section 9.                                      |
+| openspec/changes/twilight-burokrat-templates/tasks.md                         | 1 creates, every slice ticks its own                        | The six slices, each naming its tests and its negatives.                 |
+| openspec/changes/twilight-burokrat-templates/verify.md                        | 1 creates, every slice fills its own rows                   | The proof table of section 8 and the commands record.                    |
+| apps/wiki/cli/src/templates/template.ts                                       | 1 creates, 2 rewrites `lineComments`, 3 adds proof comments | The template model, its constraints and its pure readers.                |
+| apps/wiki/cli/src/templates/registry.ts                                       | 1 creates, 4 adds the module template                       | The templates, their skeletons, their constraints, and `selectTemplate`. |
+| apps/wiki/cli/src/templates/verify.ts                                         | 1 creates, 2 and 4 extend, 3 and 5 add proof comments       | The command writers, the candidate shell, the constraint handlers.       |
+| apps/wiki/cli/src/templates/templates.test.ts                                 | 1 creates, 2 and 4 extend                                   | Every template test.                                                     |
+| apps/wiki/cli/src/cli.ts                                                      | 1                                                           | One route block and one word in the usage line. Nothing else.            |
+| apps/wiki/cli/src/bin.ts                                                      | 1                                                           | One word in `validatorCommands` and one help line. Nothing else.         |
+| apps/wiki/cli/src/packaging/build.test.ts                                     | 1                                                           | Three assertions on the built executable.                                |
+| apps/wiki/cli/README.md                                                       | 6                                                           | One new `## Templates` section, appended at the end of the file.         |
 
 No other file is authorized.
 
@@ -408,17 +408,17 @@ No other file is authorized.
 
 Read from `010-7-rules.md` in this directory on 2026-09-20: that packet states it owns **zero
 lines** of `cli.ts` and `bin.ts`, touches no packaging test, keeps its evidence in
-`openspec/changes/twilight-bureaucrat-kind-rules/`, and puts its tests in `src/rules/rules.test.ts`.
+`openspec/changes/twilight-burokrat-kind-rules/`, and puts its tests in `src/rules/rules.test.ts`.
 So the two packets share exactly one file.
 
-| File                                               | Owner                                                                                                                                                                                                                                    |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/wiki/cli/src/templates/**`                   | 010.6 entirely. 010.7 creates no file there.                                                                                                                                                                                             |
-| `apps/wiki/cli/src/rules/**`                       | 010.7 entirely. This packet reads none of it, registers no rule and adds no rule policy field.                                                                                                                                           |
-| `apps/wiki/cli/src/cli.ts`, `src/bin.ts`           | 010.6 entirely, by 010.7's own statement. The exact insertions are in section 6.6, outside any table, because they contain literal pipe characters.                                                                                      |
-| `apps/wiki/cli/src/packaging/build.test.ts`        | 010.6. 010.7 adds no packaging assertion.                                                                                                                                                                                                |
-| `apps/wiki/cli/README.md`                          | **Shared, by section.** 010.7 owns the existing `## Rules` section; 010.6 appends a new `## Templates` section and edits nothing above it. 010.7's packet says it will not touch a `## Templates` heading this packet has already added. |
-| `openspec/changes/twilight-bureaucrat-kind-rules/` | 010.7's evidence. This packet writes nothing there, and nothing in `openspec/changes/service-taxonomy/`.                                                                                                                                 |
+| File                                             | Owner                                                                                                                                                                                                                                    |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/wiki/cli/src/templates/**`                 | 010.6 entirely. 010.7 creates no file there.                                                                                                                                                                                             |
+| `apps/wiki/cli/src/rules/**`                     | 010.7 entirely. This packet reads none of it, registers no rule and adds no rule policy field.                                                                                                                                           |
+| `apps/wiki/cli/src/cli.ts`, `src/bin.ts`         | 010.6 entirely, by 010.7's own statement. The exact insertions are in section 6.6, outside any table, because they contain literal pipe characters.                                                                                      |
+| `apps/wiki/cli/src/packaging/build.test.ts`      | 010.6. 010.7 adds no packaging assertion.                                                                                                                                                                                                |
+| `apps/wiki/cli/README.md`                        | **Shared, by section.** 010.7 owns the existing `## Rules` section; 010.6 appends a new `## Templates` section and edits nothing above it. 010.7's packet says it will not touch a `## Templates` heading this packet has already added. |
+| `openspec/changes/twilight-burokrat-kind-rules/` | 010.7's evidence. This packet writes nothing there, and nothing in `openspec/changes/service-taxonomy/`.                                                                                                                                 |
 
 **If 010.7 landed first**, the two dispatchers are unchanged by it and only the README carries its
 `## Rules` edits: keep them and append below.
@@ -438,7 +438,7 @@ with a derived value; either way this packet adds no README, so there is nothing
 A template is **data**: an identifier, a version, whether it describes one file or one directory,
 one skeleton per prescribed file, and a list of requirements — **each requirement carrying the
 constraint that checks it**. `template show` prints it whole, so Twilight Dash instantiates exactly
-what Twilight Bureaucrat verifies.
+what Twilight Burokrat verifies.
 
 The verifier has **one handler per constraint kind and reads nothing else**. It iterates the
 template's own requirement list, so a template that drops a requirement drops its check and one that
@@ -462,7 +462,7 @@ Slice 1 contains the original declaration scanner. Slice 2 replaces `lineComment
 `endOfQuoted` exactly as §2.3 specifies.
 
 ```ts
-/** The artifact kinds Twilight Bureaucrat holds a template for in slice B5. */
+/** The artifact kinds Twilight Burokrat holds a template for in slice B5. */
 export type TemplateId = 'feature-service' | 'module' | 'repository' | 'resource-service';
 
 /** Whether a template describes one file or a whole module directory. */
@@ -476,7 +476,7 @@ export type FileKind = 'feature' | 'repository' | 'resource';
  *
  * The verifier has exactly one handler per member and reads nothing else, so a template that drops
  * a requirement drops its check and a template that states one gains it. That is what keeps the
- * record Twilight Dash instantiates and the record Twilight Bureaucrat verifies the same record.
+ * record Twilight Dash instantiates and the record Twilight Burokrat verifies the same record.
  */
 export type TemplateConstraint =
   | { readonly kind: 'name-suffix'; readonly suffix: string }
@@ -898,7 +898,7 @@ the usage refusal, which is why the selection-kind test of fact 14 passes before
 import { registeredTemplates, selectTemplate } from './registry';
 
 const Usage =
-  'usage: twilight-bureaucrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
+  'usage: twilight-burokrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
 
 /** `template list` and `template show <id>`; slice 2 adds `verify`. */
 export function writeTemplateCommand(argv: readonly string[]): void {
@@ -1162,7 +1162,7 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
 }
 
 const Usage =
-  'usage: twilight-bureaucrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
+  'usage: twilight-burokrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
 
 function candidateRequest(kind: string, revision: string): CandidateRequest {
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
@@ -1237,7 +1237,7 @@ immediately after the `'check',` entry, and add one line to the `help` template 
 after the line that documents `explain`. The line is, with two leading spaces:
 
 ```text
-  twilight-bureaucrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>
+  twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>
 ```
 
 ### 6.7 Slice 4's additions
@@ -1503,10 +1503,10 @@ A file whose name declares two kinds is skipped by the delegation branch and rep
 ### 1.2 The OpenSpec change
 
 - [ ] Create the change with the batch README's **Creating an OpenSpec change** block, named
-      `twilight-bureaucrat-templates`. Expected: `grep` prints one `schema: sdd-lean` line.
+      `twilight-burokrat-templates`. Expected: `grep` prints one `schema: sdd-lean` line.
 - [ ] Write proposal.md from the schema's template with section 9's intent, at most 400 words
       excluding the template's HTML comments.
-- [ ] Write specs/bureaucrat-templates/spec.md with the **nine** requirements of section 9, each
+- [ ] Write specs/burokrat-templates/spec.md with the **nine** requirements of section 9, each
       with at least one four-hashtag scenario whose bullets are real `GIVEN`, `WHEN` and `THEN`
       clauses.
 - [ ] Write tasks.md as these six slices, each naming its tests and its negatives, all unticked.
@@ -1646,7 +1646,7 @@ describe('template registry CLI', () => {
   test('refuses an unknown template action', () => {
     const invocation = runCli(['template', 'summon']);
     expect(invocation.exitCode).toBe(1);
-    expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
+    expect(stderrOf(invocation)).toContain('usage: twilight-burokrat template <list|show');
   }, 30_000);
 });
 ```
@@ -1662,7 +1662,7 @@ Added inside build.test.ts's existing built-executable test, reusing its `extern
 ```ts
 const templateHelp = invoke(executable, ['--help'], externalRoot);
 expect(templateHelp.exitCode, templateHelp.stderr.toString()).toBe(0);
-expect(templateHelp.stdout.toString()).toContain('twilight-bureaucrat template <list|show');
+expect(templateHelp.stdout.toString()).toContain('twilight-burokrat template <list|show');
 
 const listed = invoke(executable, ['template', 'list'], externalRoot);
 expect(listed.exitCode, listed.stderr.toString()).toBe(0);
@@ -1686,8 +1686,8 @@ disturb it; the rehearsal ran this file green in both states.
 | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | The two focused files of section 1.3                                                                       | Exit 0; 4 template tests pass; the packaging file passes. |
 | The rule suite of section 0.6                                                                              | Exit 0; the recorded count, unchanged.                    |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                | Exit 0; `Successfully ran target typecheck`.              |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                              | Exit 0, no warnings.                                      |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                                  | Exit 0; `Successfully ran target typecheck`.              |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                                | Exit 0, no warnings.                                      |
 | `bunx prettier --write` over **this slice's own files**, then `NX_DAEMON=false bunx nx format:check --all` | Both exit 0. Never a repository-wide write.               |
 | The batch README's **OpenSpec validation** block                                                           | Exit 0; one JSON report kept under `$TMPDIR/evidence`.    |
 
@@ -1696,18 +1696,18 @@ disturb it; the rehearsal ran this file green in both states.
 - [ ] Run `git status --short --untracked-files=all` and compare it with section 1.9's list. A path
       that is not on that list is a stop.
 
-Pending planner verification, named in the report: the whole `twilight-bureaucrat:test`,
-`twilight-bureaucrat:test:package` and `tool-devsync:test` targets, and `bin/h2puni-gate.sh`.
+Pending planner verification, named in the report: the whole `twilight-burokrat:test`,
+`twilight-burokrat:test:package` and `tool-devsync:test` targets, and `bin/h2puni-gate.sh`.
 
 ### 1.9 Ready to commit
 
-Commit subject: `feat(bureaucrat): add the template registry with list and show`.
+Commit subject: `feat(burokrat): add the template registry with list and show`.
 
-Files: openspec/changes/twilight-bureaucrat-templates/.openspec.yaml,
-openspec/changes/twilight-bureaucrat-templates/proposal.md,
-openspec/changes/twilight-bureaucrat-templates/specs/bureaucrat-templates/spec.md,
-openspec/changes/twilight-bureaucrat-templates/tasks.md,
-openspec/changes/twilight-bureaucrat-templates/verify.md,
+Files: openspec/changes/twilight-burokrat-templates/.openspec.yaml,
+openspec/changes/twilight-burokrat-templates/proposal.md,
+openspec/changes/twilight-burokrat-templates/specs/burokrat-templates/spec.md,
+openspec/changes/twilight-burokrat-templates/tasks.md,
+openspec/changes/twilight-burokrat-templates/verify.md,
 apps/wiki/cli/src/templates/template.ts, apps/wiki/cli/src/templates/registry.ts,
 apps/wiki/cli/src/templates/verify.ts, apps/wiki/cli/src/templates/templates.test.ts,
 apps/wiki/cli/src/cli.ts, apps/wiki/cli/src/bin.ts, apps/wiki/cli/src/packaging/build.test.ts.
@@ -1808,7 +1808,7 @@ expressions exist, say which.
 
 - [ ] Replace apps/wiki/cli/src/templates/verify.ts with **exactly** section 6.5.
 - [ ] Rerun the focused templates file. Expected: the recorded count plus 18, 0 fail.
-- [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice introduces the
+- [ ] Run `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`. This slice introduces the
       file's types, so the type check belongs to it. Expected: exit 0.
 
 ### 2.4 Slice 2 verification, record and formatting
@@ -2291,7 +2291,7 @@ describe('template verify, one file', () => {
       'src/modules/widget/widget.feature.ts',
     ]);
     expect(invocation.exitCode).toBe(1);
-    expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
+    expect(stderrOf(invocation)).toContain('usage: twilight-burokrat template <list|show');
     expect(stdoutOf(invocation)).toBe('');
   }, 30_000);
 });
@@ -2355,16 +2355,16 @@ describe('the template record drives verification', () => {
 
 ### 2.7 Ready to commit
 
-Commit subject: `feat(bureaucrat): verify one file against its template`.
+Commit subject: `feat(burokrat): verify one file against its template`.
 
 Files: apps/wiki/cli/src/templates/verify.ts, apps/wiki/cli/src/templates/template.ts,
 apps/wiki/cli/src/templates/templates.test.ts,
-openspec/changes/twilight-bureaucrat-templates/tasks.md,
-openspec/changes/twilight-bureaucrat-templates/verify.md.
+openspec/changes/twilight-burokrat-templates/tasks.md,
+openspec/changes/twilight-burokrat-templates/verify.md.
 
 **This slice does not touch `apps/wiki/cli/src/packaging/build.test.ts`.** Slice 1 already wrote
 the full `verify` usage text into both `cli.ts`'s usage line and `bin.ts`'s help line (§6.6), and
-`build.test.ts`'s `--help` assertion only checks `toContain('twilight-bureaucrat template
+`build.test.ts`'s `--help` assertion only checks `toContain('twilight-burokrat template
 <list|show')` — a prefix slice 1 already satisfies. Its `template list` assertion is `toContain`
 over the id list, and slice 2 registers no new template identifier. Adding the `verify` action here
 changes no help text and no `--help` or `template list` output the packaging test pins; do not edit
@@ -2417,13 +2417,13 @@ addition is part of the mutation: remove it again when restoring, and `cmp` prov
       **you** saw, tick slice 3's boxes, and leave every other row untouched.
 - [ ] Compare `git status --short --untracked-files=all` with: apps/wiki/cli/src/templates/verify.ts,
       apps/wiki/cli/src/templates/template.ts,
-      openspec/changes/twilight-bureaucrat-templates/tasks.md and
-      openspec/changes/twilight-bureaucrat-templates/verify.md — the two source files because the
+      openspec/changes/twilight-burokrat-templates/tasks.md and
+      openspec/changes/twilight-burokrat-templates/verify.md — the two source files because the
       required `Proof:` comments change them.
 
 ### 3.4 Ready to commit
 
-Commit subject: `test(bureaucrat): watch every file-scope template check fail`.
+Commit subject: `test(burokrat): watch every file-scope template check fail`.
 
 ### 3.5 Slice 3 stop conditions
 
@@ -2470,7 +2470,7 @@ Starts from the committed slice 3.
       conforms: an unsuffixed file declares no kind and satisfies every module-scope constraint.
 - [ ] Rerun the focused file. Expected: the recorded count plus 11, 0 fail — after implementation,
       N+11 passes and zero failures.
-- [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This slice widens a
+- [ ] Run `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`. This slice widens a
       discriminated union and a function's parameter type, so the type check belongs to it.
       Expected: exit 0.
 - [ ] Run the packaging file, whose listing assertion is `toContain` and must still pass with four
@@ -2497,12 +2497,12 @@ steps, which are this slice's own:
 
 ### 4.5 Ready to commit
 
-Commit subject: `feat(bureaucrat): verify a module directory against the module template`.
+Commit subject: `feat(burokrat): verify a module directory against the module template`.
 
 Files: apps/wiki/cli/src/templates/registry.ts, apps/wiki/cli/src/templates/verify.ts,
 apps/wiki/cli/src/templates/templates.test.ts,
-openspec/changes/twilight-bureaucrat-templates/tasks.md,
-openspec/changes/twilight-bureaucrat-templates/verify.md.
+openspec/changes/twilight-burokrat-templates/tasks.md,
+openspec/changes/twilight-burokrat-templates/verify.md.
 
 ### 4.6 Slice 4's tests
 
@@ -2746,12 +2746,12 @@ boundary is still too narrow and the packet, not the test, is wrong.
       Evidence references in verify.md are basenames relative to the attempt's evidence directory,
       never absolute clone or temporary paths: the record is published.
 - [ ] Compare `git status --short --untracked-files=all` with: apps/wiki/cli/src/templates/verify.ts,
-      openspec/changes/twilight-bureaucrat-templates/tasks.md and
-      openspec/changes/twilight-bureaucrat-templates/verify.md.
+      openspec/changes/twilight-burokrat-templates/tasks.md and
+      openspec/changes/twilight-burokrat-templates/verify.md.
 
 ### 5.4 Ready to commit
 
-Commit subject: `test(bureaucrat): watch every module-scope template check fail`.
+Commit subject: `test(burokrat): watch every module-scope template check fail`.
 
 ### 5.5 Slice 5 stop conditions
 
@@ -2791,7 +2791,7 @@ reconstruct a failing line from a `Proof:` comment in the source.
 
 - [ ] Append a `## Templates` section to apps/wiki/cli/README.md, after the last existing section,
       saying: which four templates ship; that `template list` and `template show` print them and
-      that Twilight Dash instantiates the same record Twilight Bureaucrat verifies; that each
+      that Twilight Dash instantiates the same record Twilight Burokrat verifies; that each
       requirement carries the constraint that checks it, so a template stating no requirement checks
       nothing; that `template verify` reads one artifact out of a Git revision, parses every
       TypeScript file it selects, never certifies, and exits 1 on a finding; that a service file
@@ -2818,13 +2818,13 @@ reconstruct a failing line from a `Proof:` comment in the source.
 | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `(cd "$repo_root/apps/wiki/cli" && … bun test … src/templates/templates.test.ts src/packaging/build.test.ts)` | Exit 0, `0 fail`; the templates file at the slice 5 count, unchanged. |
 | `(cd "$repo_root/apps/wiki/cli" && … bun test … src/rules/rules.test.ts)`                                     | Exit 0; unchanged.                                                    |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                   | Exit 0; `Successfully ran target typecheck`.                          |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                 | Exit 0, no warnings.                                                  |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                                                       | Exit 0; `dist/bin.mjs` and `dist/toolkit/validator.mjs` rebuilt.      |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                                     | Exit 0; `Successfully ran target typecheck`.                          |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                                   | Exit 0, no warnings.                                                  |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:build`                                                         | Exit 0; `dist/bin.mjs` and `dist/toolkit/validator.mjs` rebuilt.      |
 | `bunx prettier --write <this slice's files>` then `NX_DAEMON=false bunx nx format:check --all`                | Both exit 0. Never a repository-wide write.                           |
 | The batch README's **OpenSpec validation** block                                                              | Exit 0; one JSON report kept under `$TMPDIR/evidence`.                |
 
-**Not run here, and why.** `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and
+**Not run here, and why.** `twilight-burokrat:test`, `twilight-burokrat:test:package` and
 `tool-devsync:test` as whole targets, and anything needing staged files or Git writes into this
 clone: preamble rule 4a, pending planner verification. `bin/h2puni-gate.sh`: cannot run on this
 machine (preamble rule 5).
@@ -2839,10 +2839,10 @@ checks, by assumptions A9, A10 and A11.
 
 ### 6.5 Ready to commit
 
-Commit subject: `docs(bureaucrat): describe the templates and record their verification`.
+Commit subject: `docs(burokrat): describe the templates and record their verification`.
 
-Files: apps/wiki/cli/README.md, openspec/changes/twilight-bureaucrat-templates/tasks.md,
-openspec/changes/twilight-bureaucrat-templates/verify.md.
+Files: apps/wiki/cli/README.md, openspec/changes/twilight-burokrat-templates/tasks.md,
+openspec/changes/twilight-burokrat-templates/verify.md.
 
 ### 6.6 Slice 6 stop conditions
 
@@ -2855,7 +2855,7 @@ openspec/changes/twilight-bureaucrat-templates/verify.md.
 ## 8. Negative proofs, all slices
 
 Every check this packet adds appears here exactly once. **Every fault below was applied, compiled
-with `twilight-bureaucrat:typecheck`, run with its `-t` pattern, watched failing its named test,
+with `twilight-burokrat:typecheck`, run with its `-t` pattern, watched failing its named test,
 restored and rerun green** during the planner's rehearsal on 2026-09-20; sections 3.2 and 5.2 quote
 what was observed.
 
@@ -2889,11 +2889,11 @@ what was observed.
 
 ## 9. OpenSpec
 
-The change is `twilight-bureaucrat-templates`, schema `sdd-lean`, capability
-`bureaucrat-templates`. It is required: the package gains a command, a record and a conformance
+The change is `twilight-burokrat-templates`, schema `sdd-lean`, capability
+`burokrat-templates`. It is required: the package gains a command, a record and a conformance
 contract, which is observable behaviour.
 
-**Intent, for proposal.md** (fewer than 400 words when written out): Twilight Bureaucrat holds the
+**Intent, for proposal.md** (fewer than 400 words when written out): Twilight Burokrat holds the
 templates for the artifacts the system generates, but has none. A generator and a validator that
 each carry their own idea of a module drift, and an agent has nowhere to read what a module must
 contain. This change adds a registry of four templates — module, feature-service, resource-service
@@ -2943,7 +2943,7 @@ bullets:
 ## 10. Out of lane
 
 - Every file under `apps/wiki/cli/src/rules/`: packet 010.7 owns them, and its evidence lives in
-  `openspec/changes/twilight-bureaucrat-kind-rules/`.
+  `openspec/changes/twilight-burokrat-kind-rules/`.
 - `docs/code-organization/kinds.json` and `docs/code-organization/README.md`: 020.8's.
 - `eslint.config.js`: no declaration tag is added to `definedTags`; the line-comment form exists
   precisely so the root configuration does not change.
@@ -2975,7 +2975,7 @@ said a proof could not produce its stated failure, the mutation was run in a scr
 | I7 the baseline commands mask errors                                | **Fixed** (confirmed)  | Section 1.1 now uses an explicit existence check and inspects `grep`'s status, accepting 1 only as "no match"; the search is the usage string, not every occurrence of the word.                                                                                                                                                                                                                                              |
 | I8 evidence and formatting do not match the handover lists          | **Fixed**              | Every slice ends with its own task ticks, its own verify.md rows, its own Prettier write, the repository-wide format check, and a `git status` check against its own path list. The proof slices list the source files their `Proof:` comments change.                                                                                                                                                                        |
 | M1 "DI Bag is not installed" is false                               | **Fixed** (confirmed)  | `package.json` pins `di-bag` 0.4.0. Fact 8 and assumption A7 now say it is installed and **unadopted**, and base the deferral on adoption.                                                                                                                                                                                                                                                                                    |
-| M2 the ownership claims disagree with 010.7                         | **Fixed** (confirmed)  | 010.7 states it owns zero lines of both dispatchers and keeps its evidence in `twilight-bureaucrat-kind-rules`. Section 5.1 now says 010.6 owns both dispatchers and the packaging test outright, the README is the only shared file, and section 10 names the right evidence directory.                                                                                                                                      |
+| M2 the ownership claims disagree with 010.7                         | **Fixed** (confirmed)  | 010.7 states it owns zero lines of both dispatchers and keeps its evidence in `twilight-burokrat-kind-rules`. Section 5.1 now says 010.6 owns both dispatchers and the packaging test outright, the README is the only shared file, and section 10 names the right evidence directory.                                                                                                                                        |
 | M3 inaccurate internal references                                   | **Fixed**              | The test sections are cited by their own numbers, the observation test's path is `join(import.meta.dir, '..', '..')` with what it resolves to stated, `verify.ts` is "slice 1 creates, slices 2 and 4 extend", and no devsync line number is pinned at all (section 0.2).                                                                                                                                                     |
 | M4 the ownership table is malformed by literal pipes                | **Fixed** (confirmed)  | The dispatcher edits, which contain `\|`, moved out of the table into section 6.6.                                                                                                                                                                                                                                                                                                                                            |
 
@@ -3038,7 +3038,7 @@ Rehearsal of the supplied `lineComments` code in this clone: 6/6 focused tests p
 committed slice 1 tests plus the two nested-template tests from §2.6), the closing-brace, nested-fake
 and interpolation `bun -e` probes all matched the review's predictions, `bunx eslint
 apps/wiki/cli/src/templates/template.ts` reported nothing, and `NX_DAEMON=false bunx nx run
-twilight-bureaucrat:typecheck` exited 0. The supplied code needed no correction. The rehearsal was
+twilight-burokrat:typecheck` exited 0. The supplied code needed no correction. The rehearsal was
 fully reverted; `git status --short --untracked-files=all` showed only this packet before commit.
 
 ### Disposition of the slices 3, 4 and 5 dispatch review
@@ -3047,16 +3047,16 @@ fully reverted; `git status --short --untracked-files=all` showed only this pack
 and 5) found one blocking problem and several non-blocking notes. Every finding was checked against
 a real rehearsal of slice 4 in this clone; the rehearsal was fully reverted before this commit.
 
-| Finding                                                                                                                                                                      | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | What changed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Blocking — §4.6 and §5.2 P25: malformed contract content masks malformed test content; support content untested                                                              | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §4.6's single "malformed contract" test is replaced by the review's three-title loop, one fresh `createConformingCandidate()` per title, corrupting only `contract.ts`, `helper.ts` or `widget.feature.test.ts` respectively. §4.2's red-run expectation now reads "N−2 passes and thirteen failures" before implementation and "N+11 passes and zero failures" after. "Eleven" now appears in §0.1, §4.1, §4.2's first checkbox, §4.3–§4.4 ("plus 11"), and this attempt's fact 16. §4.7's first stop condition names "the eleven new module tests and the two authorized registry tests". §5.2's P25 row and the note beneath it now name all three titles, the three separate `-t` runs, and the three log basenames (`P25-contract.log`, `P25-support.log`, `P25-test.log`); §5.3 says P25's cell records all three observations. |
-| The fixture question                                                                                                                                                         | **Answered — the fixture was missing the file, and is now added.** `createConformingCandidate()` (§2.6) already wrote `src/modules/widget/widget.feature.test.ts`, but wrote no plain support file. Without one, the new support-file test would have corrupted a path the fixture never creates. §2.6 now also writes `src/modules/widget/helper.ts` (a plain file with no kind suffix and no declaration tag), and §4.3 tells the executor to add this one line to the already-existing `createConformingCandidate` when implementing slice 4 — the function is defined by slice 2 but extended by slice 4, per the ownership table. The conforming candidate still conforms: an unsuffixed file declares no kind and satisfies every module-scope constraint, confirmed by the rehearsed green run. |
-| Non-blocking — the matcher rule is not shared consistently (§0.4, §3.5, §5.5 still prescribed a literal-message stop)                                                        | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §0.4's "fault that also fails other tests" paragraph, §3.5's first stop condition and §5.5's first stop condition now defer to "the matcher is not the requirement; the fact is" (executor preamble rule 20): a proof is accepted when the named test fails at the assertion about the row's fact, and a mutation that leaves the named test passing is first a location mistake — restore, check the function and expression the row names, redo once, report both.                                                                                                                                                                                                                                                                                                                                                                  |
-| Non-blocking — evidence basenames                                                                                                                                            | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §4.4 and §5.3 now state the basenames rule explicitly (previously only §2.4 did), matching the already-fixed slice 2 wording.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Non-blocking — all prescribed slice 3/5 mutations behaved as predicted (P1–P24 except P25)                                                                                   | **Not re-verified in this dispatch; unaffected.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | This dispatch's rehearsal touched only the module template, its verify.ts handlers, the eleven tests and P25 — the only places this fix changes. Slice 3 is already committed and untouched; slice 5's other eight mutations (P13, P15–P21) are unaffected by this fix and were not re-run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Non-blocking — packaging needs no edit                                                                                                                                       | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `src/packaging/build.test.ts` passed 2 of 2 with the module template registered, matching the review's `toContain('repository')` analysis.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Non-blocking — pins (workspace-inventory counts, namespacing digest)                                                                                                         | **Confirmed, indirectly.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | This fix adds no project/TypeScript configuration and no new template file; `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache` was run after the revert and is recorded in this attempt's report to the caller.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Planner checklist — slice 4 finishes at baseline+11; only the two authorized registry expectations change                                                                    | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Red: 20 pass, 13 fail on the N = 22 baseline. Green: 33 pass, 0 fail.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Planner checklist — contract, support and test-file refusals each use a fresh candidate with one malformed file, asserting its own path and empty stdout                     | **Confirmed by rehearsal and by reading the code.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Each of the three loop iterations calls `createConformingCandidate()` independently and asserts `stderrOf(invocation)).toContain('cannot scan the imports of ' + path)` and `stdoutOf(invocation)).toBe('')`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Planner checklist — replay all three P25 runs; a boundary that skips `.test.ts` parsing must fail the independent test-file case                                             | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Deleting the whole-file parse line made all three titles fail independently, each selecting exactly one test with `Expected: 1` / `Received: 0`. The review's own weakening — skip parsing only `.test.ts` files — left the contract and support titles passing but failed exactly the test-file title with the same assertion, closing the gap the review found.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Planner checklist — replay slice 3's fifteen proofs; verify the committed `directory` module; run the packaged executable and the planner-only Bureaucrat and devsync suites | **Not run in this dispatch.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Slice 3 is already committed and this fix does not touch it. The `directory` module observation (the eleventh test) passed unchanged in this rehearsal, reporting exactly the `resource.term` finding fact 20 records. The whole `twilight-bureaucrat:test` target, the packaged executable's own CLI invocation, and the planner-only devsync suite beyond `tool-devsync:test` were not run here; this attempt's report to the caller states what was and was not run.                                                                                                                                                                                                                                                                                                                                                               |
+| Finding                                                                                                                                                                    | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | What changed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocking — §4.6 and §5.2 P25: malformed contract content masks malformed test content; support content untested                                                            | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §4.6's single "malformed contract" test is replaced by the review's three-title loop, one fresh `createConformingCandidate()` per title, corrupting only `contract.ts`, `helper.ts` or `widget.feature.test.ts` respectively. §4.2's red-run expectation now reads "N−2 passes and thirteen failures" before implementation and "N+11 passes and zero failures" after. "Eleven" now appears in §0.1, §4.1, §4.2's first checkbox, §4.3–§4.4 ("plus 11"), and this attempt's fact 16. §4.7's first stop condition names "the eleven new module tests and the two authorized registry tests". §5.2's P25 row and the note beneath it now name all three titles, the three separate `-t` runs, and the three log basenames (`P25-contract.log`, `P25-support.log`, `P25-test.log`); §5.3 says P25's cell records all three observations. |
+| The fixture question                                                                                                                                                       | **Answered — the fixture was missing the file, and is now added.** `createConformingCandidate()` (§2.6) already wrote `src/modules/widget/widget.feature.test.ts`, but wrote no plain support file. Without one, the new support-file test would have corrupted a path the fixture never creates. §2.6 now also writes `src/modules/widget/helper.ts` (a plain file with no kind suffix and no declaration tag), and §4.3 tells the executor to add this one line to the already-existing `createConformingCandidate` when implementing slice 4 — the function is defined by slice 2 but extended by slice 4, per the ownership table. The conforming candidate still conforms: an unsuffixed file declares no kind and satisfies every module-scope constraint, confirmed by the rehearsed green run. |
+| Non-blocking — the matcher rule is not shared consistently (§0.4, §3.5, §5.5 still prescribed a literal-message stop)                                                      | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §0.4's "fault that also fails other tests" paragraph, §3.5's first stop condition and §5.5's first stop condition now defer to "the matcher is not the requirement; the fact is" (executor preamble rule 20): a proof is accepted when the named test fails at the assertion about the row's fact, and a mutation that leaves the named test passing is first a location mistake — restore, check the function and expression the row names, redo once, report both.                                                                                                                                                                                                                                                                                                                                                                  |
+| Non-blocking — evidence basenames                                                                                                                                          | **Fixed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §4.4 and §5.3 now state the basenames rule explicitly (previously only §2.4 did), matching the already-fixed slice 2 wording.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Non-blocking — all prescribed slice 3/5 mutations behaved as predicted (P1–P24 except P25)                                                                                 | **Not re-verified in this dispatch; unaffected.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | This dispatch's rehearsal touched only the module template, its verify.ts handlers, the eleven tests and P25 — the only places this fix changes. Slice 3 is already committed and untouched; slice 5's other eight mutations (P13, P15–P21) are unaffected by this fix and were not re-run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Non-blocking — packaging needs no edit                                                                                                                                     | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `src/packaging/build.test.ts` passed 2 of 2 with the module template registered, matching the review's `toContain('repository')` analysis.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Non-blocking — pins (workspace-inventory counts, namespacing digest)                                                                                                       | **Confirmed, indirectly.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | This fix adds no project/TypeScript configuration and no new template file; `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache` was run after the revert and is recorded in this attempt's report to the caller.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Planner checklist — slice 4 finishes at baseline+11; only the two authorized registry expectations change                                                                  | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Red: 20 pass, 13 fail on the N = 22 baseline. Green: 33 pass, 0 fail.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Planner checklist — contract, support and test-file refusals each use a fresh candidate with one malformed file, asserting its own path and empty stdout                   | **Confirmed by rehearsal and by reading the code.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Each of the three loop iterations calls `createConformingCandidate()` independently and asserts `stderrOf(invocation)).toContain('cannot scan the imports of ' + path)` and `stdoutOf(invocation)).toBe('')`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Planner checklist — replay all three P25 runs; a boundary that skips `.test.ts` parsing must fail the independent test-file case                                           | **Confirmed by rehearsal.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Deleting the whole-file parse line made all three titles fail independently, each selecting exactly one test with `Expected: 1` / `Received: 0`. The review's own weakening — skip parsing only `.test.ts` files — left the contract and support titles passing but failed exactly the test-file title with the same assertion, closing the gap the review found.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Planner checklist — replay slice 3's fifteen proofs; verify the committed `directory` module; run the packaged executable and the planner-only Burokrat and devsync suites | **Not run in this dispatch.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Slice 3 is already committed and this fix does not touch it. The `directory` module observation (the eleventh test) passed unchanged in this rehearsal, reporting exactly the `resource.term` finding fact 20 records. The whole `twilight-burokrat:test` target, the packaged executable's own CLI invocation, and the planner-only devsync suite beyond `tool-devsync:test` were not run here; this attempt's report to the caller states what was and was not run.                                                                                                                                                                                                                                                                                                                                                                 |

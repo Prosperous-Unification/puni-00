@@ -289,16 +289,16 @@ function filterTags(project, axis) {
 
 /**
  * Application roots whose directory temporarily differs from their product.
- * `apps/wiki/cli` publishes and runs as `twilight-bureaucrat` but moves to
- * `apps/twilight-bureaucrat/cli` only after the wiki freeze/adoption tasks
- * (openspec/changes/twilight-bureaucrat-package/design.md). Each entry excuses
+ * `apps/wiki/cli` publishes and runs as `twilight-burokrat` but moves to
+ * `apps/twilight-burokrat/cli` only after the wiki freeze/adoption tasks
+ * (openspec/changes/twilight-burokrat-package/design.md). Each entry excuses
  * exactly one root, product and name; {@link findStaleLayoutExceptions} fails
  * once the root is gone so the excuse cannot outlive the move.
  *
  * @type {Readonly<Record<string, { readonly product: string, readonly name: string }>>}
  */
 export const FROZEN_APPLICATION_ROOTS = {
-  'apps/wiki/cli': { product: 'twilight-bureaucrat', name: 'twilight-bureaucrat' },
+  'apps/wiki/cli': { product: 'twilight-burokrat', name: 'twilight-burokrat' },
 };
 
 /**
@@ -410,7 +410,7 @@ export function findNamespaceLayoutViolations(projects) {
       // Proof: matching any `apps/wiki/` root instead of the exact frozen root failed
       // `excuses only the exact frozen application product and name`; without the entry the
       // actual workspace reported `apps/wiki/cli: directory product wiki disagrees with
-      // product:twilight-bureaucrat` and its name refusal (2026-09-18).
+      // product:twilight-burokrat` and its name refusal (2026-09-18).
       const frozen = Object.hasOwn(FROZEN_APPLICATION_ROOTS, project.root)
         ? FROZEN_APPLICATION_ROOTS[project.root]
         : undefined;

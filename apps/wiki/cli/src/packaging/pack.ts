@@ -24,11 +24,11 @@ export async function packPackage(
   // Proof: injecting exit 23 made the focused production-path test fail with
   // `Expected promise to reject` when this refusal was removed.
   if (packed.exitCode !== 0) {
-    throw new Error(`Cannot pack Twilight Bureaucrat: ${new TextDecoder().decode(packed.stderr)}`);
+    throw new Error(`Cannot pack Twilight Burokrat: ${new TextDecoder().decode(packed.stderr)}`);
   }
 }
 
 if (import.meta.main) {
   const packageRoot = join(import.meta.dir, '../..');
-  await packPackage(packageRoot, join(packageRoot, '../../../dist/twilight-bureaucrat-pack'));
+  await packPackage(packageRoot, join(packageRoot, '../../../dist/twilight-burokrat-pack'));
 }

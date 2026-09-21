@@ -9,8 +9,8 @@
 
 ## 3. The ledgers (needs 2.1 and 2.2)
 
-- [ ] 3.1 Compute both coverage ledgers in Twilight Bureaucrat and enforce T2; implements T1, T2, both coverage requirements, the capability chain and the manual case requirements — test: the Bureaucrat's ledger tests; negative: remove a citation from an API-level test, and separately give a scenario a disposition that is neither manual nor a reasoned inapplicability (needs slice B4, which the rules design makes depend on B3)
+- [ ] 3.1 Compute both coverage ledgers in Twilight Burokrat and enforce T2; implements T1, T2, both coverage requirements, the capability chain and the manual case requirements — test: the Burokrat's ledger tests; negative: remove a citation from an API-level test, and separately give a scenario a disposition that is neither manual nor a reasoned inapplicability (needs slice B4, which the rules design makes depend on B3)
 
 ## References
 
-1.1 is Task 1 of the [rollout plan](../../../docs/superpowers/plans/2026-09-19-code-organization-rollout.md), 2.1 and 2.2 are its Task 5, and 3.1 is its Task 9. The allocator in 2.2 is slice B3 of the [Twilight Bureaucrat rules design](../../../docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md), and the ledgers in 3.1 are its slice B4, which that design makes depend on B3.
+1.1 is Task 1 of the [rollout plan](../../../docs/superpowers/plans/2026-09-19-code-organization-rollout.md), 2.1 and 2.2 are its Task 5, and 3.1 is its Task 9. The allocator in 2.2 is slice B3 of the [Twilight Burokrat rules design](../../../docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md), and the ledgers in 3.1 are its slice B4, which that design makes depend on B3.

@@ -8,7 +8,7 @@ The inventory expectation becomes an equality against a second, independently de
 
 ## Non-Goals
 
-This change does not relax what either check refuses. It does not remove the occurrence count, the category counts, the unclassified list, the coverage manifest or any containment pin. It does not rename either test file, does not touch the devsync project manifest, the wiki policy files or any Twilight Bureaucrat rule, and creates no Nx target.
+This change does not relax what either check refuses. It does not remove the occurrence count, the category counts, the unclassified list, the coverage manifest or any containment pin. It does not rename either test file, does not touch the devsync project manifest, the wiki policy files or any Twilight Burokrat rule, and creates no Nx target.
 
 ## Constraints
 

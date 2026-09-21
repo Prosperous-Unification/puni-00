@@ -1,9 +1,9 @@
 {
-  "name": "twilight-bureaucrat",
+  "name": "twilight-burokrat",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/wiki/cli/src",
   "projectType": "application",
-  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-bureaucrat"],
+  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-burokrat"],
   "targets": {
     "test": {
       "executor": "nx:run-commands",
@@ -12,11 +12,11 @@
         "^production",
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
-        "{workspaceRoot}/.github/workflows/twilight-bureaucrat-release.yml",
+        "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
         "{workspaceRoot}/apps/wiki/consumer/**/*",
         "{projectRoot}/package.json",
         "{projectRoot}/NOTICE",
-        "{workspaceRoot}/infra/ci/bureaucrat/**/*",
+        "{workspaceRoot}/infra/ci/burokrat/**/*",
         "{workspaceRoot}/bin/tool-wiki-*.sh"
       ],
       "options": {
@@ -42,7 +42,7 @@
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint apps/wiki/cli/src --cache --cache-location .nx/eslintcache-twilight-bureaucrat"
+        "command": "bunx eslint apps/wiki/cli/src --cache --cache-location .nx/eslintcache-twilight-burokrat"
       }
     },
     "release": {
@@ -76,7 +76,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "dependsOn": ["build"],
-      "outputs": ["{workspaceRoot}/dist/twilight-bureaucrat-pack"],
+      "outputs": ["{workspaceRoot}/dist/twilight-burokrat-pack"],
       "options": {
         "command": "bun src/packaging/pack.ts",
         "cwd": "apps/wiki/cli"

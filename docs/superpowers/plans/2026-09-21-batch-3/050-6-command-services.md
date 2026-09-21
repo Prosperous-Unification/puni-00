@@ -8,7 +8,7 @@
 | Implementation tokens (mid model, mid effort) | 12,000,000                                                                                                                                                                                        |
 | Review tokens (top model, high effort)        | 6,000,000                                                                                                                                                                                         |
 | Design it serves                              | [Code organization design](../../specs/2026-09-19-code-organization-design.md), its frontend services table, rules F1, K2, K3, K4, K6                                                             |
-| Architectural authority                       | `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`, and the Twilight Bureaucrat rule registry at `apps/wiki/cli/src/rules/registry.ts`                                            |
+| Architectural authority                       | `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`, and the Twilight Burokrat rule registry at `apps/wiki/cli/src/rules/registry.ts`                                              |
 | Predecessors, merged                          | 040.3 plan writer, 040.6 directory and preferences, 040.4 plan feed — `apps/wbs/fe-01/src/modules/{plan-writer,directory,directory-management,preferences,plan-feed}` all exist                   |
 | Execution contract                            | [batch 1 README](../2026-09-19-batch-1/README.md): "Execution contract", "Rules for every executor", "Standard blocks every packet uses", "Hidden constraints every frontend packet must respect" |
 | Planning head                                 | `da8be091` (batch-3/planning)                                                                                                                                                                     |
@@ -27,7 +27,7 @@ of anything under `plan-toolbar.tsx`: section 12 assigns those to later packets 
 the marker list here — it is the plan feed's `markers` resource and stays there. No DI Bag module:
 DI Bag 0.4.0 is installed at the root, and composing these services through it is the rollout's
 lifetimes task; until then `composition.ts` is a function, exactly as
-`modules/plan-feed/composition.ts` is. No new Twilight Bureaucrat rule, no rule policy committed,
+`modules/plan-feed/composition.ts` is. No new Twilight Burokrat rule, no rule policy committed,
 and no edit to `docs/code-organization/kinds.json` (section 4.6 says why none is owed).
 
 ## 2. Why the calendar markers go first

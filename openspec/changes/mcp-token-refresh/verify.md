@@ -14,7 +14,7 @@ shorter value after the live refresh trace is observed.
   `18028f4d184066090aaa77cbab85b4bc080a7c43` on 2026-09-21. Dependency
   integrity found 87 root declarations with zero mismatches and separately
   bootstrapped all three nested manifests. The main tier completed 117 tasks
-  across 35 projects, including the retried fleet test; `twilight-bureaucrat`
+  across 35 projects, including the retried fleet test; `twilight-burokrat`
   then passed its test/typecheck/build tier and source lint. The Docker-backed
   solver smoke passed 3/3 process-boundary tests. The guarded tree remained
   clean at the pinned commit after the gate.

@@ -21,7 +21,7 @@ occurrence count, the category counts, the `unclassified` list, the `coverage`
 manifest or any `toContainEqual` pin in either file. Not renaming either test
 file (110.6's "The rename is deferred" owns that). Not touching
 `tools/tool-devsync/project.json`, `docs/wiki-policy/*.json`, `nx.json`, any
-Twilight Bureaucrat rule, or any file under `apps/wiki/cli`. **No new Nx target
+Twilight Burokrat rule, or any file under `apps/wiki/cli`. **No new Nx target
 of any name is created**; a step that seems to need one is a stop. Existing
 targets are run, and one existing target's `command` string is edited and
 restored during a single experiment (slice E, step E8).
@@ -72,7 +72,7 @@ hex literal, `occurrences: 257`, and `unclassified: []`.
 `git grep` for the digest string finds it in its own declaration and in planning
 documents that quote it as prose; `git grep` for `toHaveLength(167)` and
 `toHaveLength(84)` finds those two lines and prose quotations. No
-`docs/wiki-policy/*.json`, no Twilight Bureaucrat rule, no `project.json`, no
+`docs/wiki-policy/*.json`, no Twilight Burokrat rule, no `project.json`, no
 docs check and no script reads them. Documentation quotations are not consumers:
 nothing executes them.
 
@@ -236,7 +236,7 @@ for any `*.md` (lines 317-334), so slices B and C's own edits, and this packet
 itself, are digest-neutral. Slices D and E edit a **scanned** file, which is
 exactly why B must land first — section 11.
 
-No file under `apps/wiki/cli` is created, so the Twilight Bureaucrat validator
+No file under `apps/wiki/cli` is created, so the Twilight Burokrat validator
 identity does not change. No test pins it as a literal in any case.
 
 ### 3.9 The whole file is planner-only, and the executor's filter
@@ -442,7 +442,7 @@ Both checks change what they refuse, so OpenSpec is required.
 
   ## Non-Goals
 
-  This change does not relax what either check refuses. It does not remove the occurrence count, the category counts, the unclassified list, the coverage manifest or any containment pin. It does not rename either test file, does not touch the devsync project manifest, the wiki policy files or any Twilight Bureaucrat rule, and creates no Nx target.
+  This change does not relax what either check refuses. It does not remove the occurrence count, the category counts, the unclassified list, the coverage manifest or any containment pin. It does not rename either test file, does not touch the devsync project manifest, the wiki policy files or any Twilight Burokrat rule, and creates no Nx target.
 
   ## Constraints
 
@@ -1521,7 +1521,7 @@ A1 to A7 are in section 4. In addition:
   the executor pins the value **its own run reports** (B7). That is the only
   literal the executor writes.
 - **A9.** The dates in new `Proof:` comments are the executor's actual run dates.
-- **A10.** `docs/wiki-policy/*.json` and the Twilight Bureaucrat rules pin inputs
+- **A10.** `docs/wiki-policy/*.json` and the Twilight Burokrat rules pin inputs
   of these files but read neither literal (section 3.1), so no policy file
   changes.
 - **A11.** This packet is itself a `docs/` Markdown file and is therefore read by

@@ -64,8 +64,8 @@ Matched lines per owned file on that date. **These are reference points, not exp
 | `docs/infra/README.md`                                                                   | 0       | 0                  |
 | `docs/adr/0027-planning-commits-are-the-transaction-boundary.md`                         | 0       | 0                  |
 | `docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md`                              | 6       | 0                  |
-| `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`              | 4       | 0                  |
-| `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`                     | 1       | 0                  |
+| `docs/superpowers/specs/2026-09-17-twilight-burokrat-and-fleet-design.md`                | 4       | 0                  |
+| `docs/superpowers/plans/2026-09-17-twilight-burokrat-and-fleet.md`                       | 1       | 0                  |
 | `docs/superpowers/plans/2026-09-17-k3s-fleet.md`                                         | 2       | 0                  |
 | `docs/superpowers/plans/2026-09-19-twilight-rename.md`                                   | 55      | 9                  |
 | `openspec/changes/twilight-control-plane/proposal.md`                                    | 4       | 0                  |
@@ -94,11 +94,11 @@ Total over the 31 files: 249 pattern lines, 97 identifier lines. The 31 files ho
 
 ### 3.2 Scope decisions verified in the repository
 
-- `openspec/changes/twilight-bureaucrat-package` matches the pattern only in its `verify.md`. `openspec/changes/twilight-bureaucrat-consumer` matches three times outside `verify.md`, at `proposal.md:9`, `specs/consumer/spec.md:10` and `tasks.md:10`, and all three already read "Twilight Bureaucrat". Neither Bureaucrat package change needs a prose edit; both are off the ownership list with that evidence.
+- `openspec/changes/twilight-burokrat-package` matches the pattern only in its `verify.md`. `openspec/changes/twilight-burokrat-consumer` matches three times outside `verify.md`, at `proposal.md:9`, `specs/consumer/spec.md:10` and `tasks.md:10`, and all three already read "Twilight Burokrat". Neither Burokrat package change needs a prose edit; both are off the ownership list with that evidence.
 - `openspec/changes/twilight-review-hardening/evidence/doc-links-and-caps.txt:1` is a dated 2026-09-06 observation containing the old wording. It sits inside a change directory, so a naive "changes are editable" reading would touch it. It is protected by the ownership list and by the history guard.
 - `openspec/changes/twilight-sdlc-pilot/tasks.md` rows are ticked `[x]` and the change is not archived. Per the Naming assumption, it is edited only where it states current or future intent.
 - `deploy/` contains `compose`, `dev-src`, `k8s` and `solver-supervisor`. `deploy/twilight/k3s/` and `docs/runbook-twilight-worker-pool.md` do not exist; they are proposed paths inside the control-plane tasks, renamed as text only.
-- Existing Nx project names follow `<product>-<leaf>`: `apps/wbs/be-01` is `wbs-be-01`, `libs/wbs/domain/contracts` is `wbs-contracts`, `libs/wbs/adapters/runtime-portable` is `wbs-runtime-portable`. `apps/wiki/cli` is `twilight-bureaucrat`, named for its package.
+- Existing Nx project names follow `<product>-<leaf>`: `apps/wbs/be-01` is `wbs-be-01`, `libs/wbs/domain/contracts` is `wbs-contracts`, `libs/wbs/adapters/runtime-portable` is `wbs-runtime-portable`. `apps/wiki/cli` is `twilight-burokrat`, named for its package.
 
 ### 3.3 What the document test covers, and what it does not
 
@@ -170,8 +170,8 @@ Using the checker of section 10, run against the tree on 2026-09-20:
 | `openspec/changes/twilight-sdlc-pilot/specs/twilight/sdlc/spec.md`                       | The verifier reference at line 36; prose                                         | C          |
 | `docs/adr/0027-planning-commits-are-the-transaction-boundary.md`                         | One dated ownership line under the status. Nothing else.                         | D          |
 | `docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md`                              | One dated ownership line under the status. Nothing else.                         | D          |
-| `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`              | Prose                                                                            | D          |
-| `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`                     | Prose                                                                            | D          |
+| `docs/superpowers/specs/2026-09-17-twilight-burokrat-and-fleet-design.md`                | Prose                                                                            | D          |
+| `docs/superpowers/plans/2026-09-17-twilight-burokrat-and-fleet.md`                       | Prose                                                                            | D          |
 | `docs/superpowers/plans/2026-09-17-k3s-fleet.md`                                         | Prose                                                                            | D          |
 | `docs/infra/README.md`                                                                   | One ownership sentence near the top                                              | D          |
 | `docs/twilight-structure/README.md`                                                      | The reading note is replaced with the exact text of checkpoint D                 | D          |
@@ -187,7 +187,7 @@ The audit list is the ownership list minus `docs/superpowers/plans/2026-09-19-tw
 
 ### 5.4 Explicitly not owned
 
-`openspec/changes/twilight-bureaucrat-package/**` and `openspec/changes/twilight-bureaucrat-consumer/**` need no prose edit (section 3.2). `openspec/schemas/**` is a shipped artifact (section 6.5). `docs/twilight-structure/names.md` and `docs/twilight-structure/CONTEXT.md` are the specification (section 12).
+`openspec/changes/twilight-burokrat-package/**` and `openspec/changes/twilight-burokrat-consumer/**` need no prose edit (section 3.2). `openspec/schemas/**` is a shipped artifact (section 6.5). `docs/twilight-structure/names.md` and `docs/twilight-structure/CONTEXT.md` are the specification (section 12).
 
 ## 6. Interfaces
 
@@ -197,7 +197,7 @@ The audit list is the ownership list minus `docs/superpowers/plans/2026-09-19-tw
 | ----------------------------------------------------------------------------- | ---------------------- |
 | Running, building, testing, deploying, environments, workers, the coordinator | Twilight Dash          |
 | Discovery, grilling, assumptions, specification or planning with a person     | Twilight Navigator     |
-| Rules, templates, validity of evidence, coverage judgments, the wiki ledger   | Twilight Bureaucrat    |
+| Rules, templates, validity of evidence, coverage judgments, the wiki ledger   | Twilight Burokrat      |
 | What a customer buys or is billed for                                         | Vesper Shipyards       |
 | All the tools together                                                        | Twilight Structure     |
 | The company                                                                   | Prosperous Unification |
@@ -207,7 +207,7 @@ The audit list is the ownership list minus `docs/superpowers/plans/2026-09-19-tw
 The separately planned verifier tool is removed. Two rules decide where each of its references goes, and nothing else does.
 
 - **Rule D.** A command that compiles, scales, runs or executes belongs to the planned Twilight Dash command-line project.
-- **Rule B.** A command that verifies, checks scenarios or checks knowledge belongs to Twilight Bureaucrat, the existing Nx project `twilight-bureaucrat` at `apps/wiki/cli`.
+- **Rule B.** A command that verifies, checks scenarios or checks knowledge belongs to Twilight Burokrat, the existing Nx project `twilight-burokrat` at `apps/wiki/cli`.
 
 **Proposal, recorded as an assumption:** the Twilight Dash command-line project is `apps/twilight-dash/cli`, Nx project `twilight-dash-cli`, product tag `product:twilight-dash`. This follows the rename plan's unit table, where the product directory carries the full name, and the repository's `<product>-<leaf>` project naming. No such project is created by this packet; only proposed design text names it.
 
@@ -231,34 +231,34 @@ The Nx project name of `libs/twilight/domain/contracts` is `twilight-contracts` 
 
 Enumerated with `git grep -n "tool-twilight"` over the ownership list. Every row must be applied; no row may be left as an old name.
 
-| Old text                                                                                                  | New text                                                                                                                                        | Rule |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `tools/tool-twilight/project.json` (tasks.md:84)                                                          | `apps/twilight-dash/cli/project.json` for the Dash half; the Bureaucrat half needs none, `apps/wiki/cli/project.json` exists                    | D+B  |
-| `tools/tool-twilight/src/compile.ts` (tasks.md:84)                                                        | `apps/twilight-dash/cli/src/compile.ts`                                                                                                         | D    |
-| `tools/tool-twilight/src/validate-scenarios.ts` (tasks.md:85)                                             | `apps/wiki/cli/src/scenarios/validate-scenarios.ts`                                                                                             | B    |
-| `tools/tool-twilight/src/validate-scenarios.test.ts` (tasks.md:86)                                        | `apps/wiki/cli/src/scenarios/validate-scenarios.test.ts`                                                                                        | B    |
-| `tool-twilight:scenario-check` Nx target (tasks.md:87, 197, 198)                                          | `twilight-bureaucrat:scenario-check`                                                                                                            | B    |
-| `tools/tool-twilight/src/testing/fixture-registry.ts` (tasks.md:90)                                       | `libs/twilight/domain/contracts/testing/fixture-registry.ts`                                                                                    | 6.5  |
-| `bunx nx run tool-twilight:compile` (tasks.md:195)                                                        | `bunx nx run twilight-dash-cli:compile`                                                                                                         | D    |
-| `bunx nx test twilight-runtime` (tasks.md:198)                                                            | `bunx nx test twilight-dash-runtime`                                                                                                            | 6.3  |
-| `tools/tool-twilight/src/repository.test.ts` (tasks.md:221)                                               | `apps/twilight-dash/cli/src/repository.test.ts`                                                                                                 | D    |
-| `tools/tool-twilight/fixtures/client-minimal/` (tasks.md:222, 995)                                        | `apps/twilight-dash/cli/fixtures/client-minimal/`                                                                                               | D    |
-| `tools/tool-twilight/src/k3s-preflight.ts`, `k3s-preflight.test.ts` (tasks.md:705)                        | `apps/twilight-dash/cli/src/k3s-preflight.ts`, `k3s-preflight.test.ts`                                                                          | D    |
-| `tools/tool-twilight/src/template.ts` (tasks.md:994)                                                      | `apps/twilight-dash/cli/src/template.ts`                                                                                                        | D    |
-| `tools/tool-twilight/src/scaling.ts`, `scaling.test.ts`, `fixtures/scaling/` (tasks.md:1071)              | `apps/twilight-dash/cli/src/scaling.ts`, `scaling.test.ts`, `fixtures/scaling/`                                                                 | D    |
-| `tool-twilight:scaling` Nx target (tasks.md:1073)                                                         | `twilight-dash-cli:scaling`                                                                                                                     | D    |
-| `tool-twilight:verify-knowledge` (tasks.md:1326)                                                          | `twilight-bureaucrat:verify-knowledge`                                                                                                          | B    |
-| `deploy/twilight/k3s/` (tasks.md:706)                                                                     | `deploy/twilight-dash/k3s/`                                                                                                                     | 6.5  |
-| `docs/runbook-twilight-worker-pool.md` (tasks.md:707)                                                     | `docs/runbook-twilight-dash-worker-pool.md`                                                                                                     | 6.5  |
-| `` `tools/tool-twilight` `` unit-table row (design.md:67)                                                 | Replaced by the exact row of section 6.6                                                                                                        | D+B  |
-| "The first `tool-twilight` increment should check local links, required source …" (knowledge.md:114)      | "The first `twilight-bureaucrat` increment should check …"                                                                                      | B    |
-| "The custom `tool-twilight` compiler/verifier fills identified gaps …" (sdlc-stages.md:128)               | Two sentences: compilation and inspection are Twilight Dash's command line, and content, coverage and citation checks are Twilight Bureaucrat's | D+B  |
-| "a future `tool-twilight` compiler and BE transition operation will …" (twilight-sdlc-pilot/design.md:19) | "a future Twilight Dash compiler and BE transition operation will …"                                                                            | D    |
-| "`tool-twilight` verifier enforces it" (twilight-sdlc-pilot/specs/twilight/sdlc/spec.md:36)               | "Twilight Bureaucrat enforces it"                                                                                                               | B    |
+| Old text                                                                                                  | New text                                                                                                                                      | Rule |
+| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `tools/tool-twilight/project.json` (tasks.md:84)                                                          | `apps/twilight-dash/cli/project.json` for the Dash half; the Burokrat half needs none, `apps/wiki/cli/project.json` exists                    | D+B  |
+| `tools/tool-twilight/src/compile.ts` (tasks.md:84)                                                        | `apps/twilight-dash/cli/src/compile.ts`                                                                                                       | D    |
+| `tools/tool-twilight/src/validate-scenarios.ts` (tasks.md:85)                                             | `apps/wiki/cli/src/scenarios/validate-scenarios.ts`                                                                                           | B    |
+| `tools/tool-twilight/src/validate-scenarios.test.ts` (tasks.md:86)                                        | `apps/wiki/cli/src/scenarios/validate-scenarios.test.ts`                                                                                      | B    |
+| `tool-twilight:scenario-check` Nx target (tasks.md:87, 197, 198)                                          | `twilight-burokrat:scenario-check`                                                                                                            | B    |
+| `tools/tool-twilight/src/testing/fixture-registry.ts` (tasks.md:90)                                       | `libs/twilight/domain/contracts/testing/fixture-registry.ts`                                                                                  | 6.5  |
+| `bunx nx run tool-twilight:compile` (tasks.md:195)                                                        | `bunx nx run twilight-dash-cli:compile`                                                                                                       | D    |
+| `bunx nx test twilight-runtime` (tasks.md:198)                                                            | `bunx nx test twilight-dash-runtime`                                                                                                          | 6.3  |
+| `tools/tool-twilight/src/repository.test.ts` (tasks.md:221)                                               | `apps/twilight-dash/cli/src/repository.test.ts`                                                                                               | D    |
+| `tools/tool-twilight/fixtures/client-minimal/` (tasks.md:222, 995)                                        | `apps/twilight-dash/cli/fixtures/client-minimal/`                                                                                             | D    |
+| `tools/tool-twilight/src/k3s-preflight.ts`, `k3s-preflight.test.ts` (tasks.md:705)                        | `apps/twilight-dash/cli/src/k3s-preflight.ts`, `k3s-preflight.test.ts`                                                                        | D    |
+| `tools/tool-twilight/src/template.ts` (tasks.md:994)                                                      | `apps/twilight-dash/cli/src/template.ts`                                                                                                      | D    |
+| `tools/tool-twilight/src/scaling.ts`, `scaling.test.ts`, `fixtures/scaling/` (tasks.md:1071)              | `apps/twilight-dash/cli/src/scaling.ts`, `scaling.test.ts`, `fixtures/scaling/`                                                               | D    |
+| `tool-twilight:scaling` Nx target (tasks.md:1073)                                                         | `twilight-dash-cli:scaling`                                                                                                                   | D    |
+| `tool-twilight:verify-knowledge` (tasks.md:1326)                                                          | `twilight-burokrat:verify-knowledge`                                                                                                          | B    |
+| `deploy/twilight/k3s/` (tasks.md:706)                                                                     | `deploy/twilight-dash/k3s/`                                                                                                                   | 6.5  |
+| `docs/runbook-twilight-worker-pool.md` (tasks.md:707)                                                     | `docs/runbook-twilight-dash-worker-pool.md`                                                                                                   | 6.5  |
+| `` `tools/tool-twilight` `` unit-table row (design.md:67)                                                 | Replaced by the exact row of section 6.6                                                                                                      | D+B  |
+| "The first `tool-twilight` increment should check local links, required source …" (knowledge.md:114)      | "The first `twilight-burokrat` increment should check …"                                                                                      | B    |
+| "The custom `tool-twilight` compiler/verifier fills identified gaps …" (sdlc-stages.md:128)               | Two sentences: compilation and inspection are Twilight Dash's command line, and content, coverage and citation checks are Twilight Burokrat's | D+B  |
+| "a future `tool-twilight` compiler and BE transition operation will …" (twilight-sdlc-pilot/design.md:19) | "a future Twilight Dash compiler and BE transition operation will …"                                                                          | D    |
+| "`tool-twilight` verifier enforces it" (twilight-sdlc-pilot/specs/twilight/sdlc/spec.md:36)               | "Twilight Burokrat enforces it"                                                                                                               | B    |
 
 The two `bunx nx` rows above are **text inside `openspec/changes/twilight-control-plane/tasks.md`**, not commands the executor runs. They carry no `NX_DAEMON=false` because they describe a future target in a proposed change, and adding an environment prefix would change what that document proposes. Every command this packet asks the executor to run carries the prefix.
 
-`k3s-preflight` is rule D: `openspec/changes/twilight-control-plane/tasks.md:738` says it validates a live cluster, which takes time and needs credentials. `template.ts` is rule D because the names page states that Twilight Dash instantiates a template and Twilight Bureaucrat verifies the output.
+`k3s-preflight` is rule D: `openspec/changes/twilight-control-plane/tasks.md:738` says it validates a live cluster, which takes time and needs credentials. `template.ts` is rule D because the names page states that Twilight Dash instantiates a template and Twilight Burokrat verifies the output.
 
 ### 6.5 The four references the rules did not decide, settled by assumption
 
@@ -276,7 +276,7 @@ Dany asked on 2026-09-19 that open points be settled by a recorded assumption ra
 The table at `openspec/changes/twilight-control-plane/design.md` lines 57 to 67 is a Unit and Responsibility table. **Rename only the Unit cells, using section 6.3, and preserve each responsibility text byte for byte.** Delete the verifier tool's row at line 67 and put this row in its place:
 
 ```md
-| `apps/twilight-dash/cli` | Twilight Dash's Nx-driven compile, inspect and scaling operations; verification is `twilight-bureaucrat`'s |
+| `apps/twilight-dash/cli` | Twilight Dash's Nx-driven compile, inspect and scaling operations; verification is `twilight-burokrat`'s |
 ```
 
 The column widths are reflowed by Prettier in checkpoint A's format step, so the executor need not align them by hand. The prose at line 77, "boundaries in `twilight-runtime`, not services", takes section 6.3's new unit name.
@@ -289,10 +289,10 @@ A line states **current or future intent** when it says what will or should happ
 
 Preserved historical or stored identities, not unimplemented planned paths. They match the pattern and must survive every audit unchanged. None of them matches the identifier pattern, so the audit guard needs no exemption for them.
 
-- The change identifiers `twilight-control-plane`, `twilight-review-hardening`, `twilight-sdlc-pilot`, `twilight-bureaucrat-package`, `twilight-bureaucrat-consumer`, and every path and link containing them.
+- The change identifiers `twilight-control-plane`, `twilight-review-hardening`, `twilight-sdlc-pilot`, `twilight-burokrat-package`, `twilight-burokrat-consumer`, and every path and link containing them.
 - The workflow schema identifier `twilight-v1` and the directory `openspec/schemas/twilight-v1/`.
 - The documentation directory `docs/twilight-structure/`.
-- The Nx project `twilight-bureaucrat`, the package name `twilight-bureaucrat` and the tag `product:twilight-bureaucrat`.
+- The Nx project `twilight-burokrat`, the package name `twilight-burokrat` and the tag `product:twilight-burokrat`.
 - The delta-spec capability directories `specs/twilight/<capability>/`.
 - The CI gate identities `registered:repository-gate`, `registered:browser-gate` and `registered:scenario-coverage`.
 
@@ -356,8 +356,8 @@ PATHS
 cat > "$run/baseline/owned-d.txt" <<'PATHS'
 docs/adr/0027-planning-commits-are-the-transaction-boundary.md
 docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md
-docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md
-docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md
+docs/superpowers/specs/2026-09-17-twilight-burokrat-and-fleet-design.md
+docs/superpowers/plans/2026-09-17-twilight-burokrat-and-fleet.md
 docs/superpowers/plans/2026-09-17-k3s-fleet.md
 docs/infra/README.md
 docs/twilight-structure/README.md
@@ -482,8 +482,8 @@ Expected: exit 0, every test passing. If `$PRESERVED_RUN_DIR` is unset, the pres
 ### Checkpoint A — The control-plane change
 
 - [ ] **A1.** In `openspec/changes/twilight-control-plane/design.md`, apply section 6.6 to the unit table: rename only the Unit cells from section 6.3, preserve every responsibility text, delete the verifier row and insert the given replacement row. Apply section 6.3 to the prose at line 77.
-- [ ] **A2.** In the same file, name the runtime Twilight Dash in the boundary diagram and prose, the planning port's owner Twilight Navigator, and the knowledge and verification operations Twilight Bureaucrat, using section 6.1.
-- [ ] **A3.** In the same file, add one paragraph recording the lease migration as an open design item: admission verdicts stay with Twilight Bureaucrat; lease acquisition, heartbeat and fencing move to Twilight Dash.
+- [ ] **A2.** In the same file, name the runtime Twilight Dash in the boundary diagram and prose, the planning port's owner Twilight Navigator, and the knowledge and verification operations Twilight Burokrat, using section 6.1.
+- [ ] **A3.** In the same file, add one paragraph recording the lease migration as an open design item: admission verdicts stay with Twilight Burokrat; lease acquisition, heartbeat and fencing move to Twilight Dash.
 - [ ] **A4.** In `openspec/changes/twilight-control-plane/tasks.md`, apply section 6.3 and section 6.4 to the identifier lines and section 6.1 to the prose lines. Leave task identifiers, checkbox states and evidence links exactly as they are.
 - [ ] **A5.** In `openspec/changes/twilight-control-plane/proposal.md` and the four delta specs, apply section 6.1, and add the owning tool to each delta spec's purpose or first paragraph: assistant interaction and repository planning are Twilight Navigator's; control plane and delivery environments are Twilight Dash's.
 - [ ] **A6.** Run checkpoint A's completion checklist below.
@@ -500,7 +500,7 @@ Expected: exit 0, every test passing. If `$PRESERVED_RUN_DIR` is unset, the pres
 ### Checkpoint B — The current Twilight documents
 
 - [ ] **B1.** In `docs/twilight-structure/spec.md`, apply section 6.1 to the Intent prose and add one dated paragraph under Intent mapping the catalogue to the new names. **Keep every requirement row byte-identical**; the digest recorded in step 0 proves it.
-- [ ] **B2.** In `docs/twilight-structure/sdlc-stages.md`, replace the closing section's separate compiler and verifier tool with the two sentences of section 6.4, and add the stage ownership sentence: request through planning are Twilight Navigator's, implementation through release are Twilight Dash's, and every stage gate is Twilight Bureaucrat's.
+- [ ] **B2.** In `docs/twilight-structure/sdlc-stages.md`, replace the closing section's separate compiler and verifier tool with the two sentences of section 6.4, and add the stage ownership sentence: request through planning are Twilight Navigator's, implementation through release are Twilight Dash's, and every stage gate is Twilight Burokrat's.
 - [ ] **B3.** In `docs/twilight-structure/knowledge.md`, apply the line 114 row of section 6.4 and section 6.1 to the rest.
 - [ ] **B4.** In `docs/twilight-structure/assumptions.md` row A38, `libs/twilight-contracts` becomes `libs/twilight/domain/contracts`; apply section 6.1 to the rest.
 - [ ] **B5.** Apply section 6.1 to `docs/twilight-structure/product-experience.md`, `docs/twilight-structure/client-repositories.md` and `docs/wiki/README.md`.
@@ -537,12 +537,12 @@ Expected: exit 0, every test passing. If `$PRESERVED_RUN_DIR` is unset, the pres
 Run this only after A, B and C have been reviewed and committed.
 
 - [ ] **D1.** ADR 0027 and ADR 0028 keep every existing line. Add exactly one dated line under each status: for ADR 0027, that the planning contract it records is Twilight Navigator's, dated 2026-09-19; for ADR 0028, that the worker pool it records is Twilight Dash's, dated 2026-09-19. **Do not reword either ADR's prose.**
-- [ ] **D2.** In `docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md`, `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md`, `docs/superpowers/plans/2026-09-17-k3s-fleet.md` and `docs/infra/README.md`, state once near the top that the fleet and its delivery tooling are Twilight Dash's. Leave task identifiers, evidence links and every `## F<n> — …` heading unchanged: thirteen of those headings are anchor targets from the three k3s changes.
+- [ ] **D2.** In `docs/superpowers/specs/2026-09-17-twilight-burokrat-and-fleet-design.md`, `docs/superpowers/plans/2026-09-17-twilight-burokrat-and-fleet.md`, `docs/superpowers/plans/2026-09-17-k3s-fleet.md` and `docs/infra/README.md`, state once near the top that the fleet and its delivery tooling are Twilight Dash's. Leave task identifiers, evidence links and every `## F<n> — …` heading unchanged: thirteen of those headings are anchor targets from the three k3s changes.
 - [ ] **D3.** Replace the whole reading note at the top of `docs/twilight-structure/README.md` with exactly this text. The link is `names.md`, relative to that file's own directory.
 
 ```md
 **Naming changed on 2026-09-19.** Twilight Structure now names the tool suite: Twilight
-Navigator plans, Twilight Dash executes and Twilight Bureaucrat holds the rules. The
+Navigator plans, Twilight Dash executes and Twilight Burokrat holds the rules. The
 customer-facing product has the code name Vesper Shipyards. Read
 [names and boundaries](names.md) first. The documents indexed below use these names in
 that meaning. Historical evidence, research notes and verification records keep their
@@ -863,7 +863,7 @@ Report as a follow-up, without acting on it: `docs/twilight-structure/names.md` 
 
 ## 12. Out of lane
 
-`docs/twilight-structure/names.md` and `docs/twilight-structure/CONTEXT.md` are the specification and are not edited. `openspec/specs/` and `openspec/schemas/` are not edited. `openspec/changes/twilight-bureaucrat-package/` and `openspec/changes/twilight-bureaucrat-consumer/` are not edited; section 3.2 records why they need no prose change. Packet 010.3 owns the decisions directory's new file and the two new change directories. Packet 010.4 owns `apps/wiki/cli/README.md`; this packet proposes paths under `apps/wiki/cli/src/` in text only and creates none of them. `.scratch/` is not edited, including its one pre-existing broken anchor.
+`docs/twilight-structure/names.md` and `docs/twilight-structure/CONTEXT.md` are the specification and are not edited. `openspec/specs/` and `openspec/schemas/` are not edited. `openspec/changes/twilight-burokrat-package/` and `openspec/changes/twilight-burokrat-consumer/` are not edited; section 3.2 records why they need no prose change. Packet 010.3 owns the decisions directory's new file and the two new change directories. Packet 010.4 owns `apps/wiki/cli/README.md`; this packet proposes paths under `apps/wiki/cli/src/` in text only and creates none of them. `.scratch/` is not edited, including its one pre-existing broken anchor.
 
 ## Review disposition
 

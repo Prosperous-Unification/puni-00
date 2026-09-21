@@ -17,7 +17,7 @@ resolved activity settings and organization-owned pricing.
 ## Non-Goals
 
 Implementing the Twilight Dash runtime, changing WBS storage, activating Twilight
-Bureaucrat's default schema, or deploying, archiving, merging or publishing anything.
+Burokrat's default schema, or deploying, archiving, merging or publishing anything.
 
 ## Constraints
 

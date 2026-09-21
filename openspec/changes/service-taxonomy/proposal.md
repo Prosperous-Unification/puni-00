@@ -44,4 +44,4 @@ None.
 
 ## Impact
 
-Future WBS frontend and backend modules, the product lint policy, the temporary devsync checks, and Twilight Bureaucrat's policy and import graph.
+Future WBS frontend and backend modules, the product lint policy, the temporary devsync checks, and Twilight Burokrat's policy and import graph.

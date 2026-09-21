@@ -4,7 +4,7 @@
 
 Status: planned on 2026-09-19. Each packet in this directory is the output of the Plan step for one work item of the "PUNI platform plan" project in the dev WBS instance. A packet is ready for the Impl step when a medium-tier model with no other context can execute it. Nothing in this batch has been implemented.
 
-Naming follows [names and boundaries](../../../twilight-structure/names.md). The designs these packets implement are the [code organization design](../../specs/2026-09-19-code-organization-design.md), its [rollout plan](../2026-09-19-code-organization-rollout.md), the [Twilight Bureaucrat rules design](../../specs/2026-09-19-twilight-bureaucrat-rules-design.md), the [rename plan](../2026-09-19-twilight-rename.md) and the amended [package adoption plan](../2026-09-17-personal-package-adoption.md).
+Naming follows [names and boundaries](../../../twilight-structure/names.md). The designs these packets implement are the [code organization design](../../specs/2026-09-19-code-organization-design.md), its [rollout plan](../2026-09-19-code-organization-rollout.md), the [Twilight Burokrat rules design](../../specs/2026-09-19-twilight-burokrat-rules-design.md), the [rename plan](../2026-09-19-twilight-rename.md) and the amended [package adoption plan](../2026-09-17-personal-package-adoption.md).
 
 ## How the batch was chosen
 
@@ -13,8 +13,8 @@ The plan had 20 leaf items with no unfinished predecessor. Nine are in this batc
 | Number | Packet                                                                  | Size | Wave | Lane touches                                                           |
 | ------ | ----------------------------------------------------------------------- | ---- | ---- | ---------------------------------------------------------------------- |
 | 010.3  | [Record the decision](010-3-record-the-decision.md)                     | DOC  | 1    | The decisions directory, two new OpenSpec changes, the WBS glossary    |
-| 010.4  | [Rule model, check and explain](010-4-rule-model.md)                    | L    | 1    | New rules directory in the Bureaucrat source, its CLI, its README      |
-| 010.5  | [Short command](010-5-short-command.md)                                 | S    | 1    | The Bureaucrat package manifest and its install test                   |
+| 010.4  | [Rule model, check and explain](010-4-rule-model.md)                    | L    | 1    | New rules directory in the Burokrat source, its CLI, its README        |
+| 010.5  | [Short command](010-5-short-command.md)                                 | S    | 1    | The Burokrat package manifest and its install test                     |
 | 020.1  | [Pin and install the three libraries](020-1-pin-and-install.md)         | S    | 1    | Root manifest, lockfile, the pin test, the adoption plan               |
 | 040.3  | [Extract the plan writer](040-3-plan-writer.md)                         | L    | 1    | The plan read hook and one new frontend module                         |
 | 040.6  | [Extract directory and preferences](040-6-directory-and-preferences.md) | M    | 2    | The directory page, the storage users, new frontend modules            |
@@ -67,7 +67,7 @@ The first Codex review found three collisions. They are settled here, and every 
 | 110.8          | Twilight Dash facade                 | Extra large and has no design yet. Its Plan step is a design document of its own.                   |
 | 110.9          | Twilight Navigator                   | Only a name so far.                                                                                 |
 
-## Two facts every Twilight Bureaucrat packet must respect
+## Two facts every Twilight Burokrat packet must respect
 
 Both were found while planning 010.4 and verified in the source.
 
@@ -82,7 +82,7 @@ These came out of the planners' findings and the Codex review. Each is an assump
 - **The design's frontend table has a gap this batch does not close.** It lists the plan's command services as feature-services that call the HTTP client directly, which rule K3 forbids. A Plan resource-service that owns the writes and the knowledge of which resources each write dirties is the likely answer. It is recorded as a finding for the command services' own Plan step.
 - **One store contract, created once.** The shared store type lives in the frontend's modules directory and is created by 040.6, its first user. 040.3 does not need it, because the busy flag stays an injected port until the lifetimes task.
 - **The refusal text module is misfiled.** It is plain TypeScript under the components directory, so every extracted service imports upward to reach it. It moves when the Notices module is planned; no packet in this batch moves it.
-- **Commands of the removed verifier tool get new homes.** In the proposed control-plane change, compile and scaling commands belong to a planned Twilight Dash command-line project, and scenario and knowledge verification commands belong to Twilight Bureaucrat. 110.5 carries the exact mapping.
+- **Commands of the removed verifier tool get new homes.** In the proposed control-plane change, compile and scaling commands belong to a planned Twilight Dash command-line project, and scenario and knowledge verification commands belong to Twilight Burokrat. 110.5 carries the exact mapping.
 
 ## Hidden constraints every frontend packet must respect
 
@@ -159,8 +159,8 @@ After each merge into the integration branch the planner runs the cheap cross-cu
 
 1. Strict OpenSpec validation, with the item count reconciled against the named additions.
 2. The repository-wide format check.
-3. Tests, lint, type checks and builds for every project except the Bureaucrat, uncached.
-4. The Bureaucrat's tests, type check, build, source lint and package install test.
+3. Tests, lint, type checks and builds for every project except the Burokrat, uncached.
+4. The Burokrat's tests, type check, build, source lint and package install test.
 5. The frontend browser suite, if a frontend extraction landed.
 
 The solver image smoke step and the host gate need the shared build host. The result is reported as "locally verified, host gate pending", with every check that did not run named. Reports keep slice completion, review, commit, integration and verification as separate facts. "Batch concluded" may include held or stopped work. "Batch implemented" may not.

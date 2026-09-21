@@ -10,7 +10,7 @@
     "test": "nx run-many -t test",
     "test:unit": "nx run-many -t test:unit",
     "test:queued": "bin/with-heavy-lock.sh -- nx run-many -t test",
-    "lint": "nx run-many -t lint --exclude=twilight-bureaucrat && nx run twilight-bureaucrat:lint:source",
+    "lint": "nx run-many -t lint --exclude=twilight-burokrat && nx run twilight-burokrat:lint:source",
     "format": "nx format:write",
     "format:check": "nx format:check",
     "typecheck": "nx run-many -t typecheck",

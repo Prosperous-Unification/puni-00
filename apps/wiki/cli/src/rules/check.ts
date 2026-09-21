@@ -186,7 +186,7 @@ function candidateRequest(kind: string, revision: string): CandidateRequest {
   // unrelated missing-classification-policy diagnostic.
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
     throw new Error(
-      'usage: twilight-bureaucrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]',
+      'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]',
     );
   }
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };

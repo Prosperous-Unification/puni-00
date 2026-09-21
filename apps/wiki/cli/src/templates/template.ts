@@ -1,6 +1,6 @@
 import ts from 'typescript';
 
-/** The artifact kinds Twilight Bureaucrat holds a template for in slice B5. */
+/** The artifact kinds Twilight Burokrat holds a template for in slice B5. */
 export type TemplateId = 'feature-service' | 'module' | 'repository' | 'resource-service';
 
 /** Whether a template describes one file or a whole module directory. */
@@ -14,7 +14,7 @@ export type FileKind = 'feature' | 'repository' | 'resource';
  *
  * The verifier has exactly one handler per member and reads nothing else, so a template that drops
  * a requirement drops its check and a template that states one gains it. That is what keeps the
- * record Twilight Dash instantiates and the record Twilight Bureaucrat verifies the same record.
+ * record Twilight Dash instantiates and the record Twilight Burokrat verifies the same record.
  */
 export type TemplateConstraint =
   | { readonly kind: 'name-suffix'; readonly suffix: string }

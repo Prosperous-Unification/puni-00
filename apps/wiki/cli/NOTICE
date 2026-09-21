@@ -1,10 +1,10 @@
-Twilight Bureaucrat bundles portions of the following dependencies:
+Twilight Burokrat bundles portions of the following dependencies:
 
 - ArkType, MIT License
 - TypeScript, Apache License 2.0
 
 The repository does not currently contain a distribution license for Twilight
-Bureaucrat itself. The package is marked UNLICENSED and must not be published
+Burokrat itself. The package is marked UNLICENSED and must not be published
 until the rights holder supplies that license.
 
 ArkType license text

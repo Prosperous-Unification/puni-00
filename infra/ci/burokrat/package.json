@@ -1,0 +1,7 @@
+{
+  "name": "puni-twilight-burokrat-bootstrap",
+  "private": true,
+  "dependencies": {
+    "twilight-burokrat": "0.1.0"
+  }
+}

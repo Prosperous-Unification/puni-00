@@ -1,4 +1,4 @@
-# Twilight Bureaucrat review hardening
+# Twilight Burokrat review hardening
 
 The user accepted the branch review and requested its fixes. This change repairs
 the repository workflow and updates proposed contracts; no runtime guarantee is
@@ -19,7 +19,7 @@ semantics and a measurable workload budget for the storage spike.
 
 ## Repository workflow
 
-Include conditional design in Twilight Bureaucrat's planning dependency traversal, so the
+Include conditional design in Twilight Burokrat's planning dependency traversal, so the
 existing fast-forward conditional-artifact rule can assess it before planning.
 Optional design remains an explicit applicability decision; verification remains
 post-work. Test the actual pinned CLI graph in a disposable repository.

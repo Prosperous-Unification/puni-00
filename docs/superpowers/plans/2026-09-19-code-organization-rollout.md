@@ -4,7 +4,7 @@
 
 **Goal:** Roll out the four-kind service taxonomy, the module layout, the frontend rules and the three-axis test system across the monorepo, in observe, then ratchet, then enforce mode.
 
-**Architecture:** Decide and record first, then classify what exists without moving it, then add checks that can fail, then extract and move code one module at a time with existing tests as the oracle. ESLint gives fast feedback inside a file; Twilight Bureaucrat's import graph is the authoritative check, because a barrel import hides a file suffix from a lint pattern.
+**Architecture:** Decide and record first, then classify what exists without moving it, then add checks that can fail, then extract and move code one module at a time with existing tests as the oracle. ESLint gives fast feedback inside a file; Twilight Burokrat's import graph is the authoritative check, because a barrel import hides a file suffix from a lint pattern.
 
 **Tech stack:** Bun 1.4.2, Nx, TypeScript native 7.0.2 and classic 6.0.3, ESLint flat config, Vitest and Bun's test runner, Playwright, OpenSpec 1.12.0, DI Bag 0.4.0.
 
@@ -38,7 +38,7 @@ tools/tool-devsync/src/size-ceilings.test.ts                F7 ratchet test
 tools/tool-devsync/src/kind-direction.test.ts               lint negatives for F1 and K2-K5
 ```
 
-The classification and ceilings live under a documents directory because they are reviewed policy, not code. They move into Twilight Bureaucrat's policy when it gains the kind checks in Task 9.
+The classification and ceilings live under a documents directory because they are reviewed policy, not code. They move into Twilight Burokrat's policy when it gains the kind checks in Task 9.
 
 ## Tasks
 
@@ -306,12 +306,12 @@ Owned by the [package adoption plan](2026-09-17-personal-package-adoption.md), w
 
 **Deliverable:** modules are installable units with compile-time graph checks.
 
-### Task 9: Hand the checks to Twilight Bureaucrat
+### Task 9: Hand the checks to Twilight Burokrat
 
-Its design is the [Twilight Bureaucrat rules design](../specs/2026-09-19-twilight-bureaucrat-rules-design.md). This plan fixes only what it must take over.
+Its design is the [Twilight Burokrat rules design](../specs/2026-09-19-twilight-burokrat-rules-design.md). This plan fixes only what it must take over.
 
-- [ ] The kind inventory and the size ceilings move from the devsync tests into the Bureaucrat's policy, in ratchet mode.
-- [ ] Rules K2 to K6 are checked on the file-level import graph the Bureaucrat already extracts, which sees through barrels and aliases.
+- [ ] The kind inventory and the size ceilings move from the devsync tests into the Burokrat's policy, in ratchet mode.
+- [ ] Rules K2 to K6 are checked on the file-level import graph the Burokrat already extracts, which sees through barrels and aliases.
 - [ ] Rule K8 is checked from the migration table facts it already extracts.
 - [ ] Rule K9 and the scenario join need an OpenSpec requirement selector, which does not exist yet.
 - [ ] The two coverage ledgers replace the hand-made table from Task 5.

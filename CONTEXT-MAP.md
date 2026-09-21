@@ -6,7 +6,7 @@
 - [Twilight Structure](docs/twilight-structure/CONTEXT.md): the software factory
   for building and delivering software in the monorepo. The product's code name is
   Vesper Shipyards; Twilight Structure is the tool suite it runs on, made of Twilight
-  Navigator, Twilight Dash and Twilight Bureaucrat. See
+  Navigator, Twilight Dash and Twilight Burokrat. See
   [names and boundaries](docs/twilight-structure/names.md).
 - [Personal assistant](docs/assistant/CONTEXT.md): the secretary and agents the
   person interacts with across requests of any kind. Future possibilities live

@@ -33,8 +33,8 @@ flowchart TD
   Worker -- brokered tool request --> Effects
   Effects --> External[Models, MCP servers, build and browser tools]
   Effects --> Environments[Branch dev, dev-main, staging and production adapters]
-  API --> Knowledge[Twilight Bureaucrat: repo-scoped wiki and source operations]
-  API --> Verification[Twilight Bureaucrat: verification operations]
+  API --> Knowledge[Twilight Burokrat: repo-scoped wiki and source operations]
+  API --> Verification[Twilight Burokrat: verification operations]
   API --> Planning[Twilight Navigator: planning port]
   Planning --> WBS[WBS service and UI]
   WBS --> Broker[Per-repo planning broker after refactors]
@@ -49,7 +49,7 @@ owns software-delivery workflow execution, authority, durable work projection,
 environment state and evidence. Twilight Navigator owns the planning port, while WBS owns
 its planning semantics.
 Backlog.md and its versioned extension own planning persistence after the migration.
-Twilight Bureaucrat owns verification and knowledge operations over the requirements and
+Twilight Burokrat owns verification and knowledge operations over the requirements and
 artifact contracts in OpenSpec and the sourced explanations in the wiki.
 These are logical boundaries; the first service does not need a process per box.
 The worker has no path to the outside except a brokered request that passes
@@ -57,17 +57,17 @@ through effect execution; egress and credential policy live in the coordinator.
 
 Proposed Nx units, created with the behaviour that first needs them:
 
-| Unit                                         | Responsibility and dependencies                                                                            |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `libs/twilight/domain/contracts`             | Validated commands, errors, events, configuration and adapter capability documents                         |
-| `libs/twilight-dash/domain/domain`           | Pure transitions, authority predicates, finding dispositions, resource accounting                          |
-| `libs/twilight-dash/adapters/runtime`        | LangGraph/checkpointer, durable store, ACP and evidence adapters behind precise ports                      |
-| `libs/twilight-navigator/adapters/assistant` | OpenClaw adapter, worker/assignment/session bindings, redacted searchable session corpus                   |
-| `apps/twilight-dash/be`                      | Elysia authenticated operations, repository access, streams and orchestration composition                  |
-| `apps/twilight-dash/fe`                      | React/Vite run/configuration/decision views, focus brief, WBS integration                                  |
-| `apps/twilight-dash/mcp`                     | Streamable HTTP MCP facade over the same BE operations and caller authority                                |
-| `apps/twilight-dash/worker`                  | Isolated activity host; no access to control-plane credentials or policy writes                            |
-| `apps/twilight-dash/cli`                     | Twilight Dash's Nx-driven compile, inspect and scaling operations; verification is `twilight-bureaucrat`'s |
+| Unit                                         | Responsibility and dependencies                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `libs/twilight/domain/contracts`             | Validated commands, errors, events, configuration and adapter capability documents                       |
+| `libs/twilight-dash/domain/domain`           | Pure transitions, authority predicates, finding dispositions, resource accounting                        |
+| `libs/twilight-dash/adapters/runtime`        | LangGraph/checkpointer, durable store, ACP and evidence adapters behind precise ports                    |
+| `libs/twilight-navigator/adapters/assistant` | OpenClaw adapter, worker/assignment/session bindings, redacted searchable session corpus                 |
+| `apps/twilight-dash/be`                      | Elysia authenticated operations, repository access, streams and orchestration composition                |
+| `apps/twilight-dash/fe`                      | React/Vite run/configuration/decision views, focus brief, WBS integration                                |
+| `apps/twilight-dash/mcp`                     | Streamable HTTP MCP facade over the same BE operations and caller authority                              |
+| `apps/twilight-dash/worker`                  | Isolated activity host; no access to control-plane credentials or policy writes                          |
+| `apps/twilight-dash/cli`                     | Twilight Dash's Nx-driven compile, inspect and scaling operations; verification is `twilight-burokrat`'s |
 
 Do not import WBS app internals to obtain convenient code. Reuse existing shared
 auth/validation/observability only after reading its callers and tests and proving
@@ -113,7 +113,7 @@ repository floor are compile errors.
 
 The mapping is versioned and contract-tested. This pilot's schema has no automatic
 enforcement; Twilight Dash's command line provides the narrow compiler and inspection
-operations, while Twilight Bureaucrat provides scenario and artifact verification. Do not build a
+operations, while Twilight Burokrat provides scenario and artifact verification. Do not build a
 generic workflow language, a whole wiki database or a provider SDK before the
 compiler and the first durable loop show what is missing.
 
@@ -475,7 +475,7 @@ deduplication ([runtime findings](../../../docs/twilight-structure/research/runt
 A lease has an owner, a fencing token and a deadline. Expiry withdraws authority
 and proves nothing about whether the process, remote session or resource stopped.
 The lease migration remains an open design item: admission verdicts stay with Twilight
-Bureaucrat; lease acquisition, heartbeat and fencing move to Twilight Dash.
+Burokrat; lease acquisition, heartbeat and fencing move to Twilight Dash.
 Every brokered tool and effectful hook passes through `dispatchEffect`, which
 revalidates fence, lease, current authority and cancellation for the persisted
 intent inside one serialized coordinator boundary. That boundary ends at the
@@ -987,7 +987,7 @@ integration references, streams and jobs; client context is selected at the serv
 boundary before retrieval. Worker mounts, credentials, ports, databases and egress
 are isolated; a Git worktree alone is not isolation.
 
-Twilight Bureaucrat's knowledge operations use attributable source notes, a contradiction queue and
+Twilight Burokrat's knowledge operations use attributable source notes, a contradiction queue and
 content manifests. Agent summaries are untrusted claims. Accepted facts link the
 requirement, decision or evidence they rest on and do not replace it. Compaction
 preserves lineage and incoming links and is evaluated with the same question set
