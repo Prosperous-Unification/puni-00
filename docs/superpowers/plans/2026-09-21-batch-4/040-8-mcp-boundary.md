@@ -318,6 +318,11 @@ NX_DAEMON=false bunx nx run wbs-mcp-01:lint --skip-nx-cache
 
 ## Task 3: Route the real SDK tool handler without changing modeled outcomes
 
+Tasks 3 and 4 form one commit and review boundary. The required `ServerDeps` reporter also
+changes the production `createServer` call in `main.ts`; whole typecheck and a commit must wait
+for that real composition. Keep each task's focused red/green and all mutation proofs. Never
+make the reporter optional or add a production no-op to bridge an intermediate commit.
+
 **Files:** `server.ts`, `server.test.ts`; mechanical updates to direct `createServer` test callers.
 
 - [ ] Extend the existing `connected` helper with a required reporter argument or a local default
@@ -353,9 +358,10 @@ NX_DAEMON=false bunx nx run wbs-mcp-01:lint --skip-nx-cache
       Then catch `response.text()` rejection in `callTool` and return it as raw error text; require
       the unreadable-body case to leak/skip the reporter instead of returning one generic
       correlated result. Restore exact bytes, rerun green, and add adjacent `Proof:` comments.
-- [ ] Run `server.test.ts`, then the focused trio from Task 0, followed by MCP typecheck and lint.
-      Record actual totals.
-- [ ] Commit: `feat(wbs-mcp): report unexpected tool-call failures`.
+- [ ] Run `server.test.ts`, then the focused trio from Task 0; record actual totals.
+      Continue to Task 4 without committing or claiming whole typecheck green. The production
+      `main.ts` caller is intentionally incomplete until its real reporter is wired there.
+      Defer MCP typecheck/lint to the combined Task 4 checkpoint.
 
 ## Task 4: Wire the production entrypoint and prove its composition
 
@@ -432,7 +438,17 @@ NX_DAEMON=false bunx nx run wbs-mcp-01:lint --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-mcp-01:build --skip-nx-cache
 ```
 
-- [ ] Commit: `feat(wbs-mcp): wire the tool failure boundary`.
+- [ ] Commit the complete handler and production entrypoint together after the focused tests,
+      typecheck, lint, and build above pass. Confirm the direct caller search still names only the
+      production `main.ts` and `server.test.ts`/`http.test.ts` fixtures; investigate any new caller.
+      Stage exactly these five source/test files and inspect the staged diff:
+
+```sh
+git add apps/wbs/mcp-01/src/server.ts apps/wbs/mcp-01/src/server.test.ts \
+  apps/wbs/mcp-01/src/http.test.ts apps/wbs/mcp-01/src/main.ts \
+  apps/wbs/mcp-01/src/main.test.ts
+git commit -m "feat(wbs-mcp): wire the tool failure boundary"
+```
 
 ## Task 5: Replay safety faults and close only MCP adoption
 
