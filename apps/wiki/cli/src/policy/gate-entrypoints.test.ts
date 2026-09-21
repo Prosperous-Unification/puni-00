@@ -561,7 +561,7 @@ function runNxLint(
     [
       join(workspace, 'node_modules', '.bin', 'nx'),
       'run',
-      'twilight-bureaucrat:lint',
+      'twilight-burokrat:lint',
       `--command=${command}`,
       '--output-style=stream',
     ],
@@ -587,7 +587,7 @@ function nxFixture(cache: boolean, inputs: string[]): string {
   write(
     join(nxWorkspace, 'project.json'),
     `${JSON.stringify({
-      name: 'twilight-bureaucrat',
+      name: 'twilight-burokrat',
       root: '.',
       targets: {
         lint: {
@@ -1284,10 +1284,10 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
     expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
     expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
-    expect(hostSteps).toContain('--exclude=twilight-bureaucrat');
-    expect(hostSteps).toContain('bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache');
-    expect(ci).toContain('--exclude=twilight-bureaucrat');
-    expect(ci).toContain('bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache');
+    expect(hostSteps).toContain('--exclude=twilight-burokrat');
+    expect(hostSteps).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
+    expect(ci).toContain('--exclude=twilight-burokrat');
+    expect(ci).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     const consumerTemplate = readFileSync(
       join(workspace, 'apps', 'wiki', 'consumer', 'trusted-wiki.yml'),
       'utf8',
@@ -1313,7 +1313,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     }
 
     const releaseWorkflow = readFileSync(
-      join(workspace, '.github', 'workflows', 'twilight-bureaucrat-release.yml'),
+      join(workspace, '.github', 'workflows', 'twilight-burokrat-release.yml'),
       'utf8',
     );
     // Proof: `contents: write` in ci.yml or trusted-wiki.yml failed here. A release token reachable
@@ -1328,18 +1328,18 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
     expect(releaseActionRefs.length).toBeGreaterThan(0);
     expect(releaseActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
-    expect(releaseWorkflow).toContain('twilight-bureaucrat:test:package');
+    expect(releaseWorkflow).toContain('twilight-burokrat:test:package');
     expect(releaseWorkflow).toContain('bun publish');
-    expect(releaseWorkflow).toContain("- 'twilight-bureaucrat-v*'");
-    expect(releaseWorkflow).toContain('environment: twilight-bureaucrat-release');
+    expect(releaseWorkflow).toContain("- 'twilight-burokrat-v*'");
+    expect(releaseWorkflow).toContain('environment: twilight-burokrat-release');
     expect(releaseWorkflow).toContain('release-cli.ts verify');
     expect(releaseWorkflow).toContain('--dry-run');
     expect(releaseWorkflow).toContain('overwrite_files: false');
     expect(releaseWorkflow).toContain(`bun-version: ${pinnedRuntime}`);
     for (const check of [
-      'twilight-bureaucrat:test',
-      'twilight-bureaucrat:lint:source',
-      'twilight-bureaucrat:typecheck',
+      'twilight-burokrat:test',
+      'twilight-burokrat:lint:source',
+      'twilight-burokrat:typecheck',
     ]) {
       expect(releaseWorkflow).toContain(`bunx nx run ${check} --skip-nx-cache`);
     }
@@ -1350,7 +1350,7 @@ await import(${JSON.stringify(productionSnapshotter)});
       releaseWorkflow.indexOf('bun publish'),
     );
     expect(workspacePackage.scripts['lint']).toBe(
-      'nx run-many -t lint --exclude=twilight-bureaucrat && nx run twilight-bureaucrat:lint:source',
+      'nx run-many -t lint --exclude=twilight-burokrat && nx run twilight-burokrat:lint:source',
     );
   });
 
@@ -1962,7 +1962,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     git(paths.repository, 'commit', '--message', 'mutate would-be omitted input');
     paths.revision = git(paths.repository, 'rev-parse', 'HEAD');
     const afterMutation = runNxLint(paths);
-    // Proof: the production twilight-bureaucrat:lint target reran and failed on obligation.application;
+    // Proof: the production twilight-burokrat:lint target reran and failed on obligation.application;
     // the cache-enabled target below returned its warmed success for this same omitted mutation.
     expect(afterMutation.exitCode, streamText(afterMutation.stderr, 'mutated stderr')).toBe(1);
 
@@ -1988,7 +1988,7 @@ await import(${JSON.stringify(productionSnapshotter)});
  * registry, because each refusal happens before `bun install`.
  */
 describe('package-backed admission bootstrap in the CI gate', () => {
-  const bureaucratSource = join(workspace, 'infra', 'ci', 'bureaucrat');
+  const burokratSource = join(workspace, 'infra', 'ci', 'burokrat');
   const packageRoute = {
     schemaVersion: 1,
     admission: 'installed-package',
@@ -2013,10 +2013,10 @@ describe('package-backed admission bootstrap in the CI gate', () => {
   function runBootstrap(edit: (directory: string) => void) {
     const runner = mkdtempSync(join(tmpdir(), 'tool-wiki-bootstrap-runner-'));
     scratchPaths.push(runner);
-    const directory = join(runner, 'workspace', 'trusted-base', 'infra', 'ci', 'bureaucrat');
+    const directory = join(runner, 'workspace', 'trusted-base', 'infra', 'ci', 'burokrat');
     mkdirSync(directory, { recursive: true });
     for (const name of ['bootstrap.sh', 'admit.sh', 'package.json', 'consumer.json']) {
-      writeFileSync(join(directory, name), readFileSync(join(bureaucratSource, name)));
+      writeFileSync(join(directory, name), readFileSync(join(burokratSource, name)));
     }
     edit(directory);
     const output = join(runner, 'github-output');
@@ -2039,7 +2039,7 @@ describe('package-backed admission bootstrap in the CI gate', () => {
       exitCode: invocation.exitCode,
       stderr: streamText(invocation.stderr, 'bootstrap stderr'),
       output: readFileSync(output, 'utf8'),
-      installed: existsSync(join(runner, 'twilight-bureaucrat', 'consumer', 'node_modules')),
+      installed: existsSync(join(runner, 'twilight-burokrat', 'consumer', 'node_modules')),
     };
   }
 
@@ -2057,15 +2057,15 @@ describe('package-backed admission bootstrap in the CI gate', () => {
     expect(steps[base]?.with).toEqual({
       ref: '${{ github.event.pull_request.base.sha }}',
       path: 'trusted-base',
-      'sparse-checkout': 'infra/ci/bureaucrat/',
+      'sparse-checkout': 'infra/ci/burokrat/',
       'sparse-checkout-cone-mode': false,
       'persist-credentials': false,
     });
   });
 
   test('bootstrap and admission install and run with a scrubbed, frozen, script-free Bun', () => {
-    const bootstrap = readFileSync(join(bureaucratSource, 'bootstrap.sh'), 'utf8');
-    const admit = readFileSync(join(bureaucratSource, 'admit.sh'), 'utf8');
+    const bootstrap = readFileSync(join(burokratSource, 'bootstrap.sh'), 'utf8');
+    const admit = readFileSync(join(burokratSource, 'admit.sh'), 'utf8');
     // Proof: replacing `env -i` with `env` in either script, or dropping `--frozen-lockfile`,
     // `--ignore-scripts` or `--registry` from the install, failed here on the missing literal.
     expect(bootstrap).toContain(
@@ -2096,15 +2096,15 @@ describe('package-backed admission bootstrap in the CI gate', () => {
       readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
     ) as { jobs?: { gate?: { steps?: { name?: string; if?: string; run?: string }[] } } };
     const steps = workflow.jobs?.gate?.steps ?? [];
-    const suite = steps.find((step) => step.name === 'Twilight Bureaucrat packed package suite');
+    const suite = steps.find((step) => step.name === 'Twilight Burokrat packed package suite');
     const bubblewrap = steps.find(
       (step) => step.name === 'Provision bubblewrap for the packed package suite',
     );
     // Proof: deleting the suite step from ci.yml failed here on the undefined step.
     expect(suite).toEqual({
-      name: 'Twilight Bureaucrat packed package suite',
+      name: 'Twilight Burokrat packed package suite',
       if: "steps.gate_mode.outputs.tool_wiki == 'run'",
-      run: 'bunx nx run twilight-bureaucrat:test:package --skip-nx-cache --output-style=stream',
+      run: 'bunx nx run twilight-burokrat:test:package --skip-nx-cache --output-style=stream',
     });
     expect(bubblewrap?.if).toBe("steps.gate_mode.outputs.tool_wiki == 'run'");
     expect(steps.indexOf(bubblewrap ?? {})).toBeLessThan(steps.indexOf(suite ?? {}));
@@ -2148,7 +2148,7 @@ describe('package-backed admission bootstrap in the CI gate', () => {
       writeFileSync(join(directory, 'package.json'), `${JSON.stringify(manifest)}\n`);
     });
     expect(scripted.exitCode).toBe(78);
-    expect(scripted.stderr).toContain('must pin exactly twilight-bureaucrat');
+    expect(scripted.stderr).toContain('must pin exactly twilight-burokrat');
     expect(scripted.installed).toBe(false);
   });
 });

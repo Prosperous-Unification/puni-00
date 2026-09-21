@@ -33,7 +33,7 @@ unchanged by opting into the pilot.
 - **WHEN** intent, specifications, design and tasks exist and `verify.md` does not
 - **THEN** apply reports ready, while the handoff and archive obligation for
   `verify.md` stays stated in the verify artifact instruction until the future
-  Twilight Bureaucrat enforces it
+  Twilight Burokrat enforces it
 
 ### Requirement: Assumption-based discovery
 

@@ -191,7 +191,7 @@ in that document. Whichever runs second re-reads the file first, because the oth
 line numbers; the two hunks are far apart and do not overlap. Checked against the other packets in
 this directory on 2026-09-20: 040.4 (plan feed) edits `vitest.node-suites.ts`, `src/modules/` and
 the plan read hook; 110.1 (test axes) edits devsync and two other projects' `project.json` files,
-not this app's; 010.6, 010.7, 020.7 and 110.6 are in the Bureaucrat, the backend and devsync. No
+not this app's; 010.6, 010.7, 020.7 and 110.6 are in the Burokrat, the backend and devsync. No
 other file above is shared.
 
 ## 6. The four new files, exactly

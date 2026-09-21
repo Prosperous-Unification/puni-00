@@ -28,22 +28,22 @@ const validatorCommands = new Set([
   'validate-policy-activation',
 ]);
 
-const help = `usage: twilight-bureaucrat <command> ...
+const help = `usage: twilight-burokrat <command> ...
 
 commands:
-  twilight-bureaucrat validate-record <kind> <json>
-  twilight-bureaucrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
-  twilight-bureaucrat explain <rule-id> [<repository> <rule-policy-json>]
-  twilight-bureaucrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>
-  twilight-bureaucrat lint <committed|staged|working> <repository> <revision-or-base>
-  twilight-bureaucrat prepare-activation <flags>
-  twilight-bureaucrat prepare-relocation-activation <flags>
+  twilight-burokrat validate-record <kind> <json>
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
+  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
+  twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>
+  twilight-burokrat lint <committed|staged|working> <repository> <revision-or-base>
+  twilight-burokrat prepare-activation <flags>
+  twilight-burokrat prepare-relocation-activation <flags>
 `;
 
 function runLint(argv: readonly string[], toolkitDirectory: string): void {
   if (argv.length !== 3) {
     throw new Error(
-      'usage: twilight-bureaucrat lint <committed|staged|working> <repository> <revision-or-base>',
+      'usage: twilight-burokrat lint <committed|staged|working> <repository> <revision-or-base>',
     );
   }
   const invocation = Bun.spawnSync(['bash', join(toolkitDirectory, 'launcher.sh'), ...argv], {
@@ -54,7 +54,7 @@ function runLint(argv: readonly string[], toolkitDirectory: string): void {
   process.stdout.write(invocation.stdout);
   process.stderr.write(invocation.stderr);
   if (invocation.exitCode !== 0) {
-    throw new Error(`Twilight Bureaucrat lint exited ${String(invocation.exitCode)}`);
+    throw new Error(`Twilight Burokrat lint exited ${String(invocation.exitCode)}`);
   }
 }
 
@@ -73,7 +73,7 @@ function runValidator(argv: readonly string[], toolkitDirectory: string): void {
   process.stdout.write(invocation.stdout);
   process.stderr.write(invocation.stderr);
   if (invocation.exitCode !== 0) {
-    throw new Error(`Twilight Bureaucrat validator exited ${String(invocation.exitCode)}`);
+    throw new Error(`Twilight Burokrat validator exited ${String(invocation.exitCode)}`);
   }
 }
 

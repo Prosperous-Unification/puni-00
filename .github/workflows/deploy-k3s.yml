@@ -261,7 +261,7 @@ jobs:
           ref: ${{ github.sha }}
           path: trusted-base
           sparse-checkout: |
-            infra/ci/bureaucrat/
+            infra/ci/burokrat/
             .bun-version
           sparse-checkout-cone-mode: false
           persist-credentials: false
@@ -274,7 +274,7 @@ jobs:
 
       - name: Bootstrap trusted package
         id: bootstrap
-        run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat" "$RUNNER_TEMP/twilight-bureaucrat" >> "$GITHUB_OUTPUT"
+        run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/burokrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/burokrat" "$RUNNER_TEMP/twilight-burokrat" >> "$GITHUB_OUTPUT"
 
       # Main's own history, which resolve proved contains the candidate. No step checks the
       # candidate out by itself: the admission step materialises it after re-checking ancestry, so
@@ -311,14 +311,14 @@ jobs:
           fi
           git clone --quiet --no-checkout "$GITHUB_WORKSPACE/main-history" "$GITHUB_WORKSPACE/candidate"
           git -C "$GITHUB_WORKSPACE/candidate" checkout --quiet --detach "$CANDIDATE_SHA"
-          bash "$RUNNER_TEMP/twilight-bureaucrat/admit.sh" "$RUNNER_TEMP/twilight-bureaucrat" \
+          bash "$RUNNER_TEMP/twilight-burokrat/admit.sh" "$RUNNER_TEMP/twilight-burokrat" \
             "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"
-          test -s "$RUNNER_TEMP/twilight-bureaucrat/admission.json"
+          test -s "$RUNNER_TEMP/twilight-burokrat/admission.json"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: admission
-          path: ${{ runner.temp }}/twilight-bureaucrat/admission.json
+          path: ${{ runner.temp }}/twilight-burokrat/admission.json
           if-no-files-found: error
 
   describe:

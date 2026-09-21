@@ -7,22 +7,22 @@ review debt. Tasks 6 and 7 remain open.
 
 ## Release
 
-`twilight-bureaucrat` is the distribution envelope for the reusable toolkit. The package carries
+`twilight-burokrat` is the distribution envelope for the reusable toolkit. The package carries
 the launcher, snapshotter, validator, activation preparers and trusted TypeScript closure. Installing
 it certifies no consumer commit; an activation still binds one candidate identity. The distinction
 is recorded in [ADR 0026](adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md).
 
-Tag the reviewed commit `twilight-bureaucrat-vMAJOR.MINOR.PATCH` and push it. The
-`twilight-bureaucrat-release.yml` workflow runs the uncached source and packed-install checks, binds
+Tag the reviewed commit `twilight-burokrat-vMAJOR.MINOR.PATCH` and push it. The
+`twilight-burokrat-release.yml` workflow runs the uncached source and packed-install checks, binds
 the tarball digest to the tag and source commit, and transfers that exact tarball to a protected
-`twilight-bureaucrat-release` environment. The publish job verifies the transfer, runs
+`twilight-burokrat-release` environment. The publish job verifies the transfer, runs
 `bun publish <tarball> --dry-run`, publishes that file, and retains it with `release.json` as release
 assets. It then waits for the registry coordinate, compares its integrity to `release.json`, and
 installs that coordinate with lifecycle scripts disabled in a fresh consumer. It refuses an existing
 registry version or GitHub release and never rebuilds after transfer.
 
-Before the first tag, administrators must restrict `twilight-bureaucrat-v*`, create the protected
-environment, verify ownership of the `twilight-bureaucrat` registry name, and install its
+Before the first tag, administrators must restrict `twilight-burokrat-v*`, create the protected
+environment, verify ownership of the `twilight-burokrat` registry name, and install its
 least-privilege `NPM_TOKEN`. Publication remains pending while the package is `UNLICENSED`; add the
 actual repository license before granting the environment approval.
 
@@ -30,12 +30,12 @@ To reproduce the prepared artifact without publishing:
 
 ```sh
 bun install --frozen-lockfile
-bunx nx run twilight-bureaucrat:test:package --skip-nx-cache
+bunx nx run twilight-burokrat:test:package --skip-nx-cache
 bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
-  --tag twilight-bureaucrat-vX.Y.Z \
+  --tag twilight-burokrat-vX.Y.Z \
   --repository "$PWD" \
-  --tarball dist/twilight-bureaucrat-pack/twilight-bureaucrat-X.Y.Z.tgz \
-  --record /tmp/twilight-bureaucrat-release.json \
+  --tarball dist/twilight-burokrat-pack/twilight-burokrat-X.Y.Z.tgz \
+  --record /tmp/twilight-burokrat-release.json \
   --source-revision "$(git rev-parse HEAD)"
 ```
 
@@ -53,9 +53,9 @@ consumer procedure is `apps/wiki/consumer/README.md`, beside the workflow templa
 Run the three exact scoped checks selected by the bootstrap obligation:
 
 ```sh
-bunx nx run twilight-bureaucrat:test --skip-nx-cache
-bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
-bunx nx run twilight-bureaucrat:typecheck --skip-nx-cache
+bunx nx run twilight-burokrat:test --skip-nx-cache
+bunx nx run twilight-burokrat:lint:source --skip-nx-cache
+bunx nx run twilight-burokrat:typecheck --skip-nx-cache
 ```
 
 An operator, outside the candidate checkout, invokes the trusted review harness for the exact
@@ -192,57 +192,57 @@ launcher diff as trusted code, because the archive's bytes become the admission 
 
 ## Package-backed admission
 
-`trusted-wiki` reads one base-owned switch, `infra/ci/bureaucrat/consumer.json`. Its `admission` is
+`trusted-wiki` reads one base-owned switch, `infra/ci/burokrat/consumer.json`. Its `admission` is
 `archive-launcher` (the archive's own launcher, unchanged behavior) or `installed-package`; any other
-value, key or registry refuses with exit 78. The job sparse-checks-out `infra/ci/bureaucrat/` at the
+value, key or registry refuses with exit 78. The job sparse-checks-out `infra/ci/burokrat/` at the
 pull request's **base** SHA and runs `bootstrap.sh` before the candidate checkout exists. For
 `installed-package` it copies only `package.json` and `bun.lock` into `$RUNNER_TEMP`, then runs
 `bun install --frozen-lockfile --ignore-scripts --registry <consumer.json registry>` under `env -i`
 from that scratch directory, so no candidate `.npmrc`, `bunfig.toml`, lock, pin or inherited Bun
-variable takes part. The manifest must pin exactly `twilight-bureaucrat` at an exact version, with no
+variable takes part. The manifest must pin exactly `twilight-burokrat` at an exact version, with no
 scripts or `trustedDependencies`; the lock must name that version from that registry with a sha512
 integrity. A missing lock refuses rather than resolving from the network.
 
 `admit.sh` then requires the activation's root `toolkit-release` to equal
-`twilight-bureaucrat-v<version> <toolkitIdentity>` of the installed package. The package supplies the
+`twilight-burokrat-v<version> <toolkitIdentity>` of the installed package. The package supplies the
 launcher; the selected activation still supplies the reviewed validator, bindings and runtime
 closure. An activation from another toolkit, or one without `toolkit-release`, refuses, so a
 package bump alone never replaces the selected activation. On certification it writes
-`$RUNNER_TEMP/twilight-bureaucrat/admission.json`: source SHA, package name/version/integrity/toolkit
+`$RUNNER_TEMP/twilight-burokrat/admission.json`: source SHA, package name/version/integrity/toolkit
 identity, and activation version/manifest identity, all read from trusted files.
-{@link requireDeploymentAdmission} in `tools/tool-devsync/src/bureaucrat-consumer.ts` joins that
+{@link requireDeploymentAdmission} in `tools/tool-devsync/src/burokrat-consumer.ts` joins that
 record to the staged image digest; deployment preparation must refuse without all four.
 
 Externally administered, never repository files: the three `TOOL_WIKI_ACTIVATION_*` variables, the
 required `trusted-wiki` check, registry ownership and the release environment. The candidate can
-edit none of the inputs above; a pull request that edits `infra/ci/bureaucrat/` is itself judged by
+edit none of the inputs above; a pull request that edits `infra/ci/burokrat/` is itself judged by
 the base's copy.
 
 ### Flip (pending publication)
 
 The committed switch is `archive-launcher` and no `bun.lock` is committed, because the registry
-integrity of `twilight-bureaucrat@0.1.0` exists only after publication. In order:
+integrity of `twilight-burokrat@0.1.0` exists only after publication. In order:
 
-1. **Publish.** Complete the P4 prerequisites and push `twilight-bureaucrat-v0.1.0`; confirm
-   `bun info twilight-bureaucrat@0.1.0 dist.integrity` equals the release record's integrity.
+1. **Publish.** Complete the P4 prerequisites and push `twilight-burokrat-v0.1.0`; confirm
+   `bun info twilight-burokrat@0.1.0 dist.integrity` equals the release record's integrity.
 2. **Pin.** Resolve the base-owned manifest into a lock with nothing inherited, check its
    integrity against the release record, commit `bun.lock` alone and merge:
 
    ```sh
-   cd infra/ci/bureaucrat
+   cd infra/ci/burokrat
    env -i PATH="$(dirname "$(command -v bun)"):/usr/bin:/bin" HOME="$(mktemp -d)" \
      bun install --lockfile-only --registry https://registry.npmjs.org/
    ```
 
 3. **Activation.** From that `main` commit, bootstrap with a local, uncommitted
    `"admission": "installed-package"` into a fresh scratch directory and run its
-   `consumer/node_modules/twilight-bureaucrat/dist/bin.mjs prepare-activation` with real review and
+   `consumer/node_modules/twilight-burokrat/dist/bin.mjs prepare-activation` with real review and
    check evidence (never fixture attestations). Publish the archive and set the three variables. Its
    launcher is the toolkit's, so the archive route keeps working with it.
 4. **Flip.** Commit `"admission": "installed-package"` and merge. That pull request is still judged
    by the base's `archive-launcher`; later pull requests take the package route.
-5. **Root route.** `bun add --dev --exact twilight-bureaucrat@0.1.0`, then point lefthook's
-   `tool-wiki`, the CI diagnostic step and `twilight-bureaucrat:lint` at
+5. **Root route.** `bun add --dev --exact twilight-burokrat@0.1.0`, then point lefthook's
+   `tool-wiki`, the CI diagnostic step and `twilight-burokrat:lint` at
    `bin/tool-wiki-package-lint.sh`. It refuses without an exact root pin or matching install and
    refuses re-entry (exit 70). `bin/tool-wiki-lint.sh` stays the launcher source until the
    exhaustive-corpus freeze lets it move into the package; only then does the route take its name.

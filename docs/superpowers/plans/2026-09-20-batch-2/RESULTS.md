@@ -4,17 +4,17 @@ Recorded 2026-09-20. Batch 2 ran the same pipeline as batch 1 (`../2026-09-19-ba
 
 ## What landed
 
-| Work item                                                                                 | Packet                          | Landed as                             |
-| ----------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------- |
-| Estimate cell at rest: the result is the main reading, the trio recedes                   | `u1-estimate-cell-at-rest.md`   | its own pull request, before the rest |
-| 110.6 Retire the upstream sync; derive the README coverage check                          | `110-6-retire-upstream-sync.md` | first group                           |
-| 020.2 Shared failure reporting, `@shared/failures`                                        | `020-2-shared-failures.md`      | first group                           |
-| 040.1 The three owner libraries bundle for, and run in, Chromium                          | `040-1-chromium-proof.md`       | first group                           |
-| 020.7 Backend startup ownership under one DI Bag                                          | `020-7-backend-startup.md`      | first group                           |
-| 010.7 Twilight Bureaucrat kind rules: ratchet's adopted set, F7, MOD-LAYOUT, K2 to K6, F1 | `010-7-rules.md`                | first group                           |
-| 040.4 The plan feed module                                                                | `040-4-plan-feed.md`            | first group                           |
-| 110.1 Test axes: level targets, JUnit reports, scenario citations on one capability       | `110-1-test-axes.md`            | second group                          |
-| 010.6 Twilight Bureaucrat templates and `template verify`                                 | `010-6-templates.md`            | second group                          |
+| Work item                                                                               | Packet                          | Landed as                             |
+| --------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------- |
+| Estimate cell at rest: the result is the main reading, the trio recedes                 | `u1-estimate-cell-at-rest.md`   | its own pull request, before the rest |
+| 110.6 Retire the upstream sync; derive the README coverage check                        | `110-6-retire-upstream-sync.md` | first group                           |
+| 020.2 Shared failure reporting, `@shared/failures`                                      | `020-2-shared-failures.md`      | first group                           |
+| 040.1 The three owner libraries bundle for, and run in, Chromium                        | `040-1-chromium-proof.md`       | first group                           |
+| 020.7 Backend startup ownership under one DI Bag                                        | `020-7-backend-startup.md`      | first group                           |
+| 010.7 Twilight Burokrat kind rules: ratchet's adopted set, F7, MOD-LAYOUT, K2 to K6, F1 | `010-7-rules.md`                | first group                           |
+| 040.4 The plan feed module                                                              | `040-4-plan-feed.md`            | first group                           |
+| 110.1 Test axes: level targets, JUnit reports, scenario citations on one capability     | `110-1-test-axes.md`            | second group                          |
+| 010.6 Twilight Burokrat templates and `template verify`                                 | `010-6-templates.md`            | second group                          |
 
 Forty-odd executor attempts ran; the ledger and every attempt's report, diff and evidence are kept beside the planning files, not in this repository.
 

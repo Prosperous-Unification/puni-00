@@ -58,7 +58,7 @@ async function buildToolkit(repository: string, destination: string): Promise<Ui
   const closure = join(destination, 'trusted-node-modules');
   copyTrustedModules(closure, modulesRoot, trustedNodeModules);
   const toolkit = planToolkit({
-    tag: `twilight-bureaucrat-v${packageVersion}`,
+    tag: `twilight-burokrat-v${packageVersion}`,
     sourceRevision,
     bunVersion: Bun.version,
     roleBytes,
@@ -75,7 +75,7 @@ async function buildToolkit(repository: string, destination: string): Promise<Ui
 }
 
 /**
- * Build the standalone Twilight Bureaucrat executable into a package root.
+ * Build the standalone Twilight Burokrat executable into a package root.
  *
  * The bundle contains every workspace import and resolves runtime assets from
  * its installed module location. A failed or ambiguous build throws.
@@ -92,7 +92,7 @@ export async function buildPackage(
   // Proof: injecting a successful build with no output made the focused production-path test
   // fail with `Expected promise to reject` when this refusal was removed.
   if (!built.success || built.outputs.length !== 1) {
-    throw new Error(`Cannot build Twilight Bureaucrat: ${built.logs.map(String).join('; ')}`);
+    throw new Error(`Cannot build Twilight Burokrat: ${built.logs.map(String).join('; ')}`);
   }
   const outputDirectory = join(destination, 'dist');
   const executable = join(outputDirectory, 'bin.mjs');

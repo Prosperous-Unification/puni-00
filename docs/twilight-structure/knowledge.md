@@ -111,7 +111,7 @@ the answer, and a misleading historical page is a failure to fix.
 
 ## When a custom knowledge tool becomes worthwhile
 
-The first `twilight-bureaucrat` increment should check local links, required source
+The first `twilight-burokrat` increment should check local links, required source
 metadata, capability coverage, content digests, and stale evidence references
 through the same validation operation used by BE/CI. It must report facts it
 cannot establish. Semantic contradiction review remains an attributed judgment.

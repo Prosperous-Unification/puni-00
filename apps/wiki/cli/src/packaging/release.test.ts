@@ -44,7 +44,7 @@ function fixture(
     version?: string;
   } = {},
 ) {
-  const root = scratch('twilight-bureaucrat-release-');
+  const root = scratch('twilight-burokrat-release-');
   const repository = join(root, 'repository');
   const packageRoot = join(root, 'package/package');
   const version = options.version ?? '0.1.0';
@@ -56,7 +56,7 @@ function fixture(
   writeFileSync(
     join(repository, 'apps/wiki/cli/package.json'),
     `${JSON.stringify({
-      name: 'twilight-bureaucrat',
+      name: 'twilight-burokrat',
       version,
       license: options.unlicensed ? 'UNLICENSED' : 'MIT',
     })}\n`,
@@ -66,17 +66,17 @@ function fixture(
   run(['git', 'add', '--all'], repository);
   run(['git', 'commit', '--message', 'release package'], repository);
   const sourceRevision = run(['git', 'rev-parse', 'HEAD'], repository);
-  const tag = `twilight-bureaucrat-v${version}`;
+  const tag = `twilight-burokrat-v${version}`;
   run(['git', 'tag', '--annotate', tag, '--message', 'package release'], repository);
 
   mkdirSync(join(packageRoot, 'dist/toolkit'), { recursive: true });
   writeFileSync(
     join(packageRoot, 'package.json'),
     `${JSON.stringify({
-      name: 'twilight-bureaucrat',
+      name: 'twilight-burokrat',
       version: packedVersion,
       license: options.unlicensed ? 'UNLICENSED' : 'MIT',
-      bin: { 'twilight-bureaucrat': 'dist/bin.mjs' },
+      bin: { 'twilight-burokrat': 'dist/bin.mjs' },
     })}\n`,
   );
   if (!options.unlicensed) writeFileSync(join(packageRoot, 'LICENSE'), 'fixture license\n');
@@ -106,7 +106,7 @@ function fixture(
     mkdirSync(dirname(assetPath), { recursive: true });
     writeFileSync(assetPath, '{}\n');
   }
-  const tarball = join(root, `twilight-bureaucrat-${version}.tgz`);
+  const tarball = join(root, `twilight-burokrat-${version}.tgz`);
   run(['tar', '-czf', tarball, '-C', join(root, 'package'), 'package'], root);
   return { repository, sourceRevision, tag, tarball, root };
 }
@@ -129,7 +129,7 @@ afterAll(async () => {
 describe('package release planner', () => {
   test('workflow pins both checkouts and performs executable release-state proofs', () => {
     const workflow = readFileSync(
-      join(import.meta.dir, '../../../../../.github/workflows/twilight-bureaucrat-release.yml'),
+      join(import.meta.dir, '../../../../../.github/workflows/twilight-burokrat-release.yml'),
       'utf8',
     );
     expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/g)).toHaveLength(2);
@@ -143,7 +143,7 @@ describe('package release planner', () => {
     );
     expect(workflow).toContain('github-release-absent --status "$status"');
     expect(workflow).toContain('verify-registry --record "$record"');
-    expect(workflow).toContain('bun add --exact --ignore-scripts twilight-bureaucrat@0.1.0');
+    expect(workflow).toContain('bun add --exact --ignore-scripts twilight-burokrat@0.1.0');
   });
 
   test('distinguishes an absent GitHub release from existing and unknown states', () => {
@@ -158,7 +158,7 @@ describe('package release planner', () => {
 
   test('distinguishes an absent version from unknown registry state', async () => {
     expect(
-      await lookupRegistryVersion('twilight-bureaucrat', '0.1.0', () => ({
+      await lookupRegistryVersion('twilight-burokrat', '0.1.0', () => ({
         exitCode: 1,
         stderr: new TextEncoder().encode('404 Not Found'),
         stdout: new Uint8Array(),
@@ -166,7 +166,7 @@ describe('package release planner', () => {
     ).toBe('absent');
     expect(
       await refusal(
-        lookupRegistryVersion('twilight-bureaucrat', '0.1.0', () => ({
+        lookupRegistryVersion('twilight-burokrat', '0.1.0', () => ({
           exitCode: 1,
           stderr: new TextEncoder().encode('registry timed out'),
           stdout: new Uint8Array(),
@@ -215,7 +215,7 @@ describe('package release planner', () => {
         },
         () => Promise.resolve(),
       ),
-    ).toBe(`twilight-bureaucrat@0.1.0 ${planned.integrity}`);
+    ).toBe(`twilight-burokrat@0.1.0 ${planned.integrity}`);
 
     expect(
       await refusal(
@@ -296,7 +296,7 @@ describe('package release planner', () => {
   test('refuses tag/version mismatch and dirty source', async () => {
     const mismatched = fixture();
     run(
-      ['git', 'tag', '--annotate', 'twilight-bureaucrat-v0.2.0', '--message', 'wrong version'],
+      ['git', 'tag', '--annotate', 'twilight-burokrat-v0.2.0', '--message', 'wrong version'],
       mismatched.repository,
     );
     expect(
@@ -305,7 +305,7 @@ describe('package release planner', () => {
           {
             record: join(mismatched.root, 'release.json'),
             repository: mismatched.repository,
-            tag: 'twilight-bureaucrat-v0.2.0',
+            tag: 'twilight-burokrat-v0.2.0',
             tarball: mismatched.tarball,
           },
           absent,
@@ -365,7 +365,7 @@ describe('package release planner', () => {
 
   test('refuses malformed, unknown and misplaced release tags', async () => {
     const release = fixture();
-    for (const tag of ['twilight-bureaucrat-v1', 'wiki-v0.1.0']) {
+    for (const tag of ['twilight-burokrat-v1', 'wiki-v0.1.0']) {
       expect(
         await refusal(
           preparePackageRelease(
@@ -386,7 +386,7 @@ describe('package release planner', () => {
           {
             record: join(release.root, 'unknown.json'),
             repository: release.repository,
-            tag: 'twilight-bureaucrat-v9.9.9',
+            tag: 'twilight-burokrat-v9.9.9',
             tarball: release.tarball,
           },
           absent,
@@ -477,7 +477,7 @@ describe('package release planner', () => {
           () => Promise.resolve('present'),
         ),
       ),
-    ).toContain('registry version already exists: twilight-bureaucrat@0.1.0');
+    ).toContain('registry version already exists: twilight-burokrat@0.1.0');
     expect(existsSync(join(published.root, 'release.json'))).toBe(false);
   });
 

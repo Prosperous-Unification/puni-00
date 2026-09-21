@@ -19,10 +19,10 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
   // Proof: leaving this row out after tool-wiki moved to apps/wiki/cli failed the owning
-  // Nx target on the exact extra `['apps/wiki/cli', 'twilight-bureaucrat']` tuple, and the
-  // product-axis case below on its `['apps/wiki/cli', ['product:twilight-bureaucrat']]`
+  // Nx target on the exact extra `['apps/wiki/cli', 'twilight-burokrat']` tuple, and the
+  // product-axis case below on its `['apps/wiki/cli', ['product:twilight-burokrat']]`
   // companion (2026-09-16).
-  ['apps/wiki/cli', 'twilight-bureaucrat'],
+  ['apps/wiki/cli', 'twilight-burokrat'],
   ['libs/shared/domain/failures', 'shared-failures'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
@@ -196,11 +196,7 @@ describe('readProjects', () => {
     expect(products).toEqual(
       EXPECTED_PRODUCT_PROJECTS.map(([root]) => [
         root,
-        [
-          root === 'apps/wiki/cli'
-            ? 'product:twilight-bureaucrat'
-            : `product:${root.split('/')[1]}`,
-        ],
+        [root === 'apps/wiki/cli' ? 'product:twilight-burokrat' : `product:${root.split('/')[1]}`],
       ]),
     );
   });

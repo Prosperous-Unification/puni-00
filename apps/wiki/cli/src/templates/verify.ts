@@ -362,7 +362,7 @@ export function verifyTemplateInCandidate(request: TemplateVerifyRequest): Templ
 }
 
 const Usage =
-  'usage: twilight-bureaucrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
+  'usage: twilight-burokrat template <list|show <template-id>|verify <template-id> <committed|staged|working> <repository> <revision-or-base> <subject>>';
 
 function candidateRequest(kind: string, revision: string): CandidateRequest {
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {

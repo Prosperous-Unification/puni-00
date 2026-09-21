@@ -1081,7 +1081,7 @@ The approach to scaling model-assisted work by making responsibility boundaries
 explicit and their granularity adjustable, with quality, time and cost measured.
 _Avoid_: LLM wiki (for the whole approach), agent-scalable wiki (for the whole approach)
 
-**Twilight Bureaucrat**:
+**Twilight Burokrat**:
 The reusable toolkit for module knowledge, review evidence and trusted repository
 admission that supports Radical Modularity.
 _Avoid_: tool-wiki (as the product name), LLM wiki (as the product name)

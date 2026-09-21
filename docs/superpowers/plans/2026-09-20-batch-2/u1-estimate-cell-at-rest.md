@@ -233,7 +233,7 @@ requirement about a **review**, not about baselines, and section 9's P5 keeps bo
   joined name. Watched on 2026-09-20: `-t "gives the trio back its strength"` reported
   `Tests 1 failed | 68 skipped (69)`. A run reporting `0 tests` or `no test files found` is a stop.
 - No new source file is created anywhere, so nothing under `apps/wiki/cli` changes and the Twilight
-  Bureaucrat validator identity is untouched.
+  Burokrat validator identity is untouched.
 
 ## 4. Assumptions recorded instead of asked
 
@@ -314,7 +314,7 @@ decision this packet takes; each can be reopened.
 read**; what follows is read off the work items and the plans they cite, and the ownership of every
 neighbour is **pending verification** once its packet is written.
 
-- 010.6 templates, 010.7 rules and 020.2 shared failures are Twilight Bureaucrat and backend work;
+- 010.6 templates, 010.7 rules and 020.2 shared failures are Twilight Burokrat and backend work;
   020.7 is backend startup; 110.6 retires the upstream sync in devsync. None reaches
   `apps/wbs/fe-01/src/components/wbs`.
 - 040.4 is the plan feed (`use-plan-read.ts` and the plan modules, not the column families).

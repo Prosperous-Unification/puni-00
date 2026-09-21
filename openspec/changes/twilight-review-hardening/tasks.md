@@ -1,4 +1,4 @@
-# Twilight Bureaucrat review hardening tasks
+# Twilight Burokrat review hardening tasks
 
 Scope: apply the accepted branch review, using [design](design.md) and the
 [workflow contract](specs/twilight/workflow-maintenance/spec.md). Runtime changes

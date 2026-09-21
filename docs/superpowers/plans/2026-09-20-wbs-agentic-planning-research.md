@@ -164,7 +164,7 @@ Research and specification collide with nothing and can run beside the refactori
 - The table, the step columns and the Gantt sit beside 040.4, 040.5 and 040.7. UI changes wait for 040.7.
 - Migrations are additive and can land early, ahead of the code that reads them.
 
-So the feature items should depend on R10, and then on 020.9 or 040.7 according to the files each touches, not on the Twilight Bureaucrat runs 030 and 050, which wait for the package to be published.
+So the feature items should depend on R10, and then on 020.9 or 040.7 according to the files each touches, not on the Twilight Burokrat runs 030 and 050, which wait for the package to be published.
 
 ## Decisions this research will ask of Dany
 

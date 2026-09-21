@@ -211,7 +211,7 @@ been revoked` at `react-dom-client.development.js:17331` in `handleThrow`, above
 `libs/wbs/adapters/observability/**` and `apps/wbs/be-01/**` (040.5's); `apps/wbs/fe-01/src/modules/**`
 (040.4's); `e2e/browser-packages-probe.ts` (040.1's probe body is unchanged — only its bundle
 helper's name and signature move); and **both `tools/tool-devsync` test files**, which are G2's.
-`apps/wiki/cli/**` is untouched, so the Twilight Bureaucrat validator identity does not move.
+`apps/wiki/cli/**` is untouched, so the Twilight Burokrat validator identity does not move.
 
 ### G2 owns both pins
 

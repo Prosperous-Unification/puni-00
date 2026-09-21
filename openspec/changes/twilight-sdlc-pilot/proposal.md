@@ -1,6 +1,6 @@
 ## Why
 
-Twilight Bureaucrat's workflow is described across overlapping discovery documents, while
+Twilight Burokrat's workflow is described across overlapping discovery documents, while
 artifact existence can be mistaken for verified completion. We need to exercise
 one concrete SDLC before building the factory that will run it for users.
 

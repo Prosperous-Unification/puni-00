@@ -116,7 +116,7 @@
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "twilight-bureaucrat",
+      "project": "twilight-burokrat",
       "target": "test",
       "expectedConfiguration": {
         "cache": true,
@@ -125,11 +125,11 @@
           "^production",
           "{workspaceRoot}/.github/workflows/ci.yml",
           "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
-          "{workspaceRoot}/.github/workflows/twilight-bureaucrat-release.yml",
+          "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
           "{workspaceRoot}/apps/wiki/consumer/**/*",
           "{projectRoot}/package.json",
           "{projectRoot}/NOTICE",
-          "{workspaceRoot}/infra/ci/bureaucrat/**/*",
+          "{workspaceRoot}/infra/ci/burokrat/**/*",
           "{workspaceRoot}/bin/tool-wiki-*.sh"
         ],
         "executor": "nx:run-commands",
@@ -149,7 +149,7 @@
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "twilight-bureaucrat",
+      "project": "twilight-burokrat",
       "target": "lint:source",
       "expectedConfiguration": {
         "cache": false,
@@ -168,7 +168,7 @@
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "twilight-bureaucrat",
+      "project": "twilight-burokrat",
       "target": "typecheck",
       "expectedConfiguration": {
         "executor": "nx:run-commands",

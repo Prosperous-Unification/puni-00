@@ -20,8 +20,8 @@
 
 ## 5. Handover (needs 2.1, 3.1, 3.2 and 4.3)
 
-- [ ] 5.1 Move the inventory, the ratchet and the direction rules into Twilight Bureaucrat's policy and supply the adopted set that ratchet mode needs; implements K2 to K6, K8 and all three modes — test: the Bureaucrat's own rule tests; negative: one violating fixture per rule, watched failing before the rule is enabled
+- [ ] 5.1 Move the inventory, the ratchet and the direction rules into Twilight Burokrat's policy and supply the adopted set that ratchet mode needs; implements K2 to K6, K8 and all three modes — test: the Burokrat's own rule tests; negative: one violating fixture per rule, watched failing before the rule is enabled
 
 ## References
 
-Slices map onto the [rollout plan](../../../docs/superpowers/plans/2026-09-19-code-organization-rollout.md): 1.1 is its Task 1, 2.1 its Task 2, 3.1 its Task 3, 3.2 its Task 4, 4.1 its Task 6, 4.2 its Task 7, 4.3 its Task 8, and 5.1 its Task 9. Slice 4.3 is owned by the [package adoption plan](../../../docs/superpowers/plans/2026-09-17-personal-package-adoption.md), which must be amended first. Slice 5.1 is slice B2 of the [Twilight Bureaucrat rules design](../../../docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md).
+Slices map onto the [rollout plan](../../../docs/superpowers/plans/2026-09-19-code-organization-rollout.md): 1.1 is its Task 1, 2.1 its Task 2, 3.1 its Task 3, 3.2 its Task 4, 4.1 its Task 6, 4.2 its Task 7, 4.3 its Task 8, and 5.1 its Task 9. Slice 4.3 is owned by the [package adoption plan](../../../docs/superpowers/plans/2026-09-17-personal-package-adoption.md), which must be amended first. Slice 5.1 is slice B2 of the [Twilight Burokrat rules design](../../../docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md).

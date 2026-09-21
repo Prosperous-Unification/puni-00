@@ -44,4 +44,4 @@ None.
 
 ## Impact
 
-Nx test targets, Bun, Vitest and Playwright reports, OpenSpec scenarios, Twilight Bureaucrat's identifier allocator and coverage ledgers.
+Nx test targets, Bun, Vitest and Playwright reports, OpenSpec scenarios, Twilight Burokrat's identifier allocator and coverage ledgers.

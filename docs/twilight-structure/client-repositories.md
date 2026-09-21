@@ -83,7 +83,7 @@ clients after pinning each pre-existing change's schema metadata. Template parit
 includes that default; the current opt-in pilot is the pre-acceptance state.
 
 Self-growth uses that identical path: Twilight Navigator proposes a change to the
-product's own repo/template, another review evaluates it, Twilight Bureaucrat verifies
+product's own repo/template, another review evaluates it, Twilight Burokrat verifies
 it, and the existing Twilight Dash release authority promotes it. The running Vesper
 Shipyards installation cannot replace the policy that currently judges its own run. A
 protected bootstrap/recovery command must operate without the latest factory process

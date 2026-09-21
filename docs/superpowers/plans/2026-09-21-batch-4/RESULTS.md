@@ -1,13 +1,13 @@
 # Batch 4 integration results
 
-Batch 4 applies unexpected-failure reporting at the backend, gateway and MCP boundaries, and lets Bureaucrat recognize compiler-bound ambient imports without requiring a physical asset or inventing a dependency edge.
+Batch 4 applies unexpected-failure reporting at the backend, gateway and MCP boundaries, and lets Burokrat recognize compiler-bound ambient imports without requiring a physical asset or inventing a dependency edge.
 
-| Packet                     | Behavior                                                                                                                                                                                                                    | Verification record                                         |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 040.7                      | Unexpected backend failures retain the generic 500 response and absent Content-Type, with one sanitized correlated operator report. Modeled refusals retain their status and content.                                       | `openspec/changes/adopt-failure-reporting/verify.md`        |
-| 040.9                      | Forward and resume rejections produce one sanitized report after cancellation checks. Existing WebSocket frame bytes remain exact; close, cancellation and authentication/identity refusals remain silent.                  | `openspec/changes/adopt-failure-reporting/verify.md`        |
-| 040.8                      | Unexpected MCP failures return a generic tool error and occurrence reference linked to one diagnostic record. Correctable input, upstream 4xx, authentication and unknown-tool protocol errors retain their classification. | `openspec/changes/adopt-failure-reporting/verify.md`        |
-| Bureaucrat ambient imports | Bound ambient imports need no physical asset and create no invented edge. Unresolved real imports still fail extraction; unsupported physical CSS keeps the affected rules explicitly unevaluated.                          | `openspec/changes/twilight-bureaucrat-kind-rules/verify.md` |
+| Packet                   | Behavior                                                                                                                                                                                                                    | Verification record                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 040.7                    | Unexpected backend failures retain the generic 500 response and absent Content-Type, with one sanitized correlated operator report. Modeled refusals retain their status and content.                                       | `openspec/changes/adopt-failure-reporting/verify.md`      |
+| 040.9                    | Forward and resume rejections produce one sanitized report after cancellation checks. Existing WebSocket frame bytes remain exact; close, cancellation and authentication/identity refusals remain silent.                  | `openspec/changes/adopt-failure-reporting/verify.md`      |
+| 040.8                    | Unexpected MCP failures return a generic tool error and occurrence reference linked to one diagnostic record. Correctable input, upstream 4xx, authentication and unknown-tool protocol errors retain their classification. | `openspec/changes/adopt-failure-reporting/verify.md`      |
+| Burokrat ambient imports | Bound ambient imports need no physical asset and create no invented edge. Unresolved real imports still fail extraction; unsupported physical CSS keeps the affected rules explicitly unevaluated.                          | `openspec/changes/twilight-burokrat-kind-rules/verify.md` |
 
 ## Independent review corrections
 
@@ -29,14 +29,14 @@ The final lane checks passed on their immutable reviewed implementation or closu
 | Gateway focused / whole target      | 58 / 128 passed, zero failures                                                         |
 | MCP focused / whole target          | 56 / 148 passed, zero failures; whole target 634 assertions                            |
 | Observability whole target          | 28 passed, zero failures                                                               |
-| Bureaucrat relationships / rules    | 25 / 63 passed, zero failures                                                          |
-| Bureaucrat whole target             | 759 passed, zero failures, 6,649 assertions across 39 files                            |
-| Standalone Bureaucrat package       | 44 passed, zero failures, 307 assertions across 6 files                                |
+| Burokrat relationships / rules      | 25 / 63 passed, zero failures                                                          |
+| Burokrat whole target               | 759 passed, zero failures, 6,649 assertions across 39 files                            |
+| Standalone Burokrat package         | 44 passed, zero failures, 307 assertions across 6 files                                |
 | Staged devsync                      | 359 passed, zero failures, 864 assertions                                              |
 | Required scoped static/build checks | exit 0                                                                                 |
 | OpenSpec / formatting               | all 112 validations passed; final named MCP validation and all-files formatting passed |
 
-The backend's opt-in orphan-process case was skipped because WBS_SOLVER_ORPHAN_IMAGE was absent. Host solver-image verification remains separately required. The Bureaucrat relationship suite ran twice because a wrapper initially failed to expose its process status; both original and repeated processes completed successfully, and both transcripts are retained. No source changed between them.
+The backend's opt-in orphan-process case was skipped because WBS_SOLVER_ORPHAN_IMAGE was absent. Host solver-image verification remains separately required. The Burokrat relationship suite ran twice because a wrapper initially failed to expose its process status; both original and repeated processes completed successfully, and both transcripts are retained. No source changed between them.
 
 Fresh composed checks on integrated code commit `f209df12afcb88ccd5d9ce169e2b05b0e3f406e1`
 passed without changing HEAD or leaving worktree edits:
@@ -61,6 +61,6 @@ The delivery PR must record whole composed Chromium, canonical h2puni gate with 
 
 ## Following work
 
-Reviewed backend module, frontend lifetime and remaining adoption maps are planning artifacts; they do not claim DI composition or the remaining adoption is implemented. Existing runtime IDs remain immutable; the pending naming preference is still unresolved. Research shows imported JSON causes declaration-only aggregate emitSkipped even when every TypeScript source emits successfully; removing vm-lab's include does not solve it. The next Bureaucrat prerequisite must preserve declaration completeness and fail on actual extraction failures.
+Reviewed backend module, frontend lifetime and remaining adoption maps are planning artifacts; they do not claim DI composition or the remaining adoption is implemented. Existing runtime IDs remain immutable; the pending naming preference is still unresolved. Research shows imported JSON causes declaration-only aggregate emitSkipped even when every TypeScript source emits successfully; removing vm-lab's include does not solve it. The next Burokrat prerequisite must preserve declaration completeness and fail on actual extraction failures.
 
 WBS updates remain queued because the saved OAuth credential expired without a refresh token. Newest-version library migrations follow all library integration, and the Swift API Guidelines sweep remains the final refactoring.

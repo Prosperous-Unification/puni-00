@@ -26,7 +26,7 @@ export function assertGitHubReleaseAbsent(status: string): void {
 
 /** Read one immutable package coordinate without treating registry failures as absence. */
 export function lookupRegistryVersion(
-  packageName: 'twilight-bureaucrat',
+  packageName: 'twilight-burokrat',
   version: string,
   run: RegistryRunner = (command) => Bun.spawnSync(command, { stderr: 'pipe', stdout: 'pipe' }),
 ): Promise<RegistryVersionState> {

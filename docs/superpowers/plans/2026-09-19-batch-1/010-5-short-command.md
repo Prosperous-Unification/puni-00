@@ -15,7 +15,7 @@ bounded session, no Git writes, evidence under `$TMPDIR`, hand-over instead of c
 
 ## 1. Goal and non-goals
 
-**Goal.** Installing the Twilight Bureaucrat package exposes two commands that run the same
+**Goal.** Installing the Twilight Burokrat package exposes two commands that run the same
 program: the documented full name and the short name `twib`. Both are proven by spawning the
 installed launchers themselves, so the shebang and the executable bit are exercised, not only the
 built file they point at.
@@ -27,29 +27,29 @@ sentence naming the short command. No Git state change of any kind.
 
 ## 2. Read first
 
-| File                                                                 | Why                                                                                                                 |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`                                                          | Rules R1 to R5. R5 governs the four negative proofs in section 8.                                                   |
-| `LLM_README.md`                                                      | The index. Read it before the packet, as the executor preamble requires.                                            |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                | The execution contract, file ownership, the standard blocks, and "Counts are relative".                             |
-| `docs/superpowers/plans/2026-09-19-batch-1/ASSUMPTIONS.md`           | The execution assumptions, including that no executor gets network access.                                          |
-| `apps/wiki/cli/package.json`                                         | The manifest this task edits.                                                                                       |
-| `apps/wiki/cli/project.json`                                         | The real target names: `build`, `pack`, `test:package`, `typecheck`, `lint:source`.                                 |
-| `apps/wiki/cli/src/packaging/install.test.ts`                        | The test this task edits. Read `installTarball`, `run`, `invoke`, `invokeWithoutWorkspace`, `sanitizedEnvironment`. |
-| `apps/wiki/cli/src/packaging/build.ts`                               | Lines 109 and 110 write the shebang and the 0755 mode that the new spawns exercise.                                 |
-| `apps/wiki/cli/src/packaging/pack.ts`                                | `bun pm pack` reads the manifest, so the tarball is stale until `pack` reruns after a manifest edit.                |
-| `apps/wiki/cli/src/packaging/release.test.ts`                        | Builds its own fixture manifest; read it to confirm it needs no change.                                             |
-| `apps/wiki/cli/src/packaging/consumer-bootstrap.test.ts`             | Builds its own fixture manifests; read them to confirm they need no change.                                         |
-| `openspec/changes/twilight-bureaucrat-package/specs/package/spec.md` | The capability this change extends, and the GIVEN/WHEN/THEN bullet form its scenarios use.                          |
-| `openspec/changes/twilight-bureaucrat-package/.openspec.yaml`        | The exact two-line shape of the metadata file this packet's change needs.                                           |
-| `openspec/schemas/sdd-lean/templates/`                               | `proposal.md`, `spec.md`, `tasks.md` and `verify.md` templates, on disk, usable with no network.                    |
+| File                                                               | Why                                                                                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                        | Rules R1 to R5. R5 governs the four negative proofs in section 8.                                                   |
+| `LLM_README.md`                                                    | The index. Read it before the packet, as the executor preamble requires.                                            |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`              | The execution contract, file ownership, the standard blocks, and "Counts are relative".                             |
+| `docs/superpowers/plans/2026-09-19-batch-1/ASSUMPTIONS.md`         | The execution assumptions, including that no executor gets network access.                                          |
+| `apps/wiki/cli/package.json`                                       | The manifest this task edits.                                                                                       |
+| `apps/wiki/cli/project.json`                                       | The real target names: `build`, `pack`, `test:package`, `typecheck`, `lint:source`.                                 |
+| `apps/wiki/cli/src/packaging/install.test.ts`                      | The test this task edits. Read `installTarball`, `run`, `invoke`, `invokeWithoutWorkspace`, `sanitizedEnvironment`. |
+| `apps/wiki/cli/src/packaging/build.ts`                             | Lines 109 and 110 write the shebang and the 0755 mode that the new spawns exercise.                                 |
+| `apps/wiki/cli/src/packaging/pack.ts`                              | `bun pm pack` reads the manifest, so the tarball is stale until `pack` reruns after a manifest edit.                |
+| `apps/wiki/cli/src/packaging/release.test.ts`                      | Builds its own fixture manifest; read it to confirm it needs no change.                                             |
+| `apps/wiki/cli/src/packaging/consumer-bootstrap.test.ts`           | Builds its own fixture manifests; read them to confirm they need no change.                                         |
+| `openspec/changes/twilight-burokrat-package/specs/package/spec.md` | The capability this change extends, and the GIVEN/WHEN/THEN bullet form its scenarios use.                          |
+| `openspec/changes/twilight-burokrat-package/.openspec.yaml`        | The exact two-line shape of the metadata file this packet's change needs.                                           |
+| `openspec/schemas/sdd-lean/templates/`                             | `proposal.md`, `spec.md`, `tasks.md` and `verify.md` templates, on disk, usable with no network.                    |
 
 ## 3. Verified facts, checked on 2026-09-19 and 2026-09-20
 
 ### The manifest and the built launcher
 
-- `apps/wiki/cli/package.json` has `"name": "twilight-bureaucrat"`, `"version": "0.1.0"`,
-  `"type": "module"`, `"bin": { "twilight-bureaucrat": "dist/bin.mjs" }`,
+- `apps/wiki/cli/package.json` has `"name": "twilight-burokrat"`, `"version": "0.1.0"`,
+  `"type": "module"`, `"bin": { "twilight-burokrat": "dist/bin.mjs" }`,
   `"files": ["dist/", "README.md", "NOTICE"]` and `"engines": { "bun": "1.4.2" }`. It declares no
   `dependencies`.
 - `apps/wiki/cli/src/packaging/build.ts:109` writes `#!/usr/bin/env bun` ahead of the bundle, and
@@ -78,17 +78,17 @@ sentence naming the short command. No Git state change of any kind.
   `bun install --frozen-lockfile --ignore-scripts`, and returns `{ consumer, executable }` where
   `executable` is the installed `dist/bin.mjs`, not a launcher under `node_modules/.bin`.
 - The consumer fixture `apps/wiki/cli/fixtures/consumer/package.json` is
-  `{"name":"twilight-bureaucrat-consumer-fixture","version":"0.0.0","private":true}`: no
+  `{"name":"twilight-burokrat-consumer-fixture","version":"0.0.0","private":true}`: no
   dependencies.
 - The test named `installs the exact tarball with scripts disabled and runs without workspace
 resolution` asserts the installed manifest with `toMatchObject`, including
-  `bin: { 'twilight-bureaucrat': 'dist/bin.mjs' }`, and runs the program as
+  `bin: { 'twilight-burokrat': 'dist/bin.mjs' }`, and runs the program as
   `invoke(executable, ['--version'], consumer)` expecting `0.1.0` and a newline. The same test also
   calls `invokeWithoutWorkspace`, which throws when `bwrap` is absent (`install.test.ts:91`).
 - `existsSync`, `rmSync`, `writeFileSync`, `renameSync`, `join` and `expect` are already imported in
   `install.test.ts`. `chmodSync` and `realpathSync` are not; proofs 3 and 4 add them temporarily and
   remove them again.
-- The describe block is `packed Twilight Bureaucrat installation` and contains nine tests.
+- The describe block is `packed Twilight Burokrat installation` and contains nine tests.
 - `release.test.ts` and `consumer-bootstrap.test.ts` write their own fixture manifests containing
   only the full command name. They are inputs to those tests, not assertions about the real manifest.
 
@@ -107,13 +107,13 @@ Run with `bun --version` reporting `1.4.2`, the version `apps/wiki/cli/package.j
   `HTTP_PROXY` and `HTTPS_PROXY` pointed at a dead port, and it creates **one symlink per `bin`
   entry** under `node_modules/.bin`. A two-entry `bin` map produced both links.
 - `bun test <file> -t '^<bare title>$'` matches **zero** tests: Bun matches the concatenated
-  describe-plus-test name. `-t '^packed Twilight Bureaucrat installation installs the exact tarball
+  describe-plus-test name. `-t '^packed Twilight Burokrat installation installs the exact tarball
 with scripts disabled and runs without workspace resolution$'` matches exactly one.
 
 ### OpenSpec, and why the CLI may be unavailable
 
 - The capability of the existing package change is exactly `package`. Its artifacts are
-  `openspec/changes/twilight-bureaucrat-package/{.openspec.yaml,proposal.md,design.md,tasks.md,verify.md}`
+  `openspec/changes/twilight-burokrat-package/{.openspec.yaml,proposal.md,design.md,tasks.md,verify.md}`
   and `specs/package/spec.md`. Its `.openspec.yaml` is exactly two lines: `schema: sdd-lean` and
   `created: 2026-09-17`.
 - `openspec/config.yaml` sets `schema: sdd-lean`, but `openspec new change --help` on 1.12.0 reports
@@ -154,19 +154,19 @@ so `bunx nx`, `bunx tsc`, `bunx eslint` and `bunx prettier` resolve without the 
 
 ## 5. File plan
 
-| File                                                                       | Change                                                                                  |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `apps/wiki/cli/package.json`                                               | Add one entry to `bin`.                                                                 |
-| `apps/wiki/cli/src/packaging/install.test.ts`                              | Extend one existing test: manifest expectation, two launcher spawns, one proof comment. |
-| `openspec/changes/twilight-bureaucrat-short-command/.openspec.yaml`        | Two lines: `schema: sdd-lean` and the creation date.                                    |
-| `openspec/changes/twilight-bureaucrat-short-command/proposal.md`           | The intent artifact, at most 400 words, listing `package` under Capabilities.           |
-| `openspec/changes/twilight-bureaucrat-short-command/specs/package/spec.md` | The delta spec adding one requirement to the `package` capability.                      |
-| `openspec/changes/twilight-bureaucrat-short-command/tasks.md`              | Ordered TDD slices matching section 7.                                                  |
-| `openspec/changes/twilight-bureaucrat-short-command/verify.md`             | Commands, real output and the failure-proof table from section 8.                       |
+| File                                                                     | Change                                                                                  |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `apps/wiki/cli/package.json`                                             | Add one entry to `bin`.                                                                 |
+| `apps/wiki/cli/src/packaging/install.test.ts`                            | Extend one existing test: manifest expectation, two launcher spawns, one proof comment. |
+| `openspec/changes/twilight-burokrat-short-command/.openspec.yaml`        | Two lines: `schema: sdd-lean` and the creation date.                                    |
+| `openspec/changes/twilight-burokrat-short-command/proposal.md`           | The intent artifact, at most 400 words, listing `package` under Capabilities.           |
+| `openspec/changes/twilight-burokrat-short-command/specs/package/spec.md` | The delta spec adding one requirement to the `package` capability.                      |
+| `openspec/changes/twilight-burokrat-short-command/tasks.md`              | Ordered TDD slices matching section 7.                                                  |
+| `openspec/changes/twilight-burokrat-short-command/verify.md`             | Commands, real output and the failure-proof table from section 8.                       |
 
 Seven files. No `design.md`: under `sdd-lean` it is optional and this change has no technical shape.
 
-Build outputs `apps/wiki/cli/dist/` and `dist/twilight-bureaucrat-pack/` change as a side effect of
+Build outputs `apps/wiki/cli/dist/` and `dist/twilight-burokrat-pack/` change as a side effect of
 `build` and `pack`. They are generated, not edited, and are not part of the hand-over list.
 
 ## 6. Interfaces
@@ -174,11 +174,11 @@ Build outputs `apps/wiki/cli/dist/` and `dist/twilight-bureaucrat-pack/` change 
 The package manifest's `bin` map after this task:
 
 ```json
-{ "twilight-bureaucrat": "dist/bin.mjs", "twib": "dist/bin.mjs" }
+{ "twilight-burokrat": "dist/bin.mjs", "twib": "dist/bin.mjs" }
 ```
 
 Both names point at the same file. Nothing else reads the map. The installed launchers the test
-spawns are `node_modules/.bin/twilight-bureaucrat` and `node_modules/.bin/twib` inside the scratch
+spawns are `node_modules/.bin/twilight-burokrat` and `node_modules/.bin/twib` inside the scratch
 consumer the test creates.
 
 ## 7. Steps
@@ -203,22 +203,22 @@ uses.
       cannot match:
 
 ```sh
-grep -nE '^[[:space:]]*"twilight-bureaucrat": "dist/bin\.mjs"$' apps/wiki/cli/package.json
+grep -nE '^[[:space:]]*"twilight-burokrat": "dist/bin\.mjs"$' apps/wiki/cli/package.json
 ```
 
       Expected: exactly one line. Zero lines means the manifest is not the shape section 3 recorded;
       stop and report.
 
-- [ ] `NX_DAEMON=false bunx nx run twilight-bureaucrat:pack --skip-nx-cache` → expect exit 0 and
-      `dist/twilight-bureaucrat-pack/twilight-bureaucrat-0.1.0.tgz` present afterwards
-      (`ls -l dist/twilight-bureaucrat-pack/twilight-bureaucrat-0.1.0.tgz`).
+- [ ] `NX_DAEMON=false bunx nx run twilight-burokrat:pack --skip-nx-cache` → expect exit 0 and
+      `dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz` present afterwards
+      (`ls -l dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz`).
 - [ ] Run the focused test, untouched, and record its summary:
 
 ```sh
 TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test \
   --preload ./tools/test/scratch/preload.ts \
   ./apps/wiki/cli/src/packaging/install.test.ts \
-  -t '^packed Twilight Bureaucrat installation installs the exact tarball with scripts disabled and runs without workspace resolution$'
+  -t '^packed Twilight Burokrat installation installs the exact tarball with scripts disabled and runs without workspace resolution$'
 ```
 
       Expected: exit 0, `1 pass`, `0 fail`, and the other tests of the file reported as filtered out
@@ -270,8 +270,8 @@ jq -s -e '
 - [ ] **Branch A only.** Use the README's standard block:
 
 ```sh
-OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change twilight-bureaucrat-short-command --schema sdd-lean
-grep -n "schema: sdd-lean" openspec/changes/twilight-bureaucrat-short-command/.openspec.yaml
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change twilight-burokrat-short-command --schema sdd-lean
+grep -n "schema: sdd-lean" openspec/changes/twilight-burokrat-short-command/.openspec.yaml
 ```
 
       Expected: the second command prints exactly one line. If it prints nothing, stop.
@@ -280,9 +280,9 @@ grep -n "schema: sdd-lean" openspec/changes/twilight-bureaucrat-short-command/.o
       recorded from the existing change:
 
 ```sh
-mkdir -p openspec/changes/twilight-bureaucrat-short-command/specs/package
-printf 'schema: sdd-lean\ncreated: 2026-09-20\n' > openspec/changes/twilight-bureaucrat-short-command/.openspec.yaml
-grep -n "schema: sdd-lean" openspec/changes/twilight-bureaucrat-short-command/.openspec.yaml
+mkdir -p openspec/changes/twilight-burokrat-short-command/specs/package
+printf 'schema: sdd-lean\ncreated: 2026-09-20\n' > openspec/changes/twilight-burokrat-short-command/.openspec.yaml
+grep -n "schema: sdd-lean" openspec/changes/twilight-burokrat-short-command/.openspec.yaml
 ```
 
       Expected: the last command prints exactly one line. Use the real current date if it is not
@@ -293,13 +293,13 @@ grep -n "schema: sdd-lean" openspec/changes/twilight-bureaucrat-short-command/.o
 - [ ] **Branch A only.** Read the instructions first:
 
 ```sh
-OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions intent --change twilight-bureaucrat-short-command --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions intent --change twilight-burokrat-short-command --json
 ```
 
       Expected: exit 0, and the output carries the template plus the `intent` rules from
       `openspec/config.yaml`.
 
-- [ ] **Both branches.** Write `openspec/changes/twilight-bureaucrat-short-command/proposal.md` from
+- [ ] **Both branches.** Write `openspec/changes/twilight-burokrat-short-command/proposal.md` from
       `openspec/schemas/sdd-lean/templates/proposal.md`. Keep it within 400 words. It must have a
       `## Why` section of 50 to 1000 characters, a `## What Changes` section, and a Capabilities
       section naming exactly `package`. No design interview is run for this change: the decision to
@@ -308,17 +308,17 @@ OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions intent --chan
 ### Step 4 — Write the delta spec
 
 - [ ] **Branch A only.**
-      `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions specs --change twilight-bureaucrat-short-command --json`
+      `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions specs --change twilight-burokrat-short-command --json`
       → expect exit 0.
 - [ ] **Both branches.** Write
-      `openspec/changes/twilight-bureaucrat-short-command/specs/package/spec.md` with the exact
+      `openspec/changes/twilight-burokrat-short-command/specs/package/spec.md` with the exact
       content in section 9. The folder is `package` because that is the existing capability folder;
       do not invent a new capability name.
 
 ### Step 5 — Write the tasks
 
 - [ ] **Branch A only.**
-      `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions tasks --change twilight-bureaucrat-short-command --json`
+      `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions tasks --change twilight-burokrat-short-command --json`
       → expect exit 0.
 - [ ] **Both branches.** Write `tasks.md` as ordered slices matching steps 6 to 11, each naming the
       test that proves it, and the slice that adds the launcher checks naming the four negatives of
@@ -333,9 +333,9 @@ OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 instructions intent --chan
 
 ```ts
 expect(manifest).toMatchObject({
-  name: 'twilight-bureaucrat',
+  name: 'twilight-burokrat',
   version: '0.1.0',
-  bin: { 'twilight-bureaucrat': 'dist/bin.mjs', twib: 'dist/bin.mjs' },
+  bin: { 'twilight-burokrat': 'dist/bin.mjs', twib: 'dist/bin.mjs' },
 });
 ```
 
@@ -344,7 +344,7 @@ expect(manifest).toMatchObject({
 
 ```ts
 const shortCommand = join(consumer, 'node_modules/.bin/twib');
-const fullCommand = join(consumer, 'node_modules/.bin/twilight-bureaucrat');
+const fullCommand = join(consumer, 'node_modules/.bin/twilight-burokrat');
 expect(existsSync(shortCommand), 'the installer did not link the short command').toBe(true);
 expect(existsSync(fullCommand), 'the installer did not link the full command').toBe(true);
 const shortRun = run([shortCommand, '--version'], consumer, sanitizedEnvironment(consumer));
@@ -375,7 +375,7 @@ expect(fullRun.stdout.toString()).toBe(shortRun.stdout.toString());
   TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test \
     --preload ./tools/test/scratch/preload.ts \
     ./apps/wiki/cli/src/packaging/install.test.ts \
-    -t '^packed Twilight Bureaucrat installation installs the exact tarball with scripts disabled and runs without workspace resolution$' \
+    -t '^packed Twilight Burokrat installation installs the exact tarball with scripts disabled and runs without workspace resolution$' \
     2>&1 | tee "$TMPDIR/evidence/step-7-red.txt" )
 ```
 
@@ -391,7 +391,7 @@ expect(fullRun.stdout.toString()).toBe(shortRun.stdout.toString());
 
 ### Step 9 — Repack, then watch it pass
 
-- [ ] `NX_DAEMON=false bunx nx run twilight-bureaucrat:pack --skip-nx-cache` → expect exit 0. **This
+- [ ] `NX_DAEMON=false bunx nx run twilight-burokrat:pack --skip-nx-cache` → expect exit 0. **This
       is mandatory.** `pack.ts:19` runs `bun pm pack`, so without it the test installs the old
       tarball and the manifest expectation fails for a reason that has nothing to do with the code.
 - [ ] Run the focused command of step 7, into `"$TMPDIR/evidence/step-9-green.txt"`. Expected: exit
@@ -425,22 +425,22 @@ expect(fullRun.stdout.toString()).toBe(shortRun.stdout.toString());
 
 ### Step 12 — Executor verification
 
-- [ ] `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck` → expect exit 0, no diagnostic
+- [ ] `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck` → expect exit 0, no diagnostic
       printed.
-- [ ] `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source` → expect exit 0, no ESLint
+- [ ] `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source` → expect exit 0, no ESLint
       problem reported.
-- [ ] `NX_DAEMON=false bunx nx run twilight-bureaucrat:build` → expect exit 0.
-- [ ] Create `openspec/changes/twilight-bureaucrat-short-command/verify.md` from
+- [ ] `NX_DAEMON=false bunx nx run twilight-burokrat:build` → expect exit 0.
+- [ ] Create `openspec/changes/twilight-burokrat-short-command/verify.md` from
       `openspec/schemas/sdd-lean/templates/verify.md` now. Record the observations already collected
       and mark checks not yet run as pending. Do not claim their outcomes in advance.
 - [ ] Format only the files this packet owns, then check the repository:
 
 ```sh
 bunx prettier --write apps/wiki/cli/package.json apps/wiki/cli/src/packaging/install.test.ts \
-  openspec/changes/twilight-bureaucrat-short-command/proposal.md \
-  openspec/changes/twilight-bureaucrat-short-command/specs/package/spec.md \
-  openspec/changes/twilight-bureaucrat-short-command/tasks.md \
-  openspec/changes/twilight-bureaucrat-short-command/verify.md
+  openspec/changes/twilight-burokrat-short-command/proposal.md \
+  openspec/changes/twilight-burokrat-short-command/specs/package/spec.md \
+  openspec/changes/twilight-burokrat-short-command/tasks.md \
+  openspec/changes/twilight-burokrat-short-command/verify.md
 NX_DAEMON=false bunx nx format:check --all
 ```
 
@@ -479,7 +479,7 @@ rm -f -- "$report"
 - [ ] Finalize the existing `verify.md` with the real output of every command above, the
       failure-proof table of section 8 filled in with all four observed failures, and an explicit
       list of the pending planner checks and why they were not run. Then run
-      `bunx prettier --write openspec/changes/twilight-bureaucrat-short-command/verify.md` and
+      `bunx prettier --write openspec/changes/twilight-burokrat-short-command/verify.md` and
       `NX_DAEMON=false bunx nx format:check --all`. Require the formatting outcome step 12 states
       before hand-over.
 
@@ -498,7 +498,7 @@ This executor's Git directory is read-only, so there is nothing to stage and not
       `temporary fault`. Every fault backup under `$TMPDIR` must already have been restored and
       compared in section 8.
 - [ ] Report, under "Ready to commit": the seven paths, and the subject
-      `feat(twilight-bureaucrat): add the twib command alias`, with a body carrying step 0's
+      `feat(twilight-burokrat): add the twib command alias`, with a body carrying step 0's
       baseline, step 9's summary and each negative proof's observed failure line.
 - [ ] Do not run `git add`, `git commit`, `git checkout -b`, `git stash` or `git restore --staged`.
       They fail here, and the planner commits after reviewing the diff.
@@ -538,7 +538,7 @@ Throughout, `FOCUSED` means the command of step 7, with its `tee` target changed
 ### Proof 1 — the published manifest links both names
 
 - **Fault.** Remove the `twib` entry from `bin` in `apps/wiki/cli/package.json`, then
-  `NX_DAEMON=false bunx nx run twilight-bureaucrat:pack --skip-nx-cache`. The repack is part of the
+  `NX_DAEMON=false bunx nx run twilight-burokrat:pack --skip-nx-cache`. The repack is part of the
   fault: without it the tarball still carries the passing manifest.
 - **Must fail.** The `expect(manifest).toMatchObject({...})` manifest expectation, reporting the
   installed `bin` map without `twib`. This is the same failure as step 7.
@@ -607,24 +607,24 @@ chmodSync(shortCommand, 0o755);
 ## 9. OpenSpec
 
 This task changes what an installed package exposes, which is observable behaviour, so R4 requires a
-change. The change is `twilight-bureaucrat-short-command` on the `sdd-lean` schema, with the five
+change. The change is `twilight-burokrat-short-command` on the `sdd-lean` schema, with the five
 files listed in section 5 and no `design.md`.
 
-The capability is `package`, the one the existing `twilight-bureaucrat-package` change defines at
-`openspec/changes/twilight-bureaucrat-package/specs/package/spec.md`. The delta spec is exactly:
+The capability is `package`, the one the existing `twilight-burokrat-package` change defines at
+`openspec/changes/twilight-burokrat-package/specs/package/spec.md`. The delta spec is exactly:
 
 ```markdown
 ## ADDED Requirements
 
 ### Requirement: The package installs a short command
 
-An installed Twilight Bureaucrat package SHALL link the command `twib` to the same executable as
-`twilight-bureaucrat`, and both installed launchers SHALL be executable.
+An installed Twilight Burokrat package SHALL link the command `twib` to the same executable as
+`twilight-burokrat`, and both installed launchers SHALL be executable.
 
 #### Scenario: Both installed launchers run the same program
 
 - **GIVEN** the packed tarball is installed with lifecycle scripts disabled
-- **WHEN** `node_modules/.bin/twib --version` and `node_modules/.bin/twilight-bureaucrat --version`
+- **WHEN** `node_modules/.bin/twib --version` and `node_modules/.bin/twilight-burokrat --version`
   are spawned directly
 - **THEN** both exit zero and print the same version
 
@@ -650,24 +650,24 @@ Every row states the exit status and the line or count that says it worked.
 
 ### What the executor runs
 
-| Command                                                                | Expected                                                                                     |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:pack --skip-nx-cache` | Exit 0. The tarball exists at `dist/twilight-bureaucrat-pack/twilight-bureaucrat-0.1.0.tgz`. |
-| The `FOCUSED` command of step 7                                        | Exit 0, `1 pass`, `0 fail`, and step 0's filtered-out count.                                 |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`            | Exit 0, no diagnostic printed.                                                               |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`          | Exit 0, no ESLint problem reported.                                                          |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                | Exit 0.                                                                                      |
-| `NX_DAEMON=false bunx nx format:check --all`                           | Exit 0, or failures naming only files outside this packet's seven, reported and left alone.  |
-| The OpenSpec block in step 12, branch A only                           | One JSON report printed, the block exits 0, `passed` exactly step 1's number plus one.       |
+| Command                                                              | Expected                                                                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:pack --skip-nx-cache` | Exit 0. The tarball exists at `dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz`.    |
+| The `FOCUSED` command of step 7                                      | Exit 0, `1 pass`, `0 fail`, and step 0's filtered-out count.                                |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`            | Exit 0, no diagnostic printed.                                                              |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`          | Exit 0, no ESLint problem reported.                                                         |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:build`                | Exit 0.                                                                                     |
+| `NX_DAEMON=false bunx nx format:check --all`                         | Exit 0, or failures naming only files outside this packet's seven, reported and left alone. |
+| The OpenSpec block in step 12, branch A only                         | One JSON report printed, the block exits 0, `passed` exactly step 1's number plus one.      |
 
 ### What the planner runs afterwards, and the executor reports as pending
 
-| Command                                                        | Why the executor cannot run it                                                                                                                                                            |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `git add` of the seven paths, then the commit                  | The clone's Git directory is read-only here.                                                                                                                                              |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package` | The whole target re-runs all nine tests of the file plus the other packaging suites; the executor ran its own named test only. Run it after staging, as part of integration verification. |
-| The OpenSpec validation block, if step 1 took branch B         | `bunx` cannot fetch the CLI without the registry in this attempt.                                                                                                                         |
-| `bin/h2puni-gate.sh <sha>`                                     | The host gate cannot run on this machine.                                                                                                                                                 |
+| Command                                                      | Why the executor cannot run it                                                                                                                                                            |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git add` of the seven paths, then the commit                | The clone's Git directory is read-only here.                                                                                                                                              |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:test:package` | The whole target re-runs all nine tests of the file plus the other packaging suites; the executor ran its own named test only. Run it after staging, as part of integration verification. |
+| The OpenSpec validation block, if step 1 took branch B       | `bunx` cannot fetch the CLI without the registry in this attempt.                                                                                                                         |
+| `bin/h2puni-gate.sh <sha>`                                   | The host gate cannot run on this machine.                                                                                                                                                 |
 
 `test:package` is listed for the planner because of scope, not because it writes Git objects into
 the clone: its Git writes all happen inside scratch fixture repositories under the attempt's
@@ -703,7 +703,7 @@ Stop and report rather than improvising when any of these happens.
 - `apps/wiki/cli/README.md`. Packet 010.4 owns it and adds the sentence naming the short command.
 - Everything under `apps/wiki/cli/src` except `packaging/install.test.ts`, including `cli.ts` and
   the new rules directory, which packet 010.4 owns.
-- `openspec/changes/twilight-bureaucrat-package/`. This task adds a new change; it does not edit the
+- `openspec/changes/twilight-burokrat-package/`. This task adds a new change; it does not edit the
   existing one.
 - `CONTEXT.md`, owned by 010.3. This packet introduces no new domain term: `twib` is a binary name,
   not a concept.
@@ -750,14 +750,14 @@ confirmed six as fixed and one as partly fixed; that one is the first entry belo
   explained from `pack.ts:19`. The correction: the review's and the batch instructions' `-t
 '^<exact title>$'` form matches **zero** tests. Verified on Bun 1.4.2 in a throwaway directory —
   Bun matches the concatenated describe-plus-test name, so `^installs the exact tarball…$` matched 0
-  tests while the full `^packed Twilight Bureaucrat installation installs the exact tarball…$`
+  tests while the full `^packed Twilight Burokrat installation installs the exact tarball…$`
   matched 1. The packet uses the full anchored form everywhere.
 - **`test:package` assigned to the planner — fixed, and the review's correction adopted.** Section 10
   no longer describes it as writing Git objects into the executor's clone; its Git writes happen in
   scratch fixture repositories, which the execution contract permits. It is planner-only because of
   scope.
 - **Step 15 hand-over instead of commit — fixed**, with the commit subject
-  `feat(twilight-bureaucrat): add the twib command alias`.
+  `feat(twilight-burokrat): add the twib command alias`.
 - **Step 16 host gate — fixed.** The executor is told not to run it and to record it as unavailable.
 - **A writable Bun cache — REJECTED, with evidence.** The review asked for
   `BUN_INSTALL_CACHE_DIR=/tmp/010-5-bun-cache` so a cache miss cannot write under the executor's
@@ -775,7 +775,7 @@ confirmed six as fixed and one as partly fixed; that one is the first entry belo
   planner's own probe recorded in section 3.
 - **Q5, 010.4 and 010.5 jointly change the same built package.** Both edit different files that end
   up in one tarball. This packet cannot verify the combination; section 10 assigns
-  `twilight-bureaucrat:test:package` and the integration matrix to the planner, and section 12 keeps
+  `twilight-burokrat:test:package` and the integration matrix to the planner, and section 12 keeps
   the two lanes' files disjoint.
 - **Unasked 4, restoration ownership.** Section 8 now persists, per fault, the backup path, the
   mutation as a patch under `$TMPDIR/evidence`, and the failing output beside it, and requires a

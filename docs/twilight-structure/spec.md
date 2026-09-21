@@ -14,7 +14,7 @@ for agent orchestration and ACP as the primary interface to coding-agent session
 Naming note, 2026-09-19: in this catalog, Vesper Shipyards is the customer-facing
 software factory, Twilight Structure is its tool suite, Twilight Navigator owns
 request shaping through planning, Twilight Dash owns implementation through release
-and environments, and Twilight Bureaucrat owns rules, templates and evidence gates.
+and environments, and Twilight Burokrat owns rules, templates and evidence gates.
 
 The desired outcome is a traceable software delivery loop: shape a request,
 specify it, plan resources and dependencies, implement and review it, exercise it

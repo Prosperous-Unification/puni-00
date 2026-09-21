@@ -103,6 +103,6 @@ That does not certify:
 - Worker isolation across distinct physical hosts, or HA control-plane removal and upgrade.
 - The remote Terragrunt HTTP backend or live hcloud provisioning.
 - Registry publication: of the controller image, of `WBS_SHA`-labelled Dagger images, or of
-  the `twilight-bureaucrat` package.
+  the `twilight-burokrat` package.
 - Any GitHub Actions run of `infra-check`, `deploy-k3s` or the package release workflow.
 - Staging, production promotion or the production cutover.

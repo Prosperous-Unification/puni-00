@@ -258,7 +258,7 @@ packet's earlier draft confused them:
 - `tools/tool-devsync/src/workspace-inventory.test.ts:110-111` pins rows and files of
   parent-relative values in `tsconfig*.json` and `project.json`. This packet adds neither and
   changes no target, so it does not move.
-- No file is added under `apps/wiki/cli`, so the Twilight Bureaucrat validator identity is
+- No file is added under `apps/wiki/cli`, so the Twilight Burokrat validator identity is
   unchanged and `apps/wiki/cli/src/packaging/build.test.ts` needs no `ruleModes` entry.
 - OpenSpec, rehearsed: baseline `{"items": 107, "passed": 107, "failed": 0}` (95 changes, 12
   specs); with this change, `108 / 108 / 0`, the new change valid with no issues.
@@ -333,7 +333,7 @@ hook as well as the `secrets` option.
 
 **Neighbours.** No other batch 2 or batch 3 packet touches these files. 020.2 landed
 `@shared/failures` and this packet only imports it. 020.7 and 040.7 touch `apps/wbs/be-01`; 040.4
-and 110.1 touch the frontend and project targets; 010.6, 010.7 and 110.6 are Twilight Bureaucrat
+and 110.1 touch the frontend and project targets; 010.6, 010.7 and 110.6 are Twilight Burokrat
 and wiki work; G2 owns tests elsewhere in this project's neighbourhood and is why section 12's
 devsync expectation is relative. If a step needs a file outside the table, **stop**.## 6. Steps
 

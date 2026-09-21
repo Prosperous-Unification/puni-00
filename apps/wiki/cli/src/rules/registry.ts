@@ -18,9 +18,8 @@ import {
 } from './rule';
 import { measureSizes } from './size-ratchet';
 
-const SpecSource = 'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md';
-const KindSpecSource =
-  'openspec/changes/twilight-bureaucrat-kind-rules/specs/bureaucrat-rules/spec.md';
+const SpecSource = 'openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md';
+const KindSpecSource = 'openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md';
 
 const classificationRule: RegisteredRule = {
   id: 'INV-CLASSIFY',

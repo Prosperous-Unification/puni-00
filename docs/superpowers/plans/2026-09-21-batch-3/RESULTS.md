@@ -61,7 +61,7 @@ These per-lane browser totals do not claim the complete composed browser gate.
 The specification closure after `6962f0cd` changes only the reporting task/evidence documents.
 The delivery PR records the subsequent whole composed Chromium run, exact-commit h2puni gate
 (including its printed SHA), and CI gate/pixels verdicts. All must pass before merge. The
-standalone Bureaucrat lint job has a separately recorded unpublished-package prerequisite;
+standalone Burokrat lint job has a separately recorded unpublished-package prerequisite;
 its actual verdict must remain visible in the PR.
 
 Independent review approved the complete production diff through the root handlers and then

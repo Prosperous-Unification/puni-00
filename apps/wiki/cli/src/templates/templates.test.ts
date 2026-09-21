@@ -95,7 +95,7 @@ describe('template registry CLI', () => {
   test('refuses an unknown template action', () => {
     const invocation = runCli(['template', 'summon']);
     expect(invocation.exitCode).toBe(1);
-    expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
+    expect(stderrOf(invocation)).toContain('usage: twilight-burokrat template <list|show');
   }, 30_000);
 });
 
@@ -544,7 +544,7 @@ describe('template verify, one file', () => {
       'src/modules/widget/widget.feature.ts',
     ]);
     expect(invocation.exitCode).toBe(1);
-    expect(stderrOf(invocation)).toContain('usage: twilight-bureaucrat template <list|show');
+    expect(stderrOf(invocation)).toContain('usage: twilight-burokrat template <list|show');
     expect(stdoutOf(invocation)).toBe('');
   }, 30_000);
 });

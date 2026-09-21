@@ -119,7 +119,7 @@ entry's `sha` must equal the source. Dagger labels each image `WBS_SHA`, and `de
 require the source commit, so the digests themselves, not a claim about them, are bound to the
 commit admission certified. The gate run must be a push to `main`, and the source must be on
 `origin/main`'s history. `sealDescriptor` joins every tier digest to the trusted `admission.json`
-through `requireDeploymentAdmission` (`@tools/bureaucrat-consumer`); a launcher report, an
+through `requireDeploymentAdmission` (`@tools/burokrat-consumer`); a launcher report, an
 admission for another commit, a tag instead of a digest, or a failed gate or browser job seals
 nothing. Its identity is the SHA-256 of its canonical JSON.
 

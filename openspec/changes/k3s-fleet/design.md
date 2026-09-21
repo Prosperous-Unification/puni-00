@@ -1,6 +1,6 @@
 # Design
 
-The fleet follows [the delivery design](../../../docs/superpowers/specs/2026-09-17-twilight-bureaucrat-and-fleet-design.md) and F0–F5/F10/F12 of [the fleet plan](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md).
+The fleet follows [the delivery design](../../../docs/superpowers/specs/2026-09-17-twilight-burokrat-and-fleet-design.md) and F0–F5/F10/F12 of [the fleet plan](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md).
 
 `tools/tool-fleet` contains pure contracts/planners and thin adapters for provider inventory, Kubernetes, SSH, Terraform, and Ansible. Desired state uses stable logical node IDs, provider instance IDs, machine IDs, cluster IDs, capabilities, and explicit lifecycle state. Observations retain source time and completeness; failures never decode as empty lists.
 

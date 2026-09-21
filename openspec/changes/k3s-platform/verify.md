@@ -197,7 +197,7 @@ multi-server etcd, and the maintenance planners' effects.
 
 ### F10 review fixes, merge and follow-ups (2026-09-18)
 
-Merged `change/twilight-bureaucrat-fleet` at `1a25c498` as `87d8ddad`. F11 moved the SQLite backup
+Merged `change/twilight-burokrat-fleet` at `1a25c498` as `87d8ddad`. F11 moved the SQLite backup
 into `deploy/k8s/wbs/base/backup.yaml` (`wbs-solver`, backend image). `sqlite-backup-verify`
 moved beside it: F6 admits only backend-image pods in `wbs-solver`, where the only backup
 Secret, runner and egress policy live, so the MinIO selection container was replaced by a new

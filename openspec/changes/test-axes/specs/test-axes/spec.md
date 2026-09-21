@@ -85,9 +85,9 @@ Every OpenSpec scenario SHALL carry a stable identifier in square brackets at th
 - **WHEN** its title text changes
 - **THEN** it keeps the same identifier
 
-### Requirement: Twilight Bureaucrat allocates identifiers and predecessors
+### Requirement: Twilight Burokrat allocates identifiers and predecessors
 
-Twilight Bureaucrat SHALL allocate every scenario identifier and SHALL record a predecessor when a scenario is renamed or split, the way ADR 0020 treats module identities. Before allocator provenance is enforced, the allocator SHALL import the identifiers that already exist in the repository and reserve them unchanged, so no hand-written identifier in an earlier change is invalidated or reissued.
+Twilight Burokrat SHALL allocate every scenario identifier and SHALL record a predecessor when a scenario is renamed or split, the way ADR 0020 treats module identities. Before allocator provenance is enforced, the allocator SHALL import the identifiers that already exist in the repository and reserve them unchanged, so no hand-written identifier in an earlier change is invalidated or reissued.
 
 #### Scenario: [TEST-AXES-009] An identifier has no allocator provenance
 

@@ -1,9 +1,9 @@
 # LLM_README — read this, then only the doc your task needs
 
-**puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Bureaucrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
+**puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Burokrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
-`twilight-bureaucrat` (`apps/wiki/cli`, `product:twilight-bureaucrat`) is Twilight Bureaucrat, the separately released rules and module-wiki validator.
+`twilight-burokrat` (`apps/wiki/cli`, `product:twilight-burokrat`) is Twilight Burokrat, the separately released rules and module-wiki validator.
 
 Three facts explain most decisions:
 
@@ -121,10 +121,10 @@ The historical R5 failures and their observed proof details live in the linked c
 
 Harness prototype: `tools/harness-example/src/harness.ts`; `bunx nx run harness-example:run -- --fake x` exercises its ACP session loop.
 
-Delivery planning: [Twilight Bureaucrat and dynamic k3s fleet](docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md), building on [the infrastructure proposal](docs/plans/2026-09-15-infra-evolution-plan.md).
+Delivery planning: [Twilight Burokrat and dynamic k3s fleet](docs/superpowers/plans/2026-09-17-twilight-burokrat-and-fleet.md), building on [the infrastructure proposal](docs/plans/2026-09-15-infra-evolution-plan.md).
 
 Package adoption: [caught-object-report-json, application-exception, and di-bag across all projects](docs/superpowers/plans/2026-09-17-personal-package-adoption.md); read its 2026-09-19 amendment first.
 
-Code organization: [four service kinds, modules, frontend rules and test axes](docs/superpowers/specs/2026-09-19-code-organization-design.md), with its [rollout plan](docs/superpowers/plans/2026-09-19-code-organization-rollout.md) and the [Twilight Bureaucrat rules design](docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md). Naming: [rename plan](docs/superpowers/plans/2026-09-19-twilight-rename.md).
+Code organization: [four service kinds, modules, frontend rules and test axes](docs/superpowers/specs/2026-09-19-code-organization-design.md), with its [rollout plan](docs/superpowers/plans/2026-09-19-code-organization-rollout.md) and the [Twilight Burokrat rules design](docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md). Naming: [rename plan](docs/superpowers/plans/2026-09-19-twilight-rename.md).
 
 Conventions: pure planners + thin IO shell; strict types; comments say **why** and what was verified; never print secrets.

@@ -3,7 +3,7 @@
 Size class L. Token estimates: top-model-high-effort planning 6,000,000; mid-level-mid-effort
 implementation 22,000,000; top-model-high-effort review 9,000,000.
 
-Implements slice B0 of the [Twilight Bureaucrat rules design](../../specs/2026-09-19-twilight-bureaucrat-rules-design.md).
+Implements slice B0 of the [Twilight Burokrat rules design](../../specs/2026-09-19-twilight-burokrat-rules-design.md).
 Batch rules, standard blocks and file ownership: [execution batch 1](README.md). Settled open
 points: [assumptions](ASSUMPTIONS.md).
 
@@ -119,7 +119,7 @@ packet predicts, or the mutation **does not compile**.
 
 ### 0.4 Two standing facts about this package
 
-- **Planner-only checks.** The whole `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package`
+- **Planner-only checks.** The whole `twilight-burokrat:test`, `twilight-burokrat:test:package`
   and `tool-devsync:test` targets are the planner's: some of their tests write Git objects into the
   clone. You run the focused files this packet names and list those targets under "Not verified" as
   pending planner verification.
@@ -133,7 +133,7 @@ packet predicts, or the mutation **does not compile**.
 
 ## 1. Goal and non-goals
 
-**Goal.** Give Twilight Bureaucrat a rule model — `Rule`, `Finding`, `Verdict`, `RuleMode` — a
+**Goal.** Give Twilight Burokrat a rule model — `Rule`, `Finding`, `Verdict`, `RuleMode` — a
 registry wrapping four checks the package already performs, a rule policy that supplies each rule's
 mode from outside the candidate, and two commands: `check`, which runs registered rules over one
 candidate and prints one verdict, and `explain`, which prints one rule's record.
@@ -145,28 +145,28 @@ violation.
 
 ## 2. Read first
 
-| File                                                                  | Why                                                                                                                        |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| AGENTS.md                                                             | R1-R5. R5 governs every new check here.                                                                                    |
-| docs/superpowers/plans/2026-09-19-batch-1/README.md                   | Batch rules, the file-ownership table, and the standard OpenSpec validation block.                                         |
-| docs/superpowers/plans/2026-09-19-batch-1/ASSUMPTIONS.md              | The four settled assumptions that bind this packet.                                                                        |
-| docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md | The design. Its "The rule model" section is the source of the four types; its "Open items" already records B0's deferrals. |
-| docs/twilight-structure/names.md                                      | Full product names in prose.                                                                                               |
-| apps/wiki/cli/src/cli.ts                                              | The dispatcher you extend, and the private `readBlob` you move (lines 87-101, 355-425).                                    |
-| apps/wiki/cli/src/bin.ts                                              | The installed binary's second dispatcher: `validatorCommands` (lines 8-26), `help` (lines 28-35).                          |
-| apps/wiki/cli/src/policy/trust.ts                                     | `readStableArtifact`, `assertExternal`, `loadTrustedPolicy`, `lintTrustedCandidate`. The trust boundary you reuse.         |
-| apps/wiki/cli/src/inventory/read-candidate.ts                         | `readCandidate`, `CandidateSnapshot`, and the private `resolveWorktreeRoot` you export.                                    |
-| apps/wiki/cli/src/indexes/check-indexes.ts                            | `checkIndexes`, its `reviewDebt` list, and the violations it throws.                                                       |
-| apps/wiki/cli/src/inventory/classify-entries.ts                       | `classifyEntries` and the messages it throws.                                                                              |
-| apps/wiki/cli/src/relationships/index.ts                              | `extractRelationships` and its trusted-modules requirement.                                                                |
-| apps/wiki/cli/src/relationships/declarations.ts                       | `DeclaredRelationships.unresolved`, typed `{ relationshipId: string; reason: string }[]` (line 54).                        |
-| apps/wiki/cli/src/relationships/selectors.test.ts                     | Lines 275-330: the declaration document shape the part 3 fixture copies.                                                   |
-| apps/wiki/cli/src/contracts/records.ts                                | `OpaqueId`, `RelativePath`, `SchemaVersion`, `ClassificationPolicy`, `RelationshipRequest`.                                |
-| apps/wiki/cli/src/indexes/indexes.test.ts                             | The fixture style: temporary Git repository, `module-index` comment, spawned production CLI.                               |
-| apps/wiki/cli/src/inventory/classification.test.ts                    | Lines 18-24: the shipped classification policy fixture loaded in a test.                                                   |
-| apps/wiki/cli/src/packaging/build.test.ts                             | The existing built-executable test that part 4 extends.                                                                    |
-| apps/wiki/cli/project.json                                            | The real Nx target names.                                                                                                  |
-| openspec/config.yaml                                                  | The `sdd-lean` schema and its per-artifact rules.                                                                          |
+| File                                                                | Why                                                                                                                        |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| AGENTS.md                                                           | R1-R5. R5 governs every new check here.                                                                                    |
+| docs/superpowers/plans/2026-09-19-batch-1/README.md                 | Batch rules, the file-ownership table, and the standard OpenSpec validation block.                                         |
+| docs/superpowers/plans/2026-09-19-batch-1/ASSUMPTIONS.md            | The four settled assumptions that bind this packet.                                                                        |
+| docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md | The design. Its "The rule model" section is the source of the four types; its "Open items" already records B0's deferrals. |
+| docs/twilight-structure/names.md                                    | Full product names in prose.                                                                                               |
+| apps/wiki/cli/src/cli.ts                                            | The dispatcher you extend, and the private `readBlob` you move (lines 87-101, 355-425).                                    |
+| apps/wiki/cli/src/bin.ts                                            | The installed binary's second dispatcher: `validatorCommands` (lines 8-26), `help` (lines 28-35).                          |
+| apps/wiki/cli/src/policy/trust.ts                                   | `readStableArtifact`, `assertExternal`, `loadTrustedPolicy`, `lintTrustedCandidate`. The trust boundary you reuse.         |
+| apps/wiki/cli/src/inventory/read-candidate.ts                       | `readCandidate`, `CandidateSnapshot`, and the private `resolveWorktreeRoot` you export.                                    |
+| apps/wiki/cli/src/indexes/check-indexes.ts                          | `checkIndexes`, its `reviewDebt` list, and the violations it throws.                                                       |
+| apps/wiki/cli/src/inventory/classify-entries.ts                     | `classifyEntries` and the messages it throws.                                                                              |
+| apps/wiki/cli/src/relationships/index.ts                            | `extractRelationships` and its trusted-modules requirement.                                                                |
+| apps/wiki/cli/src/relationships/declarations.ts                     | `DeclaredRelationships.unresolved`, typed `{ relationshipId: string; reason: string }[]` (line 54).                        |
+| apps/wiki/cli/src/relationships/selectors.test.ts                   | Lines 275-330: the declaration document shape the part 3 fixture copies.                                                   |
+| apps/wiki/cli/src/contracts/records.ts                              | `OpaqueId`, `RelativePath`, `SchemaVersion`, `ClassificationPolicy`, `RelationshipRequest`.                                |
+| apps/wiki/cli/src/indexes/indexes.test.ts                           | The fixture style: temporary Git repository, `module-index` comment, spawned production CLI.                               |
+| apps/wiki/cli/src/inventory/classification.test.ts                  | Lines 18-24: the shipped classification policy fixture loaded in a test.                                                   |
+| apps/wiki/cli/src/packaging/build.test.ts                           | The existing built-executable test that part 4 extends.                                                                    |
+| apps/wiki/cli/project.json                                          | The real Nx target names.                                                                                                  |
+| openspec/config.yaml                                                | The `sdd-lean` schema and its per-artifact rules.                                                                          |
 
 ## 3. Verified facts
 
@@ -174,7 +174,7 @@ Checked on 2026-09-19. Facts 24 to 38 were **observed by running** the code of s
 of `apps/wiki/cli/src` placed outside the repository, with the real `@shared/validation` and the
 real `typescript` resolved through a symlink, against real Git fixtures.
 
-1. Nx project `twilight-bureaucrat`, `sourceRoot` `apps/wiki/cli/src` (apps/wiki/cli/project.json).
+1. Nx project `twilight-burokrat`, `sourceRoot` `apps/wiki/cli/src` (apps/wiki/cli/project.json).
 2. Its targets are exactly `test`, `lint`, `lint:source`, `lint:fast`, `release`, `build`, `pack`,
    `test:package`, `typecheck`.
 3. The `test` target runs
@@ -241,8 +241,8 @@ match the executable implementation` for a binding prepared earlier (trust.ts:59
     generating `specs/<capability>/spec.md`, optional `design`, `tasks`, `verify`. The proposal
     template's headers are `## Why`, `## What Changes`, `## Non-Goals`, `## Constraints`,
     `## Capabilities`, `## Domain Terms`, `## Decisions Recorded`, `## Impact`. A change directory
-    carries `.openspec.yaml` with `schema:` and `created:`. openspec/specs holds no bureaucrat
-    capability, so `bureaucrat-rules` is new.
+    carries `.openspec.yaml` with `schema:` and `created:`. openspec/specs holds no burokrat
+    capability, so `burokrat-rules` is new.
 24. **Observed.** `bunx tsc --noEmit` over the copy, with every module of section 6 and both
     modified files, printed nothing.
 25. **Observed.** The canonical fixture — `README.md` declaring `nx.json`, `package.json`,
@@ -301,34 +301,34 @@ match the executable implementation` for a binding prepared earlier (trust.ts:59
 
 | Unknown                                                                                                                                                                      | How to resolve                                                                                                                                                            |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Whether ESLint accepts the section 6 code. It could not be run outside the workspace: ESLint refuses files outside the base path and the config builds the Nx project graph. | Each part runs `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source` as a required step and fixes what it reports, never with an unexplained suppression.         |
+| Whether ESLint accepts the section 6 code. It could not be run outside the workspace: ESLint refuses files outside the base path and the config builds the Nx project graph. | Each part runs `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source` as a required step and fixes what it reports, never with an unexplained suppression.           |
 | Whether a provisioned activation outside this clone binds the current validator identity (fact 18).                                                                          | Planner question, not executor work. Such an activation must be prepared again.                                                                                           |
-| Whether the `twilight-bureaucrat:test` target passes end to end in the executor sandbox. Some repository tests write Git objects into the clone.                             | Preamble rule 4a: the executor runs the focused files this packet names; the planner runs whole targets after staging. Report the target as pending planner verification. |
+| Whether the `twilight-burokrat:test` target passes end to end in the executor sandbox. Some repository tests write Git objects into the clone.                               | Preamble rule 4a: the executor runs the focused files this packet names; the planner runs whole targets after staging. Report the target as pending planner verification. |
 
 ## 5. File plan
 
 Every file is listed with the part that creates or changes it. A part touches nothing outside its
 own rows.
 
-| Path                                                                           | Part                      | Responsibility                                                                                                                                |
-| ------------------------------------------------------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| openspec/changes/twilight-bureaucrat-rule-model/.openspec.yaml                 | 1                         | `schema: sdd-lean`, `created: 2026-09-19`.                                                                                                    |
-| openspec/changes/twilight-bureaucrat-rule-model/proposal.md                    | 1                         | Intent, 400 words maximum.                                                                                                                    |
-| openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md | 1                         | The eleven requirements of section 9.                                                                                                         |
-| openspec/changes/twilight-bureaucrat-rule-model/tasks.md                       | 1 creates, 2 to 4 tick    | The four parts, each naming its tests and negatives. Each later part ticks **only its own** boxes and corrects the counts they name.          |
-| openspec/changes/twilight-bureaucrat-rule-model/verify.md                      | 1 creates, 2 to 4 append  | The proof table and the commands record. Each part writes what it observed itself, in its own part's rows and its own commands subsection.    |
-| apps/wiki/cli/src/rules/rule.ts                                                | 1, 3                      | The rule model types and four pure functions; part 3 adds the `Proof:` comments for P13 and P19.                                              |
-| apps/wiki/cli/src/rules/registry.ts                                            | 1, 3                      | The four rules, `registeredRules`, `findRule`, `registeredIds`; part 3 adds the `Proof:` comments for P15 to P18.                             |
-| apps/wiki/cli/src/rules/check.ts                                               | 1, 2, 3                   | `explainRule` and the writers in part 1; `checkCandidate` in part 2; part 3 adds the `Proof:` comments for P14 and P22 and nothing else.      |
-| apps/wiki/cli/src/inventory/read-blob.ts                                       | 1                         | `readCandidateBlob`, moved from cli.ts's private `readBlob`, behaviour unchanged.                                                             |
-| apps/wiki/cli/src/rules/rules.test.ts                                          | 1 creates, 2 and 3 extend | Every rule test.                                                                                                                              |
-| apps/wiki/cli/src/cli.ts                                                       | 1 and 2                   | Part 1: use `readCandidateBlob`, add the two-argument `explain` route. Part 2: add the `check` route, widen `explain`, extend the usage line. |
-| apps/wiki/cli/src/bin.ts                                                       | 1 and 2                   | Part 1 adds `explain`; part 2 adds `check`; both add a help line.                                                                             |
-| apps/wiki/cli/src/rules/rule-policy.ts                                         | 2                         | The `RulePolicy` record, `loadRulePolicy`, `ruleMode`, `assertPolicyInputs`.                                                                  |
-| apps/wiki/cli/src/policy/trust.ts                                              | 2                         | One new exported function, `readExternalArtifact`.                                                                                            |
-| apps/wiki/cli/src/inventory/read-candidate.ts                                  | 2                         | Rename the private `resolveWorktreeRoot` to `resolveCandidateRoot`, export it, update its single caller.                                      |
-| apps/wiki/cli/src/packaging/build.test.ts                                      | 4                         | Three assertions on the built executable.                                                                                                     |
-| apps/wiki/cli/README.md                                                        | 4                         | A `## Rules` section, including the sentence naming the short command.                                                                        |
+| Path                                                                       | Part                      | Responsibility                                                                                                                                |
+| -------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| openspec/changes/twilight-burokrat-rule-model/.openspec.yaml               | 1                         | `schema: sdd-lean`, `created: 2026-09-19`.                                                                                                    |
+| openspec/changes/twilight-burokrat-rule-model/proposal.md                  | 1                         | Intent, 400 words maximum.                                                                                                                    |
+| openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md | 1                         | The eleven requirements of section 9.                                                                                                         |
+| openspec/changes/twilight-burokrat-rule-model/tasks.md                     | 1 creates, 2 to 4 tick    | The four parts, each naming its tests and negatives. Each later part ticks **only its own** boxes and corrects the counts they name.          |
+| openspec/changes/twilight-burokrat-rule-model/verify.md                    | 1 creates, 2 to 4 append  | The proof table and the commands record. Each part writes what it observed itself, in its own part's rows and its own commands subsection.    |
+| apps/wiki/cli/src/rules/rule.ts                                            | 1, 3                      | The rule model types and four pure functions; part 3 adds the `Proof:` comments for P13 and P19.                                              |
+| apps/wiki/cli/src/rules/registry.ts                                        | 1, 3                      | The four rules, `registeredRules`, `findRule`, `registeredIds`; part 3 adds the `Proof:` comments for P15 to P18.                             |
+| apps/wiki/cli/src/rules/check.ts                                           | 1, 2, 3                   | `explainRule` and the writers in part 1; `checkCandidate` in part 2; part 3 adds the `Proof:` comments for P14 and P22 and nothing else.      |
+| apps/wiki/cli/src/inventory/read-blob.ts                                   | 1                         | `readCandidateBlob`, moved from cli.ts's private `readBlob`, behaviour unchanged.                                                             |
+| apps/wiki/cli/src/rules/rules.test.ts                                      | 1 creates, 2 and 3 extend | Every rule test.                                                                                                                              |
+| apps/wiki/cli/src/cli.ts                                                   | 1 and 2                   | Part 1: use `readCandidateBlob`, add the two-argument `explain` route. Part 2: add the `check` route, widen `explain`, extend the usage line. |
+| apps/wiki/cli/src/bin.ts                                                   | 1 and 2                   | Part 1 adds `explain`; part 2 adds `check`; both add a help line.                                                                             |
+| apps/wiki/cli/src/rules/rule-policy.ts                                     | 2                         | The `RulePolicy` record, `loadRulePolicy`, `ruleMode`, `assertPolicyInputs`.                                                                  |
+| apps/wiki/cli/src/policy/trust.ts                                          | 2                         | One new exported function, `readExternalArtifact`.                                                                                            |
+| apps/wiki/cli/src/inventory/read-candidate.ts                              | 2                         | Rename the private `resolveWorktreeRoot` to `resolveCandidateRoot`, export it, update its single caller.                                      |
+| apps/wiki/cli/src/packaging/build.test.ts                                  | 4                         | Three assertions on the built executable.                                                                                                     |
+| apps/wiki/cli/README.md                                                    | 4                         | A `## Rules` section, including the sentence naming the short command.                                                                        |
 
 No other file is authorized. In particular this packet does **not** change
 apps/wiki/cli/src/relationships/index.ts, apps/wiki/cli/src/indexes/read-indexes.ts or
@@ -554,7 +554,7 @@ import { readCandidateBlob } from '../inventory/read-blob';
 import { extractRelationships } from '../relationships';
 import { evaluateWrapped, type RegisteredRule } from './rule';
 
-const SpecSource = 'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md';
+const SpecSource = 'openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md';
 
 const classificationRule: RegisteredRule = {
   id: 'INV-CLASSIFY',
@@ -723,7 +723,7 @@ caller changes.
 - `cli.ts` has the two-argument `explain` route, but its `unknown command` usage line does **not**
   list `explain`. Part 2 adds both words to it.
 - `bin.ts` already lists `'explain'` in `validatorCommands` and carries the help line
-  `  twilight-bureaucrat explain <rule-id>`. Part 2 adds `'check'` and widens the `explain` line.
+  `  twilight-burokrat explain <rule-id>`. Part 2 adds `'check'` and widens the `explain` line.
 - The delta spec holds the eleven requirements, and the four anchors registry.ts cites
   (`#requirement-module-index-declarations`, `#requirement-module-index-direct-entry-limit`,
   `#requirement-inventory-classification`, `#requirement-relationship-resolution`) all resolve.
@@ -742,7 +742,7 @@ if (args.length === 2 && args[0] === 'explain') {
 ```
 
 and `'explain'` is added to bin.ts's `validatorCommands`, with the help line
-`  twilight-bureaucrat explain <rule-id>`.
+`  twilight-burokrat explain <rule-id>`.
 
 ### 6.7 Part 2's additions
 
@@ -991,7 +991,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
 function candidateRequest(kind: string, revision: string): CandidateRequest {
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
     throw new Error(
-      'usage: twilight-bureaucrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]',
+      'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]',
     );
   }
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
@@ -1073,10 +1073,10 @@ with
 Part 1 added the `explain` route without adding the word to this line; part 2 adds both.
 
 In bin.ts, `validatorCommands` gains `'check'` after `'explain'`, the existing help line
-`  twilight-bureaucrat explain <rule-id>` becomes
-`  twilight-bureaucrat explain <rule-id> [<repository> <rule-policy-json>]`, and a new help line is
+`  twilight-burokrat explain <rule-id>` becomes
+`  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]`, and a new help line is
 added above it:
-`  twilight-bureaucrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]`.
+`  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]`.
 No test pins the text of either dispatcher's usage or help string; checked on 2026-09-20,
 `build.test.ts:89` asserts only that an unknown command's stderr contains `unknown command`.
 
@@ -1140,11 +1140,11 @@ extractor read that declaration, which is how part 3 produces a real unresolved 
 
 ### 1.2 The OpenSpec change
 
-- [ ] Create openspec/changes/twilight-bureaucrat-rule-model/.openspec.yaml with
+- [ ] Create openspec/changes/twilight-burokrat-rule-model/.openspec.yaml with
       `schema: sdd-lean` and `created: 2026-09-19`.
 - [ ] Write proposal.md from openspec/schemas/sdd-lean/templates/proposal.md with the content of
       section 9. Count the words: the cap is 400, excluding the template's HTML comments.
-- [ ] Write specs/bureaucrat-rules/spec.md with the **eleven** requirements of section 9, each with
+- [ ] Write specs/burokrat-rules/spec.md with the **eleven** requirements of section 9, each with
       at least one four-hashtag scenario.
 - [ ] Write tasks.md as these four parts, each naming its tests and its negatives.
 - [ ] Write verify.md with the section 8 table, rows empty, and a "Commands and results" heading.
@@ -1193,12 +1193,12 @@ you saw.
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
 | `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts)`                              | Exit 0; 2 pass, 0 fail.                                                                             |
 | `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/cli.test.ts src/inventory/classification.test.ts)` | Exit 0. These two suites exercise the moved blob reader; they prove the extraction changed nothing. |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                  | Exit 0.                                                                                             |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                | Exit 0, no warnings.                                                                                |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                                                                                                                                    | Exit 0.                                                                                             |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                                                                                                                                  | Exit 0, no warnings.                                                                                |
 | The batch README's **OpenSpec validation** block                                                                                                                                                             | One JSON report; the block exits 0.                                                                 |
 
 Pending planner verification, to be listed in the report as not run here: the whole
-`twilight-bureaucrat:test` target, the whole `tool-devsync:test` target, and the host gate.
+`twilight-burokrat:test` target, the whole `tool-devsync:test` target, and the host gate.
 
 ### 1.6 Part 1's test file
 
@@ -1239,7 +1239,7 @@ describe('explain production CLI', () => {
       statement:
         'Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.',
       source:
-        'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md#requirement-module-index-declarations',
+        'openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations',
       inputs: ['candidate.entries'],
     });
   });
@@ -1259,13 +1259,13 @@ beside them.
 
 ### 1.7 Ready to commit
 
-Commit subject: `feat(bureaucrat): add the rule model, the registry and explain`.
+Commit subject: `feat(burokrat): add the rule model, the registry and explain`.
 
-Files: openspec/changes/twilight-bureaucrat-rule-model/.openspec.yaml,
-openspec/changes/twilight-bureaucrat-rule-model/proposal.md,
-openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md,
-openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
-openspec/changes/twilight-bureaucrat-rule-model/verify.md,
+Files: openspec/changes/twilight-burokrat-rule-model/.openspec.yaml,
+openspec/changes/twilight-burokrat-rule-model/proposal.md,
+openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md,
+openspec/changes/twilight-burokrat-rule-model/tasks.md,
+openspec/changes/twilight-burokrat-rule-model/verify.md,
 apps/wiki/cli/src/rules/rule.ts, apps/wiki/cli/src/rules/registry.ts,
 apps/wiki/cli/src/rules/check.ts, apps/wiki/cli/src/rules/rules.test.ts,
 apps/wiki/cli/src/inventory/read-blob.ts, apps/wiki/cli/src/cli.ts, apps/wiki/cli/src/bin.ts.
@@ -1354,7 +1354,7 @@ sandbox rules, the named-test filter form and the fault procedure this part depe
       6.7.
 - [ ] Rerun the focused command. Expected: the recorded baseline plus eleven, that is `13 pass`,
       `0 fail`.
-- [ ] Tick **only part 2's** boxes in openspec/changes/twilight-bureaucrat-rule-model/tasks.md and
+- [ ] Tick **only part 2's** boxes in openspec/changes/twilight-burokrat-rule-model/tasks.md and
       correct the counts that section names to the numbers you observed: eleven new tests, thirteen
       in the file, proofs P2 to P12 plus P20 and P21. Leave part 1's, part 3's and part 4's boxes
       untouched and say in the report that part 1's boxes are still unticked.
@@ -1381,7 +1381,7 @@ nothing at all.
 | P9  | The UTF-8, JSON and schema boundaries in `decodeRulePolicy`      | Three separate injections, restored between each: a non-fatal decoder; delete the `JSON.parse` try; drop `.onUndeclaredKey('reject')`      | `rule policy boundary refuses malformed, non-UTF-8, unreadable, absent and undeclared-key policies distinctly` — one assertion fails per injection, naming the boundary whose sentence disappeared                                                                                                                                                                                    | rule-policy.ts, one comment per boundary               |
 | P20 | The unusable-policy read in `loadRulePolicy`                     | Wrap the `readExternalArtifact` call in a `try` whose `catch` returns the bytes `{"schemaVersion":1,"policyId":"fallback","ruleModes":[]}` | the same test — malformed and non-UTF-8 still refuse, because those files exist and are readable, so the **unreadable** case is the first to fail: received stderr `rule policy states no mode for INV-CLASSIFY` instead of `cannot open rule policy <path>: EACCES`. The containment test also fails under this fault; record it and move on                                         | rule-policy.ts, beside the `readExternalArtifact` call |
 | P10 | The `--rule` flag validation in `writeCheckCommand`              | Accept any seventh argument as the identifier                                                                                              | `check production CLI refuses an unknown selection kind, an unknown flag and an unknown narrowed rule` — `--only MOD-INDEX` then runs MOD-INDEX and exits 0, so the flag assertion fails against an empty stderr after the selection-kind assertions have passed                                                                                                                      | check.ts, beside the flag guard                        |
-| P11 | `candidateRequest`'s selection-kind refusal, rules/check.ts      | Treat any other word as `committed`                                                                                                        | the same test — `bogus` is read as a selection, the unnarrowed run reaches `assertPolicyInputs` and exits 1 with `rule INV-CLASSIFY needs policy.classificationPolicy…`, so the first assertion fails: `usage: twilight-bureaucrat check <committed\|staged\|working>` is absent from that stderr                                                                                     | check.ts, inside `candidateRequest`                    |
+| P11 | `candidateRequest`'s selection-kind refusal, rules/check.ts      | Treat any other word as `committed`                                                                                                        | the same test — `bogus` is read as a selection, the unnarrowed run reaches `assertPolicyInputs` and exits 1 with `rule INV-CLASSIFY needs policy.classificationPolicy…`, so the first assertion fails: `usage: twilight-burokrat check <committed\|staged\|working>` is absent from that stderr                                                                                       | check.ts, inside `candidateRequest`                    |
 | P12 | The `process.exitCode = 1` line in `writeCheckCommand`           | Delete the line                                                                                                                            | `check production CLI refuses an unindexed candidate in every mode and exits 1` — the verdict is still correct, the exit status becomes 0, and `expect(observed.exitCode).toBe(1)` fails with `Received: 0`                                                                                                                                                                           | check.ts, beside the exit-code line                    |
 | P21 | The stated mode `explainRule` attaches, rules/check.ts           | Return `{ ...rule, policyId: policy.policyId }`, dropping `mode`                                                                           | `explain with a rule policy prints the policy identifier and the stated mode` — the printed record carries `policyId` and no `mode`, so the `toEqual` on the explanation fails naming the missing `mode: 'enforce'`                                                                                                                                                                   | check.ts, beside the policy branch of `explainRule`    |
 
@@ -1392,7 +1392,7 @@ Every policy-boundary test narrows to `--rule MOD-INDEX`. Fact 37 showed that a 
 to P7.
 
 - [ ] After each proof, write its observed failing line into the `Observed failure` cell of its row
-      in openspec/changes/twilight-bureaucrat-rule-model/verify.md, and add rows for P20 and P21
+      in openspec/changes/twilight-burokrat-rule-model/verify.md, and add rows for P20 and P21
       beside them. Correct P4's and P9's `Fault injected` and `Test` cells to the text above: part 1
       committed the older wording. Record only what this attempt saw.
 
@@ -1402,12 +1402,12 @@ to P7.
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The focused command of section 2.1                                                                                                                                                                                             | Exit 0; `13 pass`, `0 fail` — the recorded baseline of 2 plus this part's 11.                                                                                                                                                                  |
 | `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/inventory/read-candidate.test.ts src/policy/trusted-policy.test.ts)` | Exit 0; `56 pass`, `0 fail`. These cover the renamed worktree resolver and the trust module. This part adds no test to either file, so the number must not move. Measured on the part-1 tree on 2026-09-20: 56 tests across 2 files in 88.78s. |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                                    | Exit 0; `Successfully ran target typecheck`.                                                                                                                                                                                                   |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                                  | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                                                                                                                    |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                                                                                                                                                      | Exit 0; `Successfully ran target typecheck`.                                                                                                                                                                                                   |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                                                                                                                                                    | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                                                                                                                    |
 | The batch README's **OpenSpec validation** block                                                                                                                                                                               | Exit 0, one JSON report kept under `$TMPDIR/evidence`. This part edits verify.md and tasks.md, so it validates the change it edited.                                                                                                           |
 
-Pending planner verification, named as such in the report: the whole `twilight-bureaucrat:test`,
-`twilight-bureaucrat:test:package` and `tool-devsync:test` targets, and the host gate.
+Pending planner verification, named as such in the report: the whole `twilight-burokrat:test`,
+`twilight-burokrat:test:package` and `tool-devsync:test` targets, and the host gate.
 
 ### 2.6 Part 2's helpers and tests
 
@@ -1817,7 +1817,7 @@ describe('check production CLI', () => {
     const policyPath = writeRulePolicy(everyRuleObserving);
     const badKind = runCli(['check', 'bogus', repository, revision, policyPath]);
     expect(stderrOf(badKind)).toContain(
-      'usage: twilight-bureaucrat check <committed|staged|working>',
+      'usage: twilight-burokrat check <committed|staged|working>',
     );
     expect(badKind.exitCode).toBe(1);
 
@@ -1863,7 +1863,7 @@ describe('explain with a rule policy', () => {
       statement:
         'Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.',
       source:
-        'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md#requirement-module-index-declarations',
+        'openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations',
       inputs: ['candidate.entries'],
       policyId: 'rules.test.v1',
       mode: 'enforce',
@@ -1883,13 +1883,13 @@ belong in this part's import line.
 
 ### 2.7 Ready to commit
 
-Commit subject: `feat(bureaucrat): read rule modes from trusted policy and add check`.
+Commit subject: `feat(burokrat): read rule modes from trusted policy and add check`.
 
 Files: apps/wiki/cli/src/rules/rule-policy.ts, apps/wiki/cli/src/rules/check.ts,
 apps/wiki/cli/src/rules/rules.test.ts, apps/wiki/cli/src/policy/trust.ts,
 apps/wiki/cli/src/inventory/read-candidate.ts, apps/wiki/cli/src/cli.ts, apps/wiki/cli/src/bin.ts,
-openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
-openspec/changes/twilight-bureaucrat-rule-model/verify.md.
+openspec/changes/twilight-burokrat-rule-model/tasks.md,
+openspec/changes/twilight-burokrat-rule-model/verify.md.
 
 Then stop and hand over. Do not start part 3.
 
@@ -1953,7 +1953,7 @@ first.
       implementation parts 1 and 2 already delivered, not a request for new code. If one fails,
       compare it with the observed output in facts 26 to 34 and stop and report rather than
       changing the registry.
-- [ ] Tick **only part 3's** boxes in openspec/changes/twilight-bureaucrat-rule-model/tasks.md and
+- [ ] Tick **only part 3's** boxes in openspec/changes/twilight-burokrat-rule-model/tasks.md and
       correct the counts that section names to the numbers you observed: six new tests, nineteen in
       the file, proofs P13 to P19 plus P22.
 
@@ -1981,7 +1981,7 @@ fixture in section 3.5 declares `status: 'unresolved'` with a reason and two **r
 paths, and fact 35 records the mutation emptying `findings`.
 
 - [ ] After each proof, write its observed failing line into the `Observed failure` cell of its row
-      in openspec/changes/twilight-bureaucrat-rule-model/verify.md, and add a row for P22 beside
+      in openspec/changes/twilight-burokrat-rule-model/verify.md, and add a row for P22 beside
       them. Record only what this attempt saw.
 
 ### 3.4 Part 3 verification
@@ -1990,12 +1990,12 @@ paths, and fact 35 records the mutation emptying `findings`.
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | The focused command of section 3.1                                                                                                                                                                                      | Exit 0; `19 pass`, `0 fail` — the recorded baseline of 13 plus this part's 6.                                                                |
 | `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/relationships/selectors.test.ts src/indexes/indexes.test.ts)` | Exit 0, `0 fail`. Neither file is changed by this packet; record the pass count and compare it only with a run of the same command yourself. |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                             | Exit 0; `Successfully ran target typecheck`.                                                                                                 |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                                           | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                  |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                                                                                                                                               | Exit 0; `Successfully ran target typecheck`.                                                                                                 |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                                                                                                                                             | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                  |
 | The batch README's **OpenSpec validation** block                                                                                                                                                                        | Exit 0, one JSON report kept under `$TMPDIR/evidence`. This part edits verify.md and tasks.md.                                               |
 
 The relationship tests need `TOOL_WIKI_TRUSTED_NODE_MODULES`, which the commands above set. Pending
-planner verification: the whole `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and
+planner verification: the whole `twilight-burokrat:test`, `twilight-burokrat:test:package` and
 `tool-devsync:test` targets, and the host gate.
 
 ### 3.5 Part 3's tests
@@ -2208,12 +2208,12 @@ describe('rule adapters over real candidates', () => {
 
 ### 3.6 Ready to commit
 
-Commit subject: `test(bureaucrat): prove every rule adapter over a real candidate`.
+Commit subject: `test(burokrat): prove every rule adapter over a real candidate`.
 
 Files: apps/wiki/cli/src/rules/rules.test.ts, apps/wiki/cli/src/rules/rule.ts,
 apps/wiki/cli/src/rules/registry.ts, apps/wiki/cli/src/rules/check.ts,
-openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
-openspec/changes/twilight-bureaucrat-rule-model/verify.md.
+openspec/changes/twilight-burokrat-rule-model/tasks.md,
+openspec/changes/twilight-burokrat-rule-model/verify.md.
 
 The three source files are not optional. Every proof in section 3.3 requires an adjacent `Proof:`
 comment, and those comments land in exactly these files: rule.ts for P13 and P19, registry.ts for
@@ -2319,7 +2319,7 @@ executor may invent them. So:
       worktree, and that in slice B0 a rule that cannot be evaluated disallows the verdict in every
       mode. Include this sentence verbatim:
 
-  > The package installs two commands for the same program: `twilight-bureaucrat`, which
+  > The package installs two commands for the same program: `twilight-burokrat`, which
   > documentation uses, and the short form `twib`.
 
   The README is this project's module index, and its memberships already carry the `src`
@@ -2328,7 +2328,7 @@ executor may invent them. So:
 ### 4.4 The record
 
 - [ ] Add a `### Part 4` subsection under `## Commands and results` in
-      openspec/changes/twilight-bureaucrat-rule-model/verify.md and paste the real output of every
+      openspec/changes/twilight-burokrat-rule-model/verify.md and paste the real output of every
       command in section 4.5: the command, its exit status and its decisive line.
 - [ ] Check the proof table. Rows P2 to P12 and P20 to P22 were filled by the parts that observed
       them. Write `pending planner transcription` into every cell that is still empty — at minimum
@@ -2336,9 +2336,9 @@ executor may invent them. So:
       observed output is in its attempt's log directory outside this repository and that the
       planner transcribes it when committing.
 - [ ] State in verify.md which checks this attempt did not run and why: the whole
-      `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package`, `twilight-bureaucrat:pack` and
+      `twilight-burokrat:test`, `twilight-burokrat:test:package`, `twilight-burokrat:pack` and
       `tool-devsync:test` targets, and `bin/h2puni-gate.sh`.
-- [ ] Tick **only part 4's** boxes in openspec/changes/twilight-bureaucrat-rule-model/tasks.md and
+- [ ] Tick **only part 4's** boxes in openspec/changes/twilight-burokrat-rule-model/tasks.md and
       correct the counts that section names. Report that part 1's boxes are still unticked and that
       the planner decides them.
 
@@ -2347,20 +2347,20 @@ executor may invent them. So:
 | Command                                                                                                                                                                                                     | Expected exit status and decisive line                                                                                                                                               |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `(cd "$repo_root/apps/wiki/cli" && TOOL_WIKI_TRUSTED_NODE_MODULES="$repo_root/node_modules" bun test --preload ../../../tools/test/scratch/preload.ts src/rules/rules.test.ts src/packaging/build.test.ts)` | Exit 0, `0 fail`. The rule count is the section 4.1 baseline, 19, unchanged; the packaging suite's own count is recorded and compared only with your own earlier run of section 4.2. |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                                                                                                                                 | Exit 0; `Successfully ran target typecheck`.                                                                                                                                         |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                                                                                                                               | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                                                          |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                                                                                                                                                     | Exit 0; `dist/bin.mjs` and `dist/toolkit/validator.mjs` are rebuilt.                                                                                                                 |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                                                                                                                                   | Exit 0; `Successfully ran target typecheck`.                                                                                                                                         |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                                                                                                                                 | Exit 0, no warnings; `Successfully ran target lint:source`.                                                                                                                          |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:build`                                                                                                                                                       | Exit 0; `dist/bin.mjs` and `dist/toolkit/validator.mjs` are rebuilt.                                                                                                                 |
 | `bunx prettier --write <only the files this packet changed>` then `NX_DAEMON=false bunx nx format:check --all`                                                                                              | Both exit 0. Format only files listed in section 5; a failure on another lane's file is reported, never fixed.                                                                       |
 | The batch README's **OpenSpec validation** block                                                                                                                                                            | Exit 0, one JSON report kept under `$TMPDIR/evidence`.                                                                                                                               |
 
-**Not run here, and why.** `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and
+**Not run here, and why.** `twilight-burokrat:test`, `twilight-burokrat:test:package` and
 `tool-devsync:test` as whole targets, and anything needing staged files or Git writes into this
-clone: preamble rule 4a, pending planner verification. `twilight-bureaucrat:pack`: it depends on
+clone: preamble rule 4a, pending planner verification. `twilight-burokrat:pack`: it depends on
 `build` and duplicates the built-executable coverage now in build.test.ts; the planner runs it if
 packaging output changes. `bin/h2puni-gate.sh`: cannot run on this machine (preamble rule 5).
 
 **What none of it proves.** No provisioned activation is configured in this clone, so nothing here
-exercises one; `twilight-bureaucrat:lint` reports `status: inactive` and exits 0 only while
+exercises one; `twilight-burokrat:lint` reports `status: inactive` and exits 0 only while
 `TOOL_WIKI_REQUIRE_CERTIFIED` keeps its default `0` (fact 19). Part 2 added a source file to the
 validator's import closure, which changes the validator identity; no test pins that identity as a
 literal (section 0.4), but an activation prepared outside this clone must be prepared again. The
@@ -2372,10 +2372,8 @@ change.
 ```ts
 const ruleHelp = invoke(executable, ['--help'], externalRoot);
 expect(ruleHelp.exitCode, ruleHelp.stderr.toString()).toBe(0);
-expect(ruleHelp.stdout.toString()).toContain(
-  'twilight-bureaucrat check <committed|staged|working>',
-);
-expect(ruleHelp.stdout.toString()).toContain('twilight-bureaucrat explain <rule-id>');
+expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat check <committed|staged|working>');
+expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
 
 const explained = invoke(executable, ['explain', 'MOD-INDEX'], externalRoot);
 expect(explained.exitCode, explained.stderr.toString()).toBe(0);
@@ -2488,11 +2486,11 @@ still reaches stdout because `runValidator` forwards it first (bin.ts:67).
 
 ### 4.7 Ready to commit
 
-Commit subject: `feat(bureaucrat): route the rule commands through the package and record the run`.
+Commit subject: `feat(burokrat): route the rule commands through the package and record the run`.
 
 Files: apps/wiki/cli/src/packaging/build.test.ts, apps/wiki/cli/README.md,
-openspec/changes/twilight-bureaucrat-rule-model/tasks.md,
-openspec/changes/twilight-bureaucrat-rule-model/verify.md.
+openspec/changes/twilight-burokrat-rule-model/tasks.md,
+openspec/changes/twilight-burokrat-rule-model/verify.md.
 
 Then stop and report. The packet is complete.
 
@@ -2553,14 +2551,14 @@ observed on its own. The same is true of P14 and P15, of P10 and P11, and of P9 
 
 ## 9. OpenSpec
 
-Change `twilight-bureaucrat-rule-model`, schema `sdd-lean`, new capability `bureaucrat-rules`,
+Change `twilight-burokrat-rule-model`, schema `sdd-lean`, new capability `burokrat-rules`,
 created in part 1.
 
 **proposal.md**, within 400 words excluding the template's comments:
 
 - _Why_: the repository's rules are judged in many places, and an agent cannot ask one tool whether
   an artifact is allowed. A new rule has no home and no stated mode.
-- _What Changes_: Twilight Bureaucrat gains `check` and `explain`; a rule's mode comes from the
+- _What Changes_: Twilight Burokrat gains `check` and `explain`; a rule's mode comes from the
   consumer's trusted policy rather than from code; four checks the package already performs become
   registered rules with stable identifiers; a rule that could not be evaluated disallows the verdict
   in every mode. The sixteen existing routes are unchanged and a verdict never certifies.
@@ -2570,15 +2568,15 @@ created in part 1.
   from the resolved Git worktree root; `lint-local` and `lint-ci` keep their arguments, report shape
   and certification; because no check distinguishes a violation from an unusable input by type, only
   the two checks with structured output can report debt in this slice.
-- _Capabilities_: new, `bureaucrat-rules`.
+- _Capabilities_: new, `burokrat-rules`.
 - _Domain Terms_: rule, finding, verdict, rule mode, rule policy. State that the glossary entry is
   deferred, as ASSUMPTIONS.md records, because the Twilight glossary already defines Finding and
   Verdict for the runtime and reconciling them is its own task.
 - _Decisions Recorded_: none, unless the executor finds a decision that is hard to reverse,
   surprising and had real alternatives.
-- _Impact_: the `twilight-bureaucrat` project only.
+- _Impact_: the `twilight-burokrat` project only.
 
-**specs/bureaucrat-rules/spec.md**, under `## ADDED Requirements`, with **eleven** requirements,
+**specs/burokrat-rules/spec.md**, under `## ADDED Requirements`, with **eleven** requirements,
 each with at least one four-hashtag scenario. Requirements 7 to 10 must state their rule's sentence
 **verbatim**, because registry.ts cites them by anchor.
 
@@ -2665,7 +2663,7 @@ Two limits of this revision, stated rather than hidden:
   its config builds the Nx project graph, so an out-of-tree copy cannot be linted. Every part runs
   `lint:source` as a required step, and section 2.6 warns about the unused-helper case the review
   found.
-- **The `twilight-bureaucrat:test` target was not run.** The executor sandbox cannot run whole
+- **The `twilight-burokrat:test` target was not run.** The executor sandbox cannot run whole
   targets that write Git objects into the clone (preamble rule 4a); each part names the focused
   suites it runs instead, and the target is listed for planner verification.
 
@@ -2759,7 +2757,7 @@ part 3, and no rule-test change in part 4.
 - `apps/wiki/cli/src/rules/check.ts` as committed already imports `RuleMode` and carries P1's
   `Proof:` comment between `const rule = findRule(ruleId);` and the `if (rule === undefined)`
   guard, which section 6.6's code block does not show. Part 2 is told to edit around it.
-- `bin.ts` already carries `'explain'` and the help line `twilight-bureaucrat explain <rule-id>`, so
+- `bin.ts` already carries `'explain'` and the help line `twilight-burokrat explain <rule-id>`, so
   part 2 adds `'check'` and widens the existing `explain` line rather than adding one.
 - No test pins the validator identity as a literal. `pilot-policy.test.ts:188`,
   `trusted-policy.test.ts:541` and `gate-entrypoints.test.ts:494` all recompute it through
@@ -2769,7 +2767,7 @@ part 3, and no rule-test change in part 4.
   contains `unknown command`.
 - `resolveWorktreeRoot` is still exactly one definition at read-candidate.ts:116 and one call at
   line 446, as fact 13 says.
-- `openspec/changes/twilight-bureaucrat-rule-model/verify.md` already holds the P1 to P19 table with
+- `openspec/changes/twilight-burokrat-rule-model/verify.md` already holds the P1 to P19 table with
   an empty `Observed failure` column and an empty `## Commands and results` heading, and
   `tasks.md`'s boxes are all unticked, including part 1's. Parts 2 to 4 tick only their own and
   report part 1's as the planner's decision. The file plan rows for both files were corrected from

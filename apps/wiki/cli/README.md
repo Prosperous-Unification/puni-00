@@ -1,8 +1,8 @@
-# Twilight Bureaucrat
+# Twilight Burokrat
 
 <!-- module-index {"schemaVersion":1,"moduleId":"module.infra.tool-wiki","memberships":[{"kind":"directory-prefix","prefix":"src","exclusions":[]},{"kind":"directory-prefix","prefix":"fixtures","exclusions":[]},{"kind":"path","path":"project.json"},{"kind":"path","path":"package.json"},{"kind":"path","path":"NOTICE"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"tsconfig.lib.json"},{"kind":"path","path":"tsconfig.spec.json"}],"relationshipSelectors":["declarations.facts","typescript.imports","typescript.reverse-edges"],"applicableChecks":["check.wiki-cli.test","check.wiki-cli.lint-source","check.wiki-cli.typecheck"],"inapplicableSections":[],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"bin/tool-wiki-lint.sh"},{"kind":"path","path":"bin/h2puni-gate.sh"},{"kind":"path","path":".github/workflows/trusted-wiki.yml"},{"kind":"path","path":".github/workflows/ci.yml"},{"kind":"path","path":"lefthook.yml"},{"kind":"path","path":"nx.json"}],"knowledgeLimit":"Only the launcher, host gate, trusted workflow, candidate CI workflow, hook, and Nx callers needed by the bootstrap activation are declared; their surrounding directories are not claimed as reviewed."}} -->
 
-This project owns the finite Twilight Bureaucrat ledger, trusted policy and activation logic, review
+This project owns the finite Twilight Burokrat ledger, trusted policy and activation logic, review
 provenance, and admission coordinator. The index covers source, tests, fixtures, and project
 configuration as one initial enforced tooling boundary. It does not claim exhaustive repository
 coverage; the six historical pilot modules remain named review debt outside this boundary.
@@ -13,10 +13,10 @@ immutable activations keep their identity.
 
 ## Checks
 
-The bootstrap obligation requires the uncached `twilight-bureaucrat:test`,
-`twilight-bureaucrat:lint:source`, and `twilight-bureaucrat:typecheck` Nx
+The bootstrap obligation requires the uncached `twilight-burokrat:test`,
+`twilight-burokrat:lint:source`, and `twilight-burokrat:typecheck` Nx
 targets declared in [project.json](project.json). The diagnostic
-`twilight-bureaucrat:lint` target cannot certify itself and is not one of
+`twilight-burokrat:lint` target cannot certify itself and is not one of
 these receipts.
 
 ## Rules
@@ -36,7 +36,7 @@ refuses a finding inside the consumer's adopted set and reports one outside it a
 because a file was touched needs a comparison base the verdict records, which this package does not
 yet take.
 
-The package installs two commands for the same program: `twilight-bureaucrat`, which documentation
+The package installs two commands for the same program: `twilight-burokrat`, which documentation
 uses, and the short form `twib`.
 
 ## Trust boundary
@@ -47,7 +47,7 @@ bindings are created and retained outside the candidate tree.
 
 ## Package release
 
-`twilight-bureaucrat-vMAJOR.MINOR.PATCH` tags drive the protected package-release workflow. It
+`twilight-burokrat-vMAJOR.MINOR.PATCH` tags drive the protected package-release workflow. It
 tests the installed tarball outside this checkout, records its SHA-256 and npm integrity, transfers
 the same file between jobs, verifies it again, and runs a registry dry run before publication. The
 registry name, protected environment, token and repository license are external prerequisites; the

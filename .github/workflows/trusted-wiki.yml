@@ -136,7 +136,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: trusted-base
-          sparse-checkout: infra/ci/bureaucrat/
+          sparse-checkout: infra/ci/burokrat/
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -145,7 +145,7 @@ jobs:
       # consumer-bootstrap.test.ts matrix runs this block with candidate bytes present anyway.
       - name: Bootstrap trusted package
         id: bootstrap
-        run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat" "$RUNNER_TEMP/twilight-bureaucrat" >> "$GITHUB_OUTPUT"
+        run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/burokrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/burokrat" "$RUNNER_TEMP/twilight-burokrat" >> "$GITHUB_OUTPUT"
 
       - name: Check out exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -176,7 +176,7 @@ jobs:
               bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"
               ;;
             installed-package)
-              bash "$RUNNER_TEMP/twilight-bureaucrat/admit.sh" "$RUNNER_TEMP/twilight-bureaucrat" \
+              bash "$RUNNER_TEMP/twilight-burokrat/admit.sh" "$RUNNER_TEMP/twilight-burokrat" \
                 "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"
               ;;
             *)

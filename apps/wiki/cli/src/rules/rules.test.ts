@@ -60,7 +60,7 @@ describe('explain production CLI', () => {
       statement:
         'Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.',
       source:
-        'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md#requirement-module-index-declarations',
+        'openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations',
       inputs: ['candidate.entries'],
     });
   });
@@ -1264,7 +1264,7 @@ describe('K2, K5, K6 and F1', () => {
       statement:
         'A feature-service imports resource-services and never a repository or delivery, through a barrel or directly.',
       source:
-        'openspec/changes/twilight-bureaucrat-kind-rules/specs/bureaucrat-rules/spec.md#requirement-kind-direction-over-the-import-graph',
+        'openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph',
       inputs: ['candidate.entries', 'policy.relationshipRequest'],
     });
     const plainInvocation = runCli(['explain', 'F1']);
@@ -1402,7 +1402,7 @@ describe('check production CLI', () => {
     const policyPath = writeRulePolicy(everyRuleObserving);
     const badKind = runCli(['check', 'bogus', repository, revision, policyPath]);
     expect(stderrOf(badKind)).toContain(
-      'usage: twilight-bureaucrat check <committed|staged|working>',
+      'usage: twilight-burokrat check <committed|staged|working>',
     );
     expect(badKind.exitCode).toBe(1);
 
@@ -1450,7 +1450,7 @@ describe('explain with a rule policy', () => {
       statement:
         'Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.',
       source:
-        'openspec/changes/twilight-bureaucrat-rule-model/specs/bureaucrat-rules/spec.md#requirement-module-index-declarations',
+        'openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations',
       inputs: ['candidate.entries'],
       policyId: 'rules.test.v1',
       mode: 'enforce',

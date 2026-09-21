@@ -4,7 +4,7 @@ Size class L. Token estimates: top-model-high-effort planning 6,000,000; mid-lev
 implementation 22,000,000; top-model-high-effort review 9,000,000.
 
 Implements slice **B2** of the
-[Twilight Bureaucrat rules design](../../specs/2026-09-19-twilight-bureaucrat-rules-design.md),
+[Twilight Burokrat rules design](../../specs/2026-09-19-twilight-burokrat-rules-design.md),
 which is slice 5.1 of the [service-taxonomy change](../../../../openspec/changes/service-taxonomy/tasks.md)
 and Task 9 of the [code organization rollout](../2026-09-19-code-organization-rollout.md). The rules
 it adds are stated in the
@@ -60,7 +60,7 @@ them, they win.
 - Scratch lives only under `TMPDIR`: `task_tmp=$(mktemp -d "${TMPDIR:?}/kind-rules-XXXXXX")`.
 - Verification is split. You run the focused tests this packet names, the type check,
   `lint:source`, the build, the format check and OpenSpec validation. The planner runs the whole
-  `twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and `tool-devsync:test` targets,
+  `twilight-burokrat:test`, `twilight-burokrat:test:package` and `tool-devsync:test` targets,
   because some of their tests write Git objects into the clone. The host gate cannot run here:
   report it as not run.
 - Never loosen, skip, delete or rewrite an existing test or check to get a green result. Never add
@@ -175,7 +175,7 @@ finding to report with the measured time, not a licence to raise it past `60_000
 
 ## 1. Goal and non-goals
 
-**Goal.** Give Twilight Bureaucrat the slice B2 rules: `ratchet` mode with a consumer-supplied
+**Goal.** Give Twilight Burokrat the slice B2 rules: `ratchet` mode with a consumer-supplied
 adopted set, `F7` the file size ratchet, `MOD-LAYOUT` the module layout, and the kind direction
 rules `K2` to `K6` plus `F1`, judged from the file-level import graph the package already extracts,
 through barrels and path aliases.
@@ -185,7 +185,7 @@ refuses `ratchet` today with `rule policy sets <id> to ratchet, which has no ado
 B2` (`apps/wiki/cli/src/rules/rule-policy.ts:80-84`). Three documents say this packet is the one
 that lifts it: the design's open item "**Ratchet mode needs an adopted set, which B0 does not have.
 B0's policy loader refuses `ratchet` by name and points at slice B2**"; the delta requirement
-"Ratchet mode protects touched and adopted code", whose last sentence is "Twilight Bureaucrat slice
+"Ratchet mode protects touched and adopted code", whose last sentence is "Twilight Burokrat slice
 B0 has no adopted set and SHALL refuse the `ratchet` mode by name **until slice B2**"
 (`openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md:319-321`); and task 5.1, "**supply
 the adopted set that ratchet mode needs**". So **part A replaces that refusal**: `ratchet` is
@@ -213,32 +213,32 @@ throws, as AGENTS.md R5 requires.
 
 ## 2. Read first
 
-| File                                                                    | Why                                                                                     |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `AGENTS.md`                                                             | Rules R1 to R5. R5 governs every new check here.                                        |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                   | The execution contract, the standard blocks, the OpenSpec validation block.             |
-| `docs/superpowers/plans/2026-09-19-batch-1/RESULTS.md`                  | "What the executors stopped on": the defects you must not repeat.                       |
-| `docs/superpowers/specs/2026-09-19-code-organization-design.md`         | The import matrix, K1 to K9, F1 to F8, the module layout block.                         |
-| `docs/superpowers/specs/2026-09-19-twilight-bureaucrat-rules-design.md` | The rule model and slice B2's scope.                                                    |
-| `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`      | The requirements this packet implements, with the scenario identifiers it must satisfy. |
-| `apps/wiki/cli/src/rules/rule.ts`                                       | The rule model you extend: `RuleContext`, `toFinding`, `RuleOutcome`.                   |
-| `apps/wiki/cli/src/rules/rule-policy.ts`                                | The policy schema and the ratchet refusal you replace.                                  |
-| `apps/wiki/cli/src/rules/registry.ts`                                   | The four registered rules and the sorted registry.                                      |
-| `apps/wiki/cli/src/rules/check.ts`                                      | `checkCandidate`, where the shared context is built.                                    |
-| `apps/wiki/cli/src/rules/rules.test.ts`                                 | The fixture style, and the **three exact-list assertions** of section 3, fact 6.        |
-| `apps/wiki/cli/src/inventory/read-candidate.ts`                         | `CandidateEntry` (`path`, `mode`, `blob`) and `CandidateSnapshot`.                      |
-| `apps/wiki/cli/src/inventory/read-blob.ts`                              | `readCandidateBlob(repository, blob, path): Uint8Array`, how part B measures a file.    |
-| `apps/wiki/cli/src/relationships/typescript.ts`                         | `TypeScriptImportSelector` and `ImportKind`; lines 247-353 for how a target is spelled. |
-| `apps/wiki/cli/src/relationships/index.ts`                              | `extractRelationships` and its trusted-modules requirement (lines 79-98).               |
-| `apps/wiki/cli/src/contracts/records.ts`                                | `RelativePath`, `OpaqueId`, `SchemaVersion`, and the arktype narrow style.              |
-| `apps/wbs/fe-01/src/modules/`                                           | The four real modules this packet's rules will judge.                                   |
-| `openspec/config.yaml`                                                  | The `sdd-lean` schema and its per-artifact rules.                                       |
+| File                                                                  | Why                                                                                     |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                           | Rules R1 to R5. R5 governs every new check here.                                        |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                 | The execution contract, the standard blocks, the OpenSpec validation block.             |
+| `docs/superpowers/plans/2026-09-19-batch-1/RESULTS.md`                | "What the executors stopped on": the defects you must not repeat.                       |
+| `docs/superpowers/specs/2026-09-19-code-organization-design.md`       | The import matrix, K1 to K9, F1 to F8, the module layout block.                         |
+| `docs/superpowers/specs/2026-09-19-twilight-burokrat-rules-design.md` | The rule model and slice B2's scope.                                                    |
+| `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`    | The requirements this packet implements, with the scenario identifiers it must satisfy. |
+| `apps/wiki/cli/src/rules/rule.ts`                                     | The rule model you extend: `RuleContext`, `toFinding`, `RuleOutcome`.                   |
+| `apps/wiki/cli/src/rules/rule-policy.ts`                              | The policy schema and the ratchet refusal you replace.                                  |
+| `apps/wiki/cli/src/rules/registry.ts`                                 | The four registered rules and the sorted registry.                                      |
+| `apps/wiki/cli/src/rules/check.ts`                                    | `checkCandidate`, where the shared context is built.                                    |
+| `apps/wiki/cli/src/rules/rules.test.ts`                               | The fixture style, and the **three exact-list assertions** of section 3, fact 6.        |
+| `apps/wiki/cli/src/inventory/read-candidate.ts`                       | `CandidateEntry` (`path`, `mode`, `blob`) and `CandidateSnapshot`.                      |
+| `apps/wiki/cli/src/inventory/read-blob.ts`                            | `readCandidateBlob(repository, blob, path): Uint8Array`, how part B measures a file.    |
+| `apps/wiki/cli/src/relationships/typescript.ts`                       | `TypeScriptImportSelector` and `ImportKind`; lines 247-353 for how a target is spelled. |
+| `apps/wiki/cli/src/relationships/index.ts`                            | `extractRelationships` and its trusted-modules requirement (lines 79-98).               |
+| `apps/wiki/cli/src/contracts/records.ts`                              | `RelativePath`, `OpaqueId`, `SchemaVersion`, and the arktype narrow style.              |
+| `apps/wbs/fe-01/src/modules/`                                         | The four real modules this packet's rules will judge.                                   |
+| `openspec/config.yaml`                                                | The `sdd-lean` schema and its per-artifact rules.                                       |
 
 ## 3. Verified facts
 
 Read or executed in `/home/df/wd/puni/batch-2-planning` on 2026-09-20 at `6484986e`.
 
-1. Nx project `twilight-bureaucrat`, root `apps/wiki/cli`, targets exactly `test`, `lint`,
+1. Nx project `twilight-burokrat`, root `apps/wiki/cli`, targets exactly `test`, `lint`,
    `lint:source`, `lint:fast`, `release`, `build`, `pack`, `test:package`, `typecheck`
    (`apps/wiki/cli/project.json`).
 2. The `test` target's command is
@@ -408,7 +408,7 @@ relationshipRequest?, indexes }`, and `indexes: RuleOutcome<IndexReport>` is the
       `['repository', 'delivery']` it yields one observation. K3 must forbid delivery.
     - `m/store.ts` and `m/geometry.ts` beside a kinded file receive **no** kind, so nothing in
       §6.5 could ever see them reach React. F1 needs the declared-paths input of §6.2.
-    - `nx run twilight-bureaucrat:typecheck` exited 0 with §6's code in place; `lint:source`
+    - `nx run twilight-burokrat:typecheck` exited 0 with §6's code in place; `lint:source`
       refused `if (source === undefined || source.kind !== direction.from)` with
       `@typescript-eslint/prefer-optional-chain`, so §6.5 uses `source?.kind !== direction.from`.
       A code block this packet prescribes that does not lint is a defect, and this one was found by
@@ -436,7 +436,7 @@ relationshipRequest?, indexes }`, and `indexes: RuleOutcome<IndexReport>` is the
 Not verified; never state any of these as fact.
 
 - **U1.** Whether two proposed OpenSpec changes may both add requirements to the capability
-  `bureaucrat-rules`. Part A finds out by running the validation block; if it refuses, **part A stop
+  `burokrat-rules`. Part A finds out by running the validation block; if it refuses, **part A stop
   condition 3** applies.
 - **U2.** Whether the rules produce zero findings over this repository itself. Nobody ran them over
   it, and doing so needs a rule policy, a `RelationshipRequest` naming this repository's tsconfigs
@@ -450,19 +450,19 @@ Not verified; never state any of these as fact.
 
 ## 5. File plan
 
-| File                                               | Part       | Create or modify | Responsibility                                                        |
-| -------------------------------------------------- | ---------- | ---------------- | --------------------------------------------------------------------- |
-| `openspec/changes/twilight-bureaucrat-kind-rules/` | A (+B-E)   | create           | The slice B2 change: proposal, delta spec, tasks, verification record |
-| `apps/wiki/cli/src/rules/rule.ts`                  | A, C, D    | modify           | The adopted set, the effect function, the widened `RuleContext`       |
-| `apps/wiki/cli/src/rules/rule-policy.ts`           | A, B       | modify           | `adoptedSet`, `sizeCeilings`, the replaced ratchet refusal            |
-| `apps/wiki/cli/src/rules/check.ts`                 | A, B, C, D | modify           | Passes the adopted set and builds the shared context                  |
-| `apps/wiki/cli/src/rules/size-ratchet.ts`          | B          | create           | Measures candidate files and produces `F7`'s observations             |
-| `apps/wiki/cli/src/rules/kinds.ts`                 | C          | create           | Kind and module resolution from paths alone                           |
-| `apps/wiki/cli/src/rules/direction.ts`             | D          | create           | The import graph walk and the direction observations                  |
-| `apps/wiki/cli/src/rules/registry.ts`              | B, C, D, E | modify           | One registry entry per new rule                                       |
-| `apps/wiki/cli/src/rules/rules.test.ts`            | A-E        | modify           | Every test and every exact-list update                                |
-| `apps/wiki/cli/README.md`                          | E          | modify           | The "## Rules" section only                                           |
-| `apps/wiki/cli/src/packaging/build.test.ts`        | D, E       | modify           | Add each newly registered rule's observing mode under §0.5a           |
+| File                                             | Part       | Create or modify | Responsibility                                                        |
+| ------------------------------------------------ | ---------- | ---------------- | --------------------------------------------------------------------- |
+| `openspec/changes/twilight-burokrat-kind-rules/` | A (+B-E)   | create           | The slice B2 change: proposal, delta spec, tasks, verification record |
+| `apps/wiki/cli/src/rules/rule.ts`                | A, C, D    | modify           | The adopted set, the effect function, the widened `RuleContext`       |
+| `apps/wiki/cli/src/rules/rule-policy.ts`         | A, B       | modify           | `adoptedSet`, `sizeCeilings`, the replaced ratchet refusal            |
+| `apps/wiki/cli/src/rules/check.ts`               | A, B, C, D | modify           | Passes the adopted set and builds the shared context                  |
+| `apps/wiki/cli/src/rules/size-ratchet.ts`        | B          | create           | Measures candidate files and produces `F7`'s observations             |
+| `apps/wiki/cli/src/rules/kinds.ts`               | C          | create           | Kind and module resolution from paths alone                           |
+| `apps/wiki/cli/src/rules/direction.ts`           | D          | create           | The import graph walk and the direction observations                  |
+| `apps/wiki/cli/src/rules/registry.ts`            | B, C, D, E | modify           | One registry entry per new rule                                       |
+| `apps/wiki/cli/src/rules/rules.test.ts`          | A-E        | modify           | Every test and every exact-list update                                |
+| `apps/wiki/cli/README.md`                        | E          | modify           | The "## Rules" section only                                           |
+| `apps/wiki/cli/src/packaging/build.test.ts`      | D, E       | modify           | Add each newly registered rule's observing mode under §0.5a           |
 
 One more file is touched, by part A only:
 `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`, whose "Ratchet mode protects
@@ -497,7 +497,7 @@ packets can land in either order with no rebase.
 ## 6. Interfaces
 
 Exact code. **Every block below was written into `apps/wiki/cli/src/rules` on 2026-09-20, type-checked
-with `nx run twilight-bureaucrat:typecheck` (exit 0), linted with `lint:source` (exit 0 after the one
+with `nx run twilight-burokrat:typecheck` (exit 0), linted with `lint:source` (exit 0 after the one
 fix noted in fact 30), exercised through the production CLI over real Git fixtures, and then
 restored byte for byte, proven with `cmp` and `git status`.** Use it verbatim; a changed shape breaks
 a later part.
@@ -1337,8 +1337,7 @@ pass unchanged. If it does not, **stop**: this refactor changes no behaviour.
 `registry.ts` gains a second source constant beside the existing `SpecSource`:
 
 ```ts
-const KindSpecSource =
-  'openspec/changes/twilight-bureaucrat-kind-rules/specs/bureaucrat-rules/spec.md';
+const KindSpecSource = 'openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md';
 ```
 
 `F7` and `MOD-LAYOUT` are ordinary rule objects:
@@ -1604,7 +1603,7 @@ supplies one. **Adds three tests and renames one.** A rename adds nothing: the d
   ```sh
   git -C "$repo_root" status --porcelain
   ls "$repo_root/apps/wiki/cli/src/rules"
-  if [ -e "$repo_root/openspec/changes/twilight-bureaucrat-kind-rules" ]; then
+  if [ -e "$repo_root/openspec/changes/twilight-burokrat-kind-rules" ]; then
     echo 'STOP: the change already exists' >&2
     exit 1
   fi
@@ -1615,7 +1614,7 @@ supplies one. **Adds three tests and renames one.** A rename adds nothing: the d
   third; `1` from the fourth.
 
 - [ ] Record the two baselines. **This packet states no absolute total anywhere.** Main has moved
-      since it was written, packet 010.6 adds Bureaucrat tests and 110.6 changes the devsync suite,
+      since it was written, packet 010.6 adds Burokrat tests and 110.6 changes the devsync suite,
       so a literal would be a false stop.
 
   ```sh
@@ -1638,11 +1637,11 @@ supplies one. **Adds three tests and renames one.** A rename adds nothing: the d
 Rule R4 requires OpenSpec: this changes an architectural contract, the meaning of a policy mode.
 
 - [ ] Create the change with the batch README's **Creating an OpenSpec change** block, named
-      `twilight-bureaucrat-kind-rules`. Expected: `grep -n "schema: sdd-lean"` prints one line. If it
+      `twilight-burokrat-kind-rules`. Expected: `grep -n "schema: sdd-lean"` prints one line. If it
       prints nothing, stop.
 - [ ] Write `proposal.md` from the schema's template with §9's intent. **At most 400 words**,
       excluding the template's HTML comments; count them.
-- [ ] Write `specs/bureaucrat-rules/spec.md` with §9's **five** requirements. Every requirement needs
+- [ ] Write `specs/burokrat-rules/spec.md` with §9's **five** requirements. Every requirement needs
       at least one `#### Scenario:` heading with real `**GIVEN**`, `**WHEN**` and `**THEN**` bullets:
       OpenSpec validates the heading only, so vacuous bullets would pass and would be a defect. §9's
       table is the authority on titles and anchors; the registry's `source` strings must match them
@@ -1661,8 +1660,8 @@ Rule R4 requires OpenSpec: this changes an architectural contract, the meaning o
   > identity before judging and recorded in the verdict; until that input exists, scenario
   > SERVICE-TAXONOMY-038 SHALL be unmet and SHALL NOT be claimed.
 
-  Then replace its final sentence, "Twilight Bureaucrat slice B0 has no adopted set and SHALL refuse
-  the `ratchet` mode by name until slice B2.", with "Twilight Bureaucrat slice B2 supplies the adopted
+  Then replace its final sentence, "Twilight Burokrat slice B0 has no adopted set and SHALL refuse
+  the `ratchet` mode by name until slice B2.", with "Twilight Burokrat slice B2 supplies the adopted
   set; a policy that ratchets a rule without one SHALL be refused by name." Change **nothing else** in
   that file: the three scenarios keep their identifiers and their bodies, because a scenario identifier
   is stable.
@@ -1743,7 +1742,7 @@ carries `15_000` as its third `test` argument**. §0.6 admits no exception, and 
       `findings.push(toFinding(rule.id, mode, observation, policy.adoptedSet));`. Nothing else in
       `check.ts` changes in this part.
 - [ ] Run the rules test file. Expected: `N + 3` tests, `0 fail`.
-- [ ] Run `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`. This part changes a shared
+- [ ] Run `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`. This part changes a shared
       function's signature, so the type check belongs in this slice.
 
 ### A.5 Negative proofs
@@ -1765,30 +1764,30 @@ executor preamble rule 16 that is not a stop.
 | Command                                                                                            | Expected                                             |
 | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | §0.2's focused command                                                                             | Exit 0; `N + 3` tests ran, `0 fail`.                 |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                        | Exit 0.                                              |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                                      | Exit 0, no warnings.                                 |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                          | Exit 0.                                              |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                        | Exit 0, no warnings.                                 |
 | `bunx prettier --write <the files you changed>`, then `NX_DAEMON=false bunx nx format:check --all` | The second exits 0 with no output.                   |
 | The batch README's **OpenSpec validation** block                                                   | One JSON report; block exits 0; `passed` is `P + 1`. |
 
 - [ ] **Before handing over**, fill part A's section of
-      `openspec/changes/twilight-bureaucrat-kind-rules/verify.md` with the real commands, exit
+      `openspec/changes/twilight-burokrat-kind-rules/verify.md` with the real commands, exit
       statuses, decisive output lines, and every fault with the test that failed and the line you saw,
       transcribed from `$TMPDIR/evidence`. Every part does this for itself: the launcher gives each
       attempt a **new** temporary root, so a later part cannot reach this one's logs.
 
 Pending planner verification, named in the report as not run here: the whole
-`twilight-bureaucrat:test`, `twilight-bureaucrat:test:package` and `tool-devsync:test` targets, and
+`twilight-burokrat:test`, `twilight-burokrat:test:package` and `tool-devsync:test` targets, and
 `bin/h2puni-gate.sh`.
 
 ### A.7 Ready to commit
 
-Subject: `feat(bureaucrat): give ratchet mode the consumer's adopted set`
+Subject: `feat(burokrat): give ratchet mode the consumer's adopted set`
 
-Paths: `openspec/changes/twilight-bureaucrat-kind-rules/.openspec.yaml`,
-`openspec/changes/twilight-bureaucrat-kind-rules/proposal.md`,
-`openspec/changes/twilight-bureaucrat-kind-rules/specs/bureaucrat-rules/spec.md`,
-`openspec/changes/twilight-bureaucrat-kind-rules/tasks.md`,
-`openspec/changes/twilight-bureaucrat-kind-rules/verify.md`,
+Paths: `openspec/changes/twilight-burokrat-kind-rules/.openspec.yaml`,
+`openspec/changes/twilight-burokrat-kind-rules/proposal.md`,
+`openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md`,
+`openspec/changes/twilight-burokrat-kind-rules/tasks.md`,
+`openspec/changes/twilight-burokrat-kind-rules/verify.md`,
 `openspec/changes/service-taxonomy/specs/service-taxonomy/spec.md`,
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/rule-policy.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`.
@@ -1798,10 +1797,10 @@ any difference. Then stop and hand over. Do not start part B.
 
 ### A.8 Part A stop conditions
 
-1. `openspec/changes/twilight-bureaucrat-kind-rules/` already exists, or any of
+1. `openspec/changes/twilight-burokrat-kind-rules/` already exists, or any of
    `apps/wiki/cli/src/rules/{size-ratchet,kinds,direction}.ts` exists.
 2. The baseline run reports any failure. The **total** is recorded, never compared to a literal.
-3. OpenSpec refuses a second change adding requirements to `bureaucrat-rules` (unknown U1). Record
+3. OpenSpec refuses a second change adding requirements to `burokrat-rules` (unknown U1). Record
    the refusal text and stop; the fix is a capability of its own and is the planner's call.
 4. The 400-word intent cap cannot be met. Report rather than trimming requirements.
 5. A named negative's test passes under the fault, fails with a different message, or does not
@@ -1913,12 +1912,12 @@ A.6's table, with `N + 11` tests, `0 fail`, and `passed` equal to `P`. Fill part
 
 ### B.6 Ready to commit
 
-Subject: `feat(bureaucrat): add the F7 file size ratchet rule`
+Subject: `feat(burokrat): add the F7 file size ratchet rule`
 
 Paths: `apps/wiki/cli/src/rules/size-ratchet.ts`, `apps/wiki/cli/src/rules/registry.ts`,
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/rule-policy.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
-`openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what `git status` actually shows.
+`openspec/changes/twilight-burokrat-kind-rules/verify.md`. Report what `git status` actually shows.
 
 ### B.7 Part B stop conditions
 
@@ -2162,12 +2161,12 @@ A.6's table, with `N + 10` tests, `0 fail`, and `passed` equal to `P`. Fill part
 
 ### C.6 Ready to commit
 
-Subject: `feat(bureaucrat): resolve service kinds and check the module layout`
+Subject: `feat(burokrat): resolve service kinds and check the module layout`
 
 Paths: `apps/wiki/cli/src/rules/kinds.ts`, `apps/wiki/cli/src/rules/registry.ts`,
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/check.ts`,
 `apps/wiki/cli/src/rules/rules.test.ts`, `apps/wiki/cli/src/packaging/build.test.ts` (section 0.5a: the
-`MOD-LAYOUT` mode), `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`.
+`MOD-LAYOUT` mode), `openspec/changes/twilight-burokrat-kind-rules/verify.md`.
 Report what `git status` actually shows.
 
 ### C.7 Part C stop conditions
@@ -2372,7 +2371,7 @@ required in this slice. Fill part D's section of `verify.md` before handing over
 
 ### D.7 Ready to commit
 
-Subject: `feat(bureaucrat): judge K3 and K4 on the extracted import graph`
+Subject: `feat(burokrat): judge K3 and K4 on the extracted import graph`
 
 Rules this part registers: `K3` and `K4`.
 
@@ -2380,7 +2379,7 @@ Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/kinds.ts
 `apps/wiki/cli/src/rules/registry.ts`, `apps/wiki/cli/src/rules/rule.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
 `apps/wiki/cli/src/packaging/build.test.ts`,
-`openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what `git status` actually shows.
+`openspec/changes/twilight-burokrat-kind-rules/verify.md`. Report what `git status` actually shows.
 
 Update and include `apps/wiki/cli/src/packaging/build.test.ts`: add observing modes for `K3` and
 `K4` to its existing `ruleModes`, retaining identifier order and all existing assertions.
@@ -2616,7 +2615,7 @@ Never mutate `reachedTargets`, `directionObservations` or the `REL-EXTRACT` rule
 
 ### E.7 The verification record
 
-- [ ] Consolidate `openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Parts A to D each wrote
+- [ ] Consolidate `openspec/changes/twilight-burokrat-kind-rules/verify.md`. Parts A to D each wrote
       their own section before handing over, so this step reads the **committed** record, adds part
       E's, and checks that every part is represented. It does not reconstruct earlier parts from
       memory: each attempt gets a new temporary root, so part A's `$TMPDIR/evidence` is gone. If a
@@ -2632,15 +2631,15 @@ Never mutate `reachedTargets`, `directionObservations` or the `REL-EXTRACT` rule
 | Command                                                                                    | Expected                                             |
 | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
 | §0.2's focused command                                                                     | Exit 0; `N + 11` tests ran, `0 fail`.                |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`                                | Exit 0.                                              |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source`                              | Exit 0, no warnings.                                 |
-| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build`                                    | Exit 0.                                              |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`                                  | Exit 0.                                              |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`                                | Exit 0, no warnings.                                 |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:build`                                      | Exit 0.                                              |
 | `bunx prettier --write <changed files>`, then `NX_DAEMON=false bunx nx format:check --all` | The second exits 0, no output.                       |
 | The batch README's **OpenSpec validation** block                                           | One JSON report; block exits 0; `passed` equals `P`. |
 
 ### E.9 Ready to commit
 
-Subject: `feat(bureaucrat): judge K2, K5, K6 and F1 and record slice B2`
+Subject: `feat(burokrat): judge K2, K5, K6 and F1 and record slice B2`
 
 Rules this part registers: `F1`, `K2`, `K5` and `K6`.
 
@@ -2652,8 +2651,8 @@ Paths: `apps/wiki/cli/src/rules/direction.ts`, `apps/wiki/cli/src/rules/registry
 `apps/wiki/cli/src/rules/rule.ts`, `apps/wiki/cli/src/rules/rule-policy.ts`,
 `apps/wiki/cli/src/rules/check.ts`, `apps/wiki/cli/src/rules/rules.test.ts`,
 `apps/wiki/cli/src/packaging/build.test.ts`,
-`apps/wiki/cli/README.md`, `openspec/changes/twilight-bureaucrat-kind-rules/tasks.md`,
-`openspec/changes/twilight-bureaucrat-kind-rules/verify.md`. Report what
+`apps/wiki/cli/README.md`, `openspec/changes/twilight-burokrat-kind-rules/tasks.md`,
+`openspec/changes/twilight-burokrat-kind-rules/verify.md`. Report what
 `git status --short --untracked-files=all` actually shows, including any file a required `Proof:`
 comment touched, and reconcile any difference with this list.
 
@@ -2674,20 +2673,20 @@ comment touched, and reconcile any difference with this list.
 
 Every figure is a delta over the baseline **that part** recorded in its own step 0. **This packet
 states no absolute total anywhere.** Main has moved since it was written, packet 010.6 adds
-Bureaucrat tests and 110.6 changes the devsync suite, so a literal would be a false stop.
+Burokrat tests and 110.6 changes the devsync suite, so a literal would be a false stop.
 
-| Check                                        | Who      | Expected                                                                                                                                                                                               |
-| -------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| §0.2's focused command                       | Executor | `+3`, `+11`, `+10`, `+7`, `+11` over each part's own recorded `N`; `0 fail` throughout.                                                                                                                |
-| `twilight-bureaucrat:typecheck`              | Executor | Exit 0, in **every** part: each one moves a shared type or signature.                                                                                                                                  |
-| `twilight-bureaucrat:lint:source`            | Executor | Exit 0, every part.                                                                                                                                                                                    |
-| `twilight-bureaucrat:build`                  | Executor | Exit 0, part E.                                                                                                                                                                                        |
-| `nx format:check --all`                      | Executor | Exit 0, every part.                                                                                                                                                                                    |
-| Strict OpenSpec validation                   | Executor | `P + 1` in part A, which creates the change; `P` unchanged in B to E.                                                                                                                                  |
-| **Whole `twilight-bureaucrat:test`**         | Planner  | Exit 0, plus this part's own delta over the baseline of the commit **this dispatch** started from (A `+3`, B `+11`, C `+10`, D `+7`, E `+11`); `+42` only against a baseline that precedes every part. |
-| **Whole `twilight-bureaucrat:test:package`** | Planner  | Exit 0 and unchanged against that same baseline: no command and no manifest entry changes.                                                                                                             |
-| **Whole `tool-devsync:test`**                | Planner  | Exit 0 and unchanged against that same baseline: this packet never touches devsync.                                                                                                                    |
-| **`bin/h2puni-gate.sh <sha>`**               | Planner  | On the shared build host only. Report as not run here.                                                                                                                                                 |
+| Check                                      | Who      | Expected                                                                                                                                                                                               |
+| ------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §0.2's focused command                     | Executor | `+3`, `+11`, `+10`, `+7`, `+11` over each part's own recorded `N`; `0 fail` throughout.                                                                                                                |
+| `twilight-burokrat:typecheck`              | Executor | Exit 0, in **every** part: each one moves a shared type or signature.                                                                                                                                  |
+| `twilight-burokrat:lint:source`            | Executor | Exit 0, every part.                                                                                                                                                                                    |
+| `twilight-burokrat:build`                  | Executor | Exit 0, part E.                                                                                                                                                                                        |
+| `nx format:check --all`                    | Executor | Exit 0, every part.                                                                                                                                                                                    |
+| Strict OpenSpec validation                 | Executor | `P + 1` in part A, which creates the change; `P` unchanged in B to E.                                                                                                                                  |
+| **Whole `twilight-burokrat:test`**         | Planner  | Exit 0, plus this part's own delta over the baseline of the commit **this dispatch** started from (A `+3`, B `+11`, C `+10`, D `+7`, E `+11`); `+42` only against a baseline that precedes every part. |
+| **Whole `twilight-burokrat:test:package`** | Planner  | Exit 0 and unchanged against that same baseline: no command and no manifest entry changes.                                                                                                             |
+| **Whole `tool-devsync:test`**              | Planner  | Exit 0 and unchanged against that same baseline: this packet never touches devsync.                                                                                                                    |
+| **`bin/h2puni-gate.sh <sha>`**             | Planner  | On the shared build host only. Report as not run here.                                                                                                                                                 |
 
 **No new Nx target and no new README.** The incoming `nx.json` change that puts `CLAUDECODE=0` and
 `AGENT=0` in the default of every test-running target name, the
@@ -2732,11 +2731,11 @@ real boundary; and the whole touched-path proof set, which is gone with the feat
 
 ## 9. OpenSpec
 
-Change `twilight-bureaucrat-kind-rules`, schema `sdd-lean`, capability `bureaucrat-rules`, created in
+Change `twilight-burokrat-kind-rules`, schema `sdd-lean`, capability `burokrat-rules`, created in
 part A. Part A also amends one requirement of the **proposed** `service-taxonomy` change, which is not
 in `openspec/specs/` and is therefore not an accepted contract.
 
-**Intent, at most 400 words.** Problem: Twilight Bureaucrat's rule model has four rules and refuses
+**Intent, at most 400 words.** Problem: Twilight Burokrat's rule model has four rules and refuses
 `ratchet` by name, so the taxonomy rules this repository has decided — kind direction, the module
 layout and the file size ratchet — are judged nowhere, and a repository cannot adopt them module by
 module. Outcome: `ratchet` becomes usable, refusing a finding inside a consumer-supplied adopted set
@@ -2987,7 +2986,7 @@ command, injecting every part C fault, and then reverting the rehearsal. The reh
 **Rehearsal record, 2026-09-20, in `/home/df/wd/puni/batch-2/revise-010-7-C` at part B's staged
 head.** `bun test` on the rules file: `33 pass, 0 fail` before, `43 pass, 0 fail, 361 expect()
 calls` after. `bunx eslint` on `kinds.ts`, `registry.ts`, `rule.ts`, `check.ts` and `rules.test.ts`:
-exit 0. `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0. Every one of C1, C2a,
+exit 0. `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: exit 0. Every one of C1, C2a,
 C2b, C3, C4, C5, C6, C7, C8a and C8b was injected, observed failing only its named test with the
 diagnostic C.4 now records, and the file restored. The rehearsal was then reverted; only part B's
 staged paths and this packet remain changed.
@@ -3019,10 +3018,10 @@ Nothing was rejected.
 head.** The rules file ran `43 pass, 0 fail` before part D, `50 pass, 0 fail, 427 expect() calls`
 after part D, and `61 pass, 0 fail, 528 expect() calls` after part E. `bunx eslint` over
 `direction.ts`, `registry.ts`, `rule.ts`, `rule-policy.ts`, `check.ts` and `rules.test.ts`: exit 0
-after each part. `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck`: exit 0 after each
+after each part. `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: exit 0 after each
 part. D1 to D6 and E1 to E10, including E5b, E5c, E8a and E8b, were each injected, observed failing
 only their named test with the diagnostic D.5 and E.5 now record, and restored. With `F1`, `K2`,
 `K3`, `K4`, `K5` and `K6` added to `build.test.ts`'s `ruleModes`,
-`NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package --skip-nx-cache` exited 0 with
+`NX_DAEMON=false bunx nx run twilight-burokrat:test:package --skip-nx-cache` exited 0 with
 `44 pass, 0 fail, 301 expect() calls` in 123 s, so §0.5a's instruction is sufficient. The rehearsal
 was then reverted; only this packet remains changed.

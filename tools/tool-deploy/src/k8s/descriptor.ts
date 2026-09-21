@@ -4,7 +4,7 @@ import {
   type ActivationIdentity,
   type PackageIdentity,
   requireDeploymentAdmission,
-} from '@tools/bureaucrat-consumer';
+} from '@tools/burokrat-consumer';
 import { IMAGE_NAME } from '@tools/deploy-contract';
 
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity } from './release';

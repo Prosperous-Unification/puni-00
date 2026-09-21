@@ -85,7 +85,7 @@ one key space; Executable restore compatibility (A39, A47).
 `apps/twilight-dash/cli/src/compile.ts`,
 `apps/wiki/cli/src/scenarios/validate-scenarios.ts`,
 `apps/wiki/cli/src/scenarios/validate-scenarios.test.ts`, the
-`twilight-bureaucrat:scenario-check` Nx target, its required CI invocation,
+`twilight-burokrat:scenario-check` Nx target, its required CI invocation,
 `registered:repository-gate`, `registered:browser-gate` and
 `registered:scenario-coverage`,
 `libs/twilight/domain/contracts/testing/fixture-registry.ts`,
@@ -196,8 +196,8 @@ can fail. Task 8 adds the uncertain-effect upgrade/rollback fixture once Task 4 
 **Commands established by this task:**
 `bunx nx run twilight-dash-cli:compile -- --repository <fixture>
 --organization-snapshot <snapshot> --json` and
-`bunx nx run twilight-bureaucrat:scenario-check -- --change <name>` and
-`bunx nx test twilight-dash-runtime`. CI invokes `twilight-bureaucrat:scenario-check` for all
+`bunx nx run twilight-burokrat:scenario-check -- --change <name>` and
+`bunx nx test twilight-dash-runtime`. CI invokes `twilight-burokrat:scenario-check` for all
 active changes. Add lint and source/spec typechecks that compile
 actual files; inject a deliberate type error to prove those targets see them.
 
@@ -1326,7 +1326,7 @@ trace content or exceed its declared analysis allowance.
 
 **Depends on:** Tasks 7–8. **Owns next increment:**
 `libs/twilight-dash/adapters/runtime/src/knowledge/`, knowledge FE/MCP operations and
-`twilight-bureaucrat:verify-knowledge`. Read-only index
+`twilight-burokrat:verify-knowledge`. Read-only index
 navigation from M0 remains sufficient until this increment exists.
 
 Use [knowledge operations](../../../docs/twilight-structure/knowledge.md). Require

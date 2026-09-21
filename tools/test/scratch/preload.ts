@@ -13,7 +13,7 @@ import { removeProcessRoot } from '.';
 afterAll(removeProcessRoot);
 
 // Bun's default limit is 5 seconds a test. The suites that load this preload run real command
-// lines over real Git fixtures, and on the shared build host 24 of Twilight Bureaucrat's tests took
+// lines over real Git fixtures, and on the shared build host 24 of Twilight Burokrat's tests took
 // between 3.5 and 4.94 seconds in one gate run (h2puni, d748f1a7, 2026-09-20): a limit a loaded
 // host reaches makes the gate fail at random. Thirty seconds still ends a test that hangs. A test
 // whose point is its own speed states its own limit as the third argument.

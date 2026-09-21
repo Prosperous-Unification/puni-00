@@ -16,13 +16,13 @@ context, in lease contention and in slow test loops.
 user. Every service has a kind, every kind has a direction it may depend in, every service
 lives in a module that is also a wiki module, every behaviour has a capability that owns it,
 and every test says what level it is, which module it belongs to and which scenario it proves.
-Twilight Bureaucrat can check all of it from a Git revision.
+Twilight Burokrat can check all of it from a Git revision.
 
 **Non-goals.** No rewrite by decree: existing code is classified in place and moved only when
 it is touched or when measurement justifies it. No new state library, UI library or framework
 is mandated. No change to the rings, the ports, the unit of work, the HTTP contracts or the
-WebSocket protocol. The Twilight tools are designed elsewhere, Twilight Bureaucrat in its
-[rules design](2026-09-19-twilight-bureaucrat-rules-design.md); this document states only what
+WebSocket protocol. The Twilight tools are designed elsewhere, Twilight Burokrat in its
+[rules design](2026-09-19-twilight-burokrat-rules-design.md); this document states only what
 they must be able to check, run and generate.
 
 **Constraints.** Rules R1 to R5 govern. Every enforced rule ships with a production-path
@@ -35,12 +35,12 @@ repository directly.
 Dany answered "yes" to four defaults on 2026-09-19. They are recorded here so a later reader
 can reopen them.
 
-1. Twilight Bureaucrat absorbs the verification half of the separately planned verifier tool.
+1. Twilight Burokrat absorbs the verification half of the separately planned verifier tool.
 2. Four frontend rules are enforced and four start as recommended practice. See
    [Frontend organization](#frontend-organization).
 3. A test at the API level or above must cite a scenario.
 4. Twilight Dash starts as a facade over the existing deploy, fleet and build tools, and the
-   lease authority moves into it from the Bureaucrat package.
+   lease authority moves into it from the Burokrat package.
 
 ## Four kinds and one direction
 
@@ -293,7 +293,7 @@ is the binding. Every test has three axes.
 
 ### Totality
 
-Totality is two derived ledgers, both computed by Twilight Bureaucrat.
+Totality is two derived ledgers, both computed by Twilight Burokrat.
 
 - **Scenario coverage.** Every scenario has a test at its lowest sufficient level, or an
   explicit disposition: manual, or inapplicable with a reason.
@@ -307,13 +307,13 @@ correctness.
 
 ### Scenario identifiers
 
-Twilight Bureaucrat allocates a short identifier for every OpenSpec scenario and keeps
+Twilight Burokrat allocates a short identifier for every OpenSpec scenario and keeps
 predecessors when a scenario is renamed or split, the way ADR 0020 treats module identities.
 
 A test cites its scenario in its title, in square brackets at the start. The convention needs
 no helper library, so it works unchanged in every runner the repository uses: Bun's test
 runner, Vitest, Playwright and pytest. Every one of them can write a JUnit report that carries
-the title, and Twilight Bureaucrat joins reports to scenarios by parsing the bracket.
+the title, and Twilight Burokrat joins reports to scenarios by parsing the bracket.
 
 ```ts
 test('[PLAN-REFRESH-007] an invalidation during a read reaches a covering outcome', () => {
@@ -355,18 +355,18 @@ capability, one ADR, and a negative proof for every rule.
 
 ## What the tools must do
 
-| Tool                | For this system it must                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Twilight Bureaucrat | Hold the templates. Check K1 to K9, F1, F2, F3, F7, T1 and T2. Compute the two coverage ledgers. Allocate scenario and module identifiers. Validate reports as artifacts. |
-| Twilight Dash       | Instantiate templates. Run tests by level, by module and by scenario. Produce reports and environment observations.                                                       |
-| Twilight Navigator  | Turn a request into capabilities, modules and a plan, using the templates and the quick validations.                                                                      |
+| Tool               | For this system it must                                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Twilight Burokrat  | Hold the templates. Check K1 to K9, F1, F2, F3, F7, T1 and T2. Compute the two coverage ledgers. Allocate scenario and module identifiers. Validate reports as artifacts. |
+| Twilight Dash      | Instantiate templates. Run tests by level, by module and by scenario. Produce reports and environment observations.                                                       |
+| Twilight Navigator | Turn a request into capabilities, modules and a plan, using the templates and the quick validations.                                                                      |
 
-### Templates Twilight Bureaucrat owns
+### Templates Twilight Burokrat owns
 
 Module for each side, feature-service, resource-service, repository, module README with its
 index, capability specification, scenario, manual procedure, ADR and OpenSpec change packet.
 Each template has one home and one conformance rule. Twilight Dash generates from it and
-Twilight Bureaucrat verifies the output, so a generator and its validator cannot drift.
+Twilight Burokrat verifies the output, so a generator and its validator cannot drift.
 
 ### Rollout modes
 

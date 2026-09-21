@@ -26,13 +26,10 @@ import {
 } from '../policy/relocation-fixtures';
 
 const workspace = resolve(import.meta.dir, '../../../../..');
-const bootstrapSource = join(workspace, 'infra/ci/bureaucrat');
+const bootstrapSource = join(workspace, 'infra/ci/burokrat');
 const trustedWorkflow = join(workspace, '.github/workflows/trusted-wiki.yml');
 const compatibilityRoute = join(workspace, 'bin/tool-wiki-package-lint.sh');
-const packedTarball = join(
-  workspace,
-  'dist/twilight-bureaucrat-pack/twilight-bureaucrat-0.1.0.tgz',
-);
+const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz');
 const scratchRoots: string[] = [];
 
 function scratch(prefix: string): string {
@@ -75,27 +72,27 @@ interface Registry {
   stop: () => void;
 }
 
-/** A minimal npm registry serving one tarball as `twilight-bureaucrat@0.1.0`. */
+/** A minimal npm registry serving one tarball as `twilight-burokrat@0.1.0`. */
 function serveRegistry(tarball: string): Registry {
   const bytes = readFileSync(tarball);
   const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
   const requests: string[] = [];
-  const tarballPath = '/twilight-bureaucrat/-/twilight-bureaucrat-0.1.0.tgz';
+  const tarballPath = '/twilight-burokrat/-/twilight-burokrat-0.1.0.tgz';
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
     fetch(request): Response {
       const path = new URL(request.url).pathname;
       requests.push(path);
-      if (path === '/twilight-bureaucrat') {
+      if (path === '/twilight-burokrat') {
         return Response.json({
-          name: 'twilight-bureaucrat',
+          name: 'twilight-burokrat',
           'dist-tags': { latest: '0.1.0' },
           versions: {
             '0.1.0': {
-              name: 'twilight-bureaucrat',
+              name: 'twilight-burokrat',
               version: '0.1.0',
-              bin: { 'twilight-bureaucrat': 'dist/bin.mjs' },
+              bin: { 'twilight-burokrat': 'dist/bin.mjs' },
               dist: {
                 tarball: new URL(tarballPath, request.url).href,
                 integrity,
@@ -114,7 +111,7 @@ function serveRegistry(tarball: string): Registry {
 
 /** The post-publication pin step: resolve the base-owned manifest into a lock, nothing more. */
 async function pinLock(directory: string, registry: string): Promise<void> {
-  const home = scratch('twilight-bureaucrat-pin-home-');
+  const home = scratch('twilight-burokrat-pin-home-');
   const pinned = await run(
     ['bun', 'install', '--lockfile-only', '--registry', registry],
     directory,
@@ -153,7 +150,7 @@ interface Runner {
 }
 
 function createRunner(): Runner {
-  const root = scratch('twilight-bureaucrat-runner-');
+  const root = scratch('twilight-burokrat-runner-');
   const runner = {
     workspace: join(root, 'workspace'),
     temporary: join(root, 'runner-temp'),
@@ -212,7 +209,7 @@ async function runWorkflowStep(
 
 /** Simulates the sparse base checkout: the bootstrap directory as the base commit carries it. */
 function checkOutBase(runner: Runner, lock: string | undefined, consumer: object): string {
-  const directory = join(runner.workspace, 'trusted-base/infra/ci/bureaucrat');
+  const directory = join(runner.workspace, 'trusted-base/infra/ci/burokrat');
   mkdirSync(directory, { recursive: true });
   for (const name of ['bootstrap.sh', 'admit.sh', 'package.json'] as const) {
     cpSync(join(bootstrapSource, name), join(directory, name));
@@ -283,15 +280,15 @@ async function git(repository: string, ...argv: string[]): Promise<string> {
 
 /** Packs a same-name, same-version package whose every entrypoint writes a sentinel. */
 async function packHostileTarball(sentinels: string): Promise<string> {
-  const source = scratch('twilight-bureaucrat-hostile-source-');
+  const source = scratch('twilight-burokrat-hostile-source-');
   const touch = (name: string) =>
     `bun -e 'await Bun.write(${JSON.stringify(join(sentinels, name))}, "ran")'`;
   write(
     join(source, 'package.json'),
     `${JSON.stringify({
-      name: 'twilight-bureaucrat',
+      name: 'twilight-burokrat',
       version: '0.1.0',
-      bin: { 'twilight-bureaucrat': 'dist/bin.mjs' },
+      bin: { 'twilight-burokrat': 'dist/bin.mjs' },
       scripts: {
         preinstall: touch('hostile-package-preinstall'),
         postinstall: touch('hostile-package-postinstall'),
@@ -302,14 +299,14 @@ async function packHostileTarball(sentinels: string): Promise<string> {
     join(source, 'dist/bin.mjs'),
     `await Bun.write(${JSON.stringify(join(sentinels, 'hostile-package-executable'))}, "ran");\n`,
   );
-  const destination = scratch('twilight-bureaucrat-hostile-pack-');
+  const destination = scratch('twilight-burokrat-hostile-pack-');
   const packed = await run(
     ['bun', 'pm', 'pack', '--destination', destination],
     source,
     plainEnvironment(source),
   );
   expect(packed.exitCode, packed.stderr).toBe(0);
-  return join(destination, 'twilight-bureaucrat-0.1.0.tgz');
+  return join(destination, 'twilight-burokrat-0.1.0.tgz');
 }
 
 let registry: Registry;
@@ -324,19 +321,19 @@ let hostileInheritance: Record<string, string>;
 
 beforeAll(async () => {
   if (!existsSync(packedTarball)) throw new Error(`packed tarball is absent: ${packedTarball}`);
-  sentinels = scratch('twilight-bureaucrat-sentinels-');
+  sentinels = scratch('twilight-burokrat-sentinels-');
   registry = serveRegistry(packedTarball);
   hostileTarball = await packHostileTarball(sentinels);
   hostileRegistry = serveRegistry(hostileTarball);
 
-  const pinned = scratch('twilight-bureaucrat-base-pin-');
+  const pinned = scratch('twilight-burokrat-base-pin-');
   cpSync(join(bootstrapSource, 'package.json'), join(pinned, 'package.json'));
   await pinLock(pinned, registry.url);
   baseLock = join(pinned, 'bun.lock');
-  const hostilePin = scratch('twilight-bureaucrat-hostile-pin-');
+  const hostilePin = scratch('twilight-burokrat-hostile-pin-');
   write(
     join(hostilePin, 'package.json'),
-    `${JSON.stringify({ name: 'hostile', private: true, dependencies: { 'twilight-bureaucrat': '0.1.0' } })}\n`,
+    `${JSON.stringify({ name: 'hostile', private: true, dependencies: { 'twilight-burokrat': '0.1.0' } })}\n`,
   );
   await pinLock(hostilePin, hostileRegistry.url);
   hostileLock = join(hostilePin, 'bun.lock');
@@ -365,13 +362,13 @@ beforeAll(async () => {
   const bootstrap = await runWorkflowStep(runner, 'Bootstrap trusted package', {}, {});
   expect(bootstrap.exitCode, bootstrap.stderr).toBe(0);
   fixture = createRelocationCandidate({ materializeModules: true });
-  const out = scratch('twilight-bureaucrat-consumer-activation-');
+  const out = scratch('twilight-burokrat-consumer-activation-');
   const prepared = await run(
     [
       'bun',
       join(
         runner.temporary,
-        'twilight-bureaucrat/consumer/node_modules/twilight-bureaucrat/dist/bin.mjs',
+        'twilight-burokrat/consumer/node_modules/twilight-burokrat/dist/bin.mjs',
       ),
       ...preparationArguments(fixture, out),
     ],
@@ -390,7 +387,7 @@ afterAll(() => {
 });
 
 function installedConsumer(runner: Runner): string {
-  return join(runner.temporary, 'twilight-bureaucrat/consumer');
+  return join(runner.temporary, 'twilight-burokrat/consumer');
 }
 
 function lockIntegrity(consumer: string): string {
@@ -398,7 +395,7 @@ function lockIntegrity(consumer: string): string {
   const lock = Bun.JSONC.parse(readFileSync(join(consumer, 'bun.lock'), 'utf8')) as {
     packages: Record<string, unknown[] | undefined>;
   };
-  return String(lock.packages['twilight-bureaucrat']?.[3]);
+  return String(lock.packages['twilight-burokrat']?.[3]);
 }
 
 /** Candidate checkout: a clone of the certified fixture, optionally with one hostile commit. */
@@ -425,8 +422,8 @@ function writeHostileInstallInputs(root: string, label: string): void {
     `${JSON.stringify({
       name: 'hostile',
       private: true,
-      dependencies: { 'twilight-bureaucrat': '0.1.0' },
-      trustedDependencies: ['twilight-bureaucrat'],
+      dependencies: { 'twilight-burokrat': '0.1.0' },
+      trustedDependencies: ['twilight-burokrat'],
       scripts: { preinstall: touch('preinstall'), postinstall: touch('postinstall') },
     })}\n`,
   );
@@ -458,7 +455,7 @@ const hostileCases: readonly HostileCase[] = [
         `${JSON.stringify({
           name: 'relocation-fixture',
           private: true,
-          devDependencies: { 'twilight-bureaucrat': 'file:./hostile.tgz' },
+          devDependencies: { 'twilight-burokrat': 'file:./hostile.tgz' },
         })}\n`,
       );
     },
@@ -562,7 +559,7 @@ describe('package-backed trusted admission', () => {
     expect(baseCheckout.with).toEqual({
       ref: '${{ github.event.pull_request.base.sha }}',
       path: 'trusted-base',
-      'sparse-checkout': 'infra/ci/bureaucrat/',
+      'sparse-checkout': 'infra/ci/burokrat/',
       'sparse-checkout-cone-mode': false,
       'persist-credentials': false,
     });
@@ -570,7 +567,7 @@ describe('package-backed trusted admission', () => {
 
   test('the committed configuration keeps the archive launcher route and installs nothing', async () => {
     const runner = createRunner();
-    const directory = join(runner.workspace, 'trusted-base/infra/ci/bureaucrat');
+    const directory = join(runner.workspace, 'trusted-base/infra/ci/burokrat');
     mkdirSync(dirname(directory), { recursive: true });
     cpSync(bootstrapSource, directory, { recursive: true });
     const bootstrap = await runWorkflowStep(runner, 'Bootstrap trusted package', {}, {});
@@ -598,7 +595,7 @@ describe('package-backed trusted admission', () => {
     const bootstrap = await runWorkflowStep(runner, 'Bootstrap trusted package', {}, {});
     expect(bootstrap.exitCode, bootstrap.stderr).toBe(0);
     expect(runner.outputs.get('route')).toBe('installed-package');
-    expect(runner.outputs.get('package')).toBe('twilight-bureaucrat@0.1.0');
+    expect(runner.outputs.get('package')).toBe('twilight-burokrat@0.1.0');
     expect(runner.outputs.get('integrity')).toBe(registry.integrity);
     const sha = await checkOutCandidate(runner);
     const verify = await runWorkflowStep(
@@ -613,7 +610,7 @@ describe('package-backed trusted admission', () => {
       readFileSync(
         join(
           installedConsumer(runner),
-          'node_modules/twilight-bureaucrat/dist/package-manifest.json',
+          'node_modules/twilight-burokrat/dist/package-manifest.json',
         ),
         'utf8',
       ),
@@ -622,14 +619,12 @@ describe('package-backed trusted admission', () => {
       identity: string;
     };
     expect(
-      JSON.parse(
-        readFileSync(join(runner.temporary, 'twilight-bureaucrat/admission.json'), 'utf8'),
-      ),
+      JSON.parse(readFileSync(join(runner.temporary, 'twilight-burokrat/admission.json'), 'utf8')),
     ).toEqual({
       schemaVersion: 1,
       sourceSha: sha,
       package: {
-        name: 'twilight-bureaucrat',
+        name: 'twilight-burokrat',
         version: '0.1.0',
         integrity: registry.integrity,
         toolkitIdentity: installedManifest.toolkitIdentity,
@@ -668,7 +663,7 @@ describe('package-backed trusted admission', () => {
       // Pinning the reason catches a validator that starts reading candidate config (bunfig.toml,
       // nx.json, .npmrc) as configuration: the refusal would move or the sentinel would appear.
       expect(`${verify.stdout}${verify.stderr}`).toContain(refusal);
-      expect(existsSync(join(runner.temporary, 'twilight-bureaucrat/admission.json'))).toBe(false);
+      expect(existsSync(join(runner.temporary, 'twilight-burokrat/admission.json'))).toBe(false);
       expect(hostileRegistry.requests.length).toBe(hostileRequests);
       expect(readdirSync(sentinels)).toEqual([]);
     },
@@ -681,9 +676,9 @@ describe('package-backed trusted admission', () => {
     const bootstrap = await runWorkflowStep(runner, 'Bootstrap trusted package', {}, {});
     expect(bootstrap.exitCode, bootstrap.stderr).toBe(0);
     const sha = await checkOutCandidate(runner);
-    const older = scratch('twilight-bureaucrat-older-activation-');
+    const older = scratch('twilight-burokrat-older-activation-');
     cpSync(activationRoot, older, { recursive: true });
-    const olderRelease = `twilight-bureaucrat-v0.1.0 ${'0'.repeat(64)}\n`;
+    const olderRelease = `twilight-burokrat-v0.1.0 ${'0'.repeat(64)}\n`;
     writeFileSync(join(older, 'toolkit-release'), olderRelease);
     const mismatched = await runWorkflowStep(
       runner,
@@ -801,7 +796,7 @@ describe('staged and malformed bootstrap inputs refuse', () => {
     });
     expect(readdirSync(sentinels)).toEqual([]);
     expect(invocation.exitCode).toBe(78);
-    expect(invocation.stderr).toContain('must pin exactly twilight-bureaucrat');
+    expect(invocation.stderr).toContain('must pin exactly twilight-burokrat');
     expect(existsSync(join(installedConsumer(runner), 'node_modules'))).toBe(false);
   });
 
@@ -809,7 +804,7 @@ describe('staged and malformed bootstrap inputs refuse', () => {
     const { invocation } = await bootstrapWith(packageRoute(), hostileLock, (directory) => {
       const lock = readFileSync(join(directory, 'bun.lock'), 'utf8').replace(
         '"name": "hostile"',
-        '"name": "puni-twilight-bureaucrat-bootstrap"',
+        '"name": "puni-twilight-burokrat-bootstrap"',
       );
       writeFileSync(join(directory, 'bun.lock'), lock);
     });
@@ -828,14 +823,14 @@ describe('staged and malformed bootstrap inputs refuse', () => {
 
 describe('root compatibility route', () => {
   function routeRoot(pin: string | undefined): string {
-    const root = scratch('twilight-bureaucrat-route-root-');
+    const root = scratch('twilight-burokrat-route-root-');
     cpSync(compatibilityRoute, join(root, 'bin/tool-wiki-package-lint.sh'));
     write(
       join(root, 'package.json'),
       `${JSON.stringify({
         name: 'route-root',
         private: true,
-        ...(pin === undefined ? {} : { devDependencies: { 'twilight-bureaucrat': pin } }),
+        ...(pin === undefined ? {} : { devDependencies: { 'twilight-burokrat': pin } }),
       })}\n`,
     );
     return root;
@@ -879,15 +874,15 @@ describe('root compatibility route', () => {
         plainEnvironment(root),
       );
       expect(refused.exitCode).toBe(78);
-      expect(refused.stderr).toContain('no exact twilight-bureaucrat devDependency');
+      expect(refused.stderr).toContain('no exact twilight-burokrat devDependency');
     }
   });
 
   test('a package lint that calls the route again is refused instead of recursing', async () => {
     const root = routeRoot('0.1.0');
     const counter = join(root, 'depth');
-    const packageRoot = join(root, 'node_modules/twilight-bureaucrat');
-    write(join(packageRoot, 'package.json'), '{"name":"twilight-bureaucrat","version":"0.1.0"}\n');
+    const packageRoot = join(root, 'node_modules/twilight-burokrat');
+    write(join(packageRoot, 'package.json'), '{"name":"twilight-burokrat","version":"0.1.0"}\n');
     write(
       join(packageRoot, 'dist/bin.mjs'),
       [

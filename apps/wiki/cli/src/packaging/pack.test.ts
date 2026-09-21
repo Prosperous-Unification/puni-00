@@ -16,7 +16,7 @@ async function refusalMessage(action: Promise<void>): Promise<string> {
 }
 
 test('refuses a package-manager failure', async () => {
-  const destination = await mkdtemp(join(tmpdir(), 'twilight-bureaucrat-pack-failure-'));
+  const destination = await mkdtemp(join(tmpdir(), 'twilight-burokrat-pack-failure-'));
   try {
     expect(
       await refusalMessage(
@@ -25,7 +25,7 @@ test('refuses a package-manager failure', async () => {
           stderr: new TextEncoder().encode('injected pack failure'),
         })),
       ),
-    ).toContain('Cannot pack Twilight Bureaucrat: injected pack failure');
+    ).toContain('Cannot pack Twilight Burokrat: injected pack failure');
   } finally {
     await rm(destination, { force: true, recursive: true });
   }

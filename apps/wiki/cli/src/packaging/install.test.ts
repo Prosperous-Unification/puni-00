@@ -27,10 +27,7 @@ import { packPackage } from './pack';
 
 const workspace = resolve(import.meta.dir, '../../../../..');
 const packageSource = join(workspace, 'apps/wiki/cli');
-const packedTarball = join(
-  workspace,
-  'dist/twilight-bureaucrat-pack/twilight-bureaucrat-0.1.0.tgz',
-);
+const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz');
 const scratchRoots: string[] = [];
 
 function scratch(prefix: string): string {
@@ -52,7 +49,7 @@ function run(command: string[], cwd: string, env = sanitizedEnvironment(cwd)) {
 }
 
 function installTarball(tarball: string): { consumer: string; executable: string } {
-  const consumer = scratch('twilight-bureaucrat-consumer-');
+  const consumer = scratch('twilight-burokrat-consumer-');
   cpSync(join(packageSource, 'fixtures/consumer'), consumer, { recursive: true });
   const sentinel = join(consumer, 'lifecycle-ran');
   const manifest = JSON.parse(readFileSync(join(consumer, 'package.json'), 'utf8')) as Record<
@@ -79,7 +76,7 @@ function installTarball(tarball: string): { consumer: string; executable: string
   expect(existsSync(sentinel)).toBe(false);
   return {
     consumer,
-    executable: join(consumer, 'node_modules/twilight-bureaucrat/dist/bin.mjs'),
+    executable: join(consumer, 'node_modules/twilight-burokrat/dist/bin.mjs'),
   };
 }
 
@@ -201,20 +198,20 @@ afterAll(() => {
   }
 });
 
-describe('packed Twilight Bureaucrat installation', () => {
+describe('packed Twilight Burokrat installation', () => {
   test('installs the exact tarball with scripts disabled and runs without workspace resolution', () => {
     if (!existsSync(packedTarball)) throw new Error(`packed tarball is absent: ${packedTarball}`);
     const { consumer, executable } = installTarball(packedTarball);
-    const installed = join(consumer, 'node_modules/twilight-bureaucrat');
+    const installed = join(consumer, 'node_modules/twilight-burokrat');
     const manifest = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')) as {
       name?: string;
       bin?: Record<string, string>;
       version?: string;
     };
     expect(manifest).toMatchObject({
-      name: 'twilight-bureaucrat',
+      name: 'twilight-burokrat',
       version: '0.1.0',
-      bin: { 'twilight-bureaucrat': 'dist/bin.mjs', twib: 'dist/bin.mjs' },
+      bin: { 'twilight-burokrat': 'dist/bin.mjs', twib: 'dist/bin.mjs' },
     });
     const installedFiles = listFiles(installed);
     expect(installedFiles).toContain('dist/toolkit/prepare-relocation-activation.mjs');
@@ -230,7 +227,7 @@ describe('packed Twilight Bureaucrat installation', () => {
     // thrown out of `run`, before the exit-status assertion; and replacing it with a launcher
     // printing 9.9.9 failed the output assertion (2026-09-20). Each was restored and rerun green.
     const shortCommand = join(consumer, 'node_modules/.bin/twib');
-    const fullCommand = join(consumer, 'node_modules/.bin/twilight-bureaucrat');
+    const fullCommand = join(consumer, 'node_modules/.bin/twilight-burokrat');
     expect(existsSync(shortCommand), 'the installer did not link the short command').toBe(true);
     expect(existsSync(fullCommand), 'the installer did not link the full command').toBe(true);
     const shortRun = run([shortCommand, '--version'], consumer, sanitizedEnvironment(consumer));
@@ -247,7 +244,7 @@ describe('packed Twilight Bureaucrat installation', () => {
     expect(offlineVersion.stdout.toString()).toBe('0.1.0\n');
     const help = invoke(executable, ['--help'], consumer);
     expect(help.exitCode, help.stderr.toString()).toBe(0);
-    expect(help.stdout.toString()).toContain('twilight-bureaucrat validate-record');
+    expect(help.stdout.toString()).toContain('twilight-burokrat validate-record');
     const fixture = join(consumer, 'benchmark-corpus.v1.json');
     cpSync(join(packageSource, 'src/contracts/fixtures/benchmark-corpus.v1.json'), fixture);
     const validation = invokeWithoutWorkspace(
@@ -269,7 +266,7 @@ describe('packed Twilight Bureaucrat installation', () => {
   test('prepares certified admission and the old activation refuses a newer commit', () => {
     const { consumer, executable } = installTarball(packedTarball);
     const fixture = createRelocationCandidate({ materializeModules: true });
-    const out = scratch('twilight-bureaucrat-activation-');
+    const out = scratch('twilight-burokrat-activation-');
     const prepared = invoke(executable, preparationArguments(fixture, out), consumer);
     const output = `${prepared.stdout.toString()}${prepared.stderr.toString()}`;
     expect(prepared.exitCode, output).toBe(0);
@@ -299,18 +296,18 @@ describe('packed Twilight Bureaucrat installation', () => {
   }, 300_000);
 
   test('a same-version tarball with a modified validator is refused before execution', async () => {
-    const repackedRoot = scratch('twilight-bureaucrat-tampered-package-');
+    const repackedRoot = scratch('twilight-burokrat-tampered-package-');
     for (const name of ['package.json', 'README.md', 'NOTICE'] as const) {
       cpSync(join(packageSource, name), join(repackedRoot, name));
     }
     cpSync(join(packageSource, 'dist'), join(repackedRoot, 'dist'), { recursive: true });
     writeFileSync(join(repackedRoot, 'dist/toolkit/validator.mjs'), '\ncorrupted\n', { flag: 'a' });
-    const destination = scratch('twilight-bureaucrat-tampered-pack-');
+    const destination = scratch('twilight-burokrat-tampered-pack-');
     await packPackage(repackedRoot, destination);
-    const tamperedTarball = join(destination, 'twilight-bureaucrat-0.1.0.tgz');
+    const tamperedTarball = join(destination, 'twilight-burokrat-0.1.0.tgz');
     const { consumer, executable } = installTarball(tamperedTarball);
     const fixture = createRelocationCandidate();
-    const out = scratch('twilight-bureaucrat-tampered-run-');
+    const out = scratch('twilight-burokrat-tampered-run-');
     const refused = invoke(executable, preparationArguments(fixture, out), consumer);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr.toString()).toContain(
@@ -320,7 +317,7 @@ describe('packed Twilight Bureaucrat installation', () => {
 
   test('installed execution refuses every invalid package-manifest state', () => {
     const { consumer, executable } = installTarball(packedTarball);
-    const manifest = join(consumer, 'node_modules/twilight-bureaucrat/dist/package-manifest.json');
+    const manifest = join(consumer, 'node_modules/twilight-burokrat/dist/package-manifest.json');
     const source = readFileSync(manifest);
     const invokeValidation = () =>
       invoke(executable, ['validate-record', 'benchmark-corpus', 'absent'], consumer);
@@ -352,7 +349,7 @@ describe('packed Twilight Bureaucrat installation', () => {
   }, 120_000);
 
   test('a self-consistent substituted toolkit is refused by the package identity', async () => {
-    const repackedRoot = scratch('twilight-bureaucrat-substituted-toolkit-');
+    const repackedRoot = scratch('twilight-burokrat-substituted-toolkit-');
     for (const name of ['package.json', 'README.md', 'NOTICE'] as const) {
       cpSync(join(packageSource, name), join(repackedRoot, name));
     }
@@ -365,10 +362,10 @@ describe('packed Twilight Bureaucrat installation', () => {
     };
     descriptor.roles['validator.mjs'] = hashBytes(readFileSync(validatorPath));
     writeFileSync(descriptorPath, `${JSON.stringify(descriptor)}\n`);
-    const destination = scratch('twilight-bureaucrat-substituted-pack-');
+    const destination = scratch('twilight-burokrat-substituted-pack-');
     await packPackage(repackedRoot, destination);
     const { consumer, executable } = installTarball(
-      join(destination, 'twilight-bureaucrat-0.1.0.tgz'),
+      join(destination, 'twilight-burokrat-0.1.0.tgz'),
     );
     const fixture = join(consumer, 'benchmark-corpus.v1.json');
     cpSync(join(packageSource, 'src/contracts/fixtures/benchmark-corpus.v1.json'), fixture);
@@ -387,7 +384,7 @@ describe('packed Twilight Bureaucrat installation', () => {
       ...fixture,
       candidateRevision: git(fixture.repository, ['rev-parse', 'HEAD']),
     };
-    const out = scratch('twilight-bureaucrat-no-nx-');
+    const out = scratch('twilight-burokrat-no-nx-');
     const refused = invoke(executable, preparationArguments(noNxFixture, out), consumer);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr.toString()).toContain('nx.json');
@@ -395,7 +392,7 @@ describe('packed Twilight Bureaucrat installation', () => {
 
   test('installed execution refuses runtime and compiler drift', () => {
     const bunDrift = installTarball(packedTarball);
-    const bunInstalled = join(bunDrift.consumer, 'node_modules/twilight-bureaucrat');
+    const bunInstalled = join(bunDrift.consumer, 'node_modules/twilight-burokrat');
     const descriptorPath = join(bunInstalled, 'dist/toolkit/toolkit.json');
     const descriptor = JSON.parse(readFileSync(descriptorPath, 'utf8')) as Record<string, unknown>;
     descriptor['bunVersion'] = '1.3.9';
@@ -410,7 +407,7 @@ describe('packed Twilight Bureaucrat installation', () => {
     expect(wrongBun.stderr.toString()).toContain('toolkit was built with another Bun: 1.3.9');
 
     const compilerDrift = installTarball(packedTarball);
-    const compilerInstalled = join(compilerDrift.consumer, 'node_modules/twilight-bureaucrat');
+    const compilerInstalled = join(compilerDrift.consumer, 'node_modules/twilight-burokrat');
     writeFileSync(
       join(compilerInstalled, 'dist/toolkit/trusted-node-modules/typescript/package.json'),
       '\n',
@@ -431,7 +428,7 @@ describe('packed Twilight Bureaucrat installation', () => {
     const { consumer, executable } = installTarball(packedTarball);
     const typescript = join(
       consumer,
-      'node_modules/twilight-bureaucrat/dist/toolkit/trusted-node-modules/typescript',
+      'node_modules/twilight-burokrat/dist/toolkit/trusted-node-modules/typescript',
     );
     renameSync(typescript, `${typescript}.real`);
     symlinkSync(`${typescript}.real`, typescript, 'dir');
@@ -443,7 +440,7 @@ describe('packed Twilight Bureaucrat installation', () => {
   test('installed preparation refuses a candidate target that reports skipped tests', () => {
     const { consumer, executable } = installTarball(packedTarball);
     const fixture = createRelocationCandidate({ materializeModules: true, skippingCheck: true });
-    const out = scratch('twilight-bureaucrat-skipping-check-');
+    const out = scratch('twilight-burokrat-skipping-check-');
     const refused = invoke(executable, preparationArguments(fixture, out), consumer);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr.toString()).toContain('check skipped work: check.fixture.module');
