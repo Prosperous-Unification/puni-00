@@ -73,7 +73,11 @@ interface ParsedProject {
 interface ImportSite {
   specifier: string;
   importKind: ImportKind;
+  moduleSpecifier?: ts.StringLiteralLike;
 }
+
+type DependencyResolution =
+  { readonly kind: 'ambient-non-code' } | { readonly kind: 'target'; readonly target: string };
 
 const compareText = (left: string, right: string): number =>
   Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
@@ -176,6 +180,7 @@ function importSites(sourceFile: ts.SourceFile): ImportSite[] {
         namedBindings.elements.every((element) => element.isTypeOnly);
       sites.push({
         specifier: node.moduleSpecifier.text,
+        moduleSpecifier: node.moduleSpecifier,
         // Proof: treating named bindings alone as decisive made a default-value plus named-type
         // import receive `type`; the exact production selector expected `value` and failed.
         importKind:
@@ -195,6 +200,7 @@ function importSites(sourceFile: ts.SourceFile): ImportSite[] {
         node.exportClause.elements.every((element) => element.isTypeOnly);
       sites.push({
         specifier: node.moduleSpecifier.text,
+        moduleSpecifier: node.moduleSpecifier,
         // Proof: ignoring inline `type` modifiers made the production selector receive
         // `re-export` for `export { type PublicThing }`; its exact kind assertion failed.
         importKind: node.isTypeOnly || allNamedTypeOnly ? 'type-re-export' : 're-export',
@@ -204,7 +210,11 @@ function importSites(sourceFile: ts.SourceFile): ImportSite[] {
       ts.isExternalModuleReference(node.moduleReference) &&
       ts.isStringLiteral(node.moduleReference.expression)
     ) {
-      sites.push({ specifier: node.moduleReference.expression.text, importKind: 'import-equals' });
+      sites.push({
+        specifier: node.moduleReference.expression.text,
+        importKind: 'import-equals',
+        moduleSpecifier: node.moduleReference.expression,
+      });
     } else if (ts.isImportTypeNode(node)) {
       if (!ts.isLiteralTypeNode(node.argument) || !ts.isStringLiteral(node.argument.literal)) {
         throw new Error(
@@ -213,14 +223,22 @@ function importSites(sourceFile: ts.SourceFile): ImportSite[] {
       }
       // Proof: omitting ImportTypeNode traversal kept the hidden-type mutation at
       // 502b6f24...; the production public-declaration stale assertion failed.
-      sites.push({ specifier: node.argument.literal.text, importKind: 'type' });
+      sites.push({
+        specifier: node.argument.literal.text,
+        importKind: 'type',
+        moduleSpecifier: node.argument.literal,
+      });
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
       node.arguments.length === 1 &&
       ts.isStringLiteral(node.arguments[0])
     ) {
-      sites.push({ specifier: node.arguments[0].text, importKind: 'dynamic' });
+      sites.push({
+        specifier: node.arguments[0].text,
+        importKind: 'dynamic',
+        moduleSpecifier: node.arguments[0],
+      });
     }
     ts.forEachChild(node, visit);
   };
@@ -251,12 +269,41 @@ function externalTarget(specifier: string): string {
   return `external:${specifier.split('/')[0]}`;
 }
 
+function boundImportSite(sourceFile: ts.SourceFile, site: ImportSite): ImportSite | undefined {
+  if (site.moduleSpecifier?.getSourceFile() === sourceFile) return site;
+  return importSites(sourceFile).find(
+    (candidate) =>
+      candidate.specifier === site.specifier &&
+      candidate.importKind === site.importKind &&
+      candidate.moduleSpecifier !== undefined,
+  );
+}
+
+function isCompilerSupportedAmbientImport(
+  project: ParsedProject,
+  sourceFile: ts.SourceFile,
+  site: ImportSite,
+): boolean {
+  // Proof: forcing this predicate false made the production ambient-non-code test fail with
+  // `TypeScript import unresolved: ... -> './styles.css'` on 2026-09-21.
+  const bound = boundImportSite(sourceFile, site);
+  if (bound?.moduleSpecifier === undefined) return false;
+  const symbol = project.program.getTypeChecker().getSymbolAtLocation(bound.moduleSpecifier);
+  const declarations = symbol?.declarations ?? [];
+  return (
+    declarations.length > 0 &&
+    declarations.every(
+      (declaration) => ts.isModuleDeclaration(declaration) && ts.isStringLiteral(declaration.name),
+    )
+  );
+}
+
 function resolveDependency(
   workspace: string,
   project: ParsedProject,
   sourceFile: ts.SourceFile,
   site: ImportSite,
-): string {
+): DependencyResolution {
   if (site.importKind === 'reference-path') {
     const resolvedName = ts.resolveTripleslashReference(site.specifier, sourceFile.fileName);
     const referenced = project.program.getSourceFile(resolvedName);
@@ -270,7 +317,7 @@ function resolveDependency(
       project.program.isSourceFileDefaultLibrary(referenced) ||
       project.program.isSourceFileFromExternalLibrary(referenced)
     ) {
-      return `external:typescript/reference-path:${site.specifier}`;
+      return { kind: 'target', target: `external:typescript/reference-path:${site.specifier}` };
     }
     const target = workspacePath(workspace, referenced.fileName);
     if (target === undefined) {
@@ -278,7 +325,7 @@ function resolveDependency(
         `TypeScript reference path resolved outside candidate: ${sourceFile.fileName} -> '${site.specifier}'`,
       );
     }
-    return target;
+    return { kind: 'target', target };
   }
   if (site.importKind === 'reference-types') {
     const resolved = ts.resolveTypeReferenceDirective(
@@ -304,7 +351,7 @@ function resolveDependency(
       project.program.isSourceFileDefaultLibrary(referenced) ||
       project.program.isSourceFileFromExternalLibrary(referenced)
     ) {
-      return externalTarget(site.specifier);
+      return { kind: 'target', target: externalTarget(site.specifier) };
     }
     const target = workspacePath(workspace, referenced.fileName);
     if (target === undefined) {
@@ -312,7 +359,7 @@ function resolveDependency(
         `TypeScript types reference resolved outside candidate: ${sourceFile.fileName} -> '${site.specifier}'`,
       );
     }
-    return target;
+    return { kind: 'target', target };
   }
   if (site.importKind === 'reference-lib') {
     const expectedName = `lib.${site.specifier.toLowerCase()}.d.ts`;
@@ -331,11 +378,13 @@ function resolveDependency(
         `TypeScript lib reference ${site.specifier} from ${source} resolved ${String(libraries.length)} default libraries; expected exactly one`,
       );
     }
-    return `external:typescript/${expectedName}`;
+    return { kind: 'target', target: `external:typescript/${expectedName}` };
   }
   // Proof: removing built-in classification made the production CLI fail on the fixture's
   // `node:fs` edge with `TypeScript import unresolved: packages/provider/src/hidden.ts`.
-  if (isBuiltin(site.specifier)) return externalTarget(site.specifier);
+  if (isBuiltin(site.specifier)) {
+    return { kind: 'target', target: externalTarget(site.specifier) };
+  }
   const resolved = ts.resolveModuleName(
     site.specifier,
     sourceFile.fileName,
@@ -345,11 +394,23 @@ function resolveDependency(
   // Proof: treating the unresolved import as external made the production CLI report only
   // `Cannot find module './absent'`; the exact source/specifier assertion failed.
   if (resolved === undefined) {
+    if (isCompilerSupportedAmbientImport(project, sourceFile, site)) {
+      // Proof: requiring the specifier to exist on disk made the virtual-stylesheet production
+      // test fail with its exact CSS unresolved diagnostic on 2026-09-21.
+      return { kind: 'ambient-non-code' };
+    }
     const source = workspacePath(workspace, sourceFile.fileName) ?? sourceFile.fileName;
+    // Proof: classifying every unresolved module as ambient made the real `./absent` production
+    // test lose this exact source/specifier refusal on 2026-09-21.
     throw new Error(`TypeScript import unresolved: ${source} -> '${site.specifier}'`);
   }
-  if (resolved.isExternalLibraryImport === true) return externalTarget(site.specifier);
-  return workspacePath(workspace, resolved.resolvedFileName) ?? externalTarget(site.specifier);
+  if (resolved.isExternalLibraryImport === true) {
+    return { kind: 'target', target: externalTarget(site.specifier) };
+  }
+  return {
+    kind: 'target',
+    target: workspacePath(workspace, resolved.resolvedFileName) ?? externalTarget(site.specifier),
+  };
 }
 
 function emitDeclarations(workspace: string, project: ParsedProject): void {
@@ -406,13 +467,22 @@ function declarationDependencies(
   }
   const dependencies = importSites(
     ts.createSourceFile(declaration.emittedPath, declaration.text, ts.ScriptTarget.Latest, true),
-  ).map((site) => resolveDependency(workspace, project, sourceFile, site));
-  const sourceReferences = sourceFile.referencedFiles.map((reference) =>
-    resolveDependency(workspace, project, sourceFile, {
+  ).flatMap((site) => {
+    const resolution = resolveDependency(workspace, project, sourceFile, site);
+    return resolution.kind === 'target' ? [resolution.target] : [];
+  });
+  const sourceReferences = sourceFile.referencedFiles.map((reference) => {
+    const resolution = resolveDependency(workspace, project, sourceFile, {
       specifier: reference.fileName,
       importKind: 'reference-path',
-    }),
-  );
+    });
+    if (resolution.kind !== 'target') {
+      throw new Error(
+        `TypeScript reference path resolved as ambient non-code: ${sourceFile.fileName} -> '${reference.fileName}'`,
+      );
+    }
+    return resolution.target;
+  });
   // Proof: omitting carried source references kept the public selector at 1fcc9f4f... when the
   // referenced global changed; the committed-candidate CLI stale assertion failed.
   return [...new Set([...dependencies, ...sourceReferences])].filter((path) =>
@@ -596,11 +666,14 @@ export function extractTypeScriptRelationships(
         continue;
       }
       for (const site of importSites(sourceFile)) {
-        const target = resolveDependency(workspace, project, sourceFile, site);
+        const resolution = resolveDependency(workspace, project, sourceFile, site);
+        // Proof: replacing ambient omission with `external:ambient` made the production test
+        // observe a fabricated CSS import selector on 2026-09-21.
+        if (resolution.kind === 'ambient-non-code') continue;
         const selector = {
           source,
           specifier: site.specifier,
-          target,
+          target: resolution.target,
           importKind: site.importKind,
           extractor,
         };

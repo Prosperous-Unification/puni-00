@@ -874,6 +874,11 @@ describe('relationship extraction production CLI', () => {
     const unresolvedRepository = createRepository();
     write(
       unresolvedRepository,
+      'packages/apps/consumer/src/non-code.d.ts',
+      "declare module '*.css';\n",
+    );
+    write(
+      unresolvedRepository,
       'packages/apps/consumer/src/use.ts',
       "import type { Missing } from './absent';\nexport type Use = Missing;\n",
     );
@@ -900,6 +905,39 @@ describe('relationship extraction production CLI', () => {
     expect(output(compiler)).toContain('TypeScript compiler failed:');
     expect(output(compiler)).toContain("Cannot find name 'MissingType'");
   }, 15_000);
+
+  test('omits a compiler-supported ambient non-code import without inventing a target', () => {
+    const repository = createRepository();
+    write(repository, 'packages/apps/consumer/src/non-code.d.ts', "declare module '*.css';\n");
+    write(
+      repository,
+      'packages/apps/consumer/src/use.ts',
+      "import './styles.css';\n" +
+        "import publicDefault, { type PublicThing } from '../../../provider/src/index';\n" +
+        'export const use = (value: PublicThing) => value.nested.code + publicDefault().length;\n',
+    );
+    const requestPath = writeRequestInput(repository, {
+      schemaVersion: 1,
+      typescript: {
+        configPaths: ['config/tsconfig.json'],
+        publicEntrypoints: ['packages/apps/consumer/src/use.ts'],
+      },
+    });
+    const invocation = invoke(repository, commitAll(repository, 'ambient stylesheet'), requestPath);
+    expect(invocation.exitCode, output(invocation)).toBe(0);
+    const extracted = report(invocation);
+    expect(
+      extracted.typescript.imports.filter(({ specifier }) => specifier === './styles.css'),
+    ).toEqual([]);
+    expect(
+      extracted.typescript.reverseEdges.filter(({ provider }) => provider.endsWith('/styles.css')),
+    ).toEqual([]);
+    const declaration = extracted.typescript.publicDeclarations[0];
+    expect(declaration.entrypoint).toBe('packages/apps/consumer/src/use.ts');
+    expect(declaration.declarations.map(({ text }) => text).join('\n')).toContain(
+      "import './styles.css';",
+    );
+  }, 20_000);
 
   test('fails closed on unresolved declaration reference directives', () => {
     const cases = [
