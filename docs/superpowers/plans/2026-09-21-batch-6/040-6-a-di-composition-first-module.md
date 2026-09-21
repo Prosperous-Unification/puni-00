@@ -1,74 +1,101 @@
 # 040.6 A DI composition, and the first sealed core module
 
-> **Before dispatch, the planner re-points renamed identifiers.** This packet was written on the
-> base at `72627001`, which still spells the product "Bureaucrat". The rename lands first: project
-> `twilight-bureaucrat` → `twilight-burokrat`, and paths under `infra/ci/bureaucrat`. Nothing this
-> packet's commands depend on changes shape; only those names do.
+> **Before dispatch, the planner re-points the renamed identifiers.** This packet was rehearsed on
+> the base at `72627001`, which still spells the product "Bureaucrat"; the rename landed on main at
+> `40be90d3`. Nothing this packet's commands depend on changes shape — only these names do, and only
+> the first two rows are referenced by this packet (in section 3's `lint:source` fact and section 8's
+> validator-identity note):
+>
+> | Old                                                                                                                                                                                                    | New                                                        |
+> | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+> | Nx project `twilight-bureaucrat` (`package.json:13`, `bin/h2puni-gate-steps.sh:42-45`)                                                                                                                 | `twilight-burokrat`                                        |
+> | CI policy directory `infra/ci/bureaucrat/` (`admit.sh`, `bootstrap.sh`, `package.json`)                                                                                                                | `infra/ci/burokrat/`                                       |
+> | Published package and devDependency name `twilight-bureaucrat` (root `package.json`, `apps/wiki/cli/package.json`, `apps/wiki/cli/fixtures/consumer/package.json`, `bin/tool-wiki-package-lint.sh:26`) | `twilight-burokrat`                                        |
+> | `node_modules/twilight-bureaucrat` (`bin/tool-wiki-package-lint.sh:34`, `:37`)                                                                                                                         | `node_modules/twilight-burokrat`                           |
+> | `tools/tool-deploy/project.json` and `.github/workflows/ci.yml` references                                                                                                                             | the new project and directory names                        |
+> | Prose "Twilight Bureaucrat"                                                                                                                                                                            | "Twilight Burokrat"; the short command `twib` is unchanged |
+>
+> Historical document filenames keep their old spelling. `apps/wiki/cli` does not move, so the
+> `check.wiki-cli.*` identifiers are unaffected.
+>
+> **Dispatch:** `--batch batch-6` (the launcher's batch-6 default supplies
+> `--batch-dir docs/superpowers/plans/2026-09-21-batch-6`). No slice binds a port, so **no slice
+> needs `--network`**; section 7 scopes every command to what the sandbox can run.
 
-| Field      | Value                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| Work item  | WBS 040.6, "Split the backend core's services into modules; each a sealed DI Bag module" — first packet |
-| Size class | M, in five slices                                                                                       |
-| Slices     | 1 open the change, 2 the domain gate, 3 the six importers, 4 the first module, 5 install it             |
-| Implements | `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md`, preparation 2 and one module   |
-| Planned on | 2026-09-21, every slice rehearsed end to end in a private worktree of `72627001` and reverted           |
+| Field      | Value                                                                                                    |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
+| Work item  | WBS 040.6, "Split the backend core's services into modules; each a sealed DI Bag module" — first packet  |
+| Size class | M, in five slices                                                                                        |
+| Slices     | 1 open the change, 2 the domain gate, 3 the six importers, 4 the first module, 5 install it              |
+| Implements | `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md`, preparation 2 and one module    |
+| Planned on | 2026-09-21, every slice rehearsed end to end in a private worktree of `72627001`; revised after review 1 |
 
-**You execute one slice and stop.** The end of your instructions names which. Section 7 gives every
-command with its expected exit status; section 8 names the planner's checks.
+**You execute one slice and stop.** The end of your instructions names which. Each slice in section 7
+opens with its own step 0: the preconditions that must hold **before** it edits anything, and the
+baselines it compares against. Section 8 names the planner's checks.
 
 ## 1. Goal and non-goals
 
-**Goal.** Open the OpenSpec change `adopt-di-composition` over the whole of 040.6's target shape,
-so every later packet only ticks its tasks; then land the map's smallest independent no-sideways
+**Goal.** Open the OpenSpec change `adopt-di-composition` over the whole of 040.6's target shape, so
+every later packet only ticks its tasks; then land the map's smallest independent no-sideways
 preparation (the project write gate moves to the domain library as `canEditProject`); then extract
 Plan history as the pattern-setting sealed DI Bag module, with a README, a contract, a labelled
-`module.ts` and a composition check, proving by test that its bag is unreachable from outside its
-own composition and that its label names a binding in a real DI failure message.
+`module.ts` and a composition check, proving by test that **the production installer** hands out the
+contract's exports and nothing else, and that the module's label names a binding in a real DI failure
+message.
 
 **Non-goals.** No library version bump: `di-bag` stays 0.4.0, `application-exception` 0.5.0,
-`caught-object-report-json` 11.0.1, and `bun.lock` and `package.json` are the planner's. No
-frontend, no gateway, no MCP. No second core module — the map's other seventeen responsibilities
-are later packets, listed in section 9. **No K2 feature owner is invented:** the map is explicit
-that direct CRUD delivery for Calendar marker, Capacity, Directory, Priority band, Project, Step
-and Work item still lacks accepted feature owners, so full K2 closure stays outside 040.6's claim,
-and slice 1's proposal records exactly that. No wiki-module registration (section 3 says why it
-cannot happen here). No per-admission module: `servicesOver` keeps hand-wiring in this packet.
+`caught-object-report-json` 11.0.1, and `bun.lock` and `package.json` are the planner's. No frontend,
+no gateway, no MCP. No second core module — the map's other responsibilities are later packets,
+listed in section 9. **No K2 feature owner is invented:** the map is explicit that direct CRUD
+delivery for Calendar marker, Capacity, Directory, Priority band, Project, Step and Work item still
+lacks accepted feature owners, so full K2 closure stays outside 040.6's claim. **No K3 debt is closed
+either:** `HistoryService` reads two repository ports directly, which K3 forbids a feature-service;
+sealing the module makes that dependency declared instead of implicit and nothing more, and
+`tasks.md` 7.4 is where it is tracked. No wiki-module registration (section 3 says why it cannot
+happen here). No per-admission module: `servicesOver` keeps hand-wiring in this packet.
 
 ## 2. Read first
 
-| File                                                                    | Why                                                                                   |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `AGENTS.md`                                                             | Rules R1 to R5. R5 and R3 decide most of the review of this work.                     |
-| `LLM_README.md`                                                         | The index. Read only the entry your slice needs.                                      |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                   | "Execution contract" and "Standard blocks every packet uses", by name.                |
-| `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md` | The ownership map. Slice 1 turns it into artifacts; sections 3 and 9 correct it.      |
-| `docs/superpowers/specs/2026-09-19-code-organization-design.md`         | "Modules", "Module layout", "Import matrix", K1 to K9.                                |
-| `libs/wbs/application/core/src/compose.ts`                              | 297 lines. Slice 5 edits two places in it; read `servicesOver` and `composeServices`. |
-| `apps/wbs/be-01/src/boot.ts`                                            | How DI Bag is already used, and what disposal `bootBe01` owns. Not edited.            |
-| `libs/wbs/application/core/src/service/project.service.ts`              | Slices 2 and 3 move `canEdit` out of it.                                              |
-| `libs/wbs/application/core/src/service/history.service.ts`              | 40 lines. Slice 4 moves it and leaves a shim.                                         |
+| File                                                                    | Why                                                                                                      |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                             | Rules R1 to R5. R5 and R3 decide most of the review of this work.                                        |
+| `LLM_README.md`                                                         | The index. Read only the entry your slice needs.                                                         |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                   | "Execution contract" and "Standard blocks every packet uses". Slice 1 runs two of those blocks verbatim. |
+| `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md` | The ownership map. Slice 1 turns it into artifacts; sections 3 and 14 correct it.                        |
+| `docs/superpowers/specs/2026-09-19-code-organization-design.md`         | "Modules", "Module layout", "Import matrix", K1 to K9.                                                   |
+| `libs/wbs/application/core/src/compose.ts`                              | 297 lines. Slice 5 edits two places in it; read `servicesOver` and `composeServices`.                    |
+| `apps/wbs/be-01/src/boot.ts`                                            | How DI Bag is already used, and what disposal `bootBe01` owns. Not edited.                               |
+| `libs/wbs/application/core/src/service/project.service.ts`              | Slices 2 and 3 move `canEdit` out of it.                                                                 |
+| `libs/wbs/application/core/src/service/history.service.ts`              | 40 lines. Slice 4 moves it and leaves a shim.                                                            |
 
 ## 3. Verified facts
 
-Every line was read in the repository at `72627001` on 2026-09-21; every command result was
-observed in a private worktree of that commit.
+Every line was read in the repository at `72627001` on 2026-09-21; every command result was observed
+in a private worktree of that commit.
 
-| Fact                                                                                                                                                                                                                                             | Evidence                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `openspec/changes/adopt-di-composition` does not exist. The schema is `sdd-lean`.                                                                                                                                                                | `ls openspec/changes`; `openspec/config.yaml:1`                                                                                                                                                |
-| `canEdit` is a two-line pure function reading only `restricted` and `ownerId`.                                                                                                                                                                   | `libs/wbs/application/core/src/service/project.service.ts:94-96`                                                                                                                               |
-| Six core production paths import it sideways: priority band, capacity, calendar marker, step, work item, and `savePlan`. `project.routes.ts` also imports it, but it is delivery and already imports `ProjectService`.                           | `priority-band.service.ts:7`, `capacity.service.ts:5`, `calendar-marker.service.ts:7`, `step.service.ts:9`, `work-item.service.ts:87`, `use-cases/save-plan.ts:3`, `http/project.routes.ts:19` |
-| `history.service.ts` is 40 lines, one method, two store requirements, and is built once at process level rather than per admitted scope.                                                                                                         | `libs/wbs/application/core/src/service/history.service.ts`; `compose.ts:228-231`                                                                                                               |
-| It is the smallest responsibility in the map. The next smallest are priority band (83 lines) and capacity (95), and both are per-admission and need `canEditProject`.                                                                            | `wc -l` over `libs/wbs/application/core/src/service/*.service.ts`                                                                                                                              |
-| `service-boundaries.test.ts` asserts `libs/wbs/application/core/src/service/history.service.ts` **exists** and lints it. The shim is required, not optional.                                                                                     | `libs/wbs/application/core/src/service/service-boundaries.test.ts:22`, `:53-55`                                                                                                                |
-| `tools/tool-devsync/src/service-kinds.test.ts` refuses a `kinds.json` entry for a file whose name declares its kind by suffix, and requires every unsuffixed candidate to be classified exactly once.                                            | `service-kinds.test.ts:237`, `:259`; both observed failing, section 6 fault 5                                                                                                                  |
-| DI Bag 0.4.0 `buildModule(keys, { label })` names non-exported bindings `<label>/<key>` in error messages, cycle paths and `inspectGraph()`; exported bindings keep the bare key.                                                                | `node_modules/di-bag/dist/module.d.ts:9-22`; probed, section 6                                                                                                                                 |
-| `lint:source` exists **only** on `twilight-bureaucrat`. For `wbs-core` and `wbs-domain` the source-lint target is `lint`.                                                                                                                        | `bunx nx show project wbs-core --json`; `package.json:13`                                                                                                                                      |
-| The six wiki module identifiers use the grammar `module.<ring>.<name>`: `adapter`, `application`, `archive`, `docs`, `domain`, `infra`.                                                                                                          | `docs/wiki-policy/modules.json`                                                                                                                                                                |
-| A new `<!-- module-index -->` block anywhere breaks `pilot-policy.test.ts:380`, and a new `modules.json` row additionally breaks `:363` (`toHaveLength(6)`) and is refused by the CLI as "pilot module ownership has no exact trusted boundary". | Observed, section 6 fault 6. **This is why this packet registers no wiki module.**                                                                                                             |
-| `apps/wiki/cli/src/policy/pilot-policy.test.ts` clones the repository at HEAD and overlays only `pilotPaths`, so it cannot see an uncommitted change to any other file.                                                                          | `pilot-policy.test.ts:101-118`                                                                                                                                                                 |
-| It also needs `TOOL_WIKI_TRUSTED_NODE_MODULES`; a bare `bun test` of that file fails with `trusted TypeScript runtime modules are not configured` on the unmodified tree too.                                                                    | `apps/wiki/cli/project.json:23`; `apps/wiki/cli/src/relationships/index.ts:82`                                                                                                                 |
-| `bootBe01` already owns source, retention, optimizer and listener disposal in a tested order. The Plan history module registers no disposer, because nothing it owns has one.                                                                    | `apps/wbs/be-01/src/boot.ts:89-140`                                                                                                                                                            |
+| Fact                                                                                                                                                                                                                                                                | Evidence                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `openspec/changes/adopt-di-composition` does not exist. The schema is `sdd-lean`.                                                                                                                                                                                   | `ls openspec/changes`; `openspec/config.yaml:1`                                                                                                                    |
+| `openspec new change <name> --schema sdd-lean` creates **only** `.openspec.yaml` (`schema: sdd-lean`, `created: <date>`). The five artifacts are then written by hand.                                                                                              | Observed: `Created change 'adopt-di-composition' … Schema: sdd-lean`, then `ls -a` showed `.openspec.yaml` alone                                                   |
+| Strict validation on the unmodified tree: `items` 112, `passed` 112, `failed` 0. With this change added: 113/113/0, and the README's `jq -s -e` contract exits 0.                                                                                                   | Observed 2026-09-21                                                                                                                                                |
+| `canEdit` is a two-line pure function reading only `restricted` and `ownerId`.                                                                                                                                                                                      | `libs/wbs/application/core/src/service/project.service.ts:94-96`                                                                                                   |
+| Five core service files import it sideways, plus `savePlan`: `grep -rc "^import { canEdit } from './project.service';" libs/wbs/application/core/src/service/*.ts \| grep -c ':1$'` is **5**.                                                                       | `priority-band.service.ts:7`, `capacity.service.ts:5`, `calendar-marker.service.ts:7`, `step.service.ts:9`, `work-item.service.ts:87`, `use-cases/save-plan.ts:3`  |
+| `http/project.routes.ts:19` also imports it, but it is delivery and already imports `ProjectService`, so the compatibility alias keeps it valid and this packet leaves it alone.                                                                                    | `libs/wbs/application/core/src/http/project.routes.ts:19`, `:204`                                                                                                  |
+| `history.service.ts` is 40 lines, one method, two store requirements, and is built once at process level rather than per admitted scope.                                                                                                                            | `libs/wbs/application/core/src/service/history.service.ts`; `compose.ts:228-231`                                                                                   |
+| It is the smallest responsibility in the map. The next smallest are priority band (83 lines) and capacity (95), and both are per-admission and need `canEditProject`.                                                                                               | `wc -l` over `libs/wbs/application/core/src/service/*.service.ts`                                                                                                  |
+| `service-boundaries.test.ts` asserts `libs/wbs/application/core/src/service/history.service.ts` **exists** and lints it. The shim is required, not optional, and that list is what decides when any shim may go.                                                    | `libs/wbs/application/core/src/service/service-boundaries.test.ts:22`, `:53-55`                                                                                    |
+| `docs/code-organization/kinds.json` holds **95** entries. Rewriting the history row in place keeps 95; adding a row for the `.feature.ts` file is refused, and removing the shim's row is refused too.                                                              | `python3 -c "import json;print(len(json.load(open('docs/code-organization/kinds.json'))['entries']))"`; `tools/tool-devsync/src/service-kinds.test.ts:237`, `:259` |
+| Exactly **one** `wbs-be-01:test:unit` file binds a TCP port: `src/app.routes.test.ts:548` calls `Bun.serve` inside `refuses framed GET and HEAD bodies on the production health route`. No other non-DB be-01 test does.                                            | `grep -rln "Bun.serve" $(find src -name '*.test.ts' ! -name '*.db.test.ts')` returned `src/app.routes.test.ts` alone                                               |
+| `wbs-core:build:portable` bundles `testing/portable-composition.ts` for `--target=browser`, and that entrypoint imports `composeServices`. With the module wired the build exits 0 and the bundle contains `application.plan-history` and `historySettings`.        | `libs/wbs/application/core/project.json`; `testing/portable-composition.ts:4`, `:78`; observed 2026-09-21                                                          |
+| DI Bag 0.4.0 `buildModule(keys, { label })` names non-exported bindings `<label>/<key>` in error messages, cycle paths and `inspectGraph()`; exported bindings keep the bare key.                                                                                   | `node_modules/di-bag/dist/module.d.ts:9-22`, and every row of section 6                                                                                            |
+| A test helper that returns **either** of two registration objects gives DI Bag's builder a union it refuses: `TS2345 … is not assignable to parameter of type 'never'` plus `TS2684`. The two host graphs are written out separately for that reason.               | Observed `wbs-core:typecheck` exit 1 on the helper form, 2026-09-21                                                                                                |
+| `lint:source` exists **only** on the Burokrat project. For `wbs-core` and `wbs-domain` the source-lint target is `lint`.                                                                                                                                            | `bunx nx show project wbs-core --json`; `package.json:13`                                                                                                          |
+| `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` resolves a relative Markdown link against the file that carries it, so such a link inside a listing quoted in a plan document fails `every routed current document resolves its local links and anchors`. | Observed: four failures naming this packet's own path, then `364 pass`, `2 fail`. The module README therefore uses workspace-relative paths in backticks.          |
+| The six wiki module identifiers use the grammar `module.<ring>.<name>`: `adapter`, `application`, `archive`, `docs`, `domain`, `infra`.                                                                                                                             | `docs/wiki-policy/modules.json`                                                                                                                                    |
+| A new `<!-- module-index -->` block anywhere breaks `pilot-policy.test.ts:380`, and a new `modules.json` row additionally breaks `:363` (`toHaveLength(6)`) and is refused by the CLI as "pilot module ownership has no exact trusted boundary".                    | Observed, section 6 row 7. **This is why this packet registers no wiki module.**                                                                                   |
+| `pilot-policy.test.ts` clones the repository at HEAD and overlays only `pilotPaths`, so it cannot see an uncommitted change to any other file; it also needs `TOOL_WIKI_TRUSTED_NODE_MODULES`.                                                                      | `pilot-policy.test.ts:101-118`; `apps/wiki/cli/project.json:23`; `apps/wiki/cli/src/relationships/index.ts:82`                                                     |
+| `bootBe01` already owns source, retention, optimizer and listener disposal in a tested order. The Plan history module registers no disposer, because nothing it owns has one.                                                                                       | `apps/wbs/be-01/src/boot.ts:89-140`                                                                                                                                |
 
 ## 4. Why this preparation and why this module
 
@@ -77,7 +104,7 @@ observed in a private worktree of that commit.
 | Preparation                                 | Measured size                                                                                                                | Verdict                                                                                                |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | 1, split `broadcast.ts`                     | 3 exported contracts plus a collector, consumed by every resource                                                            | Largest. Not first.                                                                                    |
-| **2, move `canEdit`**                       | one 2-line pure function, 6 sideways production imports, 1 compat alias                                                      | **Chosen.** Smallest preparation that carries a real rule, so it has a production-path negative.       |
+| **2, move `canEdit`**                       | one 2-line pure function, 6 sideways production imports, 1 compatibility alias                                               | **Chosen.** Smallest preparation that carries a real rule, so it has a production-path negative.       |
 | 3, Plan document's marker read              | `plan-document.ts:28-30` is **already** a structural port; only the `CalendarMarkerListOutcome` type import at `:14` remains | Smaller in lines, but type-only: no behaviour changes, so R5 has no production-path negative to watch. |
 | 6 and 8's first half, `SolverObjectiveName` | 1 import line in `optimization-coordinator.ts:43` plus 1 test                                                                | Type-only, same objection; and 8's other half (the cache-key port) is not independent of Optimization. |
 | 4, 5, 7                                     | Depend on contracts that do not exist yet                                                                                    | Not independent.                                                                                       |
@@ -85,213 +112,315 @@ observed in a private worktree of that commit.
 Preparation 2 also breaks the most edges per line changed: six of the map's resource and feature
 paths, with no event or service dependency introduced.
 
-**Module.** Plan history, measured smallest in the map at 40 lines and one method, and the only
-small one that is **process-level**. Every resource responsibility (priority band 83 lines,
-capacity 95) is built inside `servicesOver`, which runs once per admitted transaction; the map
-warns that a singleton installation there would leak staged stores between transactions, so the
-first module must not be one of those. Plan history needs no `Broadcaster`, no `Clock` and no
-`canEditProject`, so it isolates the composition question from every other change.
+**Module.** Plan history, measured smallest in the map at 40 lines and one method, and the only small
+one that is **process-level**. Every resource responsibility (priority band 83 lines, capacity 95) is
+built inside `servicesOver`, which runs once per admitted transaction; the map warns that a singleton
+installation there would leak staged stores between transactions, so the first module must not be one
+of those. Plan history needs no `Broadcaster`, no `Clock` and no `canEditProject`, so it isolates the
+composition question from every other change.
 
-**Size.** Five slices, each one 20 to 40 minutes. (a) is one slice because section 10 gives the
-artifacts verbatim; (b) is two, because the domain move and the six rewrites have separate red and
-green points; (c) is two, because the module's files and its negatives are one unit and the
-composition wiring is another. Nothing is cut.
+**Size.** Five slices, each one 20 to 40 minutes. Section 10 gives every artifact and listing
+verbatim, which is what keeps slice 1 to one slice. Nothing is padded and nothing is cut.
 
 ## 5. File plan
 
-| Path                                                                                                       | Slice | Create or modify                                                   |
-| ---------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------ |
-| `openspec/changes/adopt-di-composition/proposal.md`                                                        | 1     | create, verbatim from section 10.1                                 |
-| `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`                                       | 1     | create, verbatim from section 10.2                                 |
-| `openspec/changes/adopt-di-composition/design.md`                                                          | 1     | create, verbatim from section 10.3                                 |
-| `openspec/changes/adopt-di-composition/tasks.md`                                                           | 1     | create, verbatim from section 10.4                                 |
-| `openspec/changes/adopt-di-composition/verify.md`                                                          | 1     | create, verbatim from section 10.5; each later slice appends to it |
-| `libs/wbs/domain/domain/src/project-ownership.ts`                                                          | 2     | create                                                             |
-| `libs/wbs/domain/domain/src/project-ownership.test.ts`                                                     | 2     | create                                                             |
-| `libs/wbs/domain/domain/src/index.ts`                                                                      | 2     | modify, one export in sorted position                              |
-| `libs/wbs/domain/domain/README.md`                                                                         | 2     | modify, one row naming `project-ownership.ts`                      |
-| `libs/wbs/application/core/src/service/project.service.ts`                                                 | 3     | modify                                                             |
-| `libs/wbs/application/core/src/service/{priority-band,capacity,calendar-marker,step,work-item}.service.ts` | 3     | modify                                                             |
-| `libs/wbs/application/core/src/use-cases/save-plan.ts`                                                     | 3     | modify                                                             |
-| `libs/wbs/application/core/src/service/broadcast.test.ts`                                                  | 3     | modify, one stale comment                                          |
-| `libs/wbs/application/core/src/module/plan-history/README.md`                                              | 4     | create                                                             |
-| `libs/wbs/application/core/src/module/plan-history/contract.ts`                                            | 4     | create                                                             |
-| `libs/wbs/application/core/src/module/plan-history/module.ts`                                              | 4     | create                                                             |
-| `libs/wbs/application/core/src/module/plan-history/check.ts`                                               | 4     | create                                                             |
-| `libs/wbs/application/core/src/module/plan-history/module.test.ts`                                         | 4     | create                                                             |
-| `libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts`                                | 4     | `git mv` of `service/history.service.ts`                           |
-| `libs/wbs/application/core/src/service/history.service.ts`                                                 | 4     | create, a re-export shim (the moved file's former path)            |
-| `libs/wbs/application/core/src/compose.ts`                                                                 | 5     | modify, two places                                                 |
-| `libs/wbs/application/core/src/index.ts`                                                                   | 5     | modify, three export lines                                         |
-| `docs/code-organization/kinds.json`                                                                        | 5     | modify, one entry rewritten                                        |
+| Path                                                                        | Slice | Create or modify                                                   |
+| --------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------ |
+| `openspec/changes/adopt-di-composition/.openspec.yaml`                      | 1     | created by `openspec new change`, not by hand                      |
+| `openspec/changes/adopt-di-composition/proposal.md`                         | 1     | create, verbatim from section 10.1                                 |
+| `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`        | 1     | create, verbatim from section 10.2                                 |
+| `openspec/changes/adopt-di-composition/design.md`                           | 1     | create, verbatim from section 10.3                                 |
+| `openspec/changes/adopt-di-composition/tasks.md`                            | 1     | create, verbatim from section 10.4                                 |
+| `openspec/changes/adopt-di-composition/verify.md`                           | 1     | create, verbatim from section 10.5; each later slice appends to it |
+| `libs/wbs/domain/domain/src/project-ownership.ts`                           | 2     | create                                                             |
+| `libs/wbs/domain/domain/src/project-ownership.test.ts`                      | 2     | create                                                             |
+| `libs/wbs/domain/domain/src/index.ts`                                       | 2     | modify, one export in the named sorted position                    |
+| `libs/wbs/domain/domain/README.md`                                          | 2     | modify, one row naming `project-ownership.ts`                      |
+| `libs/wbs/application/core/src/service/project.service.ts`                  | 3     | modify                                                             |
+| `libs/wbs/application/core/src/service/priority-band.service.ts`            | 3     | modify                                                             |
+| `libs/wbs/application/core/src/service/capacity.service.ts`                 | 3     | modify                                                             |
+| `libs/wbs/application/core/src/service/calendar-marker.service.ts`          | 3     | modify                                                             |
+| `libs/wbs/application/core/src/service/step.service.ts`                     | 3     | modify                                                             |
+| `libs/wbs/application/core/src/service/work-item.service.ts`                | 3     | modify                                                             |
+| `libs/wbs/application/core/src/use-cases/save-plan.ts`                      | 3     | modify                                                             |
+| `libs/wbs/application/core/src/service/broadcast.test.ts`                   | 3     | modify, the stale `canEdit` mention at line 274                    |
+| `libs/wbs/application/core/src/module/plan-history/module.test.ts`          | 4     | create **first**, for the red                                      |
+| `libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts` | 4     | the moved `service/history.service.ts`                             |
+| `libs/wbs/application/core/src/module/plan-history/contract.ts`             | 4     | create                                                             |
+| `libs/wbs/application/core/src/module/plan-history/module.ts`               | 4     | create                                                             |
+| `libs/wbs/application/core/src/module/plan-history/check.ts`                | 4     | create                                                             |
+| `libs/wbs/application/core/src/module/plan-history/README.md`               | 4     | create                                                             |
+| `libs/wbs/application/core/src/service/history.service.ts`                  | 4     | replaced by a re-export shim at the same path                      |
+| `libs/wbs/application/core/src/compose.ts`                                  | 5     | modify, two places                                                 |
+| `libs/wbs/application/core/src/index.ts`                                    | 5     | modify, three export lines                                         |
+| `docs/code-organization/kinds.json`                                         | 5     | modify, one entry rewritten in place                               |
 
 **Neighbours.** No other batch-6 packet owns any of these paths. `docs/code-organization/kinds.json`
-is also the subject of the map's correction task 1.8, which stays in `tasks.md` unticked. The
-planner may add or revise this packet file itself; slice path counts below are scoped to owned
-paths, never to the whole tree.
+is also the subject of `tasks.md` 1.8, which stays unticked. Section 12's cumulative check is a
+`git diff --name-only` against a base the slice records itself, so the planner's own commits —
+including a revision of this packet file — cannot break it.
 
 ## 6. Rehearsed observations
 
-Every red, green and fault below was produced in a private worktree of `72627001` and the literal
-fragment is what the runner printed. Restore a mutated file from a copy under `"$TMPDIR"` and prove
-it with `cmp` before asserting on any captured status.
+Every red, green and fault below was produced in a private worktree of `72627001` **against the final
+listings in section 10**, and the literal fragment is what the runner printed. Restore a mutated file
+from a copy under `"$TMPDIR"` and prove it with `cmp` before asserting on any captured status.
 
-| #   | Where                                                                    | Fault injected                                                         | Test that observed it                                                                                   | Literal fragment observed                                                                                                                                                                                                                                          |
-| --- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | slice 2 red, on the unchanged tree                                       | none; the module does not exist yet                                    | `project-ownership.test.ts`                                                                             | `error: Cannot find module './project-ownership'` — `0 pass`, `1 fail`, `1 error`                                                                                                                                                                                  |
-| 2   | `libs/wbs/domain/domain/src/project-ownership.ts`, `canEditProject` body | `return true;` in place of the rule                                    | `announces nothing for a write it refused` in `libs/wbs/application/core/src/service/broadcast.test.ts` | `- "reason": "forbidden",` / `+ "ok": true,` then `(fail) a calendar marker write announces itself > announces nothing for a write it refused`, `0 pass`, `1 fail`, `10 filtered out`                                                                              |
-| 3   | `module.ts`, the `buildModule` call                                      | the `{ label: PLAN_HISTORY_LABEL }` option removed                     | `names itself when a host omits a requirement`                                                          | `Expected to contain: "application.plan-history/historySettings"` / `Received: [ "history", "projectStore", "planEventStore", "historySettings" ]`, and `Received message: "DI_BAG_MISSING_DEPENDENCY: Cannot resolve \"historySettings\": …"`; `2 pass`, `2 fail` |
-| 4   | `module.ts`, the `buildModule` key tuple                                 | `['history', 'historySettings']` in place of `['history']`             | `keeps its private bindings out of every host graph`                                                    | `Expected substring: "DI_BAG_MISSING_REGISTRATION: Service \"historySettings\" is not registered."` / `Received function did not throw`; `2 pass`, `2 fail`                                                                                                        |
-| 5   | `docs/code-organization/kinds.json`                                      | the moved row renamed to the new `.feature.ts` path instead of deleted | `tool-devsync:test`                                                                                     | `+   "libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts",` at `service-kinds.test.ts:237`, and `declaredTwice` non-empty at `:259`; `2 fail`. Deleting the row instead: `366 pass`, `0 fail`                                               |
-| 6   | `libs/wbs/application/core/src/module/plan-history/README.md`            | a `<!-- module-index -->` block added                                  | `pins exact pre-index tuples and passes observe lint from external trust`                               | `+   "module.application.plan-history",` at `pilot-policy.test.ts:380`. Adding the `modules.json` row too gave `Expected length: 6` / `Received length: 7` at `:363` and `pilot module ownership has no exact trusted boundary: module.application.plan-history`   |
+| #   | Where                                                                    | Fault injected                                                                         | Test that observed it                                                                                                                                            | Literal fragment observed                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | slice 2 red, on the unchanged tree                                       | none; the module does not exist yet                                                    | `project-ownership.test.ts`                                                                                                                                      | `error: Cannot find module './project-ownership'` — `0 pass`, `1 fail`, `1 error`                                                                                                                                                                                  |
+| 2   | slice 4 red, on the unchanged tree                                       | none; `contract.ts`, `module.ts` and `check.ts` do not exist yet                       | `module.test.ts`                                                                                                                                                 | `error: Cannot find module './check'` — `0 pass`, `1 fail`, `1 error`                                                                                                                                                                                              |
+| 3   | `libs/wbs/domain/domain/src/project-ownership.ts`, `canEditProject` body | `return true;` in place of the rule                                                    | `announces nothing for a write it refused` in `libs/wbs/application/core/src/service/broadcast.test.ts`                                                          | `- "reason": "forbidden",` / `+ "ok": true,`; `(fail) a calendar marker write announces itself > announces nothing for a write it refused`; `0 pass`, `1 fail`, `10 filtered out`                                                                                  |
+| 4   | `check.ts`, the single `return` of `installPlanHistory`                  | `const exposed = { history: bag.resolve('history'), bag };` then `return exposed;`     | `exposes only the contract exports from its installer`                                                                                                           | `expect(Object.keys(exposed)).toEqual(['history']);` → `[ "history", + "bag", ]`, `- Expected - 0 / + Received + 1`; `5 pass`, `1 fail`. `wbs-core:typecheck` **still exits 0** on the leak, which is why the enumeration test exists.                             |
+| 5   | `module.ts`, the key tuple of its single `buildModule` call              | `['history', 'historySettings']` in place of `['history']`                             | `keeps its private bindings out of a host graph`, and also `labels its private bindings with the module name` and `names itself when a host omits a requirement` | `Expected substring: "DI_BAG_MISSING_REGISTRATION: Service \"historySettings\" is not registered."` / `Received function did not throw`; and `Received: [ "history", "historySettings", "projectStore", "planEventStore" ]`; `3 pass`, `3 fail`                    |
+| 6   | `module.ts`, the options object of that same call                        | the `{ label: PLAN_HISTORY_LABEL }` argument removed                                   | `labels its private bindings with the module name`, and `names itself when a host omits a requirement`                                                           | `Expected to contain: "application.plan-history/historySettings"` / `Received: [ "history", "projectStore", "planEventStore", "historySettings" ]`; and `Received message: "DI_BAG_MISSING_DEPENDENCY: Cannot resolve \"historySettings\": …"`; `4 pass`, `2 fail` |
+| 7   | `libs/wbs/application/core/src/module/plan-history/README.md`            | a `<!-- module-index -->` block added (a rehearsal of the refusal, not a prescription) | `pins exact pre-index tuples and passes observe lint from external trust`                                                                                        | `+   "module.application.plan-history",` at `pilot-policy.test.ts:380`. Adding the `modules.json` row too gave `Expected length: 6` / `Received length: 7` at `:363` and `pilot module ownership has no exact trusted boundary: module.application.plan-history`   |
 
-Faults 3 and 4 each leave the other check observable: 3 does not stop the missing-registration
-assertion passing, and 4 does not stop the resolution-path assertion being reached. Both are
-recorded because both were watched.
+**Each check has a mutation that names it.** Fault 4 fails only the installer-surface test; fault 5
+fails the private-registration test (and two more, both recorded); fault 6 fails only the two label
+tests. No check is masked: the three privacy and label assertions live in **three separate `it`
+blocks**, so one throwing does not stop the others being executed.
 
 **Also observed, and prescribed because of it:** renaming `canEdit` to `canEditProject` pushes
 `calendar-marker.service.ts:216` past the print width, and the pre-commit `format` hook refused the
 commit with `[warn] libs/wbs/application/core/src/service/calendar-marker.service.ts`. Section 10.7
-shows that line in its post-Prettier two-line form. Appending the new export to the end of
-`libs/wbs/domain/domain/src/index.ts` failed `wbs-domain:lint` with
-`Run autofix to sort these exports! simple-import-sort/exports`; `bunx eslint --fix` moves it to a
-position whose neighbouring comment is about `tree-order`, so section 10.6 gives the correct
-insertion point instead.
+shows that statement in the exact two-line form Prettier produced at its real indentation. Appending
+the new export to the end of `libs/wbs/domain/domain/src/index.ts` failed `wbs-domain:lint` with
+`Run autofix to sort these exports! simple-import-sort/exports`; `bunx eslint --fix` moves it under a
+comment about `tree-order`, so section 10.6 gives the correct insertion point instead.
 
 ## 7. Slices
 
-Each slice records its own baselines in a step 0 and compares relatively. Run every test with
-`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT` and prefix Nx with `NX_DAEMON=false`. Keep
-exit statuses as `cmd > log 2>&1; echo "exit=$?"`; never read a status through `tee` and never
-`|| true`. Scratch only under `"$TMPDIR"`; the executor cannot change Git state, so the planner
-commits each slice.
+Run every test with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT` and prefix Nx with
+`NX_DAEMON=false`. Keep exit statuses as `cmd > log 2>&1; echo "exit=$?"`; never read a status through
+`tee` and never `|| true`. Scratch only under `"$TMPDIR"`, mutation patches and failing output under
+`"$TMPDIR/evidence"`; **evidence references in `verify.md` are basenames relative to that directory,
+never absolute clone, home or temporary paths.** The executor cannot change Git state, so the planner
+commits each slice; restore a mutated file with `cp` from a copy under `"$TMPDIR"` and prove it with
+`cmp`. Every slice also records `base=$(git rev-parse HEAD)` in its step 0, for section 12.
 
 ### Slice 1 — Open `adopt-di-composition`
 
-Create the five files of section 10 exactly as given, then:
+**Step 0.** Every line must print what it says; if one does not, stop.
 
-| Command                                                                                          | Expect                                                                          |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `GSETTINGS_BACKEND=memory bunx prettier --write 'openspec/changes/adopt-di-composition/**/*.md'` | exit 0                                                                          |
-| `GSETTINGS_BACKEND=memory bunx prettier --check 'openspec/changes/adopt-di-composition/**/*.md'` | exit 0, `All matched files use Prettier code style!`                            |
-| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`                    | exit 0; the `adopt-di-composition` entry has `"valid": true` and `"issues": []` |
+```sh
+test ! -d openspec/changes/adopt-di-composition && echo "gate: change absent"
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | jq -r '.summary.totals.items'
+```
 
-Observed: exit 0 and `{"id": "adopt-di-composition", "type": "change", "valid": true, "issues": []}`.
-The command must not download beyond the pinned `@fission-ai/openspec@1.12.0` already in the
-workspace cache; if it attempts a network fetch, stop and say so.
+Record that item count as `N`. It was **112** on the rehearsed tree; require `N + 1` at the end.
+
+1. Create the change with the README's "Creating an OpenSpec change" block verbatim:
+   `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change adopt-di-composition --schema sdd-lean`,
+   then `grep -n "schema: sdd-lean" openspec/changes/adopt-di-composition/.openspec.yaml`. Expected:
+   `Created change 'adopt-di-composition' … Schema: sdd-lean`, then exactly one grep line. If the
+   grep prints nothing, stop. The command creates `.openspec.yaml` **only**.
+2. Write the five artifacts of sections 10.1 to 10.5.
+3. `GSETTINGS_BACKEND=memory bunx prettier --write 'openspec/changes/adopt-di-composition/**/*.md'`
+   then `--check` the same glob. Expected exit 0 and `All matched files use Prettier code style!`.
+4. Validate with the README's "OpenSpec validation" block verbatim — the `jq -s -e` contract, not a
+   loose success check. Expected: the block exits 0, and `jq -r '.summary.totals' "$report"` prints
+   `items` and `passed` equal to `N + 1` with `failed` 0. Observed: `112` →
+   `{"items": 113, "passed": 113, "failed": 0}`, jq contract exit 0. The report stays under
+   `"$TMPDIR/evidence"`; never delete it, and never `rm -f`.
 
 Planner commit: `feat(openspec): open adopt-di-composition for the 040.6 module split`.
 
 ### Slice 2 — The write gate becomes domain code
 
-1. Write `project-ownership.test.ts` (section 10.6) and run it. Expect the red of fault 1:
+**Step 0.**
+
+```sh
+test -f openspec/changes/adopt-di-composition/tasks.md && echo "gate: slice 1 landed"
+test ! -f libs/wbs/domain/domain/src/project-ownership.ts && echo "gate: nothing to overwrite"
+grep -cF "export function canEdit(project: Project, actorId: string): boolean {" libs/wbs/application/core/src/service/project.service.ts
+NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-domain --skip-nx-cache
+```
+
+The grep must print `1`; the Nx run must exit 0. Record `bun test libs/wbs/domain/domain/src` counts
+as this slice's baseline. All four lines behaved as written on the base tree (observed).
+
+1. Write `project-ownership.test.ts` (section 10.6) and run it. Expect the red of row 1:
    `error: Cannot find module './project-ownership'`. This red is evidence, not a commit.
-2. Write `project-ownership.ts` (section 10.6), insert the export at the position section 10.6
-   names, and add the README row.
+2. Write `project-ownership.ts` (section 10.6), insert the export at the position section 10.6 names,
+   and add the README row.
 3. Green: `bun test libs/wbs/domain/domain/src/project-ownership.test.ts` → exit 0, `2 pass`,
-   `0 fail`, `3 expect() calls` (observed).
-4. `NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-domain` → exit 0.
+   `0 fail`, `3 expect() calls` (observed). The whole-directory count is the step-0 baseline plus 2.
+4. `NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-domain --skip-nx-cache` →
+   exit 0.
+5. `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0. The format check is the
+   executor's, per the execution contract.
 
 The R5 negative belongs to slice 3, because until the six callers use the moved rule the injected
-fault has no production path through a service. Say so in `verify.md`.
+fault has no production path through a service. Write that sentence into `verify.md`.
 
 Planner commit: `refactor(core): move the project write gate into the domain library`.
 
 ### Slice 3 — The six sideways importers
 
-Apply section 10.7's edits to the seven core files, and correct the stale `canEdit` mention in
-`broadcast.test.ts:273`.
+**Step 0.**
 
-| Command                                                                                     | Expect                                                                          |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache`                            | exit 0 (this slice re-declares an exported symbol, so the type check runs here) |
-| `NX_DAEMON=false bunx nx run-many -t test:unit,lint -p wbs-core,wbs-domain --skip-nx-cache` | exit 0                                                                          |
-| `GSETTINGS_BACKEND=memory bunx prettier --check <the seven files>`                          | exit 0                                                                          |
-| `grep -rn "from './project.service'" libs/wbs/application/core/src/service`                 | no line imports `canEdit`                                                       |
+```sh
+grep -c canEditProject libs/wbs/domain/domain/src/project-ownership.ts
+grep -rc "^import { canEdit } from './project.service';" libs/wbs/application/core/src/service/*.ts | grep -c ':1$'
+grep -cF "import { canEdit, type ProjectService } from '../service/project.service';" libs/wbs/application/core/src/use-cases/save-plan.ts
+NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-core --skip-nx-cache
+```
 
-Then the negative, fault 2: replace the body of `canEditProject` with `return true;`, run
-`bun test libs/wbs/application/core/src/service/broadcast.test.ts -t 'announces nothing for a write it refused'`,
-and expect exit 1 with the fragment in row 2 of section 6. Save the patch under
-`"$TMPDIR"/evidence` with the README's `if diff …; then …; else test $? -eq 1; fi` form, restore
-with `cp` and prove with `cmp` **before** asserting on the captured status. Add beside
-`canEditProject` a dated `Proof:` comment naming the injected fault and the observed test.
+Expect `1` or more, then **5**, then `1`, then exit 0. All four behaved as written after slice 2 on
+the rehearsed tree (observed). **This slice does not touch
+`libs/wbs/application/core/src/service/history.service.ts`**: slice 4's own gate reads its line count.
+
+Apply section 10.7's edits to the seven core files, and correct the stale `canEdit` mention at
+`broadcast.test.ts:274`.
+
+| Command                                                                                                                | Expect                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache`                                                       | exit 0. This slice re-declares an exported symbol, so the type check runs here. |
+| `NX_DAEMON=false bunx nx run-many -t test:unit,lint -p wbs-core,wbs-domain --skip-nx-cache`                            | exit 0                                                                          |
+| `NX_DAEMON=false bunx nx run wbs-core:build:portable --skip-nx-cache`                                                  | exit 0                                                                          |
+| `GSETTINGS_BACKEND=memory bunx nx format:check --all`                                                                  | exit 0                                                                          |
+| `grep -rc "^import { canEdit } from './project.service';" libs/wbs/application/core/src/service/*.ts \| grep -c ':1$'` | `0` — it was 5 at step 0                                                        |
+| `grep -cF "export { canEditProject as canEdit };" libs/wbs/application/core/src/service/project.service.ts`            | `1`                                                                             |
+
+Then the negative, row 3 of section 6: replace the body of `canEditProject` with `return true;` and
+run
+`bun test libs/wbs/application/core/src/service/broadcast.test.ts -t 'announces nothing for a write it refused'`.
+Expect exit 1 with the fragment in that row and `0 pass`, `1 fail`, `10 filtered out`. A run reporting
+`0 tests ran` is a stop, not a pass. Save the patch under `"$TMPDIR"/evidence` with the README's
+`if diff …; then …; else test $? -eq 1; fi` form, restore with `cp` and prove with `cmp` **before**
+asserting on the captured status. Add beside `canEditProject` in
+`libs/wbs/domain/domain/src/project-ownership.ts` a dated `Proof:` comment naming the injected fault
+and the observed test — that comment changes the **domain** file, not `project.service.ts`.
 
 Planner commit: `refactor(core): point every resource at the domain write gate`.
 
 ### Slice 4 — Plan history as the first sealed module
 
-1. `git mv libs/wbs/application/core/src/service/history.service.ts libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts`
-   is the planner's; the executor instead copies the file to the new path, rewrites its two
-   `../ports/` imports to `../../ports/`, and replaces the old path with the shim of section 10.8.
-   **Do not delete the old path:** `service-boundaries.test.ts:22` asserts it exists.
-2. Create `README.md`, `contract.ts`, `module.ts`, `check.ts` and `module.test.ts` from section 10.8.
-3. `bun test libs/wbs/application/core/src/module/plan-history/module.test.ts` → exit 0, `4 pass`,
-   `0 fail`, `5 expect() calls` (observed).
-4. `NX_DAEMON=false bunx nx run-many -t lint,typecheck -p wbs-core --skip-nx-cache` → exit 0.
-5. The two negatives, faults 3 and 4, one at a time, each restored and `cmp`-proved before the next.
-   Add the dated `Proof:` comments beside the `buildModule` call.
+**Step 0.**
 
-The README carries no `<!-- module-index -->` block and `docs/wiki-policy/modules.json` is not
-touched; fault 6 is why, and the README says so in its own words.
+```sh
+grep -c canEditProject libs/wbs/application/core/src/service/priority-band.service.ts
+test ! -d libs/wbs/application/core/src/module && echo "gate: no module directory yet"
+wc -l < libs/wbs/application/core/src/service/history.service.ts
+NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-core --skip-nx-cache
+```
+
+Expect `1` or more, the gate line, **40**, then exit 0. All four behaved as written after slice 3 on
+the rehearsed tree (observed). Record `bun test libs/wbs/application/core/src` counts as this slice's
+baseline; the end of the slice is that baseline plus 6.
+
+Tests first, then the implementation, both inside this one slice:
+
+1. Create `libs/wbs/application/core/src/module/plan-history/module.test.ts` from section 10.8 and
+   run it. Expect the red of row 2: `error: Cannot find module './check'`, `0 pass`, `1 fail`,
+   `1 error`. This red is evidence, not a commit: the commit hook lints test files under
+   `strictTypeChecked`, so the tests and the code that makes them type-check land together.
+2. Move the service. The planner's form is
+   `git mv libs/wbs/application/core/src/service/history.service.ts libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts`;
+   the executor copies the file to the new path, rewrites its two `../ports/` imports to
+   `../../ports/`, and replaces the old path with the shim of section 10.8. **Do not delete the old
+   path:** `service-boundaries.test.ts:22` asserts it exists.
+3. Create `contract.ts`, `module.ts`, `check.ts` and `README.md` from section 10.8.
+4. `bun test libs/wbs/application/core/src/module/plan-history/module.test.ts` → exit 0, `6 pass`,
+   `0 fail`, `7 expect() calls` (observed).
+5. `NX_DAEMON=false bunx nx run-many -t lint,typecheck -p wbs-core --skip-nx-cache` → exit 0, and
+   `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
+6. The three module negatives, rows 4, 5 and 6, **one at a time**, each restored and `cmp`-proved
+   before the next. Row 4's location is the single `return` statement of `installPlanHistory` in
+   `check.ts`; rows 5 and 6 are the single
+   `.buildModule(['history'], { label: PLAN_HISTORY_LABEL });` line in `module.ts` — its key tuple for
+   row 5, its options object for row 6. Add the dated `Proof:` comments beside that `buildModule`
+   call and beside `installPlanHistory`'s `return`.
+
+The README carries no `<!-- module-index -->` block, uses workspace-relative paths in backticks rather
+than Markdown links, and `docs/wiki-policy/modules.json` is not touched. Row 7 and the devsync link
+fact in section 3 are why, and the README says so in its own words.
 
 Planner commit: `refactor(core): seal Plan history as the first DI Bag module`.
 
 ### Slice 5 — Install it from the composition root
 
+**Step 0.**
+
+```sh
+test -f libs/wbs/application/core/src/module/plan-history/module.ts && echo "gate: slice 4 landed"
+grep -cF "history: new HistoryService({" libs/wbs/application/core/src/compose.ts
+python3 -c "import json,sys; e=[x for x in json.load(open('docs/code-organization/kinds.json'))['entries'] if x['path']=='libs/wbs/application/core/src/service/history.service.ts']; sys.exit(0 if len(e)==1 and e[0].get('capability')=='core-lib-extraction' else 1)" && echo "gate: the history row is still the feature row"
+python3 -c "import json;print(len(json.load(open('docs/code-organization/kinds.json'))['entries']))"
+```
+
+Expect the gate line, `1`, the second gate line, then **95**. All four behaved as written after slice 4
+on the rehearsed tree (observed). Record the `95`: it must still be 95 at the end.
+
 Apply section 10.9: `compose.ts` (two places), `index.ts` (three export lines), and
-`docs/code-organization/kinds.json` (the `history.service.ts` row becomes the shim row; **no** row
-is added for the `.feature.ts` file — fault 5).
+`docs/code-organization/kinds.json` (the `history.service.ts` row is rewritten **in place**; **no** row
+is added for the `.feature.ts` file, and none is removed).
 
-| Command                                                                                               | Expect                                                                                                        |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-core,wbs-domain --skip-nx-cache` | exit 0                                                                                                        |
-| `NX_DAEMON=false bunx nx run-many -t test:unit,typecheck -p wbs-be-01 --skip-nx-cache`                | exit 0                                                                                                        |
-| `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`                                       | exit 0, `366 pass`, `0 fail` on the rehearsed tree; record your own baseline first and require the same count |
+| Command                                                                                                | Expect                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-core,wbs-domain --skip-nx-cache`  | exit 0 (observed)                                                                                                                |
+| `NX_DAEMON=false bunx nx run wbs-core:build:portable --skip-nx-cache`                                  | exit 0, and `grep -c "application.plan-history" dist/libs/wbs/application/core/portable-composition.js` is at least 1 (observed) |
+| `NX_DAEMON=false bunx nx run wbs-be-01:typecheck --skip-nx-cache`                                      | exit 0 (observed)                                                                                                                |
+| `cd apps/wbs/be-01 && bun test src/app.test.ts src/controller/history.controller.test.ts`              | exit 0, `11 pass`, `0 fail`, `33 expect() calls` (observed). Neither file binds a port.                                          |
+| `python3 -c "import json;print(len(json.load(open('docs/code-organization/kinds.json'))['entries']))"` | `95`, the step-0 value                                                                                                           |
+| `GSETTINGS_BACKEND=memory bunx nx format:check --all`                                                  | exit 0                                                                                                                           |
 
-`tool-devsync:test`'s index checker refuses untracked files, so this one runs with the slice's files
-staged. On this host `poller.test.ts`'s two `durable dev poller` tests may fail in the sandbox with
-`Invalid cross-device link`; record that and hand the target to the planner rather than treating it
-as yours.
+**`wbs-be-01:test:unit` is the planner's, and so is `tool-devsync:test`** — section 8 says why, with
+the values observed. Do not run either; do not treat their absence as a skipped check, and say in
+`verify.md` that they are pending planner verification with those values.
 
 Planner commit: `refactor(core): compose Plan history from its sealed module`.
 
 ## 8. Planner-only checks
 
-| Check                                                                                                                                                                     | Why it is the planner's                                                                           | Value observed on the rehearsed tree |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `cd apps/wiki/cli && TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts src/policy/pilot-policy.test.ts` | Clones the repository at HEAD, so it needs the slices committed; and it spawns the CLI many times | exit 0, `21 pass`, `0 fail`          |
-| `bunx nx run wbs-core:test` and `wbs-be-01:test` (whole targets)                                                                                                          | Spawn processes and bind ports; `EPERM` in the sandbox                                            | pending planner verification         |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                | Takes the host-wide heavy lock                                                                    | pending planner verification         |
-| `bunx nx format:check --all`                                                                                                                                              | Needs `--all`; the base-ref default is empty on main                                              | pending planner verification         |
+| Check                                                                                                                                                                     | Why it is the planner's                                                                                                                                                                                                                                                | Value observed on the rehearsed tree |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `NX_DAEMON=false bunx nx run wbs-be-01:test:unit`                                                                                                                         | `src/app.routes.test.ts:548` calls `Bun.serve` in `refuses framed GET and HEAD bodies on the production health route`; the launcher dispatches with the network disabled, and nothing else in this packet needs loopback, so the target moves rather than the dispatch | exit 0                               |
+| `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`                                                                                                           | The index checker refuses untracked files, so it needs the slice staged or committed, and it spawns processes                                                                                                                                                          | `366 pass`, `0 fail`                 |
+| `cd apps/wiki/cli && TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts src/policy/pilot-policy.test.ts` | Clones the repository at HEAD, so it needs the slices committed, and it spawns the CLI many times                                                                                                                                                                      | exit 0, `21 pass`, `0 fail`          |
+| `NX_DAEMON=false bunx nx run wbs-core:test` and `wbs-be-01:test`                                                                                                          | Whole targets: bind ports and open databases                                                                                                                                                                                                                           | pending planner verification         |
+| `NX_DAEMON=false bunx nx run wbs-core:test:portable`                                                                                                                      | Runs Playwright; the executor has no browser. `build:portable` is the executor's and is what proves the new DI dependency bundles                                                                                                                                      | pending planner verification         |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                | Takes the host-wide heavy lock                                                                                                                                                                                                                                         | pending planner verification         |
 
-No slice adds a file under `apps/wiki/cli`, so the Twilight Bureaucrat validator identity does not
-move. No slice adds a project target or a scanned-source line, so
+**Known race, not this packet's.** If `apps/wiki/cli/src/admission/claims.db.test.ts` ›
+`bounds terminal lock contention and retries until a held write commits` fails, record it and rerun
+that file once: it failed one host gate on 2026-09-21 because its holder's `COMMIT` has
+`busy_timeout = 0`. Do not edit that test, and do not edit any other test this packet does not name.
+
+No slice adds a file under `apps/wiki/cli`, so the Twilight Burokrat validator identity does not move.
+No slice adds a project target or a scanned-source line, so
 `tools/tool-devsync/src/workspace-inventory.test.ts` counts and
 `tools/tool-devsync/src/repo-namespacing-handoff.test.ts`'s digest do not move — `tool-devsync:test`
-was observed at `366 pass`, `0 fail` with every slice applied.
+was observed at `366 pass`, `0 fail` with every slice applied and the packet staged.
 
 ## 9. What the next 040.6 packets should be
 
-1. **B — the neutral event port.** The map's preparation 1: split `broadcast.ts` into a neutral
+1. **B — the neutral event port.** `tasks.md` 1.2: split `broadcast.ts` into a neutral
    `ProjectEvent`/`Broadcaster`/`subscriptionFor` location plus Plan commands' private collector.
    Every remaining module depends on it, and it is the largest preparation.
-2. **C — the small preparations.** Map preparations 3, 4, 5 and 6 and 8's type halves: Plan
-   document's marker read port, the principal and actor types, `SolverObjectiveName`. Type-only, so
-   one packet with one typecheck slice each.
+2. **C — the small preparations.** `tasks.md` 1.3 to 1.7: Plan document's marker read port, the
+   principal and actor types, `SolverObjectiveName`, the cache-key port, `saved-plan-retry.ts`.
 3. **D — the wiki registration of a module.** `docs/wiki-policy/policy.json` trusted boundary, the
    `modules.json` row, the `module-index` block, and the two pins at `pilot-policy.test.ts:363` and
    `:380`. It must land before any further module README carries index metadata.
-4. **E — the remaining process modules**, one per packet or two where they share a contract:
-   Bounded replay sweep, Realtime, Saved plans, Plan import, Authentication, Optimization.
-5. **F — per-admission installation.** `servicesOver` installing the seven resource modules per
-   supplied scope, with the leak negative the map demands. This is the only remaining composition
-   question and should not be attempted before B.
-6. **G — Plan commands**, last, because Working plan and the collector are private to it and it
-   consumes almost every other contract.
+4. **E — the remaining process modules** (`tasks.md` 3.1 to 3.6), one per packet or two where they
+   share a contract: Bounded replay sweep, Realtime, Saved plans, Plan import, Authentication,
+   Optimization.
+5. **F — Plan document and the adapter-side modules** (`tasks.md` 4.1 and 4.2).
+6. **G — per-admission installation** (`tasks.md` 5.1): `servicesOver` installing the seven resource
+   modules per supplied scope, with the leak negative the map demands. This is the only remaining
+   composition question and should not be attempted before B.
+7. **H — Plan commands** (`tasks.md` 5.2), last, because Working plan and the collector are private to
+   it and it consumes almost every other contract.
+8. **I — the domain moves and the ledger** (`tasks.md` 6 and 7), including the isolated
+   `typecheck:module` target the design names.
 
 ## 10. Exact content
 
 ### 10.1 `openspec/changes/adopt-di-composition/proposal.md`
+
+385 words with headings and bullet markers stripped, under R4's 400-word cap (measured).
 
 ```md
 ## Why
@@ -299,47 +428,44 @@ was observed at `366 pass`, `0 fail` with every slice applied.
 The backend core keeps about fifty service files in one flat directory. Nothing declares what a
 service needs, nothing seals what it hides, and a DI failure names an anonymous binding. The
 accepted code organization design answers this with one sealed DI Bag module per service
-responsibility, and the reviewed 040.6 ownership map already settles which responsibility owns
-which file. DI Bag 0.4.0 is installed and the backend's startup already uses it, so what is left
-is the composition shape, not a library choice.
+responsibility, and the reviewed 040.6 map settles which responsibility owns which file. DI Bag
+0.4.0 is installed and startup already uses it, so what is left is the composition shape.
 
 ## What Changes
 
 **Sealed module composition**
 
-- From: `compose.ts` constructs every service by hand; a service imports a sibling service for a
-  shared rule; the bag exists only in `bootBe01`.
-- To: each service responsibility in the 040.6 map is one sealed DI Bag module with a README,
-  a contract, a labelled `module.ts` and a composition check; sideways rules move to the domain
-  library or to a neutral event port; `@wbs/core` keeps every existing export.
+- From: `compose.ts` builds every service by hand; a service imports a sibling for a shared rule;
+  the bag exists only in `bootBe01`.
+- To: each 040.6 responsibility is one sealed DI Bag module with a README, a contract, a labelled
+  `module.ts` and a composition check; sideways rules move to the domain library or a neutral
+  event port; `@wbs/core` keeps every export.
 - Impact: architectural. No HTTP contract, WebSocket frame, MCP envelope or table changes.
 
 ## Non-Goals
 
-No library version bump: di-bag stays 0.4.0, application-exception 0.5.0,
-caught-object-report-json 11.0.1. No frontend lifetimes, no gateway or MCP composition, no new
-feature capability invented for the resource CRUD that delivery reaches directly, and no new
-runtime module identifier beyond the ring-then-name grammar the six existing ones use.
+No library version bump. No frontend lifetimes, no gateway or MCP composition, no invented
+feature capability for the resource CRUD delivery reaches directly, and no identifier outside the
+ring-then-name grammar the six existing ones use.
 
 ## Constraints
 
 Rules R1 to R5 govern. `bootBe01` keeps owning source, retention, optimizer and listener disposal
-in its tested order, and core modules borrow those values without registering a second disposer.
-`servicesOver` stays a per-admission graph: no singleton installation may leak staged stores or an
-announcement collector between transactions. Every new or changed safety check ships a
-production-path negative watched failing.
+in its tested order; core modules borrow those values and register no second disposer.
+`servicesOver` stays per-admission: no singleton may leak staged stores or an announcement
+collector between transactions. Every changed safety check ships a watched negative.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `di-composition`: How a service responsibility is sealed as a module, what it may require, and
-  what a composition root may see.
+- `di-composition`: how a responsibility is sealed as a module, what it may require, and what a
+  composition root may see.
 
 ### Modified Capabilities
 
-None. Plan history, Plan commands and Saved plans keep their existing `wbs-domain` requirement
-groups; Plan import keeps `plan-import`.
+None. Plan history, Plan commands and Saved plans keep `wbs-domain`; Plan import keeps
+`plan-import`.
 
 ## Domain Terms
 
@@ -347,17 +473,18 @@ None new. The nine resource terms the map names are already in `CONTEXT.md`.
 
 ## Decisions Recorded
 
-- Full K2 closure stays outside this change: direct CRUD delivery for Calendar marker, Capacity,
-  Directory, Priority band, Project, Step and Work item still lacks accepted feature owners, and
-  this change does not invent their capability grouping.
-- A module's wiki registration is separate work: `docs/wiki-policy/policy.json` needs a trusted
-  boundary per module identifier, and `apps/wiki/cli/src/policy/pilot-policy.test.ts` pins both the
-  mapping length and the exact set of discovered index identifiers.
+- Full K2 closure stays outside this change: direct CRUD delivery for the seven resources lacks
+  accepted feature owners, and this change invents no capability grouping for them.
+- K3 debt is preserved, not fixed: a feature-service that reads a repository port keeps doing so,
+  declared rather than implicit. Task 7.4 records each case.
+- Wiki registration is separate work: `docs/wiki-policy/policy.json` needs a trusted boundary per
+  identifier, and `apps/wiki/cli/src/policy/pilot-policy.test.ts` pins the mapping length and the
+  discovered identifier set.
 
 ## Impact
 
-`libs/wbs/application/core/src`, `libs/wbs/domain/domain/src`, `docs/code-organization/kinds.json`,
-and later `docs/wiki-policy/`. `apps/wbs/be-01` changes only where a shim path moves.
+`libs/wbs/application/core/src`, `libs/wbs/domain/domain/src`,
+`docs/code-organization/kinds.json`. `apps/wbs/be-01` changes only where a shim path moves.
 ```
 
 ### 10.2 `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`
@@ -397,14 +524,20 @@ bindings appear as `<label>/<key>` in DI failure messages and in `inspectGraph()
 
 ### Requirement: The bag is reachable only from a composition root
 
-A bag SHALL be built only by a module's own composition function or by a composition root, and a
-module's consumers SHALL receive typed services rather than a bag.
+A bag SHALL be built only by a module's own composition function or by a composition root, and the
+value that function returns SHALL carry the contract's exports and nothing else.
 
 #### Scenario: A consumer cannot reach a private binding
 
 - **GIVEN** a module installed in a host graph
 - **WHEN** a private binding key is resolved from that host
 - **THEN** the host answers that the service is not registered
+
+#### Scenario: The installer's returned surface carries no bag
+
+- **GIVEN** a module's composition function
+- **WHEN** the properties of the value it returns are enumerated
+- **THEN** they are exactly the contract's exports and none of them is a bag
 
 ### Requirement: No service imports a same-kind sibling
 
@@ -423,6 +556,17 @@ library, and sideways work SHALL go through a neutral published event port.
 - **GIVEN** a resource-service that announces a change
 - **WHEN** it publishes
 - **THEN** it depends on the neutral event port and not on the Realtime module
+
+### Requirement: A module records the layering debt it does not close
+
+A module whose contract requires a repository port from a feature-service SHALL state that the
+dependency is preserved K3 debt rather than compliance, and the change SHALL track it.
+
+#### Scenario: A feature module requires a store port
+
+- **GIVEN** a feature-service module that reads a repository port
+- **WHEN** its contract is read
+- **THEN** it names the K3 obligation it leaves open and where that obligation is tracked
 
 ### Requirement: Existing core exports keep working through the move
 
@@ -482,6 +626,10 @@ Three layers, and only the third sees a bag.
 3. `check.ts` — the one function that installs the module over supplied requirements, builds the
    bag and returns the contract's exports. Callers receive services; nobody else builds a bag.
 
+Layer 3 is the one that has to be tested rather than typed. An object carrying an extra property
+still satisfies the exports interface when it is returned through a variable, so the type checker
+does not refuse a returned bag; the module's tests enumerate the returned surface instead.
+
 ## Two lifetimes
 
 - **Process modules** (Plan history, Realtime, Bounded replay sweep, Saved plans, Plan import,
@@ -501,14 +649,21 @@ responsibilities creates one: the source, the retention timer, the optimizer run
 listener are all acquired and released by `bootBe01` in a tested order, and a nested
 `withDisposal` inside a core module would double-close or reorder that shutdown.
 
+## What sealing does not fix
+
+Sealing declares a dependency; it does not relayer one. A feature-service that reads a repository
+port still violates K3 after extraction, and delivery that reaches a resource-service directly
+still violates K2. Both are recorded per module rather than hidden behind a module boundary, and
+closing them needs resource-services and feature owners no accepted change supplies.
+
 ## Order of work
 
 The map's eight no-sideways preparations come first, because every one of them removes an import a
 module move would otherwise have to keep. `canEdit` and the `broadcast.ts` split are the two that
 unblock the most modules. Each responsibility then moves with `git mv`, keeping its former path as
-a compatibility re-export; `docs/code-organization/kinds.json` loses the moved row, because
-`tools/tool-devsync/src/service-kinds.test.ts` refuses an entry for a file whose name already
-declares its kind by suffix.
+a compatibility re-export; `docs/code-organization/kinds.json` keeps one row per retained unsuffixed
+shim and none for a file whose name declares its kind by suffix, because
+`tools/tool-devsync/src/service-kinds.test.ts` refuses both the missing row and the duplicate one.
 
 ## Not decided here
 
@@ -545,9 +700,10 @@ directly. Both are named in the proposal as outside this change's claim.
 
 - [ ] 2.1 Extract Plan history as the pattern-setter: module directory, contract, labelled
       `module.ts`, composition check, and the compatibility re-export at the former service path.
-      Proof: the module's own tests; negatives: the label dropped, and the private binding exported.
+      Proof: the module's own tests; negatives: the installer leaking its bag, the private binding
+      exported, and the label dropped.
 - [ ] 2.2 Install it from `composeServices` and keep every `@wbs/core` export. Proof: the core and
-      be-01 suites unchanged.
+      be-01 suites unchanged, and `wbs-core:build:portable` still bundling for the browser.
 
 ## 3. The remaining process modules
 
@@ -560,34 +716,57 @@ directly. Both are named in the proposal as outside this change's claim.
       graphs; the accountless graph exports neither.
 - [ ] 3.6 Optimization, with its repository ports and event projections.
 
-## 4. The per-admission modules
+## 4. Plan document and the adapter-side modules
 
-- [ ] 4.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
+- [ ] 4.1 Plan document as a resource module over the neutral marker read port from 1.3.
+- [ ] 4.2 Local solver launcher as a standalone repository module; Supervisor as a repository
+      module with the request/attempt mapper private to it.
+
+## 5. The per-admission modules
+
+- [ ] 5.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
       Negative: two admitted batches sharing staged stores.
-- [ ] 4.2 Plan commands, with Working plan and the announcement collector private to it.
+- [ ] 5.2 Plan commands, with Working plan and the announcement collector private to it.
 
-## 5. Ledger and closure
+## 6. Domain moves the map names
 
-- [ ] 5.1 Move each test with its owner and delete the re-export shims whose callers are gone.
-- [ ] 5.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file.
-- [ ] 5.3 Record in the change that full K2 closure and wiki registration stay outside it.
+- [ ] 6.1 The fourteen portable-core domain moves: `assumed-assignee.ts`, `clean-name.ts`,
+      `command-normalizers.ts`, `compensating.ts`, `dependency.ts`, `directory-usage.ts`,
+      `numbered-work-item.ts`, `plan-command.ts`, `roll-up.ts`, `saved-plan-default-name.ts`,
+      `saved-plan-input.ts`, `saved-plan-quota.ts`, `saved-plan-schedule-body.ts`,
+      `smoke.service.ts`.
+- [ ] 6.2 The two backend domain moves: `solver-exit-outcome.ts`, `solver-request-pair.ts`.
+- [ ] 6.3 Delete `push-client.ts` once callers import `@wbs/runtime-portable` directly.
+
+## 7. Ledger and closure
+
+- [ ] 7.1 Move each test with its owner and delete the re-export shims whose callers are gone.
+      `service-boundaries.test.ts`'s list is what decides when a shim may go.
+- [ ] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
+      suffix-declared path carries no entry, and a retained unsuffixed shim keeps one.
+- [ ] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
+      type check the design names actually runs. Proof: the target fails on a module that breaks its
+      own contract.
+- [ ] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
+      tracked. Full K2 closure and wiki registration stay outside this change.
 ```
 
 ### 10.5 `openspec/changes/adopt-di-composition/verify.md`
 
-Write it with the four command rows and the empty proof table; Prettier widens the table borders,
-so run `--write` before `--check`.
+Prettier widens the table borders, so run `--write` before `--check`.
 
 ```md
 ## Commands
 
-| Command                                                                       | Expectation          |
-| ----------------------------------------------------------------------------- | -------------------- |
-| `bunx nx run-many -t test:unit,lint,typecheck -p wbs-core,wbs-domain`         | exit 0               |
-| `bunx nx run-many -t test:unit,typecheck -p wbs-be-01`                        | exit 0               |
-| `bunx nx run tool-devsync:test`                                               | exit 0               |
-| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json` | exit 0               |
-| `bin/h2puni-gate.sh <sha>`                                                    | planner-only, exit 0 |
+| Command                                                                       | Expectation                |
+| ----------------------------------------------------------------------------- | -------------------------- |
+| `bunx nx run-many -t test:unit,lint,typecheck -p wbs-core,wbs-domain`         | exit 0                     |
+| `bunx nx run wbs-core:build:portable`                                         | exit 0                     |
+| `bunx nx run wbs-be-01:typecheck`                                             | exit 0                     |
+| `bunx nx run wbs-be-01:test:unit`                                             | planner-only, exit 0       |
+| `bunx nx run tool-devsync:test`                                               | planner-only, exit 0       |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json` | strict jq contract exits 0 |
+| `bin/h2puni-gate.sh <sha>`                                                    | planner-only, exit 0       |
 
 ## Failure proofs
 
@@ -597,7 +776,9 @@ so run `--write` before `--check`.
 
 ## Observations
 
-_(each slice appends its own baselines, counts and observed diagnostics here before handing over)_
+_(each slice appends its own step-0 baselines, its deltas and the diagnostics it observed here
+before handing over. Evidence references are basenames relative to the attempt's evidence
+directory.)_
 ```
 
 ### 10.6 Slice 2's files
@@ -662,10 +843,10 @@ spells the filename in backticks satisfies it.
 ### 10.7 Slice 3's edits
 
 Seven files. In each, delete the line `import { canEdit } from './project.service';` (in
-`use-cases/save-plan.ts` it is `import { canEdit, type ProjectService } from '../service/project.service';`,
-which becomes `import type { ProjectService } from '../service/project.service';`), add
-`canEditProject` to the `@wbs/domain` import, rename every call, and update every `canEdit`
-mention in JSDoc.
+`use-cases/save-plan.ts` it is
+`import { canEdit, type ProjectService } from '../service/project.service';`, which becomes
+`import type { ProjectService } from '../service/project.service';`), add `canEditProject` to the
+`@wbs/domain` import, rename every call, and update every `canEdit` mention in JSDoc.
 
 | File                           | The import line, after                                                                                                         |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -686,13 +867,15 @@ import {
 } from '@wbs/domain';
 ```
 
-Call sites, all of the form `if (!canEdit(project, actorId))` → `if (!canEditProject(project, actorId))`:
-`priority-band.service.ts:71`, `capacity.service.ts:84`, `step.service.ts:135` and `:240`,
-`project.service.ts:238`, `work-item.service.ts:1847`, `:2747`, `:2832`, `:2887`, `:3679`, `:4589`,
-and `use-cases/save-plan.ts:41` (`canEdit(found.project, input.actor.id)`).
+Call sites, all of the form `if (!canEdit(project, actorId))` →
+`if (!canEditProject(project, actorId))`: `priority-band.service.ts:71`, `capacity.service.ts:84`,
+`step.service.ts:135` and `:240`, `project.service.ts:238`, `work-item.service.ts:1847`, `:2747`,
+`:2832`, `:2887`, `:3679`, `:4589`, and `use-cases/save-plan.ts:41`
+(`canEdit(found.project, input.actor.id)`).
 
 `calendar-marker.service.ts:216` is the exception: after the rename it exceeds the print width, so
-write it in the form Prettier produces, otherwise the pre-commit `format` hook refuses the commit.
+write it in the form Prettier produced at its real indentation — four spaces on the `if`, six on the
+`return` — otherwise the pre-commit `format` hook refuses the commit.
 
 ```ts
 if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden', about: 'project' };
@@ -742,9 +925,16 @@ import type { HistoryService } from './plan-history.feature';
 /**
  * What a host must supply to install {@link planHistoryModule}.
  *
- * Both are repository ports, never services: Plan history is a feature-service
- * and K3 forbids it a repository of its own, so the host's composition root is
- * what hands it the two stores.
+ * **Both are repository ports, and that is existing K3 debt this extraction
+ * preserves rather than fixes.** K3 and the import matrix in
+ * `docs/superpowers/specs/2026-09-19-code-organization-design.md` say a
+ * feature-service depends on resource-services and the domain library, never on
+ * a repository port; `HistoryService` has read both stores directly since it was
+ * written. Sealing the module makes that dependency declared instead of
+ * implicit, which is the whole of the claim here. Closing it needs a Plan
+ * resource-service over `PlanEventStore`, which no accepted change supplies, so
+ * `adopt-di-composition` records it as open and this module claims no K3
+ * compliance.
  */
 export interface PlanHistoryRequirements {
   readonly projectStore: ProjectStore;
@@ -766,7 +956,7 @@ export interface PlanHistoryExports {
 export const PLAN_HISTORY_LABEL = 'application.plan-history';
 ```
 
-`module.ts`:
+`module.ts`. Its single `buildModule` call is where faults 5 and 6 go.
 
 ```ts
 import { DiBag } from 'di-bag';
@@ -811,7 +1001,7 @@ export const planHistoryModule = DiBag.createBuilder()
   .buildModule(['history'], { label: PLAN_HISTORY_LABEL });
 ```
 
-`check.ts`:
+`check.ts`. The single `return` is fault 4's location.
 
 ```ts
 import { DiBag } from 'di-bag';
@@ -823,10 +1013,11 @@ import { planHistoryModule } from './module';
  * Installs {@link planHistoryModule} over supplied requirements and returns only
  * what the module exports.
  *
- * The graph is built here and nowhere else: this is the one place that sees a
- * bag, so no caller of Plan history can reach a private binding or a host key
- * through it. A host that forgets a requirement is refused by the type checker
- * before it is refused at runtime.
+ * The graph is built here and nowhere else, so no caller of Plan history can
+ * reach a private binding or a host key through it. The type checker does not
+ * enforce that on its own: an object with an extra property returned through a
+ * variable still satisfies {@link PlanHistoryExports}, so the module's tests
+ * enumerate what this function returns.
  */
 export function installPlanHistory(requirements: PlanHistoryRequirements): PlanHistoryExports {
   const bag = DiBag.createBuilder()
@@ -840,9 +1031,10 @@ export function installPlanHistory(requirements: PlanHistoryRequirements): PlanH
 }
 ```
 
-`module.test.ts`. The two casts are the boundary this packet's `verify.md` names: DI Bag refuses
-both of these at the type level, and the runtime path they reach is the one an untyped or generated
-host reaches, so each cast carries the comment above it.
+`module.test.ts`. The two casts are the boundary this packet's `verify.md` names: DI Bag refuses both
+at the type level, and the runtime path they reach is the one an untyped or generated host reaches.
+The complete host graph is written out rather than shared with the incomplete one, because a helper
+returning either registration object gives the builder a union it refuses.
 
 ```ts
 import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
@@ -858,6 +1050,23 @@ const requirements = () => ({
   projectStore: inMemoryProjects(),
   planEventStore: inMemoryPlanEvents(),
 });
+
+/**
+ * A complete host graph over the same requirements.
+ *
+ * Written out rather than shared with the incomplete graph below: a helper
+ * returning either registration object gives DI Bag's builder a union it refuses
+ * at the type level (`TS2345 … is not assignable to parameter of type 'never'`,
+ * observed 2026-09-21).
+ */
+const completeHost = () =>
+  DiBag.createBuilder()
+    .installModule(planHistoryModule)
+    .register({
+      projectStore: DiBag.fromSyncFactory(() => inMemoryProjects()),
+      planEventStore: DiBag.fromSyncFactory(() => inMemoryPlanEvents()),
+    })
+    .build();
 
 describe('the Plan history module', () => {
   it('answers not_found for a project nothing holds', async () => {
@@ -882,47 +1091,48 @@ describe('the Plan history module', () => {
   });
 
   /**
-   * The bag is not reachable from outside the module's composition.
+   * The production installer hands out the contract's exports and nothing else.
    *
-   * `installPlanHistory` is the only place that builds one, and it returns the
-   * exported service alone. A host that installs the module itself gets the same
-   * answer: `historySettings` was never published, so naming it is naming
-   * nothing.
+   * This is the assertion that makes the bag unreachable: `installPlanHistory`
+   * is what `composeServices` calls, and an extra property on the object it
+   * returns still satisfies `PlanHistoryExports`, so the type checker does not
+   * refuse a returned bag. Enumerating the surface does.
    */
-  it('keeps its private bindings out of every host graph', () => {
-    const host = DiBag.createBuilder()
-      .installModule(planHistoryModule)
-      .register({
-        projectStore: DiBag.fromSyncFactory(() => inMemoryProjects()),
-        planEventStore: DiBag.fromSyncFactory(() => inMemoryPlanEvents()),
-      })
-      .build();
+  it('exposes only the contract exports from its installer', () => {
+    const exposed: object = installPlanHistory(requirements());
+
+    expect(Object.keys(exposed)).toEqual(['history']);
+    expect(
+      Object.values(exposed).every((value) => !(value instanceof Object && 'resolve' in value)),
+    ).toBe(true);
+  });
+
+  /** A host that installs the module cannot name what the module did not export. */
+  it('keeps its private bindings out of a host graph', () => {
+    const host = completeHost();
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('historySettings'),
     ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "historySettings" is not registered.');
   });
 
-  /**
-   * The module's label names the binding in a DI failure message.
-   *
-   * A host that forgets a requirement is refused by the type checker, so the
-   * runtime path is reached the way an untyped or generated host reaches it. The
-   * message has to say which module asked, because `planEventStore` alone would
-   * not.
-   */
-  it('names itself when a host omits a requirement', () => {
-    const complete = DiBag.createBuilder()
-      .installModule(planHistoryModule)
-      .register({
-        projectStore: DiBag.fromSyncFactory(() => inMemoryProjects()),
-        planEventStore: DiBag.fromSyncFactory(() => inMemoryPlanEvents()),
-      })
-      .build();
-    expect(complete.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+  /** The label is what makes a private binding identifiable in any graph report. */
+  it('labels its private bindings with the module name', () => {
+    const host = completeHost();
+
+    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
       `${PLAN_HISTORY_LABEL}/historySettings`,
     );
+  });
 
+  /**
+   * The label reaches a real DI failure message.
+   *
+   * A host that forgets a requirement is refused by the type checker, so the cast
+   * reaches the runtime path an untyped or generated host reaches. The message
+   * has to say which module asked, because `planEventStore` alone would not.
+   */
+  it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
       .installModule(planHistoryModule)
       .register({ projectStore: DiBag.fromSyncFactory(() => inMemoryProjects()) }) as unknown as {
@@ -937,8 +1147,9 @@ describe('the Plan history module', () => {
 });
 ```
 
-`README.md` states the module's purpose, its checks and its consumers, and says in its own words
-that wiki registration is a later packet. Write it with **no** `<!-- module-index -->` block.
+`README.md`. **No** `<!-- module-index -->` block, and no Markdown links: the link checker resolves a
+relative link against the file that carries it, and this listing is quoted inside a plan document at
+another depth.
 
 ```md
 # Plan history
@@ -951,19 +1162,23 @@ so registration is its own packet.
 
 The plan's history, read. This is the first sealed DI Bag module in the core: `module.ts` seals
 the graph and exports `history` alone, `check.ts` is the only place that builds a bag, and
-`contract.ts` states the two repository ports a host must supply. Private bindings are named
-under the `application.plan-history` label, so a DI failure says which module asked.
+`contract.ts` states the two repository ports a host must supply — preserved K3 debt, not
+compliance. Private bindings are named under the `application.plan-history` label, so a DI failure
+says which module asked.
 
 ## Checks
 
 The applicable check is the `wbs-core:test` target declared in
-[the core project](../../../project.json).
+`libs/wbs/application/core/project.json`.
 
 ## Consumers
 
-[The composition root](../../compose.ts) installs the module; [the public
-barrel](../../index.ts) and [the compatibility shim](../../service/history.service.ts) keep the
-former `@wbs/core/service/history.service` names.
+`libs/wbs/application/core/src/compose.ts` installs the module;
+`libs/wbs/application/core/src/index.ts` and
+`libs/wbs/application/core/src/service/history.service.ts` keep the former
+`@wbs/core/service/history.service` names. Workspace-relative paths rather than Markdown links:
+`tools/tool-devsync/src/repo-namespacing-handoff.test.ts` resolves a relative link against the
+file that carries it, and this listing is quoted inside a plan document at another depth.
 ```
 
 ### 10.9 Slice 5's edits
@@ -1003,11 +1218,12 @@ and put this comment directly above the existing `export * from './service/histo
 ```
 
 `docs/code-organization/kinds.json`. The entry whose `path` is
-`libs/wbs/application/core/src/service/history.service.ts` keeps that path and becomes the shim
-row; its `kind`, `capability` and `rationale` are replaced by `kind` and `disposition`. **No entry
-is added** for `module/plan-history/plan-history.feature.ts`: its `.feature.ts` suffix declares its
-kind, and `service-kinds.test.ts:259` refuses a second declaration (fault 5). The entry count goes
-from 96 to 95.
+`libs/wbs/application/core/src/service/history.service.ts` **keeps that path** and is rewritten in
+place: its `kind`, `capability` and `rationale` are replaced by `kind` and `disposition`. **No entry
+is added** for `module/plan-history/plan-history.feature.ts` — its `.feature.ts` suffix declares its
+kind, and `service-kinds.test.ts:259` refuses a second declaration — and **no entry is removed**,
+because `:237` requires the retained unsuffixed shim to stay classified. The entry count is 95 before
+and 95 after.
 
 ```json
     {
@@ -1017,65 +1233,83 @@ from 96 to 95.
     },
 ```
 
-## 11. Stop conditions
+## 11. Global stop conditions
 
-Each is **false** on the real starting tree; if one is true, stop and report it.
+These are not preconditions — each slice's own step 0 in section 7 holds those, so that a later slice
+is never blocked by an earlier slice's own work. Stop on any of the following at any point.
 
-- `openspec/changes/adopt-di-composition` already exists.
-- `libs/wbs/domain/domain/src/project-ownership.ts` already exists.
-- `libs/wbs/application/core/src/module/` already exists.
-- `grep -c "canEdit" libs/wbs/application/core/src/service/project.service.ts` is not 3.
-- `libs/wbs/application/core/src/service/history.service.ts` is not 40 lines.
-- `bunx nx run-many -t test:unit,lint,typecheck -p wbs-core,wbs-domain` does not exit 0 before any
-  edit.
-- A red checkpoint reports `0 tests ran`: the `-t` filter did not match. Anchor the joined
-  `describe` and title, or use the title alone; never include Bun's printed `>`.
+- A red checkpoint reports `0 tests ran`: the `-t` filter did not match. Anchor the joined `describe`
+  and title, or use the unanchored title alone; never include Bun's printed `>`.
+- A mutation leaves its named test passing. That is first a location mistake: restore, check the
+  location against section 10, redo once, and stop if it still passes.
 - An Nx target outlives the tool's wait. It is STILL RUNNING, not failed: poll it under a
   status-recording wrapper.
+- A command needs the network, or an OpenSpec invocation tries to download.
+- A step-0 line in section 7 does not print what it says.
+- Any check this packet names is unavailable. Report the block; never skip it silently.
 
 ## 12. Ready to commit
 
-Expected `git status --short --untracked-files=all` after all five slices, over owned paths only
-(the planner may also have revised this packet file):
+Each slice ends in its own planner commit, so there is no single final `git status`. Each slice
+records `base=$(git rev-parse HEAD)` in its step 0 and hands over `git diff --name-only "$base"` plus
+`git ls-files --others --exclude-standard`, which cannot be broken by the planner's own commits.
 
-```text
- M docs/code-organization/kinds.json
- M libs/wbs/application/core/src/compose.ts
- M libs/wbs/application/core/src/index.ts
- M libs/wbs/application/core/src/service/calendar-marker.service.ts
- M libs/wbs/application/core/src/service/capacity.service.ts
- M libs/wbs/application/core/src/service/history.service.ts
- M libs/wbs/application/core/src/service/priority-band.service.ts
- M libs/wbs/application/core/src/service/project.service.ts
- M libs/wbs/application/core/src/service/step.service.ts
- M libs/wbs/application/core/src/service/work-item.service.ts
- M libs/wbs/application/core/src/service/broadcast.test.ts
- M libs/wbs/application/core/src/use-cases/save-plan.ts
- M libs/wbs/domain/domain/README.md
- M libs/wbs/domain/domain/src/index.ts
-?? libs/wbs/application/core/src/module/
-?? libs/wbs/domain/domain/src/project-ownership.test.ts
-?? libs/wbs/domain/domain/src/project-ownership.ts
-?? openspec/changes/adopt-di-composition/
-```
+| Slice | `git diff --name-only` adds                                                                                                                                                     | Untracked adds                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1     | nothing                                                                                                                                                                         | the six files under `openspec/changes/adopt-di-composition/`                     |
+| 2     | `libs/wbs/domain/domain/README.md`, `libs/wbs/domain/domain/src/index.ts`                                                                                                       | `libs/wbs/domain/domain/src/project-ownership.ts`, `…/project-ownership.test.ts` |
+| 3     | the seven core files of section 10.7, `libs/wbs/application/core/src/service/broadcast.test.ts`, and `libs/wbs/domain/domain/src/project-ownership.ts` for its `Proof:` comment | nothing                                                                          |
+| 4     | `libs/wbs/application/core/src/service/history.service.ts`                                                                                                                      | the six files under `libs/wbs/application/core/src/module/plan-history/`         |
+| 5     | `libs/wbs/application/core/src/compose.ts`, `libs/wbs/application/core/src/index.ts`, `docs/code-organization/kinds.json`                                                       | nothing                                                                          |
 
-`project.service.ts`, `work-item.service.ts` and `module.ts` are listed because their required
-dated `Proof:` comments change them. Subjects are the five named in section 7. Never `--no-verify`.
+Subjects are the five named in section 7. Never `--no-verify`.
 
 ## 13. Recorded assumptions
 
 1. **The module identifier is `module.application.plan-history` and the DI Bag label is
-   `application.plan-history`.** The batch-6 addendum gives a runtime word only to modules under an
-   app; this module lives in a library, so it keeps ring then name, and the ring is `application`
-   because the six existing identifiers in `docs/wiki-policy/modules.json` use exactly that grammar
-   and `libs/wbs/application/core` is that ring. No existing identifier is touched.
-2. **The private binding is `historySettings`, the module's construction options.** The map says
-   Plan history has no private collaborator, so without this binding the module would have nothing
-   to label and neither DI proof would be reachable. It is genuine wiring, not a placeholder: it is
-   the value the module builds from its two requirements.
+   `application.plan-history`.** The batch-6 addendum gives a runtime word — `module.backend.<name>`,
+   `module.frontend.<name>`, `module.gateway.<name>`, `module.mcp.<name>` — only to a module that
+   lives **under an app**. This module lives in a library, so it keeps ring then name, and the ring is
+   `application` because the six existing identifiers in `docs/wiki-policy/modules.json` use exactly
+   that grammar and `libs/wbs/application/core` is that ring. Later packets that extract a module
+   under `apps/wbs/*` use the runtime word instead; no existing identifier is touched.
+2. **The private binding is `historySettings`, the module's construction options.** The map says Plan
+   history has no private collaborator, so without this binding the module would have nothing to label
+   and neither label proof would be reachable. It is genuine wiring, not a placeholder: it is the
+   value the module builds from its two requirements.
 3. **`http/project.routes.ts` keeps importing `canEdit`.** It is delivery and the map treats
    delivery's direct resource imports as existing K2 debt; the compatibility alias keeps it valid.
-4. **No per-module `tsconfig.json`.** The design's layout names one, but nothing in this repository
-   runs an isolated type check yet, and adding a target would move
-   `tools/tool-devsync/src/workspace-inventory.test.ts` counts. `tasks.md` carries it; this packet
-   does not.
+4. **No per-module `tsconfig.json` in this packet.** The design's layout names one, but nothing in
+   this repository runs an isolated type check yet, and adding an Nx target would move
+   `tools/tool-devsync/src/workspace-inventory.test.ts` counts. `tasks.md` 7.3 carries it as work with
+   its own proof; this packet does not open it.
+5. **The module claims no K3 or K2 compliance.** `HistoryService` reads two repository ports, which K3
+   forbids a feature-service, and delivery still reaches seven resource-services directly. Sealing
+   declares those dependencies; `tasks.md` 7.4 is where closing them is tracked.
+
+## 14. Disposition of review 1
+
+| Finding                                               | Disposition                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical 1** — stops block the packet's own slices  | **FIXED.** Section 11 no longer holds preconditions; each slice in section 7 opens with its own step 0, and every gate was evaluated as written while walking the five slices in order on one tree. The `canEdit` count is slice 3's, the 40-line check is slice 4's, and slice 3 is told not to touch `history.service.ts`.                                                                                    |
+| **Critical 2** — `wbs-be-01:test:unit` needs a port   | **FIXED.** Measured: exactly one non-DB be-01 test binds a port (`src/app.routes.test.ts:548`, `refuses framed GET and HEAD bodies on the production health route`). The target moves to section 8 with the value observed; slice 5's executor runs `wbs-be-01:typecheck` plus `src/app.test.ts` and `src/controller/history.controller.test.ts` (`11 pass`, `0 fail`). No `--network` is requested.            |
+| **Critical 3** — encapsulation proof is a false green | **FIXED.** A new test, `exposes only the contract exports from its installer`, enumerates what the production `installPlanHistory` returns. Rehearsed with the reviewer's exact mutation: `5 pass`, `1 fail`, `[ "history", + "bag", ]`, while `wbs-core:typecheck` still exits 0 — which is the point. Section 10.2 gains a scenario for it; the host-graph test stays a separate obligation.                  |
+| **Important 4** — tasks do not cover the whole map    | **FIXED.** `tasks.md` gains section 4 (Plan document, Local solver launcher, Supervisor), section 6 (the fourteen portable-core and two backend domain moves, and `push-client.ts`), and 7.3 for the isolated type check that assumption 4 defers.                                                                                                                                                              |
+| **Important 5** — the K3 JSDoc teaches an exemption   | **FIXED.** The `PlanHistoryRequirements` JSDoc now says the repository-port dependency is preserved K3 debt, not compliance. Section 1, section 10.3's "What sealing does not fix", a new spec requirement, the proposal's "Decisions Recorded", `tasks.md` 7.4 and assumption 5 all say the same thing.                                                                                                        |
+| **Important 6** — OpenSpec creation and validation    | **FIXED.** Slice 1 runs the README's creation block (`new change … --schema sdd-lean` plus the `.openspec.yaml` grep — measured: it creates that file alone) and the README's strict `jq -s -e` validation block, with a recorded baseline of `N` items and a requirement of `N + 1`. Observed `112` → `113/113/0`. The proposal is now 385 words. `.openspec.yaml` is in section 5 and section 12.             |
+| **Important 7** — implementation before its tests     | **FIXED.** Slice 4 step 1 creates `module.test.ts` first and records the rehearsed red on the unchanged tree: `error: Cannot find module './check'`, `0 pass`, `1 fail`, `1 error` (section 6 row 2).                                                                                                                                                                                                           |
+| **Important 8** — recorded negatives do not match     | **FIXED.** The three privacy and label assertions are now three separate `it` blocks, and all three mutations were re-rehearsed against the final listing: `5 pass 1 fail`, `3 pass 3 fail`, `4 pass 2 fail`. The reviewer's `3 pass 1 fail` for the label mutation was right about review 1's listing; the counts above are the observed ones for this one.                                                    |
+| **Important 9** — classification contradiction        | **FIXED.** Measured 95 entries. The prescription is now "rewrite the row in place; add no suffix-declared row; remove none", the count is 95 → 95 in both section 7 and section 10.9, and section 6's duplicate-row row is labelled a rehearsal of the refusal rather than a prescription.                                                                                                                      |
+| **Important 10** — the handoff is impossible          | **FIXED.** Section 12 is a per-slice table of `git diff --name-only "$base"` and `git ls-files --others`, with `base` recorded by the slice. Slice 3's Prettier target is the seven named files rather than a placeholder, and the `Proof:` comments are attributed to `project-ownership.ts`, `module.ts` and `check.ts`.                                                                                      |
+| **Important 11** — baselines and ownership            | **FIXED.** Every slice has an explicit step 0 with its baselines and deltas. `tool-devsync:test` moved to section 8 with `366 pass 0 fail`; `nx format:check --all` is the executor's in slices 2, 3, 4 and 5; `wbs-core:build:portable` is a new executor check in slices 3 and 5, observed exit 0 with `application.plan-history` in the browser bundle; `test:portable` is the planner's.                    |
+| **Minor 12** — post-Prettier listing and line anchor  | **PARTLY REJECTED.** The stale comment is at `broadcast.test.ts:274`, not 273 — **FIXED**. The claim that "the packet supplies one line" is wrong: review 1's own §10.7 already supplied the two-line form, produced by `bunx prettier --write` on the real file and confirmed by the pre-commit hook refusing the one-line form. The listing is unchanged; section 10.7 now states the indentation explicitly. |
+| **Minor 13** — rename preparation unfinished          | **FIXED.** The header carries a six-row table of every identifier the planner must re-point, says which two this packet actually references, keeps historical filenames, and uses "Twilight Burokrat" in prose. Assumption 1 now distinguishes app runtime labels from library ring labels.                                                                                                                     |
+| **Minor 14** — known race handling missing            | **FIXED.** Section 8 carries the record-and-rerun-once exception for `claims.db.test.ts` › `bounds terminal lock contention and retries until a held write commits`, and forbids editing that or any other unnamed test.                                                                                                                                                                                        |
+| **Minor 15** — dispatch flags and evidence paths      | **FIXED.** The header gives `--batch batch-6` and says `--batch-dir docs/superpowers/plans/2026-09-21-batch-6` is that batch's launcher default. Section 7's preamble and section 10.5's `verify.md` both require evidence references to be basenames relative to the attempt's evidence directory.                                                                                                             |
+
+**New facts this revision measured**, beyond the review: a helper returning either of two
+registration objects makes DI Bag's builder reject the graph at the type level, so the two host
+graphs in `module.test.ts` are written out separately; and
+`tools/tool-devsync/src/repo-namespacing-handoff.test.ts` resolves relative Markdown links against
+the file that carries them, so review 1's own README listing broke `tool-devsync:test` with four
+failures naming this packet — the module README now uses backticked workspace-relative paths.
