@@ -3,7 +3,7 @@
 The R5 entries recorded here after the wbs-tool-v1 history was merged in. They continue
 [the inherited catalogue](checks-that-cannot-fail.md#r5-catalogue-heading), which is pinned
 block-for-block by `root-migration.v1.json` and so cannot take additions. With these, the
-count is **twenty-nine**.
+count is **thirty**.
 
 Two more on 2026-09-06 in `twilight-review-hardening` and the Twilight plan review, and
 **neither shipped**. Marking each generated workflow copy with the source a human should edit
@@ -46,3 +46,15 @@ refused without a reread; without it the gesture lands and rereads the tree. No 
 case. The plan writer's extraction adds it as a unit test and proves the guard against it, and the
 stale comment is rewritten only after that failure has been watched. **Eighty-eight green tests
 showed a coverage gap, not an unbreakable check; the planner first read them the wrong way round.**
+
+One more on 2026-09-20, found while planning batch 3, and it **shipped** — the thirtieth. The
+h2puni gate is the repository's completion gate, and `bin/h2puni-gate-steps.sh` never installed
+anything: it ran OpenSpec validation and five Nx steps against whatever `node_modules` an earlier
+gate had left in the shared tree. On 2026-09-20 that was 2026-09-18's install, without `di-bag`,
+`application-exception` or `caught-object-report-json`, so every host gate since batch 1 had
+reported green about a commit whose locked dependencies it had never read, and passed only
+because nothing that executed there imported the three new libraries. The first batch 2 group
+gate finally failed `apps/wbs/be-01/src/production-entrypoint.test.ts` on
+`Could not resolve: "di-bag"`, and the planner installed by hand. CI installs at the top of its
+gate job; the host gate did not, and no test asked whether it did. **A gate that reads a tree it
+never assembled is reporting about a different commit than the one it names.**
