@@ -1187,7 +1187,11 @@ describe('InMemoryMcpOAuth', () => {
         method: 'POST',
       }),
     );
-    const token = ((await tokenResponse?.json()) as { access_token: string }).access_token;
+    const issued = (await tokenResponse?.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    const token = issued.access_token;
 
     const revoked = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
@@ -1198,6 +1202,18 @@ describe('InMemoryMcpOAuth', () => {
     );
     expect(revoked?.status).toBe(200);
     expect(oauth.verify(token)).rejects.toThrow();
+    const refreshAfterRevoke = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: issued.refresh_token,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(refreshAfterRevoke?.status).toBe(400);
 
     const secondCode = await authorizationCode(oauth, verifier);
     const secondResponse = await oauth.response(
