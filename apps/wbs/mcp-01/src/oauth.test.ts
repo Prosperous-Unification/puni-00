@@ -1,9 +1,13 @@
 import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
+import { existsSync, mkdtempSync, rmdirSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
+import { mcpHttpResponse } from './http';
 import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import { McpSessionStore } from './session-store';
 
@@ -997,6 +1001,80 @@ describe('InMemoryMcpOAuth', () => {
     store.close();
   });
 
+  // Proof: replacing the reopened store below with a fresh in-memory store makes
+  // the post-restart tool call return 401 and the refresh request return 400.
+  it('keeps HTTP tool and refresh requests live across a handler restart', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-oauth-restart-'));
+    const path = join(root, 'sessions.sqlite');
+    const storeKey = Buffer.alloc(32, 11);
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const transport = {
+      handleRequest: () => Promise.resolve(Response.json({ ok: true })),
+    };
+    const request = (token: string) =>
+      new Request('https://dev.wbs.bulletpoints.club/mcp', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+    const firstStore = new McpSessionStore(path, [storeKey]);
+    const first = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      signingKeys,
+      store: firstStore,
+    }).oauth;
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(first, verifier);
+    const issued = await tokenResponse(first, 'random-1', code, verifier);
+    const tokens = (await issued.json()) as { access_token: string; refresh_token: string };
+
+    expect(
+      await mcpHttpResponse(request(tokens.access_token), CONFIG, first, transport),
+    ).toHaveProperty('status', 200);
+    firstStore.close();
+
+    const secondStore = new McpSessionStore(path, [storeKey]);
+    const second = fixture({ signingKeys, store: secondStore }).oauth;
+    expect(
+      await mcpHttpResponse(request(tokens.access_token), CONFIG, second, transport),
+    ).toHaveProperty('status', 200);
+
+    const refreshed = await mcpHttpResponse(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: tokens.refresh_token,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+      CONFIG,
+      second,
+      transport,
+      {},
+      second,
+    );
+    expect(refreshed.status).toBe(200);
+    const successor = (await refreshed.json()) as { access_token: string; refresh_token: string };
+    expect(successor.refresh_token).not.toBe(tokens.refresh_token);
+    expect(
+      await mcpHttpResponse(request(successor.access_token), CONFIG, second, transport),
+    ).toHaveProperty('status', 200);
+
+    secondStore.close();
+    for (const name of ['sessions.sqlite-wal', 'sessions.sqlite-shm', 'sessions.sqlite']) {
+      const candidate = join(root, name);
+      if (existsSync(candidate)) unlinkSync(candidate);
+    }
+    rmdirSync(root);
+  });
+
   it('names missing, malformed, and unreadable persistence settings at startup', () => {
     expect(() => mcpOAuthFromEnv(CONFIG, {})).toThrow(/MCP_SIGNING_KEY_CURRENT/);
     expect(() =>
@@ -1234,7 +1312,7 @@ describe('InMemoryMcpOAuth', () => {
         'code',
       ) ?? '';
     const secondResponse = await tokenResponse(oauth, second.clientId, secondCode, verifier);
-    const secondIssued = (await secondResponse?.json()) as {
+    const secondIssued = (await secondResponse.json()) as {
       access_token: string;
       refresh_token: string;
     };
