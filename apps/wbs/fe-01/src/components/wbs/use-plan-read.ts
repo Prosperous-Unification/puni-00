@@ -26,6 +26,7 @@ import {
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
+import { calendarMarkersForReader } from '@/modules/calendar-markers/composition';
 import { planFeedForReader } from '@/modules/plan-feed/composition';
 import type { PlanFeed, PlanFeedDelivery } from '@/modules/plan-feed/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
@@ -685,25 +686,25 @@ export function usePlanRead({
     [refreshResourcesOrMarkStale],
   );
 
-  /** A refused marker write also invalidates its list: the target may have disappeared. */
-  const runMarkerWrite = useCallback(
-    async (write: () => Promise<unknown>) => {
-      const owner = feedRef.current?.owner ?? null;
-      if (owner === null) return;
-      const isCurrent = () =>
-        feedRef.current?.owner === owner &&
-        activeProject.current === projectId &&
-        activeApi.current === api;
-      try {
-        await write();
-      } catch (thrown) {
-        if (!isCurrent()) return;
-        pushToast({ kind: 'error', text: refusalSentence(thrown) });
-      }
-      // Proof: returning after the refusal left the deleted marker's span drawn
-      // in `rereads a marker refused because a peer already deleted it`.
-      if (isCurrent()) await owner.invalidate({ resources: ['markers'] });
-    },
+  /**
+   * This reader's calendar-marker gestures, rebuilt when the reader changes and
+   * not otherwise.
+   *
+   * The dependency list is the one the callback it replaces carried, so the
+   * four chart gestures built over it change identity on exactly the renders
+   * they changed on before.
+   */
+  const markers = useMemo(
+    () =>
+      calendarMarkersForReader({
+        projectId,
+        api,
+        readRefreshOwner: () => feedRef.current?.owner ?? null,
+        isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
+        announceRefusal: ({ cause }) => {
+          pushToast({ kind: 'error', text: refusalSentence(cause) });
+        },
+      }),
     [activeProject, api, projectId, pushToast],
   );
 
@@ -792,7 +793,7 @@ export function usePlanRead({
     },
     [activeProject, api, projectId, pushToast, refreshOrMarkStale, setBusy],
   );
-  return { refreshOrMarkStale, run: writer.run, stepStack, runMarkerWrite };
+  return { refreshOrMarkStale, run: writer.run, stepStack, markers };
 }
 
 /**
