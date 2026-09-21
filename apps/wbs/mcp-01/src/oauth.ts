@@ -698,7 +698,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     force = false,
   ): Promise<FamilyRecord> {
     const now = this.now();
-    if (!force && family.upstreamExpiresAt > now + UPSTREAM_REFRESH_EARLY_MS) return family;
+    if (
+      !force &&
+      (family.upstreamExpiresAt > now + UPSTREAM_REFRESH_EARLY_MS ||
+        (family.upstreamRefreshedAt !== null && family.upstreamRefreshedAt >= now - 5_000))
+    )
+      return family;
     if (family.upstreamRefreshToken === undefined) {
       if (!force && family.upstreamExpiresAt > now) return family;
       this.store.revokeFamily(family.familyId, now);
@@ -738,6 +743,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           tokens.accessToken,
           tokens.refreshToken,
           upstreamExpiresAt,
+          this.now(),
         )
       )
         throw new Error('upstream refresh lease was lost');

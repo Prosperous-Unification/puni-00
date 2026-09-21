@@ -18,6 +18,7 @@ export interface FamilyInput {
   readonly absoluteExpiresAt: number;
 }
 export interface FamilyRecord extends FamilyInput {
+  readonly upstreamRefreshedAt: number | null;
   readonly revokedAt: number | null;
   readonly leaseOwner: string | null;
   readonly leaseUntil: number | null;
@@ -237,6 +238,7 @@ export class McpSessionStore {
     accessToken: string,
     refreshToken: string | undefined,
     expiresAt: number,
+    refreshedAt: number,
   ): boolean {
     const current = this.db
       .query('SELECT upstream_refresh_ct FROM mcp_family WHERE family_id = ?')
@@ -249,13 +251,14 @@ export class McpSessionStore {
     const changed = this.db
       .query(
         `UPDATE mcp_family SET upstream_access_ct = ?, upstream_refresh_ct = ?,
-      upstream_expires_at = ?, lease_owner = NULL, lease_until = NULL, version = version + 1
-      WHERE family_id = ? AND lease_owner = ? AND revoked_at IS NULL`,
+      upstream_expires_at = ?, upstream_refreshed_at = ?, lease_owner = NULL, lease_until = NULL,
+      version = version + 1 WHERE family_id = ? AND lease_owner = ? AND revoked_at IS NULL`,
       )
       .run(
         this.encrypt(familyId, 'upstream_access_ct', accessToken),
         refreshCiphertext,
         expiresAt,
+        refreshedAt,
         familyId,
         owner,
       );
@@ -336,6 +339,8 @@ export class McpSessionStore {
               ),
             }),
         upstreamExpiresAt: Number(row['upstream_expires_at']),
+        upstreamRefreshedAt:
+          row['upstream_refreshed_at'] === null ? null : Number(row['upstream_refreshed_at']),
         idleExpiresAt: Number(row['idle_expires_at']),
         absoluteExpiresAt: Number(row['absolute_expires_at']),
         revokedAt: row['revoked_at'] === null ? null : Number(row['revoked_at']),
@@ -355,7 +360,7 @@ function digestOf(token: string): Buffer {
 }
 
 const SCHEMA = `
-CREATE TABLE IF NOT EXISTS mcp_family (family_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, subject TEXT NOT NULL, scope TEXT NOT NULL, upstream_access_ct BLOB NOT NULL, upstream_refresh_ct BLOB, upstream_expires_at INTEGER NOT NULL, idle_expires_at INTEGER NOT NULL, absolute_expires_at INTEGER NOT NULL, revoked_at INTEGER, lease_owner TEXT, lease_until INTEGER, version INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS mcp_family (family_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, subject TEXT NOT NULL, scope TEXT NOT NULL, upstream_access_ct BLOB NOT NULL, upstream_refresh_ct BLOB, upstream_expires_at INTEGER NOT NULL, upstream_refreshed_at INTEGER, idle_expires_at INTEGER NOT NULL, absolute_expires_at INTEGER NOT NULL, revoked_at INTEGER, lease_owner TEXT, lease_until INTEGER, version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS mcp_session (jti TEXT PRIMARY KEY, family_id TEXT NOT NULL REFERENCES mcp_family(family_id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS mcp_refresh (token_digest BLOB PRIMARY KEY, family_id TEXT NOT NULL REFERENCES mcp_family(family_id) ON DELETE CASCADE, consumed_at INTEGER, expires_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS mcp_session_family ON mcp_session(family_id);

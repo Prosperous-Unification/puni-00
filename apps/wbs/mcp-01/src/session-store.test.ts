@@ -202,6 +202,7 @@ describe('McpSessionStore', () => {
           'refreshed-access',
           'rotated-refresh',
           now + 300_000,
+          now,
         ),
       ).toBeTrue();
     }
