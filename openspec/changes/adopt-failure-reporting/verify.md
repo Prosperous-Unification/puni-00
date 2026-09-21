@@ -456,3 +456,28 @@ followed by a green rerun of the named fault-boundary spec:
 The browser runs used `CI=1 E2E_PORT_SHIFT=3600`; no process was terminated. Whole frontend test
 tiers, the whole browser suite, staged devsync and the host gate remain planner checks after the
 change closes.
+
+## 050.4 Slice 5 — frontend fault-boundary closure
+
+The six-slice packet is implemented through the following reviewed boundaries:
+
+| Slice | Commit or boundary                                  | Evidence consolidated above                                     |
+| ----- | --------------------------------------------------- | --------------------------------------------------------------- |
+| 0     | `8ab14c43`                                          | delta requirements, tasks and unchanged strict-validation total |
+| 1     | `fcc8555c`                                          | frontend alias resolution and N1                                |
+| 2     | `9bb50c6a`                                          | public disclosure model, boundaries and N2-N11                  |
+| 3     | `66836f96` plus documentation correction `7641f5a2` | React root handlers, wiring and N12-N15                         |
+| 4     | `c6fb7281`                                          | shipped Chromium fixture, N16-N19 and chunk-count rejection     |
+| 5     | this closure commit                                 | task state and final strict validation                          |
+
+| Check                                                           | Result                       | Evidence                                 |
+| --------------------------------------------------------------- | ---------------------------- | ---------------------------------------- |
+| Strict OpenSpec validation before closure edits                 | exit 0; 112 passed, 0 failed | `s5-openspec-before.log`, `.status`      |
+| Strict OpenSpec validation after ticking only tasks 3.1 and 4.1 | exit 0; 112 passed, 0 failed | `s5-openspec-after-ticks.log`, `.status` |
+| Final strict OpenSpec validation                                | exit 0; 112 passed, 0 failed | `s5-openspec-final.log`, `.status`       |
+| `NX_DAEMON=false bunx nx format:check --all`                    | exit 0                       | `s5-format-check-final.log`, `.status`   |
+
+Tasks 3.1 and 4.1 are checked because their focused positive cases and N1-N19 are recorded above.
+Task 2.1 remains unchecked and this broader adoption change is not archive-ready. The planner's
+whole frontend test comparison, unchanged unit tier, whole Chromium suite, staged devsync run,
+integration verification and host gate remain pending outside this closure commit.
