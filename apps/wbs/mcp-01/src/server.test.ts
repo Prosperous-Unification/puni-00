@@ -1,11 +1,17 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer, describeTool, SERVER_VERSION } from './server';
+import type {
+  UnexpectedToolDisclosure,
+  UnexpectedToolFailureReporter,
+} from './unexpected-tool-failure';
 import type { FetchLike } from './wbs-client';
 
 const CONFIG: McpConfig = {
@@ -84,13 +90,27 @@ const stub =
 async function connected(
   tools: readonly DerivedTool[],
   fetchImpl: FetchLike,
+  options: {
+    readonly authInfo?: AuthInfo;
+    readonly reportUnexpectedToolFailure?: UnexpectedToolFailureReporter;
+    readonly endSession?: (mcpSessionId: string) => void;
+  } = {},
 ): Promise<{ client: Client }> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  if (options.authInfo !== undefined) {
+    const send = clientTransport.send.bind(clientTransport);
+    clientTransport.send = (message, sendOptions) =>
+      send(message, { ...sendOptions, authInfo: options.authInfo });
+  }
   const server = createServer({
     tools,
     config: CONFIG,
     fetchImpl,
     callerTokenOf: () => 'token-abc',
+    reportUnexpectedToolFailure:
+      options.reportUnexpectedToolFailure ??
+      (() => ({ sentence: 'unused test disclosure', occurrenceId: 'UNUSED_TEST' })),
+    endSession: options.endSession,
   });
   const client = new Client({ name: 'test-client', version: '0.0.0' }, { capabilities: {} });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -200,7 +220,13 @@ describe('the round trip over MCP', () => {
 
 describe('a name that is not a tool', () => {
   it('is a protocol error naming what to call instead, not an empty result', async () => {
-    const { client } = await connected([READ, WRITE], failingFetch);
+    const reported: unknown[] = [];
+    const { client } = await connected([READ, WRITE], failingFetch, {
+      reportUnexpectedToolFailure: (caught) => {
+        reported.push(caught);
+        return { sentence: 'must not report', occurrenceId: 'must-not-report' };
+      },
+    });
 
     // Rejects: a client cannot mistake this for a call that ran and returned
     // nothing. Caught rather than `rejects.toThrow`, whose bun typing is `void`
@@ -210,9 +236,12 @@ describe('a name that is not a tool', () => {
       .then(() => undefined)
       .catch((error: unknown) => error);
 
-    expect(cause).toBeInstanceOf(Error);
+    expect(cause).toBeInstanceOf(McpError);
+    if (!(cause instanceof McpError)) return;
+    expect(cause.code).toBe(ErrorCode.InvalidParams);
     expect(String(cause)).toContain('no tool named "deleteEverything"');
     expect(String(cause)).toContain('tools/list');
+    expect(reported).toHaveLength(0);
   });
 
   it('does not call be-01 at all', async () => {
@@ -232,34 +261,259 @@ describe('a name that is not a tool', () => {
 describe('a call that cannot be built', () => {
   it('comes back as tool content the caller can correct, not a dropped connection', async () => {
     const seen: Seen[] = [];
-    const { client } = await connected([READ], stub(seen, '{}'));
+    const reported: unknown[] = [];
+    const { client } = await connected([READ], stub(seen, '{}'), {
+      reportUnexpectedToolFailure: (caught) => {
+        reported.push(caught);
+        return { sentence: 'must not report', occurrenceId: 'must-not-report' };
+      },
+    });
 
-    const result = await client.callTool({
+    const toolResponse = await client.callTool({
       name: 'getApiProjectsByIdWorkItems',
       arguments: { id: 'p-1', parentID: 'typo' },
     });
 
-    expect(result.isError).toBe(true);
+    expect(toolResponse.isError).toBe(true);
     // The message names the input and what the tool does declare, because that
     // is what the caller has to fix.
-    expect(JSON.stringify(result.content)).toContain('parentID');
-    expect(JSON.stringify(result.content)).toContain('getApiProjectsByIdWorkItems');
+    expect(JSON.stringify(toolResponse.content)).toContain('parentID');
+    expect(JSON.stringify(toolResponse.content)).toContain('getApiProjectsByIdWorkItems');
     // And the request was never made: an undeclared input is refused here, not
     // stripped by be-01 into a write that did something else.
     expect(seen).toHaveLength(0);
+    expect(reported).toHaveLength(0);
   });
 
   it('passes be-01’s own refusal code through as tool content', async () => {
     const seen: Seen[] = [];
-    const { client } = await connected([WRITE], stub(seen, '{"error":"number_is_derived"}', 409));
+    const reported: unknown[] = [];
+    const { client } = await connected(
+      [WRITE],
+      stub(seen, '{"error":"number_is_derived","at":1,"kind":"setEstimate"}', 409),
+      {
+        reportUnexpectedToolFailure: (caught) => {
+          reported.push(caught);
+          return { sentence: 'must not report', occurrenceId: 'must-not-report' };
+        },
+      },
+    );
 
-    const result = await client.callTool({
+    const toolResponse = await client.callTool({
       name: 'patchApiWorkItemsById',
       arguments: { id: 'w-1', name: 'x' },
     });
 
-    expect(result.isError).toBe(true);
-    expect(JSON.stringify(result.content)).toContain('number_is_derived');
+    expect(toolResponse.isError).toBe(true);
+    const [content] = toolResponse.content as [{ type: string; text: string }];
+    expect(content.text).toContain('number_is_derived');
+    expect(content.text).toContain('"at":1');
+    expect(content.text).toContain('"kind":"setEstimate"');
+    expect(reported).toHaveLength(0);
+  });
+
+  it('keeps an upstream credential refusal modeled and does not report it', async () => {
+    const reported: unknown[] = [];
+    const ended: string[] = [];
+    const { client } = await connected([READ], stub([], '{"error":"unauthorized"}', 401), {
+      authInfo: {
+        token: 'caller-token',
+        clientId: 'modeled-upstream-test',
+        scopes: [],
+        extra: { mcpSessionId: 'session-1' },
+      },
+      reportUnexpectedToolFailure: (caught) => {
+        reported.push(caught);
+        return { sentence: 'must not report', occurrenceId: 'must-not-report' };
+      },
+      endSession: (sessionId) => void ended.push(sessionId),
+    });
+
+    const toolResponse = await client.callTool({
+      name: 'getApiProjectsByIdWorkItems',
+      arguments: { id: 'p-1' },
+    });
+
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('session ended. Reauthorize and retry');
+    expect(ended).toEqual(['session-1']);
+    expect(reported).toHaveLength(0);
+  });
+
+  it('keeps a deployment edge-gate refusal modeled and does not report it', async () => {
+    const reported: unknown[] = [];
+    const { client } = await connected(
+      [READ],
+      () =>
+        Promise.resolve(
+          new Response('<html>401</html>', {
+            status: 401,
+            headers: { 'www-authenticate': 'Basic realm="wbs-dev"' },
+          }),
+        ),
+      {
+        reportUnexpectedToolFailure: (caught) => {
+          reported.push(caught);
+          return { sentence: 'must not report', occurrenceId: 'must-not-report' };
+        },
+      },
+    );
+
+    const toolResponse = await client.callTool({
+      name: 'getApiProjectsByIdWorkItems',
+      arguments: { id: 'p-1' },
+    });
+
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('WBS_BASIC_AUTH');
+    expect(reported).toHaveLength(0);
+  });
+});
+
+describe('an unexpected tool failure', () => {
+  const disclosure: UnexpectedToolDisclosure = {
+    sentence: 'Something went wrong',
+    occurrenceId: 'AE_test_reference',
+  };
+  const expected = (toolName: string, selected = disclosure) => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: `${toolName} could not be called: ${selected.sentence}. Reference ${selected.occurrenceId}.`,
+      },
+    ],
+    isError: true as const,
+  });
+  const recordingReporter =
+    (caught: unknown[]): UnexpectedToolFailureReporter =>
+    (failure) => {
+      caught.push(failure);
+      return disclosure;
+    };
+
+  it('reports one fetch rejection and returns only the correlated generic envelope', async () => {
+    const secret = 'alice@example.com boundary-secret';
+    const failure = new Error(`connect ${secret}`);
+    const reported: unknown[] = [];
+    const { client } = await connected([READ], () => Promise.reject(failure), {
+      reportUnexpectedToolFailure: recordingReporter(reported),
+    });
+
+    const toolResponse = await client.callTool({
+      name: 'getApiProjectsByIdWorkItems',
+      arguments: { id: 'p-1' },
+    });
+
+    expect(reported).toHaveLength(1);
+    // Proof: on 2026-09-21, reporting a new Error with the same fetch message passed structural
+    // equality but failed this original-object identity assertion.
+    expect(reported[0]).toBe(failure);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain(secret);
+  });
+
+  it('reports a secret-bearing 500 instead of returning its body', async () => {
+    const marker = '500 alice@example.com boundary-secret';
+    const reported: unknown[] = [];
+    const { client } = await connected([READ], stub([], marker, 500), {
+      reportUnexpectedToolFailure: recordingReporter(reported),
+    });
+
+    const toolResponse = await client.callTool({
+      name: READ.name,
+      arguments: { id: 'p-1' },
+    });
+
+    expect(reported).toHaveLength(1);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain(marker);
+  });
+
+  it('reports a malformed successful body instead of returning its text', async () => {
+    const marker = '<html>alice@example.com boundary-secret</html>';
+    const reported: unknown[] = [];
+    const { client } = await connected([READ], stub([], marker), {
+      reportUnexpectedToolFailure: recordingReporter(reported),
+    });
+
+    const toolResponse = await client.callTool({
+      name: READ.name,
+      arguments: { id: 'p-1' },
+    });
+
+    expect(reported).toHaveLength(1);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain(marker);
+  });
+
+  it('reports a redirect instead of returning its body as a declared refusal', async () => {
+    const marker = 'redirect alice@example.com boundary-secret';
+    const reported: unknown[] = [];
+    const { client } = await connected([READ], stub([], marker, 302), {
+      reportUnexpectedToolFailure: recordingReporter(reported),
+    });
+
+    const toolResponse = await client.callTool({
+      name: READ.name,
+      arguments: { id: 'p-1' },
+    });
+
+    // Proof: on 2026-09-21, sending 3xx through the old refusal path exposed the marker as tool
+    // content and left this reporter count at zero.
+    expect(reported).toHaveLength(1);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain(marker);
+  });
+
+  it('reports the exact body-read rejection and returns none of its text', async () => {
+    const failure = new Error('body read alice@example.com boundary-secret');
+    const reported: unknown[] = [];
+    class UnreadableResponse extends Response {
+      override text(): Promise<string> {
+        return Promise.reject(failure);
+      }
+    }
+    const { client } = await connected(
+      [READ],
+      () => Promise.resolve(new UnreadableResponse('{}', { status: 200 })),
+      { reportUnexpectedToolFailure: recordingReporter(reported) },
+    );
+
+    const toolResponse = await client.callTool({
+      name: READ.name,
+      arguments: { id: 'p-1' },
+    });
+
+    // Proof: on 2026-09-21, catching the body-read rejection in `callTool` and returning a fixed
+    // synthetic refusal skipped the boundary reporter and left this array empty.
+    expect(reported).toHaveLength(1);
+    // Proof: on 2026-09-21, reporting a new Error with the same body-read message failed this
+    // original-object identity assertion.
+    expect(reported[0]).toBe(failure);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain(failure.message);
+  });
+
+  it('returns one correlated tool result when reporting itself is lost', async () => {
+    const lost: UnexpectedToolDisclosure = {
+      sentence: 'the failure could not be described',
+      occurrenceId: 'UNREPORTED_test',
+    };
+    let reports = 0;
+    const { client } = await connected([READ], () => Promise.reject(new Error('fetch failed')), {
+      reportUnexpectedToolFailure: () => {
+        reports += 1;
+        return lost;
+      },
+    });
+
+    const toolResponse = await client.callTool({
+      name: READ.name,
+      arguments: { id: 'p-1' },
+    });
+
+    expect(reports).toBe(1);
+    expect(toolResponse).toEqual(expected(READ.name, lost));
   });
 });
 

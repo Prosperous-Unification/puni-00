@@ -8,8 +8,9 @@ import {
 
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
+import type { UnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike, ToolTextResult } from './wbs-client';
-import { callTool, EdgeGate, UpstreamRejected } from './wbs-client';
+import { callTool, EdgeGate, ToolInputRefused, UpstreamRejected } from './wbs-client';
 
 /**
  * The three pieces composed: the tools section 2 derives, the call section 3
@@ -66,6 +67,7 @@ export interface ServerDeps {
   readonly fetchImpl?: FetchLike;
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
   readonly endSession?: (mcpSessionId: string) => void;
+  readonly reportUnexpectedToolFailure: UnexpectedToolFailureReporter;
 }
 
 const errorText = (message: string): ToolTextResult => ({
@@ -105,7 +107,7 @@ const asCallToolResult = (
  */
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
 export function createServer(deps: ServerDeps): Server {
-  const { tools, config, fetchImpl, callerTokenOf, endSession } = deps;
+  const { tools, config, fetchImpl, callerTokenOf, endSession, reportUnexpectedToolFailure } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
@@ -169,14 +171,16 @@ export function createServer(deps: ServerDeps): Server {
         );
       }
       if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
-      // The opposite case, and deliberately not a throw. An undeclared input or
-      // a missing path parameter is a mistake the caller can correct, and these
-      // messages name what to correct — as tool content a model reads them and
-      // tries again, as a protocol exception it mostly sees "the call failed".
-      // be-01's own refusals already arrive this way (D7).
+      // Deliberately not a throw. A modeled input refusal names what the caller can correct — as
+      // tool content a model reads it and tries again, as a protocol exception it mostly sees
+      // "the call failed". be-01's own refusals already arrive this way (D7).
+      if (cause instanceof ToolInputRefused) {
+        return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
+      }
+      const disclosure = reportUnexpectedToolFailure(cause);
       return asCallToolResult(
         errorText(
-          `${tool.name} could not be called: ${cause instanceof Error ? cause.message : String(cause)}`,
+          `${tool.name} could not be called: ${disclosure.sentence}. Reference ${disclosure.occurrenceId}.`,
         ),
       );
     }

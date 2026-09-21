@@ -23,6 +23,11 @@ const CONFIG: McpConfig = {
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
 };
 
+const unusedUnexpectedToolFailureReporter = () => ({
+  sentence: 'unused test disclosure',
+  occurrenceId: 'UNUSED_TEST',
+});
+
 describe('oauthMetadataResponse', () => {
   // Proof: removing either metadata route makes the corresponding response
   // undefined, so an MCP client cannot discover the authorization flow.
@@ -151,7 +156,12 @@ describe('mcpFetchHandler', () => {
   it('answers a second request after initialize on a stateless endpoint', async () => {
     const tools = toolsFromDocument(readDocument());
     const handle = mcpFetchHandler(
-      () => createServer({ tools, config: CONFIG }),
+      () =>
+        createServer({
+          tools,
+          config: CONFIG,
+          reportUnexpectedToolFailure: unusedUnexpectedToolFailureReporter,
+        }),
       CONFIG,
       { verify: () => Promise.resolve(claims) },
       {},
@@ -205,6 +215,7 @@ describe('mcpFetchHandler', () => {
           config: CONFIG,
           fetchImpl: () =>
             Promise.resolve(Response.json({ error: 'unauthorized' }, { status: 401 })),
+          reportUnexpectedToolFailure: unusedUnexpectedToolFailureReporter,
           endSession: (sessionId) => {
             if (sessionId !== 'session-1') throw new Error('wrong session ended');
             sessionIsLive = false;
@@ -261,6 +272,7 @@ describe('mcpFetchHandler', () => {
                 headers: { 'www-authenticate': 'Basic realm="wbs-dev"' },
               }),
             ),
+          reportUnexpectedToolFailure: unusedUnexpectedToolFailureReporter,
           endSession: () => {
             throw new Error('must not end a session for an edge-gate rejection');
           },
