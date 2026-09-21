@@ -1,22 +1,10 @@
 # 040.6 A DI composition, and the first sealed core module
 
-> **Before dispatch, the planner re-points the renamed identifiers.** This packet was rehearsed on
-> the base at `72627001`, which still spells the product "Bureaucrat"; the rename landed on main at
-> `40be90d3`. Nothing this packet's commands depend on changes shape — only these names do, and only
-> the first two rows are referenced by this packet (in section 3's `lint:source` fact and section 8's
-> validator-identity note):
->
-> | Old                                                                                                                                                                                                    | New                                                        |
-> | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-> | Nx project `twilight-bureaucrat` (`package.json:13`, `bin/h2puni-gate-steps.sh:42-45`)                                                                                                                 | `twilight-burokrat`                                        |
-> | CI policy directory `infra/ci/bureaucrat/` (`admit.sh`, `bootstrap.sh`, `package.json`)                                                                                                                | `infra/ci/burokrat/`                                       |
-> | Published package and devDependency name `twilight-bureaucrat` (root `package.json`, `apps/wiki/cli/package.json`, `apps/wiki/cli/fixtures/consumer/package.json`, `bin/tool-wiki-package-lint.sh:26`) | `twilight-burokrat`                                        |
-> | `node_modules/twilight-bureaucrat` (`bin/tool-wiki-package-lint.sh:34`, `:37`)                                                                                                                         | `node_modules/twilight-burokrat`                           |
-> | `tools/tool-deploy/project.json` and `.github/workflows/ci.yml` references                                                                                                                             | the new project and directory names                        |
-> | Prose "Twilight Bureaucrat"                                                                                                                                                                            | "Twilight Burokrat"; the short command `twib` is unchanged |
->
-> Historical document filenames keep their old spelling. `apps/wiki/cli` does not move, so the
-> `check.wiki-cli.*` identifiers are unaffected.
+> **Re-pointed by the planner on 2026-09-22.** This packet was rehearsed on the commit that pull request 30
+> merged; the dispatch base is main after the product's rename to Twilight Burokrat (Nx project
+> `twilight-burokrat`, CI policy directory `infra/ci/burokrat/`, short command `twib` unchanged). No command in
+> this packet names a renamed identifier, and `apps/wiki/cli` did not move, so the `check.wiki-cli.*`
+> identifiers are unaffected.
 >
 > **Dispatch:** `--batch batch-6` (the launcher's batch-6 default supplies
 > `--batch-dir docs/superpowers/plans/2026-09-21-batch-6`). No slice binds a port, so **no slice
