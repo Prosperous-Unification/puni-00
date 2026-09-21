@@ -1262,6 +1262,181 @@ test.describe('the table, measured by a browser', () => {
     expect(wide.figureNumerals).toBe('tabular-nums');
   });
 
+  test('yields the trio to an ellipsis where a staffed cell’s result is fractional', async ({
+    page,
+  }) => {
+    // The one folded cell that cannot hold all three of its readings: the widest
+    // trio anybody has typed here (`20/24/30`), the widest result that trio can
+    // make (`24.3`, under `Keep the fraction`), and a named assignee, all inside
+    // the 104px `<td>` the step column is laid out at. Measured on 2026-09-20 the
+    // trio wants 16px more than the box it is given, and no size the trio can be
+    // set at closes that: the result and the 32px slot fix the box's share at
+    // 30.69px while the trio at 10px wants 46.69px.
+    //
+    // Dany's direction for this cell decides who loses those 16px: the result is
+    // the main reading, so the **trio** is what yields, never the result and
+    // never the assignee. What this test holds is that it yields *legibly* — an
+    // ellipsis rather than a character sliced down the middle — and that the two
+    // readings that do not yield keep their existing rendering, with their boxes
+    // inside the cell.
+    //
+    // Only a browser can see any of it: jsdom lays out no flex line, reports no
+    // `scrollWidth`, and paints no ellipsis — the shape
+    // `docs/findings/checks-that-cannot-fail.md` catalogues as `r5.catalogue.005`
+    // and `r5.catalogue.006`, a jsdom oracle for a browser's fault.
+    // `plan-estimates.test.tsx`'s `ends a resting trio in an ellipsis, and only
+    // while it is resting` owns the other half — which arm carries the
+    // declaration.
+    for (const [label, name] of [
+      ['Name of 010', 'Survey'],
+      ['Name of 020', 'Draft'],
+    ] as const) {
+      const box = page.getByLabel(label);
+      await box.fill(name);
+      await box.blur();
+      await expect(box).toHaveValue(name);
+    }
+
+    // `Keep the fraction`, because the default charges whole days and a whole
+    // day is two glyphs: the fractional result is what makes this the tight case
+    // rather than the wide one two tests above.
+    await page.getByRole('button', { name: 'Project settings' }).click();
+    const settings = page.getByRole('dialog', { name: 'Project settings' });
+    await settings.getByRole('tab', { name: 'Estimating' }).click();
+    const exact = settings.getByRole('radio', { name: 'Keep the fraction' });
+    // `click` and then wait for the tick, not `check`: the radio is drawn from
+    // be-01's answer arriving as a prop (`estimating-panel.tsx`), so the click
+    // leaves it unchecked until the write comes back and Playwright's own
+    // `check` fails on `Clicking the checkbox did not change its state`
+    // (watched 2026-09-20).
+    await exact.click();
+    await expect(exact).toBeChecked();
+    await page.keyboard.press('Escape');
+    await expect(settings).toBeHidden();
+
+    // **`Ola`, and not this file's usual `Nia`.** The people directory is one
+    // per deployment, not one per project: `seedPlan` makes a new project but
+    // takes no new account (its `_account` parameter is unused), so a person
+    // created here is still on the list when a later test opens its own picker.
+    // Watched on 2026-09-20: with this test creating `Nia`, `a step’s figure
+    // lands at one x whether or not the row is assigned` failed on
+    // `getByRole('option', { name: 'Add “Nia”' })` — element(s) not found,
+    // because by then Nia was an existing person and the option read her name.
+    const estimate = page.getByLabel('Dev estimate for 010');
+    await estimate.click();
+    await estimate.fill('20/24/30 @Ola');
+    const addOla = page.getByRole('option', { name: 'Add “Ola”' });
+    await expect(addOla).toBeVisible();
+    await addOla.click();
+    // At rest means at rest, and the picker is built to keep the focus through
+    // its own click (`creatable-picker.tsx`'s mousedown `preventDefault`), so
+    // the blur is explicit and waited for. A measurement taken straight after
+    // the Add reports the focused arrangement: `boxType` 13px, not 10.
+    await estimate.blur();
+    await expect(estimate).toHaveValue('20/24/30');
+    await expect(page.locator('[data-folded-assignee]').first()).toBeVisible();
+
+    const staffed = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('tbody tr')];
+      if (rows.length < 2) {
+        throw new Error(`the plan has ${String(rows.length)} rows; this needs two`);
+      }
+      const cell = rows[0]?.querySelector('td[data-column$="-final"]');
+      const box = cell?.querySelector('input');
+      const figure = cell?.querySelector('[data-folded-final]');
+      const who = cell?.querySelector('[data-folded-assignee]');
+      if (
+        !(cell instanceof HTMLElement) ||
+        !(box instanceof HTMLInputElement) ||
+        !(figure instanceof HTMLElement) ||
+        !(who instanceof HTMLElement)
+      ) {
+        throw new Error('the first row has no staffed folded step cell with a box and a figure');
+      }
+      const cellBox = cell.getBoundingClientRect();
+      const boxBox = box.getBoundingClientRect();
+      const figureBox = figure.getBoundingClientRect();
+      const whoBox = who.getBoundingClientRect();
+      return {
+        said: figure.textContent,
+        cell: { id: 'the step column', x: cellBox.x, width: cellBox.width },
+        box: { id: 'the trio box', x: boxBox.x, width: boxBox.width },
+        figure: { id: 'the derived figure', x: figureBox.x, width: figureBox.width },
+        who: { id: 'the assignee', x: whoBox.x, width: whoBox.width },
+        clipped: box.scrollWidth - box.clientWidth,
+        boxType: getComputedStyle(box).fontSize,
+        boxFocused: document.activeElement === box,
+        boxOverflow: getComputedStyle(box).textOverflow,
+        estimated: rows[0].getBoundingClientRect().height,
+        bare: rows[1].getBoundingClientRect().height,
+      };
+    });
+
+    expect(staffed.said).toBe('24.3');
+    expect(staffed.cell.width).toBe(104);
+    expect(staffed.boxFocused, 'the resting state is only the resting state unfocused').toBe(false);
+    expect(staffed.boxType).toBe('10px');
+
+    // Still one line, asserted **first**, because it is the only fault below that
+    // also changes the box's width: a wrapped cell gives the box the whole line,
+    // the trio then fits, and the tightness check further down would report the
+    // wrap as a fixture failure instead.
+    // Proof: the wrapper's `display: 'flex'` changed to `display: 'block'`
+    // failed the staffed-versus-bare height comparison: Expected: 26.1875,
+    // Received: 40.1875 (CN5). Separately, adding `minHeight: 40` to that
+    // wrapper left both rows equally tall, then failed the height budget:
+    // Expected: <= 28, Received: 42 (CN6). Watched in Chromium, 2026-09-21.
+    expect(
+      staffed.estimated,
+      'a staffed cell holding a trio, a result and an assignee is taller than a bare row',
+    ).toBeCloseTo(staffed.bare, 1);
+    expect(staffed.estimated).toBeLessThanOrEqual(ROW_HEIGHT_BUDGET);
+
+    // What does **not** yield: the result and the assignee keep their boxes inside
+    // the cell, which is the direction stated as a measurement. The two width
+    // assertions are non-vacuity guards for the two below them and not checks on
+    // the cell — a zero-width rectangle sits inside every cell there is, so an
+    // overrun check against one could not fail
+    // (`docs/findings/checks-that-cannot-fail.md`); the same guards stand in
+    // `holdsItsContents` for the same reason. No production expression decides
+    // them, so neither has a fault of its own.
+    // Proof: the box's own `flex: 1` in `estimates.tsx` replaced by
+    // `flex: 'none'`, so the trio stops yielding and takes its content width —
+    // this failed on `the result is pushed out of the cell · Expected: undefined
+    // · Received: "right"`. The assignee's own containment has its own fault:
+    // `transform: 'translateX(104px)'` on the assignee span failed on `the
+    // assignee is pushed out of the cell · Expected: undefined · Received:
+    // "right"`. Both watched in Chromium, 2026-09-21.
+    expect(staffed.figure.width).toBeGreaterThan(0);
+    expect(staffed.who.width).toBeGreaterThan(0);
+    expect(findOverrun(staffed.cell, staffed.figure), 'the result is pushed out of the cell').toBe(
+      undefined,
+    );
+    expect(findOverrun(staffed.cell, staffed.who), 'the assignee is pushed out of the cell').toBe(
+      undefined,
+    );
+
+    // **The case has to still be the tight case, or everything under it passes
+    // on a cell that never had to choose.** Measured 16 on 2026-09-20 with the
+    // box at 30.69px and the trio wanting 46.69px.
+    // Proof: `ASSIGNEE_SLOT_PX` replaced by `16` on the assignee span alone in
+    // `estimates.tsx` — the box gets those 16px back, the trio fits, and this
+    // failed on `the trio fits after all, so this case no longer exercises the
+    // ellipsis · Expected: > 0 · Received: 0`. Which is also the measurement's
+    // point: what the trio is short is exactly what the slot costs. Watched in
+    // Chromium, 2026-09-21.
+    expect(
+      staffed.clipped,
+      'the trio fits after all, so this case no longer exercises the ellipsis',
+    ).toBeGreaterThan(0);
+
+    // Proof: `textOverflow: 'ellipsis'` taken off the resting arm in
+    // `estimates.tsx` — this failed on `Expected: "ellipsis" · Received: "clip"`,
+    // which is the cell cutting `20/24` off mid-glyph. Watched in Chromium,
+    // 2026-09-21.
+    expect(staffed.boxOverflow).toBe('ellipsis');
+  });
+
   test('a toolbar panel closes when the pointer goes down outside it', async ({ page }) => {
     // Dany, 2026-08-31: "allow to collapse Filters, Views, Columns pop-ups by
     // clicking somewhere outside the space". They are `<details>` elements
