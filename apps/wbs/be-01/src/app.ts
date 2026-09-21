@@ -257,7 +257,11 @@ export function mountedEndpoints(
 
 export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
   const secrets = [opts.internalAuthSecret];
+  // Proof: on 2026-09-21, omitting `secrets` made “reports one redacted unexpected
+  // production failure with its shared occurrence” receive undefined instead of the secret array.
   const logger = makeLogger({ service: 'be-01', version: opts.version, secrets });
+  // Proof: on 2026-09-21, passing `[]` made “reports one redacted unexpected production
+  // failure with its shared occurrence” emit an operator line containing the production secret.
   const reportUnexpectedFailure = createUnexpectedFailureReporter(logger, secrets);
   // The OIDC callback binding reports provider refusals, and it names no
   // framework, so it cannot reach the decorated `logger` above and is handed
@@ -293,6 +297,9 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
           resolveIdentity: identityResolver(opts.auth, opts.internalAuthSecret),
+          // Proof: on 2026-09-21, replacing this production callback with a no-op made
+          // “reports one redacted unexpected production failure with its shared occurrence” receive
+          // zero logger calls instead of one.
           reportUnexpectedFailure,
         }),
       )
