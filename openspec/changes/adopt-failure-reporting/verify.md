@@ -29,9 +29,10 @@ The proposal is below the 400-word limit:
 ## 3. Task Completion
 
 - [x] Task 1.1, the shared reporting module and its eleven watched negatives, is complete.
-- [ ] Task 2.1, adoption at the observability, backend and MCP boundaries, remains unassigned in
-      batch 2.
-- [ ] Task 3.1, browser execution of `@shared/failures`, remains explicitly unassigned.
+- [ ] Task 2.1 remains open: observability 2.1a, backend 2.1b and gateway 2.1d are complete; MCP
+      2.1c is pending.
+- [x] Task 3.1, browser execution of `@shared/failures`, is complete.
+- [x] Task 4.1, frontend fault-boundary adoption, is complete.
 
 ## 4. Delta Spec Sync
 
@@ -523,3 +524,107 @@ Final scoped verification after the observed `Proof:` comments and backend task-
 | `GSETTINGS_BACKEND=memory bunx nx format:check --all`                         | exit 0                                                             | `final-format-all.out`, `.status`             |
 
 The full backend target skipped its existing `solver supervisor orphan process boundaries` case because `WBS_SOLVER_ORPHAN_IMAGE` was absent. The repository-level h2puni gate remains the later integrated candidate's responsibility. Task 2.1 remains open: only 2.1b is closed here, while MCP adoption remains assigned to WBS 040.8.
+
+## 040.9 — gateway unexpected-backend boundary
+
+Gateway adoption was implemented and reviewed in commits `3c158ca3`, `d769c9e7`, `ef10668c`
+and `86e80c01`, then verified on integration baseline
+`d749c2c77b148effc4f17effb7d05fa5f1cd6c79`. Task 2.1d is complete. Parent task 2.1 stays
+open because MCP task 2.1c is pending; this record does not change the accepted parent wording or
+claim MCP completion.
+
+The production boundary reports each real forward or resume rejection once after its cancellation
+guard, using the exact caught object and fixed operation, connection and user metadata. The
+production reporter registers one failure through the shared serializer and logger with all three
+owned secrets. Public WebSocket bytes remain the established `backend_unavailable` or
+`resume_denied` plus `resume_ack` frames. Close, controlled cancellation, foreign origin, expired
+token and identity-recheck refusals remain silent.
+
+### Final verification
+
+Evidence is retained under `/tmp/puni-codex-resume-20260921/040-9-task5`; every transcript has a
+same-stem `.exit` sidecar containing the real process status.
+
+| Command                                                                                                  | Result                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Six-file focused gateway group                                                                           | exit 0; 58 pass, 0 fail, 273 assertions                                                                                           |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache`                                        | exit 0; cache skipped                                                                                                             |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:lint --skip-nx-cache`                                             | exit 0; cache skipped; only the existing `NO_COLOR`/`FORCE_COLOR` warning                                                         |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:build --skip-nx-cache`                                            | exit 0; cache skipped; 981 modules bundled                                                                                        |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:test --skip-nx-cache`                                             | exit 0; 128 pass, 0 fail, 3,567 assertions across 17 files; cache skipped                                                         |
+| Downstream structured-field `rg` from the execution packet                                               | exit 0; Promtail maps `connection_id`; no deployed consumer assumes legacy `err` fields or needs a gateway-specific schema change |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate adopt-failure-reporting --strict --json` | exit 0; exactly the named change is valid with no issues; parsed JSON assertion exit 0                                            |
+| `bunx prettier --check` on the two closure documents                                                     | exit 0                                                                                                                            |
+
+The whole target emitted the expected schema-valid health-probe error record while testing an
+unreachable backend; it did not fail the target. The repository-level h2puni gate is deferred to
+the final integrated candidate as required by the execution packet.
+
+Current implementation hashes at that baseline are retained in `current-implementation.sha256`.
+The production hashes are: reporter `6195eb8e…`, controller `1130fda8…`, app `c4751c93…`, and
+shared frames `c916b045…`. They match the saved Task 2+3 canonical bytes. Task 4's final test hashes
+are deadline `7307bb35…` and auth `2fe912b5…`.
+
+### Watched failure proofs
+
+Unless a limitation is called out below, each retained mutation has its injected diff, an exit-1
+red with a nonzero selected-test count, byte restoration with `cmp` exit 0, and a separate green
+exit 0. Task 2+3 artifacts use prefix `040-9-task23-mut-`; lifecycle artifacts use prefix
+`040-9-task4-mut-`.
+
+| Proof | Changed production expression                                                    | Named oracle and observed mismatch                                                                                              | Restoration and green                                                 |
+| ----- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| G1    | Reporter redaction secrets became `[]`                                           | `logs one registered forward failure…` exposed all three secrets; 1 pass, 1 fail                                                | Reverse patch; observed but unretained `cmp` 0; final reporter 2/0/20 |
+| G2    | Logger received `failure.caught` instead of `registerReportedFailure(reporting)` | Both reporter tests found `err.reported` missing; 0 pass, 2 fail                                                                | Reverse patch; observed but unretained `cmp` 0; final reporter 2/0/20 |
+| G3    | Duplicated `logger.error(...)`                                                   | Both reporter tests received two calls instead of one; 0 pass, 2 fail                                                           | Reverse patch; observed but unretained `cmp` 0; final reporter 2/0/20 |
+| G4    | Removed the forward reporter call                                                | `emits backend_unavailable error when forward throws` received no report; 33 pass, 1 fail                                       | Reverse patch, `cmp` 0; 34/0/95                                       |
+| G5    | Removed the resume reporter call                                                 | `tells the client when it could not serve the resume at all` received no report while all three frames matched; 33 pass, 1 fail | Reverse patch, `cmp` 0; 34/0/95                                       |
+| G6    | Moved forward reporting above the abort guard                                    | `closed connection suppresses forward failure frames and metrics` received one report; 2 pass, 1 fail                           | Reverse patch, `cmp` 0; 3/0/7                                         |
+| G7    | Moved resume reporting above the abort guard                                     | `closed connection suppresses resume failure frames and metrics` received one report; 2 pass, 1 fail                            | Reverse patch, `cmp` 0; 3/0/7                                         |
+| G8    | Replaced the caught forward object                                               | Forward rejection report contained a substitute object; 33 pass, 1 fail                                                         | Reverse patch, `cmp` 0; 34/0/95                                       |
+| G9    | Production composition passed a no-op reporter                                   | Both real forward and resume cases timed out waiting for their report; 1 pass, 2 fail                                           | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G10   | Reporter secret policy omitted the internal token                                | Raw diagnostic line exposed the internal token; 1 pass, 2 fail                                                                  | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G11   | Logger options omitted the internal token                                        | Exact logger factory options lacked the internal token; 1 pass, 2 fail                                                          | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G12   | Composition omitted the current JWT key                                          | Exact logger factory options lacked the current key; 1 pass, 2 fail                                                             | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G13   | Composition omitted the previous JWT key                                         | Exact logger factory options lacked the previous key; 1 pass, 2 fail                                                            | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G14   | Reporter logged raw caught input instead of the registered outcome               | Both production cases found `err.reported` missing; 1 pass, 2 fail                                                              | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G15   | Forward frame appended `String(caught)`                                          | Literal raw frame bytes changed and exposed all three secrets; 2 pass, 1 fail                                                   | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G16   | Resume ack serialized `{ replayed, type }`                                       | Parsed meaning stayed equal but literal raw bytes changed; 1 pass, 2 fail                                                       | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G17   | Forward catch reported a distinct same-message `Error('nope')`                   | Strict `.toBe(caught)` failed with “serializes to the same string”; named red 0 pass, 1 fail                                    | Reverse patch, `cmp` 0; named green 1/0/4                             |
+| G18   | Resume catch reported a distinct same-message `Error('be-01 unreachable')`       | Strict `.toBe(caught)` failed with the same identity-only mismatch; named red 0 pass, 1 fail                                    | Reverse patch, `cmp` 0; named green 1/0/4                             |
+| G19   | Reported before the close abort guard                                            | Both real close cases received one forbidden report; 7 pass, 2 fail                                                             | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G20   | Removed close's `conn.cancellation.abort(...)`                                   | Four real close cases exceeded the 250 ms cancellation deadline; 5 pass, 4 fail                                                 | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G21   | Routed resume rejection through `wsError('backend_unavailable', ...)`            | Literal bytes were one forward frame instead of two `resume_denied` frames plus `resume_ack`; decisive red 6 pass, 3 fail       | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G22   | Logged inside the identity-recheck refusal catch                                 | Both 1008/no-frame cases received a forbidden operator record; 5 pass, 2 fail                                                   | Saved bytes, `cmp` 0; 7/0/13                                          |
+| G23   | Moved resume reporting inside the subscription loop                              | Two subscriptions produced two records instead of one; decisive red 7 pass, 2 fail                                              | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G24   | Logged in the foreign-origin refusal                                             | 403/no-socket behavior stayed intact but the private sink received one forbidden line; 6 pass, 1 fail                           | Saved bytes, `cmp` 0; 7/0/13                                          |
+| G25   | Logged in the expired-token refusal                                              | The expired-cookie case and both identity cases received a forbidden line; 4 pass, 3 fail                                       | Saved bytes, `cmp` 0; 7/0/13                                          |
+
+The original Task 1 mutations G1–G3 predate per-mutation diff and `cmp` sidecars. Their executed
+patches and reds are retained, as is the original reporter canonical file. Restoration `cmp` exit 0
+was observed but not saved separately. Root later compared that canonical reporter with the
+committed reporter: `cmp` exit 0 and identical SHA-256 `6195eb8e…`. The record does not invent
+missing standalone artifacts.
+
+The first real-socket Task 2+3 integration attempt failed before behavior with `Bun.serve` EPERM
+inside the restricted sandbox. The permitted rerun was the decisive pre-production red: 1 pass,
+2 fail, both waiting for the reporter after exact existing frames. The first scoped lint then
+failed on four integration-helper diagnostics; those were corrected before the final passing lint.
+
+Root's review showed the initial structural Error comparison could accept a distinct same-message
+object. G17 and G18 are the corrected identity proofs; root independently replayed G17, restored
+with `cmp` exit 0, then observed the focused controller/socket group at 40 pass, 0 fail and 168
+assertions.
+
+For G21, an initial red timed out because its readiness oracle waited for a specific old frame; the
+decisive content-neutral frame-count rerun produced the literal-byte mismatch above. Its 503 case
+also needed content-neutral readiness. For G23, the initial red waited for exactly one report and
+timed out; the decisive `>= 1` readiness observed two reports. The timeout attempts are retained
+but are not claimed as behavioral proof.
+
+Task 4's first typecheck failed because the test-only captured-frame type omitted `retry_after`;
+the local type was corrected and the uncached rerun passed. Task 4 had no socket-permission failure:
+all of its real-socket reds and greens ran with loopback permission. All 15 Task 2+3 mutation
+restorations and all seven Task 4 restorations have durable exit-0 `cmp` evidence and restored
+greens. Normal hooks passed on each implementation commit; some early hook transcripts were
+observed only in the execution transcript and are not presented as standalone files.
