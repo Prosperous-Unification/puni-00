@@ -269,6 +269,7 @@ function externalTarget(specifier: string): string {
   return `external:${specifier.split('/')[0]}`;
 }
 
+/** Maps an emitted declaration import, whose synthetic AST has no checker binding, to its original program-bound source site. */
 function boundImportSite(sourceFile: ts.SourceFile, site: ImportSite): ImportSite | undefined {
   if (site.moduleSpecifier?.getSourceFile() === sourceFile) return site;
   return importSites(sourceFile).find(
@@ -476,6 +477,9 @@ function declarationDependencies(
       specifier: reference.fileName,
       importKind: 'reference-path',
     });
+    // Proof: misclassifying `./globals.d.ts` as ambient at this declaration-only call made
+    // `retains an original TypeScript source path reference in its emitted public closure` exit 1
+    // with this exact ambient-reference error on 2026-09-21.
     if (resolution.kind !== 'target') {
       throw new Error(
         `TypeScript reference path resolved as ambient non-code: ${sourceFile.fileName} -> '${reference.fileName}'`,
