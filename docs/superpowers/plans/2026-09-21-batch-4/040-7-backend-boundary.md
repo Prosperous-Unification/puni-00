@@ -293,10 +293,18 @@ cd apps/wbs/be-01
 env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/http/elysia/unexpected-failure.test.ts
 ```
 
-Expected: nonzero because `./unexpected-failure` does not exist. Record the exact diagnostic; zero tests is invalid.
+Expected on Bun 1.4.x: exit 1; the output names
+`src/http/elysia/unexpected-failure.test.ts`, reports
+`Cannot find module './unexpected-failure'`, and records one file-level unhandled error (`0 pass`,
+`1 fail`, `1 error`, `Ran 1 test across 1 file` on Bun 1.4.2). This is a module-load
+scaffold red: neither test callback nor any assertion runs. Record the exact diagnostic. An output
+saying no tests or files matched, or otherwise showing no failed file, is invalid evidence.
 
 - [ ] **Step 4: Implement the exact interface above and rerun.**
-      Expected: both tests pass; the first emitted record uses the captured diagnostic occurrence, proving `registerReportedFailure` prevented a second report.
+      Expected: exactly both named tests execute and pass (`2 pass`, `0 fail`) in
+      `unexpected-failure.test.ts`; this is the first execution of the behavioral assertions. The
+      first emitted record uses the captured diagnostic occurrence, proving
+      `registerReportedFailure` prevented a second report.
 - [ ] **Step 5: Run focused typecheck/lint for the new surface.**
 
 ```sh
