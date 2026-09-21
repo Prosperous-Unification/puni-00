@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { SubscriptionMap } from '../service/subscription-map';
+import type { UnexpectedBackendFailure } from './unexpected-backend-failure';
 import { handleWsMessage, isKnownSubscription, type WsSocket } from './ws.controller';
 
 function makeSocket(): { sock: WsSocket; sent: string[] } {
@@ -18,6 +19,7 @@ describe('handleWsMessage', () => {
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: () => undefined,
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -29,12 +31,14 @@ describe('handleWsMessage', () => {
     const { sock } = makeSocket();
     const subs = new SubscriptionMap<WsSocket>();
     let captured: unknown;
+    const reports: UnexpectedBackendFailure[] = [];
     await handleWsMessage({
       frame: { subscription: 'presence', message: { hi: true } },
       socket: sock,
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: (failure) => reports.push(failure),
       forward: (m) => {
         captured = m;
         return Promise.resolve({ ack: true });
@@ -42,17 +46,20 @@ describe('handleWsMessage', () => {
       resume: () => Promise.resolve({}),
     });
     expect(captured).toEqual({ subscription: 'presence', message: { hi: true } });
+    expect(reports).toEqual([]);
   });
 
   it('responds to resume with the replayed events, then resume_ack', async () => {
     const { sock, sent } = makeSocket();
     const subs = new SubscriptionMap<WsSocket>();
+    const reports: UnexpectedBackendFailure[] = [];
     await handleWsMessage({
       frame: { type: 'resume', resume_points: { presence: 5, 'doc:b': 7 } },
       socket: sock,
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: (failure) => reports.push(failure),
       forward: () => Promise.resolve({ ack: true }),
       resume: () =>
         Promise.resolve({
@@ -78,6 +85,7 @@ describe('handleWsMessage', () => {
       { subscription: 'presence', seq: 7, message: { a: 2 } },
     ]);
     expect(frames.at(-1)).toEqual({ type: 'resume_ack', replayed: { presence: 2 } });
+    expect(reports).toEqual([]);
   });
 
   it('replays only to the socket that asked', async () => {
@@ -96,6 +104,7 @@ describe('handleWsMessage', () => {
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: () => undefined,
       forward: () => Promise.resolve({ ack: true }),
       resume: () =>
         Promise.resolve({
@@ -110,13 +119,16 @@ describe('handleWsMessage', () => {
   it('emits backend_unavailable error when forward throws', async () => {
     const { sock, sent } = makeSocket();
     const subs = new SubscriptionMap<WsSocket>();
+    const caught = new Error('nope');
+    const reports: UnexpectedBackendFailure[] = [];
     await handleWsMessage({
       frame: { subscription: 'presence', message: {} },
       socket: sock,
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
-      forward: () => Promise.reject(new Error('nope')),
+      reportUnexpectedBackendFailure: (failure) => reports.push(failure),
+      forward: () => Promise.reject(caught),
       resume: () => Promise.resolve({}),
     });
     expect(JSON.parse(sent[0])).toEqual({
@@ -124,6 +136,11 @@ describe('handleWsMessage', () => {
       code: 'backend_unavailable',
       retry_after: 5,
     });
+    // Proof: omitting the forward report left this empty; reporting a substitute error changed
+    // `caught` from the exact rejected object (2026-09-21).
+    expect(reports).toEqual([
+      { caught, operation: 'forward', connectionId: 'c-1', clientId: 'u-1' },
+    ]);
   });
 
   it('honours subscribe/unsubscribe control frames', async () => {
@@ -135,6 +152,7 @@ describe('handleWsMessage', () => {
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: () => undefined,
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -146,6 +164,7 @@ describe('handleWsMessage', () => {
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: () => undefined,
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -175,6 +194,7 @@ describe('subscription names', () => {
       },
     };
     const subs = new SubscriptionMap<typeof socket>();
+    const reports: UnexpectedBackendFailure[] = [];
 
     await handleWsMessage({
       frame: { type: 'subscribe', subscription: 'internal:push' },
@@ -182,6 +202,7 @@ describe('subscription names', () => {
       subs,
       connectionId: 'c1',
       clientId: 'someone',
+      reportUnexpectedBackendFailure: (failure) => reports.push(failure),
       forward: () => Promise.resolve({ ack: true }),
       resume: () => Promise.resolve({}),
     });
@@ -190,6 +211,7 @@ describe('subscription names', () => {
     expect(sent.map((s) => JSON.parse(s) as { code?: string })[0]?.code).toBe(
       'unknown_subscription',
     );
+    expect(reports).toEqual([]);
   });
 });
 
@@ -201,6 +223,8 @@ describe('handleWsMessage — cross-review findings', () => {
     // live, which is the exact failure resume exists to prevent.
     const { sock, sent } = makeSocket();
     const subs = new SubscriptionMap<WsSocket>();
+    const caught = new Error('be-01 unreachable');
+    const reports: UnexpectedBackendFailure[] = [];
 
     await handleWsMessage({
       frame: {
@@ -211,8 +235,9 @@ describe('handleWsMessage — cross-review findings', () => {
       subs,
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: (failure) => reports.push(failure),
       forward: () => Promise.resolve({ ack: true }),
-      resume: () => Promise.reject(new Error('be-01 unreachable')),
+      resume: () => Promise.reject(caught),
     });
 
     const frames = sent.map((s) => JSON.parse(s) as Record<string, unknown>);
@@ -220,6 +245,11 @@ describe('handleWsMessage — cross-review findings', () => {
       { type: 'resume_denied', subscription: 'doc:a', reason: 'unavailable' },
       { type: 'resume_denied', subscription: 'doc:b', reason: 'unavailable' },
       { type: 'resume_ack', replayed: {} },
+    ]);
+    // Proof: omitting the resume report left this empty while all three existing frames still
+    // matched (2026-09-21).
+    expect(reports).toEqual([
+      { caught, operation: 'resume', connectionId: 'c-1', clientId: 'u-1' },
     ]);
   });
 });
@@ -261,6 +291,9 @@ describe('client frame validation before dispatch', () => {
         subs,
         connectionId: 'c-1',
         clientId: 'u-1',
+        reportUnexpectedBackendFailure: () => {
+          dispatched += 1;
+        },
         forward: () => {
           dispatched += 1;
           return Promise.resolve({ ack: true });
@@ -294,12 +327,14 @@ describe('client frame validation before dispatch', () => {
     const { sock } = makeSocket();
     const frame = { type: 'extension', subscription: 'presence', message: null, extra: 'kept' };
     let forwarded: unknown;
+    const reports: UnexpectedBackendFailure[] = [];
     await handleWsMessage({
       frame: frame,
       socket: sock,
       subs: new SubscriptionMap<WsSocket>(),
       connectionId: 'c-1',
       clientId: 'u-1',
+      reportUnexpectedBackendFailure: (failure) => reports.push(failure),
       forward: (message) => {
         forwarded = message;
         return Promise.resolve({ ack: true });
@@ -307,5 +342,6 @@ describe('client frame validation before dispatch', () => {
       resume: () => Promise.resolve({}),
     });
     expect(forwarded).toEqual(frame);
+    expect(reports).toEqual([]);
   });
 });

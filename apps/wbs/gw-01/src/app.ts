@@ -4,6 +4,7 @@ import { systemTimers, type Timers } from '@wbs/runtime-portable';
 import { Elysia } from 'elysia';
 
 import { internalController, type SocketLike } from './controller/internal.controller';
+import { createUnexpectedBackendFailureReporter } from './controller/unexpected-backend-failure';
 import { handleWsMessage, projectIdOf } from './controller/ws.controller';
 import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
@@ -100,8 +101,14 @@ export interface AppOptions {
   metricsScrape?: () => Promise<MetricsScrape>;
 }
 
-export function buildApp(opts: AppOptions) {
-  const logger = createLogger({ service: 'gw-01', version: opts.version });
+export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
+  const secrets = [
+    opts.internalAuthSecret,
+    opts.jwtKey,
+    ...(opts.previousJwtKey === undefined ? [] : [opts.previousJwtKey]),
+  ];
+  const logger = makeLogger({ service: 'gw-01', version: opts.version, secrets });
+  const reportUnexpectedBackendFailure = createUnexpectedBackendFailureReporter(logger, secrets);
   const subs = new SubscriptionMap<SocketLike>();
   const metrics = new GatewayMetrics();
   const presence = new Presence();
@@ -282,6 +289,7 @@ export function buildApp(opts: AppOptions) {
             subs,
             connectionId: conn.connectionId,
             clientId,
+            reportUnexpectedBackendFailure,
             forward: (m) =>
               forwarder.forward(
                 m,
