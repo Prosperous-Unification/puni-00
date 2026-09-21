@@ -628,3 +628,79 @@ all of its real-socket reds and greens ran with loopback permission. All 15 Task
 restorations and all seven Task 4 restorations have durable exit-0 `cmp` evidence and restored
 greens. Normal hooks passed on each implementation commit; some early hook transcripts were
 observed only in the execution transcript and are not presented as standalone files.
+
+## 040.8 — MCP unexpected tool-failure boundary
+
+MCP adoption was implemented and independently reviewed in commits `15e6caa5` (modeled local
+input), `53d3384c` (reporter and closed log contract), and `42dbf485` (SDK boundary and production
+composition). The closure baseline is integration `96a3ff476377a9746ade33212a3fd8360a32738a`,
+which also preserves the completed observability, backend, browser, frontend, and gateway history
+above.
+
+The low-level SDK `tools/call` handler leaves unknown tools as rejected `InvalidParams` protocol
+errors. It preserves `ToolInputRefused`, declared upstream 4xx bodies, upstream credential/session
+recovery, deployment edge-gate recovery, and successful tool bodies. A fetch rejection, redirect,
+5xx, unreadable response body, or malformed successful body reaches one required application
+reporter and becomes one generic `isError` tool result whose occurrence identifier matches the one
+sanitized diagnostic operator line. Production constructs one `mcp-01` logger and reporter from
+any nonempty process-owned Basic credential; caller Bearer credentials remain per request.
+OAuth route evidence and startup facts use that structured logger rather than raw console output.
+
+Task 1 evidence is retained in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task1.c0yZfv`, Task 2 evidence in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task2.gqLst0`, Tasks 3 and 4 evidence in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task34.3lTKCK`, and closure evidence in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task5.YT4k1o`. Each newly executed closure mutation
+below has its patch, exit-1 red, saved passing bytes, byte-identical restore with `cmp` exit 0, and
+separate exit-0 named green. Earlier evidence directories carry the same artifacts for reused
+proofs, and root independently replayed M5/M6/M11 and the combined boundary exact-one proof during
+slice review.
+
+### Watched MCP failure proofs
+
+| Proof | Injected fault                                                       | Named observed failure                                                                                                     | Evidence                                                         |
+| ----- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| M1    | Bypassed the `ToolInputRefused` catch                                | undeclared input became a generic referenced result instead of naming `parentID`, and the unexpected reporter was called   | closure `m1-*`                                                   |
+| M2    | Widened declared refusal classification through HTTP 599             | one compound diff showed reporter count zero, marker presence true, and the marker-bearing refusal response                | closure `m2-compound-*`                                          |
+| M3    | Replaced the public envelope with fixed synthetic text               | reporter input remained safe, but the linked SDK result differed from the exact generic sentence and correlation reference | closure `m3-*`                                                   |
+| M4    | Replaced the reporter call with a fabricated disclosure              | the linked SDK reporter count was zero                                                                                     | closure `m4-*`                                                   |
+| M5    | Duplicated reporter logging and, separately, the production callback | reporter unit count and captured production count were two instead of one                                                  | Task 2 `m5-*`; Tasks 3/4 `task4-duplicate-production-callback-*` |
+| M6    | Logged an unregistered `FailureReporting`                            | the serializer created a second occurrence and an object-wrapper diagnostic instead of reusing the boundary occurrence     | Task 2 `m6-*`                                                    |
+| M7    | Built the production reporter with an empty owned-secret list        | the operator line contained `boundary-secret`                                                                              | closure `m7-*`                                                   |
+| M8    | Removed `mcp-01` from the closed log schema only                     | the real MCP logger record failed service validation                                                                       | Task 2 `m8-*`                                                    |
+| M9    | Passed a fixed disclosure callback to the production server factory  | the real SDK result returned but the sanitized operator-call count was zero                                                | closure `m9-*`                                                   |
+| M10   | Converted the unknown-tool `McpError` into a reported tool result    | the client resolved with tool content, so the `McpError`/`InvalidParams` rejection oracle received `undefined`             | closure `m10-*`                                                  |
+| M11   | Replaced non-scalar `ToolInputRefused` with plain `Error`            | two modeled families passed and only non-scalar input failed constructor identity                                          | Task 1 `task1-owner-identity-*`                                  |
+| M12   | Sent 3xx through the old refusal path                                | one compound diff showed reporter count zero, marker presence true, and the marker-bearing refusal response                | closure `m12-compound-*`                                         |
+| M13   | Caught body-read rejection as a fixed synthetic refusal              | the exact caught object never reached the reporter and reporter count was zero                                             | Tasks 3/4 `m13-*`                                                |
+| M14   | Removed linked transport authentication metadata                     | production fetch count was zero before any exact Bearer header could be observed                                           | Tasks 3/4 `m14-*`                                                |
+
+The originally prescribed M3/M13 raw-text mutations would intentionally place a secret-bearing
+caught string in tool content. Automatic approval review rejected the raw M13 mutation for that
+reason, and it was not retried through another tool. M13 instead used a fixed synthetic refusal to
+prove misclassification and missing reporting without interpolating caught data. M3 likewise used
+fixed synthetic public text to violate the exact generic/correlated envelope without exposing a
+secret. These safer mutations exercise the same owning checks; neither is claimed as a literal raw
+secret disclosure run.
+
+The initial M2 and M12 reds stopped at the reporter-count assertion before their disclosure
+assertions could execute. The closure replays supersede those reds with one compound comparison
+whose failure displays the zero count, marker presence, and exact returned tool response together.
+
+### MCP closure verification
+
+All commands below ran on 2026-09-21 with evidence retained in the closure directory named above.
+
+| Command                                                                   | Result                                   |
+| ------------------------------------------------------------------------- | ---------------------------------------- |
+| Exact five-file focused MCP test command                                  | 56 pass, 0 fail, 190 assertions; exit 0  |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:test --skip-nx-cache`             | 148 pass, 0 fail, 634 assertions; exit 0 |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:typecheck --skip-nx-cache`        | passed uncached; exit 0                  |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:lint --skip-nx-cache`             | passed uncached; exit 0                  |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:build --skip-nx-cache`            | bundled 689 modules; exit 0              |
+| `NX_DAEMON=false bunx nx run wbs-observability:test --skip-nx-cache`      | 28 pass, 0 fail, 66 assertions; exit 0   |
+| `NX_DAEMON=false bunx nx run wbs-observability:typecheck --skip-nx-cache` | passed uncached; exit 0                  |
+| `NX_DAEMON=false bunx nx run wbs-observability:lint --skip-nx-cache`      | passed uncached; exit 0                  |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`     | no formatting differences; exit 0        |
+| Exact strict named OpenSpec validation                                    | 1 passed, 0 failed, no issues; exit 0    |
+| Staged whole `tool-devsync:test` preflight                                | 359 pass, 0 fail, 864 assertions; exit 0 |

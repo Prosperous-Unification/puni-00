@@ -4,10 +4,10 @@
 
 ## 2. Reporting adoption (needs 1.1)
 
-- [ ] 2.1 Adopt the contract in the observability serializer and log schema, the backend unexpected-error boundary and the MCP server — test: focused observability, backend and MCP boundary tests; negatives: bypass redaction, drop occurrence correlation and expose an unexpected cause through each real boundary.
+- [x] 2.1 Adopt the contract in the observability serializer and log schema, the backend unexpected-error boundary and the MCP server — test: focused observability, backend and MCP boundary tests; negatives: bypass redaction, drop occurrence correlation and expose an unexpected cause through each real boundary.
   - [x] 2.1a Observability serializer and log schema — owned by `log-failure-records`.
   - [x] 2.1b Backend unexpected-error boundary — generic 500 and one correlated operator report.
-  - [ ] 2.1c MCP server tool-call boundary — owned by WBS 040.8.
+  - [x] 2.1c MCP server tool-call boundary — one generic correlated tool result and one sanitized operator record for each unexpected call failure, with modeled outcomes unchanged.
   - [x] 2.1d Gateway backend WebSocket boundary — one schema-valid redacted and correlated report per real forward or resume rejection, with exact legacy frames and silence for cancellation, close, authentication and identity refusals.
 
 ## 3. Browser execution (needs 1.1)

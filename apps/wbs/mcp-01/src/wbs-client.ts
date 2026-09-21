@@ -290,6 +290,8 @@ export async function callTool(
 
   const bodyText = await response.text();
   if (!response.ok) {
+    // Proof: on 2026-09-21, widening this upper bound to 599 sent a secret-bearing 500 through
+    // refusal, exposed its body as tool content, and skipped the unexpected reporter.
     if (response.status >= 400 && response.status <= 499) {
       return refusal(tool, response, bodyText, config);
     }
