@@ -20,6 +20,7 @@ import {
   LIVE_DEV_STATE,
   LOCK_BUSY_EXIT_CODE,
   MCP_ENV,
+  mcpExposureExpected,
   needsRestart,
   parseDevSyncInvocation,
   preflightSolver,
@@ -324,6 +325,16 @@ describe('dev supervisor', () => {
     // Proof: restoring sync.ts's default to `src/apps/mcp-01/.env` failed this
     // exact production default assertion without reading a live remote file.
     expect(MCP_ENV).toBe('/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env');
+  });
+
+  it('runs the semantic MCP probe before reporting automatic deploy success', async () => {
+    const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
+    const resetAt = source.indexOf('git -C ${paths.sourcePath} rev-parse HEAD');
+    const probeAt = source.indexOf('bin/dev-mcp-probe.sh');
+    const successAt = source.indexOf('[dev-sync] dev now at');
+
+    expect(probeAt).toBeGreaterThan(resetAt);
+    expect(successAt).toBeGreaterThan(probeAt);
   });
 
   it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
@@ -826,22 +837,50 @@ describe('MCP environment prerequisite', () => {
     const directory = await scratchAsync('wbs-mcp-store-path-');
     const envPath = join(directory, '.env');
 
-    await writeFile(envPath, 'MCP_STORE_PATH=/data/mcp-session.sqlite\n');
+    const valid = [
+      'PORT=3300',
+      'MCP_AUTH_MODE=standalone',
+      'WBS_API_URL=http://localhost:3100',
+      'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+      'MCP_SIGNING_KEY_CURRENT=signing-key',
+      'MCP_STORE_KEY_CURRENT=store-key',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite',
+      'MCP_ACCESS_TOKEN_TTL=3600',
+    ].join('\n');
+    await writeFile(envPath, `${valid}\n`);
+    await chmod(envPath, 0o600);
     await assertMcpEnv(envPath);
 
-    for (const contents of [
-      'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite\n',
-      'MCP_STORE_PATH=./mcp-session.sqlite\n',
-      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite\n',
-      'MCP_STORE_PATH=/data/mcp-session.sqlite\nexport MCP_STORE_PATH=/tmp/export.sqlite\n',
-      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH = /tmp/spaced.sqlite\n',
-      'MCP_STORE_PATH=/data/mcp-session.sqlite\n  MCP_STORE_PATH=/tmp/indented.sqlite\n',
+    for (const replacement of [
+      'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+      'MCP_STORE_PATH=./mcp-session.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nexport MCP_STORE_PATH=/tmp/export.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH = /tmp/spaced.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\n  MCP_STORE_PATH=/tmp/indented.sqlite',
     ]) {
-      await writeFile(envPath, contents);
-      expect(await rejection(assertMcpEnv(envPath))).toContain(
-        'exactly one MCP_STORE_PATH=/data/mcp-session.sqlite',
+      await writeFile(
+        envPath,
+        `${valid.replace('MCP_STORE_PATH=/data/mcp-session.sqlite', replacement)}\n`,
       );
+      expect(await rejection(assertMcpEnv(envPath))).toMatch(/exactly one|must contain/);
     }
+
+    await writeFile(envPath, `${valid.replace('PORT=3300', '')}\n`);
+    expect(await rejection(assertMcpEnv(envPath))).toContain('exactly one non-empty PORT');
+    await chmod(envPath, 0o644);
+    expect(await rejection(assertMcpEnv(envPath))).toContain('mode 600');
+  });
+
+  it('reads persistent MCP exposure state for the automatic semantic probe', async () => {
+    const directory = await scratchAsync('wbs-mcp-exposure-');
+    expect(await mcpExposureExpected(directory)).toBe('0');
+    await writeFile(join(directory, 'mcp-exposure'), 'enabled\n');
+    expect(await mcpExposureExpected(directory)).toBe('1');
+    await writeFile(join(directory, 'mcp-exposure'), 'maybe\n');
+    expect(await rejection(mcpExposureExpected(directory))).toContain(
+      'malformed MCP exposure state',
+    );
   });
 
   it('fails clearly before restarting a supervisor that cannot start mcp-01', async () => {

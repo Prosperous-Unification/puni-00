@@ -53,7 +53,7 @@ describe('dev MCP preflight', () => {
     expect(missing.exitCode).not.toBe(0);
     expect(missing.output).toContain('missing MCP environment');
     expect(incomplete.exitCode).not.toBe(0);
-    expect(incomplete.output).toContain('missing required MCP_PUBLIC_URL');
+    expect(incomplete.output).toContain('exactly one non-empty MCP_PUBLIC_URL');
   });
 
   it('refuses an MCP environment whose permissions expose deployment settings', async () => {

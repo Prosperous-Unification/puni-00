@@ -26,7 +26,7 @@
  * is to vendor it into the archived tree (`tools/`, `libs/`) so the extraction
  * carries it -- not to reintroduce a borrowed install from the pinned checkout.
  */
-import { realpathSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -581,20 +581,48 @@ export function needsRestart(before: Fingerprint, after: Fingerprint): boolean {
 // Proof: restoring the pre-move default made sync.test.ts resolve MCP_ENV to
 // the removed app root while the real deploy preflight remained namespaced.
 export const MCP_ENV = `${SRC}/apps/wbs/mcp-01/.env`;
+const MCP_REQUIRED_ENV = [
+  'PORT',
+  'MCP_AUTH_MODE',
+  'WBS_API_URL',
+  'MCP_PUBLIC_URL',
+  'MCP_SIGNING_KEY_CURRENT',
+  'MCP_STORE_KEY_CURRENT',
+  'MCP_STORE_PATH',
+  'MCP_ACCESS_TOKEN_TTL',
+] as const;
 
+/** Enforces the same private, complete MCP deployment environment as the manual preflight. */
 export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
   const file = Bun.file(path);
   if (!(await file.exists())) {
     throw new Error(`missing ${path}; seed the gitignored mcp-01 environment before deploying`);
   }
-  const storePaths = (await file.text())
-    .split(/\r?\n/)
-    .filter((line) => /^\s*(?:export\s+)?MCP_STORE_PATH\s*=/.test(line));
-  if (storePaths.length !== 1 || storePaths[0] !== 'MCP_STORE_PATH=/data/mcp-session.sqlite') {
-    throw new Error(
-      `${path} must contain exactly one MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`,
-    );
+  if ((statSync(path).mode & 0o777) !== 0o600) {
+    throw new Error(`MCP environment must have mode 600: ${path}`);
   }
+  const lines = (await file.text()).split(/\r?\n/);
+  for (const key of MCP_REQUIRED_ENV) {
+    const assignments = lines.filter((line) =>
+      new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`).test(line),
+    );
+    if (assignments.length !== 1 || !new RegExp(`^${key}=.+$`).test(assignments[0] ?? '')) {
+      throw new Error(`${path} must contain exactly one non-empty ${key}=... assignment`);
+    }
+  }
+  if (!lines.includes('MCP_STORE_PATH=/data/mcp-session.sqlite')) {
+    throw new Error(`${path} must contain MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`);
+  }
+}
+
+export async function mcpExposureExpected(statePath: string): Promise<'0' | '1'> {
+  const path = join(statePath, 'mcp-exposure');
+  const file = Bun.file(path);
+  if (!(await file.exists())) return '0';
+  if ((await file.text()) !== 'enabled\n') {
+    throw new Error(`malformed MCP exposure state: ${path}`);
+  }
+  return '1';
 }
 
 /** sha256 of a file, or of a directory's recursive listing plus contents. */
@@ -653,6 +681,12 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
     await $`docker restart ${paths.containerName}`;
   } else {
     console.log('[dev-sync] code only: watchers pick it up, nothing restarted');
+  }
+
+  if (!paths.rehearsal) {
+    const exposureExpected = await mcpExposureExpected(paths.statePath);
+    const probe = join(paths.sourcePath, 'bin/dev-mcp-probe.sh');
+    await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} bash ${probe} https://dev.wbs.bulletpoints.club`;
   }
 
   console.log(`[dev-sync] dev now at ${head}`);
