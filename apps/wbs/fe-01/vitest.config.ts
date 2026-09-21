@@ -104,6 +104,10 @@ export default defineConfig({
         __dirname,
         '../../../libs/shared/domain/validation/src/index.ts',
       ),
+      // `@shared/failures` is the reporting policy the fault boundaries disclose
+      // through; it is `runtime:isomorphic` and has no Node import, so the same
+      // module serves the browser build and both test tiers.
+      '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
       '@wbs/domain/priority-band': resolve(
         __dirname,
         '../../../libs/wbs/domain/domain/src/priority-band.ts',

@@ -315,3 +315,39 @@ inventory pins remain 167 rows and 84 distinct files.
 - `bin/h2puni-gate.sh`: unavailable on this machine and explicitly reserved for the host gate.
 - Browser execution of `@shared/failures`: no batch 2 fixture imports this module; task 3 remains
   unassigned.
+
+## 050.4 Slice 0 — frontend fault-boundary specification
+
+Baseline commit: `a0e0701641c2cc2d26f87365f9142a3670c564a3`.
+
+| Check                                      | Result                       | Evidence                                        |
+| ------------------------------------------ | ---------------------------- | ----------------------------------------------- |
+| Strict OpenSpec validation before the edit | exit 0; 112 passed, 0 failed | `openspec-validation.slice0-before.hp7mFV.json` |
+| Strict OpenSpec validation after the edit  | exit 0; 112 passed, 0 failed | `openspec-validation.slice0-after.UiP8O9.json`  |
+
+The item total stayed at 112 because the slice adds requirements to the existing
+`adopt-failure-reporting` change. Tasks 3.1 and 4.1 remain unchecked until the browser and boundary
+work is complete.
+
+## 050.4 Slice 1 — frontend reporting alias
+
+`vite-config.test.ts` began at 18 passing tests. The test-first run after adding the required alias
+to the expected map and explicit presence assertion exited 1 with one failed and 17 passed: the
+alias-map case expected the app aliases to include `@shared/failures`. After adding the alias to
+all four frontend tsconfigs and both runtime maps, the focused suite returned to 18 passing tests.
+
+| Check                                             | Result                                       | Evidence                                           |
+| ------------------------------------------------- | -------------------------------------------- | -------------------------------------------------- |
+| Final focused alias suite                         | exit 0; 1 file, 18 tests passed              | command output retained in the executor transcript |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` | exit 0; target completed without diagnostics | command output retained in the executor transcript |
+| Strict OpenSpec validation                        | exit 0; 112 passed, 0 failed                 | `openspec-validation.slice1.epVpKM.json`           |
+
+N1 removed only the `@shared/failures` entry from `vitest.config.ts`. The alias-map case failed
+with one failed and 17 passed, comparing a suite map beginning with `@shared/validation` against an
+app map that also contained `@shared/failures`; `n1-vitest-alias-removed.patch` and
+`n1-vitest-alias-removed.out` retain the fault and output. The passing bytes were restored from
+`vitest.config.passing.ts`, matched with `cmp`, and the focused suite returned to 18 passing tests.
+
+The focused Vitest runs emitted the existing Vite warning about `__dirname` and the future native
+config loader. The whole `tool-devsync:test` target remains deferred to planner verification
+because it writes Git objects and the batch's heavy lane was occupied.
