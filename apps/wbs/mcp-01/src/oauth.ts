@@ -20,12 +20,17 @@ import {
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
 } from '@wbs/auth';
-import { decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
+import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
-import { type FamilyRecord, McpSessionStore } from './session-store';
+import {
+  type FamilyRecord,
+  McpRefreshFamilyCorrupt,
+  McpSessionStore,
+} from './session-store';
+import { EdgeGate } from './wbs-client';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
@@ -260,7 +265,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   async refreshSession(mcpSessionId: string): Promise<string> {
     const family = this.store.familyForSession(mcpSessionId, this.now());
     if (family === null) throw new Error('MCP OAuth session is missing, expired, or revoked');
-    return (await this.refreshUpstreamIfNeeded(family, true)).upstreamAccessToken;
+    try {
+      return (await this.refreshUpstreamIfNeeded(family, true)).upstreamAccessToken;
+    } catch (cause) {
+      if (cause instanceof UpstreamRefreshRefused) throw cause;
+      throw new EdgeGate('The identity provider is temporarily unavailable. Retry this tool call.');
+    }
   }
 
   endSession(mcpSessionId: string): void {
@@ -620,7 +630,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         expiresAt,
         refreshToken,
       );
-      const token = await this.issueAccessToken(grant.subject, grant.scope, jti, expiresAt);
+      const token = await this.issueAccessToken(grant.subject, grant.scope, jti, familyId, expiresAt);
       client.proven = true;
       client.promotionReserved = false;
       client.expiresAt = now + this.activeClientTtlMs;
@@ -658,6 +668,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         family.subject,
         family.scope,
         jti,
+        family.familyId,
         boundedExpiresAt,
       );
       const consumed = this.store.consumeRefresh(
@@ -672,7 +683,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
       return tokenResponse(token, successor, family.scope, boundedExpiresAt - now);
     } catch (cause) {
-      return cause instanceof UpstreamRefreshRefused
+      return cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt
         ? oauthError('invalid_grant')
         : oauthError('temporarily_unavailable', undefined, 503);
     }
@@ -682,9 +693,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     subject: string,
     scope: string,
     jti: string,
+    familyId: string,
     expiresAt: number,
   ): Promise<string> {
     return await new SignJWT({
+      mcp_family_id: familyId,
       [this.groupsClaim]: scope.split(' ').map((value) => `${this.groupPrefix}:${value}`),
       scope,
     })
@@ -739,6 +752,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
             { cause },
           );
         }
+        this.store.releaseRefreshLease(family.familyId, owner);
         throw new Error('upstream refresh could not be completed', { cause });
       }
       if (
@@ -771,22 +785,44 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const token = stringField(await request.formData(), 'token');
     if (token !== undefined) {
       try {
-        const payload = await this.verifySignature(token);
-        if (typeof payload.jti === 'string') {
-          const now = this.now();
-          const family = this.store.familyForSession(payload.jti, now);
-          if (family !== null) {
-            this.store.revokeFamily(family.familyId, now);
-            await this.revokeRefreshToken(family.upstreamRefreshToken);
-          } else {
-            this.store.revokeSessionFamily(payload.jti, now);
-          }
+        let family: FamilyRecord | null = null;
+        try {
+          const payload = await this.verifyRevocationSignature(token);
+          family =
+            typeof payload['mcp_family_id'] === 'string'
+              ? this.store.family(payload['mcp_family_id'])
+              : typeof payload.jti === 'string'
+                ? this.store.familyForSessionId(payload.jti)
+                : null;
+        } catch {
+          family = this.store.familyForRefreshToken(token);
+        }
+        if (family !== null) {
+          this.store.revokeFamily(family.familyId, this.now());
+          await this.revokeRefreshToken(family.upstreamRefreshToken);
         }
       } catch {
         // RFC 7009 does not reveal whether the presented token was valid.
       }
     }
     return new Response(null, { status: 200 });
+  }
+
+  private async verifyRevocationSignature(token: string): Promise<JWTPayload> {
+    const kid = decodeProtectedHeader(token).kid;
+    const key =
+      kid === this.keyId
+        ? this.publicKey
+        : kid === this.previousKeyId
+          ? this.previousPublicKey
+          : undefined;
+    if (key === undefined) throw new Error('MCP token uses an unknown signing key');
+    const verified = await compactVerify(token, key, { algorithms: ['RS256'] });
+    const payload = JSON.parse(Buffer.from(verified.payload).toString('utf8')) as JWTPayload;
+    const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (payload.iss !== this.issuer || !audience.includes(this.audience))
+      throw new Error('MCP token uses the wrong issuer or audience');
+    return payload;
   }
 
   private async verifySignature(token: string): Promise<JWTPayload> {

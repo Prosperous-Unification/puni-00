@@ -24,6 +24,8 @@ export interface FamilyRecord extends FamilyInput {
   readonly leaseUntil: number | null;
   readonly version: number;
 }
+export class McpRefreshFamilyCorrupt extends Error {}
+
 export type RefreshResult =
   | { readonly outcome: 'ok'; readonly family: FamilyRecord }
   | { readonly outcome: 'invalid' | 'reuse' };
@@ -177,6 +179,23 @@ export class McpSessionStore {
     return { outcome: 'ok', family: this.familyOf(row) };
   }
 
+  familyForSessionId(jti: string): FamilyRecord | null {
+    const row = this.db
+      .query('SELECT f.* FROM mcp_session s JOIN mcp_family f USING (family_id) WHERE s.jti = ?')
+      .get(jti) as Row | null;
+    return row === null ? null : this.familyOf(row);
+  }
+
+  familyForRefreshToken(token: string): FamilyRecord | null {
+    const row = this.db
+      .query(
+        `SELECT f.* FROM mcp_refresh r JOIN mcp_family f USING (family_id)
+        WHERE r.token_digest = ?`,
+      )
+      .get(digestOf(token)) as Row | null;
+    return row === null ? null : this.familyOf(row);
+  }
+
   sessionCount(now: number): number {
     this.db.query('DELETE FROM mcp_session WHERE expires_at <= ?').run(now);
     const row = this.db.query('SELECT COUNT(*) AS count FROM mcp_session').get() as {
@@ -229,6 +248,15 @@ export class McpSessionStore {
         : null;
     })() as Row | null;
     return row === null ? null : this.familyOf(row);
+  }
+
+  releaseRefreshLease(familyId: string, owner: string): void {
+    this.db
+      .query(
+        `UPDATE mcp_family SET lease_owner = NULL, lease_until = NULL
+        WHERE family_id = ? AND lease_owner = ?`,
+      )
+      .run(familyId, owner);
   }
 
   finishRefreshLease(
@@ -349,7 +377,10 @@ export class McpSessionStore {
       };
     } catch (cause) {
       this.revokeFamily(familyId, Date.now());
-      throw new Error(`MCP refresh family ${familyId} failed authenticated decryption`, { cause });
+      throw new McpRefreshFamilyCorrupt(
+        `MCP refresh family ${familyId} failed authenticated decryption`,
+        { cause },
+      );
     }
   }
 }

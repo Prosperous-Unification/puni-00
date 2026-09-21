@@ -1155,7 +1155,6 @@ describe('InMemoryMcpOAuth', () => {
         }),
       );
     expect((await request())?.status).toBe(503);
-    advance(5_001);
     expect((await request())?.status).toBe(200);
     expect(refreshCalls).toBe(2);
   });
@@ -1187,7 +1186,7 @@ describe('InMemoryMcpOAuth', () => {
     });
     const verifier = 'v'.repeat(43);
     const code = await authorizationCode(oauth, verifier);
-    const tokenResponse = await oauth.response(
+    const firstResponse = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
         body: new URLSearchParams({
           client_id: 'random-1',
@@ -1200,7 +1199,7 @@ describe('InMemoryMcpOAuth', () => {
         method: 'POST',
       }),
     );
-    const issued = (await tokenResponse?.json()) as {
+    const issued = (await firstResponse?.json()) as {
       access_token: string;
       refresh_token: string;
     };
@@ -1208,7 +1207,7 @@ describe('InMemoryMcpOAuth', () => {
 
     const revoked = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
-        body: new URLSearchParams({ token }),
+        body: new URLSearchParams({ token: issued.refresh_token }),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         method: 'POST',
       }),
@@ -1229,23 +1228,39 @@ describe('InMemoryMcpOAuth', () => {
     );
     expect(refreshAfterRevoke?.status).toBe(400);
 
-    const secondCode = await authorizationCode(oauth, verifier);
-    const secondResponse = await oauth.response(
+    const second = await completedAuthorization(oauth, verifier);
+    const secondCode =
+      new URL(second.response.headers.get('location') ?? 'https://invalid').searchParams.get(
+        'code',
+      ) ?? '';
+    const secondResponse = await tokenResponse(oauth, second.clientId, secondCode, verifier);
+    const secondIssued = (await secondResponse?.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    advance(3_600_001);
+    expect(oauth.verify(secondIssued.access_token)).rejects.toThrow();
+    const expiredRevocation = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
+        body: new URLSearchParams({ token: secondIssued.access_token }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(expiredRevocation?.status).toBe(200);
+    expect(upstreamRevocations).toEqual(['upstream-refresh-token', 'upstream-refresh-token']);
+    const refreshAfterExpiry = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
         body: new URLSearchParams({
           client_id: 'random-8',
-          code: secondCode,
-          code_verifier: verifier,
-          grant_type: 'authorization_code',
-          redirect_uri: CALLBACK,
+          grant_type: 'refresh_token',
+          refresh_token: secondIssued.refresh_token,
         }),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         method: 'POST',
       }),
     );
-    const secondToken = ((await secondResponse?.json()) as { access_token: string }).access_token;
-    advance(300_001);
-    expect(oauth.verify(secondToken)).rejects.toThrow();
+    expect(refreshAfterExpiry?.status).toBe(400);
   });
 
   // Proof: returning provider failures locally strands the MCP client on the
