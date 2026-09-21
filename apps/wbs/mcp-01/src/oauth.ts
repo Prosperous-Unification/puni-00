@@ -654,7 +654,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const jti = this.random();
     try {
       const family = await this.refreshUpstreamIfNeeded(prepared.family);
-      const token = await this.issueAccessToken(family.subject, family.scope, jti, boundedExpiresAt);
+      const token = await this.issueAccessToken(
+        family.subject,
+        family.scope,
+        jti,
+        boundedExpiresAt,
+      );
       const consumed = this.store.consumeRefresh(
         refreshToken,
         clientId,

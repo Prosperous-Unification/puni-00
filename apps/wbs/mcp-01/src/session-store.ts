@@ -161,8 +161,7 @@ export class McpSessionStore {
         FROM mcp_refresh r JOIN mcp_family f USING (family_id) WHERE r.token_digest = ?`,
       )
       .get(digestOf(token)) as Row | null;
-    if (row === null || String(row['client_id']) !== clientId)
-      return { outcome: 'invalid' };
+    if (row === null || String(row['client_id']) !== clientId) return { outcome: 'invalid' };
     const familyId = String(row['family_id']);
     if (row['consumed_at'] !== null) {
       this.revokeFamily(familyId, now);
@@ -191,9 +190,9 @@ export class McpSessionStore {
   }
 
   revokeSessionFamily(jti: string, now: number): void {
-    const row = this.db
-      .query('SELECT family_id FROM mcp_session WHERE jti = ?')
-      .get(jti) as { family_id: string } | null;
+    const row = this.db.query('SELECT family_id FROM mcp_session WHERE jti = ?').get(jti) as {
+      family_id: string;
+    } | null;
     if (row !== null) this.revokeFamily(row.family_id, now);
   }
 
