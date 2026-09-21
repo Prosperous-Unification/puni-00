@@ -254,6 +254,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     return (await this.callerSessionFor(token)).upstreamToken;
   }
 
+  async refreshSession(mcpSessionId: string): Promise<string> {
+    const family = this.store.familyForSession(mcpSessionId, this.now());
+    if (family === null) throw new Error('MCP OAuth session is missing, expired, or revoked');
+    return (await this.refreshUpstreamIfNeeded(family, true)).upstreamAccessToken;
+  }
+
   endSession(mcpSessionId: string): void {
     this.store.endSession(mcpSessionId);
   }
@@ -444,8 +450,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       return this.failLogin(pending.authorization, 'server_error');
     }
     let identity: OidcIdentity;
+    let upstreamExpiresAt: number;
     try {
       const upstreamClaims: JwtClaims = await this.verifyUpstream(tokens.accessToken);
+      upstreamExpiresAt = upstreamExpiryOf(tokens, upstreamClaims, this.now());
       identity = oidcIdentityFromClaims(upstreamClaims, {
         groupPrefix: this.groupPrefix,
         groupsClaim: this.groupsClaim,
@@ -476,7 +484,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       subject: identity.subject,
       upstreamAccessToken: tokens.accessToken,
       upstreamRefreshToken: tokens.refreshToken,
-      upstreamExpiresAt: this.now() + tokens.expiresIn * 1_000,
+      upstreamExpiresAt,
     });
     const target = new URL(pending.authorization.redirectUri);
     target.searchParams.set('code', code);
@@ -567,6 +575,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       return oauthError('invalid_grant');
     }
 
+    const now = this.now();
+    if (this.store.sessionCount(now) >= this.sessionLimit)
+      return oauthError('temporarily_unavailable', undefined, 429);
+
     let reservedPromotion = false;
     if (!client.proven) {
       const provenSourceClients = [...this.clients.values()].filter(
@@ -579,9 +591,6 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       reservedPromotion = true;
     }
 
-    const now = this.now();
-    if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
     const familyId = this.random();
     const jti = this.random();
     const refreshToken = this.random();
@@ -671,27 +680,39 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       .sign(this.privateKey);
   }
 
-  private async refreshUpstreamIfNeeded(family: FamilyRecord): Promise<FamilyRecord> {
+  private async refreshUpstreamIfNeeded(
+    family: FamilyRecord,
+    force = false,
+  ): Promise<FamilyRecord> {
     const now = this.now();
-    if (family.upstreamExpiresAt > now + UPSTREAM_REFRESH_EARLY_MS) return family;
+    if (!force && family.upstreamExpiresAt > now + UPSTREAM_REFRESH_EARLY_MS) return family;
     if (family.upstreamRefreshToken === undefined) {
-      if (family.upstreamExpiresAt <= now) this.store.revokeFamily(family.familyId, now);
-      return family;
+      if (!force && family.upstreamExpiresAt > now) return family;
+      this.store.revokeFamily(family.familyId, now);
+      throw new Error('upstream access cannot be refreshed; the MCP family was revoked');
     }
     const owner = this.random();
-    const leased = this.store.acquireRefreshLease(family.familyId, owner, now, now + 5_000);
+    const leased = this.store.acquireRefreshLease(
+      family.familyId,
+      family.version,
+      owner,
+      now,
+      now + 5_000,
+    );
     if (leased !== null) {
       try {
         const tokens = await this.upstream.refresh(
           leased.upstreamRefreshToken ?? family.upstreamRefreshToken,
         );
+        const upstreamClaims = await this.verifyUpstream(tokens.accessToken);
+        const upstreamExpiresAt = upstreamExpiryOf(tokens, upstreamClaims, this.now());
         if (
           !this.store.finishRefreshLease(
             family.familyId,
             owner,
             tokens.accessToken,
             tokens.refreshToken,
-            this.now() + tokens.expiresIn * 1_000,
+            upstreamExpiresAt,
           )
         )
           throw new Error('upstream refresh lease was lost');
@@ -785,7 +806,7 @@ export function mcpOAuthFromEnv(
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
 ): InMemoryMcpOAuth {
   let client: BrowserOidcClient | undefined;
-  const get = () => (client ??= browserOidcClientFromEnv(env));
+  const get = () => (client ??= browserOidcClientFromEnv(env, { allowMissingAccessExpiry: true }));
   let upstreamVerifier: TokenVerifier | undefined;
   const verifyUpstream = (token: string) =>
     (upstreamVerifier ??= oidcTokenVerifierFromEnv(env)).verify(token);
@@ -872,6 +893,19 @@ function keyIdOf(key: KeyObject): string {
   return createHash('sha256')
     .update(JSON.stringify({ e: jwk.e, kty: jwk.kty, n: jwk.n }))
     .digest('base64url');
+}
+
+function upstreamExpiryOf(
+  tokens: BrowserOidcTokenSet,
+  verifiedClaims: JwtClaims,
+  now: number,
+): number {
+  if (Number.isFinite(tokens.expiresIn) && tokens.expiresIn > 0)
+    return now + tokens.expiresIn * 1_000;
+  const expiresAt = verifiedClaims['exp'];
+  if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt) || expiresAt * 1_000 <= now)
+    throw new Error('OIDC access token has neither expiresIn nor a future verified exp');
+  return expiresAt * 1_000;
 }
 
 function tokenResponse(

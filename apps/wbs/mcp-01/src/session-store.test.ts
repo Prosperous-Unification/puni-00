@@ -1,4 +1,11 @@
-import { existsSync, mkdtempSync, readFileSync, rmdirSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -63,6 +70,14 @@ describe('McpSessionStore', () => {
     store.close();
   });
 
+  it('fails startup for a corrupt store and names MCP_STORE_PATH', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-session-store-'));
+    roots.push(root);
+    const path = join(root, 'sessions.sqlite');
+    writeFileSync(path, 'not a sqlite database');
+    expect(() => new McpSessionStore(path, [KEY])).toThrow(/MCP_STORE_PATH.*corrupt/);
+  });
+
   it('survives a process-style close and reopen', () => {
     const { now, path, store } = fixture();
     store.close();
@@ -106,11 +121,30 @@ describe('McpSessionStore', () => {
   it('lets exactly one of two connections acquire an upstream refresh lease', () => {
     const { now, path, store } = fixture();
     const other = new McpSessionStore(path, [KEY]);
-    const winners = [
-      store.acquireRefreshLease('family-1', 'owner-a', now, now + 5_000),
-      other.acquireRefreshLease('family-1', 'owner-b', now, now + 5_000),
-    ].filter((value) => value !== null);
-    expect(winners).toHaveLength(1);
+    const attempts = [
+      { owner: 'owner-a', store },
+      { owner: 'owner-b', store: other },
+    ].map(({ owner, store: connection }) => ({
+      connection,
+      owner,
+      lease: connection.acquireRefreshLease('family-1', 0, owner, now, now + 5_000),
+    }));
+    let providerCalls = 0;
+    for (const attempt of attempts) {
+      if (attempt.lease === null) continue;
+      providerCalls += 1;
+      expect(
+        attempt.connection.finishRefreshLease(
+          'family-1',
+          attempt.owner,
+          'refreshed-access',
+          'rotated-refresh',
+          now + 300_000,
+        ),
+      ).toBeTrue();
+    }
+    expect(providerCalls).toBe(1);
+    expect(other.family('family-1')?.upstreamAccessToken).toBe('refreshed-access');
     other.close();
     store.close();
   });

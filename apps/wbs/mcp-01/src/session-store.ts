@@ -171,6 +171,7 @@ export class McpSessionStore {
 
   acquireRefreshLease(
     familyId: string,
+    expectedVersion: number,
     owner: string,
     now: number,
     until: number,
@@ -186,7 +187,7 @@ export class McpSessionStore {
           `UPDATE mcp_family SET lease_owner = ?, lease_until = ?, version = version + 1
         WHERE family_id = ? AND version = ? AND (lease_until IS NULL OR lease_until < ?)`,
         )
-        .run(owner, until, familyId, Number(current['version']), now);
+        .run(owner, until, familyId, expectedVersion, now);
       return changed.changes === 1
         ? this.db.query('SELECT * FROM mcp_family WHERE family_id = ?').get(familyId)
         : null;

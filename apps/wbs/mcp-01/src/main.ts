@@ -21,6 +21,7 @@ const http = startHttpServer(
       endSession: (sessionId) => {
         oauth.endSession(sessionId);
       },
+      refreshSession: (sessionId) => oauth.refreshSession(sessionId),
     }),
   config,
   verifier,

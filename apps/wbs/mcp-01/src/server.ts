@@ -66,6 +66,7 @@ export interface ServerDeps {
   readonly fetchImpl?: FetchLike;
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
   readonly endSession?: (mcpSessionId: string) => void;
+  readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
 }
 
 const errorText = (message: string): ToolTextResult => ({
@@ -105,7 +106,7 @@ const asCallToolResult = (
  */
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
 export function createServer(deps: ServerDeps): Server {
-  const { tools, config, fetchImpl, callerTokenOf, endSession } = deps;
+  const { tools, config, fetchImpl, callerTokenOf, endSession, refreshSession } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
@@ -159,6 +160,24 @@ export function createServer(deps: ServerDeps): Server {
     } catch (cause) {
       if (cause instanceof UpstreamRejected) {
         const sessionId = extraSessionId(extra.authInfo);
+        if (sessionId !== null && refreshSession !== undefined) {
+          try {
+            const refreshedToken = await refreshSession(sessionId);
+            return asCallToolResult(
+              await callTool(
+                tool,
+                request.params.arguments ?? {},
+                config,
+                fetchImpl,
+                refreshedToken,
+              ),
+            );
+          } catch (retryCause) {
+            if (retryCause instanceof EdgeGate)
+              return asCallToolResult(errorText(retryCause.message));
+            // A refused refresh or one refused retry ends the family below.
+          }
+        }
         if (sessionId !== null) endSession?.(sessionId);
         return asCallToolResult(
           errorText(
