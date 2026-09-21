@@ -88,6 +88,29 @@ Twilight Bureaucrat SHALL enforce K2 through K6 over kind-suffixed services and 
 - **WHEN** it imports each service kind
 - **THEN** K2 through K6 report no finding for the composition root
 
+### Requirement: Compiler-supported ambient non-code imports have no dependency target
+
+When file/module resolution finds no target for an import but the configured TypeScript program binds
+that exact import expression to an ambient module declaration, relationship extraction SHALL omit the
+import from forward and reverse dependency selectors. It SHALL NOT invent a candidate or external
+target. An unresolved import with no such compiler binding SHALL fail relationship extraction; every
+selected rule that needs the graph SHALL be unevaluated and the verdict SHALL be disallowed in every
+mode.
+
+#### Scenario: Ambient stylesheet import is compiler-supported without an asset file
+
+- **GIVEN** a configured program whose ambient declarations accept `import './styles.css'` and whose
+  candidate contains no file at that path
+- **WHEN** Twilight Bureaucrat extracts TypeScript relationships
+- **THEN** extraction succeeds and contains no forward or reverse selector for that stylesheet
+
+#### Scenario: Similar unresolved module has no ambient support
+
+- **GIVEN** the same candidate imports `./absent` and no compiler declaration binds that expression
+- **WHEN** a graph-dependent rule evaluates the candidate
+- **THEN** extraction names the unresolved source and specifier, the rule is unevaluated, and the
+  candidate is disallowed even in observe mode
+
 ### Requirement: Services are plain TypeScript
 
 A feature-service, resource-service, repository adapter, or consumer-declared store or geometry path SHALL NOT reach React, React DOM, or a package under the TanStack React scope. Frontend delivery MAY reach those packages. A declared plain-TypeScript selector that matches no candidate path SHALL leave F1 unevaluated.
