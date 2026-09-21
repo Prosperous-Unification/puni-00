@@ -20,6 +20,7 @@ export function createCalendarMarkers({
   const writes = createCalendarMarkerWrites({ projectId, api });
   const run = async (edit: CalendarMarkerEdit): Promise<void> => {
     const owner = readRefreshOwner();
+    // Proof: on 2026-09-21, removing this guard made the no-owner test record delete:launch.
     if (owner === null) return;
     /**
      * Still this reader's write: the owner it started against is still the one
@@ -27,14 +28,19 @@ export function createCalendarMarkers({
      * Both, because they fail at different moments — the owner is replaced by
      * an effect, the project and API by a render before it.
      */
+    // Proof: on 2026-09-21, omitting the owner comparison made the replaced-owner test announce marker_not_found.
+    // Proof: on 2026-09-21, omitting the active-reader comparison made the left-screen test announce marker_not_found.
     const isCurrent = (): boolean => readRefreshOwner() === owner && isActiveReader();
     try {
       await writes.send(edit);
     } catch (cause) {
+      // Proof: on 2026-09-21, removing this guard made the replaced-owner test announce marker_not_found.
       if (!isCurrent()) return;
       announceRefusal({ cause });
     }
     // A refused write rereads too: the target may have disappeared under it.
+    // Proof: on 2026-09-21, removing this guard made an accepted departed write record invalidate:markers.
+    // Proof: on 2026-09-21, returning after announceRefusal left the unit invalidation absent and the production chip drawn.
     if (isCurrent()) await owner.invalidate({ resources: writes.dirtied });
   };
   return {
