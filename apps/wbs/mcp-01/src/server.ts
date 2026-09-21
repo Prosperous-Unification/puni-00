@@ -133,6 +133,8 @@ export function createServer(deps: ServerDeps): Server {
     // never made: a protocol error, so a client cannot read the reply as a
     // result. Returning empty content here would let a caller believe the
     // operation ran and returned nothing.
+    // Proof: on 2026-09-21, routing this McpError through the reporter returned tool content;
+    // the linked client resolved instead of rejecting with InvalidParams.
     if (tool === undefined) {
       throw new McpError(
         ErrorCode.InvalidParams,
@@ -174,12 +176,18 @@ export function createServer(deps: ServerDeps): Server {
       // Deliberately not a throw. A modeled input refusal names what the caller can correct — as
       // tool content a model reads it and tries again, as a protocol exception it mostly sees
       // "the call failed". be-01's own refusals already arrive this way (D7).
+      // Proof: on 2026-09-21, bypassing this branch made undeclared input generic and called the
+      // unexpected reporter instead of preserving the specific correction text.
       if (cause instanceof ToolInputRefused) {
         return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
       }
+      // Proof: on 2026-09-21, replacing this call with a fabricated disclosure left the linked
+      // SDK reporter count at zero; invoking it twice made the production exact-one count two.
       const disclosure = reportUnexpectedToolFailure(cause);
       return asCallToolResult(
         errorText(
+          // Proof: on 2026-09-21, replacing this format with fixed synthetic public text preserved
+          // reporter safety but failed the exact generic sentence and correlation envelope.
           `${tool.name} could not be called: ${disclosure.sentence}. Reference ${disclosure.occurrenceId}.`,
         ),
       );

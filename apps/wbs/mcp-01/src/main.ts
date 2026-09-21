@@ -58,6 +58,8 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     (secret): secret is string => secret !== undefined && secret.length > 0,
   );
   const logger = deps.createLogger({ service: 'mcp-01', secrets });
+  // Proof: on 2026-09-21, passing `[]` here exposed the owned Basic credential in the production
+  // diagnostic line while the public MCP envelope remained generic.
   const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
   const oauth = deps.mcpOAuthFromEnv(config, process.env, (evidence) => {
     logger.info({ event: 'mcp_oauth_route', ...evidence }, 'MCP OAuth route');
@@ -72,6 +74,8 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
         tools,
         config,
         fetchImpl: deps.fetchImpl,
+        // Proof: on 2026-09-21, substituting a fixed disclosure callback here made the captured
+        // production server emit no sanitized operator line.
         reportUnexpectedToolFailure,
         endSession: (sessionId) => {
           oauth.endSession(sessionId);

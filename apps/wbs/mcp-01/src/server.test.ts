@@ -424,9 +424,17 @@ describe('an unexpected tool failure', () => {
       arguments: { id: 'p-1' },
     });
 
-    expect(reported).toHaveLength(1);
-    expect(toolResponse).toEqual(expected(READ.name));
-    expect(JSON.stringify(toolResponse)).not.toContain(marker);
+    // Proof: on 2026-09-21, widening declared refusals through HTTP 599 exposed this marker as
+    // tool content while leaving the reporter count at zero; this compound diff observed both.
+    expect({
+      reportCount: reported.length,
+      toolResponse,
+      markerPresent: JSON.stringify(toolResponse).includes(marker),
+    }).toEqual({
+      reportCount: 1,
+      toolResponse: expected(READ.name),
+      markerPresent: false,
+    });
   });
 
   it('reports a malformed successful body instead of returning its text', async () => {
@@ -459,10 +467,16 @@ describe('an unexpected tool failure', () => {
     });
 
     // Proof: on 2026-09-21, sending 3xx through the old refusal path exposed the marker as tool
-    // content and left this reporter count at zero.
-    expect(reported).toHaveLength(1);
-    expect(toolResponse).toEqual(expected(READ.name));
-    expect(JSON.stringify(toolResponse)).not.toContain(marker);
+    // content while leaving the reporter count at zero; this compound diff observed both.
+    expect({
+      reportCount: reported.length,
+      toolResponse,
+      markerPresent: JSON.stringify(toolResponse).includes(marker),
+    }).toEqual({
+      reportCount: 1,
+      toolResponse: expected(READ.name),
+      markerPresent: false,
+    });
   });
 
   it('reports the exact body-read rejection and returns none of its text', async () => {
