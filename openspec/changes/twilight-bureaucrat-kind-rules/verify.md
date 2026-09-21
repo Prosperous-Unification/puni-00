@@ -189,3 +189,101 @@ The original F1–F4 execution retained each red and byte restoration but omitte
 The new declaration source-reference kind assertion received its own bounded proof: only the declaration-walk call misclassified `./globals.d.ts` as ambient, and `retains an original TypeScript source path reference in its emitted public closure` failed with the exact ambient-reference error; restoration cmp 0 and separate green 1/0/23. The Task 4 reviewer independently repeated F5 with red exit 1, restore cmp 0, and green 1/0/10. Both reviews found no remaining issue.
 
 No package was published or activated. No immutable host gate was run or claimed for this Part F closure.
+
+### Part G — declaration-only JSON inputs
+
+Basis: `d749c2c7`. The artifact amendment is
+`e7dabb26bb44df547b3fc1edc1a7f8dc1c86d1f5`, the implementation is
+`9db518989bd3247869b4546daa80a1977a785761`, and the adjacent proof comments are
+`8e0a953b9773c9855479110138a83f1186aaecfd`. Closure ran at that last immutable SHA in executor
+attempt `bureaucrat-json-declarations.Task-5.20260921T174403Z`.
+
+The implementation slice selected five production CLI behaviors before production code. Its red
+ran a nonzero selection and retained the expected three mismatches: implementation-only JSON
+reached the generic declaration-emit failure, the public JSON case failed before the specific
+source/target refusal, and the multi-source bundle was published under only its first source. The
+genuine compiler-error and measured single-source/invalid-JSON bundle cases already passed. The
+prior executor's raw output and exact red pass/fail totals are not in this checkout; the planner
+must reconcile those retained artifacts rather than infer a count here.
+
+#### Failure proofs
+
+Commit `8e0a953b` records the observed production-path reds next to their owning assertions. Each
+fault was restored before that commit. The prior mutation patches, `cmp` output and individual
+green counts are not present in this checkout, so they remain planner evidence to replay; the fresh
+focused green below ran all five behavior groups together.
+
+| Proof                            | Injected production fault                                                            | Named production test and observed mismatch                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1 — JSON classification         | Forced `isJsonSource` to return false.                                               | `extracts every TypeScript declaration while retaining real JSON dependency edges` failed because targeted emit reached a compiler-classified JSON input and reported `declaration emit failed ... project.json: no diagnostic`. |
+| G2 — complete TypeScript mapping | Suppressed the callback assignment for `json-helper.ts`.                             | The same test failed with `declaration output missing ... json-helper.ts`.                                                                                                                                                       |
+| G3 — forward/reverse JSON graph  | Skipped JSON targets in the import loop.                                             | The same test's exact forward-edge assertion received `[]`; the reverse edge derives from that retained import list.                                                                                                             |
+| G4 — public closure              | Returned false instead of throwing for the missing JSON declaration dependency.      | `refuses a JSON dependency retained by the public declaration` received exit 0 and a public identity that omitted `schema.json`.                                                                                                 |
+| G5 — compiler diagnostics        | Removed the pre-emit diagnostic refusal.                                             | `refuses a genuine compiler error before declaration emit` received exit 0 instead of `TypeScript compiler failed:` for `MissingType`.                                                                                           |
+| G6 — bundled ownership           | Removed the multi-source callback refusal and mapped the bundle to the first source. | `refuses a multi-source bundled declaration` received exit 0 with only the first source represented.                                                                                                                             |
+
+#### Closure commands and results
+
+| Command                                                                                              | Result                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Five named JSON/compiler/bundle behaviors in `relationships.test.ts` with trusted repository modules | exit 0; 5 pass, 0 fail, 57 assertions; 25 filtered out.                                                                                                                                                                             |
+| Complete `relationships.test.ts` with trusted repository modules                                     | exit 0; 30 pass, 0 fail, 468 assertions.                                                                                                                                                                                            |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:typecheck --skip-nx-cache`                          | exit 0; target succeeded with cache skipped.                                                                                                                                                                                        |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache`                        | exit 0; target succeeded with cache skipped.                                                                                                                                                                                        |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:test --skip-nx-cache`                               | exit 0; 764 pass, 0 fail, 6,697 assertions across 39 files.                                                                                                                                                                         |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:build --skip-nx-cache`                              | exit 0; target succeeded with cache skipped.                                                                                                                                                                                        |
+| `NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package --skip-nx-cache`                       | executor sandbox: exit 1; 23 pass and 2 unnamed failures because `Bun.serve` received `EPERM: operation not permitted, listen`, followed by teardown of the uninitialized server. Pending planner verification outside the sandbox. |
+| Named strict OpenSpec validation before closure edits                                                | exit 0; one item, id `twilight-bureaucrat-kind-rules`, valid true, zero issues.                                                                                                                                                     |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` before closure edits           | exit 0.                                                                                                                                                                                                                             |
+
+#### Production tool-fleet extraction
+
+The production committed-candidate CLI ran at
+`8e0a953b9773c9855479110138a83f1186aaecfd` with
+`TOOL_WIKI_TRUSTED_NODE_MODULES` set to the installed `node_modules` of the unchanged integration
+worktree. `realpath` proved that trusted module directory was outside this implementation lane. The command exited 0,
+stdout was exactly one JSON document, and stderr was empty. Structural `jq` assertions proved:
+
+- exactly one import selector maps `tools/tool-fleet/src/plan.ts` through
+  `@tools/fleet-operation-plan-schema` to `infra/fleet/schemas/operation-plan.json` as a value
+  import;
+- the JSON provider's reverse edge names the same `plan.ts` source, specifier and import kind;
+- exactly one public selector exists for `plan.ts`, with three nonempty declaration entries;
+- no declaration line that is an import or export-from statement names the operation-plan JSON;
+  the JSDoc words `operation-plan bytes` were not treated as an import;
+- two TypeScript import selectors have source `infra/local/vm-lab.ts`, so the wrapper remained in
+  the configured program.
+
+The relationship command wrote its report, request and empty stderr only under the attempt's
+evidence directory. It did not publish a repository relationship or policy artifact and proves
+only extraction plus the selected public closure; it does not prove F1 or K2 through K6 evaluated.
+
+The packet's supplied compiler-API probes came from the previous planner's session directory and basis
+`d749c2c7`; they intercepted emit callbacks and wrote no emitted files. The corrected one-source
+System/outFile production baseline with explicit `rootDir` exited 0 and mapped
+`dist/bundle.d.ts`. Its valid two-source counterpart also exited 0 in the old implementation but
+mapped that bundle only to `src/index.ts`; the callback probe named both sources, establishing the
+false-success boundary now refused. The real fleet targeted probe emitted every TypeScript source,
+including `infra/local/vm-lab.ts`, while only the compiler-recognized operation-plan JSON produced
+no targeted output. The `plan.ts` declaration probe erased the JSON import. These supplied probes
+were provenance for the maintained production tests, not rerun closure gates.
+
+No JSON public identity support was added. A JSON dependency retained by an emitted public
+declaration refuses with its declaration source and JSON target.
+
+Pending planner verification: rerun `twilight-bureaucrat:test:package` where a local listener is
+permitted; reconcile or replay the prior slice's raw initial-red counts and G1 through G6
+patch/cmp/immediate-green artifacts; run the whole `tool-devsync:test` target after staging. The
+host gate is unavailable on this machine and was not run.
+
+Planner, after Part G, 2026-09-21, outside the sandbox on `8e0a953b` plus this closure:
+`NX_DAEMON=false bunx nx run twilight-bureaucrat:test:package --skip-nx-cache` exited 0 with 44 pass,
+0 fail across 6 files (the sandbox run above failed only because `Bun.serve` could not listen). The
+planner also replayed G4 by hand before the proof commit: the public JSON refusal replaced by
+`return false` made `refuses a JSON dependency retained by the public declaration` fail on
+`Expected: 1`, `Received: 0`; the file was restored and compared with `cmp`. Earlier the same day,
+from a separate checkout of `9db51898`, the production CLI over `tools/tool-fleet/tsconfig.lib.json`
+exited 0 where the unchanged tree exited 1 with an empty-detail declaration emit failure. The
+fixture this part tests against was corrected by the planner before implementation: it extends the
+fixture entrypoint instead of replacing it, and sets `outDir`, which a compiler probe over eight
+variants showed to be what makes a declaration-only emit report `emitSkipped` with no diagnostic.

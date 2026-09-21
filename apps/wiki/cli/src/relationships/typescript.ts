@@ -96,6 +96,10 @@ function formatDiagnostic(diagnostic: ts.Diagnostic): string {
   return ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
 }
 
+function isJsonSource(sourceFile: ts.SourceFile): boolean {
+  return (sourceFile.flags & ts.NodeFlags.JsonFile) !== 0;
+}
+
 function normalizedCompilerValue(value: unknown, workspace: string): unknown {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
   if (typeof value === 'string') {
@@ -414,17 +418,60 @@ function resolveDependency(
   };
 }
 
-function emitDeclarations(workspace: string, project: ParsedProject): void {
-  const emitted = new Map<string, ResolvedDeclaration>();
+function emitSourceDeclaration(
+  workspace: string,
+  project: ParsedProject,
+  sourceFile: ts.SourceFile,
+  emitted: Map<string, ResolvedDeclaration>,
+): void {
+  const sourcePath = workspacePath(workspace, sourceFile.fileName);
+  if (sourcePath === undefined) return;
+  let output: ResolvedDeclaration | undefined;
+  const emission = project.program.emit(
+    sourceFile,
+    (emittedPath, text) => {
+      const normalizedEmitted =
+        workspacePath(workspace, emittedPath) ??
+        `${sourcePath.slice(0, sourcePath.length - extname(sourcePath).length)}.d.ts`;
+      output = { sourcePath, emittedPath: normalizedEmitted, text };
+    },
+    undefined,
+    true,
+  );
+  if (emission.emitSkipped) {
+    throw new Error(
+      `TypeScript compiler declaration emit failed for ${project.configPath} source ${sourcePath}: ${emission.diagnostics.map(formatDiagnostic).join('; ') || 'no diagnostic'}`,
+    );
+  }
+  if (output === undefined) {
+    throw new Error(
+      `TypeScript declaration output missing for ${project.configPath}: ${sourcePath}`,
+    );
+  }
+  emitted.set(sourcePath, output);
+}
+
+function emitBundledDeclarations(
+  workspace: string,
+  project: ParsedProject,
+  emitted: Map<string, ResolvedDeclaration>,
+): void {
   const emission = project.program.emit(
     undefined,
     (emittedPath, text, _writeByteOrderMark, _onError, sourceFiles) => {
-      const sourceFile = sourceFiles?.[0];
-      if (sourceFile === undefined) {
+      const sourcePaths = (sourceFiles ?? [])
+        .map((sourceFile) => workspacePath(workspace, sourceFile.fileName))
+        .filter((sourcePath): sourcePath is string => sourcePath !== undefined)
+        .sort(compareText);
+      if (sourcePaths.length === 0) {
         throw new Error(`TypeScript declaration emit lost its source for ${emittedPath}`);
       }
-      const sourcePath = workspacePath(workspace, sourceFile.fileName);
-      if (sourcePath === undefined) return;
+      if (sourcePaths.length > 1) {
+        throw new Error(
+          `TypeScript bundled declaration has multiple candidate sources for ${project.configPath}: ${sourcePaths.join(', ')}`,
+        );
+      }
+      const sourcePath = sourcePaths[0];
       const normalizedEmitted =
         workspacePath(workspace, emittedPath) ??
         `${sourcePath.slice(0, sourcePath.length - extname(sourcePath).length)}.d.ts`;
@@ -439,6 +486,31 @@ function emitDeclarations(workspace: string, project: ParsedProject): void {
         .map(formatDiagnostic)
         .join('; ')}`,
     );
+  }
+}
+
+function emitDeclarations(workspace: string, project: ParsedProject): void {
+  const emitted = new Map<string, ResolvedDeclaration>();
+  if (project.options.outFile === undefined) {
+    const sources = project.program
+      .getSourceFiles()
+      .map((sourceFile) => ({
+        sourceFile,
+        sourcePath: workspacePath(workspace, sourceFile.fileName),
+      }))
+      .filter(
+        (source): source is { sourceFile: ts.SourceFile; sourcePath: string } =>
+          source.sourcePath !== undefined &&
+          !project.program.isSourceFileDefaultLibrary(source.sourceFile) &&
+          !project.program.isSourceFileFromExternalLibrary(source.sourceFile),
+      )
+      .sort((left, right) => compareText(left.sourcePath, right.sourcePath));
+    for (const { sourceFile } of sources) {
+      if (sourceFile.isDeclarationFile || isJsonSource(sourceFile)) continue;
+      emitSourceDeclaration(workspace, project, sourceFile, emitted);
+    }
+  } else {
+    emitBundledDeclarations(workspace, project, emitted);
   }
   for (const sourceFile of project.program.getSourceFiles()) {
     if (
@@ -489,9 +561,18 @@ function declarationDependencies(
   });
   // Proof: omitting carried source references kept the public selector at 1fcc9f4f... when the
   // referenced global changed; the committed-candidate CLI stale assertion failed.
-  return [...new Set([...dependencies, ...sourceReferences])].filter((path) =>
-    project.declarations.has(path),
-  );
+  return [...new Set([...dependencies, ...sourceReferences])].filter((path) => {
+    if (project.declarations.has(path)) return true;
+    const dependency = path.startsWith('external:')
+      ? undefined
+      : project.program.getSourceFile(resolve(workspace, path));
+    if (dependency !== undefined && isJsonSource(dependency)) {
+      throw new Error(
+        `TypeScript public declaration JSON dependency unsupported: ${declaration.sourcePath} -> ${path}`,
+      );
+    }
+    return false;
+  });
 }
 
 function semanticDeclarationDependencies(
