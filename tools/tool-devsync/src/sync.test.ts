@@ -827,7 +827,7 @@ describe('MCP environment prerequisite', () => {
     const envPath = join(directory, '.env');
 
     await writeFile(envPath, 'MCP_STORE_PATH=/data/mcp-session.sqlite\n');
-    expect(await assertMcpEnv(envPath)).toBeUndefined();
+    await assertMcpEnv(envPath);
 
     for (const contents of [
       'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite\n',
