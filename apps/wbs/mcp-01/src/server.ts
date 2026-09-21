@@ -66,7 +66,8 @@ export interface ServerDeps {
   /** Injectable for the round trip in `server.test.ts`; production passes none. */
   readonly fetchImpl?: FetchLike;
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
-  readonly endSession?: (mcpSessionId: string) => void;
+  readonly endSession?: (mcpSessionId: string) => void | Promise<void>;
+  readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
   readonly reportUnexpectedToolFailure: UnexpectedToolFailureReporter;
 }
 
@@ -107,7 +108,15 @@ const asCallToolResult = (
  */
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
 export function createServer(deps: ServerDeps): Server {
-  const { tools, config, fetchImpl, callerTokenOf, endSession, reportUnexpectedToolFailure } = deps;
+  const {
+    tools,
+    config,
+    fetchImpl,
+    callerTokenOf,
+    endSession,
+    refreshSession,
+    reportUnexpectedToolFailure,
+  } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
@@ -163,7 +172,25 @@ export function createServer(deps: ServerDeps): Server {
     } catch (cause) {
       if (cause instanceof UpstreamRejected) {
         const sessionId = extraSessionId(extra.authInfo);
-        if (sessionId !== null) endSession?.(sessionId);
+        if (sessionId !== null && refreshSession !== undefined) {
+          try {
+            const refreshedToken = await refreshSession(sessionId);
+            return asCallToolResult(
+              await callTool(
+                tool,
+                request.params.arguments ?? {},
+                config,
+                fetchImpl,
+                refreshedToken,
+              ),
+            );
+          } catch (retryCause) {
+            if (retryCause instanceof EdgeGate)
+              return asCallToolResult(errorText(retryCause.message));
+            // A refused refresh or one refused retry ends the family below.
+          }
+        }
+        if (sessionId !== null) await endSession?.(sessionId);
         return asCallToolResult(
           errorText(
             sessionId === null

@@ -16,13 +16,14 @@
  * Proof: `seedApps` with an app name that has no `.env.example` throws
  * MissingEnvExampleError. See setup.test.ts.
  */
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { copyFile, readFile } from 'node:fs/promises';
+import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseEnv } from 'node:util';
 
 const ROOT = resolve(import.meta.dir, '..', '..');
-const APPS: readonly string[] = ['be-01', 'gw-01', 'fe-01'];
+const APPS: readonly string[] = ['be-01', 'gw-01', 'fe-01', 'mcp-01'];
 
 /** Thrown when a committed `.env.example` is absent, meaning a broken checkout. */
 export class MissingEnvExampleError extends Error {
@@ -57,7 +58,19 @@ export async function seedApp(app: string, root: string = ROOT): Promise<SeedOut
     }
     return 'already-present';
   }
-  await copyFile(example, target);
+  if (app === 'mcp-01') {
+    const signingKey = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { format: 'der', type: 'pkcs8' },
+      publicKeyEncoding: { format: 'der', type: 'spki' },
+    }).privateKey.toString('base64');
+    const contents = (await readFile(example, 'utf8'))
+      .replace('replace-with-base64-pkcs8', signingKey)
+      .replace('replace-with-32-byte-base64', randomBytes(32).toString('base64'));
+    await writeFile(target, contents, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  } else {
+    await copyFile(example, target);
+  }
   return 'wrote';
 }
 

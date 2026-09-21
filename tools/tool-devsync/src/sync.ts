@@ -26,7 +26,7 @@
  * is to vendor it into the archived tree (`tools/`, `libs/`) so the extraction
  * carries it -- not to reintroduce a borrowed install from the pinned checkout.
  */
-import { realpathSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -581,11 +581,84 @@ export function needsRestart(before: Fingerprint, after: Fingerprint): boolean {
 // Proof: restoring the pre-move default made sync.test.ts resolve MCP_ENV to
 // the removed app root while the real deploy preflight remained namespaced.
 export const MCP_ENV = `${SRC}/apps/wbs/mcp-01/.env`;
+const MCP_REQUIRED_ENV = [
+  'PORT',
+  'MCP_AUTH_MODE',
+  'WBS_API_URL',
+  'MCP_PUBLIC_URL',
+  'MCP_SIGNING_KEY_CURRENT',
+  'MCP_STORE_KEY_CURRENT',
+  'MCP_STORE_PATH',
+  'MCP_ACCESS_TOKEN_TTL',
+] as const;
 
+/** Enforces the same private, complete MCP deployment environment as the manual preflight. */
 export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
-  if (!(await Bun.file(path).exists())) {
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
     throw new Error(`missing ${path}; seed the gitignored mcp-01 environment before deploying`);
   }
+  if ((statSync(path).mode & 0o777) !== 0o600) {
+    throw new Error(`MCP environment must have mode 600: ${path}`);
+  }
+  const lines = (await file.text()).split(/\r?\n/);
+  for (const key of MCP_REQUIRED_ENV) {
+    const assignments = lines.filter((line) =>
+      new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`).test(line),
+    );
+    if (assignments.length !== 1 || !new RegExp(`^${key}=.+$`).test(assignments[0] ?? '')) {
+      throw new Error(`${path} must contain exactly one non-empty ${key}=... assignment`);
+    }
+  }
+  if (!lines.includes('MCP_STORE_PATH=/data/mcp-session.sqlite')) {
+    throw new Error(
+      `${path} must contain MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`,
+    );
+  }
+}
+
+export interface McpProbeInput {
+  exposureExpected: '0' | '1';
+  bunPath: string;
+  probePath: string;
+  origin: string;
+}
+
+export async function runMcpDeploymentProbe(
+  input: McpProbeInput,
+  run: (input: McpProbeInput) => Promise<void> = async ({
+    exposureExpected,
+    bunPath,
+    probePath,
+    origin,
+  }) => {
+    await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} BUN=${bunPath} bash ${probePath} ${origin}`;
+  },
+): Promise<void> {
+  await run(input);
+}
+
+export async function mcpExposureExpected(statePath: string): Promise<'0' | '1'> {
+  const path = join(statePath, 'mcp-exposure');
+  let state: ReturnType<typeof statSync>;
+  try {
+    state = statSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '0';
+    throw new Error(`unreadable MCP exposure state: ${path}`, { cause: error });
+  }
+  if (!state.isFile()) throw new Error(`unreadable MCP exposure state: ${path}`);
+  try {
+    if ((await Bun.file(path).text()).replace(/\n+$/, '') !== 'enabled') {
+      throw new Error(`malformed MCP exposure state: ${path}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('malformed MCP exposure state:')) {
+      throw error;
+    }
+    throw new Error(`unreadable MCP exposure state: ${path}`, { cause: error });
+  }
+  return '1';
 }
 
 /** sha256 of a file, or of a directory's recursive listing plus contents. */
@@ -616,6 +689,7 @@ export interface DevSyncOptions extends Partial<DevSyncPaths> {
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
+  const exposureExpected = paths.rehearsal ? '0' : await mcpExposureExpected(paths.statePath);
   const before = await fingerprint(paths.sourcePath);
   const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);
 
@@ -646,8 +720,6 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
     console.log('[dev-sync] code only: watchers pick it up, nothing restarted');
   }
 
-  console.log(`[dev-sync] dev now at ${head}`);
-
   const containerAfter = await fingerprint(paths.sourcePath, RECREATE_PATHS);
   const containerMoved = RECREATE_PATHS.filter((p) => containerBefore[p] !== containerAfter[p]);
   if (containerMoved.length > 0) {
@@ -659,6 +731,17 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
         '  Apply it: ssh h2puni "cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d"',
     );
   }
+
+  if (!paths.rehearsal) {
+    await runMcpDeploymentProbe({
+      exposureExpected,
+      bunPath: process.execPath,
+      probePath: join(paths.sourcePath, 'bin/dev-mcp-probe.sh'),
+      origin: 'https://dev.wbs.bulletpoints.club',
+    });
+  }
+
+  console.log(`[dev-sync] dev now at ${head}`);
 }
 
 export interface DevSyncInvocation {

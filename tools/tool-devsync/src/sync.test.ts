@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -20,6 +20,7 @@ import {
   LIVE_DEV_STATE,
   LOCK_BUSY_EXIT_CODE,
   MCP_ENV,
+  mcpExposureExpected,
   needsRestart,
   parseDevSyncInvocation,
   preflightSolver,
@@ -27,6 +28,7 @@ import {
   requireSolverImageInHost,
   RESTART_PATHS,
   runDevSyncLock,
+  runMcpDeploymentProbe,
   SOLVER_COMPATIBILITY_PATHS,
   solverPreflightDependencies,
   solverTargetDependencies,
@@ -324,6 +326,23 @@ describe('dev supervisor', () => {
     // Proof: restoring sync.ts's default to `src/apps/mcp-01/.env` failed this
     // exact production default assertion without reading a live remote file.
     expect(MCP_ENV).toBe('/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env');
+  });
+
+  it('runs the semantic MCP probe before reporting automatic deploy success', async () => {
+    const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
+    const exposureAt = source.indexOf('await mcpExposureExpected(paths.statePath)');
+    const fetchAt = source.indexOf('git -C ${paths.sourcePath} fetch --quiet origin');
+    const resetAt = source.indexOf('git -C ${paths.sourcePath} rev-parse HEAD');
+    const probeAt = source.indexOf('bin/dev-mcp-probe.sh');
+    const successAt = source.indexOf('[dev-sync] dev now at');
+
+    expect(exposureAt).toBeGreaterThan(-1);
+    expect(fetchAt).toBeGreaterThan(exposureAt);
+    expect(probeAt).toBeGreaterThan(resetAt);
+    expect(successAt).toBeGreaterThan(probeAt);
+    // Proof: dropping the explicit managed-Bun binding made the cron-PATH
+    // process test pass in isolation while the production invocation failed.
+    expect(source).toContain('bunPath: process.execPath');
   });
 
   it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
@@ -820,6 +839,87 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('MCP environment prerequisite', () => {
+  // Proof: checking existence alone allowed the automatic poller to deploy a
+  // host-only path that the wbs-dev-src container cannot open.
+  it('requires exactly one durable in-container MCP store path', async () => {
+    const directory = await scratchAsync('wbs-mcp-store-path-');
+    const envPath = join(directory, '.env');
+
+    const valid = [
+      'PORT=3300',
+      'MCP_AUTH_MODE=standalone',
+      'WBS_API_URL=http://localhost:3100',
+      'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+      'MCP_SIGNING_KEY_CURRENT=signing-key',
+      'MCP_STORE_KEY_CURRENT=store-key',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite',
+      'MCP_ACCESS_TOKEN_TTL=3600',
+    ].join('\n');
+    await writeFile(envPath, `${valid}\n`);
+    await chmod(envPath, 0o600);
+    await assertMcpEnv(envPath);
+
+    for (const replacement of [
+      'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+      'MCP_STORE_PATH=./mcp-session.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nexport MCP_STORE_PATH=/tmp/export.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH = /tmp/spaced.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\n  MCP_STORE_PATH=/tmp/indented.sqlite',
+    ]) {
+      await writeFile(
+        envPath,
+        `${valid.replace('MCP_STORE_PATH=/data/mcp-session.sqlite', replacement)}\n`,
+      );
+      expect(await rejection(assertMcpEnv(envPath))).toMatch(/exactly one|must contain/);
+    }
+
+    await writeFile(envPath, `${valid.replace('PORT=3300', '')}\n`);
+    expect(await rejection(assertMcpEnv(envPath))).toContain('exactly one non-empty PORT');
+    await chmod(envPath, 0o644);
+    expect(await rejection(assertMcpEnv(envPath))).toContain('mode 600');
+  });
+
+  // Proof: making the production probe runner reject returned the same refusal
+  // from this awaited seam, so sync cannot reach its later success log.
+  it('propagates automatic semantic MCP probe failure', async () => {
+    const input = {
+      exposureExpected: '1' as const,
+      bunPath: '/managed/bun',
+      probePath: '/candidate/dev-mcp-probe.sh',
+      origin: 'https://dev.wbs.bulletpoints.club',
+    };
+    expect(
+      await rejection(
+        runMcpDeploymentProbe(input, (received) => {
+          expect(received).toEqual(input);
+          return Promise.reject(new Error('semantic MCP probe failed'));
+        }),
+      ),
+    ).toContain('semantic MCP probe failed');
+  });
+
+  // Proof: treating a directory or malformed marker as absent let the poller
+  // move the checkout and skip public MCP health while manual deploy refused.
+  it('reads persistent MCP exposure state for the automatic semantic probe', async () => {
+    const directory = await scratchAsync('wbs-mcp-exposure-');
+    expect(await mcpExposureExpected(directory)).toBe('0');
+    const exposure = join(directory, 'mcp-exposure');
+    for (const enabled of ['enabled', 'enabled\n', 'enabled\n\n']) {
+      await writeFile(exposure, enabled);
+      expect(await mcpExposureExpected(directory)).toBe('1');
+    }
+    await writeFile(exposure, 'maybe\n');
+    expect(await rejection(mcpExposureExpected(directory))).toContain(
+      'malformed MCP exposure state',
+    );
+    await unlink(exposure);
+    await mkdir(exposure);
+    expect(await rejection(mcpExposureExpected(directory))).toContain(
+      'unreadable MCP exposure state',
+    );
+  });
+
   it('fails clearly before restarting a supervisor that cannot start mcp-01', async () => {
     const directory = await scratchAsync('wbs-mcp-env-');
     const missing = join(directory, '.env');

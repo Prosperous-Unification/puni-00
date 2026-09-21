@@ -78,6 +78,8 @@ function oauthFixture() {
     verify: () => Promise.resolve({ iss: 'issuer', sub: 'caller' }),
     response: () => Promise.resolve(undefined),
     endSession: () => undefined,
+    // No case here ends in a be-01 401, so a refresh is a fixture fault and says so.
+    refreshSession: () => Promise.reject(new Error('this fixture holds no session to refresh')),
   };
 }
 

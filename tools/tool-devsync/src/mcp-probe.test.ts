@@ -96,6 +96,18 @@ describe('dev MCP deployment probe', () => {
     expect(result.output).toContain('MCP discovery and challenge');
   });
 
+  // Proof: using a bare `bun` made the h2puni cron PATH fail before either
+  // metadata document could be checked; the managed executable must be explicit.
+  it('uses the managed Bun when the automatic poller has a minimal PATH', async () => {
+    const server = metadataServer();
+    const result = await runProbe(`http://127.0.0.1:${String(server.port)}`, {
+      PATH: '/usr/bin:/bin',
+      BUN: process.execPath,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain('MCP discovery and challenge');
+  });
+
   it('rejects a 401 challenge that names the wrong metadata resource', async () => {
     const server = metadataServer('wrong');
     const result = await runProbe(`http://127.0.0.1:${String(server.port)}`);

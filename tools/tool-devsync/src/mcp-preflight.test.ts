@@ -1,4 +1,4 @@
-import { chmod, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -10,6 +10,10 @@ const VALID_ENV = [
   'MCP_AUTH_MODE=standalone',
   'WBS_API_URL=http://localhost:3100',
   'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+  'MCP_SIGNING_KEY_CURRENT=base64-pkcs8',
+  'MCP_STORE_KEY_CURRENT=base64-store-key',
+  'MCP_STORE_PATH=/data/mcp-session.sqlite',
+  'MCP_ACCESS_TOKEN_TTL=3600',
 ].join('\n');
 
 async function runPreflight(
@@ -49,7 +53,7 @@ describe('dev MCP preflight', () => {
     expect(missing.exitCode).not.toBe(0);
     expect(missing.output).toContain('missing MCP environment');
     expect(incomplete.exitCode).not.toBe(0);
-    expect(incomplete.output).toContain('missing required MCP_PUBLIC_URL');
+    expect(incomplete.output).toContain('exactly one non-empty MCP_PUBLIC_URL');
   });
 
   it('refuses an MCP environment whose permissions expose deployment settings', async () => {
@@ -68,6 +72,26 @@ describe('dev MCP preflight', () => {
     expect(stderr).toContain('mode 600');
   });
 
+  // Proof: before the exact-path guard, the host path exited 0 even though
+  // wbs-dev-src cannot see it because dev state is mounted at /data.
+  it('refuses host-only, relative, and duplicate MCP store paths', async () => {
+    for (const replacement of [
+      'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+      'MCP_STORE_PATH=./mcp-session.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nexport MCP_STORE_PATH=/tmp/export.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH = /tmp/spaced.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\n  MCP_STORE_PATH=/tmp/indented.sqlite',
+    ]) {
+      const result = await runPreflight(
+        VALID_ENV.replace('MCP_STORE_PATH=/data/mcp-session.sqlite', replacement),
+      );
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toMatch(/exactly one|exactly once/);
+    }
+  });
+
   // Proof: treating a missing marker as the permanent default makes every
   // post-cutover deploy skip MCP while still reporting the environment healthy.
   it('prints persistent exposure state and refuses malformed state', async () => {
@@ -79,5 +103,33 @@ describe('dev MCP preflight', () => {
     expect(afterCutover).toEqual({ exitCode: 0, output: '1\n' });
     expect(malformed.exitCode).not.toBe(0);
     expect(malformed.output).toContain('malformed MCP exposure state');
+  });
+
+  // Proof: replacing the marker with a directory or mode-000 file made the
+  // preflight's unreadability branch fail before it could print 1.
+  it('refuses non-file and unreadable MCP exposure state', async () => {
+    const directory = await scratchAsync('wbs-mcp-exposure-kind-');
+    const envPath = join(directory, '.env');
+    const exposurePath = join(directory, 'exposure');
+    await writeFile(envPath, VALID_ENV, { mode: 0o600 });
+    await mkdir(exposurePath);
+    let child = Bun.spawn(['bash', PREFLIGHT, envPath, exposurePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    let [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain('unreadable MCP exposure state');
+
+    const unreadable = join(directory, 'unreadable-exposure');
+    await writeFile(unreadable, 'enabled\n', { mode: 0o600 });
+    await chmod(unreadable, 0o000);
+    child = Bun.spawn(['bash', PREFLIGHT, envPath, unreadable], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain('unreadable MCP exposure state');
   });
 });

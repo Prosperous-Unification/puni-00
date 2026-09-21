@@ -40,12 +40,22 @@ if [ "$env_mode" != 600 ]; then
   exit 1
 fi
 
-for key in PORT MCP_AUTH_MODE WBS_API_URL MCP_PUBLIC_URL; do
-  if ! grep -Eq "^${key}=.+$" "$ENV_PATH"; then
-    printf 'missing required %s in MCP environment: %s\n' "$key" "$ENV_PATH" >&2
+for key in PORT MCP_AUTH_MODE WBS_API_URL MCP_PUBLIC_URL MCP_SIGNING_KEY_CURRENT MCP_STORE_KEY_CURRENT MCP_STORE_PATH MCP_ACCESS_TOKEN_TTL; do
+  assignment_count=$(awk -v key="$key" '
+    BEGIN { pattern = "^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=" }
+    $0 ~ pattern { count += 1 }
+    END { print count + 0 }
+  ' "$ENV_PATH")
+  if [ "$assignment_count" -ne 1 ] || ! grep -Eq "^${key}=.+$" "$ENV_PATH"; then
+    printf 'MCP environment must contain exactly one non-empty %s=... assignment: %s\n' "$key" "$ENV_PATH" >&2
     exit 1
   fi
 done
+
+if ! grep -Fxq 'MCP_STORE_PATH=/data/mcp-session.sqlite' "$ENV_PATH"; then
+  printf 'MCP_STORE_PATH must appear exactly once as MCP_STORE_PATH=/data/mcp-session.sqlite\n' >&2
+  exit 1
+fi
 
 if [ ! -e "$EXPOSURE_PATH" ]; then
   printf '0\n'

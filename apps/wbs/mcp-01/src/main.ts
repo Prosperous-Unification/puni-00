@@ -11,7 +11,8 @@ import { createUnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike } from './wbs-client';
 
 interface ApplicationOAuth extends McpOAuthHandler, TokenVerifier {
-  endSession(mcpSessionId: string): void;
+  endSession(mcpSessionId: string): void | Promise<void>;
+  refreshSession(mcpSessionId: string): Promise<string>;
 }
 
 interface HttpStartup {
@@ -77,9 +78,8 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
         // Proof: on 2026-09-21, substituting a fixed disclosure callback here made the captured
         // production server emit no sanitized operator line.
         reportUnexpectedToolFailure,
-        endSession: (sessionId) => {
-          oauth.endSession(sessionId);
-        },
+        endSession: (sessionId) => oauth.endSession(sessionId),
+        refreshSession: (sessionId) => oauth.refreshSession(sessionId),
       }),
     config,
     verifier,

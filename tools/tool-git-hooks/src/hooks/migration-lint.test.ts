@@ -12,7 +12,7 @@ it('routes staged SQL from lefthook through the moved migration root', async () 
   const config: unknown = Bun.YAML.parse(await Bun.file(new URL('lefthook.yml', WORKSPACE)).text());
   expect(config).toHaveProperty(
     'pre-commit.commands.migration-lint.glob',
-    'apps/wbs/be-01/drizzle/**/*.sql',
+    'apps/wbs/{be-01,mcp-01}/drizzle/**/*.sql',
   );
 });
 

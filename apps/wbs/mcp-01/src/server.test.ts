@@ -94,6 +94,7 @@ async function connected(
     readonly authInfo?: AuthInfo;
     readonly reportUnexpectedToolFailure?: UnexpectedToolFailureReporter;
     readonly endSession?: (mcpSessionId: string) => void;
+    readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
   } = {},
 ): Promise<{ client: Client }> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -106,11 +107,12 @@ async function connected(
     tools,
     config: CONFIG,
     fetchImpl,
-    callerTokenOf: () => 'token-abc',
+    callerTokenOf: (authInfo) => authInfo?.token ?? 'token-abc',
     reportUnexpectedToolFailure:
       options.reportUnexpectedToolFailure ??
       (() => ({ sentence: 'unused test disclosure', occurrenceId: 'UNUSED_TEST' })),
     endSession: options.endSession,
+    refreshSession: options.refreshSession,
   });
   const client = new Client({ name: 'test-client', version: '0.0.0' }, { capabilities: {} });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -157,6 +159,53 @@ describe('the round trip over MCP', () => {
     // be-01's body, passed through rather than re-serialised.
     expect(result.content).toEqual([{ type: 'text', text: '{"workItems":[]}' }]);
     expect(result.isError).toBeUndefined();
+  });
+
+  // Proof: removing the single retry leaves the first 401 as tool-error content;
+  // retrying without the refreshed token records the stale header twice.
+  it('refreshes once and retries one be-01 401 before ending the session', async () => {
+    const seen: Seen[] = [];
+    let calls = 0;
+    let refreshes = 0;
+    let ended = false;
+    const fetchImpl: FetchLike = (url, init) => {
+      calls += 1;
+      seen.push({ url, method: init.method, headers: init.headers });
+      return Promise.resolve(
+        calls === 1
+          ? new Response('{"error":"unauthorized"}', { status: 401 })
+          : Response.json({ workItems: [] }),
+      );
+    };
+    const authInfo: AuthInfo = {
+      token: 'stale-token',
+      clientId: 'person-1',
+      scopes: ['read'],
+      extra: { mcpSessionId: 'session-1' },
+    };
+    const { client } = await connected([READ], fetchImpl, {
+      authInfo,
+      endSession: () => {
+        ended = true;
+      },
+      refreshSession: (sessionId) => {
+        expect(sessionId).toBe('session-1');
+        refreshes += 1;
+        return Promise.resolve('fresh-token');
+      },
+    });
+
+    const result = await client.callTool({
+      name: READ.name,
+      arguments: { id: 'p-1' },
+    });
+    expect(result.isError).toBeUndefined();
+    expect(refreshes).toBe(1);
+    expect(seen.map((request) => request.headers['authorization'])).toEqual([
+      'Bearer stale-token',
+      'Bearer fresh-token',
+    ]);
+    expect(ended).toBeFalse();
   });
 
   it('forwards a refused batch whole: the code, and the index and kind beside it (D7)', async () => {

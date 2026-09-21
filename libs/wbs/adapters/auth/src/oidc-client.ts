@@ -131,7 +131,10 @@ type Environment = Readonly<Record<string, string | undefined>>;
  */
 export function browserOidcClientFromEnv(
   env: Environment,
-  options: { discover?: () => Promise<Configuration> } = {},
+  options: {
+    allowMissingAccessExpiry?: boolean;
+    discover?: () => Promise<Configuration>;
+  } = {},
 ): BrowserOidcClient {
   const issuer = new URL(required(env, 'AUTH_ISSUER_DISCOVERY_URL'));
   const clientId = required(env, 'AUTH_CLIENT_ID');
@@ -169,10 +172,13 @@ export function browserOidcClientFromEnv(
         expectedState: checks.state,
         pkceCodeVerifier: checks.verifier,
       });
-      return tokenSet(result);
+      return tokenSet(result, options.allowMissingAccessExpiry === true);
     },
     async refresh(refreshToken) {
-      return tokenSet(await refreshTokenGrant(await config(), refreshToken));
+      return tokenSet(
+        await refreshTokenGrant(await config(), refreshToken),
+        options.allowMissingAccessExpiry === true,
+      );
     },
     async revoke(refreshToken) {
       const resolved = await config();
@@ -263,17 +269,20 @@ export function cacheWhileItSucceeds<T>(
   };
 }
 
-function tokenSet(result: {
-  access_token: string;
-  claims?: () => Readonly<Record<string, unknown>> | undefined;
-  expires_in?: number;
-  refresh_token?: string;
-}): BrowserOidcTokenSet {
-  if (result.expires_in === undefined || result.expires_in <= 0)
+function tokenSet(
+  result: {
+    access_token: string;
+    claims?: () => Readonly<Record<string, unknown>> | undefined;
+    expires_in?: number;
+    refresh_token?: string;
+  },
+  allowMissingAccessExpiry = false,
+): BrowserOidcTokenSet {
+  if ((result.expires_in === undefined || result.expires_in <= 0) && !allowMissingAccessExpiry)
     throw new Error('OIDC access token has no positive expiry');
   return {
     accessToken: result.access_token,
-    expiresIn: result.expires_in,
+    expiresIn: result.expires_in ?? 0,
     idTokenClaims: result.claims?.(),
     refreshToken: result.refresh_token,
   };

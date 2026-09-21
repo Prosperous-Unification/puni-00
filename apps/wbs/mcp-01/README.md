@@ -86,6 +86,24 @@ never replaced with a process-wide account. `WBS_BASIC_AUTH=user:pass` is an
 optional legacy proxy credential and is sent as `Proxy-Authorization` so it
 cannot displace the caller's Bearer header.
 
+## Durable sessions and key rotation
+
+`MCP_STORE_PATH` names the SQLite store. On dev it must be
+`/data/mcp-session.sqlite`, the path inside `wbs-dev-src` backed by the host's
+`/home/puni1/wbs-dev/data` mount; host paths are not visible inside the
+container. `MCP_STORE_KEY_CURRENT` is base64 for 32 random bytes.
+`MCP_SIGNING_KEY_CURRENT` is an RSA private key as PEM or base64 PKCS8 DER.
+`MCP_ACCESS_TOKEN_TTL` is seconds and defaults to 3600 while the live client
+refresh behavior remains unproven.
+
+Rotate either key by moving the old current value to its matching `_PREVIOUS`
+variable, installing a new current value, and restarting mcp-01. New writes use
+current; reads and token verification accept current and previous. After the
+longest 30-day refresh-family lifetime, remove previous and restart. Never
+remove previous sooner: doing so revokes still-live families or access tokens.
+The SQLite file, `-wal`, signing keys, and store keys are credentials; keep them
+mode 600 and out of the source checkout.
+
 ## Run
 
 ```sh
