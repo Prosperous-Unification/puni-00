@@ -1,10 +1,9 @@
-import type { PriorityBand } from '@wbs/domain';
+import { canEditProject, type PriorityBand } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
 import type { PriorityBandStore } from '../ports/priority-band-store';
 import type { ProjectStore } from '../ports/project-store';
 import type { Broadcaster } from './broadcast';
-import { canEdit } from './project.service';
 
 export interface PriorityBandServiceOptions {
   projects: ProjectStore;
@@ -25,7 +24,7 @@ export type PriorityBandOutcome =
  *
  * `CapacityService`'s shape, and the two things it shares with it are the two
  * that matter: the fact is a **project's**, so the write is gated by
- * {@link canEdit} rather than being open to every authenticated account the way
+ * {@link canEditProject} rather than being open to every authenticated account the way
  * the global directory is; and the announcement goes to the project named and to
  * no other.
  *
@@ -68,7 +67,7 @@ export class PriorityBandService {
   ): Promise<PriorityBandOutcome> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
     // One stamp for a replacement the store makes as one transaction: every rung
     // it writes is the same act, so no two rungs of one ladder can disagree
     // about when they were named.

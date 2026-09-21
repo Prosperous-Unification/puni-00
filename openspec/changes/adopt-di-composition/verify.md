@@ -12,9 +12,9 @@
 
 ## Failure proofs
 
-| Check                                   | Fault injected | Test that observed it | Result  |
-| --------------------------------------- | -------------- | --------------------- | ------- |
-| _(filled in by each slice as it lands)_ | -              | -                     | pending |
+| Check              | Fault injected                    | Test that observed it                      | Result                                                                                                                                          |
+| ------------------ | --------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project write gate | `canEditProject` forced to `true` | `announces nothing for a write it refused` | Failed with the expected `forbidden` value replaced by `ok: true`; 0 passed, 1 failed and 10 filtered out. Restored run: 1 passed and 0 failed. |
 
 ## Observations
 
@@ -38,3 +38,19 @@ directory.)_
 - Domain unit, lint and type-check targets passed (`slice-2-domain-nx-green.log`).
 - The R5 production-path negative belongs to slice 3. Until the six callers use the moved rule,
   forcing it to return `true` has no production path through a service.
+
+### Slice 3 — 2026-09-22
+
+- Step-0 counts: 1 `canEditProject` declaration, 5 service-side imports of `canEdit`, and 1
+  `savePlan` import of `canEdit`; the core unit, lint and type-check baseline exited 0
+  (`slice-3-step-0-core.log`).
+- Calendar marker, Capacity, Priority band, Project, Step, Work item and `savePlan` now use the
+  domain write gate. The compatibility alias count is 1. `http/project.routes.ts` remains on the
+  alias because it already imports `ProjectService` from that resource.
+- The guarded zero-import scan printed `remaining=0`.
+- With `canEditProject` forced to return `true`, `announces nothing for a write it refused` failed:
+  the expected `{ ok: false, reason: 'forbidden', about: 'project' }` was replaced by an `ok: true`
+  marker; 0 passed, 1 failed and 10 were filtered out. Evidence:
+  `can-edit-project-always-true.patch`, `can-edit-project-always-true.log`.
+- The passing bytes were restored and matched with `cmp`; the focused test then passed 1 test with
+  0 failures (`can-edit-project-restored-green.log`).

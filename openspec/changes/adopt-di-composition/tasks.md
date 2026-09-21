@@ -1,6 +1,6 @@
 ## 1. No-sideways preparations
 
-- [ ] 1.1 Move the project write gate to the domain library as `canEditProject`, point Calendar
+- [x] 1.1 Move the project write gate to the domain library as `canEditProject`, point Calendar
       marker, Capacity, Priority band, Step, Work item and `savePlan` at it, and keep `canEdit` as a
       compatibility export of the Project resource. Proof: `libs/wbs/domain/domain/src/project-ownership.test.ts`;
       negative: `announces nothing for a write it refused` in

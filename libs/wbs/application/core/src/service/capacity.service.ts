@@ -1,8 +1,9 @@
+import { canEditProject } from '@wbs/domain';
+
 import type { CapacityStore, TeamCapacity } from '../ports/capacity-store';
 import type { Clock } from '../ports/clock';
 import type { ProjectStore } from '../ports/project-store';
 import type { Broadcaster } from './broadcast';
-import { canEdit } from './project.service';
 
 export interface CapacityServiceOptions {
   projects: ProjectStore;
@@ -42,7 +43,7 @@ export class CapacityService {
    * Sets this project's capacity for one team, or clears it to unstated on
    * `null`.
    *
-   * **Gated by {@link canEdit}**, unlike C2's `resizeTeam` was. The two are not
+   * **Gated by {@link canEditProject}**, unlike C2's `resizeTeam` was. The two are not
    * inconsistent: C2 wrote a row in the global directory, which every account may
    * edit, and this writes a number that moves one project's dates — which is
    * exactly the class of write `ProjectService.update` and every work-item
@@ -81,7 +82,7 @@ export class CapacityService {
   ): Promise<CapacityOutcome> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.capacity.set(projectId, serviceTeamId, size, stamp);
     // The store read both ids inside its own transaction, so this is the team
