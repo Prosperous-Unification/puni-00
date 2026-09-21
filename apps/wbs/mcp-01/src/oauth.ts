@@ -13,6 +13,7 @@ import {
   type BrowserOidcClient,
   browserOidcClientFromEnv,
   type BrowserOidcTokenSet,
+  classifyOidcFailure,
   type JwtClaims,
   type OidcIdentity,
   oidcIdentityFromClaims,
@@ -41,6 +42,8 @@ const MAX_STATE_BYTES = 512;
 const MAX_REDIRECT_URIS = 10;
 const MAX_REDIRECT_URI_BYTES = 512;
 const MAX_REAUTH_MARKERS = 1_000;
+
+class UpstreamRefreshRefused extends Error {}
 
 type CallbackError =
   | 'access_denied'
@@ -261,7 +264,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   }
 
   endSession(mcpSessionId: string): void {
-    this.store.endSession(mcpSessionId);
+    this.store.revokeSessionFamily(mcpSessionId, this.now());
   }
 
   private async verifyLocal(token: string): Promise<JwtClaims> {
@@ -637,27 +640,37 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const now = this.now();
     if (this.store.sessionCount(now) >= this.sessionLimit)
       return oauthError('temporarily_unavailable', undefined, 429);
-    const successor = this.random();
-    const jti = this.random();
     const expiresAt = now + this.accessTtlMs;
-    const consumed = this.store.consumeRefresh(
-      refreshToken,
-      clientId,
-      successor,
-      jti,
-      expiresAt,
-      now + REFRESH_IDLE_MS,
-      now,
-    );
-    if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
-    const boundedExpiresAt = Math.min(expiresAt, consumed.family.absoluteExpiresAt);
-    if (boundedExpiresAt <= now) {
-      this.store.endSession(jti);
+    let prepared: ReturnType<McpSessionStore['prepareRefresh']>;
+    try {
+      prepared = this.store.prepareRefresh(refreshToken, clientId, now);
+    } catch {
       return oauthError('invalid_grant');
     }
-    const family = await this.refreshUpstreamIfNeeded(consumed.family);
-    const token = await this.issueAccessToken(family.subject, family.scope, jti, boundedExpiresAt);
-    return tokenResponse(token, successor, family.scope, boundedExpiresAt - now);
+    if (prepared.outcome !== 'ok') return oauthError('invalid_grant');
+    const boundedExpiresAt = Math.min(expiresAt, prepared.family.absoluteExpiresAt);
+    if (boundedExpiresAt <= now) return oauthError('invalid_grant');
+    const successor = this.random();
+    const jti = this.random();
+    try {
+      const family = await this.refreshUpstreamIfNeeded(prepared.family);
+      const token = await this.issueAccessToken(family.subject, family.scope, jti, boundedExpiresAt);
+      const consumed = this.store.consumeRefresh(
+        refreshToken,
+        clientId,
+        successor,
+        jti,
+        boundedExpiresAt,
+        now + REFRESH_IDLE_MS,
+        now,
+      );
+      if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
+      return tokenResponse(token, successor, family.scope, boundedExpiresAt - now);
+    } catch (cause) {
+      return cause instanceof UpstreamRefreshRefused
+        ? oauthError('invalid_grant')
+        : oauthError('temporarily_unavailable', undefined, 503);
+    }
   }
 
   private async issueAccessToken(
@@ -700,29 +713,37 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       now + 5_000,
     );
     if (leased !== null) {
+      let tokens: BrowserOidcTokenSet;
+      let upstreamExpiresAt: number;
       try {
-        const tokens = await this.upstream.refresh(
+        tokens = await this.upstream.refresh(
           leased.upstreamRefreshToken ?? family.upstreamRefreshToken,
         );
         const upstreamClaims = await this.verifyUpstream(tokens.accessToken);
-        const upstreamExpiresAt = upstreamExpiryOf(tokens, upstreamClaims, this.now());
-        if (
-          !this.store.finishRefreshLease(
-            family.familyId,
-            owner,
-            tokens.accessToken,
-            tokens.refreshToken,
-            upstreamExpiresAt,
-          )
-        )
-          throw new Error('upstream refresh lease was lost');
-        const current = this.store.family(family.familyId);
-        if (current === null) throw new Error('upstream refresh family disappeared');
-        return current;
+        upstreamExpiresAt = upstreamExpiryOf(tokens, upstreamClaims, this.now());
       } catch (cause) {
-        this.store.revokeFamily(family.familyId, this.now());
-        throw new Error('upstream refresh was refused; the MCP family was revoked', { cause });
+        if (classifyOidcFailure(cause).kind === 'refused') {
+          this.store.revokeFamily(family.familyId, this.now());
+          throw new UpstreamRefreshRefused(
+            'upstream refresh was refused; the MCP family was revoked',
+            { cause },
+          );
+        }
+        throw new Error('upstream refresh could not be completed', { cause });
       }
+      if (
+        !this.store.finishRefreshLease(
+          family.familyId,
+          owner,
+          tokens.accessToken,
+          tokens.refreshToken,
+          upstreamExpiresAt,
+        )
+      )
+        throw new Error('upstream refresh lease was lost');
+      const current = this.store.family(family.familyId);
+      if (current === null) throw new Error('upstream refresh family disappeared');
+      return current;
     }
     const deadline = Date.now() + 5_000;
     while (Date.now() < deadline) {
@@ -730,7 +751,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       const current = this.store.family(family.familyId);
       if (current === null) throw new Error('MCP refresh family disappeared');
       if (current.revokedAt !== null) throw new Error('MCP refresh family was revoked');
-      if (current.upstreamExpiresAt > family.upstreamExpiresAt) return current;
+      if (current.version > family.version && current.leaseOwner === null) return current;
     }
     throw new Error('timed out waiting for the upstream refresh lease');
   }

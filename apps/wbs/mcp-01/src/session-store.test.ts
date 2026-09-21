@@ -116,6 +116,68 @@ describe('McpSessionStore', () => {
     store.close();
   });
 
+  // Proof: checking reuse before client binding lets another client revoke
+  // the rightful client's entire family with an already-consumed token.
+  it('checks client binding before replay revocation', () => {
+    const { now, store } = fixture();
+    expect(
+      store.consumeRefresh(
+        'mcp-refresh-secret',
+        'client-1',
+        'successor',
+        'session-2',
+        now + 60_000,
+        now + 120_000,
+        now,
+      ).outcome,
+    ).toBe('ok');
+    expect(
+      store.consumeRefresh(
+        'mcp-refresh-secret',
+        'client-2',
+        'unused',
+        'session-3',
+        now + 60_000,
+        now + 120_000,
+        now,
+      ).outcome,
+    ).toBe('invalid');
+    expect(store.familyForSession('session-2', now)?.familyId).toBe('family-1');
+    store.close();
+  });
+
+  // Proof: decrypting inside consumeRefresh's transaction rolls this revocation
+  // back with the thrown authentication error.
+  it('commits revocation when consume finds tampered ciphertext', () => {
+    const { now, path, store } = fixture();
+    const db = new Database(path);
+    const row = db.query('SELECT upstream_access_ct AS value FROM mcp_family').get() as {
+      value: Uint8Array;
+    };
+    const tampered = Buffer.from(row.value);
+    tampered[0] = 99;
+    db.query('UPDATE mcp_family SET upstream_access_ct = ?').run(tampered);
+    db.close();
+    expect(() =>
+      store.consumeRefresh(
+        'mcp-refresh-secret',
+        'client-1',
+        'successor',
+        'session-2',
+        now + 60_000,
+        now + 120_000,
+        now,
+      ),
+    ).toThrow(/authenticated decryption/);
+    const inspect = new Database(path);
+    expect(
+      (inspect.query('SELECT revoked_at FROM mcp_family').get() as { revoked_at: number | null })
+        .revoked_at,
+    ).not.toBeNull();
+    inspect.close();
+    store.close();
+  });
+
   // Proof: replacing the compare-and-swap UPDATE with an unconditional update
   // makes both connections acquire the lease.
   it('lets exactly one of two connections acquire an upstream refresh lease', () => {

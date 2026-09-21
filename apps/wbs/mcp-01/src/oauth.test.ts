@@ -1082,7 +1082,8 @@ describe('InMemoryMcpOAuth', () => {
       refresh: (refreshToken) => {
         expect(refreshToken).toBe('upstream-refresh-token');
         providerCalls += 1;
-        return Promise.resolve({ accessToken: 'fresh-upstream-token', expiresIn: 300 });
+        // Same effective expiry as the original token: completion is detected by version, not time.
+        return Promise.resolve({ accessToken: 'fresh-upstream-token', expiresIn: 119 });
       },
       verifyUpstream: (token) =>
         token === 'upstream-okta-token' || token === 'fresh-upstream-token'
@@ -1108,6 +1109,55 @@ describe('InMemoryMcpOAuth', () => {
       'fresh-upstream-token',
       'fresh-upstream-token',
     ]);
+  });
+
+  // Proof: consuming before provider work makes a retry of the same token look
+  // like replay after a transient provider failure.
+  it('keeps a refresh token retryable after a transient upstream failure', async () => {
+    let refreshCalls = 0;
+    const { advance, oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 121,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      refresh: () => {
+        refreshCalls += 1;
+        return refreshCalls === 1
+          ? Promise.reject(new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } }))
+          : Promise.resolve({ accessToken: 'fresh-upstream-token', expiresIn: 300 });
+      },
+      verifyUpstream: (token) =>
+        Promise.resolve({
+          iss: 'https://idp.example',
+          sub: 'person-1',
+          wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+          ...(token === 'fresh-upstream-token' ? {} : {}),
+        }),
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const refreshToken = ((await issued.json()) as { refresh_token: string }).refresh_token;
+    advance(2_000);
+
+    const request = () =>
+      oauth.response(
+        new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+          body: new URLSearchParams({
+            client_id: 'random-1',
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+          }),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          method: 'POST',
+        }),
+      );
+    expect((await request())?.status).toBe(503);
+    advance(5_001);
+    expect((await request())?.status).toBe(200);
+    expect(refreshCalls).toBe(2);
   });
 
   // Break caught: replacing the original standalone JWKS verifier with only

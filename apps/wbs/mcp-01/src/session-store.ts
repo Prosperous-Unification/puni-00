@@ -39,6 +39,7 @@ export class McpSessionStore {
       throw new Error('MCP_STORE_KEY_CURRENT must decode to exactly 32 bytes');
     try {
       this.db = new Database(path, { create: true, strict: true });
+      this.db.run('PRAGMA busy_timeout = 5000');
       this.db.run('PRAGMA journal_mode = WAL');
       this.db.run('PRAGMA foreign_keys = ON');
       this.db.run('PRAGMA synchronous = FULL');
@@ -106,7 +107,7 @@ export class McpSessionStore {
     idleExpiresAt: number,
     now: number,
   ): RefreshResult {
-    return this.db.transaction(() => {
+    const result = this.db.transaction(() => {
       const digest = digestOf(token);
       const row = this.db
         .query(
@@ -116,13 +117,13 @@ export class McpSessionStore {
         .get(digest) as Row | null;
       if (row === null) return { outcome: 'invalid' as const };
       const familyId = String(row['family_id']);
+      if (String(row['client_id']) !== clientId) return { outcome: 'invalid' as const };
       if (row['consumed_at'] !== null) {
         this.revokeFamily(familyId, now);
         return { outcome: 'reuse' as const };
       }
       if (
         Number(row['expires_at']) <= now ||
-        String(row['client_id']) !== clientId ||
         row['revoked_at'] !== null ||
         Number(row['idle_expires_at']) <= now ||
         Number(row['absolute_expires_at']) <= now
@@ -142,10 +143,38 @@ export class McpSessionStore {
         Math.min(sessionExpiresAt, Number(row['absolute_expires_at'])),
       );
       return {
-        outcome: 'ok' as const,
-        family: this.familyOf({ ...row, idle_expires_at: boundedIdle }),
+        outcome: 'row' as const,
+        row: { ...row, idle_expires_at: boundedIdle },
       };
     })();
+    if (result.outcome !== 'row') return result;
+    // Decrypt only after the write transaction commits. If authentication fails,
+    // familyOf's revocation must survive instead of being rolled back with it.
+    return { outcome: 'ok', family: this.familyOf(result.row) };
+  }
+
+  prepareRefresh(token: string, clientId: string, now: number): RefreshResult {
+    const row = this.db
+      .query(
+        `SELECT r.family_id, r.consumed_at, r.expires_at, f.*
+        FROM mcp_refresh r JOIN mcp_family f USING (family_id) WHERE r.token_digest = ?`,
+      )
+      .get(digestOf(token)) as Row | null;
+    if (row === null || String(row['client_id']) !== clientId)
+      return { outcome: 'invalid' };
+    const familyId = String(row['family_id']);
+    if (row['consumed_at'] !== null) {
+      this.revokeFamily(familyId, now);
+      return { outcome: 'reuse' };
+    }
+    if (
+      Number(row['expires_at']) <= now ||
+      row['revoked_at'] !== null ||
+      Number(row['idle_expires_at']) <= now ||
+      Number(row['absolute_expires_at']) <= now
+    )
+      return { outcome: 'invalid' };
+    return { outcome: 'ok', family: this.familyOf(row) };
   }
 
   sessionCount(now: number): number {
@@ -158,6 +187,13 @@ export class McpSessionStore {
 
   endSession(jti: string): void {
     this.db.query('DELETE FROM mcp_session WHERE jti = ?').run(jti);
+  }
+
+  revokeSessionFamily(jti: string, now: number): void {
+    const row = this.db
+      .query('SELECT family_id FROM mcp_session WHERE jti = ?')
+      .get(jti) as { family_id: string } | null;
+    if (row !== null) this.revokeFamily(row.family_id, now);
   }
 
   revokeFamily(familyId: string, now: number): void {
