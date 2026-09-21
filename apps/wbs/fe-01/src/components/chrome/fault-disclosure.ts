@@ -29,7 +29,7 @@ export type DisclosureLoss = 'nothing' | 'the report' | 'the selector';
  * record of it, and is the one handle a reader can quote.
  */
 export interface DisclosedFault {
-  /** Disclosed words for the reader. Never a caught value's own message. */
+  /** The generic public message or a kind selector's validated public sentence. */
   readonly sentence: string;
   /** The public report's occurrence identifier, or a local handle when reporting was lost. */
   readonly occurrenceId: string;
