@@ -248,6 +248,13 @@ describe('the app and the run resolve the same modules', () => {
     // `@wbs/validation` to a file whose only statement it cannot resolve, and
     // every file reaching it fails to collect rather than failing an assertion.
     expect(Object.keys(appAliases)).toContain('@shared/validation');
+    // The fault boundaries import `@shared/failures` for the public report they
+    // disclose; without the key in both maps `app-fault.test.tsx` fails to
+    // collect rather than failing an assertion.
+    // Proof: deleting only this alias from `vitest.config.ts` broke map parity;
+    // this case failed with `expected [ '@', '@shared/validation', …(19) ] to
+    // deeply equal [ '@', '@shared/failures', …(20) ]` (2026-09-21).
+    expect(Object.keys(appAliases)).toContain('@shared/failures');
 
     const domain = '../../../libs/wbs/domain/domain/src';
     const expected = {
@@ -275,6 +282,7 @@ describe('the app and the run resolve the same modules', () => {
         APP_ROOT,
         '../../../libs/shared/domain/validation/src/index.ts',
       ),
+      '@shared/failures': resolve(APP_ROOT, '../../../libs/shared/domain/failures/src/index.ts'),
       '@wbs/domain/priority-band': resolve(APP_ROOT, domain, 'priority-band.ts'),
       '@wbs/domain/dependency-reach': resolve(APP_ROOT, domain, 'dependency-reach.ts'),
       '@wbs/domain/external-system': resolve(APP_ROOT, domain, 'external-system.ts'),

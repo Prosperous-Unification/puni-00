@@ -194,6 +194,10 @@ export default defineConfig(({ command, mode }) => ({
         __dirname,
         '../../../libs/shared/domain/validation/src/index.ts',
       ),
+      // `@shared/failures` is the reporting policy the fault boundaries disclose
+      // through; it is `runtime:isomorphic` and has no Node import, so the same
+      // module serves the browser build and both test tiers.
+      '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
       // The same bargain a third time: `priority-band.ts` is four pure functions
       // and a constant, and the rule it holds — which band a number falls in —
       // is what be-01 validates a ladder against. A second copy here is a table
