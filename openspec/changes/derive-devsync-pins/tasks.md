@@ -12,7 +12,7 @@
 
 ## 4. Derive the depth-sensitive inventory
 
-- [ ] 4.1 Add the independently derived enumeration with its parse-error boundary, prove it agrees with the existing totals, then replace them.
+- [x] 4.1 Add the independently derived enumeration with its parse-error boundary, prove it agrees with the existing totals, then replace them.
 
 ## 5. Prove the derived inventory still refuses a narrowed or malformed collector
 

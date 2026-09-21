@@ -56,6 +56,29 @@ over. Evidence is referenced by basename relative to that attempt's evidence dir
 - Post-record strict all-change OpenSpec validation — exit 0; `passed: 109`, `failed: 0` (`openspec-validation-c-final.olCR6i.json`).
 - `NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx format:check --all` — exit 0; the status-recording log ended `status=0` (`format-check-c-final.log`).
 
+### Slice D — derive the depth-sensitive inventory
+
+- Step 0 status, unmerged-index and pin capture — exit 0; the working tree was clean, the index had no unmerged entries, and the starting namespacing pin was digest `2f0d2926e8d85aed7089c3ad667f7a0f6ccb97c514152a9895893978fab3f22d` at 257 occurrences (`status-before.txt`, `unmerged-before.txt`, `pins-before.txt`).
+- Slice-D prerequisite and classifier-shape checks — exit 0; exactly two numeric `toHaveLength` pins and the derived `${match[0]}:${category}` context were present.
+- Filtered namespacing baseline — exit 0; `14 pass`, `1 filtered out`, `0 fail` (`sweep-before.txt`).
+- Inventory baseline — exit 0; `4 pass`, `0 fail` (`inventory-before.txt`).
+- Strict all-change OpenSpec baseline — exit 0; `passed: 109`, `failed: 0` (`openspec-validation.0mHaKJ.json`).
+- Before-state parent-relative-target experiment — exit 1 as required; changing the existing backend `serve` command from `bun --watch src/main.ts` to `bun --watch ../be-01/src/main.ts` failed the named inventory test with `Expected length: 170` and `Received length: 171`; restoration was byte-identical and returned all four inventory tests green (`inventory-target-path-before.patch`, `inventory-target-path-before.out`, `inventory-after-d0-restore.txt`).
+- Oracle-agreement checkpoint with both numeric pins still present — exit 0; the directory-walk/streaming-JSONC tuples equalled the production inventory, with `4 pass`, `0 fail` and `13 expect() calls` (`inventory-oracle-agreement.txt`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write tools/tool-devsync/src/workspace-inventory.test.ts` — exit 0; Prettier formatted the file.
+- `GSETTINGS_BACKEND=memory bunx prettier --check tools/tool-devsync/src/workspace-inventory.test.ts` — exit 0; `All matched files use Prettier code style!`.
+- Numeric-total absence and unchanged-namespacing-pin checks — exit 0; `both literals gone`, and the stripped digest/occurrence lines were byte-identical to step 0 (`remaining-literals.txt`, `remaining-literals.err`, `pins-after-d5.txt`).
+- `NX_DAEMON=false bunx nx run tool-devsync:typecheck` — exit 0 (`typecheck-d.log`).
+- `NX_DAEMON=false bunx nx run tool-devsync:lint` — exit 0 (`lint-d.log`).
+- After-state parent-relative-target experiment — exit 0 as required; the identical backend `serve` mutation passed all four inventory tests without an edit to the test, and restoration was byte-identical and green (`inventory-target-path-after.patch`, `inventory-target-path-after.out`, `inventory-after-d6-restore.txt`).
+- Final inventory run — exit 0; `4 pass`, `0 fail` (`inventory-final.txt`).
+- Final filtered namespacing sweep — exit 0; `14 pass`, `1 filtered out`, `0 fail`, matching the empty baseline failure set and with the digest and occurrence lines byte-identical to step 0 (`sweep-final.txt`, `final-failures.txt`, `pins-final.txt`).
+- Owned-file Prettier write and check after recording the slice — exit 0; all three files were unchanged and the check printed `All matched files use Prettier code style!` (`prettier-write-owned-d.out`, `prettier-check-owned-d.out`).
+- `NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx run tool-devsync:build --skip-nx-cache` — exit 0; Nx reported the build and four dependencies successful with the cache skipped (`build-d-final.log`).
+- `NX_DAEMON=false GSETTINGS_BACKEND=memory bunx nx format:check --all` — exit 0 (`format-check-d-final.log`).
+- Post-record strict all-change OpenSpec validation — exit 0; `passed: 109`, `failed: 0` (`openspec-validation-d-final.1iZNZH.json`).
+- Staged `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache` — exit 0; `359 pass`, `0 fail`, across `25 files` (`tool-devsync-test-d-staged.log`).
+
 ## Failure proofs
 
 | Fault injected                                                                                              | Test that observed it                                               | Result                                                                                                                                                                                                                                                |
