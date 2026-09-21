@@ -88,7 +88,7 @@ describe('dev MCP preflight', () => {
       );
 
       expect(result.exitCode).not.toBe(0);
-      expect(result.output).toContain('exactly once');
+      expect(result.output).toContain('exactly one');
     }
   });
 
