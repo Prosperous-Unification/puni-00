@@ -10,12 +10,13 @@
   "files": [
     "dist/",
     "README.md",
-    "NOTICE"
+    "NOTICE",
+    "LICENSE"
   ],
   "engines": {
     "bun": "1.4.2"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
