@@ -617,6 +617,27 @@ export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
   }
 }
 
+export interface McpProbeInput {
+  exposureExpected: '0' | '1';
+  bunPath: string;
+  probePath: string;
+  origin: string;
+}
+
+export async function runMcpDeploymentProbe(
+  input: McpProbeInput,
+  run: (input: McpProbeInput) => Promise<void> = async ({
+    exposureExpected,
+    bunPath,
+    probePath,
+    origin,
+  }) => {
+    await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} BUN=${bunPath} bash ${probePath} ${origin}`;
+  },
+): Promise<void> {
+  await run(input);
+}
+
 export async function mcpExposureExpected(statePath: string): Promise<'0' | '1'> {
   const path = join(statePath, 'mcp-exposure');
   let state: ReturnType<typeof statSync>;
@@ -712,8 +733,12 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
   }
 
   if (!paths.rehearsal) {
-    const probe = join(paths.sourcePath, 'bin/dev-mcp-probe.sh');
-    await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} BUN=${process.execPath} bash ${probe} https://dev.wbs.bulletpoints.club`;
+    await runMcpDeploymentProbe({
+      exposureExpected,
+      bunPath: process.execPath,
+      probePath: join(paths.sourcePath, 'bin/dev-mcp-probe.sh'),
+      origin: 'https://dev.wbs.bulletpoints.club',
+    });
   }
 
   console.log(`[dev-sync] dev now at ${head}`);

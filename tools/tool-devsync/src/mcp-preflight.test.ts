@@ -1,4 +1,4 @@
-import { chmod, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -103,5 +103,36 @@ describe('dev MCP preflight', () => {
     expect(afterCutover).toEqual({ exitCode: 0, output: '1\n' });
     expect(malformed.exitCode).not.toBe(0);
     expect(malformed.output).toContain('malformed MCP exposure state');
+  });
+
+  // Proof: replacing the marker with a directory or mode-000 file made the
+  // preflight's unreadability branch fail before it could print 1.
+  it('refuses non-file and unreadable MCP exposure state', async () => {
+    const directory = await scratchAsync('wbs-mcp-exposure-kind-');
+    const envPath = join(directory, '.env');
+    const exposurePath = join(directory, 'exposure');
+    await writeFile(envPath, VALID_ENV, { mode: 0o600 });
+    await mkdir(exposurePath);
+    let child = Bun.spawn(['bash', PREFLIGHT, envPath, exposurePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    let [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain('unreadable MCP exposure state');
+
+    const unreadable = join(directory, 'unreadable-exposure');
+    await writeFile(unreadable, 'enabled\n', { mode: 0o600 });
+    await chmod(unreadable, 0o000);
+    child = Bun.spawn(['bash', PREFLIGHT, envPath, unreadable], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain('unreadable MCP exposure state');
   });
 });

@@ -28,6 +28,7 @@ import {
   requireSolverImageInHost,
   RESTART_PATHS,
   runDevSyncLock,
+  runMcpDeploymentProbe,
   SOLVER_COMPATIBILITY_PATHS,
   solverPreflightDependencies,
   solverTargetDependencies,
@@ -341,7 +342,7 @@ describe('dev supervisor', () => {
     expect(successAt).toBeGreaterThan(probeAt);
     // Proof: dropping the explicit managed-Bun binding made the cron-PATH
     // process test pass in isolation while the production invocation failed.
-    expect(source).toContain('BUN=${process.execPath}');
+    expect(source).toContain('bunPath: process.execPath');
   });
 
   it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
@@ -877,6 +878,25 @@ describe('MCP environment prerequisite', () => {
     expect(await rejection(assertMcpEnv(envPath))).toContain('exactly one non-empty PORT');
     await chmod(envPath, 0o644);
     expect(await rejection(assertMcpEnv(envPath))).toContain('mode 600');
+  });
+
+  // Proof: making the production probe runner reject returned the same refusal
+  // from this awaited seam, so sync cannot reach its later success log.
+  it('propagates automatic semantic MCP probe failure', async () => {
+    const input = {
+      exposureExpected: '1' as const,
+      bunPath: '/managed/bun',
+      probePath: '/candidate/dev-mcp-probe.sh',
+      origin: 'https://dev.wbs.bulletpoints.club',
+    };
+    expect(
+      await rejection(
+        runMcpDeploymentProbe(input, async (received) => {
+          expect(received).toEqual(input);
+          throw new Error('semantic MCP probe failed');
+        }),
+      ),
+    ).toContain('semantic MCP probe failed');
   });
 
   // Proof: treating a directory or malformed marker as absent let the poller
