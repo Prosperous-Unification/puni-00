@@ -283,7 +283,7 @@ record.
       with plain `Error`. Its named test must show that this family is no longer
       `ToolInputRefused` while the undeclared-input and missing-path cases remain modeled. Restore
       byte-for-byte, rerun green, and add the adjacent `Proof:` comment.
-- [ ] Run `wbs-client.test.ts`; record actual totals. Run typecheck and lint before commit.
+- [ ] Run `wbs-client.test.ts`; record actual totals. Run typecheck and lint before commit. Because this slice changes the delta spec, also run `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate adopt-failure-reporting --strict --json` before committing and assert the named change is valid with no issues.
 - [ ] Commit: `refactor(wbs-mcp): classify correctable tool inputs`.
 
 ## Task 2: Add mcp-01 to the operator log contract and build the one-call reporter
