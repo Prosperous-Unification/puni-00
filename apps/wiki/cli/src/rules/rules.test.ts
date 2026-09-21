@@ -1286,6 +1286,49 @@ describe('K2, K5, K6 and F1', () => {
   }, 30_000);
 });
 
+describe('ambient non-code graph evaluation', () => {
+  const graphRuleIds = ['F1', 'K2', 'K3', 'K4', 'K5', 'K6', 'REL-EXTRACT'];
+
+  test('evaluates graph rules for an ambient non-code import without a physical asset', () => {
+    const { repository, revision } = createKindedCandidate({
+      'src/non-code.d.ts': "declare module '*.css';\n",
+      'src/m/m.feature.ts': "import './styles.css';\nexport const run = (): number => 1;\n",
+    });
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving),
+    ]);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(0);
+    const verdict = verdictOf(invocation);
+    expect(verdict.unevaluated).toEqual([]);
+    expect(verdict.findings.filter(({ ruleId }) => graphRuleIds.includes(ruleId))).toEqual([]);
+    expect(verdict.allowed).toBe(true);
+  }, 30_000);
+
+  test('keeps graph rules unevaluated without an ambient declaration even when the asset exists', () => {
+    const { repository, revision } = createKindedCandidate({
+      'src/m/m.feature.ts': "import './styles.css';\nexport const run = (): number => 1;\n",
+      'src/m/styles.css': ':root { color: black; }\n',
+    });
+    const invocation = runCli([
+      'check',
+      'committed',
+      repository,
+      revision,
+      writeCompleteRulePolicy(everyRuleObserving),
+    ]);
+    expect(invocation.exitCode, `${stdoutOf(invocation)}${stderrOf(invocation)}`).toBe(1);
+    const verdict = verdictOf(invocation);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.findings.filter(({ ruleId }) => graphRuleIds.includes(ruleId))).toEqual([]);
+    const reason = "TypeScript import unresolved: src/m/m.feature.ts -> './styles.css'";
+    expect(verdict.unevaluated).toEqual(graphRuleIds.map((ruleId) => ({ ruleId, reason })));
+  }, 30_000);
+});
+
 describe('check production CLI', () => {
   test('allows the indexed candidate under an enforced module rule and never certifies', () => {
     const { repository, revision } = createIndexedCandidate();
