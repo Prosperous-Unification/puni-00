@@ -16,6 +16,8 @@
  */
 export * from './compose';
 export * from './http/import.routes';
+export * from './module/plan-history/contract';
+export * from './module/plan-history/module';
 export * from './ports/actual-store';
 export * from './ports/calendar-marker-store';
 export * from './ports/capacity-store';
@@ -69,6 +71,7 @@ export * from './service/dependency';
 export * from './service/directory.service';
 export * from './service/directory-usage';
 export * from './service/gateway-broadcaster';
+// Compatibility export: Plan history's symbols keep their barrel names.
 export * from './service/history.service';
 export * from './service/import.service';
 export * from './service/login-throttle';

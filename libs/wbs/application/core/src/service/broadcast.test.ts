@@ -271,7 +271,7 @@ describe('a calendar marker write announces itself', () => {
     // every reader of a project to go and read a list that did not change, on
     // nothing but somebody else's rejected attempt.
     //
-    // `not-the-owner` needs a **restricted** project to be refused: `canEdit`
+    // `not-the-owner` needs a **restricted** project to be refused: `canEditProject`
     // is `!restricted || ownerId === actorId`, so a stranger writing to an
     // ordinary project is allowed here and is not the negative this case wants.
     const restricted = projectRow({

@@ -312,9 +312,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/history.service.ts",
-      "kind": "feature",
-      "capability": "core-lib-extraction",
-      "rationale": "historyRoutes calls it for the user-visible history read that coordinates ProjectStore existence with PlanEventStore filtering, an explicit history capability of the extracted core"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-history module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/import.service.ts",

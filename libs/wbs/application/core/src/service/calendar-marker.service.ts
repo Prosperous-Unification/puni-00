@@ -1,10 +1,9 @@
-import type { IsoDate } from '@wbs/domain';
+import { canEditProject, type IsoDate } from '@wbs/domain';
 
 import type { CalendarMarker, CalendarMarkerStore } from '../ports/calendar-marker-store';
 import type { Clock } from '../ports/clock';
 import type { ProjectStore } from '../ports/project-store';
 import type { Broadcaster } from './broadcast';
-import { canEdit } from './project.service';
 
 export interface CalendarMarkerServiceOptions {
   projects: ProjectStore;
@@ -91,7 +90,7 @@ export interface NewCalendarMarker {
  *
  * Reading is not gated on write permission and that is deliberate: the project
  * routes already let a non-owner **read** a restricted project, and a marker is
- * part of what the axis draws. `canEdit` gates the four writes only.
+ * part of what the axis draws. `canEditProject` gates the four writes only.
  */
 export class CalendarMarkerService {
   private readonly clock: Clock;
@@ -213,7 +212,8 @@ export class CalendarMarkerService {
   ): Promise<{ ok: true } | CalendarMarkerRefused> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found', about: 'project' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden', about: 'project' };
+    if (!canEditProject(project, actorId))
+      return { ok: false, reason: 'forbidden', about: 'project' };
     return { ok: true };
   }
 }

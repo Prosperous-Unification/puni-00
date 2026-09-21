@@ -1,4 +1,4 @@
-import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
+import { canEditProject, DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
 import { STEP_POSITION_STEP } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
@@ -83,17 +83,14 @@ export interface ProjectServiceOptions {
 }
 
 /**
- * Whether `actorId` may write to `project`.
+ * Compatibility export of the domain rule this resource no longer owns.
  *
- * Exported because every later mutation asks the same question — work items,
- * estimates, freeze — and a second copy of this rule is how one of them ends up
- * enforcing a different one. Reading is deliberately not gated: an unrestricted
- * project is editable by any authenticated account, and a restricted one is
- * readable by all and writable only by its owner.
+ * The rule moved to `canEditProject` in `@wbs/domain` so that Calendar marker,
+ * Capacity, Priority band, Step, Work item and `savePlan` stop importing a
+ * sibling resource for it, which K6 forbids. Delivery still names it `canEdit`;
+ * the alias goes when delivery moves to the domain import.
  */
-export function canEdit(project: Project, actorId: string): boolean {
-  return !project.restricted || project.ownerId === actorId;
-}
+export { canEditProject as canEdit };
 
 export class ProjectService {
   private readonly clock: Clock;
@@ -176,7 +173,7 @@ export class ProjectService {
   /**
    * Records that `actorId` is now working in `id`.
    *
-   * Deliberately **not** gated by {@link canEdit}: every authenticated account
+   * Deliberately **not** gated by {@link canEditProject}: every authenticated account
    * may read every project, so gating this would leave a reader's own picker
    * permanently sorted by creation date — the exact thing this change exists to
    * fix. It is the caller's own navigation history and changes nothing anyone
@@ -235,7 +232,7 @@ export class ProjectService {
     }
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
     // After the authorization check, so a reader of a restricted project still
     // learns `forbidden` rather than a fact about how this box is wired.
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {

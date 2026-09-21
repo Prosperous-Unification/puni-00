@@ -1,6 +1,8 @@
+import { canEditProject } from '@wbs/domain';
+
 import type { AuthenticatedUser } from '../service/auth.service';
 import type { Broadcaster } from '../service/broadcast';
-import { canEdit, type ProjectService } from '../service/project.service';
+import type { ProjectService } from '../service/project.service';
 import type {
   SavedPlanSaveOutcome,
   SavedPlanSaveRequest,
@@ -38,7 +40,7 @@ export async function savePlan(
   if (!input.actor.scopes.includes('write')) return { outcome: 'insufficient_scope' };
   const found = await graph.projects.read(input.projectId);
   if (found === null) return { outcome: 'not_found' };
-  if (!canEdit(found.project, input.actor.id)) return { outcome: 'forbidden' };
+  if (!canEditProject(found.project, input.actor.id)) return { outcome: 'forbidden' };
   const request: SavedPlanSaveRequest = {
     projectId: input.projectId,
     ...(input.name === undefined ? {} : { name: input.name }),
