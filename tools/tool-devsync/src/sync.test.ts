@@ -891,9 +891,9 @@ describe('MCP environment prerequisite', () => {
     };
     expect(
       await rejection(
-        runMcpDeploymentProbe(input, async (received) => {
+        runMcpDeploymentProbe(input, (received) => {
           expect(received).toEqual(input);
-          throw new Error('semantic MCP probe failed');
+          return Promise.reject(new Error('semantic MCP probe failed'));
         }),
       ),
     ).toContain('semantic MCP probe failed');
