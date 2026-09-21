@@ -10,6 +10,16 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 The commit the dev source tree on disk is at. It describes the checkout being served,
 not the commit captured when a process or container first started.
 
+### MCP authentication
+
+**Refresh family**:
+One lineage of single-use MCP refresh tokens and every access session issued from it. Reusing a consumed token revokes the lineage whole.
+_Avoid_: session, token chain
+
+**Upstream refresh lease**:
+The short exclusive claim one mcp-01 process holds while replacing a refresh family's provider credential. It prevents concurrent tool calls from refreshing the same provider token twice.
+_Avoid_: lock, refresh mutex
+
 ### WBS
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.

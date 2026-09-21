@@ -10,6 +10,10 @@ const VALID_ENV = [
   'MCP_AUTH_MODE=standalone',
   'WBS_API_URL=http://localhost:3100',
   'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+  'MCP_SIGNING_KEY_CURRENT=base64-pkcs8',
+  'MCP_STORE_KEY_CURRENT=base64-store-key',
+  'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+  'MCP_ACCESS_TOKEN_TTL=3600',
 ].join('\n');
 
 async function runPreflight(

@@ -1,4 +1,4 @@
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -23,6 +23,36 @@ describe('dev:setup seedApp', () => {
     const root = await makeFakeRepo({ 'be-01': { example: 'PORT=3100\n' } });
     expect(await seedApp('be-01', root)).toBe('wrote');
     expect(await Bun.file(join(root, 'apps', 'wbs', 'be-01', '.env')).text()).toBe('PORT=3100\n');
+  });
+
+  // Proof: copying the committed placeholders makes mcp-01 fail startup, while
+  // a world-readable mode exposes both durable keys.
+  it('generates private MCP persistence keys with mode 600', async () => {
+    const root = await makeFakeRepo({
+      'mcp-01': {
+        example:
+          'MCP_SIGNING_KEY_CURRENT=replace-with-base64-pkcs8\n' +
+          'MCP_STORE_KEY_CURRENT=replace-with-32-byte-base64\n',
+      },
+    });
+    expect(await seedApp('mcp-01', root)).toBe('wrote');
+    const path = join(root, 'apps', 'wbs', 'mcp-01', '.env');
+    const contents = await Bun.file(path).text();
+    expect(contents).not.toContain('replace-with');
+    const values = new Map(
+      contents
+        .trim()
+        .split('\n')
+        .map((line) => {
+          const separator = line.indexOf('=');
+          return [line.slice(0, separator), line.slice(separator + 1)];
+        }),
+    );
+    expect(Buffer.from(values.get('MCP_STORE_KEY_CURRENT') ?? '', 'base64')).toHaveLength(32);
+    expect(
+      Buffer.from(values.get('MCP_SIGNING_KEY_CURRENT') ?? '', 'base64').length,
+    ).toBeGreaterThan(100);
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
   });
 
   it('leaves an existing .env alone', async () => {

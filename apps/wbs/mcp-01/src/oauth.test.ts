@@ -1,10 +1,15 @@
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
+import { existsSync, mkdtempSync, rmdirSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { InMemoryMcpOAuth, type OAuthRouteEvidence } from './oauth';
+import { mcpHttpResponse } from './http';
+import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
+import { McpSessionStore } from './session-store';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -22,39 +27,46 @@ function fixture(
     grantLimit?: number;
     provenClientSourceLimit?: number;
     sessionLimit?: number;
+    signingKeys?: { privateKey: KeyObject; publicKey: KeyObject; previousPublicKey?: KeyObject };
+    store?: McpSessionStore;
     transactionLimit?: number;
     transactionLimitPerClient?: number;
     random?: () => string;
     authorizationUrl?: BrowserOidcClient['authorizationUrl'];
     exchange?: BrowserOidcClient['exchange'];
     verifyUpstream?: (token: string) => Promise<JwtClaims>;
+    refresh?: BrowserOidcClient['refresh'];
     revoke?: BrowserOidcClient['revoke'];
     revocationFailure?: () => void;
   } = {},
 ) {
-  const { authorizationUrl, exchange, verifyUpstream, revoke, ...oauthOptions } = limits;
+  const { authorizationUrl, exchange, refresh, verifyUpstream, revoke, ...oauthOptions } = limits;
   let now = 1_700_000_000_000;
   const values = Array.from({ length: 20 }, (_, index) => `random-${String(index + 1)}`);
   const authorizationCalls: unknown[] = [];
   const exchangeCalls: unknown[] = [];
   const routeEvidence: OAuthRouteEvidence[] = [];
-  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'> = {
-    authorizationUrl: (input) => {
-      authorizationCalls.push(input);
-      return (
-        authorizationUrl?.(input) ??
-        Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`))
-      );
-    },
-    exchange: (request, checks) => {
-      exchangeCalls.push({ request, checks });
-      return (
-        exchange?.(request, checks) ??
-        Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 300 })
-      );
-    },
-    revoke: revoke ?? (() => Promise.resolve()),
-  };
+  const provider: Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'refresh' | 'revoke'> =
+    {
+      authorizationUrl: (input) => {
+        authorizationCalls.push(input);
+        return (
+          authorizationUrl?.(input) ??
+          Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`))
+        );
+      },
+      exchange: (request, checks) => {
+        exchangeCalls.push({ request, checks });
+        return (
+          exchange?.(request, checks) ??
+          Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 300 })
+        );
+      },
+      refresh:
+        refresh ??
+        (() => Promise.resolve({ accessToken: 'refreshed-upstream-token', expiresIn: 300 })),
+      revoke: revoke ?? (() => Promise.resolve()),
+    };
   return {
     authorizationCalls,
     exchangeCalls,
@@ -634,6 +646,9 @@ describe('InMemoryMcpOAuth', () => {
         method: 'POST',
       }),
     );
+    expect(oauth.verify(firstToken)).rejects.toThrow(/not an upstream token/);
+    const store = oauth as unknown as { store: { sessionCount(now: number): number } };
+    expect(store.store.sessionCount(1_700_000_000_000)).toBe(0);
     expect((await tokenResponse(oauth, 'random-7', secondCode, verifier)).status).toBe(200);
   });
 
@@ -915,22 +930,317 @@ describe('InMemoryMcpOAuth', () => {
     const body = (await response?.json()) as {
       access_token: string;
       expires_in: number;
+      refresh_token: string;
       scope: string;
       token_type: string;
     };
     expect(body).toMatchObject({
       expires_in: 300,
+      refresh_token: 'random-9',
       scope: 'wbs:read wbs:write',
       token_type: 'Bearer',
     });
     expect(oauth.verify(body.access_token)).resolves.toMatchObject({
       aud: 'https://dev.wbs.bulletpoints.club/mcp',
       iss: 'https://dev.wbs.bulletpoints.club/mcp/oauth',
-      jti: 'random-7',
+      jti: 'random-8',
       sub: 'person-1',
     });
     expect(oauth.upstreamTokenFor(body.access_token)).resolves.toBe('upstream-okta-token');
     expect((await exchange())?.status).toBe(400);
+  });
+
+  // Proof: accepting a provider token with neither expiresIn nor a verified exp
+  // makes the second authorization redirect with a code instead of access_denied.
+  it('uses a verified exp when the provider omits expiresIn and refuses when both are missing', async () => {
+    const verifier = 'v'.repeat(43);
+    const withExp = fixture({
+      exchange: () => Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 0 }),
+      verifyUpstream: () =>
+        Promise.resolve({
+          exp: 1_700_000_600,
+          iss: 'https://idp.example',
+          sub: 'person-1',
+          wbs_groups: ['dev:wbs:read'],
+        }),
+    }).oauth;
+    const acceptedCode = await authorizationCode(withExp, verifier);
+    expect((await tokenResponse(withExp, 'random-1', acceptedCode, verifier)).status).toBe(200);
+
+    const withoutExpiry = fixture({
+      exchange: () => Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 0 }),
+    }).oauth;
+    const completed = await completedAuthorization(withoutExpiry, verifier);
+    expect(completed.response.status).toBe(302);
+    expect(
+      new URL(completed.response.headers.get('location') ?? 'https://invalid').searchParams.get(
+        'error',
+      ),
+    ).toBe('access_denied');
+  });
+
+  // Proof: generating a signing key per handler makes sameKey reject accessToken;
+  // omitting the previous-key candidate makes rotating reject it.
+  it('shares current signing keys between handlers and accepts the previous key during rotation', async () => {
+    const oldKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const nextKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const store = new McpSessionStore(':memory:', [Buffer.alloc(32, 9)]);
+    const first = fixture({ signingKeys: oldKeys, store }).oauth;
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(first, verifier);
+    const issued = await tokenResponse(first, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+
+    const sameKey = fixture({ signingKeys: oldKeys, store }).oauth;
+    expect(sameKey.verify(accessToken)).resolves.toMatchObject({ sub: 'person-1' });
+    const rotating = fixture({
+      signingKeys: {
+        privateKey: nextKeys.privateKey,
+        publicKey: nextKeys.publicKey,
+        previousPublicKey: oldKeys.publicKey,
+      },
+      store,
+    }).oauth;
+    expect(rotating.verify(accessToken)).resolves.toMatchObject({ sub: 'person-1' });
+    store.close();
+  });
+
+  // Proof: replacing the reopened store below with a fresh in-memory store makes
+  // the post-restart tool call return 401 and the refresh request return 400.
+  it('keeps HTTP tool and refresh requests live across a handler restart', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-oauth-restart-'));
+    const path = join(root, 'sessions.sqlite');
+    const storeKey = Buffer.alloc(32, 11);
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const transport = {
+      handleRequest: () => Promise.resolve(Response.json({ ok: true })),
+    };
+    const request = (token: string) =>
+      new Request('https://dev.wbs.bulletpoints.club/mcp', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+    const firstStore = new McpSessionStore(path, [storeKey]);
+    const first = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      signingKeys,
+      store: firstStore,
+    }).oauth;
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(first, verifier);
+    const issued = await tokenResponse(first, 'random-1', code, verifier);
+    const tokens = (await issued.json()) as { access_token: string; refresh_token: string };
+
+    expect(
+      await mcpHttpResponse(request(tokens.access_token), CONFIG, first, transport),
+    ).toHaveProperty('status', 200);
+    firstStore.close();
+
+    const secondStore = new McpSessionStore(path, [storeKey]);
+    const second = fixture({ signingKeys, store: secondStore }).oauth;
+    expect(
+      await mcpHttpResponse(request(tokens.access_token), CONFIG, second, transport),
+    ).toHaveProperty('status', 200);
+
+    const refreshed = await mcpHttpResponse(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: tokens.refresh_token,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+      CONFIG,
+      second,
+      transport,
+      {},
+      second,
+    );
+    expect(refreshed.status).toBe(200);
+    const successor = (await refreshed.json()) as { access_token: string; refresh_token: string };
+    expect(successor.refresh_token).not.toBe(tokens.refresh_token);
+    expect(
+      await mcpHttpResponse(request(successor.access_token), CONFIG, second, transport),
+    ).toHaveProperty('status', 200);
+
+    secondStore.close();
+    for (const name of ['sessions.sqlite-wal', 'sessions.sqlite-shm', 'sessions.sqlite']) {
+      const candidate = join(root, name);
+      if (existsSync(candidate)) unlinkSync(candidate);
+    }
+    rmdirSync(root);
+  });
+
+  // Proof: defaulting any required persistence setting lets its startup case
+  // construct an OAuth handler instead of naming the missing, malformed, or unreadable variable.
+  it('names missing, malformed, and unreadable persistence settings at startup', () => {
+    expect(() => mcpOAuthFromEnv(CONFIG, {})).toThrow(/MCP_SIGNING_KEY_CURRENT/);
+    expect(() =>
+      mcpOAuthFromEnv(CONFIG, {
+        MCP_SIGNING_KEY_CURRENT: 'not-a-key',
+      }),
+    ).toThrow(/MCP_SIGNING_KEY_CURRENT/);
+
+    const signing = generateKeyPairSync('rsa', { modulusLength: 2048 })
+      .privateKey.export({
+        format: 'der',
+        type: 'pkcs8',
+      })
+      .toString('base64');
+    expect(() =>
+      mcpOAuthFromEnv(CONFIG, {
+        MCP_ACCESS_TOKEN_TTL: '3600',
+        MCP_SIGNING_KEY_CURRENT: signing,
+        MCP_STORE_KEY_CURRENT: Buffer.alloc(32, 1).toString('base64'),
+        MCP_STORE_PATH: '/definitely/missing/mcp/session.sqlite',
+      }),
+    ).toThrow(/MCP_STORE_PATH/);
+  });
+
+  // Proof: accepting a consumed token without the family-revocation branch
+  // leaves the successor access token valid after replay.
+  it('rotates a single-use refresh token and revokes the family on reuse', async () => {
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const first = await tokenResponse(oauth, 'random-1', code, verifier);
+    const firstBody = (await first.json()) as { refresh_token: string };
+    const refreshed = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: firstBody.refresh_token,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(refreshed?.status).toBe(200);
+    const refreshedBody = (await refreshed?.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    expect(refreshedBody.refresh_token).not.toBe(firstBody.refresh_token);
+
+    const replay = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: firstBody.refresh_token,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(replay?.status).toBe(400);
+    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(/not an upstream token/);
+  });
+
+  // Proof: dropping the versioned lease CAS makes both callers invoke the provider.
+  it('refreshes an expiring upstream token once across two concurrent callers', async () => {
+    let providerCalls = 0;
+    const { advance, oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 121,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      refresh: (refreshToken) => {
+        expect(refreshToken).toBe('upstream-refresh-token');
+        providerCalls += 1;
+        // Same effective expiry as the original token: completion is detected by version, not time.
+        return Promise.resolve({ accessToken: 'fresh-upstream-token', expiresIn: 119 });
+      },
+      verifyUpstream: (token) =>
+        token === 'upstream-okta-token' || token === 'fresh-upstream-token'
+          ? Promise.resolve({
+              iss: 'https://idp.example',
+              sub: 'person-1',
+              wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+            })
+          : Promise.reject(new Error('not an upstream token')),
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    advance(2_000);
+
+    const callers = await Promise.all([
+      oauth.callerSessionFor(accessToken),
+      oauth.callerSessionFor(accessToken),
+    ]);
+    expect(providerCalls).toBe(1);
+    expect(callers.map((caller) => caller.upstreamToken)).toEqual([
+      'fresh-upstream-token',
+      'fresh-upstream-token',
+    ]);
+  });
+
+  // Proof: consuming before provider work makes a retry of the same token look
+  // like replay after a transient provider failure.
+  it('keeps a refresh token retryable after a transient upstream failure', async () => {
+    let refreshCalls = 0;
+    const { advance, oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 121,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      refresh: () => {
+        refreshCalls += 1;
+        return refreshCalls === 1
+          ? Promise.reject(new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } }))
+          : Promise.resolve({ accessToken: 'fresh-upstream-token', expiresIn: 300 });
+      },
+      verifyUpstream: (token) =>
+        Promise.resolve({
+          iss: 'https://idp.example',
+          sub: 'person-1',
+          wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+          ...(token === 'fresh-upstream-token' ? {} : {}),
+        }),
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const refreshToken = ((await issued.json()) as { refresh_token: string }).refresh_token;
+    advance(2_000);
+
+    const request = () =>
+      oauth.response(
+        new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+          body: new URLSearchParams({
+            client_id: 'random-1',
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+          }),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          method: 'POST',
+        }),
+      );
+    expect((await request())?.status).toBe(503);
+    expect((await request())?.status).toBe(200);
+    expect(refreshCalls).toBe(2);
   });
 
   // Break caught: replacing the original standalone JWKS verifier with only
@@ -942,12 +1252,25 @@ describe('InMemoryMcpOAuth', () => {
   });
 
   // Break caught: signature-only verification would keep accepting a session
-  // after its server-side mapping expires or is explicitly revoked.
+  // after its server-side mapping expires or is explicitly revoked. Proof:
+  // omitting provider revocation leaves upstreamRevocations empty.
   it('refuses expired and revoked local sessions', async () => {
-    const { advance, oauth } = fixture();
+    const upstreamRevocations: string[] = [];
+    const { advance, oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      revoke: (refreshToken) => {
+        upstreamRevocations.push(refreshToken);
+        return Promise.resolve();
+      },
+    });
     const verifier = 'v'.repeat(43);
     const code = await authorizationCode(oauth, verifier);
-    const tokenResponse = await oauth.response(
+    const firstResponse = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
         body: new URLSearchParams({
           client_id: 'random-1',
@@ -960,35 +1283,68 @@ describe('InMemoryMcpOAuth', () => {
         method: 'POST',
       }),
     );
-    const token = ((await tokenResponse?.json()) as { access_token: string }).access_token;
+    const issued = (await firstResponse?.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    const token = issued.access_token;
 
     const revoked = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
-        body: new URLSearchParams({ token }),
+        body: new URLSearchParams({ token: issued.refresh_token }),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         method: 'POST',
       }),
     );
     expect(revoked?.status).toBe(200);
+    expect(upstreamRevocations).toEqual(['upstream-refresh-token']);
     expect(oauth.verify(token)).rejects.toThrow();
-
-    const secondCode = await authorizationCode(oauth, verifier);
-    const secondResponse = await oauth.response(
+    const refreshAfterRevoke = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
         body: new URLSearchParams({
-          client_id: 'random-8',
-          code: secondCode,
-          code_verifier: verifier,
-          grant_type: 'authorization_code',
-          redirect_uri: CALLBACK,
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: issued.refresh_token,
         }),
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         method: 'POST',
       }),
     );
-    const secondToken = ((await secondResponse?.json()) as { access_token: string }).access_token;
-    advance(300_001);
-    expect(oauth.verify(secondToken)).rejects.toThrow();
+    expect(refreshAfterRevoke?.status).toBe(400);
+
+    const second = await completedAuthorization(oauth, verifier);
+    const secondCode =
+      new URL(second.response.headers.get('location') ?? 'https://invalid').searchParams.get(
+        'code',
+      ) ?? '';
+    const secondResponse = await tokenResponse(oauth, second.clientId, secondCode, verifier);
+    const secondIssued = (await secondResponse.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    advance(3_600_001);
+    expect(oauth.verify(secondIssued.access_token)).rejects.toThrow();
+    const expiredRevocation = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
+        body: new URLSearchParams({ token: secondIssued.access_token }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(expiredRevocation?.status).toBe(200);
+    expect(upstreamRevocations).toEqual(['upstream-refresh-token', 'upstream-refresh-token']);
+    const refreshAfterExpiry = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-8',
+          grant_type: 'refresh_token',
+          refresh_token: secondIssued.refresh_token,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(refreshAfterExpiry?.status).toBe(400);
   });
 
   // Proof: returning provider failures locally strands the MCP client on the

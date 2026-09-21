@@ -5,6 +5,7 @@ import type { TokenVerifier } from '@wbs/auth';
 
 import { authenticateCaller } from './caller-auth';
 import type { McpConfig } from './config';
+import { EdgeGate } from './wbs-client';
 
 const HEALTH_PATHS = new Set(['/health/liveness', '/health/readiness', '/health/alb-readiness']);
 const MCP_SCOPES = ['wbs:read', 'wbs:write', 'wbs:editor'] as const;
@@ -49,7 +50,7 @@ export function oauthMetadataResponse(url: URL, config: McpConfig): Response | u
       registration_endpoint: `${issuer}/register`,
       jwks_uri: `${issuer}/jwks`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: MCP_SCOPES,
@@ -96,7 +97,9 @@ export async function mcpHttpResponse(
       groupPrefix,
       groupsClaim,
     );
-  } catch {
+  } catch (cause) {
+    if (cause instanceof EdgeGate)
+      return Response.json({ error: 'temporarily_unavailable' }, { status: 503 });
     const resource = new URL(config.MCP_PUBLIC_URL);
     const resourceMetadata = new URL('/.well-known/oauth-protected-resource', resource);
     const presentedToken = /^Bearer [^\s]+$/i.test(request.headers.get('authorization') ?? '');

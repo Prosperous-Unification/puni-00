@@ -98,6 +98,7 @@ const WAIVERS = new Map<string, Waiver>([
  */
 const MIGRATION_ROOTS: readonly (readonly string[])[] = [
   ['apps', 'wbs', 'be-01', 'drizzle'],
+  ['apps', 'wbs', 'mcp-01', 'drizzle'],
   ['deploy', 'k8s', 'wbs', 'lab', 'migrations'],
 ];
 

@@ -18,9 +18,8 @@ const http = startHttpServer(
     createServer({
       tools,
       config,
-      endSession: (sessionId) => {
-        oauth.endSession(sessionId);
-      },
+      endSession: (sessionId) => oauth.endSession(sessionId),
+      refreshSession: (sessionId) => oauth.refreshSession(sessionId),
     }),
   config,
   verifier,
