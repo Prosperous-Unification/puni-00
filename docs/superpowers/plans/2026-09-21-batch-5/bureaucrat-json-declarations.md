@@ -169,7 +169,7 @@ function addJsonDeclarationFixture(repository: string, publicJsonType: boolean):
     'config/tsconfig.json',
     `${JSON.stringify({
       extends: '../tsconfig.json',
-      compilerOptions: { resolveJsonModule: true },
+      compilerOptions: { resolveJsonModule: true, outDir: '../dist' },
       include: ['../packages/**/*.ts', '../packages/**/*.json'],
     })}\n`,
   );
@@ -184,9 +184,12 @@ function addJsonDeclarationFixture(repository: string, publicJsonType: boolean):
   write(
     repository,
     'packages/provider/src/index.ts',
-    publicJsonType
-      ? "export type { Schema } from './json-helper';\n"
-      : "export { schemaKind } from './json-helper';\n",
+    "export default function publicDefault(): string { return 'public'; }\n" +
+      "export { type PublicThing } from './public';\n" +
+      "export { type Declared } from './shapes';\n" +
+      (publicJsonType
+        ? "export type { Schema } from './json-helper';\n"
+        : "export { schemaKind } from './json-helper';\n"),
   );
   return writeRequestInput(repository, {
     schemaVersion: 1,
@@ -199,6 +202,25 @@ function addJsonDeclarationFixture(repository: string, publicJsonType: boolean):
 ```
 
 The existing fixture root already sets `module: 'ESNext'` and `moduleResolution: 'Bundler'`; preserve both and the production-shaped JSON import attribute.
+
+**Corrected by the planner on 2026-09-21 after the first Task 2 attempt stopped.** Two facts the first
+version of this helper missed, both measured:
+
+- The helper must EXTEND the fixture's `index.ts`, not replace it. `internal.ts` and the consumer import its
+  default export and `PublicThing`; without them both JSON cases failed on pre-emit diagnostics (`has no default
+export`, `has no exported member 'PublicThing'`) and never reached declaration emit.
+- `outDir` is the trigger. A compiler probe over eight variants (with and without `outDir`, JSON inside or
+  outside the package, listed in `include` or not) gave `emitSkipped=false` for every variant without `outDir`
+  and `emitSkipped=true`, zero diagnostics, the `.d.ts` still written, for every variant with it: with an output
+  directory the compiler wants to copy the JSON beside the output and a declaration-only emit skips that copy.
+  tool-fleet's library configuration sets `outDir`; without it this fixture extracted successfully on the
+  unchanged code and proved nothing. The production CLI over `tools/tool-fleet/tsconfig.lib.json` on the
+  unchanged tree exits 1 with `TypeScript compiler declaration emit failed for tools/tool-fleet/tsconfig.lib.json:`
+  and an empty detail.
+
+With both corrections the five named groups gave exactly Step 6's red on the unchanged production code. Because
+the entrypoint keeps its existing exports, the implementation-only test expects the whole public closure:
+`globals.d.ts`, `hidden.ts`, `index.ts`, `json-helper.ts`, `public.ts`, `shapes.d.ts`.
 
 - [ ] **Step 2: Add the valid implementation-only JSON test.**
 
@@ -231,7 +253,14 @@ expect(
 });
 expect(
   extracted.typescript.publicDeclarations[0]?.declarations.map(({ sourcePath }) => sourcePath),
-).toEqual(['packages/provider/src/index.ts', 'packages/provider/src/json-helper.ts']);
+).toEqual([
+  'packages/provider/src/globals.d.ts',
+  'packages/provider/src/hidden.ts',
+  'packages/provider/src/index.ts',
+  'packages/provider/src/json-helper.ts',
+  'packages/provider/src/public.ts',
+  'packages/provider/src/shapes.d.ts',
+]);
 expect(
   extracted.typescript.publicDeclarations[0]?.declarations.map(({ text }) => text).join('\n'),
 ).not.toContain('schema.json');
