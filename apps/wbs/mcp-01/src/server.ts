@@ -65,7 +65,7 @@ export interface ServerDeps {
   /** Injectable for the round trip in `server.test.ts`; production passes none. */
   readonly fetchImpl?: FetchLike;
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
-  readonly endSession?: (mcpSessionId: string) => void;
+  readonly endSession?: (mcpSessionId: string) => void | Promise<void>;
   readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
 }
 
@@ -178,7 +178,7 @@ export function createServer(deps: ServerDeps): Server {
             // A refused refresh or one refused retry ends the family below.
           }
         }
-        if (sessionId !== null) endSession?.(sessionId);
+        if (sessionId !== null) await endSession?.(sessionId);
         return asCallToolResult(
           errorText(
             sessionId === null

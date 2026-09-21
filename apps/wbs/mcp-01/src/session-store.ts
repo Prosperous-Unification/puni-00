@@ -250,13 +250,20 @@ export class McpSessionStore {
     return row === null ? null : this.familyOf(row);
   }
 
-  releaseRefreshLease(familyId: string, owner: string): void {
+  releaseRefreshLease(familyId: string, owner: string, refreshToken?: string): void {
     this.db
       .query(
-        `UPDATE mcp_family SET lease_owner = NULL, lease_until = NULL
+        `UPDATE mcp_family SET upstream_refresh_ct = COALESCE(?, upstream_refresh_ct),
+        lease_owner = NULL, lease_until = NULL
         WHERE family_id = ? AND lease_owner = ?`,
       )
-      .run(familyId, owner);
+      .run(
+        refreshToken === undefined
+          ? null
+          : this.encrypt(familyId, 'upstream_refresh_ct', refreshToken),
+        familyId,
+        owner,
+      );
   }
 
   finishRefreshLease(
@@ -268,13 +275,20 @@ export class McpSessionStore {
     refreshedAt: number,
   ): boolean {
     const current = this.db
-      .query('SELECT upstream_refresh_ct FROM mcp_family WHERE family_id = ?')
+      .query(
+        'SELECT upstream_refresh_ct, upstream_refreshed_at FROM mcp_family WHERE family_id = ?',
+      )
       .get(familyId) as Row | null;
     if (current === null) return false;
     const refreshCiphertext =
       refreshToken === undefined
         ? current['upstream_refresh_ct']
         : this.encrypt(familyId, 'upstream_refresh_ct', refreshToken);
+    const previousRefreshedAt = current['upstream_refreshed_at'];
+    const monotonicRefreshedAt =
+      previousRefreshedAt === null
+        ? refreshedAt
+        : Math.max(refreshedAt, Number(previousRefreshedAt) + 1);
     const changed = this.db
       .query(
         `UPDATE mcp_family SET upstream_access_ct = ?, upstream_refresh_ct = ?,
@@ -285,7 +299,7 @@ export class McpSessionStore {
         this.encrypt(familyId, 'upstream_access_ct', accessToken),
         refreshCiphertext,
         expiresAt,
-        refreshedAt,
+        monotonicRefreshedAt,
         familyId,
         owner,
       );

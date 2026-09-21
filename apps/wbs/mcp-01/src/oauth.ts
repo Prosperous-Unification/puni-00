@@ -241,16 +241,22 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   async callerSessionFor(
     token: string,
   ): Promise<{ readonly upstreamToken: string; readonly mcpSessionId: string | null }> {
+    let payload: JwtClaims;
     try {
-      const payload = await this.verifyLocal(token);
-      const family = this.sessionOf(payload);
-      const sessionId = payload['jti'];
-      if (typeof sessionId !== 'string') throw new Error('verified MCP token has no session id');
-      const current = await this.refreshUpstreamIfNeeded(family);
-      return { upstreamToken: current.upstreamAccessToken, mcpSessionId: sessionId };
+      payload = await this.verifyLocal(token);
     } catch {
       await this.verifyUpstream(token);
       return { upstreamToken: token, mcpSessionId: null };
+    }
+    const family = this.sessionOf(payload);
+    const sessionId = payload['jti'];
+    if (typeof sessionId !== 'string') throw new Error('verified MCP token has no session id');
+    try {
+      const current = await this.refreshUpstreamIfNeeded(family);
+      return { upstreamToken: current.upstreamAccessToken, mcpSessionId: sessionId };
+    } catch (cause) {
+      if (cause instanceof UpstreamRefreshRefused) throw cause;
+      throw new EdgeGate('The identity provider is temporarily unavailable. Retry this request.');
     }
   }
 
@@ -269,8 +275,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
   }
 
-  endSession(mcpSessionId: string): void {
+  async endSession(mcpSessionId: string): Promise<void> {
+    const family = this.store.familyForSessionId(mcpSessionId);
     this.store.revokeSessionFamily(mcpSessionId, this.now());
+    if (family !== null) await this.revokeRefreshToken(family.upstreamRefreshToken);
   }
 
   private async verifyLocal(token: string): Promise<JwtClaims> {
@@ -729,16 +737,36 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       this.store.revokeFamily(family.familyId, now);
       throw new Error('upstream access cannot be refreshed; the MCP family was revoked');
     }
-    const owner = this.random();
-    const leased = this.store.acquireRefreshLease(
-      family.familyId,
-      family.version,
-      owner,
-      now,
-      now + 5_000,
-    );
-    if (leased !== null) {
-      let tokens: BrowserOidcTokenSet;
+    const deadline = Date.now() + 10_000;
+    let candidate = family;
+    while (Date.now() < deadline) {
+      const attemptNow = this.now();
+      const owner = this.random();
+      const leased = this.store.acquireRefreshLease(
+        family.familyId,
+        candidate.version,
+        owner,
+        attemptNow,
+        attemptNow + 5_000,
+      );
+      if (leased === null) {
+        await Bun.sleep(25);
+        const current = this.store.family(family.familyId);
+        if (current === null) throw new Error('MCP refresh family disappeared');
+        if (current.revokedAt !== null) throw new Error('MCP refresh family was revoked');
+        if (
+          current.leaseOwner === null &&
+          current.upstreamRefreshedAt !== family.upstreamRefreshedAt
+        )
+          return current;
+        if (
+          current.leaseOwner === null ||
+          (current.leaseUntil !== null && current.leaseUntil < this.now())
+        )
+          candidate = current;
+        continue;
+      }
+      let tokens: BrowserOidcTokenSet | undefined;
       let upstreamExpiresAt: number;
       try {
         tokens = await this.upstream.refresh(
@@ -754,7 +782,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
             { cause },
           );
         }
-        this.store.releaseRefreshLease(family.familyId, owner);
+        this.store.releaseRefreshLease(family.familyId, owner, tokens?.refreshToken);
         throw new Error('upstream refresh could not be completed', { cause });
       }
       if (
@@ -771,14 +799,6 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       const current = this.store.family(family.familyId);
       if (current === null) throw new Error('upstream refresh family disappeared');
       return current;
-    }
-    const deadline = Date.now() + 5_000;
-    while (Date.now() < deadline) {
-      await Bun.sleep(25);
-      const current = this.store.family(family.familyId);
-      if (current === null) throw new Error('MCP refresh family disappeared');
-      if (current.revokedAt !== null) throw new Error('MCP refresh family was revoked');
-      if (current.version > family.version && current.leaseOwner === null) return current;
     }
     throw new Error('timed out waiting for the upstream refresh lease');
   }
