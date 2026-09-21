@@ -199,7 +199,19 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // hand-moved count is a conflict by construction; work item G2 derives it.
   const oracle = await readOraclePaths();
 
+  // Proof: returning `[]` as the first statement of `readOraclePaths` failed here with `Received:
+  // 0` against the greater-than-100 guard, before tuple equality could pass vacuously (2026-09-21).
   expect(oracle.length).toBeGreaterThan(100);
+  // Proof: filtering `compilerOptions.outDir` in `collectParentRelativePaths` failed tuple equality
+  // with 44 expected rows absent from the production inventory (2026-09-21).
+  // Proof: narrowing `isProjectConfig` to bare `tsconfig.json` failed tuple equality with 103
+  // expected rows absent from the production inventory (2026-09-21).
+  // Proof: removing the library branch from the production project-root filter failed tuple
+  // equality with 65 expected rows absent from the production inventory (2026-09-21).
+  // Proof: truncating apps/wbs/be-01/tsconfig.json failed in the production module with `cannot
+  // parse apps/wbs/be-01/tsconfig.json: CloseBraceExpected` (2026-09-21).
+  // Proof: disabling the production module's parse-error branch while leaving that file truncated
+  // failed from `refuseUnparsableConfig` here with the same file and error code (2026-09-21).
   expect(sortPathKeys(paths)).toEqual(sortPathKeys(oracle));
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',

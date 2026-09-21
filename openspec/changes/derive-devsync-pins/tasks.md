@@ -16,4 +16,4 @@
 
 ## 5. Prove the derived inventory still refuses a narrowed or malformed collector
 
-- [ ] 5.1 Inject the property-kind filter, the two discovery narrowings, the malformed configuration and the empty oracle, observe each failing, restore, and record adjacent proof comments.
+- [x] 5.1 Inject the property-kind filter, the two discovery narrowings, the malformed configuration and the empty oracle, observe each failing, restore, and record adjacent proof comments.
