@@ -668,9 +668,7 @@ export interface DevSyncOptions extends Partial<DevSyncPaths> {
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
-  const exposureExpected = paths.rehearsal
-    ? '0'
-    : await mcpExposureExpected(paths.statePath);
+  const exposureExpected = paths.rehearsal ? '0' : await mcpExposureExpected(paths.statePath);
   const before = await fingerprint(paths.sourcePath);
   const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);
 
