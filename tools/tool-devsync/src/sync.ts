@@ -611,7 +611,9 @@ export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
     }
   }
   if (!lines.includes('MCP_STORE_PATH=/data/mcp-session.sqlite')) {
-    throw new Error(`${path} must contain MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`);
+    throw new Error(
+      `${path} must contain MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`,
+    );
   }
 }
 
