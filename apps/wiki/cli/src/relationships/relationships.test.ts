@@ -214,6 +214,50 @@ function writeRequestInput(repository: string, input: object): string {
   return path;
 }
 
+function addJsonDeclarationFixture(repository: string, publicJsonType: boolean): string {
+  write(repository, 'packages/provider/src/schema.json', '{"kind":"fleet"}\n');
+  write(
+    repository,
+    'config/tsconfig.json',
+    `${JSON.stringify({
+      extends: '../tsconfig.json',
+      // `outDir` is what makes the compiler want to copy the JSON beside the output, and a
+      // declaration-only emit skips that copy: `emitSkipped` with no diagnostic, as tool-fleet's
+      // library configuration does. Without it this fixture never reaches the boundary under test.
+      compilerOptions: { resolveJsonModule: true, outDir: '../dist' },
+      include: ['../packages/**/*.ts', '../packages/**/*.json'],
+    })}\n`,
+  );
+  write(
+    repository,
+    'packages/provider/src/json-helper.ts',
+    "import schema from './schema.json' with { type: 'json' };\n" +
+      (publicJsonType
+        ? 'export type Schema = typeof schema;\n'
+        : 'export const schemaKind: string = schema.kind;\n'),
+  );
+  // Appended to the fixture's entrypoint, never written over it: `internal.ts` and the consumer
+  // still import its default export and `PublicThing`, and losing those fails the program on
+  // pre-emit diagnostics before any declaration is emitted.
+  write(
+    repository,
+    'packages/provider/src/index.ts',
+    "export default function publicDefault(): string { return 'public'; }\n" +
+      "export { type PublicThing } from './public';\n" +
+      "export { type Declared } from './shapes';\n" +
+      (publicJsonType
+        ? "export type { Schema } from './json-helper';\n"
+        : "export { schemaKind } from './json-helper';\n"),
+  );
+  return writeRequestInput(repository, {
+    schemaVersion: 1,
+    typescript: {
+      configPaths: ['config/tsconfig.json'],
+      publicEntrypoints: ['packages/provider/src/index.ts'],
+    },
+  });
+}
+
 function invoke(
   repository: string,
   revision: string,
@@ -247,6 +291,21 @@ function invoke(
 
 function output(invocation: ReturnType<typeof Bun.spawnSync>): string {
   return `${invocation.stdout?.toString('utf8') ?? ''}${invocation.stderr?.toString('utf8') ?? ''}`;
+}
+
+/**
+ * One captured stream of a finished invocation.
+ *
+ * @throws Error when the stream was not captured: that is a harness fault, and reading it as empty
+ * would let an assertion about silence pass on an invocation nobody listened to.
+ */
+function streamText(
+  invocation: ReturnType<typeof Bun.spawnSync>,
+  stream: 'stdout' | 'stderr',
+): string {
+  const captured = invocation[stream];
+  if (captured === undefined) throw new Error(`the invocation captured no ${stream}`);
+  return captured.toString('utf8');
 }
 
 function report(invocation: ReturnType<typeof Bun.spawnSync>): RelationshipReport {
@@ -516,6 +575,201 @@ describe('relationship extraction production CLI', () => {
       { project: 'provider', target: 'build' },
     ]);
   });
+
+  test('extracts every TypeScript declaration while retaining real JSON dependency edges', () => {
+    const repository = createRepository();
+    const requestPath = addJsonDeclarationFixture(repository, false);
+    const extracted = report(
+      invoke(repository, commitAll(repository, 'implementation-only JSON'), requestPath),
+    );
+    expect(
+      extracted.typescript.imports
+        .filter(({ source }) => source.endsWith('/json-helper.ts'))
+        .map(({ source, specifier, target, importKind }) => ({
+          source,
+          specifier,
+          target,
+          importKind,
+        })),
+    ).toContainEqual({
+      source: 'packages/provider/src/json-helper.ts',
+      specifier: './schema.json',
+      target: 'packages/provider/src/schema.json',
+      importKind: 'value',
+    });
+    expect(
+      extracted.typescript.reverseEdges.find(
+        ({ provider }) => provider === 'packages/provider/src/schema.json',
+      )?.importers,
+    ).toContainEqual({
+      source: 'packages/provider/src/json-helper.ts',
+      specifier: './schema.json',
+      importKind: 'value',
+    });
+    expect(
+      extracted.typescript.publicDeclarations[0]?.declarations.map(({ sourcePath }) => sourcePath),
+    ).toEqual([
+      'packages/provider/src/globals.d.ts',
+      'packages/provider/src/hidden.ts',
+      'packages/provider/src/index.ts',
+      'packages/provider/src/json-helper.ts',
+      'packages/provider/src/public.ts',
+      'packages/provider/src/shapes.d.ts',
+    ]);
+    expect(
+      extracted.typescript.publicDeclarations[0]?.declarations.map(({ text }) => text).join('\n'),
+    ).not.toContain('schema.json');
+  }, 20_000);
+
+  test('refuses a JSON dependency retained by the public declaration', () => {
+    const repository = createRepository();
+    const requestPath = addJsonDeclarationFixture(repository, true);
+    const invocation = invoke(
+      repository,
+      commitAll(repository, 'public JSON declaration'),
+      requestPath,
+    );
+
+    expect(invocation.exitCode).toBe(1);
+    expect(streamText(invocation, 'stdout')).toBe('');
+    expect(streamText(invocation, 'stderr')).toContain(
+      'TypeScript public declaration JSON dependency unsupported: packages/provider/src/json-helper.ts -> packages/provider/src/schema.json',
+    );
+  }, 20_000);
+
+  test('refuses a genuine compiler error before declaration emit', () => {
+    const repository = createRepository();
+    write(
+      repository,
+      'packages/provider/src/public.ts',
+      'export interface PublicThing { broken: MissingType }\n',
+    );
+    const invocation = invoke(
+      repository,
+      commitAll(repository, 'compiler error'),
+      writeRequest(repository),
+    );
+
+    expect(invocation.exitCode).toBe(1);
+    expect(streamText(invocation, 'stdout')).toBe('');
+    expect(streamText(invocation, 'stderr')).toContain('TypeScript compiler failed:');
+    expect(streamText(invocation, 'stderr')).toContain("Cannot find name 'MissingType'");
+  }, 20_000);
+
+  test('preserves a single-source bundled declaration and rejects invalid JSON outFile options', () => {
+    const repository = createRepository();
+    write(
+      repository,
+      'tsconfig.json',
+      `${JSON.stringify({
+        compilerOptions: {
+          declaration: true,
+          ignoreDeprecations: '6.0',
+          module: 'System',
+          moduleResolution: 'Node10',
+          outFile: 'dist/bundle.js',
+          rootDir: '.',
+          strict: true,
+          target: 'ES2022',
+        },
+        include: ['src/**/*.ts'],
+      })}\n`,
+    );
+    write(repository, 'src/index.ts', "export const bundled = 'value';\n");
+    const requestPath = writeRequestInput(repository, {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
+    });
+    const extracted = report(
+      invoke(repository, commitAll(repository, 'single-source bundle'), requestPath),
+    );
+
+    expect(extracted.typescript.publicDeclarations).toHaveLength(1);
+    expect(
+      extracted.typescript.publicDeclarations[0]?.declarations.map(
+        ({ sourcePath, emittedPath }) => ({ sourcePath, emittedPath }),
+      ),
+    ).toEqual([{ sourcePath: 'src/index.ts', emittedPath: 'dist/bundle.d.ts' }]);
+
+    const jsonRepository = createRepository();
+    write(
+      jsonRepository,
+      'tsconfig.json',
+      `${JSON.stringify({
+        compilerOptions: {
+          declaration: true,
+          ignoreDeprecations: '6.0',
+          module: 'System',
+          moduleResolution: 'Node10',
+          outFile: 'dist/bundle.js',
+          resolveJsonModule: true,
+          rootDir: '.',
+          strict: true,
+          target: 'ES2022',
+        },
+        include: ['src/**/*.ts', 'src/**/*.json'],
+      })}\n`,
+    );
+    write(jsonRepository, 'src/schema.json', '{"kind":"fleet"}\n');
+    write(
+      jsonRepository,
+      'src/index.ts',
+      "import schema from './schema.json';\nexport const kind: string = schema.kind;\n",
+    );
+    const jsonRequestPath = writeRequestInput(jsonRepository, {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
+    });
+    const failed = invoke(
+      jsonRepository,
+      commitAll(jsonRepository, 'invalid JSON bundle'),
+      jsonRequestPath,
+    );
+
+    expect(failed.exitCode).toBe(1);
+    expect(streamText(failed, 'stdout')).toBe('');
+    expect(streamText(failed, 'stderr')).toContain(
+      "Option '--resolveJsonModule' cannot be specified when 'module' is set to 'none', 'system', or 'umd'.",
+    );
+  }, 30_000);
+
+  test('refuses a multi-source bundled declaration', () => {
+    const repository = createRepository();
+    write(
+      repository,
+      'tsconfig.json',
+      `${JSON.stringify({
+        compilerOptions: {
+          declaration: true,
+          ignoreDeprecations: '6.0',
+          module: 'System',
+          moduleResolution: 'Node10',
+          outFile: 'dist/bundle.js',
+          rootDir: '.',
+          strict: true,
+          target: 'ES2022',
+        },
+        include: ['src/**/*.ts'],
+      })}\n`,
+    );
+    write(repository, 'src/index.ts', "export const first = 'value';\n");
+    write(repository, 'src/second.ts', "export const second = 'value';\n");
+    const requestPath = writeRequestInput(repository, {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
+    });
+    const invocation = invoke(
+      repository,
+      commitAll(repository, 'multi-source bundle'),
+      requestPath,
+    );
+
+    expect(invocation.exitCode).toBe(1);
+    expect(streamText(invocation, 'stdout')).toBe('');
+    expect(streamText(invocation, 'stderr')).toContain(
+      'TypeScript bundled declaration has multiple candidate sources for tsconfig.json: src/index.ts, src/second.ts',
+    );
+  }, 20_000);
 
   test('normalizes the materialized compiler root across repeat and restored extractions', () => {
     const repository = createRepository();
@@ -892,18 +1146,6 @@ describe('relationship extraction production CLI', () => {
     expect(output(unresolved)).toContain(
       "TypeScript import unresolved: packages/apps/consumer/src/use.ts -> './absent'",
     );
-
-    const compilerRepository = createRepository();
-    write(
-      compilerRepository,
-      'packages/provider/src/public.ts',
-      'export interface PublicThing { broken: MissingType }\n',
-    );
-    const compilerRevision = commitAll(compilerRepository, 'compiler error');
-    const compiler = invoke(compilerRepository, compilerRevision, writeRequest(compilerRepository));
-    expect(compiler.exitCode).toBe(1);
-    expect(output(compiler)).toContain('TypeScript compiler failed:');
-    expect(output(compiler)).toContain("Cannot find name 'MissingType'");
   }, 15_000);
 
   test('omits a compiler-supported ambient non-code import without inventing a target', () => {
