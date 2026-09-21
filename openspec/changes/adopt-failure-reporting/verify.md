@@ -704,3 +704,20 @@ All commands below ran on 2026-09-21 with evidence retained in the closure direc
 | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`     | no formatting differences; exit 0        |
 | Exact strict named OpenSpec validation                                    | 1 passed, 0 failed, no issues; exit 0    |
 | Staged whole `tool-devsync:test` preflight                                | 359 pass, 0 fail, 864 assertions; exit 0 |
+
+### MCP retry after a refresh, found while merging main (2026-09-21)
+
+Main gained a refresh-and-retry path for a be-01 401 after this change was cut. Merged as the union
+of both sides, that path swallowed every failure of the retry except an edge refusal, so a rejected
+retry fetch wrote no operator record and the caller was told the session had ended. The retry's
+failure is now classified exactly as the first call's: only a second be-01 refusal ends the session.
+
+| Check                                                                                                      | Result                                                                    |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| New case `reports a transport failure on the retry after a refresh, and keeps the session`, before the fix | failed on `Expected length: 1`, `Received length: 0`                      |
+| The same case after the fix                                                                                | passed; `src/server.test.ts` 24 pass, 0 fail                              |
+| R5 fault: `cause = retryCause;` removed from `server.ts`                                                   | the named case failed on the same lengths; restored and compared by `cmp` |
+| `bun test src` in `apps/wbs/mcp-01`                                                                        | 165 pass, 0 fail across 15 files                                          |
+
+Not changed and recorded as a finding: a failure of the refresh itself other than an edge refusal
+still ends the family without an operator record, as it did on main before this merge.

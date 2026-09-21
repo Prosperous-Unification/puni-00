@@ -169,12 +169,22 @@ export function createServer(deps: ServerDeps): Server {
             : callerTokenOf(extra.authInfo),
         ),
       );
-    } catch (cause) {
-      if (cause instanceof UpstreamRejected) {
+    } catch (firstCause) {
+      let cause = firstCause;
+      if (firstCause instanceof UpstreamRejected) {
         const sessionId = extraSessionId(extra.authInfo);
+        let refreshedToken: string | null = null;
         if (sessionId !== null && refreshSession !== undefined) {
           try {
-            const refreshedToken = await refreshSession(sessionId);
+            refreshedToken = await refreshSession(sessionId);
+          } catch (refreshCause) {
+            if (refreshCause instanceof EdgeGate)
+              return asCallToolResult(errorText(refreshCause.message));
+            // A refused refresh ends the family below.
+          }
+        }
+        if (refreshedToken !== null) {
+          try {
             return asCallToolResult(
               await callTool(
                 tool,
@@ -185,19 +195,25 @@ export function createServer(deps: ServerDeps): Server {
               ),
             );
           } catch (retryCause) {
-            if (retryCause instanceof EdgeGate)
-              return asCallToolResult(errorText(retryCause.message));
-            // A refused refresh or one refused retry ends the family below.
+            // Only a second be-01 refusal is a session outcome. Anything else the retry throws is
+            // classified below exactly as the first call's failure would be, so a transport or
+            // decoder failure after a good refresh is reported and the session is kept.
+            // Proof: on 2026-09-21, removing this assignment failed `reports a transport failure on
+            // the retry after a refresh, and keeps the session` on `Expected length: 1`, `Received
+            // length: 0`: a rejected retry fetch wrote no operator record.
+            cause = retryCause;
           }
         }
-        if (sessionId !== null) await endSession?.(sessionId);
-        return asCallToolResult(
-          errorText(
-            sessionId === null
-              ? `${tool.name} could not be called: ${cause.message} Sign in again and retry.`
-              : `${tool.name} could not be called: be-01 rejected the upstream credential, so the MCP session ended. Reauthorize and retry.`,
-          ),
-        );
+        if (cause instanceof UpstreamRejected) {
+          if (sessionId !== null) await endSession?.(sessionId);
+          return asCallToolResult(
+            errorText(
+              sessionId === null
+                ? `${tool.name} could not be called: ${cause.message} Sign in again and retry.`
+                : `${tool.name} could not be called: be-01 rejected the upstream credential, so the MCP session ended. Reauthorize and retry.`,
+            ),
+          );
+        }
       }
       if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
       // Deliberately not a throw. A modeled input refusal names what the caller can correct — as

@@ -461,6 +461,40 @@ describe('an unexpected tool failure', () => {
     expect(JSON.stringify(toolResponse)).not.toContain(secret);
   });
 
+  it('reports a transport failure on the retry after a refresh, and keeps the session', async () => {
+    const failure = new Error('connect ECONNRESET alice@example.com retry-secret');
+    const reported: unknown[] = [];
+    let calls = 0;
+    let ended = false;
+    const fetchImpl: FetchLike = () => {
+      calls += 1;
+      return calls === 1
+        ? Promise.resolve(new Response('{"error":"unauthorized"}', { status: 401 }))
+        : Promise.reject(failure);
+    };
+    const { client } = await connected([READ], fetchImpl, {
+      authInfo: {
+        token: 'stale-token',
+        clientId: 'person-1',
+        scopes: ['read'],
+        extra: { mcpSessionId: 'session-1' },
+      },
+      reportUnexpectedToolFailure: recordingReporter(reported),
+      endSession: () => {
+        ended = true;
+      },
+      refreshSession: () => Promise.resolve('fresh-token'),
+    });
+
+    const toolResponse = await client.callTool({ name: READ.name, arguments: { id: 'p-1' } });
+
+    expect(calls).toBe(2);
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBe(failure);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(ended).toBeFalse();
+  });
+
   it('reports a secret-bearing 500 instead of returning its body', async () => {
     const marker = '500 alice@example.com boundary-secret';
     const reported: unknown[] = [];
