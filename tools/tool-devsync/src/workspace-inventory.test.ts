@@ -1,12 +1,92 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { expect, it } from 'bun:test';
+import { type ParseError, printParseErrorCode, visit } from 'jsonc-parser';
 
 import { readDepthSensitiveConfigPaths } from '../workspace-inventory.mjs';
 
 const WORKSPACE = new URL('../../../', import.meta.url);
+
+interface DepthSensitivePath {
+  readonly file: string;
+  readonly propertyPath: string;
+  readonly value: string;
+}
+
+/**
+ * Every project or TypeScript configuration file below `directory`, found by walking the directory
+ * tree rather than by asking Nx which projects exist, so that a project the inventory's own
+ * discovery drops is still enumerated here.
+ */
+async function findConfigs(directory: string, found: string[] = []): Promise<string[]> {
+  const entries = await readdir(join(fileURLToPath(WORKSPACE), directory), {
+    withFileTypes: true,
+  });
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) {
+      continue;
+    }
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) await findConfigs(path, found);
+    else if (entry.name === 'project.json' || /^tsconfig(?:\.[^.]+)?\.json$/.test(entry.name)) {
+      found.push(path);
+    }
+  }
+  return found;
+}
+
+/**
+ * Refuse a configuration file this oracle cannot parse. The oracle reads files the production
+ * inventory's project-scoped discovery need not reach, so its own boundary must refuse malformed
+ * trusted state rather than report whatever the tolerant visitor managed to emit before the error.
+ *
+ * @throws Error naming the workspace-relative file and every parse error code it carries.
+ */
+function refuseUnparsableConfig(file: string, errors: readonly ParseError[]): void {
+  if (errors.length > 0) {
+    const failures = errors.map(({ error }) => printParseErrorCode(error)).join(', ');
+    throw new Error(`cannot parse ${file}: ${failures}`);
+  }
+}
+
+/**
+ * The same inventory, derived a second way: a streaming JSONC visit reporting every string literal
+ * carrying `../` with the property path it sits at. It shares no code with
+ * `readDepthSensitiveConfigPaths`'s recursive object walk, so a filter added to that walk makes the
+ * two disagree. It is not a pinned total, so a project that gains a parent-relative target path or
+ * configuration file moves both sides together and needs no edit here.
+ */
+async function readOraclePaths(): Promise<DepthSensitivePath[]> {
+  const files = [...(await findConfigs('apps')), ...(await findConfigs('libs'))].sort();
+  const paths: DepthSensitivePath[] = [];
+  for (const file of files) {
+    const text = await readFile(join(fileURLToPath(WORKSPACE), file), 'utf8');
+    const errors: ParseError[] = [];
+    visit(
+      text,
+      {
+        onLiteralValue(value, _offset, _length, _startLine, _startCharacter, pathOf) {
+          if (typeof value === 'string' && value.includes('../')) {
+            paths.push({ file, propertyPath: pathOf().join('.'), value });
+          }
+        },
+        onError(error, offset, length) {
+          errors.push({ error, offset, length });
+        },
+      },
+      { allowTrailingComma: true },
+    );
+    refuseUnparsableConfig(file, errors);
+  }
+  return paths;
+}
+
+function sortPathKeys(paths: readonly DepthSensitivePath[]): string[] {
+  return paths.map(({ file, propertyPath, value }) => `${file}\0${propertyPath}\0${value}`).sort();
+}
 
 async function failureMessageOf(reading: Promise<readonly unknown[]>): Promise<string> {
   try {
@@ -117,8 +197,22 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // length: 170`, then with the files pinned at 0, `Received length: 84`: four files and four rows
   // from shared-failures, three rows from the level targets (2026-09-20). Two lanes meeting at one
   // hand-moved count is a conflict by construction; work item G2 derives it.
-  expect(paths).toHaveLength(170);
-  expect(new Set(paths.map(({ file }) => file))).toHaveLength(84);
+  const oracle = await readOraclePaths();
+
+  // Proof: returning `[]` as the first statement of `readOraclePaths` failed here with `Received:
+  // 0` against the greater-than-100 guard, before tuple equality could pass vacuously (2026-09-21).
+  expect(oracle.length).toBeGreaterThan(100);
+  // Proof: filtering `compilerOptions.outDir` in `collectParentRelativePaths` failed tuple equality
+  // with 44 expected rows absent from the production inventory (2026-09-21).
+  // Proof: narrowing `isProjectConfig` to bare `tsconfig.json` failed tuple equality with 103
+  // expected rows absent from the production inventory (2026-09-21).
+  // Proof: removing the library branch from the production project-root filter failed tuple
+  // equality with 65 expected rows absent from the production inventory (2026-09-21).
+  // Proof: truncating apps/wbs/be-01/tsconfig.json failed in the production module with `cannot
+  // parse apps/wbs/be-01/tsconfig.json: CloseBraceExpected` (2026-09-21).
+  // Proof: disabling the production module's parse-error branch while leaving that file truncated
+  // failed from `refuseUnparsableConfig` here with the same file and error code (2026-09-21).
+  expect(sortPathKeys(paths)).toEqual(sortPathKeys(oracle));
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',
     propertyPath: 'extends',

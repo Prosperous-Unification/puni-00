@@ -77,8 +77,9 @@ Five rules govern this repo:
 ## Gate
 
 - Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>`. It takes the canonical
-  host-wide heavy lock, checks out that SHA under the lock, then runs CI format, test, lint,
-  typecheck and build. Do not run raw full Nx gates there or check out the SHA first.
+  host-wide heavy lock, checks out that SHA under the lock, installs the locked dependencies
+  frozen, then runs CI format, test, lint, typecheck and build. Do not run raw full Nx gates
+  there or check out the SHA first.
 - Trust the printed `h2puni gate: running on <sha>`, not intent. Exit 65 means the shared
   gate tree is dirty; move or commit named files and rerun—never unattended `git clean`.
 - A held lock queues for 30 minutes; `HEAVY_LOCK_WAIT_SECONDS=0` opts into refusal.

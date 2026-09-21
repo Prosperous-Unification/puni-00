@@ -944,7 +944,12 @@ export function WbsTable({
       pointedRows.resumeTablePointing();
     };
   }, [pointedRows, renderer]);
-  const { refreshOrMarkStale, run, stepStack, runMarkerWrite } = usePlanRead({
+  const {
+    refreshOrMarkStale,
+    run,
+    stepStack,
+    markers: markerGestures,
+  } = usePlanRead({
     setDrafts,
     projectId,
     activeProject,
@@ -1695,33 +1700,33 @@ export function WbsTable({
     NonNullable<ComponentProps<typeof GanttPanel>['onCreateMarker']>
   >(
     (marker) => {
-      void runMarkerWrite(() => api.createCalendarMarker(projectId, marker));
+      void markerGestures.add(marker);
     },
-    [api, projectId, runMarkerWrite],
+    [markerGestures],
   );
   const renameGanttMarker = useCallback<
     NonNullable<ComponentProps<typeof GanttPanel>['onRenameMarker']>
   >(
     (markerId, name) => {
-      void runMarkerWrite(() => api.renameCalendarMarker(projectId, markerId, name));
+      void markerGestures.rename(markerId, name);
     },
-    [api, projectId, runMarkerWrite],
+    [markerGestures],
   );
   const recolorGanttMarker = useCallback<
     NonNullable<ComponentProps<typeof GanttPanel>['onRecolorMarker']>
   >(
     (markerId, color) => {
-      void runMarkerWrite(() => api.recolorCalendarMarker(projectId, markerId, color));
+      void markerGestures.recolor(markerId, color);
     },
-    [api, projectId, runMarkerWrite],
+    [markerGestures],
   );
   const deleteGanttMarker = useCallback<
     NonNullable<ComponentProps<typeof GanttPanel>['onDeleteMarker']>
   >(
     (markerId) => {
-      void runMarkerWrite(() => api.deleteCalendarMarker(projectId, markerId));
+      void markerGestures.remove(markerId);
     },
-    [api, projectId, runMarkerWrite],
+    [markerGestures],
   );
   /**
    * One row's Start sentence, worked out once however many readers and commits

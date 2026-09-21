@@ -22,6 +22,12 @@ import { FaultBoundary } from './fault-boundary';
  * explicitly optional feature, the editor is not, and a fault the editor throws
  * has no smaller thing to degrade to.
  *
+ * **It says nothing about what was thrown.** The sentence is the public report's own
+ * generic message and the line under it is the occurrence identifier both reports share;
+ * the caught value's message, its stack and everything hanging off it stay inside the
+ * diagnostic report, which `discloseFault` drops. A page is a disclosure boundary and
+ * so is the console beside it — see the adoption plan's third reporting requirement.
+ *
  * **It cannot heal itself, and says so rather than pretending.** The chart's
  * boundary clears on the next whole read, because a chart is drawn from a read
  * and there is always another one coming. The root has no such moment: whatever
@@ -43,7 +49,7 @@ export function AppFaultBoundary({ children }: { children: ReactNode }): ReactNo
       // from the chart's: the state the tree held is gone with the tree, so no
       // later prop can prove the fault is over.
       resetKey="the document"
-      fallback={(message) => (
+      fallback={(fault) => (
         <main
           data-app-fault
           className="bg-background text-foreground min-h-full p-8 font-sans"
@@ -54,8 +60,19 @@ export function AppFaultBoundary({ children }: { children: ReactNode }): ReactNo
         >
           <h1 className="mb-3 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
           <p className="mb-4 text-sm">
-            The app stopped: {message}. Nothing on this page can put it back — reload it to start
-            again. Anything already saved is on the server.
+            The app stopped: {fault.sentence}. Nothing on this page can put it back — reload it to
+            start again. Anything already saved is on the server.
+          </p>
+          {/*
+           * The handle, and the only thing on this page that is specific to this fault.
+           * The sentence above is the public report's generic message, because the root
+           * catches what nothing modelled; the identifier is what a reader quotes and what
+           * an operator's record will be keyed by once a browser has somewhere to send one.
+           */}
+          {/* Proof: deleting this element left the logged AE handle absent from the page in
+          'shows the same reference on the page as it logged' (N4, 2026-09-21). */}
+          <p className="text-muted-foreground mb-4 font-mono text-xs" data-app-fault-reference>
+            Reference {fault.occurrenceId}
           </p>
           <button
             type="button"

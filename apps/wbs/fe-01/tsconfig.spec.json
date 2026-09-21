@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../../../dist/out-tsc",
-    "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"],
       "@wbs/domain/workday": ["../../../libs/wbs/domain/domain/src/workday.ts"],
@@ -17,6 +17,7 @@
       "@wbs/contracts/ws-frames": ["../../../libs/wbs/domain/contracts/src/ws-frames.ts"],
       "@wbs/contracts": ["../../../libs/wbs/domain/contracts/src/index.ts"],
       "@wbs/validation": ["../../../libs/wbs/domain/validation/src/index.ts"],
+      "@shared/failures": ["../../../libs/shared/domain/failures/src/index.ts"],
       "@shared/validation": ["../../../libs/shared/domain/validation/src/index.ts"],
       "@wbs/domain/is-within": ["../../../libs/wbs/domain/domain/src/is-within.ts"],
       "@wbs/domain/derive-numbers": ["../../../libs/wbs/domain/domain/src/derive-numbers.ts"],

@@ -438,6 +438,19 @@ export function createEstimatesColumns({
                           fontSize: QUIET_TRIO_PX,
                           fontWeight: 400,
                           color: trioRepeatsResult ? 'transparent' : 'var(--muted-foreground)',
+                          // The trio is what yields when all three do not fit, and it yields
+                          // **visibly**: `20/24/30` beside `24.3` on a staffed row has 16px more
+                          // trio than box, and without this the box cut `20/24` off mid-glyph and
+                          // said nothing about the rest. Only at rest — the full-strength arm
+                          // above declares no `text-overflow`, so a box being typed in scrolls its
+                          // whole value the way a text box does, and the hover card carries the
+                          // trio in full either way.
+                          // Proof, both watched 2026-09-21. This line dropped: `ends a resting
+                          // trio in an ellipsis, and only while it is resting` failed on
+                          // `expected '' to be 'ellipsis'`. The same declaration added to the
+                          // full-strength arm above: the same test failed on its focus
+                          // assertion, `expected 'ellipsis' to be ''`.
+                          textOverflow: 'ellipsis',
                         }),
                     ...(problem === null
                       ? {}
@@ -551,9 +564,14 @@ export function createEstimatesColumns({
                 // The same test is what holds the budget now, with the sizes the other
                 // way round: the committed cases are the seeded one and the unstaffed
                 // wide one, and they now also pin that the box is unfocused at 10px and
-                // that this span takes the row's own size, ink and tabular numerals. The
-                // staffed, fractional case is not committed — it clips before this change
-                // as well as after it; see `verify.md`'s finding.
+                // that this span takes the row's own size, ink and tabular numerals.
+                //
+                // **The staffed, fractional case is committed too, since 2026-09-21.** It
+                // clips by 16px before this change and after it, and no size the trio can
+                // be set at closes that, so what `yields the trio to an ellipsis where a
+                // staffed cell's result is fractional` pins is not a fit: it is that the
+                // trio ends in an ellipsis rather than a sliced glyph while this span and
+                // the assignee keep their boxes inside the cell.
                 <span
                   data-folded-final={step.id}
                   style={{
