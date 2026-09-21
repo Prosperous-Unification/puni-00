@@ -29,4 +29,4 @@
 
 ## 7. Part G — declaration-only JSON inputs
 
-- [ ] 7.1 Admit compiler-recognized JSON omission only after complete TypeScript declaration coverage, retain real JSON dependency selectors, and refuse an unrepresented JSON public closure — tests: implementation-only JSON, public JSON closure, compiler failure, and bundled/outFile boundary; negatives G1 through G6 break JSON classification, targeted output mapping, forward/reverse edges, public-closure refusal, diagnostic failure propagation, and bundled-source ownership.
+- [x] 7.1 Admit compiler-recognized JSON omission only after complete TypeScript declaration coverage, retain real JSON dependency selectors, and refuse an unrepresented JSON public closure — tests: implementation-only JSON, public JSON closure, compiler failure, and bundled/outFile boundary; negatives G1 through G6 break JSON classification, targeted output mapping, forward/reverse edges, public-closure refusal, diagnostic failure propagation, and bundled-source ownership.
