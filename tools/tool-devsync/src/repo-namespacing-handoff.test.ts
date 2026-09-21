@@ -22,6 +22,10 @@ const WORKSPACE = fileURLToPath(new URL('../../../', import.meta.url));
 // Proof: pointing SELF at not-this-file.ts failed the legacy-occurrence pin with test-fixture
 // contexts raised from 106 to 126 and occurrences from 257 to 279, while unclassified stayed [].
 // Restoring the derived path returned the filtered sweep to green (2026-09-20).
+// Proof: replacing this derived path with `tools/tool-devsync/src/not-this-file.ts` again raised
+// test-fixture contexts from 106 to 126, recursive selectors from 31 to 33 and occurrences from
+// 257 to 279, with unclassified still empty; restoring returned 14 filtered-sweep tests green
+// (2026-09-21).
 const SELF = relative(WORKSPACE, fileURLToPath(import.meta.url));
 const LEGACY_ROOT =
   /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01|\*+|\$\{[^}]+\})|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation|\*+|\$\{[^}]+\}))(?:\/|\b)/g;
@@ -780,6 +784,19 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // occurrences and no unclassified entries. While the two files were still unmerged in the index
     // the same run reported 261 occurrences, because `git ls-files` lists a conflicted path once
     // per stage: resolve and stage before reading this pin (2026-09-20). Work item G2 derives it.
+    // Proof: deleting `wbs/` from solver-orphan-fixture.Dockerfile's COPY source raised occurrences
+    // from 257 to 258 and reported one UNCLASSIFIED context carrying the whole COPY line and no line
+    // number; restoring returned the 14-test filtered sweep to green (2026-09-21).
+    // Proof: injecting `const roundOneFault = 'apps/be-01/src'` above Tool Dagger's Dockerfile map
+    // raised production-transition contexts from 18 to 19 and occurrences from 257 to 258;
+    // restoring returned the 14-test filtered sweep to green (2026-09-21).
+    // Proof: replacing the Tool Dagger proof-comment root with prose while moving that root into the
+    // `be` map value left all counts and unclassified unchanged but changed the digest to
+    // `0dc796399ab7b3bad98d2d0675e8d1921beef9ff5962330c0ab5ae1ab1448184` (2026-09-21).
+    // Proof: exchanging lefthook.yml's and sync.test.ts's classes left every count and unclassified
+    // unchanged but changed the digest to `7bae8ae12d6c9f94b27fe83c102f38c67354efe4913b76371172895f1a15e9dc`;
+    // without `${category}:`, exchanged and restored classes both produced
+    // `681ef06d22b9d0eff7d378a2943005f1daca81573987b1aff9db8daa8475b2a2` (2026-09-21).
     digest: '2f0d2926e8d85aed7089c3ad667f7a0f6ccb97c514152a9895893978fab3f22d',
     occurrences: 257,
     unclassified: [],

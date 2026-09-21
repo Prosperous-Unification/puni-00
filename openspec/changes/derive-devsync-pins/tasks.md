@@ -8,7 +8,7 @@
 
 ## 3. Prove the derived digest still refuses the recorded faults
 
-- [ ] 3.1 Inject the unclassified root, the same-count substitution, the class exchange and the discovery fault, observe each failing, restore, and record adjacent proof comments.
+- [x] 3.1 Inject the unclassified root, the same-count substitution, the class exchange and the discovery fault, observe each failing, restore, and record adjacent proof comments.
 
 ## 4. Derive the depth-sensitive inventory
 
