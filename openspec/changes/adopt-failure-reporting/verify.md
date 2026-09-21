@@ -315,3 +315,16 @@ inventory pins remain 167 rows and 84 distinct files.
 - `bin/h2puni-gate.sh`: unavailable on this machine and explicitly reserved for the host gate.
 - Browser execution of `@shared/failures`: no batch 2 fixture imports this module; task 3 remains
   unassigned.
+
+## 050.4 Slice 0 — frontend fault-boundary specification
+
+Baseline commit: `a0e0701641c2cc2d26f87365f9142a3670c564a3`.
+
+| Check                                      | Result                       | Evidence                                        |
+| ------------------------------------------ | ---------------------------- | ----------------------------------------------- |
+| Strict OpenSpec validation before the edit | exit 0; 112 passed, 0 failed | `openspec-validation.slice0-before.hp7mFV.json` |
+| Strict OpenSpec validation after the edit  | exit 0; 112 passed, 0 failed | `openspec-validation.slice0-after.UiP8O9.json`  |
+
+The item total stayed at 112 because the slice adds requirements to the existing
+`adopt-failure-reporting` change. Tasks 3.1 and 4.1 remain unchecked until the browser and boundary
+work is complete.

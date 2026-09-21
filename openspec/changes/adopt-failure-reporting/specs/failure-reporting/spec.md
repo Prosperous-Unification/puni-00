@@ -108,3 +108,59 @@ The diagnostic and public reports SHALL validate against their installed report 
 - **WHEN** both reports are redacted and truncated
 - **THEN** the diagnostic report validates against the installed diagnostic schema
 - **AND** the public report validates against the installed public schema
+
+### Requirement: A browser fault boundary discloses a public report and nothing raw
+
+A caught render fault SHALL disclose exactly one of three things and nothing else: the public report's generic message with its occurrence identifier, for a fault nothing modelled; a validated sentence selected by the caught value's own kind, with that occurrence identifier, for a kind whose sentences are public by construction; or fixed loss text with a local correlation handle, when reporting could not describe the caught value at all. In every one of the three cases it SHALL disclose no text read from the caught value other than a sentence a kind's own selector validated, and SHALL disclose neither the caught value's cause nor a stack to the page or to the browser console.
+
+#### Scenario: A secret-bearing render fault reaches the root boundary
+
+- **GIVEN** a component that throws an error whose message and cause carry a personal identifier, a credential and an internal locator
+- **WHEN** the root fault boundary catches it in a browser
+- **THEN** the page shows the generic public message and the occurrence identifier
+- **AND** neither the rendered markup nor any browser console line contains the message, the cause or a stack
+
+#### Scenario: A modelled chart fault is disclosed by its own kind
+
+- **GIVEN** a chart data fault whose sentence its own module composed as an own string-valued property
+- **WHEN** the chart's fault boundary catches it
+- **THEN** the panel shows that sentence and the occurrence identifier
+- **AND** an unmodelled error caught by the same boundary shows the generic public message instead
+
+#### Scenario: A kind's own sentence cannot be read as a string
+
+- **GIVEN** a chart data fault whose own message is an accessor, or is not a string
+- **WHEN** the chart's fault boundary decides what to disclose
+- **THEN** the panel shows the generic public message and the occurrence identifier
+- **AND** no accessor on the caught value is invoked
+
+### Requirement: Deciding what a fault discloses never throws
+
+Deciding what a caught fault discloses SHALL model a failure to inspect the caught value as an outcome carrying fixed text and a correlation handle, and SHALL NOT raise a second failure out of the boundary that is already handling the first.
+
+#### Scenario: Reporting cannot describe the caught value
+
+- **GIVEN** a caught value whose inspection makes the reporter throw
+- **WHEN** a fault boundary decides what to disclose
+- **THEN** the boundary renders fixed text and a local correlation handle, which is the third disclosure case and carries no public report
+- **AND** the boundary's disclosure selector is never applied to that value
+- **AND** the boundary above it renders nothing
+
+#### Scenario: A kind's disclosure selector throws
+
+- **GIVEN** a fault boundary whose disclosure selector raises an exception for the caught value it is given
+- **WHEN** that selector is applied while deciding what to disclose
+- **THEN** the boundary renders the generic public message and the occurrence identifier
+- **AND** the console line names the selector as what was lost
+- **AND** the exception reaches nothing above the boundary
+
+### Requirement: The shared reporting module executes in a browser
+
+The shared failure reporting module SHALL produce both reports inside a browser, built through the frontend's shipped bundler configuration, without a Node built-in in its executed import closure.
+
+#### Scenario: The module reports a failure in Chromium
+
+- **GIVEN** the frontend's shipped bundler configuration
+- **WHEN** a probe importing the shared reporting module runs in Chromium
+- **THEN** it produces a public report carrying an occurrence identifier
+- **AND** the page raises no error and requests no unexpected origin
