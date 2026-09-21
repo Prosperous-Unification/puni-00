@@ -1,6 +1,8 @@
 import {
   createHash,
   createHmac,
+  createPrivateKey,
+  createPublicKey,
   generateKeyPairSync,
   type KeyObject,
   randomBytes,
@@ -17,16 +19,21 @@ import {
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
 } from '@wbs/auth';
-import { type JWTPayload, jwtVerify, SignJWT } from 'jose';
+import { decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
+import { type FamilyRecord, McpSessionStore } from './session-store';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
 const REAUTH_COOKIE = '__Host-wbs_mcp_reauth';
-const TTL_MS = 300_000;
+const GRANT_TTL_MS = 300_000;
+const DEFAULT_ACCESS_TTL_MS = 3_600_000;
+const REFRESH_IDLE_MS = 14 * 86_400_000;
+const REFRESH_ABSOLUTE_MS = 30 * 86_400_000;
+const UPSTREAM_REFRESH_EARLY_MS = 120_000;
 const UNPROVEN_CLIENT_TTL_MS = 600_000;
 const ACTIVE_CLIENT_TTL_MS = 86_400_000;
 const MAX_AUTHORIZATION_QUERY_BYTES = 2_048;
@@ -62,11 +69,8 @@ export interface McpAuthorizationGrant {
   scopes: readonly string[];
   subject: string;
   upstreamAccessToken: string;
-}
-
-interface McpSession {
-  expiresAt: number;
-  upstreamAccessToken: string;
+  upstreamRefreshToken?: string;
+  upstreamExpiresAt: number;
 }
 
 interface Options {
@@ -74,7 +78,9 @@ interface Options {
   groupPrefix?: string;
   now?: () => number;
   random?: () => string;
-  signingKeys?: { privateKey: KeyObject; publicKey: KeyObject };
+  signingKeys?: { privateKey: KeyObject; publicKey: KeyObject; previousPublicKey?: KeyObject };
+  accessTtlMs?: number;
+  store?: McpSessionStore;
   verifyUpstream?: TokenVerifier['verify'];
   clientLimit?: number;
   clientSourceLimit?: number;
@@ -90,7 +96,10 @@ interface Options {
   revocationFailure?: () => void;
 }
 
-type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange' | 'revoke'>;
+type UpstreamClient = Pick<
+  BrowserOidcClient,
+  'authorizationUrl' | 'exchange' | 'refresh' | 'revoke'
+>;
 
 export interface OAuthRouteEvidence {
   method: string;
@@ -104,7 +113,7 @@ export interface OAuthRouteEvidence {
 export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly clients = new Map<string, ClientRecord>();
   private readonly grants = new Map<string, McpAuthorizationGrant>();
-  private readonly sessions = new Map<string, McpSession>();
+  private readonly store: McpSessionStore;
   private readonly reauthMarkers = new Map<string, number>();
   private readonly pendingAuthorizations: PendingAuthorizations;
   private readonly now: () => number;
@@ -116,6 +125,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly groupPrefix: string;
   private readonly privateKey: KeyObject;
   private readonly publicKey: KeyObject;
+  private readonly previousPublicKey: KeyObject | undefined;
+  private readonly keyId: string;
+  private readonly previousKeyId: string | undefined;
+  private readonly accessTtlMs: number;
   private readonly verifyUpstream: TokenVerifier['verify'];
   private readonly reauthKey: Buffer;
   private readonly revocationFailure: () => void;
@@ -141,9 +154,19 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.groupPrefix = options.groupPrefix ?? 'dev';
     this.now = options.now ?? Date.now;
     this.random = options.random ?? (() => randomBytes(32).toString('base64url'));
-    const keys = options.signingKeys ?? generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const generatedKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const keys: NonNullable<Options['signingKeys']> = options.signingKeys ?? {
+      privateKey: generatedKeys.privateKey,
+      publicKey: generatedKeys.publicKey,
+    };
     this.privateKey = keys.privateKey;
     this.publicKey = keys.publicKey;
+    this.previousPublicKey = keys.previousPublicKey;
+    this.keyId = keyIdOf(this.publicKey);
+    this.previousKeyId =
+      this.previousPublicKey === undefined ? undefined : keyIdOf(this.previousPublicKey);
+    this.accessTtlMs = Math.max(1_000, options.accessTtlMs ?? DEFAULT_ACCESS_TTL_MS);
+    this.store = options.store ?? new McpSessionStore(':memory:', [randomBytes(32)]);
     this.verifyUpstream =
       options.verifyUpstream ?? (() => Promise.reject(new Error('upstream verifier is required')));
     this.reauthKey = options.reauthKey ?? randomBytes(32);
@@ -164,7 +187,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       globalLimit: Math.max(1, options.transactionLimit ?? 1_000),
       now: this.now,
       perClientLimit: Math.max(1, options.transactionLimitPerClient ?? 5),
-      ttlMs: TTL_MS,
+      ttlMs: GRANT_TTL_MS,
     });
   }
 
@@ -195,7 +218,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       url.pathname === new URL(`${this.issuer}/jwks`).pathname &&
       request.method === 'GET'
     ) {
-      response = Response.json({ keys: [this.publicJwk()] });
+      response = Response.json({ keys: this.publicJwks() });
     }
     if (response !== undefined && evidenceRequest !== undefined) {
       this.routeEvidence?.(await routeEvidenceOf(evidenceRequest, url.pathname, response.status));
@@ -216,10 +239,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   ): Promise<{ readonly upstreamToken: string; readonly mcpSessionId: string | null }> {
     try {
       const payload = await this.verifyLocal(token);
-      const session = this.sessionOf(payload);
+      const family = this.sessionOf(payload);
       const sessionId = payload['jti'];
       if (typeof sessionId !== 'string') throw new Error('verified MCP token has no session id');
-      return { upstreamToken: session.upstreamAccessToken, mcpSessionId: sessionId };
+      const current = await this.refreshUpstreamIfNeeded(family);
+      return { upstreamToken: current.upstreamAccessToken, mcpSessionId: sessionId };
     } catch {
       await this.verifyUpstream(token);
       return { upstreamToken: token, mcpSessionId: null };
@@ -231,7 +255,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   }
 
   endSession(mcpSessionId: string): void {
-    this.sessions.delete(mcpSessionId);
+    this.store.endSession(mcpSessionId);
   }
 
   private async verifyLocal(token: string): Promise<JwtClaims> {
@@ -243,14 +267,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     return { ...payload, sub: payload.sub };
   }
 
-  private sessionOf(payload: JWTPayload): McpSession {
+  private sessionOf(payload: JWTPayload): FamilyRecord {
     const jti = payload.jti;
-    const session = typeof jti === 'string' ? this.sessions.get(jti) : undefined;
-    if (session === undefined || session.expiresAt <= this.now()) {
-      if (typeof jti === 'string') this.sessions.delete(jti);
-      throw new Error('MCP OAuth session is missing, expired, or revoked');
-    }
-    return session;
+    const family = typeof jti === 'string' ? this.store.familyForSession(jti, this.now()) : null;
+    if (family === null) throw new Error('MCP OAuth session is missing, expired, or revoked');
+    return family;
   }
 
   readGrant(code: string): McpAuthorizationGrant | null {
@@ -316,6 +337,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         client_id: clientId,
         client_id_expires_at: Math.floor(expiresAt / 1000),
         client_id_issued_at: Math.floor(issuedAt / 1000),
+        grant_types: ['authorization_code', 'refresh_token'],
         redirect_uris: redirectUris,
         token_endpoint_auth_method: 'none',
       },
@@ -348,7 +370,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       return oauthError('invalid_request');
     }
 
-    if (!client.proven && this.now() + TTL_MS * 2 > client.unprovenExpiresAt) {
+    if (!client.proven && this.now() + GRANT_TTL_MS * 2 > client.unprovenExpiresAt) {
       return oauthError('temporarily_unavailable', undefined, 429);
     }
 
@@ -366,7 +388,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (saved === 'capacity') {
       return oauthError('temporarily_unavailable', undefined, 429);
     }
-    const activeFlowExpiry = Math.max(client.expiresAt, this.now() + TTL_MS * 2);
+    const activeFlowExpiry = Math.max(client.expiresAt, this.now() + GRANT_TTL_MS * 2);
     client.expiresAt = client.proven
       ? activeFlowExpiry
       : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
@@ -447,12 +469,14 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.grants.set(code, {
       clientId: pending.authorization.clientId,
       codeChallenge: pending.authorization.codeChallenge,
-      expiresAt: this.now() + TTL_MS,
+      expiresAt: this.now() + GRANT_TTL_MS,
       redirectUri: pending.authorization.redirectUri,
       scope: scopes.join(' '),
       scopes,
       subject: identity.subject,
       upstreamAccessToken: tokens.accessToken,
+      upstreamRefreshToken: tokens.refreshToken,
+      upstreamExpiresAt: this.now() + tokens.expiresIn * 1_000,
     });
     const target = new URL(pending.authorization.redirectUri);
     target.searchParams.set('code', code);
@@ -488,7 +512,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private issueReauthCookie(): string {
     this.cleanup();
     const markerId = this.random();
-    this.storeReauthMarker(markerId, this.now() + TTL_MS);
+    this.storeReauthMarker(markerId, this.now() + GRANT_TTL_MS);
     return reauthCookie(markerId, this.reauthKey);
   }
 
@@ -520,6 +544,8 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 
   private async token(request: Request): Promise<Response> {
     const form = await request.formData();
+    if (form.get('grant_type') === 'refresh_token') return await this.refreshGrant(form);
+
     const code = stringField(form, 'code');
     this.cleanup();
     const grant = code === undefined ? undefined : this.grants.get(code);
@@ -541,59 +567,151 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       return oauthError('invalid_grant');
     }
 
-    if (this.sessions.size >= this.sessionLimit) {
-      return oauthError('temporarily_unavailable', undefined, 429);
-    }
-
     let reservedPromotion = false;
     if (!client.proven) {
       const provenSourceClients = [...this.clients.values()].filter(
         (candidate) =>
           candidate.source === client.source && (candidate.proven || candidate.promotionReserved),
       );
-      if (client.promotionReserved || provenSourceClients.length >= this.provenClientSourceLimit) {
+      if (client.promotionReserved || provenSourceClients.length >= this.provenClientSourceLimit)
         return oauthError('temporarily_unavailable', undefined, 429);
-      }
       client.promotionReserved = true;
       reservedPromotion = true;
     }
 
+    const now = this.now();
+    if (this.store.sessionCount(now) >= this.sessionLimit)
+      return oauthError('temporarily_unavailable', undefined, 429);
+    const familyId = this.random();
     const jti = this.random();
-    const expiresAt = this.now() + TTL_MS;
+    const refreshToken = this.random();
+    const absoluteExpiresAt =
+      grant.upstreamRefreshToken === undefined
+        ? Math.min(now + REFRESH_ABSOLUTE_MS, grant.upstreamExpiresAt)
+        : now + REFRESH_ABSOLUTE_MS;
+    const expiresAt = Math.min(now + this.accessTtlMs, absoluteExpiresAt);
     this.grants.delete(code);
-    this.sessions.set(jti, {
-      expiresAt,
-      upstreamAccessToken: grant.upstreamAccessToken,
-    });
-    let token: string;
     try {
-      token = await new SignJWT({
-        [this.groupsClaim]: grant.scopes.map((scope) => `${this.groupPrefix}:${scope}`),
-        scope: grant.scope,
-      })
-        .setProtectedHeader({ alg: 'RS256', kid: 'mcp-01-ephemeral', typ: 'JWT' })
-        .setIssuer(this.issuer)
-        .setAudience(this.audience)
-        .setSubject(grant.subject)
-        .setJti(jti)
-        .setIssuedAt(Math.floor(this.now() / 1000))
-        .setExpirationTime(Math.floor(expiresAt / 1000))
-        .sign(this.privateKey);
+      this.store.createFamily(
+        {
+          familyId,
+          clientId: grant.clientId,
+          subject: grant.subject,
+          scope: grant.scope,
+          upstreamAccessToken: grant.upstreamAccessToken,
+          upstreamRefreshToken: grant.upstreamRefreshToken,
+          upstreamExpiresAt: grant.upstreamExpiresAt,
+          idleExpiresAt: Math.min(now + REFRESH_IDLE_MS, absoluteExpiresAt),
+          absoluteExpiresAt,
+        },
+        jti,
+        expiresAt,
+        refreshToken,
+      );
+      const token = await this.issueAccessToken(grant.subject, grant.scope, jti, expiresAt);
+      client.proven = true;
+      client.promotionReserved = false;
+      client.expiresAt = now + this.activeClientTtlMs;
+      return tokenResponse(token, refreshToken, grant.scope, expiresAt - now);
     } catch (error) {
-      this.sessions.delete(jti);
+      this.store.revokeFamily(familyId, now);
       this.grants.set(code, grant);
       if (reservedPromotion) client.promotionReserved = false;
       throw error;
     }
-    client.proven = true;
-    client.promotionReserved = false;
-    client.expiresAt = this.now() + this.activeClientTtlMs;
-    return Response.json({
-      access_token: token,
-      expires_in: TTL_MS / 1000,
-      scope: grant.scope,
-      token_type: 'Bearer',
-    });
+  }
+
+  private async refreshGrant(form: FormData): Promise<Response> {
+    const refreshToken = stringField(form, 'refresh_token');
+    const clientId = stringField(form, 'client_id');
+    if (refreshToken === undefined || clientId === undefined) return oauthError('invalid_grant');
+    const now = this.now();
+    if (this.store.sessionCount(now) >= this.sessionLimit)
+      return oauthError('temporarily_unavailable', undefined, 429);
+    const successor = this.random();
+    const jti = this.random();
+    const expiresAt = now + this.accessTtlMs;
+    const consumed = this.store.consumeRefresh(
+      refreshToken,
+      clientId,
+      successor,
+      jti,
+      expiresAt,
+      now + REFRESH_IDLE_MS,
+      now,
+    );
+    if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
+    const boundedExpiresAt = Math.min(expiresAt, consumed.family.absoluteExpiresAt);
+    if (boundedExpiresAt <= now) {
+      this.store.endSession(jti);
+      return oauthError('invalid_grant');
+    }
+    const family = await this.refreshUpstreamIfNeeded(consumed.family);
+    const token = await this.issueAccessToken(family.subject, family.scope, jti, boundedExpiresAt);
+    return tokenResponse(token, successor, family.scope, boundedExpiresAt - now);
+  }
+
+  private async issueAccessToken(
+    subject: string,
+    scope: string,
+    jti: string,
+    expiresAt: number,
+  ): Promise<string> {
+    return await new SignJWT({
+      [this.groupsClaim]: scope.split(' ').map((value) => `${this.groupPrefix}:${value}`),
+      scope,
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: this.keyId, typ: 'JWT' })
+      .setIssuer(this.issuer)
+      .setAudience(this.audience)
+      .setSubject(subject)
+      .setJti(jti)
+      .setIssuedAt(Math.floor(this.now() / 1000))
+      .setExpirationTime(Math.floor(expiresAt / 1000))
+      .sign(this.privateKey);
+  }
+
+  private async refreshUpstreamIfNeeded(family: FamilyRecord): Promise<FamilyRecord> {
+    const now = this.now();
+    if (family.upstreamExpiresAt > now + UPSTREAM_REFRESH_EARLY_MS) return family;
+    if (family.upstreamRefreshToken === undefined) {
+      if (family.upstreamExpiresAt <= now) this.store.revokeFamily(family.familyId, now);
+      return family;
+    }
+    const owner = this.random();
+    const leased = this.store.acquireRefreshLease(family.familyId, owner, now, now + 5_000);
+    if (leased !== null) {
+      try {
+        const tokens = await this.upstream.refresh(
+          leased.upstreamRefreshToken ?? family.upstreamRefreshToken,
+        );
+        if (
+          !this.store.finishRefreshLease(
+            family.familyId,
+            owner,
+            tokens.accessToken,
+            tokens.refreshToken,
+            this.now() + tokens.expiresIn * 1_000,
+          )
+        )
+          throw new Error('upstream refresh lease was lost');
+        const current = this.store.family(family.familyId);
+        if (current === null) throw new Error('upstream refresh family disappeared');
+        return current;
+      } catch (cause) {
+        this.store.revokeFamily(family.familyId, this.now());
+        throw new Error('upstream refresh was refused; the MCP family was revoked', { cause });
+      }
+    }
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      await Bun.sleep(25);
+      const current = this.store.family(family.familyId);
+      if (current === null) throw new Error('MCP refresh family disappeared');
+      if (current.revokedAt !== null) throw new Error('MCP refresh family was revoked');
+      if (current.upstreamExpiresAt > family.upstreamExpiresAt) return current;
+    }
+    throw new Error('timed out waiting for the upstream refresh lease');
   }
 
   private async revoke(request: Request): Promise<Response> {
@@ -601,7 +719,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (token !== undefined) {
       try {
         const payload = await this.verifySignature(token);
-        if (payload.jti !== undefined) this.sessions.delete(payload.jti);
+        if (typeof payload.jti === 'string') this.store.endSession(payload.jti);
       } catch {
         // RFC 7009 does not reveal whether the presented token was valid.
       }
@@ -610,7 +728,15 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   }
 
   private async verifySignature(token: string): Promise<JWTPayload> {
-    const result = await jwtVerify(token, this.publicKey, {
+    const kid = decodeProtectedHeader(token).kid;
+    const key =
+      kid === this.keyId
+        ? this.publicKey
+        : kid === this.previousKeyId
+          ? this.previousPublicKey
+          : undefined;
+    if (key === undefined) throw new Error('MCP token uses an unknown signing key');
+    const result = await jwtVerify(token, key, {
       algorithms: ['RS256'],
       audience: this.audience,
       currentDate: new Date(this.now()),
@@ -619,13 +745,23 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     return result.payload;
   }
 
-  private publicJwk(): JsonWebKey & { alg: string; kid: string; use: string } {
-    return {
+  private publicJwks(): readonly (JsonWebKey & { alg: string; kid: string; use: string })[] {
+    const current = {
       ...this.publicKey.export({ format: 'jwk' }),
       alg: 'RS256',
-      kid: 'mcp-01-ephemeral',
-      use: 'sig',
+      kid: this.keyId,
+      use: 'sig' as const,
     };
+    if (this.previousPublicKey === undefined || this.previousKeyId === undefined) return [current];
+    return [
+      current,
+      {
+        ...this.previousPublicKey.export({ format: 'jwk' }),
+        alg: 'RS256',
+        kid: this.previousKeyId,
+        use: 'sig' as const,
+      },
+    ];
   }
 
   private cleanup(): void {
@@ -636,9 +772,6 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
     for (const [code, grant] of this.grants) {
       if (grant.expiresAt <= now) this.grants.delete(code);
-    }
-    for (const [jti, session] of this.sessions) {
-      if (session.expiresAt <= now) this.sessions.delete(jti);
     }
     for (const [markerId, expiresAt] of this.reauthMarkers) {
       if (expiresAt <= now) this.reauthMarkers.delete(markerId);
@@ -661,6 +794,7 @@ export function mcpOAuthFromEnv(
     {
       authorizationUrl: (input) => get().authorizationUrl(input),
       exchange: (request, checks) => get().exchange(request, checks),
+      refresh: (refreshToken) => get().refresh(refreshToken),
       revoke: (refreshToken) => get().revoke(refreshToken),
     },
     {
@@ -668,8 +802,91 @@ export function mcpOAuthFromEnv(
       groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
       routeEvidence,
       verifyUpstream,
+      ...oauthPersistenceFromEnv(env),
     },
   );
+}
+
+function oauthPersistenceFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): Pick<Options, 'accessTtlMs' | 'signingKeys' | 'store'> {
+  const currentPrivate = signingKey(
+    requiredEnv(env, 'MCP_SIGNING_KEY_CURRENT'),
+    'MCP_SIGNING_KEY_CURRENT',
+  );
+  const previousValue = env['MCP_SIGNING_KEY_PREVIOUS'];
+  const previousPublicKey =
+    previousValue === undefined || previousValue === ''
+      ? undefined
+      : createPublicKey(signingKey(previousValue, 'MCP_SIGNING_KEY_PREVIOUS'));
+  const currentStore = storeKey(requiredEnv(env, 'MCP_STORE_KEY_CURRENT'), 'MCP_STORE_KEY_CURRENT');
+  const previousStoreValue = env['MCP_STORE_KEY_PREVIOUS'];
+  const storeKeys =
+    previousStoreValue === undefined || previousStoreValue === ''
+      ? [currentStore]
+      : [currentStore, storeKey(previousStoreValue, 'MCP_STORE_KEY_PREVIOUS')];
+  const ttlValue = env['MCP_ACCESS_TOKEN_TTL'] ?? String(DEFAULT_ACCESS_TTL_MS / 1_000);
+  const ttlSeconds = Number(ttlValue);
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 1)
+    throw new Error('MCP_ACCESS_TOKEN_TTL must be a positive integer number of seconds');
+  return {
+    accessTtlMs: ttlSeconds * 1_000,
+    signingKeys: {
+      privateKey: currentPrivate,
+      publicKey: createPublicKey(currentPrivate),
+      previousPublicKey,
+    },
+    store: new McpSessionStore(requiredEnv(env, 'MCP_STORE_PATH'), storeKeys),
+  };
+}
+
+function signingKey(value: string, name: string): KeyObject {
+  try {
+    return value.startsWith('-----BEGIN')
+      ? createPrivateKey(value.replaceAll('\\n', '\n'))
+      : createPrivateKey({ key: Buffer.from(value, 'base64'), format: 'der', type: 'pkcs8' });
+  } catch (cause) {
+    throw new Error(`${name} must contain a readable PEM or base64 PKCS8 private signing key`, {
+      cause,
+    });
+  }
+}
+
+function storeKey(value: string, name: string): Buffer {
+  const key = Buffer.from(value, 'base64');
+  if (key.length !== 32 || key.toString('base64').replace(/=+$/, '') !== value.replace(/=+$/, ''))
+    throw new Error(`${name} must be base64 for exactly 32 bytes`);
+  return key;
+}
+
+function requiredEnv(env: Readonly<Record<string, string | undefined>>, name: string): string {
+  const value = env[name];
+  if (value === undefined || value === '') throw new Error(`${name} is required`);
+  return value;
+}
+
+function keyIdOf(key: KeyObject): string {
+  const jwk = key.export({ format: 'jwk' });
+  if (jwk.e === undefined || jwk.n === undefined || jwk.kty === undefined)
+    throw new Error('MCP signing key must be RSA');
+  return createHash('sha256')
+    .update(JSON.stringify({ e: jwk.e, kty: jwk.kty, n: jwk.n }))
+    .digest('base64url');
+}
+
+function tokenResponse(
+  token: string,
+  refreshToken: string,
+  scope: string,
+  lifetimeMs: number,
+): Response {
+  return Response.json({
+    access_token: token,
+    expires_in: Math.floor(lifetimeMs / 1_000),
+    refresh_token: refreshToken,
+    scope,
+    token_type: 'Bearer',
+  });
 }
 
 async function routeEvidenceOf(

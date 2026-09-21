@@ -40,7 +40,7 @@ if [ "$env_mode" != 600 ]; then
   exit 1
 fi
 
-for key in PORT MCP_AUTH_MODE WBS_API_URL MCP_PUBLIC_URL; do
+for key in PORT MCP_AUTH_MODE WBS_API_URL MCP_PUBLIC_URL MCP_SIGNING_KEY_CURRENT MCP_STORE_KEY_CURRENT MCP_STORE_PATH MCP_ACCESS_TOKEN_TTL; do
   if ! grep -Eq "^${key}=.+$" "$ENV_PATH"; then
     printf 'missing required %s in MCP environment: %s\n' "$key" "$ENV_PATH" >&2
     exit 1
