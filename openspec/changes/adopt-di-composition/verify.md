@@ -12,9 +12,13 @@
 
 ## Failure proofs
 
-| Check              | Fault injected                    | Test that observed it                      | Result                                                                                                                                          |
-| ------------------ | --------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Project write gate | `canEditProject` forced to `true` | `announces nothing for a write it refused` | Failed with the expected `forbidden` value replaced by `ok: true`; 0 passed, 1 failed and 10 filtered out. Restored run: 1 passed and 0 failed. |
+| Check                   | Fault injected                                       | Test that observed it                                  | Result                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Project write gate      | `canEditProject` forced to `true`                    | `announces nothing for a write it refused`             | Failed with the expected `forbidden` value replaced by `ok: true`; 0 passed, 1 failed and 10 filtered out. Restored run: 1 passed and 0 failed.                                            |
+| Installer surface       | Returned the built bag as a top-level `bag` property | `exposes only the contract exports from its installer` | Failed with received key `bag`; 5 passed and 1 failed. Restored run: 6 passed and 0 failed.                                                                                                |
+| Private binding         | Exported `historySettings` from the module           | `keeps its private bindings out of a host graph`       | Failed with `Received function did not throw`; the two label tests also failed; 3 passed and 3 failed. Restored run: 6 passed and 0 failed.                                                |
+| Private binding label   | Removed the module label                             | `labels its private bindings with the module name`     | Failed with `Expected to contain: "application.plan-history/historySettings"`; the missing-requirement label test also failed; 4 passed and 2 failed. Restored run: 6 passed and 0 failed. |
+| Installer value surface | Attached `resolve` to the returned history service   | `exposes only the contract exports from its installer` | Failed with `Expected: true`, `Received: false`; 5 passed and 1 failed. Restored run: 6 passed and 0 failed.                                                                               |
 
 ## Observations
 
@@ -54,3 +58,25 @@ directory.)_
   `can-edit-project-always-true.patch`, `can-edit-project-always-true.log`.
 - The passing bytes were restored and matched with `cmp`; the focused test then passed 1 test with
   0 failures (`can-edit-project-restored-green.log`).
+
+### Slice 4 — 2026-09-22
+
+- Core baseline `C=535`, `F=52`: 535 passed, 0 failed across 52 files
+  (`core-baseline.log`).
+- The test-first red could not find `./check`: 0 passed, 1 failed and 1 error
+  (`module-test-red.log`). The first green passed 6 tests with 7 assertions
+  (`module-test-green.log`).
+- Returning the bag exposed the extra `bag` key: 5 passed and 1 failed
+  (`installer-bag-leak.patch`, `installer-bag-leak.log`).
+- Exporting `historySettings` made the private-binding assertion report
+  `Received function did not throw`; the two label assertions also failed: 3 passed and 3 failed
+  (`private-binding-exported.patch`, `private-binding-exported.log`).
+- Dropping the label omitted `application.plan-history/historySettings` from the graph and failure
+  path: 4 passed and 2 failed (`module-label-dropped.patch`, `module-label-dropped.log`).
+- Attaching `resolve` to the returned history service made the no-resolver assertion receive
+  `false`: 5 passed and 1 failed (`service-resolver-leak.patch`,
+  `service-resolver-leak.log`).
+- Each passing file was restored with `cp`, matched with `cmp`, and reran green at 6 passed and 0
+  failed (`installer-bag-leak-restored-green.log`,
+  `private-binding-exported-restored-green.log`, `module-label-dropped-restored-green.log`,
+  `service-resolver-leak-restored-green.log`).

@@ -22,7 +22,7 @@
 
 ## 2. The first sealed module
 
-- [ ] 2.1 Extract Plan history as the pattern-setter: module directory, contract, labelled
+- [x] 2.1 Extract Plan history as the pattern-setter: module directory, contract, labelled
       `module.ts`, composition check, and the compatibility re-export at the former service path.
       Proof: the module's own tests; negatives: the installer leaking its bag, the private binding
       exported, and the label dropped.
