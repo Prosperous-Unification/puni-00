@@ -20,7 +20,7 @@
 
 ## 6. Part F — compiler-supported ambient non-code imports
 
-- [ ] 6.1 Omit an unresolved-by-file import only when the configured compiler binds its exact import
+- [x] 6.1 Omit an unresolved-by-file import only when the configured compiler binds its exact import
       expression to an ambient module declaration; preserve unresolved-module failure and graph-dependent
       unevaluated verdicts — tests: ambient selector omission, emitted declaration traversal, unmatched
       import refusal, and production check evaluation; negatives F1 through F5 separately remove semantic
