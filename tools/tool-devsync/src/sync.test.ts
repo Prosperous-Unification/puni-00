@@ -329,12 +329,19 @@ describe('dev supervisor', () => {
 
   it('runs the semantic MCP probe before reporting automatic deploy success', async () => {
     const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
+    const exposureAt = source.indexOf('await mcpExposureExpected(paths.statePath)');
+    const fetchAt = source.indexOf('git -C ${paths.sourcePath} fetch --quiet origin');
     const resetAt = source.indexOf('git -C ${paths.sourcePath} rev-parse HEAD');
     const probeAt = source.indexOf('bin/dev-mcp-probe.sh');
     const successAt = source.indexOf('[dev-sync] dev now at');
 
+    expect(exposureAt).toBeGreaterThan(-1);
+    expect(fetchAt).toBeGreaterThan(exposureAt);
     expect(probeAt).toBeGreaterThan(resetAt);
     expect(successAt).toBeGreaterThan(probeAt);
+    // Proof: dropping the explicit managed-Bun binding made the cron-PATH
+    // process test pass in isolation while the production invocation failed.
+    expect(source).toContain('BUN=${process.execPath}');
   });
 
   it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
@@ -872,12 +879,16 @@ describe('MCP environment prerequisite', () => {
     expect(await rejection(assertMcpEnv(envPath))).toContain('mode 600');
   });
 
+  // Proof: treating a directory or malformed marker as absent let the poller
+  // move the checkout and skip public MCP health while manual deploy refused.
   it('reads persistent MCP exposure state for the automatic semantic probe', async () => {
     const directory = await scratchAsync('wbs-mcp-exposure-');
     expect(await mcpExposureExpected(directory)).toBe('0');
-    await writeFile(join(directory, 'mcp-exposure'), 'enabled\n');
-    expect(await mcpExposureExpected(directory)).toBe('1');
     const exposure = join(directory, 'mcp-exposure');
+    for (const enabled of ['enabled', 'enabled\n', 'enabled\n\n']) {
+      await writeFile(exposure, enabled);
+      expect(await mcpExposureExpected(directory)).toBe('1');
+    }
     await writeFile(exposure, 'maybe\n');
     expect(await rejection(mcpExposureExpected(directory))).toContain(
       'malformed MCP exposure state',

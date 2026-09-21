@@ -628,7 +628,7 @@ export async function mcpExposureExpected(statePath: string): Promise<'0' | '1'>
   }
   if (!state.isFile()) throw new Error(`unreadable MCP exposure state: ${path}`);
   try {
-    if ((await Bun.file(path).text()) !== 'enabled\n') {
+    if ((await Bun.file(path).text()).replace(/\n+$/, '') !== 'enabled') {
       throw new Error(`malformed MCP exposure state: ${path}`);
     }
   } catch (error) {
@@ -668,6 +668,9 @@ export interface DevSyncOptions extends Partial<DevSyncPaths> {
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
+  const exposureExpected = paths.rehearsal
+    ? '0'
+    : await mcpExposureExpected(paths.statePath);
   const before = await fingerprint(paths.sourcePath);
   const containerBefore = await fingerprint(paths.sourcePath, RECREATE_PATHS);
 
@@ -711,7 +714,6 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
   }
 
   if (!paths.rehearsal) {
-    const exposureExpected = await mcpExposureExpected(paths.statePath);
     const probe = join(paths.sourcePath, 'bin/dev-mcp-probe.sh');
     await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} BUN=${process.execPath} bash ${probe} https://dev.wbs.bulletpoints.club`;
   }
