@@ -357,7 +357,11 @@ make the reporter optional or add a production no-op to bridge an intermediate c
       for 3xx and require the linked-SDK 302 case to expose the marker/skip the reporter. Restore.
       Then catch `response.text()` rejection in `callTool` and return it as raw error text; require
       the unreadable-body case to leak/skip the reporter instead of returning one generic
-      correlated result. Restore exact bytes, rerun green, and add adjacent `Proof:` comments.
+      correlated result. Restore `wbs-client.ts` byte-identically and rerun green. Put the new
+      adjacent `Proof:` comments at the linked-SDK 302 and unreadable-body assertions in
+      `server.test.ts`, and record the production mutation details in `verify.md`. These are
+      proof-only edits of `wbs-client.ts`; keep its previously committed source unchanged in
+      this five-file slice.
 - [ ] Run `server.test.ts`, then the focused trio from Task 0; record actual totals.
       Continue to Task 4 without committing or claiming whole typecheck green. The production
       `main.ts` caller is intentionally incomplete until its real reporter is wired there.
