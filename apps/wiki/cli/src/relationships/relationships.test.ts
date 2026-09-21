@@ -579,9 +579,14 @@ describe('relationship extraction production CLI', () => {
   test('extracts every TypeScript declaration while retaining real JSON dependency edges', () => {
     const repository = createRepository();
     const requestPath = addJsonDeclarationFixture(repository, false);
+    // Proof: forcing compiler-recognized JSON classification false on 2026-09-21 sent
+    // packages/apps/consumer/project.json through targeted emit; this production test failed
+    // with `declaration emit failed ... project.json: no diagnostic` instead of extracting.
     const extracted = report(
       invoke(repository, commitAll(repository, 'implementation-only JSON'), requestPath),
     );
+    // Proof: skipping JSON targets in the import loop on 2026-09-21 made this exact forward
+    // edge assertion receive `[]`; reverse edges derive from that same retained import list.
     expect(
       extracted.typescript.imports
         .filter(({ source }) => source.endsWith('/json-helper.ts'))
@@ -606,6 +611,8 @@ describe('relationship extraction production CLI', () => {
       specifier: './schema.json',
       importKind: 'value',
     });
+    // Proof: suppressing the json-helper.ts emit callback output on 2026-09-21 made this
+    // production test fail with `declaration output missing ... json-helper.ts`.
     expect(
       extracted.typescript.publicDeclarations[0]?.declarations.map(({ sourcePath }) => sourcePath),
     ).toEqual([
@@ -630,6 +637,8 @@ describe('relationship extraction production CLI', () => {
       requestPath,
     );
 
+    // Proof: returning false instead of refusing the JSON dependency on 2026-09-21 made this
+    // production invocation exit 0 and publish a public identity without schema.json.
     expect(invocation.exitCode).toBe(1);
     expect(streamText(invocation, 'stdout')).toBe('');
     expect(streamText(invocation, 'stderr')).toContain(
@@ -650,6 +659,8 @@ describe('relationship extraction production CLI', () => {
       writeRequest(repository),
     );
 
+    // Proof: removing the pre-emit diagnostic refusal on 2026-09-21 made the MissingType
+    // production fixture exit 0 instead of reporting `TypeScript compiler failed:`.
     expect(invocation.exitCode).toBe(1);
     expect(streamText(invocation, 'stdout')).toBe('');
     expect(streamText(invocation, 'stderr')).toContain('TypeScript compiler failed:');
@@ -764,6 +775,8 @@ describe('relationship extraction production CLI', () => {
       requestPath,
     );
 
+    // Proof: removing the multi-source callback refusal on 2026-09-21 made this production
+    // fixture exit 0 with the bundle mapped only to the first source.
     expect(invocation.exitCode).toBe(1);
     expect(streamText(invocation, 'stdout')).toBe('');
     expect(streamText(invocation, 'stderr')).toContain(
