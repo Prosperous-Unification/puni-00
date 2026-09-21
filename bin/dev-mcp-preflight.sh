@@ -47,7 +47,11 @@ for key in PORT MCP_AUTH_MODE WBS_API_URL MCP_PUBLIC_URL MCP_SIGNING_KEY_CURRENT
   fi
 done
 
-store_path_count=$(awk '/^MCP_STORE_PATH=/{ count += 1 } END { print count + 0 }' "$ENV_PATH")
+store_path_count=$(awk '
+  /^[[:space:]]*MCP_STORE_PATH[[:space:]]*=/ ||
+  /^[[:space:]]*export[[:space:]]+MCP_STORE_PATH[[:space:]]*=/ { count += 1 }
+  END { print count + 0 }
+' "$ENV_PATH")
 if [ "$store_path_count" -ne 1 ] || ! grep -Fxq 'MCP_STORE_PATH=/data/mcp-session.sqlite' "$ENV_PATH"; then
   printf 'MCP_STORE_PATH must appear exactly once as MCP_STORE_PATH=/data/mcp-session.sqlite\n' >&2
   exit 1

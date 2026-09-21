@@ -589,7 +589,7 @@ export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
   }
   const storePaths = (await file.text())
     .split(/\r?\n/)
-    .filter((line) => line.startsWith('MCP_STORE_PATH='));
+    .filter((line) => /^\s*(?:export\s+)?MCP_STORE_PATH\s*=/.test(line));
   if (storePaths.length !== 1 || storePaths[0] !== 'MCP_STORE_PATH=/data/mcp-session.sqlite') {
     throw new Error(
       `${path} must contain exactly one MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`,

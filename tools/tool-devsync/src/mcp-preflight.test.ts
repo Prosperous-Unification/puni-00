@@ -79,6 +79,9 @@ describe('dev MCP preflight', () => {
       'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
       'MCP_STORE_PATH=./mcp-session.sqlite',
       'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nexport MCP_STORE_PATH=/tmp/export.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH = /tmp/spaced.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\n  MCP_STORE_PATH=/tmp/indented.sqlite',
     ]) {
       const result = await runPreflight(
         VALID_ENV.replace('MCP_STORE_PATH=/data/mcp-session.sqlite', replacement),

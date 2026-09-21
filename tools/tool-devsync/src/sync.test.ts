@@ -833,6 +833,9 @@ describe('MCP environment prerequisite', () => {
       'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite\n',
       'MCP_STORE_PATH=./mcp-session.sqlite\n',
       'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite\n',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nexport MCP_STORE_PATH=/tmp/export.sqlite\n',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH = /tmp/spaced.sqlite\n',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\n  MCP_STORE_PATH=/tmp/indented.sqlite\n',
     ]) {
       await writeFile(envPath, contents);
       expect(await rejection(assertMcpEnv(envPath))).toContain(
