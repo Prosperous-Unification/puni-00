@@ -80,3 +80,19 @@ directory.)_
   failed (`installer-bag-leak-restored-green.log`,
   `private-binding-exported-restored-green.log`, `module-label-dropped-restored-green.log`,
   `service-resolver-leak-restored-green.log`).
+
+### Slice 5 — 2026-09-22
+
+- Classification baseline `K=95`; rewriting the retained history shim's row in place kept the
+  count at 95 (`slice-5-kinds-baseline.txt`, `slice-5-kinds-final.txt`).
+- Core baseline `C=541`: 541 passed, 0 failed across 53 files before composition-root wiring
+  (`slice-5-core-baseline.log`). The closing run remained 541 passed, 0 failed across 53 files
+  (`slice-5-core-final.log`).
+- The portable build exited 0, and the bundle contained 1 occurrence of
+  `application.plan-history` (`slice-5-portable-build.log`,
+  `slice-5-portable-label-count.txt`).
+- The focused be-01 history checks passed 11 tests with 0 failures and 33 assertions
+  (`slice-5-be-focused-tests.log`); be-01 type-check exited 0 (`slice-5-be-typecheck.log`).
+- `wbs-be-01:test:unit` (rehearsed exit 0), `tool-devsync:test` (rehearsed 366 passed, 0 failed),
+  and `wbs-core:test` (rehearsed 541 passed, 0 failed across 53 files) are pending planner
+  verification because their whole targets are planner-only in this execution environment.
