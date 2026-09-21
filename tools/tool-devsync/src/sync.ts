@@ -583,8 +583,17 @@ export function needsRestart(before: Fingerprint, after: Fingerprint): boolean {
 export const MCP_ENV = `${SRC}/apps/wbs/mcp-01/.env`;
 
 export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
-  if (!(await Bun.file(path).exists())) {
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
     throw new Error(`missing ${path}; seed the gitignored mcp-01 environment before deploying`);
+  }
+  const storePaths = (await file.text())
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('MCP_STORE_PATH='));
+  if (storePaths.length !== 1 || storePaths[0] !== 'MCP_STORE_PATH=/data/mcp-session.sqlite') {
+    throw new Error(
+      `${path} must contain exactly one MCP_STORE_PATH=/data/mcp-session.sqlite before deploying`,
+    );
   }
 }
 

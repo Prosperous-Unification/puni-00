@@ -72,18 +72,21 @@ describe('dev MCP preflight', () => {
     expect(stderr).toContain('mode 600');
   });
 
-  // Proof: using the host path passed the old non-empty check, but wbs-dev-src
-  // cannot see it because dev state is mounted in the container at /data.
-  it('refuses a host-only MCP store path', async () => {
-    const result = await runPreflight(
-      VALID_ENV.replace(
-        'MCP_STORE_PATH=/data/mcp-session.sqlite',
-        'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
-      ),
-    );
+  // Proof: before the exact-path guard, the host path exited 0 even though
+  // wbs-dev-src cannot see it because dev state is mounted at /data.
+  it('refuses host-only, relative, and duplicate MCP store paths', async () => {
+    for (const replacement of [
+      'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+      'MCP_STORE_PATH=./mcp-session.sqlite',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite',
+    ]) {
+      const result = await runPreflight(
+        VALID_ENV.replace('MCP_STORE_PATH=/data/mcp-session.sqlite', replacement),
+      );
 
-    expect(result.exitCode).not.toBe(0);
-    expect(result.output).toContain('/data/mcp-session.sqlite');
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('exactly once');
+    }
   });
 
   // Proof: treating a missing marker as the permanent default makes every

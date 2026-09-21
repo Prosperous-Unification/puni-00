@@ -820,6 +820,27 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('MCP environment prerequisite', () => {
+  // Proof: checking existence alone allowed the automatic poller to deploy a
+  // host-only path that the wbs-dev-src container cannot open.
+  it('requires exactly one durable in-container MCP store path', async () => {
+    const directory = await scratchAsync('wbs-mcp-store-path-');
+    const envPath = join(directory, '.env');
+
+    await writeFile(envPath, 'MCP_STORE_PATH=/data/mcp-session.sqlite\n');
+    expect(await assertMcpEnv(envPath)).toBeUndefined();
+
+    for (const contents of [
+      'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite\n',
+      'MCP_STORE_PATH=./mcp-session.sqlite\n',
+      'MCP_STORE_PATH=/data/mcp-session.sqlite\nMCP_STORE_PATH=/tmp/override.sqlite\n',
+    ]) {
+      await writeFile(envPath, contents);
+      expect(await rejection(assertMcpEnv(envPath))).toContain(
+        'exactly one MCP_STORE_PATH=/data/mcp-session.sqlite',
+      );
+    }
+  });
+
   it('fails clearly before restarting a supervisor that cannot start mcp-01', async () => {
     const directory = await scratchAsync('wbs-mcp-env-');
     const missing = join(directory, '.env');
