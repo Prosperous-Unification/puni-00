@@ -25,11 +25,7 @@ import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJ
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
-import {
-  type FamilyRecord,
-  McpRefreshFamilyCorrupt,
-  McpSessionStore,
-} from './session-store';
+import { type FamilyRecord, McpRefreshFamilyCorrupt, McpSessionStore } from './session-store';
 import { EdgeGate } from './wbs-client';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
@@ -630,7 +626,13 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         expiresAt,
         refreshToken,
       );
-      const token = await this.issueAccessToken(grant.subject, grant.scope, jti, familyId, expiresAt);
+      const token = await this.issueAccessToken(
+        grant.subject,
+        grant.scope,
+        jti,
+        familyId,
+        expiresAt,
+      );
       client.proven = true;
       client.promotionReserved = false;
       client.expiresAt = now + this.activeClientTtlMs;
