@@ -21,6 +21,7 @@ with it, and the two cannot disagree about a date.
 | What a priority number is called           | `priority-band.ts`     | five rungs, always                                |
 | What a priority is worth to the solver     | `priority-weight.ts`   | dense rank, because an absolute is never a weight |
 | How far the work has got                   | `progress.ts`          | states fold with `agree`, which is commutative    |
+| Who may write a project                    | `project-ownership.ts` | unrestricted, or the restricted project's owner   |
 | How many of a team work at once            | `capacity.ts`          | per project, never a property of the team         |
 | Whether a row sits under another           | `is-within.ts`         | one upward walk, four copies before 2026-09-02    |
 | How long a slice is on the solver's axis   | `solver-quantum.ts`    | quantises `durationOf`, never restates it         |

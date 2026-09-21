@@ -27,3 +27,14 @@ directory.)_
 - Baseline validation items: 112.
 - With this change: 113 items, 113 passed and 0 failed, the required baseline plus one.
 - Strict validation evidence: `openspec-validation.FeThpd.json`.
+
+### Slice 2 — 2026-09-22
+
+- Domain baseline: 645 passed, 0 failed across 52 files (`slice-2-domain-baseline.log`).
+- With `project-ownership.test.ts`: 647 passed, 0 failed across 53 files, the required baseline
+  plus two (`slice-2-domain-green.log`).
+- Focused ownership test: 2 passed, 0 failed, 3 assertions
+  (`slice-2-project-ownership-green.log`).
+- Domain unit, lint and type-check targets passed (`slice-2-domain-nx-green.log`).
+- The R5 production-path negative belongs to slice 3. Until the six callers use the moved rule,
+  forcing it to return `true` has no production path through a service.
