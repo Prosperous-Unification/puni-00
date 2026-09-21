@@ -111,6 +111,40 @@ mode.
 - **THEN** extraction names the unresolved source and specifier, the rule is unevaluated, and the
   candidate is disallowed even in observe mode
 
+### Requirement: Declaration extraction distinguishes non-emitting JSON inputs
+
+When TypeScript declaration-only emit receives a compiler-recognized JSON source, relationship extraction SHALL omit that source from targeted declaration emit and SHALL succeed only if every non-declaration, non-JSON candidate source emits its own mapped declaration and pre-emit compiler diagnostics are empty. The real JSON source SHALL remain in forward and reverse import selectors. A JSON dependency retained by an emitted public declaration SHALL be refused by source and target unless the public selector carries a stable JSON identity. Other skipped emission and pre-emit compiler diagnostics SHALL remain failures. A bundled declaration whose emit callback names one workspace candidate source SHALL preserve the existing source mapping; a callback naming multiple workspace candidate sources SHALL be refused with the config path and sorted source paths.
+
+#### Scenario: Implementation-only JSON has no declaration output
+
+- **GIVEN** a configured program whose implementation imports a real JSON file and whose public declaration erases that import
+- **WHEN** Twilight Bureaucrat extracts relationships
+- **THEN** every TypeScript declaration is present, the JSON forward and reverse edges remain, and extraction succeeds
+
+#### Scenario: JSON remains in the public declaration
+
+- **GIVEN** an emitted public declaration that imports a real JSON file
+- **WHEN** Twilight Bureaucrat constructs the public declaration closure
+- **THEN** it refuses the closure and names the declaration source and JSON target rather than publishing an identity that omits the JSON
+
+#### Scenario: Non-JSON declaration coverage is incomplete
+
+- **GIVEN** a configured non-JSON TypeScript source whose declaration output is absent
+- **WHEN** declaration extraction checks the compiler output
+- **THEN** it refuses extraction and names the missing source even if emit diagnostics are empty
+
+#### Scenario: Single-source bundled declaration stays supported
+
+- **GIVEN** a valid declaration-only outFile configuration
+- **WHEN** its emit callback names one workspace candidate source
+- **THEN** relationship extraction preserves the existing bundled declaration mapping for that source
+
+#### Scenario: Multi-source bundled declaration is refused
+
+- **GIVEN** a valid declaration-only outFile configuration
+- **WHEN** its emit callback names multiple workspace candidate sources
+- **THEN** relationship extraction refuses the bundle and names the config path and sorted candidate source paths
+
 ### Requirement: Services are plain TypeScript
 
 A feature-service, resource-service, repository adapter, or consumer-declared store or geometry path SHALL NOT reach React, React DOM, or a package under the TanStack React scope. Frontend delivery MAY reach those packages. A declared plain-TypeScript selector that matches no candidate path SHALL leave F1 unevaluated.

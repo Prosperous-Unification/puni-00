@@ -189,3 +189,15 @@ The original F1–F4 execution retained each red and byte restoration but omitte
 The new declaration source-reference kind assertion received its own bounded proof: only the declaration-walk call misclassified `./globals.d.ts` as ambient, and `retains an original TypeScript source path reference in its emitted public closure` failed with the exact ambient-reference error; restoration cmp 0 and separate green 1/0/23. The Task 4 reviewer independently repeated F5 with red exit 1, restore cmp 0, and green 1/0/10. Both reviews found no remaining issue.
 
 No package was published or activated. No immutable host gate was run or claimed for this Part F closure.
+
+### Part G — declaration-only JSON inputs (pending)
+
+Basis: `d749c2c7`. This part has not been implemented or verified. The planned production-path
+negative proofs are:
+
+- G1: break compiler-recognized JSON classification.
+- G2: break complete targeted TypeScript declaration output mapping.
+- G3: remove the forward and reverse dependency edges to real JSON.
+- G4: admit a JSON dependency retained by an emitted public declaration.
+- G5: remove pre-emit compiler diagnostic failure propagation.
+- G6: admit ambiguous multi-source bundled declaration ownership.
