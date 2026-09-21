@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { buildBrowserPackagesBundle } from './browser-packages-bundle';
 import type { BrowserPackagesProof } from './browser-packages-probe';
+import { buildBrowserProbeBundle } from './browser-probe-bundle';
 
 /**
  * An origin nothing serves, fulfilled by the route below.
@@ -37,7 +37,7 @@ test('the three libraries run in Chromium from this app’s Vite build', async (
   });
   await page.goto(bootstrap);
 
-  const bundle = await buildBrowserPackagesBundle();
+  const bundle = await buildBrowserProbeBundle('e2e/browser-packages-probe.ts');
   await page.addScriptTag({ content: bundle.code, type: 'module' });
   const proof = await page.evaluate(
     async () =>

@@ -351,3 +351,108 @@ app map that also contained `@shared/failures`; `n1-vitest-alias-removed.patch` 
 The focused Vitest runs emitted the existing Vite warning about `__dirname` and the future native
 config loader. The whole `tool-devsync:test` target remains deferred to planner verification
 because it writes Git objects and the batch's heavy lane was occupied.
+
+## 050.4 Slice 2 — public fault disclosure
+
+The focused boundary baseline was 6 passing tests. The two unchanged neighboring suites began at
+249 passing tests. After the ten disclosure cases were added before production code, the boundary
+suite exited 1 with the expected 13 failures and only these three passing cases:
+`renders its children while nothing throws`, `reloads the document when the reader asks`, and
+`costs a chart rather than a page when the chart is what threw`.
+
+After the disclosure model and both boundary fallbacks were implemented, the focused boundary
+suite passed 16 tests and the neighboring suites remained at 249 passing tests.
+
+| Check                                                                 | Result                            | Evidence                                                       |
+| --------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------- |
+| Final focused boundary suite                                          | exit 0; 1 file, 16 tests passed   | `s2-final-fault.log`, `s2-final-fault.status`                  |
+| Focused neighboring suites                                            | exit 0; 2 files, 249 tests passed | `s2-green-neighbours.log`, `s2-green-neighbours.status`        |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                     | exit 0                            | `s2-typecheck.log`, `s2-typecheck.status`                      |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`          | exit 0; fresh uncached run        | `s2-lint-fresh.log`, `s2-lint-fresh.status`                    |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` | exit 0                            | `s2-format-check-rerun.log`, `s2-format-check-rerun.status`    |
+| Strict OpenSpec validation                                            | exit 0; 112 passed, 0 failed      | `s2-openspec-validation.json`, `s2-openspec-validation.status` |
+
+Watched production negatives were each restored byte for byte with `cmp` and followed by a
+16-test green rerun:
+
+| Proof | Injected fault                                                   | Named observed failure                                                                                  | Evidence                                                                              |
+| ----- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| N2    | Fell back to the caught Error's message                          | `puts neither the message, the cause nor a stack into the DOM` exposed `alice@example.com`              | `N2.patch`, `N2-fail.log`, `N2-fail.status`, `N2-restore.status`, `N2-green.log`      |
+| N3    | Appended the caught value to the boundary console tuple          | `logs the boundary, the disclosed sentence and the reference, and nothing else` received five arguments | `N3.patch`, `N3-fail.log`, `N3-fail.status`, `N3-restore.status`, `N3-green.log`      |
+| N4    | Removed the app reference element                                | `shows the same reference on the page as it logged` could not find the logged AE handle in the page     | `N4.patch`, `N4-fail.log`, `N4-fail.status`, `N4-restore.status`, `N4-green.log`      |
+| N5    | Disconnected the chart selector                                  | `costs a chart rather than a page when the chart is what threw` received the generic sentence           | `N5.patch`, `N5-fail.log`, `N5-fail.status`, `N5-restore.status`, `N5-green.log`      |
+| N6    | Widened the chart selector to every Error                        | `discloses the chart’s own modelled sentence and no other error’s` exposed `alice@example.com`          | `N6.patch`, `N6-fail.log`, `N6-fail.status`, `N6-restore.status`, `N6-green.log`      |
+| N7    | Removed the chart reference element                              | `shows the chart’s own reference, matching what it logged` received `undefined`                         | `N7.patch`, `N7-fail.log`, `N7-fail.status`, `N7-restore.status`, `N7-green.log`      |
+| N8    | Read `thrown.message` directly                                   | `never invokes an accessor to read the chart’s sentence` observed one accessor call                     | `N8.patch`, `N8-fail.log`, `N8-fail.status`, `N8-restore.status`, `N8-green.log`      |
+| N9    | Accepted a non-string descriptor value                           | `never discloses a chart message that is not a string` observed two console tuples                      | `N9.patch`, `N9-fail.log`, `N9-fail.status`, `N9-restore.status`, `N9-green.log`      |
+| N10   | Offered the value to the selector before checking reporting loss | `never offers an unreportable value to a disclosure selector` observed one selector call                | `N10.patch`, `N10-fail.log`, `N10-fail.status`, `N10-restore.status`, `N10-green.log` |
+| N11   | Removed the selector guard                                       | `survives a disclosure selector that throws` let `the selector could not read it` escape                | `N11.patch`, `N11-fail.log`, `N11-fail.status`, `N11-restore.status`, `N11-green.log` |
+
+The focused Vitest runs emitted the existing Vite warning about `__dirname` and the future native
+config loader. Whole frontend, browser, devsync and host-gate checks remain planner work.
+
+## 050.4 Slice 3 — React root fault handlers
+
+The boundary baseline was 16 passing tests. With an inert typed root-options scaffold in place,
+`src/main.test.tsx` first exited 1 on its one wiring assertion because `createRoot` received no
+second argument. The three handler cases were then added before the implementation; that run
+exited 1 with exactly those three cases failing on missing functions while the existing 16 passed.
+
+After the public-report handlers and root wiring were implemented, the two focused files passed
+20 tests.
+
+| Check                                                                 | Result                                           | Evidence                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| Final focused handler and root-wiring pair                            | exit 0; 2 files, 20 tests passed                 | `s3-final-pair.log`, `s3-final-pair.status`                    |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck --skip-nx-cache`     | exit 0; fresh uncached run                       | `s3-typecheck.log`, `s3-typecheck.status`                      |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`          | exit 0; fresh uncached run                       | `s3-lint.log`, `s3-lint.status`                                |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build --skip-nx-cache`         | exit 0; 960 modules transformed; built in 757 ms | `s3-build.log`, `s3-build.status`                              |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` | exit 0                                           | `s3-format-check.log`, `s3-format-check.status`                |
+| Strict OpenSpec validation                                            | exit 0; 112 passed, 0 failed                     | `s3-openspec-validation.json`, `s3-openspec-validation.status` |
+
+Watched production negatives were each restored byte for byte with `cmp` and followed by a green
+rerun of the owning focused file:
+
+| Proof | Injected fault                                | Named observed failure                                                                                                         | Evidence                                                                              |
+| ----- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| N12   | Removed the root options argument             | `is created with the options that keep a fault out of the console` received `undefined` instead of the three-handler object    | `N12.patch`, `N12-fail.log`, `N12-fail.status`, `N12-restore.status`, `N12-green.log` |
+| N13   | Stringified the uncaught value                | `discloses a public report for a fault no boundary caught` received `Error: alice@example.com` instead of the generic sentence | `N13.patch`, `N13-fail.log`, `N13-fail.status`, `N13-restore.status`, `N13-green.log` |
+| N14   | Appended the recoverable caught value         | `discloses a public report for a fault React recovered from` received five arguments                                           | `N14.patch`, `N14-fail.log`, `N14-fail.status`, `N14-restore.status`, `N14-green.log` |
+| N15   | Removed the recoverable occurrence identifier | `discloses a public report for a fault React recovered from` received three arguments and no handle                            | `N15.patch`, `N15-fail.log`, `N15-fail.status`, `N15-restore.status`, `N15-green.log` |
+
+The focused Vitest and build runs emitted the existing Vite warning about `__dirname` and the
+future native config loader. The build also emitted the existing large-chunk advisory. Whole
+frontend, browser, devsync and host-gate checks remain planner work.
+
+## 050.4 Slice 4 — shipped-browser fault boundary
+
+The existing browser-package bundle suite began at three passing tests. The helper was renamed and
+generalized to build either probe through the shipped Vite config, with code splitting disabled for
+the in-memory probe build. Both existing callers use the package probe entry, and the new Chromium
+case uses the production app boundary, root options and shared reporting module.
+
+| Check                                                      | Result                                      | Evidence                                                |
+| ---------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| Focused bundle suite before the edit                       | exit 0; 1 file, 3 tests passed              | `s4-bundle-baseline.log`, `s4-bundle-baseline.status`   |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`          | exit 0; fresh run                           | `s4-typecheck.log`, `s4-typecheck.status`               |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`               | exit 0; final fresh run                     | `s4-lint-final.log`, `s4-lint-final.status`             |
+| Focused bundle suite after implementation and proof notes  | exit 0; 1 file, 3 tests passed              | `s4-bundle-final.log`, `s4-bundle-final.status`         |
+| Listener snapshot before Chromium at shift 3600            | exit 0; ports 6700, 6800 and 7800 were free | `s4-ports-before-browser.log`, `.status`                |
+| Both named Chromium specs before browser fault injection   | exit 0; 2 tests passed                      | `s4-browser-baseline.log`, `s4-browser-baseline.status` |
+| Both named Chromium specs after every proof note was added | exit 0; 2 tests passed                      | `s4-browser-final.log`, `s4-browser-final.status`       |
+| Strict OpenSpec validation                                 | exit 0; 112 passed, 0 failed                | `s4-openspec-validation.log`, `.status`                 |
+
+Each browser fault was injected alone, restored from saved passing bytes, checked with `cmp`, and
+followed by a green rerun of the named fault-boundary spec:
+
+| Proof       | Injected fault                                 | Named observed failure                                                                 | Evidence                                                                                                  |
+| ----------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| N16         | Imported `di-bag/node` in fault disclosure     | `pageErrors` received `DI_BAG_INVALID_CONFIGURATION`                                   | `N16.patch`, `N16-fail.log`, `N16-fail.status`, `N16-restore-cmp.status`, `N16-green.log`                 |
+| N17         | Removed the root's caught-error handler        | the full console scan received `alice@example.com`                                     | `N17.patch`, `N17-fail.log`, `N17-fail.status`, `N17-restore-cmp.status`, `N17-green.log`                 |
+| N18         | Fell back to the caught Error's raw message    | page text contained `saving plan p-7 for alice@example.com failed`                     | `N18.patch`, `N18-fail.log`, `N18-fail.status`, `N18-restore-cmp.status`, `N18-green.log`                 |
+| N19         | Requested an unexpected origin from the probe  | `unexpectedRequests` received `https://unexpected.invalid/fault`                       | `N19.patch`, `N19-fail.log`, `N19-fail.status`, `N19-restore-cmp.status`, `N19-green.log`                 |
+| Chunk count | Removed the probe's no-code-splitting override | helper rejected three chunks for `e2e/fault-boundary-probe.ts`, where one was required | `chunk-count.patch`, `chunk-fail.log`, `chunk-fail.status`, `chunk-restore-cmp.status`, `chunk-green.log` |
+
+The browser runs used `CI=1 E2E_PORT_SHIFT=3600`; no process was terminated. Whole frontend test
+tiers, the whole browser suite, staged devsync and the host gate remain planner checks after the
+change closes.

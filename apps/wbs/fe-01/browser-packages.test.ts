@@ -7,10 +7,7 @@
 // this suite out of `vitest.node-suites.ts`, exactly as it does for those two files.
 import { describe, expect, it } from 'vitest';
 
-import {
-  type BrowserPackagesBundle,
-  buildBrowserPackagesBundle,
-} from './e2e/browser-packages-bundle';
+import { type BrowserProbeBundle, buildBrowserProbeBundle } from './e2e/browser-probe-bundle';
 
 /**
  * One marker per library, each a string that library's own source carries.
@@ -28,7 +25,7 @@ const NANOID_ENTRY = /\/nanoid\/[^/]+$/;
 /** One build for the whole file, and a budget the build cannot outgrow unnoticed. */
 const BUILD_BUDGET_MS = 120_000;
 
-let building: Promise<BrowserPackagesBundle> | undefined;
+let building: Promise<BrowserProbeBundle> | undefined;
 
 /**
  * The one browser build these cases read, built on first use and shared after that.
@@ -39,8 +36,8 @@ let building: Promise<BrowserPackagesBundle> | undefined;
  *
  * @returns The shared build, awaited.
  */
-async function theBundle(): Promise<BrowserPackagesBundle> {
-  building ??= buildBrowserPackagesBundle();
+async function theBundle(): Promise<BrowserProbeBundle> {
+  building ??= buildBrowserProbeBundle('e2e/browser-packages-probe.ts');
   return await building;
 }
 
