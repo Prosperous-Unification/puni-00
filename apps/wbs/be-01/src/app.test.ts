@@ -1,6 +1,10 @@
+import type { FailureReporting } from '@shared/failures';
+import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
+import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observability';
+import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
-import { buildApp } from './app';
+import { type AppOptions, buildApp } from './app';
 import type { AuthService } from './service/auth.service';
 import { inMemoryUsers, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
@@ -58,8 +62,8 @@ async function signedInProbe(): Promise<{
   return { auth, token: session.value.token, counts };
 }
 
-function appWith(auth: AuthService): ReturnType<typeof buildApp> {
-  return buildApp({
+function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOptions {
+  return {
     clock: testClock,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
@@ -75,11 +79,89 @@ function appWith(auth: AuthService): ReturnType<typeof buildApp> {
     steps: testStepService(),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
-    internalAuthSecret: TEST_SECRET,
+    internalAuthSecret,
     writes: testWrites(),
     migrationsApplied: true,
-  });
+  };
 }
+
+function appWith(auth: AuthService): ReturnType<typeof buildApp> {
+  return buildApp(optionsFor(auth));
+}
+
+function forward(log: LogMethod): LogMethod {
+  function forwarded(message: string): void;
+  function forwarded(fields: LogFields, message: string): void;
+  function forwarded(fieldsOrMessage: LogFields | string, message?: string): void {
+    if (typeof fieldsOrMessage === 'string') {
+      log(fieldsOrMessage);
+      return;
+    }
+    if (message === undefined) throw new Error('structured log message is required');
+    log(fieldsOrMessage, message);
+  }
+  return forwarded;
+}
+
+it('reports one redacted unexpected production failure with its shared occurrence', async () => {
+  const internalAuthSecret = 'production-boundary-secret';
+  const created: CreateLoggerOptions[] = [];
+  const calls: { fields: LogFields; message: string }[] = [];
+  const lines: string[] = [];
+  const makeLogger = (options: CreateLoggerOptions): Logger => {
+    created.push(options);
+    const sink = createLogger({
+      ...options,
+      destination: { write: (chunk) => void lines.push(chunk) },
+    });
+    function recordError(message: string): void;
+    function recordError(fields: LogFields, message: string): void;
+    function recordError(fieldsOrMessage: LogFields | string, message?: string): void {
+      if (typeof fieldsOrMessage === 'string') {
+        sink.error(fieldsOrMessage);
+        return;
+      }
+      if (message === undefined) throw new Error('structured log message is required');
+      calls.push({ fields: fieldsOrMessage, message });
+      sink.error(fieldsOrMessage, message);
+    }
+    return {
+      info: forward(sink.info),
+      warn: forward(sink.warn),
+      error: recordError,
+      child: (fields) => sink.child(fields),
+    };
+  };
+  const auth = testAuthService(inMemoryUsers());
+  auth.authenticate = () =>
+    Promise.reject(new Error(`account lookup exposed ${internalAuthSecret}`));
+  const app = buildApp(optionsFor(auth, internalAuthSecret), makeLogger);
+  const response = await app.handle(
+    new Request('http://localhost/api/projects', {
+      headers: { authorization: 'Bearer outage' },
+    }),
+  );
+
+  expect(created).toHaveLength(1);
+  expect(created[0]?.secrets).toEqual([internalAuthSecret]);
+  expect(response.status).toBe(500);
+  expect(response.headers.get('content-type')).toBeNull();
+  expect(await response.text()).toBe('Internal Server Error');
+  expect(calls).toHaveLength(1);
+  expect(lines).toHaveLength(1);
+  expect(lines[0]).not.toContain(internalAuthSecret);
+  const reporting = calls[0]?.fields['err'] as FailureReporting;
+  expect(reporting.reported).toBe(true);
+  if (!reporting.reported) return;
+  expect(reporting.reports.public.code).toBe('INTERNAL_ERROR');
+  expect(JSON.stringify(reporting.reports.public)).not.toContain(internalAuthSecret);
+  expect(reporting.reports.public.occurrence_id).toBe(reporting.reports.diagnostic.occurrence_id);
+  const emitted = parseOrThrow(LogRecord, JSON.parse(lines[0]) as Record<string, unknown>);
+  expect(emitted.err).toMatchObject({
+    occurrence_id: reporting.reports.diagnostic.occurrence_id,
+    fingerprint: reporting.reports.diagnostic.fingerprint,
+  });
+});
 
 describe('what a request costs before it reaches a handler', () => {
   /**

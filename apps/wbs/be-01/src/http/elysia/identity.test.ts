@@ -45,7 +45,11 @@ function userApp(auth: AuthService, requirement: 'signed-in' | 'read-scope' | 'w
           }),
         ),
       ],
-      { appOrigin: 'https://app.example', resolveIdentity: identityResolver(auth, internalSecret) },
+      {
+        appOrigin: 'https://app.example',
+        reportUnexpectedFailure: () => undefined,
+        resolveIdentity: identityResolver(auth, internalSecret),
+      },
     ),
   );
 }
@@ -65,7 +69,11 @@ function internalApp(auth: AuthService) {
   return new Elysia().use(
     mountEndpoints(
       [bind(shape, ({ principal }) => Promise.resolve({ ok: true, status: 200, body: principal }))],
-      { appOrigin: 'https://app.example', resolveIdentity: identityResolver(auth, internalSecret) },
+      {
+        appOrigin: 'https://app.example',
+        reportUnexpectedFailure: () => undefined,
+        resolveIdentity: identityResolver(auth, internalSecret),
+      },
     ),
   );
 }

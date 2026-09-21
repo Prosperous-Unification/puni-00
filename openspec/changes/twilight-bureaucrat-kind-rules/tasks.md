@@ -17,3 +17,12 @@
 ## 5. Part E — K2, K5, K6, F1 and record
 
 - [x] 5.1 Register K2, K5 and K6, enforce F1 for kinded services and declared plain-TypeScript paths, document all B2 rules, and consolidate verification — tests: `K2, K5, K6 and F1`; negatives: E1 through E10 break direction lists, sideways-module detection, React coverage, selector freshness, required policy input propagation, and registry metadata.
+
+## 6. Part F — compiler-supported ambient non-code imports
+
+- [x] 6.1 Omit an unresolved-by-file import only when the configured compiler binds its exact import
+      expression to an ambient module declaration; preserve unresolved-module failure and graph-dependent
+      unevaluated verdicts — tests: ambient selector omission, emitted declaration traversal, unmatched
+      import refusal, and production check evaluation; negatives F1 through F5 separately remove semantic
+      admission, fabricate a target, broaden admission, require physical existence, and turn extraction
+      failure into an empty graph.

@@ -6,7 +6,7 @@ import { createFailureSerializer, keepAbsentFailure } from './serializers';
 
 export { type Logger, noopLogger } from '@wbs/contracts';
 
-export type ServiceName = 'be-01' | 'gw-01' | 'fe-01';
+export type ServiceName = 'be-01' | 'gw-01' | 'fe-01' | 'mcp-01';
 
 export interface CreateLoggerOptions {
   service: ServiceName;

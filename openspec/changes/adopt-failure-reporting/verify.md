@@ -29,9 +29,10 @@ The proposal is below the 400-word limit:
 ## 3. Task Completion
 
 - [x] Task 1.1, the shared reporting module and its eleven watched negatives, is complete.
-- [ ] Task 2.1, adoption at the observability, backend and MCP boundaries, remains unassigned in
-      batch 2.
-- [ ] Task 3.1, browser execution of `@shared/failures`, remains explicitly unassigned.
+- [ ] Task 2.1 remains open: observability 2.1a, backend 2.1b and gateway 2.1d are complete; MCP
+      2.1c is pending.
+- [x] Task 3.1, browser execution of `@shared/failures`, is complete.
+- [x] Task 4.1, frontend fault-boundary adoption, is complete.
 
 ## 4. Delta Spec Sync
 
@@ -481,3 +482,242 @@ Tasks 3.1 and 4.1 are checked because their focused positive cases and N1-N19 ar
 Task 2.1 remains unchecked and this broader adoption change is not archive-ready. The planner's
 whole frontend test comparison, unchanged unit tier, whole Chromium suite, staged devsync run,
 integration verification and host gate remain pending outside this closure commit.
+
+## 040.7 — backend unexpected-error boundary
+
+The closure baseline was `4c1d66a6f7ba622135b3ac69603e782fade84595`, after the reporter and its mounted production composition were implemented. Task 2 and Task 3 were committed together because making `MountOptions.reportUnexpectedFailure` required makes a boundary-only intermediate commit fail at the production `buildApp` call site. The exact public response measured before reporter wiring and preserved afterward is status 500, body `Internal Server Error`, and no content-type header. No occurrence identifier was added to the response because this adoption does not change the public protocol.
+
+Evidence is retained in `/tmp/puni-codex-resume-20260921/040-7-backend-task4.Mjd860`. Every mutation below was applied alone to a saved passing file, followed by its named red, byte restoration, `cmp --verbose`, and a separate restored green. All 16 `*.restore-cmp.status` sidecars are 0 and all 16 `*.restored-green.status` sidecars are 0.
+
+| Proof | Injected fault                                                  | Named observed failure                                                                                                                                                | Evidence prefix                  |
+| ----- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| B1    | Passed the unregistered `FailureReporting` object to the logger | `logs one registered, redacted report under its original occurrence` received an `as_json`/`as_string` wrapper instead of top-level `occurrence_id` and `fingerprint` | `01-provenance`                  |
+| B2    | Passed `[]` to the production reporter                          | `reports one redacted unexpected production failure with its shared occurrence` emitted an operator line containing `production-boundary-secret`                      | `02-production-reporter-secrets` |
+| B3    | Omitted `secrets` from the production logger factory options    | the same production test received `undefined` instead of `[production-boundary-secret]`                                                                               | `03-production-logger-secrets`   |
+| B4    | Built the reporter redaction policy from `[]`                   | the reporter unit test emitted an operator line containing `boundary-secret`                                                                                          | `04-reporter-redaction`          |
+| B5    | Removed the mounted reporter call                               | the auth-outage test expected one report and received zero                                                                                                            | `05-mount-report-omitted`        |
+| B6    | Duplicated the mounted reporter call                            | the auth-outage test expected one report and received two                                                                                                             | `06-mount-report-duplicate`      |
+| B7    | Replaced only the production mount callback with a no-op        | the production-composition test expected one logger call and received zero                                                                                            | `07-production-mount-noop`       |
+| B8    | Returned `String(error)`                                        | the auth-outage test received `Error: account store offline` instead of `Internal Server Error`                                                                       | `08-public-body-disclosure`      |
+| B9    | Added an `application/json` header to the fixed 500             | the auth-outage test received `application/json` instead of the measured absent header                                                                                | `09-public-content-type`         |
+| B10   | Reported a modeled anonymous identity refusal                   | the auth-outage test received an injected failure before its empty-list checkpoint                                                                                    | `10-modeled-identity`            |
+| B11   | Reported modeled origin refusals                                | the cookie-origin test received injected failures instead of an empty list                                                                                            | `11-modeled-origin`              |
+| B12   | Reported malformed JSON from the `SyntaxError` branch           | the malformed/body test received an injected failure instead of an empty list                                                                                         | `12-modeled-parser`              |
+| B13   | Reported body-schema validation refusal                         | the malformed/body test received an injected failure instead of an empty list                                                                                         | `13-modeled-body-validation`     |
+| B14   | Reported declared endpoint refusals                             | the 405/429/501/503 test received injected failures instead of an empty list                                                                                          | `14-modeled-declared-refusal`    |
+| B15   | Reported the unselected 404 branch                              | the sibling-route test received an injected failure instead of an empty list                                                                                          | `15-modeled-404`                 |
+| B16   | Removed selected-request isolation                              | the unrelated legacy parser test received status 500 instead of 400                                                                                                   | `16-selected-request-isolation`  |
+
+Each evidence prefix names `.passing.ts`, `.red.out`, `.red.status`, `.restore-cmp.out`, `.restore-cmp.status`, `.restored-green.out`, and `.restored-green.status`. Every red exited 1 and selected exactly one test. The restored reporter tests passed 1 test with 1 filtered; restored production-composition tests passed 1 with 2 filtered; restored mount tests passed 1 with 42 filtered.
+
+Final scoped verification after the observed `Proof:` comments and backend task-state update:
+
+| Command                                                                       | Result                                                             | Evidence                                      |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------- |
+| `NX_DAEMON=false bunx nx run shared-failures:test --skip-nx-cache`            | exit 0; 20 pass, 0 fail, 56 assertions                             | `final-shared-failures-test.out`, `.status`   |
+| `NX_DAEMON=false bunx nx run wbs-observability:test --skip-nx-cache`          | exit 0; 27 pass, 0 fail, 64 assertions                             | `final-wbs-observability-test.out`, `.status` |
+| `NX_DAEMON=false bunx nx run wbs-be-01:test:unit --skip-nx-cache`             | exit 0; 519 pass, 0 fail, 2,774 assertions                         | `final-wbs-be-unit.out`, `.status`            |
+| `NX_DAEMON=false bunx nx run wbs-be-01:test --skip-nx-cache`                  | exit 0; 1,091 pass, 1 skip, 0 fail, 18,628 assertions              | `final-wbs-be-full.out`, `.status`            |
+| `NX_DAEMON=false bunx nx run wbs-be-01:typecheck --skip-nx-cache`             | exit 0                                                             | `final-wbs-be-typecheck.out`, `.status`       |
+| `NX_DAEMON=false bunx nx run wbs-be-01:lint --skip-nx-cache`                  | exit 0                                                             | `final-wbs-be-lint.out`, `.status`            |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json` | exit 0; 112 passed, 0 failed after this evidence section was added | `final-openspec-all.out`, `.status`           |
+| `GSETTINGS_BACKEND=memory bunx nx format:check --all`                         | exit 0                                                             | `final-format-all.out`, `.status`             |
+
+The full backend target skipped its existing `solver supervisor orphan process boundaries` case because `WBS_SOLVER_ORPHAN_IMAGE` was absent. The repository-level h2puni gate remains the later integrated candidate's responsibility. Task 2.1 remains open: only 2.1b is closed here, while MCP adoption remains assigned to WBS 040.8.
+
+## 040.9 — gateway unexpected-backend boundary
+
+Gateway adoption was implemented and reviewed in commits `3c158ca3`, `d769c9e7`, `ef10668c`
+and `86e80c01`, then verified on integration baseline
+`d749c2c77b148effc4f17effb7d05fa5f1cd6c79`. Task 2.1d is complete. Parent task 2.1 stays
+open because MCP task 2.1c is pending; this record does not change the accepted parent wording or
+claim MCP completion.
+
+The production boundary reports each real forward or resume rejection once after its cancellation
+guard, using the exact caught object and fixed operation, connection and user metadata. The
+production reporter registers one failure through the shared serializer and logger with all three
+owned secrets. Public WebSocket bytes remain the established `backend_unavailable` or
+`resume_denied` plus `resume_ack` frames. Close, controlled cancellation, foreign origin, expired
+token and identity-recheck refusals remain silent.
+
+### Final verification
+
+Evidence is retained under `/tmp/puni-codex-resume-20260921/040-9-task5`; every transcript has a
+same-stem `.exit` sidecar containing the real process status.
+
+| Command                                                                                                  | Result                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Six-file focused gateway group                                                                           | exit 0; 58 pass, 0 fail, 273 assertions                                                                                           |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache`                                        | exit 0; cache skipped                                                                                                             |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:lint --skip-nx-cache`                                             | exit 0; cache skipped; only the existing `NO_COLOR`/`FORCE_COLOR` warning                                                         |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:build --skip-nx-cache`                                            | exit 0; cache skipped; 981 modules bundled                                                                                        |
+| `NX_DAEMON=false bunx nx run wbs-gw-01:test --skip-nx-cache`                                             | exit 0; 128 pass, 0 fail, 3,567 assertions across 17 files; cache skipped                                                         |
+| Downstream structured-field `rg` from the execution packet                                               | exit 0; Promtail maps `connection_id`; no deployed consumer assumes legacy `err` fields or needs a gateway-specific schema change |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate adopt-failure-reporting --strict --json` | exit 0; exactly the named change is valid with no issues; parsed JSON assertion exit 0                                            |
+| `bunx prettier --check` on the two closure documents                                                     | exit 0                                                                                                                            |
+
+The whole target emitted the expected schema-valid health-probe error record while testing an
+unreachable backend; it did not fail the target. The repository-level h2puni gate is deferred to
+the final integrated candidate as required by the execution packet.
+
+Current implementation hashes at that baseline are retained in `current-implementation.sha256`.
+The production hashes are: reporter `6195eb8e…`, controller `1130fda8…`, app `c4751c93…`, and
+shared frames `c916b045…`. They match the saved Task 2+3 canonical bytes. Task 4's final test hashes
+are deadline `7307bb35…` and auth `2fe912b5…`.
+
+### Watched failure proofs
+
+Unless a limitation is called out below, each retained mutation has its injected diff, an exit-1
+red with a nonzero selected-test count, byte restoration with `cmp` exit 0, and a separate green
+exit 0. Task 2+3 artifacts use prefix `040-9-task23-mut-`; lifecycle artifacts use prefix
+`040-9-task4-mut-`.
+
+| Proof | Changed production expression                                                    | Named oracle and observed mismatch                                                                                              | Restoration and green                                                 |
+| ----- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| G1    | Reporter redaction secrets became `[]`                                           | `logs one registered forward failure…` exposed all three secrets; 1 pass, 1 fail                                                | Reverse patch; observed but unretained `cmp` 0; final reporter 2/0/20 |
+| G2    | Logger received `failure.caught` instead of `registerReportedFailure(reporting)` | Both reporter tests found `err.reported` missing; 0 pass, 2 fail                                                                | Reverse patch; observed but unretained `cmp` 0; final reporter 2/0/20 |
+| G3    | Duplicated `logger.error(...)`                                                   | Both reporter tests received two calls instead of one; 0 pass, 2 fail                                                           | Reverse patch; observed but unretained `cmp` 0; final reporter 2/0/20 |
+| G4    | Removed the forward reporter call                                                | `emits backend_unavailable error when forward throws` received no report; 33 pass, 1 fail                                       | Reverse patch, `cmp` 0; 34/0/95                                       |
+| G5    | Removed the resume reporter call                                                 | `tells the client when it could not serve the resume at all` received no report while all three frames matched; 33 pass, 1 fail | Reverse patch, `cmp` 0; 34/0/95                                       |
+| G6    | Moved forward reporting above the abort guard                                    | `closed connection suppresses forward failure frames and metrics` received one report; 2 pass, 1 fail                           | Reverse patch, `cmp` 0; 3/0/7                                         |
+| G7    | Moved resume reporting above the abort guard                                     | `closed connection suppresses resume failure frames and metrics` received one report; 2 pass, 1 fail                            | Reverse patch, `cmp` 0; 3/0/7                                         |
+| G8    | Replaced the caught forward object                                               | Forward rejection report contained a substitute object; 33 pass, 1 fail                                                         | Reverse patch, `cmp` 0; 34/0/95                                       |
+| G9    | Production composition passed a no-op reporter                                   | Both real forward and resume cases timed out waiting for their report; 1 pass, 2 fail                                           | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G10   | Reporter secret policy omitted the internal token                                | Raw diagnostic line exposed the internal token; 1 pass, 2 fail                                                                  | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G11   | Logger options omitted the internal token                                        | Exact logger factory options lacked the internal token; 1 pass, 2 fail                                                          | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G12   | Composition omitted the current JWT key                                          | Exact logger factory options lacked the current key; 1 pass, 2 fail                                                             | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G13   | Composition omitted the previous JWT key                                         | Exact logger factory options lacked the previous key; 1 pass, 2 fail                                                            | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G14   | Reporter logged raw caught input instead of the registered outcome               | Both production cases found `err.reported` missing; 1 pass, 2 fail                                                              | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G15   | Forward frame appended `String(caught)`                                          | Literal raw frame bytes changed and exposed all three secrets; 2 pass, 1 fail                                                   | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G16   | Resume ack serialized `{ replayed, type }`                                       | Parsed meaning stayed equal but literal raw bytes changed; 1 pass, 2 fail                                                       | Reverse patch, `cmp` 0; 3/0/62                                        |
+| G17   | Forward catch reported a distinct same-message `Error('nope')`                   | Strict `.toBe(caught)` failed with “serializes to the same string”; named red 0 pass, 1 fail                                    | Reverse patch, `cmp` 0; named green 1/0/4                             |
+| G18   | Resume catch reported a distinct same-message `Error('be-01 unreachable')`       | Strict `.toBe(caught)` failed with the same identity-only mismatch; named red 0 pass, 1 fail                                    | Reverse patch, `cmp` 0; named green 1/0/4                             |
+| G19   | Reported before the close abort guard                                            | Both real close cases received one forbidden report; 7 pass, 2 fail                                                             | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G20   | Removed close's `conn.cancellation.abort(...)`                                   | Four real close cases exceeded the 250 ms cancellation deadline; 5 pass, 4 fail                                                 | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G21   | Routed resume rejection through `wsError('backend_unavailable', ...)`            | Literal bytes were one forward frame instead of two `resume_denied` frames plus `resume_ack`; decisive red 6 pass, 3 fail       | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G22   | Logged inside the identity-recheck refusal catch                                 | Both 1008/no-frame cases received a forbidden operator record; 5 pass, 2 fail                                                   | Saved bytes, `cmp` 0; 7/0/13                                          |
+| G23   | Moved resume reporting inside the subscription loop                              | Two subscriptions produced two records instead of one; decisive red 7 pass, 2 fail                                              | Saved bytes, `cmp` 0; 9/0/72                                          |
+| G24   | Logged in the foreign-origin refusal                                             | 403/no-socket behavior stayed intact but the private sink received one forbidden line; 6 pass, 1 fail                           | Saved bytes, `cmp` 0; 7/0/13                                          |
+| G25   | Logged in the expired-token refusal                                              | The expired-cookie case and both identity cases received a forbidden line; 4 pass, 3 fail                                       | Saved bytes, `cmp` 0; 7/0/13                                          |
+
+The original Task 1 mutations G1–G3 predate per-mutation diff and `cmp` sidecars. Their executed
+patches and reds are retained, as is the original reporter canonical file. Restoration `cmp` exit 0
+was observed but not saved separately. Root later compared that canonical reporter with the
+committed reporter: `cmp` exit 0 and identical SHA-256 `6195eb8e…`. The record does not invent
+missing standalone artifacts.
+
+The first real-socket Task 2+3 integration attempt failed before behavior with `Bun.serve` EPERM
+inside the restricted sandbox. The permitted rerun was the decisive pre-production red: 1 pass,
+2 fail, both waiting for the reporter after exact existing frames. The first scoped lint then
+failed on four integration-helper diagnostics; those were corrected before the final passing lint.
+
+Root's review showed the initial structural Error comparison could accept a distinct same-message
+object. G17 and G18 are the corrected identity proofs; root independently replayed G17, restored
+with `cmp` exit 0, then observed the focused controller/socket group at 40 pass, 0 fail and 168
+assertions.
+
+For G21, an initial red timed out because its readiness oracle waited for a specific old frame; the
+decisive content-neutral frame-count rerun produced the literal-byte mismatch above. Its 503 case
+also needed content-neutral readiness. For G23, the initial red waited for exactly one report and
+timed out; the decisive `>= 1` readiness observed two reports. The timeout attempts are retained
+but are not claimed as behavioral proof.
+
+Task 4's first typecheck failed because the test-only captured-frame type omitted `retry_after`;
+the local type was corrected and the uncached rerun passed. Task 4 had no socket-permission failure:
+all of its real-socket reds and greens ran with loopback permission. All 15 Task 2+3 mutation
+restorations and all seven Task 4 restorations have durable exit-0 `cmp` evidence and restored
+greens. Normal hooks passed on each implementation commit; some early hook transcripts were
+observed only in the execution transcript and are not presented as standalone files.
+
+## 040.8 — MCP unexpected tool-failure boundary
+
+MCP adoption was implemented and independently reviewed in commits `15e6caa5` (modeled local
+input), `53d3384c` (reporter and closed log contract), and `42dbf485` (SDK boundary and production
+composition). The closure baseline is integration `96a3ff476377a9746ade33212a3fd8360a32738a`,
+which also preserves the completed observability, backend, browser, frontend, and gateway history
+above.
+
+The low-level SDK `tools/call` handler leaves unknown tools as rejected `InvalidParams` protocol
+errors. It preserves `ToolInputRefused`, declared upstream 4xx bodies, upstream credential/session
+recovery, deployment edge-gate recovery, and successful tool bodies. A fetch rejection, redirect,
+5xx, unreadable response body, or malformed successful body reaches one required application
+reporter and becomes one generic `isError` tool result whose occurrence identifier matches the one
+sanitized diagnostic operator line. Production constructs one `mcp-01` logger and reporter from
+any nonempty process-owned Basic credential; caller Bearer credentials remain per request.
+OAuth route evidence and startup facts use that structured logger rather than raw console output.
+
+Task 1 evidence is retained in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task1.c0yZfv`, Task 2 evidence in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task2.gqLst0`, Tasks 3 and 4 evidence in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task34.3lTKCK`, and closure evidence in
+`/tmp/puni-codex-resume-20260921/040-8-mcp-task5.YT4k1o`. Each newly executed closure mutation
+below has its patch, exit-1 red, saved passing bytes, byte-identical restore with `cmp` exit 0, and
+separate exit-0 named green. Earlier evidence directories carry the same artifacts for reused
+proofs, and root independently replayed M5/M6/M11 and the combined boundary exact-one proof during
+slice review.
+
+### Watched MCP failure proofs
+
+| Proof | Injected fault                                                       | Named observed failure                                                                                                     | Evidence                                                         |
+| ----- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| M1    | Bypassed the `ToolInputRefused` catch                                | undeclared input became a generic referenced result instead of naming `parentID`, and the unexpected reporter was called   | closure `m1-*`                                                   |
+| M2    | Widened declared refusal classification through HTTP 599             | one compound diff showed reporter count zero, marker presence true, and the marker-bearing refusal response                | closure `m2-compound-*`                                          |
+| M3    | Replaced the public envelope with fixed synthetic text               | reporter input remained safe, but the linked SDK result differed from the exact generic sentence and correlation reference | closure `m3-*`                                                   |
+| M4    | Replaced the reporter call with a fabricated disclosure              | the linked SDK reporter count was zero                                                                                     | closure `m4-*`                                                   |
+| M5    | Duplicated reporter logging and, separately, the production callback | reporter unit count and captured production count were two instead of one                                                  | Task 2 `m5-*`; Tasks 3/4 `task4-duplicate-production-callback-*` |
+| M6    | Logged an unregistered `FailureReporting`                            | the serializer created a second occurrence and an object-wrapper diagnostic instead of reusing the boundary occurrence     | Task 2 `m6-*`                                                    |
+| M7    | Built the production reporter with an empty owned-secret list        | the operator line contained `boundary-secret`                                                                              | closure `m7-*`                                                   |
+| M8    | Removed `mcp-01` from the closed log schema only                     | the real MCP logger record failed service validation                                                                       | Task 2 `m8-*`                                                    |
+| M9    | Passed a fixed disclosure callback to the production server factory  | the real SDK result returned but the sanitized operator-call count was zero                                                | closure `m9-*`                                                   |
+| M10   | Converted the unknown-tool `McpError` into a reported tool result    | the client resolved with tool content, so the `McpError`/`InvalidParams` rejection oracle received `undefined`             | closure `m10-*`                                                  |
+| M11   | Replaced non-scalar `ToolInputRefused` with plain `Error`            | two modeled families passed and only non-scalar input failed constructor identity                                          | Task 1 `task1-owner-identity-*`                                  |
+| M12   | Sent 3xx through the old refusal path                                | one compound diff showed reporter count zero, marker presence true, and the marker-bearing refusal response                | closure `m12-compound-*`                                         |
+| M13   | Caught body-read rejection as a fixed synthetic refusal              | the exact caught object never reached the reporter and reporter count was zero                                             | Tasks 3/4 `m13-*`                                                |
+| M14   | Removed linked transport authentication metadata                     | production fetch count was zero before any exact Bearer header could be observed                                           | Tasks 3/4 `m14-*`                                                |
+
+The originally prescribed M3/M13 raw-text mutations would intentionally place a secret-bearing
+caught string in tool content. Automatic approval review rejected the raw M13 mutation for that
+reason, and it was not retried through another tool. M13 instead used a fixed synthetic refusal to
+prove misclassification and missing reporting without interpolating caught data. M3 likewise used
+fixed synthetic public text to violate the exact generic/correlated envelope without exposing a
+secret. These safer mutations exercise the same owning checks; neither is claimed as a literal raw
+secret disclosure run.
+
+The initial M2 and M12 reds stopped at the reporter-count assertion before their disclosure
+assertions could execute. The closure replays supersede those reds with one compound comparison
+whose failure displays the zero count, marker presence, and exact returned tool response together.
+
+### MCP closure verification
+
+All commands below ran on 2026-09-21 with evidence retained in the closure directory named above.
+
+| Command                                                                   | Result                                   |
+| ------------------------------------------------------------------------- | ---------------------------------------- |
+| Exact five-file focused MCP test command                                  | 56 pass, 0 fail, 190 assertions; exit 0  |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:test --skip-nx-cache`             | 148 pass, 0 fail, 634 assertions; exit 0 |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:typecheck --skip-nx-cache`        | passed uncached; exit 0                  |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:lint --skip-nx-cache`             | passed uncached; exit 0                  |
+| `NX_DAEMON=false bunx nx run wbs-mcp-01:build --skip-nx-cache`            | bundled 689 modules; exit 0              |
+| `NX_DAEMON=false bunx nx run wbs-observability:test --skip-nx-cache`      | 28 pass, 0 fail, 66 assertions; exit 0   |
+| `NX_DAEMON=false bunx nx run wbs-observability:typecheck --skip-nx-cache` | passed uncached; exit 0                  |
+| `NX_DAEMON=false bunx nx run wbs-observability:lint --skip-nx-cache`      | passed uncached; exit 0                  |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all`     | no formatting differences; exit 0        |
+| Exact strict named OpenSpec validation                                    | 1 passed, 0 failed, no issues; exit 0    |
+| Staged whole `tool-devsync:test` preflight                                | 359 pass, 0 fail, 864 assertions; exit 0 |
+
+### MCP retry after a refresh, found while merging main (2026-09-21)
+
+Main gained a refresh-and-retry path for a be-01 401 after this change was cut. Merged as the union
+of both sides, that path swallowed every failure of the retry except an edge refusal, so a rejected
+retry fetch wrote no operator record and the caller was told the session had ended. The retry's
+failure is now classified exactly as the first call's: only a second be-01 refusal ends the session.
+
+| Check                                                                                                      | Result                                                                    |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| New case `reports a transport failure on the retry after a refresh, and keeps the session`, before the fix | failed on `Expected length: 1`, `Received length: 0`                      |
+| The same case after the fix                                                                                | passed; `src/server.test.ts` 24 pass, 0 fail                              |
+| R5 fault: `cause = retryCause;` removed from `server.ts`                                                   | the named case failed on the same lengths; restored and compared by `cmp` |
+| `bun test src` in `apps/wbs/mcp-01`                                                                        | 165 pass, 0 fail across 15 files                                          |
+
+Not changed and recorded as a finding: a failure of the refresh itself other than an edge refusal
+still ends the family without an operator record, as it did on main before this merge.

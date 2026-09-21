@@ -82,7 +82,11 @@ function mounted(
         },
       ),
     ],
-    { appOrigin: 'https://app.example', resolveIdentity: unusedIdentity },
+    {
+      appOrigin: 'https://app.example',
+      reportUnexpectedFailure: () => undefined,
+      resolveIdentity: unusedIdentity,
+    },
   );
 }
 

@@ -164,3 +164,104 @@ The shared failure reporting module SHALL produce both reports inside a browser,
 - **WHEN** a probe importing the shared reporting module runs in Chromium
 - **THEN** it produces a public report carrying an occurrence identifier
 - **AND** the page raises no error and requests no unexpected origin
+
+### Requirement: The backend reports an unexpected endpoint failure once
+
+The mounted backend endpoint boundary SHALL keep its generic 500 response for an unexpected
+failure, SHALL write exactly one diagnostic operator record for that failure, and SHALL NOT
+disclose content read from the caught value through the response. The diagnostic and public
+reports captured for the occurrence SHALL share one occurrence identifier.
+
+#### Scenario: A store fails behind an admitted request
+
+- **GIVEN** an admitted request whose store operation throws an unknown failure containing a caller-owned secret
+- **WHEN** the mounted endpoint boundary handles the failure
+- **THEN** the response is status 500 with the existing generic body
+- **AND** one operator record carries the redacted diagnostic report, occurrence identifier and fingerprint
+- **AND** the response and record contain no caller-owned secret
+
+#### Scenario: Reporting cannot inspect the failure
+
+- **GIVEN** an admitted request fails with a value the report library cannot inspect
+- **WHEN** the mounted endpoint boundary handles the failure
+- **THEN** the response remains the existing generic 500
+- **AND** one operator record carries a visible reporting loss and correlation handle
+
+#### Scenario: A modeled request outcome is returned
+
+- **GIVEN** a request is refused by a declared parser, identity, origin or endpoint rule
+- **WHEN** the mounted endpoint boundary returns that modeled 4xx response
+- **THEN** no unexpected-failure operator record is written
+
+### Requirement: A live gateway backend failure is reported once without changing its frame
+
+The gateway WebSocket boundary SHALL write exactly one correlated diagnostic operator record for
+each live forward or resume failure, SHALL keep the existing failure frames and open connection,
+and SHALL disclose no caught-value content through those frames. A rejection caused by connection
+cancellation SHALL write no record and no frame.
+
+#### Scenario: A live forward fails
+
+- **GIVEN** an authenticated live socket whose backend forward rejects with a caller-owned secret
+- **WHEN** the gateway handles the rejection
+- **THEN** it sends the existing `backend_unavailable` frame with `retry_after: 5`
+- **AND** it writes one redacted diagnostic record correlated by occurrence and connection
+- **AND** the socket remains usable
+
+#### Scenario: A live resume fails
+
+- **GIVEN** an authenticated live socket whose backend resume rejects
+- **WHEN** the gateway handles the rejection
+- **THEN** it sends one existing unavailable denial per requested subscription followed by the existing empty resume acknowledgement
+- **AND** it writes one redacted diagnostic record for the whole rejected resume attempt
+- **AND** it sends no replay event from the failed attempt
+
+#### Scenario: Connection close cancels backend work
+
+- **GIVEN** a forward or resume request is pending for a connection
+- **WHEN** close aborts that connection and the request rejects
+- **THEN** the gateway writes no failure record, increments no unavailable metric and sends no late frame
+
+#### Scenario: A modeled gateway outcome occurs
+
+- **GIVEN** invalid input, an authentication or origin refusal, a declared subscription refusal, a successful replay, or an identity-recheck policy close
+- **WHEN** the gateway handles that outcome
+- **THEN** it writes no unexpected-backend-failure record
+
+### Requirement: An unexpected MCP tool failure is reported once and disclosed generically
+
+The MCP tool-call boundary SHALL preserve its tool-result envelope, SHALL disclose only a generic
+public sentence and correlation handle for an unexpected call failure, and SHALL write exactly
+one correlated sanitized diagnostic operator record. Correctable local input failures, declared
+upstream 4xx refusals, authentication/session outcomes and unknown-tool protocol errors SHALL keep
+their existing classification and useful public text and SHALL NOT write an unexpected-failure
+record.
+
+#### Scenario: A local tool input is invalid
+
+- **GIVEN** a known tool call has an undeclared input, a missing path parameter or a non-scalar URL value
+- **WHEN** mcp-01 handles the call
+- **THEN** it returns the existing correctable `isError` tool content
+- **AND** no unexpected-failure operator record is written
+
+#### Scenario: be-01 returns a declared refusal
+
+- **GIVEN** be-01 returns a 4xx refusal carrying its correction code and details
+- **WHEN** mcp-01 handles the call
+- **THEN** the existing `isError` tool content retains the status, code and useful body
+- **AND** no unexpected-failure operator record is written
+
+#### Scenario: a tool transport or successful-response decoder fails
+
+- **GIVEN** fetch rejects, response-body reading rejects, a non-4xx response fails, or a successful body is not JSON
+- **WHEN** the SDK tool-call boundary handles the failure
+- **THEN** it returns one `isError` text result containing the generic public sentence and reference
+- **AND** the agent receives no content read from the caught value or upstream body
+- **AND** one operator record carries the sanitized diagnostic report under the same occurrence identifier
+
+#### Scenario: reporting cannot inspect an unexpected failure
+
+- **GIVEN** an unexpected call failure the report library cannot inspect
+- **WHEN** the tool-call boundary handles it
+- **THEN** it returns fixed loss text with a local correlation handle without throwing
+- **AND** one operator record visibly records the reporting loss

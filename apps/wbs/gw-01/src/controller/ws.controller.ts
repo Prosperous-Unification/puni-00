@@ -10,6 +10,7 @@ import {
 import { type } from '@wbs/validation';
 
 import type { SubscriptionMap } from '../service/subscription-map';
+import type { UnexpectedBackendFailureReporter } from './unexpected-backend-failure';
 
 export type ResumeStatus =
   | { status: 'replaying'; events: { seq: number; message: unknown }[] }
@@ -28,6 +29,7 @@ export interface HandleWsMessageArgs {
   subs: SubscriptionMap<WsSocket>;
   connectionId: string;
   clientId: string;
+  reportUnexpectedBackendFailure: UnexpectedBackendFailureReporter;
   forward: (m: unknown) => Promise<{ ack: boolean }>;
   resume: (points: Record<string, number>) => Promise<Record<string, ResumeStatus>>;
   onInbound?: () => void;
@@ -92,10 +94,16 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
     args.onInbound?.();
     try {
       await args.forward(inbound.frame);
-    } catch {
+    } catch (caught) {
       // Proof: removing this guard emitted failure frames after close in
       // ws-cancellation.test.ts.
       if (args.signal?.aborted === true) return;
+      args.reportUnexpectedBackendFailure({
+        caught,
+        operation: 'forward',
+        connectionId: args.connectionId,
+        clientId: args.clientId,
+      });
       args.onBackendUnavailable?.();
       args.socket.send(wsError('backend_unavailable', { retry_after: 5 }));
     }
@@ -121,10 +129,16 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
     let result: Record<string, ResumeStatus>;
     try {
       result = await args.resume(points);
-    } catch {
+    } catch (caught) {
       // Proof: removing this guard emitted failure frames after close in
       // ws-cancellation.test.ts.
       if (args.signal?.aborted === true) return;
+      args.reportUnexpectedBackendFailure({
+        caught,
+        operation: 'resume',
+        connectionId: args.connectionId,
+        clientId: args.clientId,
+      });
       // be-01 unreachable, a non-2xx, or a body that does not match the
       // contract — which is also what a gateway from after a partial rollout
       // sees from a backend from before it. The client is told, rather than

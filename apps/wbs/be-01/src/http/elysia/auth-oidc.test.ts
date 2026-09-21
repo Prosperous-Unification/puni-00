@@ -73,6 +73,7 @@ function fixture() {
   });
   const app = mountEndpoints(authOidcEndpoints(auth, options), {
     appOrigin: origin,
+    reportUnexpectedFailure: () => undefined,
     resolveIdentity: () => {
       return Promise.reject(new Error('OIDC handshakes do not resolve an access identity'));
     },

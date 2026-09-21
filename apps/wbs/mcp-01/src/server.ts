@@ -8,8 +8,9 @@ import {
 
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
+import type { UnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike, ToolTextResult } from './wbs-client';
-import { callTool, EdgeGate, UpstreamRejected } from './wbs-client';
+import { callTool, EdgeGate, ToolInputRefused, UpstreamRejected } from './wbs-client';
 
 /**
  * The three pieces composed: the tools section 2 derives, the call section 3
@@ -67,6 +68,7 @@ export interface ServerDeps {
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
   readonly endSession?: (mcpSessionId: string) => void | Promise<void>;
   readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
+  readonly reportUnexpectedToolFailure: UnexpectedToolFailureReporter;
 }
 
 const errorText = (message: string): ToolTextResult => ({
@@ -106,7 +108,15 @@ const asCallToolResult = (
  */
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
 export function createServer(deps: ServerDeps): Server {
-  const { tools, config, fetchImpl, callerTokenOf, endSession, refreshSession } = deps;
+  const {
+    tools,
+    config,
+    fetchImpl,
+    callerTokenOf,
+    endSession,
+    refreshSession,
+    reportUnexpectedToolFailure,
+  } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- D5, see above.
@@ -132,6 +142,8 @@ export function createServer(deps: ServerDeps): Server {
     // never made: a protocol error, so a client cannot read the reply as a
     // result. Returning empty content here would let a caller believe the
     // operation ran and returned nothing.
+    // Proof: on 2026-09-21, routing this McpError through the reporter returned tool content;
+    // the linked client resolved instead of rejecting with InvalidParams.
     if (tool === undefined) {
       throw new McpError(
         ErrorCode.InvalidParams,
@@ -157,12 +169,22 @@ export function createServer(deps: ServerDeps): Server {
             : callerTokenOf(extra.authInfo),
         ),
       );
-    } catch (cause) {
-      if (cause instanceof UpstreamRejected) {
+    } catch (firstCause) {
+      let cause = firstCause;
+      if (firstCause instanceof UpstreamRejected) {
         const sessionId = extraSessionId(extra.authInfo);
+        let refreshedToken: string | null = null;
         if (sessionId !== null && refreshSession !== undefined) {
           try {
-            const refreshedToken = await refreshSession(sessionId);
+            refreshedToken = await refreshSession(sessionId);
+          } catch (refreshCause) {
+            if (refreshCause instanceof EdgeGate)
+              return asCallToolResult(errorText(refreshCause.message));
+            // A refused refresh ends the family below.
+          }
+        }
+        if (refreshedToken !== null) {
+          try {
             return asCallToolResult(
               await callTool(
                 tool,
@@ -173,29 +195,43 @@ export function createServer(deps: ServerDeps): Server {
               ),
             );
           } catch (retryCause) {
-            if (retryCause instanceof EdgeGate)
-              return asCallToolResult(errorText(retryCause.message));
-            // A refused refresh or one refused retry ends the family below.
+            // Only a second be-01 refusal is a session outcome. Anything else the retry throws is
+            // classified below exactly as the first call's failure would be, so a transport or
+            // decoder failure after a good refresh is reported and the session is kept.
+            // Proof: on 2026-09-21, removing this assignment failed `reports a transport failure on
+            // the retry after a refresh, and keeps the session` on `Expected length: 1`, `Received
+            // length: 0`: a rejected retry fetch wrote no operator record.
+            cause = retryCause;
           }
         }
-        if (sessionId !== null) await endSession?.(sessionId);
-        return asCallToolResult(
-          errorText(
-            sessionId === null
-              ? `${tool.name} could not be called: ${cause.message} Sign in again and retry.`
-              : `${tool.name} could not be called: be-01 rejected the upstream credential, so the MCP session ended. Reauthorize and retry.`,
-          ),
-        );
+        if (cause instanceof UpstreamRejected) {
+          if (sessionId !== null) await endSession?.(sessionId);
+          return asCallToolResult(
+            errorText(
+              sessionId === null
+                ? `${tool.name} could not be called: ${cause.message} Sign in again and retry.`
+                : `${tool.name} could not be called: be-01 rejected the upstream credential, so the MCP session ended. Reauthorize and retry.`,
+            ),
+          );
+        }
       }
       if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
-      // The opposite case, and deliberately not a throw. An undeclared input or
-      // a missing path parameter is a mistake the caller can correct, and these
-      // messages name what to correct — as tool content a model reads them and
-      // tries again, as a protocol exception it mostly sees "the call failed".
-      // be-01's own refusals already arrive this way (D7).
+      // Deliberately not a throw. A modeled input refusal names what the caller can correct — as
+      // tool content a model reads it and tries again, as a protocol exception it mostly sees
+      // "the call failed". be-01's own refusals already arrive this way (D7).
+      // Proof: on 2026-09-21, bypassing this branch made undeclared input generic and called the
+      // unexpected reporter instead of preserving the specific correction text.
+      if (cause instanceof ToolInputRefused) {
+        return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
+      }
+      // Proof: on 2026-09-21, replacing this call with a fabricated disclosure left the linked
+      // SDK reporter count at zero; invoking it twice made the production exact-one count two.
+      const disclosure = reportUnexpectedToolFailure(cause);
       return asCallToolResult(
         errorText(
-          `${tool.name} could not be called: ${cause instanceof Error ? cause.message : String(cause)}`,
+          // Proof: on 2026-09-21, replacing this format with fixed synthetic public text preserved
+          // reporter safety but failed the exact generic sentence and correlation envelope.
+          `${tool.name} could not be called: ${disclosure.sentence}. Reference ${disclosure.occurrenceId}.`,
         ),
       );
     }

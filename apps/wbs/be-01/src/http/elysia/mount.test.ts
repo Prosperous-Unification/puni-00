@@ -17,6 +17,7 @@ import {
   type RequestFailure,
 } from '../endpoint';
 import { mountEndpoints } from './mount';
+import type { UnexpectedFailureReporter } from './unexpected-failure';
 
 const origin = 'https://app.example';
 const refusalShapes = [
@@ -75,8 +76,11 @@ function request(body: string, headers: Record<string, string> = {}): Request {
     body,
   });
 }
-function appFor(endpoints: readonly BoundEndpoint[]) {
-  return mountEndpoints(endpoints, { appOrigin: origin, resolveIdentity });
+function appFor(
+  endpoints: readonly BoundEndpoint[],
+  reportUnexpectedFailure: UnexpectedFailureReporter = () => undefined,
+) {
+  return mountEndpoints(endpoints, { appOrigin: origin, resolveIdentity, reportUnexpectedFailure });
 }
 
 describe('endpoint policies before Elysia parsing', () => {
@@ -98,7 +102,8 @@ describe('endpoint policies before Elysia parsing', () => {
     expect(writes).toEqual(['allowed']);
   });
   test('refuses anonymous identity and preserves an unexpected account-store failure', async () => {
-    const app = appFor([
+    const failures: unknown[] = [];
+    const endpoints = [
       bind(writeShape, (input) =>
         Promise.resolve({
           ok: true,
@@ -106,18 +111,31 @@ describe('endpoint policies before Elysia parsing', () => {
           body: { echoed: input.body.text },
         }),
       ),
-    ]);
-    expect((await app.handle(request('{'))).status).toBe(401);
-    expect((await app.handle(request('{', { authorization: 'Bearer outage' }))).status).toBe(500);
+    ];
+    const app = appFor(endpoints, (caught) => void failures.push(caught));
+    const anonymous = await app.handle(request('{'));
+    expect(anonymous.status).toBe(401);
+    expect(failures).toEqual([]);
+    const outage = await app.handle(request('{', { authorization: 'Bearer outage' }));
+    expect(outage.status).toBe(500);
+    expect(await outage.text()).toBe('Internal Server Error');
+    expect(outage.headers.get('content-type')).toBeNull();
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toBeInstanceOf(Error);
+    expect((failures[0] as Error).message).toBe('account store offline');
   });
   test('blocks missing or foreign cookie origins while admitting bearer-only writes', async () => {
     const writes: string[] = [];
-    const app = appFor([
-      bind(writeShape, (input) => {
-        writes.push(input.body.text);
-        return Promise.resolve({ ok: true, status: 200, body: { echoed: input.body.text } });
-      }),
-    ]);
+    const failures: unknown[] = [];
+    const app = appFor(
+      [
+        bind(writeShape, (input) => {
+          writes.push(input.body.text);
+          return Promise.resolve({ ok: true, status: 200, body: { echoed: input.body.text } });
+        }),
+      ],
+      (caught) => void failures.push(caught),
+    );
     const origins: Record<string, string>[] = [{}, { origin: 'https://foreign.example' }];
     for (const headers of origins) {
       const response = await app.handle(
@@ -146,6 +164,7 @@ describe('endpoint policies before Elysia parsing', () => {
       (await app.handle(request('{"text":"bearer"}', { authorization: 'Bearer write' }))).status,
     ).toBe(200);
     expect(writes).toEqual(['cookie', 'bearer']);
+    expect(failures).toEqual([]);
   });
   test('always checks login-style origin without relying on OIDC configuration or cookies', async () => {
     const login = defineEndpointShape({
@@ -186,12 +205,16 @@ describe('endpoint policies before Elysia parsing', () => {
 describe('endpoint request and response boundaries', () => {
   test('refuses unknown nested request fields and malformed JSON with declared envelopes', async () => {
     const writes: string[] = [];
-    const app = appFor([
-      bind(echoShape, (input) => {
-        writes.push(input.body.text);
-        return Promise.resolve({ ok: true, status: 200, body: { echoed: input.body.text } });
-      }),
-    ]);
+    const failures: unknown[] = [];
+    const app = appFor(
+      [
+        bind(echoShape, (input) => {
+          writes.push(input.body.text);
+          return Promise.resolve({ ok: true, status: 200, body: { echoed: input.body.text } });
+        }),
+      ],
+      (caught) => void failures.push(caught),
+    );
     const invalid = await app.handle(request('{"text":"x","nested":{"name":"n","extra":true}}'));
     expect(invalid.status).toBe(400);
     expect(await invalid.json()).toEqual({ error: 'invalid_body' });
@@ -199,6 +222,7 @@ describe('endpoint request and response boundaries', () => {
     const malformed = await app.handle(request('{'));
     expect(malformed.status).toBe(400);
     expect(await malformed.json()).toEqual({ error: 'invalid_json' });
+    expect(failures).toEqual([]);
   });
   test('validates both successful and refusal replies against their declared status', async () => {
     const success: BoundEndpoint = {
@@ -435,6 +459,7 @@ describe('endpoint metadata and asynchronous boundaries', () => {
         ],
         {
           appOrigin: origin,
+          reportUnexpectedFailure: () => undefined,
           resolveIdentity: () =>
             Promise.resolve({
               ok: true,
@@ -451,6 +476,7 @@ describe('endpoint metadata and asynchronous boundaries', () => {
   });
   test('admits static and parameter siblings with their own ordered policies', async () => {
     const seen: string[] = [];
+    const failures: unknown[] = [];
     const dynamic = defineEndpointShape({
       ...writeShape,
       path: '/echo/:id',
@@ -462,16 +488,19 @@ describe('endpoint metadata and asynchronous boundaries', () => {
       operationId: 'fixed',
       policies: [],
     });
-    const app = appFor([
-      bind(dynamic, () => {
-        seen.push('dynamic');
-        return Promise.resolve({ ok: true, status: 200, body: { echoed: 'dynamic' } });
-      }),
-      bind(fixed, () => {
-        seen.push('fixed');
-        return Promise.resolve({ ok: true, status: 200, body: { echoed: 'fixed' } });
-      }),
-    ]);
+    const app = appFor(
+      [
+        bind(dynamic, () => {
+          seen.push('dynamic');
+          return Promise.resolve({ ok: true, status: 200, body: { echoed: 'dynamic' } });
+        }),
+        bind(fixed, () => {
+          seen.push('fixed');
+          return Promise.resolve({ ok: true, status: 200, body: { echoed: 'fixed' } });
+        }),
+      ],
+      (caught) => void failures.push(caught),
+    );
     const send = (path: string) =>
       new Request(`https://backend.example${path}`, {
         method: 'POST',
@@ -482,6 +511,7 @@ describe('endpoint metadata and asynchronous boundaries', () => {
     expect((await app.handle(send('/echo/other'))).status).toBe(401);
     expect((await app.handle(send('/missing'))).status).toBe(404);
     expect(seen).toEqual(['fixed']);
+    expect(failures).toEqual([]);
   });
   test('refuses successful error envelopes even when the JSON schema is permissive', async () => {
     const shape = defineEndpointShape({
@@ -548,6 +578,7 @@ function asynchronous<T>(shape: SchemaShape<T>, events: string[], label: string)
 
 describe('endpoint declaration failures and status preservation', () => {
   test('preserves declared 405, 429, 501 and 503 refusals and their headers', async () => {
+    const failures: unknown[] = [];
     const refusals = [
       {
         status: 405,
@@ -596,11 +627,14 @@ describe('endpoint declaration failures and status preservation', () => {
             headers: [['Allow', 'GET']],
           }),
       };
-      const response = await appFor([endpoint]).handle(request('{"text":"x"}'));
+      const response = await appFor([endpoint], (caught) => void failures.push(caught)).handle(
+        request('{"text":"x"}'),
+      );
       expect(response.status).toBe(refusal.status);
       expect(await response.json()).toEqual(refusal.body);
       expect(response.headers.get('allow')).toBe('GET');
     }
+    expect(failures).toEqual([]);
   });
   test('throws for missing validation refusals and unexpected handler failures', async () => {
     const shape = defineEndpointShape({ ...echoShape, refusals: [] });
@@ -666,11 +700,13 @@ test('retains preparse policies and repeated headers when composed into a parent
 });
 
 test('leaves an unrelated legacy route parser and error boundary intact', async () => {
+  const failures: unknown[] = [];
   const app = new Elysia()
     .use(
-      appFor([
-        bind(echoShape, () => Promise.resolve({ ok: true, status: 200, body: { echoed: 'x' } })),
-      ]),
+      appFor(
+        [bind(echoShape, () => Promise.resolve({ ok: true, status: 200, body: { echoed: 'x' } }))],
+        (caught) => void failures.push(caught),
+      ),
     )
     .post('/legacy', ({ body }) => body);
   const response = await app.handle(
@@ -681,6 +717,9 @@ test('leaves an unrelated legacy route parser and error boundary intact', async 
     }),
   );
   expect(response.status).toBe(400);
+  expect(await response.text()).toBe('Bad Request');
+  expect(response.headers.get('content-type')).toBeNull();
+  expect(failures).toEqual([]);
 });
 
 test('delivers resolved user and internal principals and follows declared policy order', async () => {
@@ -717,6 +756,7 @@ test('delivers resolved user and internal principals and follows declared policy
     ],
     {
       appOrigin: origin,
+      reportUnexpectedFailure: () => undefined,
       resolveIdentity: (requirement, metadata) => {
         resolutions++;
         return resolveIdentity(requirement, metadata);

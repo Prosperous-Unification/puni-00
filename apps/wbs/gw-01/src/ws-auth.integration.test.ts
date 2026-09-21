@@ -1,3 +1,4 @@
+import { createLogger, type CreateLoggerOptions } from '@wbs/observability';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { SignJWT } from 'jose';
 
@@ -9,6 +10,20 @@ const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);
 const APP_ORIGIN = 'https://dev.wbs.test';
 const key = new TextEncoder().encode(JWT_KEY);
+
+function captureLogs(): { lines: string[]; makeLogger: typeof createLogger } {
+  const lines: string[] = [];
+  const makeLogger = (options: CreateLoggerOptions) =>
+    createLogger({
+      ...options,
+      destination: { write: (chunk: string) => void lines.push(chunk) },
+    });
+  return { lines, makeLogger };
+}
+
+function backendFailureLines(lines: readonly string[]): string[] {
+  return lines.filter((line) => line.includes('gateway backend request failed'));
+}
 
 let port: number;
 let stop: () => void;
@@ -85,9 +100,9 @@ function openSocket(headers: Record<string, string>, path = '/ws'): Promise<WebS
   });
 }
 
-function expectRefused(headers: Record<string, string>): Promise<void> {
+function expectRefused(headers: Record<string, string>, targetPort = port): Promise<void> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://localhost:${String(port)}/ws`, {
+    const socket = new WebSocket(`ws://localhost:${String(targetPort)}/ws`, {
       headers,
     });
     socket.addEventListener(
@@ -213,11 +228,30 @@ describe('OIDC WebSocket authentication', () => {
     // Proof: with the Origin comparison removed from the production upgrade,
     // this socket opens. Watched 2026-08-24.
     const token = await tokenFor('mallory');
-
-    await expectRefused({
-      cookie: `__Host-wbs_access=${token}`,
-      origin: 'https://evil.test',
-    });
+    const logs = captureLogs();
+    const app = buildApp(
+      {
+        appOrigin: APP_ORIGIN,
+        beUrl: 'http://be.invalid',
+        internalAuthSecret: INTERNAL_SECRET,
+        jwtKey: JWT_KEY,
+      },
+      logs.makeLogger,
+    );
+    app.listen(0);
+    try {
+      await expectRefused(
+        {
+          cookie: `__Host-wbs_access=${token}`,
+          origin: 'https://evil.test',
+        },
+        app.server?.port ?? 0,
+      );
+      // Proof: logging in the foreign-origin branch preserved refusal but emitted one record.
+      expect(backendFailureLines(logs.lines)).toEqual([]);
+    } finally {
+      await app.stop();
+    }
   });
 
   it('refuses an expired access cookie during the upgrade', async () => {
@@ -225,11 +259,30 @@ describe('OIDC WebSocket authentication', () => {
     // this real socket open. Watched 2026-08-24.
     const now = Math.floor(Date.now() / 1000);
     const token = await tokenFor('ada', now - 60);
-
-    await expectRefused({
-      cookie: `__Host-wbs_access=${token}`,
-      origin: APP_ORIGIN,
-    });
+    const logs = captureLogs();
+    const app = buildApp(
+      {
+        appOrigin: APP_ORIGIN,
+        beUrl: 'http://be.invalid',
+        internalAuthSecret: INTERNAL_SECRET,
+        jwtKey: JWT_KEY,
+      },
+      logs.makeLogger,
+    );
+    app.listen(0);
+    try {
+      await expectRefused(
+        {
+          cookie: `__Host-wbs_access=${token}`,
+          origin: APP_ORIGIN,
+        },
+        app.server?.port ?? 0,
+      );
+      // Proof: logging in the invalid-token catch preserved refusal but emitted one record.
+      expect(backendFailureLines(logs.lines)).toEqual([]);
+    } finally {
+      await app.stop();
+    }
   });
 });
 
@@ -274,13 +327,17 @@ describe('WebSocket identity after the upgrade', () => {
   }
 
   it('closes a socket whose identity fails the recheck instead of serving it as anon', async () => {
-    const app = buildApp({
-      appOrigin: APP_ORIGIN,
-      beUrl: 'http://be.invalid',
-      internalAuthSecret: INTERNAL_SECRET,
-      jwtKey: JWT_KEY,
-      verifier: verifierThatExpiresAfterTheUpgrade(),
-    });
+    const logs = captureLogs();
+    const app = buildApp(
+      {
+        appOrigin: APP_ORIGIN,
+        beUrl: 'http://be.invalid',
+        internalAuthSecret: INTERNAL_SECRET,
+        jwtKey: JWT_KEY,
+        verifier: verifierThatExpiresAfterTheUpgrade(),
+      },
+      logs.makeLogger,
+    );
     app.listen(0);
     const livePort = app.server?.port ?? 0;
     try {
@@ -308,6 +365,8 @@ describe('WebSocket identity after the upgrade', () => {
       // identity behind it stopped being true.
       expect(closed.code).toBe(1008);
       expect(received).toEqual([]);
+      // Proof: logging the open-hook recheck preserved 1008/no frames but emitted one record.
+      expect(backendFailureLines(logs.lines)).toEqual([]);
     } finally {
       void app.stop();
     }
@@ -315,23 +374,31 @@ describe('WebSocket identity after the upgrade', () => {
 
   it('drops a frame already in flight when the identity recheck fails', async () => {
     let forwards = 0;
-    const app = buildApp({
-      appOrigin: APP_ORIGIN,
-      beUrl: 'http://be.invalid',
-      internalAuthSecret: INTERNAL_SECRET,
-      jwtKey: JWT_KEY,
-      verifier: verifierThatExpiresDuringAnInFlightFrame(),
-      fetchImpl: () => {
-        forwards += 1;
-        return Promise.resolve(new Response(JSON.stringify({ ack: true }), { status: 200 }));
+    const logs = captureLogs();
+    const app = buildApp(
+      {
+        appOrigin: APP_ORIGIN,
+        beUrl: 'http://be.invalid',
+        internalAuthSecret: INTERNAL_SECRET,
+        jwtKey: JWT_KEY,
+        verifier: verifierThatExpiresDuringAnInFlightFrame(),
+        fetchImpl: () => {
+          forwards += 1;
+          return Promise.resolve(new Response(JSON.stringify({ ack: true }), { status: 200 }));
+        },
       },
-    });
+      logs.makeLogger,
+    );
     app.listen(0);
     const livePort = app.server?.port ?? 0;
     try {
       const token = await tokenFor('ada');
       const socket = new WebSocket(`ws://localhost:${String(livePort)}/ws`, {
         headers: { cookie: `__Host-wbs_access=${token}`, origin: APP_ORIGIN },
+      });
+      const received: unknown[] = [];
+      socket.addEventListener('message', (event: MessageEvent<string>) => {
+        received.push(JSON.parse(event.data));
       });
       await new Promise<void>((resolve, reject) => {
         socket.addEventListener(
@@ -375,6 +442,9 @@ describe('WebSocket identity after the upgrade', () => {
 
       expect(closed.code).toBe(1008);
       expect(forwards).toBe(0);
+      expect(received).toEqual([]);
+      // Proof: logging the open-hook recheck preserved 1008/no frames but emitted one record.
+      expect(backendFailureLines(logs.lines)).toEqual([]);
     } finally {
       void app.stop();
     }

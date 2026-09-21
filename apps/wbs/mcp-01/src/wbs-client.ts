@@ -1,3 +1,5 @@
+import { defineException } from 'application-exception';
+
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 
@@ -51,6 +53,51 @@ export class EdgeGate extends Error {
   }
 }
 
+type ToolInputRefusalDetails =
+  | {
+      readonly kind: 'undeclared_input';
+      readonly toolName: string;
+      readonly inputName: string;
+      readonly declaredNames: readonly string[];
+    }
+  | {
+      readonly kind: 'missing_path';
+      readonly toolName: string;
+      readonly parameterName: string;
+      readonly path: string;
+    }
+  | {
+      readonly kind: 'non_scalar_url';
+      readonly toolName: string;
+      readonly parameterName: string;
+      readonly location: 'path' | 'query';
+      readonly receivedType: string;
+    };
+
+function toolInputRefusalMessage(details: ToolInputRefusalDetails): string {
+  switch (details.kind) {
+    case 'undeclared_input': {
+      const declared =
+        details.declaredNames.length === 0 ? 'no inputs' : details.declaredNames.join(', ');
+      return `${details.toolName} does not declare an input named "${details.inputName}". It declares ${declared}. be-01 strips unknown properties before the handler runs, so forwarding it would look like a success that did something else.`;
+    }
+    case 'missing_path':
+      return `${details.toolName} needs the path parameter "${details.parameterName}" and it was not given, so ${details.path} cannot be built.`;
+    case 'non_scalar_url':
+      return `${details.toolName}: ${details.location} parameter "${details.parameterName}" must be a string, number or boolean; received ${details.receivedType}. Every ${details.location} parameter be-01 declares is scalar.`;
+    default: {
+      const unreachable: never = details;
+      throw new Error(`Unknown tool input refusal: ${String(unreachable)}`);
+    }
+  }
+}
+
+/** A tool input mcp-01 can explain and the caller can correct. */
+export const ToolInputRefused = defineException({
+  tag: 'wbs/mcp/ToolInputRefused',
+  message: (details: ToolInputRefusalDetails) => toolInputRefusalMessage(details),
+});
+
 const text = (value: string, isError?: true): ToolTextResult => ({
   content: [{ type: 'text', text: value }],
   ...(isError === undefined ? {} : { isError }),
@@ -69,17 +116,25 @@ const asUrlValue = (
 ): string => {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  throw new Error(
-    `${tool.name}: ${location} parameter "${name}" must be a string, number or boolean; received ${typeof value}. Every ${location} parameter be-01 declares is scalar.`,
-  );
+  // Proof: on 2026-09-21, replacing this owner-local kind with plain Error made the three
+  // “models” cases pass twice and fail the non-scalar case on `toBeInstanceOf(ToolInputRefused)`.
+  throw new ToolInputRefused({
+    details: {
+      kind: 'non_scalar_url',
+      toolName: tool.name,
+      parameterName: name,
+      location,
+      receivedType: typeof value,
+    },
+  });
 };
 
 /**
  * Tool input → the request that carries it, by the operation's own locations.
  *
- * @throws if an input is not declared, or a path parameter is missing. Both are
- * unrecoverable here: the first has nowhere to go and the second leaves a
- * literal `{id}` in the URL, which be-01 answers 404 to as if the row were gone.
+ * @throws {ToolInputRefused} if an input is undeclared, a path parameter is missing, or a URL
+ * value is not scalar. The first has nowhere to go; the second leaves a literal `{id}` that
+ * be-01 answers 404 to as if the row were gone; the third would become `[object Object]`.
  */
 export function buildRequest(
   tool: DerivedTool,
@@ -97,12 +152,14 @@ export function buildRequest(
     // not it is, and the check below would be a branch the compiler thinks dead.
     const location = Object.hasOwn(tool.locations, name) ? tool.locations[name] : undefined;
     if (location === undefined) {
-      const declared = Object.keys(tool.locations);
-      throw new Error(
-        `${tool.name} does not declare an input named "${name}". It declares ${
-          declared.length === 0 ? 'no inputs' : declared.join(', ')
-        }. be-01 strips unknown properties before the handler runs, so forwarding it would look like a success that did something else.`,
-      );
+      throw new ToolInputRefused({
+        details: {
+          kind: 'undeclared_input',
+          toolName: tool.name,
+          inputName: name,
+          declaredNames: Object.keys(tool.locations),
+        },
+      });
     }
     // An explicit `undefined` is the caller leaving an optional input out, not
     // a value to send. `null` is a value — be-01 clears a date with it.
@@ -115,9 +172,14 @@ export function buildRequest(
   const path = tool.path.replace(/\{([^}]+)\}/g, (_match, name: string) => {
     const value = pathValues.get(name);
     if (value === undefined) {
-      throw new Error(
-        `${tool.name} needs the path parameter "${name}" and it was not given, so ${tool.path} cannot be built.`,
-      );
+      throw new ToolInputRefused({
+        details: {
+          kind: 'missing_path',
+          toolName: tool.name,
+          parameterName: name,
+          path: tool.path,
+        },
+      });
     }
     return encodeURIComponent(value);
   });
@@ -207,10 +269,10 @@ function refusal(
 /**
  * Calls be-01 for one derived tool.
  *
- * @throws if the request cannot be built, or if a 2xx answers with a body that
- * is not JSON. The second is deliberate: coercing it to `{}` would report an
- * empty plan as the plan (task 3.4). A 204 with no body is not that case — it
- * is what be-01's deletes answer with.
+ * @throws {ToolInputRefused} if the request cannot be built from correctable local input.
+ * @throws {Error} if a response outside 2xx and 4xx arrives, or if a successful body is not
+ * JSON. Coercing malformed success to `{}` would report an empty plan as the plan (task 3.4).
+ * A 204 with no body is not that case — it is what be-01's deletes answer with.
  */
 export async function callTool(
   tool: DerivedTool,
@@ -227,7 +289,17 @@ export async function callTool(
   });
 
   const bodyText = await response.text();
-  if (!response.ok) return refusal(tool, response, bodyText, config);
+  if (!response.ok) {
+    // Proof: on 2026-09-21, widening this upper bound to 599 sent a secret-bearing 500 through
+    // refusal, exposed its body as tool content, and skipped the unexpected reporter.
+    if (response.status >= 400 && response.status <= 499) {
+      return refusal(tool, response, bodyText, config);
+    }
+    throw new Error(
+      `${tool.name}: be-01 answered unexpected HTTP ${String(response.status)} from ${tool.method.toUpperCase()} ${tool.path}.`,
+      { cause: bodyText },
+    );
+  }
 
   if (bodyText.trim() === '') {
     return text(`${tool.name}: HTTP ${String(response.status)}, no content.`);

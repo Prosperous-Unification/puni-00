@@ -21,10 +21,12 @@ import {
 } from '../endpoint';
 import { matchPath } from '../route';
 import { decodeForm } from './form';
+import type { UnexpectedFailureReporter } from './unexpected-failure';
 
 interface MountOptions {
   appOrigin: string;
   resolveIdentity: IdentityResolver;
+  reportUnexpectedFailure: UnexpectedFailureReporter;
 }
 
 interface Admission {
@@ -66,8 +68,17 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
   // hook must follow them. Limit it to this adapter's selected requests.
   // Proof: local scope gives the composed-app outage test 200 instead of 500;
   // deleting isolation changes the unrelated legacy parser from 400 to 500.
-  app.onError({ as: 'global' }, ({ request }) => {
+  app.onError({ as: 'global' }, ({ error, request }) => {
+    // Proof: on 2026-09-21, removing this guard made “leaves an unrelated legacy route
+    // parser and error boundary intact” receive status 500 instead of 400.
     if (!admissions.has(request)) return undefined;
+    // Proof: on 2026-09-21, deleting this call made “refuses anonymous identity and
+    // preserves an unexpected account-store failure” receive zero reports instead of one;
+    // duplicating it made the same test receive two.
+    options.reportUnexpectedFailure(error);
+    // Proof: on 2026-09-21, returning String(error) made the account-store test receive
+    // `Error: account store offline` instead of the generic body; adding a JSON content type made
+    // it receive `application/json` instead of the measured absent header.
     return new Response('Internal Server Error', { status: 500 });
   });
   app.onRequest(async ({ request }) => {
@@ -87,6 +98,8 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
       })
       .sort((left, right) => comparePaths(left.endpoint.shape.path, right.endpoint.shape.path))
       .at(0);
+    // Proof: on 2026-09-21, reporting here made “admits static and parameter siblings
+    // with their own ordered policies” receive an injected failure instead of an empty list.
     if (matched === undefined) return undefined;
     const admission: Admission = {
       endpoint: matched.endpoint,
@@ -102,9 +115,14 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
             : hasInvalidCookieOrigin(request, options.appOrigin);
         // Proof: deleting this refusal gives the cookie-origin test 400 instead
         // of 403, and the login-style origin test 200 instead of 403.
+        // Proof: on 2026-09-21, reporting before this refusal made “blocks missing or
+        // foreign cookie origins while admitting bearer-only writes” receive injected failures.
         if (invalid) return refuse(matched.endpoint.shape, { error: 'invalid_origin' });
       } else {
         const identity = await options.resolveIdentity(policy.require, metadata);
+        // Proof: on 2026-09-21, reporting before this refusal made “refuses anonymous
+        // identity and preserves an unexpected account-store failure” receive a failure before
+        // the expected empty-list checkpoint.
         if (!identity.ok) return renderReply(matched.endpoint.shape, identity);
         // Proof: deleting this check admits the mismatched-resolver fixture with 200 instead of 500.
         if ((policy.require === 'internal') !== 'kind' in identity.principal) {
@@ -243,6 +261,8 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
             } catch (error) {
               // Proof: broadening this catch maps the injected decoder outage to 400 instead of 500.
               if (!(error instanceof SyntaxError)) throw error;
+              // Proof: on 2026-09-21, reporting here made “refuses unknown nested request fields
+              // and malformed JSON with declared envelopes” receive an injected failure.
               return classifyFailure(endpoint, {
                 part: 'body',
                 code: 'invalid_json',
@@ -254,6 +274,8 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         }
         const body = await validateRequest(endpoint.shape.body, decoded);
         // Proof: removing body refusal changes the nested-extra-field test from 400 to 500.
+        // Proof: on 2026-09-21, reporting before this refusal made “refuses unknown nested request
+        // fields and malformed JSON with declared envelopes” receive an injected failure.
         if (!body.ok)
           return classifyFailure(endpoint, {
             part: 'body',
@@ -272,6 +294,8 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // The heterogeneous table erases input to never; this endpoint's policies and
         // request schemas above establish the exact input before invoking its binding.
         const reply = await endpoint.handle(input as never);
+        // Proof: on 2026-09-21, reporting a non-ok reply here made “preserves declared 405, 429,
+        // 501 and 503 refusals and their headers” receive injected failures instead of an empty list.
         return renderReply(endpoint.shape, reply);
       },
       { parse: 'none' },
