@@ -10,6 +10,7 @@ import type { CalendarMarkerEdit, CalendarMarkers, CalendarMarkersHost } from '.
  * it, say what was refused, read the dirtied resources again — and the two
  * guards below are what keep a departed reader out of all three.
  */
+// @capability plan-refresh
 export function createCalendarMarkers({
   projectId,
   api,

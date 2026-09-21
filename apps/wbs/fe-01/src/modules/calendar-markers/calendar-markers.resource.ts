@@ -19,6 +19,7 @@ const DIRTIED = ['markers'] as const;
  * once, because a resource is one aggregate's and not a catalogue of every
  * project's.
  */
+// @term calendar-marker
 export function createCalendarMarkerWrites({
   projectId,
   api,
