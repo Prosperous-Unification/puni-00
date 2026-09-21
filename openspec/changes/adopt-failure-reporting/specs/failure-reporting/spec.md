@@ -192,3 +192,38 @@ reports captured for the occurrence SHALL share one occurrence identifier.
 - **GIVEN** a request is refused by a declared parser, identity, origin or endpoint rule
 - **WHEN** the mounted endpoint boundary returns that modeled 4xx response
 - **THEN** no unexpected-failure operator record is written
+
+### Requirement: A live gateway backend failure is reported once without changing its frame
+
+The gateway WebSocket boundary SHALL write exactly one correlated diagnostic operator record for
+each live forward or resume failure, SHALL keep the existing failure frames and open connection,
+and SHALL disclose no caught-value content through those frames. A rejection caused by connection
+cancellation SHALL write no record and no frame.
+
+#### Scenario: A live forward fails
+
+- **GIVEN** an authenticated live socket whose backend forward rejects with a caller-owned secret
+- **WHEN** the gateway handles the rejection
+- **THEN** it sends the existing `backend_unavailable` frame with `retry_after: 5`
+- **AND** it writes one redacted diagnostic record correlated by occurrence and connection
+- **AND** the socket remains usable
+
+#### Scenario: A live resume fails
+
+- **GIVEN** an authenticated live socket whose backend resume rejects
+- **WHEN** the gateway handles the rejection
+- **THEN** it sends one existing unavailable denial per requested subscription followed by the existing empty resume acknowledgement
+- **AND** it writes one redacted diagnostic record for the whole rejected resume attempt
+- **AND** it sends no replay event from the failed attempt
+
+#### Scenario: Connection close cancels backend work
+
+- **GIVEN** a forward or resume request is pending for a connection
+- **WHEN** close aborts that connection and the request rejects
+- **THEN** the gateway writes no failure record, increments no unavailable metric and sends no late frame
+
+#### Scenario: A modeled gateway outcome occurs
+
+- **GIVEN** invalid input, an authentication or origin refusal, a declared subscription refusal, a successful replay, or an identity-recheck policy close
+- **WHEN** the gateway handles that outcome
+- **THEN** it writes no unexpected-backend-failure record
