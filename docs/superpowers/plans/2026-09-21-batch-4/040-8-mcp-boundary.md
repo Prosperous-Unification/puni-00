@@ -376,25 +376,13 @@ make the reporter optional or add a production no-op to bridge an intermediate c
       existing config/document/OAuth/start functions plus `createLogger` and the existing optional
       `FetchLike` seam; production leaves `fetchImpl` undefined so `callTool` uses global `fetch`.
       Defaults are the real imports. Do not introduce DI Bag, a second server factory, or a cached
-      caller credential.
-- [ ] Keep every production operation inside that function: load config, derive tools, create the
-      logger/policy, create OAuth, choose verifier, call `startHttpServer`, and emit the startup
-      record. The returned value may expose only `{ port, toolCount }` for the test; it must not
-      expose secrets or the reporter.
-- [ ] Build the secrets list once from nonempty process-owned values. For this packet that is
-      `config.WBS_BASIC_AUTH`; include another value only if the live refactored config explicitly
-      owns it. Never include the caller bearer token or the whole environment.
-- [ ] Construct one logger:
-
-```ts
-const logger = makeLogger({ service: 'mcp-01', secrets });
-const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
-```
-
-Use the logger for the existing OAuth audit and startup line as structured records. Preserve
-their facts; do not log config values or credentials. Every per-request `createServer` closure
-receives the same reporter.
-
+      caller credential. Establish only this import-safe test seam first: accept the injected logger
+      factory but defer its invocation, secret-policy construction, and reporter wiring until the
+      named test's decisive red below. Do not add a no-op reporter to the production factory.
+- [ ] Move the existing config, catalogue, OAuth, verifier, HTTP startup, and startup output into
+      that function without changing their behavior at this test-seam checkpoint. The returned
+      value may expose only `{ port, toolCount }` for the test; it must not expose secrets or the
+      reporter. Complete the logger/policy/reporting composition only after the named red.
 - [ ] `main.test.ts` calls the exported production function with fakes and no bound port. Its fake
       `startHttpServer` captures the real server factory. Assert the logger factory receives
       `service: 'mcp-01'` and the exact Basic credential list. Invoke the captured factory and
@@ -423,14 +411,40 @@ clientTransport.send = (message, options) => send(message, { ...options, authInf
       than satisfy the public-envelope assertions vacuously. This is the production wiring proof;
       a parallel hand-built `createServer` graph is insufficient.
 
+- [ ] Run the named production test red before real logger/reporter wiring.
+      Assert the logger-factory call count immediately after invoking the import-safe entrypoint
+      with fake startup dependencies, before connecting or calling the captured server. The expected
+      red is factory count 0 instead of 1; no real port is bound. A module-load/configuration error
+      or missing test discovery is not the intended red.
+
+```sh
+cd apps/wbs/mcp-01
+env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/main.test.ts -t 'reports one unexpected production tool failure under its shared occurrence'
+```
+
+- [ ] Build the secrets list once from nonempty process-owned values. For this packet that is
+      `config.WBS_BASIC_AUTH`; include another value only if the live refactored config explicitly
+      owns it. Never include the caller bearer token or the whole environment.
+- [ ] Construct one logger:
+
+```ts
+const logger = makeLogger({ service: 'mcp-01', secrets });
+const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
+```
+
+Use the logger for the existing OAuth audit and startup line as structured records. Preserve
+their facts; do not log config values or credentials. Every per-request `createServer` closure
+receives the same reporter.
+
+- [ ] Run that named case green after completing the real composition, then perform the production-auth fault below.
+
 - [ ] Replay the production-auth fault: remove the transport `authInfo` injection (or drop token
       forwarding in `server.ts`) and require the production-wiring case to fail on fetch count zero
       and the absent authorization header. Restore exact bytes and rerun green before recording the
       adjacent proof.
 - [ ] Add a second production-wiring case with `WBS_BASIC_AUTH` absent and assert `secrets: []`.
       Assert OAuth audit and startup records do not use raw `console.error`.
-- [ ] Run the named production test red before wiring, then the whole file and MCP static/build
-      checks:
+- [ ] Run the restored named production test, the whole file, and MCP static/build checks:
 
 ```sh
 cd apps/wbs/mcp-01
@@ -443,9 +457,11 @@ NX_DAEMON=false bunx nx run wbs-mcp-01:build --skip-nx-cache
 ```
 
 - [ ] Commit the complete handler and production entrypoint together after the focused tests,
-      typecheck, lint, and build above pass. Confirm the direct caller search still names only the
-      production `main.ts` and `server.test.ts`/`http.test.ts` fixtures; investigate any new caller.
-      Stage exactly these five source/test files and inspect the staged diff:
+      typecheck, lint, and build above pass. Classify every `rg -n 'createServer\('` match:
+      `main.ts` and `server.test.ts`/`http.test.ts` call the concrete factory with `ServerDeps`;
+      `http.ts` invokes its borrowed zero-argument per-request callback and needs no reporter
+      option itself. The `server.ts` declaration is not another caller. Investigate any new
+      match. Stage exactly these five source/test files and inspect the staged diff:
 
 ```sh
 git add apps/wbs/mcp-01/src/server.ts apps/wbs/mcp-01/src/server.test.ts \
