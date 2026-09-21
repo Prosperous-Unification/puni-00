@@ -390,3 +390,36 @@ Watched production negatives were each restored byte for byte with `cmp` and fol
 
 The focused Vitest runs emitted the existing Vite warning about `__dirname` and the future native
 config loader. Whole frontend, browser, devsync and host-gate checks remain planner work.
+
+## 050.4 Slice 3 — React root fault handlers
+
+The boundary baseline was 16 passing tests. With an inert typed root-options scaffold in place,
+`src/main.test.tsx` first exited 1 on its one wiring assertion because `createRoot` received no
+second argument. The three handler cases were then added before the implementation; that run
+exited 1 with exactly those three cases failing on missing functions while the existing 16 passed.
+
+After the public-report handlers and root wiring were implemented, the two focused files passed
+20 tests.
+
+| Check                                                                 | Result                                           | Evidence                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| Final focused handler and root-wiring pair                            | exit 0; 2 files, 20 tests passed                 | `s3-final-pair.log`, `s3-final-pair.status`                    |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck --skip-nx-cache`     | exit 0; fresh uncached run                       | `s3-typecheck.log`, `s3-typecheck.status`                      |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`          | exit 0; fresh uncached run                       | `s3-lint.log`, `s3-lint.status`                                |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build --skip-nx-cache`         | exit 0; 960 modules transformed; built in 757 ms | `s3-build.log`, `s3-build.status`                              |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` | exit 0                                           | `s3-format-check.log`, `s3-format-check.status`                |
+| Strict OpenSpec validation                                            | exit 0; 112 passed, 0 failed                     | `s3-openspec-validation.json`, `s3-openspec-validation.status` |
+
+Watched production negatives were each restored byte for byte with `cmp` and followed by a green
+rerun of the owning focused file:
+
+| Proof | Injected fault                                | Named observed failure                                                                                                         | Evidence                                                                              |
+| ----- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| N12   | Removed the root options argument             | `is created with the options that keep a fault out of the console` received `undefined` instead of the three-handler object    | `N12.patch`, `N12-fail.log`, `N12-fail.status`, `N12-restore.status`, `N12-green.log` |
+| N13   | Stringified the uncaught value                | `discloses a public report for a fault no boundary caught` received `Error: alice@example.com` instead of the generic sentence | `N13.patch`, `N13-fail.log`, `N13-fail.status`, `N13-restore.status`, `N13-green.log` |
+| N14   | Appended the recoverable caught value         | `discloses a public report for a fault React recovered from` received five arguments                                           | `N14.patch`, `N14-fail.log`, `N14-fail.status`, `N14-restore.status`, `N14-green.log` |
+| N15   | Removed the recoverable occurrence identifier | `discloses a public report for a fault React recovered from` received three arguments and no handle                            | `N15.patch`, `N15-fail.log`, `N15-fail.status`, `N15-restore.status`, `N15-green.log` |
+
+The focused Vitest and build runs emitted the existing Vite warning about `__dirname` and the
+future native config loader. The build also emitted the existing large-chunk advisory. Whole
+frontend, browser, devsync and host-gate checks remain planner work.

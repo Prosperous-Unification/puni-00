@@ -6,6 +6,7 @@ import { GanttDataError } from '@/components/wbs/gantt-geometry';
 
 import { AppFaultBoundary } from './app-fault';
 import { FaultBoundary } from './fault-boundary';
+import { ROOT_FAULT_OPTIONS } from './root-fault-options';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -429,5 +430,47 @@ describe('a caught value that cannot be inspected', () => {
     expect(document.querySelector('[data-gantt-fault-reference]')?.textContent).toBe(
       `Reference ${String(logLine?.[2])}`,
     );
+  });
+});
+
+describe('what React itself is allowed to say', () => {
+  itDom('says nothing of its own about a fault a boundary already reported', () => {
+    const { onCaughtError } = ROOT_FAULT_OPTIONS;
+    expect(onCaughtError).toBeTypeOf('function');
+
+    expect(onCaughtError?.(new Error('alice@example.com'), {})).toBeUndefined();
+    expect(logged.mock.calls).toHaveLength(0);
+  });
+
+  itDom('discloses a public report for a fault no boundary caught', () => {
+    const { onUncaughtError } = ROOT_FAULT_OPTIONS;
+    expect(onUncaughtError).toBeTypeOf('function');
+
+    onUncaughtError?.(new Error('alice@example.com'), {});
+
+    expect(logged.mock.calls).toHaveLength(1);
+    expect(logged.mock.calls[0]).toEqual([
+      'no boundary caught this',
+      'Something went wrong',
+      expect.any(String),
+      'nothing',
+    ]);
+    expect(String(logged.mock.calls[0][2])).toMatch(/^AE_[0-9A-Z]+$/);
+  });
+
+  itDom('discloses a public report for a fault React recovered from', () => {
+    const { onRecoverableError } = ROOT_FAULT_OPTIONS;
+    expect(onRecoverableError).toBeTypeOf('function');
+
+    onRecoverableError?.(new Error('alice@example.com'), {});
+
+    expect(logged.mock.calls).toHaveLength(1);
+    expect(logged.mock.calls[0]).toEqual([
+      'React recovered from this',
+      'Something went wrong',
+      expect.any(String),
+      'nothing',
+    ]);
+    expect(String(logged.mock.calls[0][2])).toMatch(/^AE_[0-9A-Z]+$/);
   });
 });
