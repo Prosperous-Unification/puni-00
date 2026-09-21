@@ -164,3 +164,31 @@ The shared failure reporting module SHALL produce both reports inside a browser,
 - **WHEN** a probe importing the shared reporting module runs in Chromium
 - **THEN** it produces a public report carrying an occurrence identifier
 - **AND** the page raises no error and requests no unexpected origin
+
+### Requirement: The backend reports an unexpected endpoint failure once
+
+The mounted backend endpoint boundary SHALL keep its generic 500 response for an unexpected
+failure, SHALL write exactly one diagnostic operator record for that failure, and SHALL NOT
+disclose content read from the caught value through the response. The diagnostic and public
+reports captured for the occurrence SHALL share one occurrence identifier.
+
+#### Scenario: A store fails behind an admitted request
+
+- **GIVEN** an admitted request whose store operation throws an unknown failure containing a caller-owned secret
+- **WHEN** the mounted endpoint boundary handles the failure
+- **THEN** the response is status 500 with the existing generic body
+- **AND** one operator record carries the redacted diagnostic report, occurrence identifier and fingerprint
+- **AND** the response and record contain no caller-owned secret
+
+#### Scenario: Reporting cannot inspect the failure
+
+- **GIVEN** an admitted request fails with a value the report library cannot inspect
+- **WHEN** the mounted endpoint boundary handles the failure
+- **THEN** the response remains the existing generic 500
+- **AND** one operator record carries a visible reporting loss and correlation handle
+
+#### Scenario: A modeled request outcome is returned
+
+- **GIVEN** a request is refused by a declared parser, identity, origin or endpoint rule
+- **WHEN** the mounted endpoint boundary returns that modeled 4xx response
+- **THEN** no unexpected-failure operator record is written
