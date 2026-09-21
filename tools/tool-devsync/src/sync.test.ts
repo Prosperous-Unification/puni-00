@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -877,9 +877,15 @@ describe('MCP environment prerequisite', () => {
     expect(await mcpExposureExpected(directory)).toBe('0');
     await writeFile(join(directory, 'mcp-exposure'), 'enabled\n');
     expect(await mcpExposureExpected(directory)).toBe('1');
-    await writeFile(join(directory, 'mcp-exposure'), 'maybe\n');
+    const exposure = join(directory, 'mcp-exposure');
+    await writeFile(exposure, 'maybe\n');
     expect(await rejection(mcpExposureExpected(directory))).toContain(
       'malformed MCP exposure state',
+    );
+    await unlink(exposure);
+    await mkdir(exposure);
+    expect(await rejection(mcpExposureExpected(directory))).toContain(
+      'unreadable MCP exposure state',
     );
   });
 

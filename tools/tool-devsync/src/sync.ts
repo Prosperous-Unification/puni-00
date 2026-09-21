@@ -617,10 +617,23 @@ export async function assertMcpEnv(path = MCP_ENV): Promise<void> {
 
 export async function mcpExposureExpected(statePath: string): Promise<'0' | '1'> {
   const path = join(statePath, 'mcp-exposure');
-  const file = Bun.file(path);
-  if (!(await file.exists())) return '0';
-  if ((await file.text()) !== 'enabled\n') {
-    throw new Error(`malformed MCP exposure state: ${path}`);
+  let state: ReturnType<typeof statSync>;
+  try {
+    state = statSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '0';
+    throw new Error(`unreadable MCP exposure state: ${path}`, { cause: error });
+  }
+  if (!state.isFile()) throw new Error(`unreadable MCP exposure state: ${path}`);
+  try {
+    if ((await Bun.file(path).text()) !== 'enabled\n') {
+      throw new Error(`malformed MCP exposure state: ${path}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('malformed MCP exposure state:')) {
+      throw error;
+    }
+    throw new Error(`unreadable MCP exposure state: ${path}`, { cause: error });
   }
   return '1';
 }
@@ -683,14 +696,6 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
     console.log('[dev-sync] code only: watchers pick it up, nothing restarted');
   }
 
-  if (!paths.rehearsal) {
-    const exposureExpected = await mcpExposureExpected(paths.statePath);
-    const probe = join(paths.sourcePath, 'bin/dev-mcp-probe.sh');
-    await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} bash ${probe} https://dev.wbs.bulletpoints.club`;
-  }
-
-  console.log(`[dev-sync] dev now at ${head}`);
-
   const containerAfter = await fingerprint(paths.sourcePath, RECREATE_PATHS);
   const containerMoved = RECREATE_PATHS.filter((p) => containerBefore[p] !== containerAfter[p]);
   if (containerMoved.length > 0) {
@@ -702,6 +707,14 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
         '  Apply it: ssh h2puni "cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d"',
     );
   }
+
+  if (!paths.rehearsal) {
+    const exposureExpected = await mcpExposureExpected(paths.statePath);
+    const probe = join(paths.sourcePath, 'bin/dev-mcp-probe.sh');
+    await $`env MCP_EXPOSURE_EXPECTED=${exposureExpected} BUN=${process.execPath} bash ${probe} https://dev.wbs.bulletpoints.club`;
+  }
+
+  console.log(`[dev-sync] dev now at ${head}`);
 }
 
 export interface DevSyncInvocation {
