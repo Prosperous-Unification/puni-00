@@ -228,11 +228,14 @@ Record that item count as `N`. It was **112** on the rehearsed tree; require `N 
    `items` and `passed` equal to `N + 1` with `failed` 0. Observed: `112` →
    `{"items": 113, "passed": 113, "failed": 0}`, jq contract exit 0. The report stays under
    `"$TMPDIR/evidence"`; never delete it, and never `rm -f`.
-5. `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0. The execution contract assigns the
-   repository-wide format check to the executor, and `--all` is required because the base-ref default
-   is empty on main.
-6. Append to `verify.md`: the `N` you recorded, the `N + 1` you observed, and the evidence basename of
+5. Append to `verify.md`: the `N` you recorded, the `N + 1` you observed, and the evidence basename of
    the validation report. That edit is part of this slice's handoff.
+6. Only now the repository-wide format check, because step 5 changed a file:
+   `GSETTINGS_BACKEND=memory bunx prettier --write openspec/changes/adopt-di-composition/verify.md`
+   then `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0. The execution contract assigns
+   that check to the executor, and `--all` is required because the base-ref default is empty on main.
+   Every later slice does the same: the append comes first, then the format of the appended file, then
+   the check.
 
 Planner commit: `feat(openspec): open adopt-di-composition for the 040.6 module split`.
 
@@ -293,19 +296,38 @@ Apply section 10.7's edits to the seven core files, and correct the stale `canEd
 | `GSETTINGS_BACKEND=memory bunx nx format:check --all`                                                       | exit 0                                                                          |
 | `grep -cF "export { canEditProject as canEdit };" libs/wbs/application/core/src/service/project.service.ts` | `1`                                                                             |
 
-The zero-import check needs its status stated, because the trailing `grep -c` **exits 1** when the
-count is zero and the standard block runs under `set -euo pipefail`. Accept status 1 only for a zero
-count, with the shape the batch README uses:
+The zero-import check must not certify a scan that failed. Under `pipefail` Bash returns the
+**rightmost** nonzero pipeline status, so a first `grep` exiting 2 behind a second exiting 1 is
+accepted by a trailing `|| test $? -eq 1`: with a nonexistent input path that shape printed
+`No such file or directory`, then `remaining=0`, and **exited 0**. Use this form instead, which
+branches on the scan's own status:
 
 ```sh
-remaining=$(grep -rc "^import { canEdit } from './project.service';" \
-  libs/wbs/application/core/src/service/*.ts | grep -c ':1$' || test $? -eq 1)
-echo "remaining=$remaining"
-test "$remaining" = 0
+set -euo pipefail
+if remaining=$(grep -nH "^import { canEdit } from './project.service';" \
+  libs/wbs/application/core/src/service/*.ts); then
+  printf '%s\n' "$remaining" >&2
+  exit 1
+else
+  scan_status=$?
+  test "$scan_status" -eq 1
+fi
+echo "remaining=0"
 ```
 
-Observed in the rehearsal: `remaining=0`, and the subshell exited 0, against the **5** recorded at
-step 0. Any other status from the first `grep` is a real error and a stop.
+Expected: `remaining=0` and exit 0 only when the scan finds no remaining imports. A remaining import
+prints its location and exits nonzero; a missing or unreadable input also exits nonzero. Stop on
+either failure. Rehearsed three ways, against the **5** recorded at step 0:
+
+| Case                                 | Observed                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| after this slice's edits, no matches | `remaining=0`, exit **0**                                                                                                            |
+| one sideways import left behind      | `libs/wbs/application/core/src/service/step.service.ts:9:import { canEdit } from './project.service';`, exit **1**, no `remaining=0` |
+| a missing input path                 | `grep: libs/wbs/application/core/src/NO_SUCH_DIR/*.ts: No such file or directory`, exit **1**, no `remaining=0`                      |
+
+A bare command followed by `|| test $? -eq 1` — the README's `if diff …; then …; else test $? -eq 1; fi`
+patch form, for instance — stays fine, because there is no pipeline to hide a second status. Only a
+pipeline needs the branching form above, and this packet prescribes no other.
 
 Then the negative, row 3 of section 6: replace the body of `canEditProject` with `return true;` and
 run
@@ -475,81 +497,79 @@ was observed at `366 pass`, `0 fail` with every slice applied and the packet sta
 
 ### 10.1 `openspec/changes/adopt-di-composition/proposal.md`
 
-385 words with headings and bullet markers stripped, under R4's 400-word cap (measured).
+**399 words**, measured with `wc -w` on the file exactly as the executor writes it, under R4's
+400-word cap. Count it again after Prettier: `wc -w openspec/changes/adopt-di-composition/proposal.md`.
+No commit hook enforces this cap — `lefthook.yml:24-26` globs `doc-caps` to `LLM_README.md` alone, and it
+reported `doc-caps (skip) no matching staged files` on the rehearsed slice-1 commit — so the number is
+the executor's to check.
 
 ```md
 ## Why
 
-The backend core keeps about fifty service files in one flat directory. Nothing declares what a
-service needs, nothing seals what it hides, and a DI failure names an anonymous binding. The
-accepted code organization design answers this with one sealed DI Bag module per service
-responsibility, and the reviewed 040.6 map settles which responsibility owns which file. DI Bag
-0.4.0 is installed and startup already uses it, so what is left is the composition shape.
+The backend core keeps about fifty service files in one directory. Nothing declares what a service
+needs or seals what it hides, and a DI failure names an anonymous binding. The accepted code
+organization design answers this with one sealed DI Bag module per responsibility, and the reviewed
+040.6 map settles which file each owns. DI Bag 0.4.0 is installed and startup uses it, so only the
+composition shape is left.
 
 ## What Changes
 
 **Sealed module composition**
 
-- From: `compose.ts` builds every service by hand; a service imports a sibling for a shared rule;
-  the bag exists only in `bootBe01`.
-- To: each 040.6 responsibility is one sealed DI Bag module with a README, a contract, a labelled
-  `module.ts` and a composition check; sideways rules move to the domain library or a neutral
-  event port; `@wbs/core` keeps every export.
-- Impact: architectural. No HTTP contract, WebSocket frame, MCP envelope or table changes.
+- From: `compose.ts` builds every service by hand, and services import siblings for shared rules.
+- To: each 040.6 responsibility is one sealed module with a README, a contract, a labelled
+  `module.ts` and a composition check; sideways rules move to the domain library or a neutral event
+  port; `@wbs/core` keeps every export.
+- Impact: architectural; no wire or table change.
 
 ## Non-Goals
 
-No library version bump. No frontend lifetimes, no gateway or MCP composition, and no invented
-feature capability for the resource CRUD delivery reaches directly. The nine existing module
-identifiers are untouched.
+No library version bump, no frontend lifetimes, no gateway or MCP composition, and no invented
+capability for the CRUD delivery reaches directly.
 
 ## Constraints
 
-Rules R1 to R5 govern. `bootBe01` keeps owning source, retention, optimizer and listener disposal
-in its tested order; core modules borrow those values and register no second disposer.
-`servicesOver` stays per-admission: no singleton may leak staged stores or an announcement
-collector between transactions. Every changed safety check ships a watched negative.
+Rules R1 to R5 govern. `bootBe01` keeps owning source, retention, optimizer and listener disposal in
+its tested order; modules borrow them without a second disposer. `servicesOver` stays per-admission:
+no singleton may leak staged stores or announcements between transactions. Every changed check ships
+a watched negative.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `di-composition`: how a responsibility is sealed as a module, what it may require, and what a
-  composition root may see.
+- `di-composition`: how a responsibility is sealed, what it may require, and what a composition root
+  sees.
 
 ### Modified Capabilities
 
-None. Plan history, Plan commands and Saved plans keep `wbs-domain`; Plan import keeps
-`plan-import`.
+None. Plan history, Plan commands and Saved plans keep `wbs-domain`; Plan import keeps `plan-import`.
 
 ## Domain Terms
 
-None new. The nine resource terms the map names are already in `CONTEXT.md`.
+None new; the map's nine resource terms are in `CONTEXT.md`.
 
 ## Module identifiers
 
-A module that lives in a library — the portable core, the domain library, an adapter — is named ring
-then name, as `module.application.plan-history` is. A module that lives under an app carries the
-runtime word by location instead: `module.backend.<name>` under `apps/wbs/be-01`, and
-`module.frontend.<name>`, `module.gateway.<name>` and `module.mcp.<name>` under the other three.
-Optimization, the Local solver launcher and the Supervisor are backend application modules in the
-040.6 map, so they are `module.backend.*`. A DI Bag label is the identifier with only the `module.`
-prefix dropped. The nine existing identifiers are untouched.
+A library module is named ring then name, as `module.application.plan-history` is. A module under an
+app carries the runtime word by location: `module.backend.<name>`, `module.frontend.<name>`,
+`module.gateway.<name>`, `module.mcp.<name>`. Optimization, the Local solver launcher and the
+Supervisor are backend modules, so `module.backend.*`. A label drops only the `module.` prefix. The
+nine existing identifiers are untouched.
 
 ## Decisions Recorded
 
-- Full K2 closure stays outside this change: direct CRUD delivery for the seven resources lacks
-  accepted feature owners, and this change invents no capability grouping for them.
-- K3 debt is preserved, not fixed: a feature-service that reads a repository port keeps doing so,
-  declared rather than implicit. Task 7.4 records each case.
-- Wiki registration is separate work: `docs/wiki-policy/policy.json` needs a trusted boundary per
-  identifier, and `apps/wiki/cli/src/policy/pilot-policy.test.ts` pins the mapping length and the
-  discovered identifier set.
+- Full K2 closure stays outside this change: CRUD delivery for the seven resources lacks feature
+  owners, and none is invented here.
+- K3 debt is preserved, not fixed: a feature-service reading a repository port keeps doing so,
+  declared rather than implicit. Task 7.4 records it.
+- Wiki registration is separate: `policy.json` needs a boundary per identifier, and
+  `pilot-policy.test.ts` pins the mapping length and identifiers.
 
 ## Impact
 
-`libs/wbs/application/core/src`, `libs/wbs/domain/domain/src`,
-`docs/code-organization/kinds.json`. `apps/wbs/be-01` changes only where a shim path moves.
+`libs/wbs/application/core/src`, `libs/wbs/domain/domain/src` and `kinds.json`. `apps/wbs/be-01`
+changes only where a shim path moves.
 ```
 
 ### 10.2 `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`
@@ -1424,3 +1444,19 @@ app grammar). Minor 12 was a wrong rejection and is now fixed for real.
 commands, negative, handoff and commit subject are complete, and all three were rehearsed in order on
 one tree. Slices 4 and 5 are complete and rehearsed too, and become dispatchable as their predecessors
 land, because each one's step 0 reads the previous slice's result rather than an absolute fact.
+
+## 16. Disposition of review 3
+
+| Finding                                                            | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Blocking 1** — the zero-import check could certify a failed scan | **FIXED.** I reproduced the flaw first: with a nonexistent input the old pipeline printed a `No such file or directory` warning, then `remaining=0`, and exited **0**. Slice 3 now carries the review's `if remaining=$(grep -nH …); then … else scan_status=$?; test "$scan_status" -eq 1; fi` form, rehearsed three ways — no matches gave `remaining=0` and exit 0; one import left in `step.service.ts:9` printed its location and exited 1 with no `remaining=0`; a missing input path printed grep's error and exited 1. I also searched the packet for any other `… \| … \|\| test $? -eq 1` pipeline and found none; the note now says a bare command with that suffix stays fine.                                                                |
+| **Note** — the stale 385-word claim                                | **FIXED.** `wc -w` on the supplied text was **491** raw (456 with markers stripped, as the review measured), over R4's cap either way. The proposal is trimmed to **399** by `wc -w` on the file as the executor writes it, keeping the "Module identifiers" section whole; §10.1 states the number and the command. Slice 1 was rehearsed again end to end: strict validation `{"items": 113, "passed": 113, "failed": 0}` with the `jq -s -e` contract at exit 0, then a real `git commit` that lefthook accepted. Measured while doing it: `doc-caps` does **not** police this cap — `lefthook.yml:24-26` globs it to `LLM_README.md` and it reported `doc-caps (skip) no matching staged files` — so §10.1 says the count is the executor's to check. |
+| **Note** — slice 1 appended evidence after its format check        | **FIXED.** Slice 1's steps 5 and 6 are swapped: the `verify.md` append comes first, then `prettier --write` on that file, then `nx format:check --all`. The step says every later slice follows the same order, which is what slices 2 to 5 already do.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+Review 3's "what the planner must verify" list is the planner's checklist, not the executor's, and it
+matches sections 7, 8 and 12: the ownership-gate fault and all four module faults replayed with saved
+patches and byte restoration, the six callers and the alias, the moved implementation differing only in
+import paths, domain `+2`, core `+6` over `+1` file, classification unchanged at `K`, staged
+`tool-devsync:test` then the HEAD-sensitive pilot-policy run, the portable build and browser test, only
+tasks 1.1, 2.1 and 2.2 ticked, relative evidence references, `N + 1` on strict validation, and the host
+gate on the committed SHA.
