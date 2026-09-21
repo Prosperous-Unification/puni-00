@@ -32,13 +32,15 @@ describe('dev:setup seedApp', () => {
       'mcp-01': {
         example:
           'MCP_SIGNING_KEY_CURRENT=replace-with-base64-pkcs8\n' +
-          'MCP_STORE_KEY_CURRENT=replace-with-32-byte-base64\n',
+          'MCP_STORE_KEY_CURRENT=replace-with-32-byte-base64\n' +
+          'MCP_STORE_PATH=./mcp-session.sqlite\n',
       },
     });
     expect(await seedApp('mcp-01', root)).toBe('wrote');
     const path = join(root, 'apps', 'wbs', 'mcp-01', '.env');
     const contents = await Bun.file(path).text();
     expect(contents).not.toContain('replace-with');
+    expect(contents).toContain('MCP_STORE_PATH=./mcp-session.sqlite');
     const values = new Map(
       contents
         .trim()
