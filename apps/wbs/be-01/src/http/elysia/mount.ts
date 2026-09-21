@@ -21,10 +21,12 @@ import {
 } from '../endpoint';
 import { matchPath } from '../route';
 import { decodeForm } from './form';
+import type { UnexpectedFailureReporter } from './unexpected-failure';
 
 interface MountOptions {
   appOrigin: string;
   resolveIdentity: IdentityResolver;
+  reportUnexpectedFailure: UnexpectedFailureReporter;
 }
 
 interface Admission {
@@ -66,8 +68,9 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
   // hook must follow them. Limit it to this adapter's selected requests.
   // Proof: local scope gives the composed-app outage test 200 instead of 500;
   // deleting isolation changes the unrelated legacy parser from 400 to 500.
-  app.onError({ as: 'global' }, ({ request }) => {
+  app.onError({ as: 'global' }, ({ error, request }) => {
     if (!admissions.has(request)) return undefined;
+    options.reportUnexpectedFailure(error);
     return new Response('Internal Server Error', { status: 500 });
   });
   app.onRequest(async ({ request }) => {

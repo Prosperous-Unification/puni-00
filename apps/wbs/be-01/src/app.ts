@@ -25,6 +25,7 @@ import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
 import { workItemRoutes } from './controller/work-item.routes';
 import { mountEndpoints } from './http/elysia/mount';
+import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
@@ -254,8 +255,10 @@ export function mountedEndpoints(
   ] as const;
 }
 
-export function buildApp(opts: AppOptions) {
-  const logger = createLogger({ service: 'be-01', version: opts.version });
+export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
+  const secrets = [opts.internalAuthSecret];
+  const logger = makeLogger({ service: 'be-01', version: opts.version, secrets });
+  const reportUnexpectedFailure = createUnexpectedFailureReporter(logger, secrets);
   // The OIDC callback binding reports provider refusals, and it names no
   // framework, so it cannot reach the decorated `logger` above and is handed
   // it here instead of at every call site that builds `OidcRouteOptions`
@@ -290,6 +293,7 @@ export function buildApp(opts: AppOptions) {
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
           resolveIdentity: identityResolver(opts.auth, opts.internalAuthSecret),
+          reportUnexpectedFailure,
         }),
       )
   );

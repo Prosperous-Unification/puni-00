@@ -25,7 +25,7 @@ function mounted(
       oidc,
       new LoginThrottle({ now: () => testClock.now(), maxConcurrent }),
     ),
-    { appOrigin, resolveIdentity: unusedIdentity },
+    { appOrigin, resolveIdentity: unusedIdentity, reportUnexpectedFailure: () => undefined },
   );
 }
 

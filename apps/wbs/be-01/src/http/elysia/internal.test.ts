@@ -12,6 +12,7 @@ function appFor(deps: InternalDeps) {
   return new Elysia().use(
     mountEndpoints(internalRoutes(deps), {
       appOrigin: 'https://app.example',
+      reportUnexpectedFailure: () => undefined,
       resolveIdentity: identityResolver(testAuthService(), secret),
     }),
   );

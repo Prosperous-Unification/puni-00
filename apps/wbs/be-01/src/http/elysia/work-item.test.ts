@@ -19,6 +19,7 @@ function fixture(readOnly = false) {
   const endpoints = workItemRoutes(plan.service, runner);
   const app = mountEndpoints(endpoints, {
     appOrigin: 'http://localhost',
+    reportUnexpectedFailure: () => undefined,
     resolveIdentity: async (requirement) =>
       await Promise.resolve(
         readOnly && requirement === 'write-scope'

@@ -30,6 +30,7 @@ test('marker refusal bindings reject malformed known fields while preserving bar
         const app = new Elysia().use(
           mountEndpoints([endpoint], {
             appOrigin: 'https://app.example',
+            reportUnexpectedFailure: () => undefined,
             resolveIdentity: identityResolver(auth, 'internal-test-secret'),
           }),
         );
