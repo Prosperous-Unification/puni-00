@@ -423,3 +423,36 @@ rerun of the owning focused file:
 The focused Vitest and build runs emitted the existing Vite warning about `__dirname` and the
 future native config loader. The build also emitted the existing large-chunk advisory. Whole
 frontend, browser, devsync and host-gate checks remain planner work.
+
+## 050.4 Slice 4 — shipped-browser fault boundary
+
+The existing browser-package bundle suite began at three passing tests. The helper was renamed and
+generalized to build either probe through the shipped Vite config, with code splitting disabled for
+the in-memory probe build. Both existing callers use the package probe entry, and the new Chromium
+case uses the production app boundary, root options and shared reporting module.
+
+| Check                                                      | Result                                      | Evidence                                                |
+| ---------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| Focused bundle suite before the edit                       | exit 0; 1 file, 3 tests passed              | `s4-bundle-baseline.log`, `s4-bundle-baseline.status`   |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`          | exit 0; fresh run                           | `s4-typecheck.log`, `s4-typecheck.status`               |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`               | exit 0; final fresh run                     | `s4-lint-final.log`, `s4-lint-final.status`             |
+| Focused bundle suite after implementation and proof notes  | exit 0; 1 file, 3 tests passed              | `s4-bundle-final.log`, `s4-bundle-final.status`         |
+| Listener snapshot before Chromium at shift 3600            | exit 0; ports 6700, 6800 and 7800 were free | `s4-ports-before-browser.log`, `.status`                |
+| Both named Chromium specs before browser fault injection   | exit 0; 2 tests passed                      | `s4-browser-baseline.log`, `s4-browser-baseline.status` |
+| Both named Chromium specs after every proof note was added | exit 0; 2 tests passed                      | `s4-browser-final.log`, `s4-browser-final.status`       |
+| Strict OpenSpec validation                                 | exit 0; 112 passed, 0 failed                | `s4-openspec-validation.log`, `.status`                 |
+
+Each browser fault was injected alone, restored from saved passing bytes, checked with `cmp`, and
+followed by a green rerun of the named fault-boundary spec:
+
+| Proof       | Injected fault                                 | Named observed failure                                                                 | Evidence                                                                                                  |
+| ----------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| N16         | Imported `di-bag/node` in fault disclosure     | `pageErrors` received `DI_BAG_INVALID_CONFIGURATION`                                   | `N16.patch`, `N16-fail.log`, `N16-fail.status`, `N16-restore-cmp.status`, `N16-green.log`                 |
+| N17         | Removed the root's caught-error handler        | the full console scan received `alice@example.com`                                     | `N17.patch`, `N17-fail.log`, `N17-fail.status`, `N17-restore-cmp.status`, `N17-green.log`                 |
+| N18         | Fell back to the caught Error's raw message    | page text contained `saving plan p-7 for alice@example.com failed`                     | `N18.patch`, `N18-fail.log`, `N18-fail.status`, `N18-restore-cmp.status`, `N18-green.log`                 |
+| N19         | Requested an unexpected origin from the probe  | `unexpectedRequests` received `https://unexpected.invalid/fault`                       | `N19.patch`, `N19-fail.log`, `N19-fail.status`, `N19-restore-cmp.status`, `N19-green.log`                 |
+| Chunk count | Removed the probe's no-code-splitting override | helper rejected three chunks for `e2e/fault-boundary-probe.ts`, where one was required | `chunk-count.patch`, `chunk-fail.log`, `chunk-fail.status`, `chunk-restore-cmp.status`, `chunk-green.log` |
+
+The browser runs used `CI=1 E2E_PORT_SHIFT=3600`; no process was terminated. Whole frontend test
+tiers, the whole browser suite, staged devsync and the host gate remain planner checks after the
+change closes.

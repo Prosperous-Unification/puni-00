@@ -6,9 +6,6 @@ import { build, type Rollup } from 'vite';
 /** `apps/wbs/fe-01`, wherever the caller's working directory is. */
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The browser entry under test. */
-const PROBE_ENTRY = resolve(appRoot, 'e2e/browser-packages-probe.ts');
-
 /**
  * The config this app is deployed with, not one assembled here.
  *
@@ -29,8 +26,8 @@ const SHIPPED_CONFIG = resolve(appRoot, 'vite.config.ts');
  */
 const BROWSER_EXTERNAL = '__vite-browser-external:';
 
-/** One browser build of {@link PROBE_ENTRY}, by what went into it. */
-export interface BrowserPackagesBundle {
+/** One browser build of a probe entry, by what went into it. */
+export interface BrowserProbeBundle {
   readonly code: string;
   /** Every module the chunk was built from: which file of a package the build chose. */
   readonly modules: readonly string[];
@@ -54,19 +51,35 @@ export interface BrowserPackagesBundle {
  * rather than by searching the code: nanoid's browser entry and corj's token module
  * both contain `crypto.getRandomValues`, so the text cannot tell them apart.
  *
+ * @param entry The probe's source file, relative to `apps/wbs/fe-01`.
  * @returns The single emitted chunk's code, the modules it was built from, and the
  * specifiers that reached browser code from a Node host.
  * @throws When the build emits anything other than one chunk, rather than letting an
  * assertion pass over a bundle nobody identified.
  */
-export async function buildBrowserPackagesBundle(): Promise<BrowserPackagesBundle> {
+export async function buildBrowserProbeBundle(entry: string): Promise<BrowserProbeBundle> {
   const built = await build({
     configFile: SHIPPED_CONFIG,
     root: appRoot,
     logLevel: 'silent',
     build: {
       write: false,
-      rollupOptions: { input: PROBE_ENTRY },
+      rollupOptions: { input: resolve(appRoot, entry) },
+      // The shipped config splits React and the router into a `vendor` chunk, which is
+      // right for a deployed application and wrong for a probe: a page served from one
+      // `addScriptTag` cannot load three files. The split is off for this build alone;
+      // every plugin, alias and resolve condition is still the shipped config's, which is
+      // what these probes are about.
+      //
+      // `codeSplitting: false` and not an empty `groups` array: Vite merges an inline
+      // config into the file's by concatenating arrays, so `groups: []` left the shipped
+      // `vendor` group exactly where it was.
+      // Proof: deleting `rolldownOptions` emitted 3 chunks for
+      // `e2e/fault-boundary-probe.ts`, and the helper rejected that build (2026-09-21).
+      rolldownOptions: {
+        input: resolve(appRoot, entry),
+        output: { codeSplitting: false },
+      },
     },
   });
   // `build` is overloaded — a watcher for `build.watch`, one bundle or an array
@@ -77,10 +90,11 @@ export async function buildBrowserPackagesBundle(): Promise<BrowserPackagesBundl
     .flatMap((bundle) => bundle.output)
     .filter((entry): entry is Rollup.OutputChunk => entry.type === 'chunk');
   // Proof: adding the empty probe as a second entry on 2026-09-20 failed all three
-  // registered cases with `the browser build of the three libraries emitted 2 chunks, not one`.
+  // registered cases with `the browser build of the three libraries emitted 2 chunks,
+  // not one` — the message this one replaces, over the entry this helper now takes.
   if (chunks.length !== 1) {
     throw new Error(
-      `the browser build of the three libraries emitted ${String(chunks.length)} chunks, not one`,
+      `the browser build of ${entry} emitted ${String(chunks.length)} chunks, not one`,
     );
   }
   const modules = Object.keys(chunks[0].modules);
