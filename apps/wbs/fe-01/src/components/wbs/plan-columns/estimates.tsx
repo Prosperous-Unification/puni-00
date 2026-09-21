@@ -564,9 +564,14 @@ export function createEstimatesColumns({
                 // The same test is what holds the budget now, with the sizes the other
                 // way round: the committed cases are the seeded one and the unstaffed
                 // wide one, and they now also pin that the box is unfocused at 10px and
-                // that this span takes the row's own size, ink and tabular numerals. The
-                // staffed, fractional case is not committed — it clips before this change
-                // as well as after it; see `verify.md`'s finding.
+                // that this span takes the row's own size, ink and tabular numerals.
+                //
+                // **The staffed, fractional case is committed too, since 2026-09-21.** It
+                // clips by 16px before this change and after it, and no size the trio can
+                // be set at closes that, so what `yields the trio to an ellipsis where a
+                // staffed cell's result is fractional` pins is not a fit: it is that the
+                // trio ends in an ellipsis rather than a sliced glyph while this span and
+                // the assignee keep their boxes inside the cell.
                 <span
                   data-folded-final={step.id}
                   style={{

@@ -12,5 +12,5 @@
 
 ## 3. Pin the staffed, fractional case in Chromium
 
-- [ ] 3.1 Add the committed browser case and its measurement.
-- [ ] 3.2 Record the planner's browser negatives and the proof comments they authorise.
+- [x] 3.1 Add the committed browser case and its measurement.
+- [x] 3.2 Record the planner's browser negatives and the proof comments they authorise.

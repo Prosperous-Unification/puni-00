@@ -34,6 +34,19 @@
 | `GSETTINGS_BACKEND=memory bunx prettier --write` on the three slice-owned files                                                  | 0      | All three files formatted successfully. Evidence: `prettier-owned.slice-2b.log`.                                                                                                                                     |
 | Strict OpenSpec validation after the slice 2b ledger update                                                                      | 0      | `summary.totals`: `items: 109`, `passed: 109`, `failed: 0`, unchanged from V. Evidence: `openspec-validation.slice-2b-pre-final.8vG8R8.json`.                                                                        |
 | `NX_DAEMON=false bunx nx format:check --all` after the slice 2b ledger update                                                    | 0      | No file was listed. Evidence: `format-check.slice-2b-pre-final.log`.                                                                                                                                                 |
+| First combined slice 3 baseline wrapper                                                                                          | —      | The tool capture ended before a terminal status and left an incomplete focused-test log; no matching process remained, so the command was not accepted as verification and the focused test was rerun.               |
+| Slice 3 baseline `bunx vitest run src/components/wbs/plan-estimates.test.tsx` from `apps/wbs/fe-01`                              | 0      | `Test Files 1 passed (1)`, `Tests 74 passed (74)` (F = 74 / 74 / 0). Evidence: `plan-estimates.slice-3-baseline.log`.                                                                                                |
+| Slice 3 baseline strict OpenSpec validation                                                                                      | 0      | `summary.totals`: `items: 109`, `passed: 109`, `failed: 0` (V = 109). Evidence: `openspec-validation.slice-3-baseline.eFMOOh.json`.                                                                                  |
+| `GSETTINGS_BACKEND=memory bunx prettier --write` on the two slice 3 source files                                                 | 0      | Both files reported `(unchanged)`.                                                                                                                                                                                   |
+| `GSETTINGS_BACKEND=memory bunx prettier --check` on the two slice 3 source files                                                 | 0      | `All matched files use Prettier code style!`                                                                                                                                                                         |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                | 0      | `Successfully ran target typecheck for project wbs-fe-01`. Evidence: `typecheck.slice-3.log`.                                                                                                                        |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                     | 0      | `Successfully ran target lint for project wbs-fe-01`. Evidence: `lint.slice-3.log`.                                                                                                                                  |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                    | 0      | `931 modules transformed`; `Successfully ran target build for project wbs-fe-01`. Evidence: `build.slice-3.log`.                                                                                                     |
+| Slice 3 sandbox unit command                                                                                                     | 0      | `Test Files 40 passed (40)`, `Tests 601 passed (601)`. Evidence: `sandbox-unit.slice-3.log`.                                                                                                                         |
+| Final slice 3 `bunx vitest run src/components/wbs/plan-estimates.test.tsx` from `apps/wbs/fe-01`                                 | 0      | `Test Files 1 passed (1)`, `Tests 74 passed (74)`, unchanged from F. Evidence: `plan-estimates.slice-3-final.log`.                                                                                                   |
+| Final file-scoped Prettier write and check over the four slice 3 files                                                           | 0      | All four files formatted; `All matched files use Prettier code style!`                                                                                                                                               |
+| `NX_DAEMON=false bunx nx format:check --all`                                                                                     | 0      | No file was listed. Evidence: `format-check.slice-3.log`.                                                                                                                                                            |
+| Final strict OpenSpec validation                                                                                                 | 0      | `summary.totals`: `items: 109`, `passed: 109`, `failed: 0`, unchanged from V. Evidence: `openspec-validation.slice-3-final.tNxnQc.json`.                                                                             |
 
 ## R5 proofs
 
@@ -42,3 +55,21 @@
 | None; this slice adds specification artifacts and no production safety check. | —                                                                  | No negative proof applies to slice 1.                                                                                                               |
 | N1: remove `textOverflow: 'ellipsis'` from the resting arm.                   | `ends a resting trio in an ellipsis, and only while it is resting` | Failed on `expected '' to be 'ellipsis'`; one named test failed and 73 were skipped. Evidence: `n1.patch`, `n1-failing.log`.                        |
 | N2: add `textOverflow: 'ellipsis'` to the full-strength arm.                  | `ends a resting trio in an ellipsis, and only while it is resting` | Failed at the focus assertion on `expected 'ellipsis' to be ''`; one named test failed and 73 were skipped. Evidence: `n2.patch`, `n2-failing.log`. |
+
+## Planner's Chromium run, 2026-09-21
+
+Every run went through `wbs-fe-01:e2e` with `CI=1`, a free port shift and the agent variables unset.
+
+- CP, the four-case grep: exit 0, `4 passed`, before the faults and again with the `Proof:` comments in place.
+- CN1, the resting arm's `textOverflow` line deleted: exit 1, `Expected: "ellipsis"`, `Received: "clip"`, at `expect(staffed.boxOverflow).toBe('ellipsis')`.
+- CN2, the trio box's `flex: 1` to `flex: 'none'`: exit 1, `the result is pushed out of the cell`, `Expected: undefined`, `Received: "right"`.
+- CN3, `width: 16` on the assignee span alone: exit 1, `the trio fits after all, so this case no longer exercises the ellipsis`, `Expected: > 0`, `Received: 0`.
+- CN4, `transform: 'translateX(104px)'` on the assignee span: exit 1, `the assignee is pushed out of the cell`, `Expected: undefined`, `Received: "right"`.
+- CN5, the wrapper's `display: 'flex'` to `display: 'block'`: exit 1, `a staffed cell holding a trio, a result and an assignee is taller than a bare row`, `Expected: 26.1875`, `Received: 40.1875`.
+- CN6, `minHeight: 40` on the same wrapper: exit 1, `Expected: <= 28`, `Received: 42`, at the height budget.
+
+Each fault was injected alone, failed at its own assertion and at no earlier one, and was restored from the saved passing bytes and compared with `cmp`. The four `Proof:` comments in `layout.spec.ts` were written after these runs. Looked at by eye at four times scale, in the light and the dark palette: the cell reads `20… 24.3 · OL` in both.
+
+## Not verified
+
+- The whole `wbs-fe-01:e2e` target was not run for this change alone; it runs on the integrated batch.
