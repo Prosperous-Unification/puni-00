@@ -45,6 +45,15 @@ assertion uses those measured bytes and does not claim a pre-existing body check
 
 Measured in an isolated command during planning: Pino 10.3.1's default logger synchronously called a replaced `process.stdout.write` for one `logger.error`. This packet does not rely on that global interception because it would be unsafe under a parallel test run; tests inject a destination instead.
 
+Execution correction measured on Bun 1.4.2 before reporting wiring: both the mounted auth-outage
+fixture and the real protected route through `buildApp` return status 500, body
+`Internal Server Error`, and no content-type header. The original plan's text/plain assertion
+failed with `Received: null` in each path. Preserve that observed absence with `toBeNull()`;
+do not add a response header. After correcting only the assertion, the mounted red reached the
+intended missing-reporter count (expected 1, received 0), and the production red reached the
+ignored logger-factory count (expected 1, received 0). These observations belong in the final
+verification ledger alongside their retained command output.
+
 Inference to verify during the red test: Elysia supplies the original caught value as the `error` member of this global `onError` callback, including a rejection from `resolveIdentity`. The first test below establishes that rather than assuming it.
 
 ## File ownership
@@ -365,7 +374,7 @@ expect(failures).toEqual([]);
 const outage = await app.handle(request('{', { authorization: 'Bearer outage' }));
 expect(outage.status).toBe(500);
 expect(await outage.text()).toBe('Internal Server Error');
-expect(outage.headers.get('content-type')).toBe('text/plain;charset=UTF-8');
+expect(outage.headers.get('content-type')).toBeNull();
 expect(failures).toHaveLength(1);
 expect(failures[0]).toBeInstanceOf(Error);
 expect((failures[0] as Error).message).toBe('account store offline');
@@ -537,7 +546,7 @@ Assert all of the following in this single test:
 expect(created).toHaveLength(1);
 expect(created[0]?.secrets).toEqual([internalAuthSecret]);
 expect(response.status).toBe(500);
-expect(response.headers.get('content-type')).toBe('text/plain;charset=UTF-8');
+expect(response.headers.get('content-type')).toBeNull();
 expect(await response.text()).toBe('Internal Server Error');
 expect(calls).toHaveLength(1);
 expect(lines).toHaveLength(1);
@@ -657,8 +666,8 @@ Fault B: restore, then add `headers: { 'content-type': 'application/json' }` to 
 Run the same auth-outage test.
 
 Expected A: exact-body assertion receives `Error: account store offline` instead of `Internal Server Error`.
-Expected B: the content-type assertion receives `application/json` instead of
-`text/plain;charset=UTF-8`. Restore and rerun green after each.
+Expected B: the content-type assertion receives `application/json` instead of the
+measured absent header (`null`). Restore and rerun green after each.
 
 - [ ] **Step 6: Replay every modeled-outcome silence check.**
       Inject one call at a time immediately before the relevant normal return, run the named case, and
