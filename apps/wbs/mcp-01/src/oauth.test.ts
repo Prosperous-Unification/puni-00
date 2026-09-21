@@ -1169,9 +1169,22 @@ describe('InMemoryMcpOAuth', () => {
   });
 
   // Break caught: signature-only verification would keep accepting a session
-  // after its server-side mapping expires or is explicitly revoked.
+  // after its server-side mapping expires or is explicitly revoked. Proof:
+  // omitting provider revocation leaves upstreamRevocations empty.
   it('refuses expired and revoked local sessions', async () => {
-    const { advance, oauth } = fixture();
+    const upstreamRevocations: string[] = [];
+    const { advance, oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      revoke: (refreshToken) => {
+        upstreamRevocations.push(refreshToken);
+        return Promise.resolve();
+      },
+    });
     const verifier = 'v'.repeat(43);
     const code = await authorizationCode(oauth, verifier);
     const tokenResponse = await oauth.response(
@@ -1201,6 +1214,7 @@ describe('InMemoryMcpOAuth', () => {
       }),
     );
     expect(revoked?.status).toBe(200);
+    expect(upstreamRevocations).toEqual(['upstream-refresh-token']);
     expect(oauth.verify(token)).rejects.toThrow();
     const refreshAfterRevoke = await oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {

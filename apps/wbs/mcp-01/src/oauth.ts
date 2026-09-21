@@ -772,8 +772,16 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (token !== undefined) {
       try {
         const payload = await this.verifySignature(token);
-        if (typeof payload.jti === 'string')
-          this.store.revokeSessionFamily(payload.jti, this.now());
+        if (typeof payload.jti === 'string') {
+          const now = this.now();
+          const family = this.store.familyForSession(payload.jti, now);
+          if (family !== null) {
+            this.store.revokeFamily(family.familyId, now);
+            await this.revokeRefreshToken(family.upstreamRefreshToken);
+          } else {
+            this.store.revokeSessionFamily(payload.jti, now);
+          }
+        }
       } catch {
         // RFC 7009 does not reveal whether the presented token was valid.
       }
