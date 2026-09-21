@@ -47,6 +47,11 @@ for key in PORT MCP_AUTH_MODE WBS_API_URL MCP_PUBLIC_URL MCP_SIGNING_KEY_CURRENT
   fi
 done
 
+if ! grep -Fxq 'MCP_STORE_PATH=/data/mcp-session.sqlite' "$ENV_PATH"; then
+  printf 'MCP_STORE_PATH must name the durable in-container dev mount: /data/mcp-session.sqlite\n' >&2
+  exit 1
+fi
+
 if [ ! -e "$EXPOSURE_PATH" ]; then
   printf '0\n'
   exit 0

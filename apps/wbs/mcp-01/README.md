@@ -88,11 +88,13 @@ cannot displace the caller's Bearer header.
 
 ## Durable sessions and key rotation
 
-`MCP_STORE_PATH` names the SQLite store; on dev it belongs under
-`/home/puni1/wbs-dev/state`, outside the synced checkout. `MCP_STORE_KEY_CURRENT`
-is base64 for 32 random bytes. `MCP_SIGNING_KEY_CURRENT` is an RSA private key
-as PEM or base64 PKCS8 DER. `MCP_ACCESS_TOKEN_TTL` is seconds and defaults to
-3600 while the live client refresh behavior remains unproven.
+`MCP_STORE_PATH` names the SQLite store. On dev it must be
+`/data/mcp-session.sqlite`, the path inside `wbs-dev-src` backed by the host's
+`/home/puni1/wbs-dev/data` mount; host paths are not visible inside the
+container. `MCP_STORE_KEY_CURRENT` is base64 for 32 random bytes.
+`MCP_SIGNING_KEY_CURRENT` is an RSA private key as PEM or base64 PKCS8 DER.
+`MCP_ACCESS_TOKEN_TTL` is seconds and defaults to 3600 while the live client
+refresh behavior remains unproven.
 
 Rotate either key by moving the old current value to its matching `_PREVIOUS`
 variable, installing a new current value, and restarting mcp-01. New writes use

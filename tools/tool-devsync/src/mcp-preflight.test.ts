@@ -12,7 +12,7 @@ const VALID_ENV = [
   'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
   'MCP_SIGNING_KEY_CURRENT=base64-pkcs8',
   'MCP_STORE_KEY_CURRENT=base64-store-key',
-  'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+  'MCP_STORE_PATH=/data/mcp-session.sqlite',
   'MCP_ACCESS_TOKEN_TTL=3600',
 ].join('\n');
 
@@ -70,6 +70,20 @@ describe('dev MCP preflight', () => {
 
     expect(exitCode).not.toBe(0);
     expect(stderr).toContain('mode 600');
+  });
+
+  // Proof: using the host path passed the old non-empty check, but wbs-dev-src
+  // cannot see it because dev state is mounted in the container at /data.
+  it('refuses a host-only MCP store path', async () => {
+    const result = await runPreflight(
+      VALID_ENV.replace(
+        'MCP_STORE_PATH=/data/mcp-session.sqlite',
+        'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
+      ),
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain('/data/mcp-session.sqlite');
   });
 
   // Proof: treating a missing marker as the permanent default makes every
