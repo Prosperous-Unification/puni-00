@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ORIGIN=${1:?usage: dev-mcp-probe.sh <origin>}
+BUN=${BUN:-bun}
 RESOURCE="$ORIGIN/mcp"
 RESOURCE_METADATA="$ORIGIN/.well-known/oauth-protected-resource"
 RESOURCE_METADATA_PATH="$ORIGIN/.well-known/oauth-protected-resource/mcp"
@@ -45,7 +46,7 @@ for metadata_url in "$RESOURCE_METADATA" "$RESOURCE_METADATA_PATH"; do
   protected=$(curl -fsS --max-time 15 "$metadata_url")
   # The embedded Bun program owns template interpolation.
   # shellcheck disable=SC2016
-  printf '%s' "$protected" | ORIGIN="$ORIGIN" bun -e '
+  printf '%s' "$protected" | ORIGIN="$ORIGIN" "$BUN" -e '
     const body = await Bun.stdin.json();
     const resource = `${process.env.ORIGIN}/mcp`;
     const authorizationServer = `${resource}/oauth`;
@@ -59,7 +60,7 @@ done
 authorization=$(curl -fsS --max-time 15 "$AUTHORIZATION_METADATA")
 # The embedded Bun program owns template interpolation.
 # shellcheck disable=SC2016
-printf '%s' "$authorization" | ORIGIN="$ORIGIN" bun -e '
+printf '%s' "$authorization" | ORIGIN="$ORIGIN" "$BUN" -e '
   const body = await Bun.stdin.json();
   const issuer = `${process.env.ORIGIN}/mcp/oauth`;
   const expected = {
