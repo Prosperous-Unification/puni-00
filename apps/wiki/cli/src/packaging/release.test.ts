@@ -134,6 +134,16 @@ describe('package release planner', () => {
     );
     expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/g)).toHaveLength(2);
     expect(workflow).not.toContain('ref: ${{ github.ref }}');
+    // The verify job's checkout must carry the whole history: the root-migration check reads its
+    // historical source commit through git, and the first tagged run failed every one of its cases
+    // on a depth-1 clone with `fatal: Needed a single revision`.
+    // Proof: removing `fetch-depth: 0` from the verify checkout failed this assertion with
+    // `Received value does not have a length property: null` (2026-09-22).
+    const verifyCheckout = workflow.slice(
+      workflow.indexOf('  verify:'),
+      workflow.indexOf('  publish:'),
+    );
+    expect(verifyCheckout.match(/fetch-depth: 0/g)).toHaveLength(1);
     expect(workflow).toContain(
       'git fetch --no-tags origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"',
     );
