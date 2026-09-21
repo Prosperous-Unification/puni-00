@@ -1,48 +1,38 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 
-/**
- * What a fallback says when the thing thrown was not an `Error` at all.
- *
- * Reachable: `throw 'nope'` is legal JavaScript and a dependency can do it.
- * The sentence names the absence rather than printing `undefined` beside a
- * colon.
- */
-const NO_MESSAGE = 'the reason it gave was not an error message';
-
-/**
- * Whatever was thrown, as words to put inside a boundary's own sentence.
- *
- * Shared by both boundaries, which their two byte-identical copies were not
- * until 2026-09-02 — `app-fault.tsx` carried a note saying the two must stay
- * apart because "the two boundaries say different things about different
- * scopes". That is true of the **sentence** and this is not the sentence: "The
- * app stopped: …" and "The chart cannot be drawn: …" live in each boundary's
- * own JSX, and what is shared is the reading of a thrown value. A boundary that
- * ever needs a different phrase for an absent message can say so where it says
- * everything else.
- */
-export function faultWords(thrown: unknown): string {
-  if (!(thrown instanceof Error)) return NO_MESSAGE;
-  return thrown.message === '' ? NO_MESSAGE : thrown.message;
-}
+import { type DisclosedFault, discloseFault } from './fault-disclosure';
 
 export interface FaultBoundaryProps {
   /**
-   * What a caught fault renders instead of the children, given the thrown
-   * value's own words.
+   * What a caught fault renders instead of the children, given only what the fault
+   * discloses.
    *
    * The whole of what differs between the two boundaries, and the reason the
    * fallback is a prop rather than a `message` this class knows how to print:
    * one of them offers a reload of the document and the other says the plan
    * above it is unaffected, and neither sentence is true of the other's scope.
+   *
+   * It receives a {@link DisclosedFault} and never the caught value: a fallback
+   * that could reach the thrown error could put its message on screen, which is
+   * the disclosure this boundary exists to prevent.
    */
-  fallback: (message: string) => ReactNode;
+  fallback: (fault: DisclosedFault) => ReactNode;
+  /**
+   * A disclosure selector for the one kind of failure this boundary's own words are
+   * already public for, or omitted where the boundary discloses nothing of its own.
+   *
+   * See {@link discloseFault}: it returns the sentence to show, or `null` to fall back to
+   * the public report's generic message.
+   */
+  discloses?: (thrown: unknown) => string | null;
   /**
    * What the console line calls the thing that could not render.
    *
-   * Logged, and not a log-and-continue: the render is already refused and the
-   * reader is already told. This is the trace of **where** it was thrown, which
-   * is the one thing the sentence on screen leaves out.
+   * Logged beside the fault's occurrence id and disclosed sentence, and nothing
+   * else: the console is a disclosure boundary like the DOM, so neither the
+   * caught value nor the component stack goes into it. This is the trace of
+   * **where** it was thrown, which is the one thing the sentence on screen
+   * leaves out.
    */
   logAs: string;
   /**
@@ -65,8 +55,8 @@ export interface FaultBoundaryProps {
 }
 
 interface FaultBoundaryState {
-  /** The caught error's own words, or null while nothing has been caught. */
-  message: string | null;
+  /** What the caught fault discloses, or null while nothing has been caught. */
+  fault: DisclosedFault | null;
   /** The {@link FaultBoundaryProps.resetKey} this state was decided against. */
   resetKey: number | string;
 }
@@ -86,11 +76,25 @@ interface FaultBoundaryState {
 export class FaultBoundary extends Component<FaultBoundaryProps, FaultBoundaryState> {
   constructor(props: FaultBoundaryProps) {
     super(props);
-    this.state = { message: null, resetKey: props.resetKey };
+    this.state = { fault: null, resetKey: props.resetKey };
   }
 
-  static getDerivedStateFromError(thrown: unknown): Pick<FaultBoundaryState, 'message'> {
-    return { message: faultWords(thrown) };
+  /**
+   * Turn the caught value into a disclosure before anything can render it.
+   *
+   * The reporting happens here rather than in `componentDidCatch` so that the very first
+   * commit after the throw already has the public sentence and the occurrence id: a
+   * fallback rendered from a half-filled state would put the generic message on screen
+   * without the handle a reader is meant to quote.
+   *
+   * It is a static lifecycle and has no access to props, so the selector cannot be read
+   * here; `componentDidCatch` applies it and replaces the state. Repeating the call is
+   * cheap and correlates: `reportFailure` returns the **same** occurrence id for a second
+   * report of the same `Error` object (measured 2026-09-20), so the sentence this renders
+   * and the one `componentDidCatch` logs carry one handle.
+   */
+  static getDerivedStateFromError(thrown: unknown): Pick<FaultBoundaryState, 'fault'> {
+    return { fault: discloseFault(thrown) };
   }
 
   /**
@@ -105,15 +109,33 @@ export class FaultBoundary extends Component<FaultBoundaryProps, FaultBoundarySt
     state: FaultBoundaryState,
   ): FaultBoundaryState | null {
     if (props.resetKey === state.resetKey) return null;
-    return { message: null, resetKey: props.resetKey };
+    return { fault: null, resetKey: props.resetKey };
   }
 
-  override componentDidCatch(thrown: unknown, info: ErrorInfo): void {
-    console.error(this.props.logAs, thrown, info.componentStack);
+  /**
+   * Apply this boundary's own disclosure selector and say, once, that a fault was caught.
+   *
+   * The console line carries the disclosed sentence, the handle and what was lost deciding
+   * them, and nothing else — a fixed four-argument shape, so a caught value appended to it
+   * is a failed assertion rather than a longer line nobody reads. Not a log-and-continue:
+   * the render is already refused and the reader is already told; this is the copy an
+   * operator can be read back over a telephone.
+   *
+   * React's `ErrorInfo` second argument is deliberately not taken. Its `componentStack` is
+   * a stack, the console is a disclosure boundary, and the adoption plan's third reporting
+   * requirement puts browser consoles on the same footing as agent transcripts.
+   */
+  override componentDidCatch(thrown: unknown): void {
+    const fault = discloseFault(thrown, this.props.discloses);
+    this.setState({ fault });
+    // Proof: appending 'thrown' made the fixed tuple five arguments and failed
+    // 'logs the boundary, the disclosed sentence and the reference, and nothing else'
+    // (N3, 2026-09-21).
+    console.error(this.props.logAs, fault.sentence, fault.occurrenceId, fault.lost);
   }
 
   override render(): ReactNode {
-    const { message } = this.state;
-    return message === null ? this.props.children : this.props.fallback(message);
+    const { fault } = this.state;
+    return fault === null ? this.props.children : this.props.fallback(fault);
   }
 }

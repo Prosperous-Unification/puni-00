@@ -351,3 +351,42 @@ app map that also contained `@shared/failures`; `n1-vitest-alias-removed.patch` 
 The focused Vitest runs emitted the existing Vite warning about `__dirname` and the future native
 config loader. The whole `tool-devsync:test` target remains deferred to planner verification
 because it writes Git objects and the batch's heavy lane was occupied.
+
+## 050.4 Slice 2 — public fault disclosure
+
+The focused boundary baseline was 6 passing tests. The two unchanged neighboring suites began at
+249 passing tests. After the ten disclosure cases were added before production code, the boundary
+suite exited 1 with the expected 13 failures and only these three passing cases:
+`renders its children while nothing throws`, `reloads the document when the reader asks`, and
+`costs a chart rather than a page when the chart is what threw`.
+
+After the disclosure model and both boundary fallbacks were implemented, the focused boundary
+suite passed 16 tests and the neighboring suites remained at 249 passing tests.
+
+| Check                                                                 | Result                            | Evidence                                                       |
+| --------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------- |
+| Final focused boundary suite                                          | exit 0; 1 file, 16 tests passed   | `s2-final-fault.log`, `s2-final-fault.status`                  |
+| Focused neighboring suites                                            | exit 0; 2 files, 249 tests passed | `s2-green-neighbours.log`, `s2-green-neighbours.status`        |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                     | exit 0                            | `s2-typecheck.log`, `s2-typecheck.status`                      |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`          | exit 0; fresh uncached run        | `s2-lint-fresh.log`, `s2-lint-fresh.status`                    |
+| `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` | exit 0                            | `s2-format-check-rerun.log`, `s2-format-check-rerun.status`    |
+| Strict OpenSpec validation                                            | exit 0; 112 passed, 0 failed      | `s2-openspec-validation.json`, `s2-openspec-validation.status` |
+
+Watched production negatives were each restored byte for byte with `cmp` and followed by a
+16-test green rerun:
+
+| Proof | Injected fault                                                   | Named observed failure                                                                                  | Evidence                                                                              |
+| ----- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| N2    | Fell back to the caught Error's message                          | `puts neither the message, the cause nor a stack into the DOM` exposed `alice@example.com`              | `N2.patch`, `N2-fail.log`, `N2-fail.status`, `N2-restore.status`, `N2-green.log`      |
+| N3    | Appended the caught value to the boundary console tuple          | `logs the boundary, the disclosed sentence and the reference, and nothing else` received five arguments | `N3.patch`, `N3-fail.log`, `N3-fail.status`, `N3-restore.status`, `N3-green.log`      |
+| N4    | Removed the app reference element                                | `shows the same reference on the page as it logged` could not find the logged AE handle in the page     | `N4.patch`, `N4-fail.log`, `N4-fail.status`, `N4-restore.status`, `N4-green.log`      |
+| N5    | Disconnected the chart selector                                  | `costs a chart rather than a page when the chart is what threw` received the generic sentence           | `N5.patch`, `N5-fail.log`, `N5-fail.status`, `N5-restore.status`, `N5-green.log`      |
+| N6    | Widened the chart selector to every Error                        | `discloses the chart’s own modelled sentence and no other error’s` exposed `alice@example.com`          | `N6.patch`, `N6-fail.log`, `N6-fail.status`, `N6-restore.status`, `N6-green.log`      |
+| N7    | Removed the chart reference element                              | `shows the chart’s own reference, matching what it logged` received `undefined`                         | `N7.patch`, `N7-fail.log`, `N7-fail.status`, `N7-restore.status`, `N7-green.log`      |
+| N8    | Read `thrown.message` directly                                   | `never invokes an accessor to read the chart’s sentence` observed one accessor call                     | `N8.patch`, `N8-fail.log`, `N8-fail.status`, `N8-restore.status`, `N8-green.log`      |
+| N9    | Accepted a non-string descriptor value                           | `never discloses a chart message that is not a string` observed two console tuples                      | `N9.patch`, `N9-fail.log`, `N9-fail.status`, `N9-restore.status`, `N9-green.log`      |
+| N10   | Offered the value to the selector before checking reporting loss | `never offers an unreportable value to a disclosure selector` observed one selector call                | `N10.patch`, `N10-fail.log`, `N10-fail.status`, `N10-restore.status`, `N10-green.log` |
+| N11   | Removed the selector guard                                       | `survives a disclosure selector that throws` let `the selector could not read it` escape                | `N11.patch`, `N11-fail.log`, `N11-fail.status`, `N11-restore.status`, `N11-green.log` |
+
+The focused Vitest runs emitted the existing Vite warning about `__dirname` and the future native
+config loader. Whole frontend, browser, devsync and host-gate checks remain planner work.
