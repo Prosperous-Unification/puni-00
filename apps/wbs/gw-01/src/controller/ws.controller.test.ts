@@ -136,11 +136,16 @@ describe('handleWsMessage', () => {
       code: 'backend_unavailable',
       retry_after: 5,
     });
-    // Proof: omitting the forward report left this empty; reporting a substitute error changed
-    // `caught` from the exact rejected object (2026-09-21).
-    expect(reports).toEqual([
-      { caught, operation: 'forward', connectionId: 'c-1', clientId: 'u-1' },
-    ]);
+    // Proof: omitting the forward report left this empty (2026-09-21).
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      operation: 'forward',
+      connectionId: 'c-1',
+      clientId: 'u-1',
+    });
+    // Proof: substituting a distinct `new Error('nope')` passed the metadata check but failed
+    // this identity check as “serializes to the same string” (2026-09-21).
+    expect(reports[0]?.caught).toBe(caught);
   });
 
   it('honours subscribe/unsubscribe control frames', async () => {
@@ -246,11 +251,17 @@ describe('handleWsMessage — cross-review findings', () => {
       { type: 'resume_denied', subscription: 'doc:b', reason: 'unavailable' },
       { type: 'resume_ack', replayed: {} },
     ]);
-    // Proof: omitting the resume report left this empty while all three existing frames still
-    // matched (2026-09-21).
-    expect(reports).toEqual([
-      { caught, operation: 'resume', connectionId: 'c-1', clientId: 'u-1' },
-    ]);
+    // Proof: omitting the resume report left this empty while all three frames still matched
+    // (2026-09-21).
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      operation: 'resume',
+      connectionId: 'c-1',
+      clientId: 'u-1',
+    });
+    // Proof: substituting a distinct `new Error('be-01 unreachable')` passed the metadata check
+    // but failed this identity check as “serializes to the same string” (2026-09-21).
+    expect(reports[0]?.caught).toBe(caught);
   });
 });
 
