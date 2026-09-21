@@ -23,7 +23,10 @@ The evidence available without Dany's client is recorded before the implementati
 ## Verification
 
 - PR: https://github.com/Prosperous-Unification/puni-00/pull/19
-- Exact-head CI: PR #19's `gate` check is the hard code gate; the separate h2puni run was unavailable as recorded below.
+- Exact-head CI: run
+  [35505889063](https://github.com/Prosperous-Unification/puni-00/actions/runs/35505889063)
+  passed at `36393f80f41e2bea5cf5e33bad9bc3c0252a6d60`; the separate h2puni run
+  was unavailable as recorded below.
 - The separate repository-lint workflow is red because the three immutable Tool Wiki
   activation variables are unset; this is the existing repository configuration
   blocker, not a result from this diff.

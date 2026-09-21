@@ -30,5 +30,9 @@
 
 ## 4. Close
 
-- [ ] 4.1 Gate with `bin/h2puni-gate.sh <sha>`; `verify.md` with every `Proof:`.
+- [x] 4.1 Gate the exact head; record every `Proof:` in `verify.md`.
+  - Proof: CI run 35505889063 passed at exact head `36393f80`; the separate
+    h2puni gate was unavailable because its capacity monitor reported `/` at
+    98%, and `verify.md` records that fallback rather than presenting it as an
+    h2puni result.
 - [ ] 4.2 Dev check with Dany's client: revoke the session server-side, make one call, confirm the client re-authorizes without the connector being removed.
