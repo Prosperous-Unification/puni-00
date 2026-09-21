@@ -53,6 +53,8 @@ afterEach(() => {
 });
 
 describe('McpSessionStore', () => {
+  // Proof: storing any credential without digesting or encrypting it makes its
+  // byte sequence appear in the main database or WAL assertion below.
   it('persists only digests and authenticated ciphertext in the main file and WAL', () => {
     const { path, store } = fixture();
     const bytes = [
@@ -70,6 +72,8 @@ describe('McpSessionStore', () => {
     store.close();
   });
 
+  // Proof: accepting unreadable SQLite bytes lets this constructor return
+  // instead of naming MCP_STORE_PATH as the corrupt startup boundary.
   it('fails startup for a corrupt store and names MCP_STORE_PATH', () => {
     const root = mkdtempSync(join(tmpdir(), 'mcp-session-store-'));
     roots.push(root);

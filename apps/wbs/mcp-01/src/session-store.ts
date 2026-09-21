@@ -26,7 +26,7 @@ export interface FamilyRecord extends FamilyInput {
 }
 export class McpRefreshFamilyCorrupt extends Error {}
 
-export type RefreshResult =
+export type RefreshOutcome =
   | { readonly outcome: 'ok'; readonly family: FamilyRecord }
   | { readonly outcome: 'invalid' | 'reuse' };
 
@@ -109,8 +109,8 @@ export class McpSessionStore {
     sessionExpiresAt: number,
     idleExpiresAt: number,
     now: number,
-  ): RefreshResult {
-    const result = this.db.transaction(() => {
+  ): RefreshOutcome {
+    const transactionOutcome = this.db.transaction(() => {
       const digest = digestOf(token);
       const row = this.db
         .query(
@@ -150,13 +150,13 @@ export class McpSessionStore {
         row: { ...row, idle_expires_at: boundedIdle },
       };
     })();
-    if (result.outcome !== 'row') return result;
+    if (transactionOutcome.outcome !== 'row') return transactionOutcome;
     // Decrypt only after the write transaction commits. If authentication fails,
     // familyOf's revocation must survive instead of being rolled back with it.
-    return { outcome: 'ok', family: this.familyOf(result.row) };
+    return { outcome: 'ok', family: this.familyOf(transactionOutcome.row) };
   }
 
-  prepareRefresh(token: string, clientId: string, now: number): RefreshResult {
+  prepareRefresh(token: string, clientId: string, now: number): RefreshOutcome {
     const row = this.db
       .query(
         `SELECT r.family_id, r.consumed_at, r.expires_at, f.*

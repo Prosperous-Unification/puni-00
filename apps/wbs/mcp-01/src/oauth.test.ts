@@ -950,6 +950,8 @@ describe('InMemoryMcpOAuth', () => {
     expect((await exchange())?.status).toBe(400);
   });
 
+  // Proof: accepting a provider token with neither expiresIn nor a verified exp
+  // makes the second authorization redirect with a code instead of access_denied.
   it('uses a verified exp when the provider omits expiresIn and refuses when both are missing', async () => {
     const verifier = 'v'.repeat(43);
     const withExp = fixture({
@@ -977,6 +979,8 @@ describe('InMemoryMcpOAuth', () => {
     ).toBe('access_denied');
   });
 
+  // Proof: generating a signing key per handler makes sameKey reject accessToken;
+  // omitting the previous-key candidate makes rotating reject it.
   it('shares current signing keys between handlers and accepts the previous key during rotation', async () => {
     const oldKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const nextKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -1075,6 +1079,8 @@ describe('InMemoryMcpOAuth', () => {
     rmdirSync(root);
   });
 
+  // Proof: defaulting any required persistence setting lets its startup case
+  // construct an OAuth handler instead of naming the missing, malformed, or unreadable variable.
   it('names missing, malformed, and unreadable persistence settings at startup', () => {
     expect(() => mcpOAuthFromEnv(CONFIG, {})).toThrow(/MCP_SIGNING_KEY_CURRENT/);
     expect(() =>

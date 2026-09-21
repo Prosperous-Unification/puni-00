@@ -105,6 +105,11 @@ type UpstreamClient = Pick<
   'authorizationUrl' | 'exchange' | 'refresh' | 'revoke'
 >;
 
+function generateSigningKeys(): NonNullable<Options['signingKeys']> {
+  const generated = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  return { privateKey: generated.privateKey, publicKey: generated.publicKey };
+}
+
 export interface OAuthRouteEvidence {
   method: string;
   path: string;
@@ -158,11 +163,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.groupPrefix = options.groupPrefix ?? 'dev';
     this.now = options.now ?? Date.now;
     this.random = options.random ?? (() => randomBytes(32).toString('base64url'));
-    const generatedKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
-    const keys: NonNullable<Options['signingKeys']> = options.signingKeys ?? {
-      privateKey: generatedKeys.privateKey,
-      publicKey: generatedKeys.publicKey,
-    };
+    const keys: NonNullable<Options['signingKeys']> = options.signingKeys ?? generateSigningKeys();
     this.privateKey = keys.privateKey;
     this.publicKey = keys.publicKey;
     this.previousPublicKey = keys.previousPublicKey;
@@ -837,7 +838,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const key =
       kid === this.keyId
         ? this.publicKey
-        : kid === this.previousKeyId
+        : kid !== undefined && kid === this.previousKeyId
           ? this.previousPublicKey
           : undefined;
     if (key === undefined) throw new Error('MCP token uses an unknown signing key');
@@ -854,17 +855,17 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const key =
       kid === this.keyId
         ? this.publicKey
-        : kid === this.previousKeyId
+        : kid !== undefined && kid === this.previousKeyId
           ? this.previousPublicKey
           : undefined;
     if (key === undefined) throw new Error('MCP token uses an unknown signing key');
-    const result = await jwtVerify(token, key, {
+    const verified = await jwtVerify(token, key, {
       algorithms: ['RS256'],
       audience: this.audience,
       currentDate: new Date(this.now()),
       issuer: this.issuer,
     });
-    return result.payload;
+    return verified.payload;
   }
 
   private publicJwks(): readonly (JsonWebKey & { alg: string; kid: string; use: string })[] {
