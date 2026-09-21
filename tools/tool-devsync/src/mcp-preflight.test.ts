@@ -117,10 +117,7 @@ describe('dev MCP preflight', () => {
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    let [exitCode, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stderr).text(),
-    ]);
+    let [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
     expect(exitCode).not.toBe(0);
     expect(stderr).toContain('unreadable MCP exposure state');
 
