@@ -14,6 +14,7 @@
 
 ## Global constraints
 
+- Tasks 2 and 3 form one commit and review boundary. Task 2 makes the reporter required, so the production `buildApp` caller must receive its real reporter in Task 3 before whole-backend checks or a commit. Keep their separate focused red/green checkpoints; never bridge the dependency with a production no-op or optional argument.
 - Base execution only after batch 3 is integrated and 040.5 is present. Re-read the live files before editing; cited live locations below describe integration `5b52590f`.
 - Preserve `500`, content type, and exact body `Internal Server Error`. Do not add an occurrence header or response field: the accepted design says application adoption does not change public protocols.
 - Preserve every modeled 4xx, parser, auth, 404, and declared-refusal path. They are returned outcomes, not unexpected failures, and must not produce this operator record.
@@ -43,6 +44,15 @@ returns status 400, body `Bad Request`, and no content-type header. The revised 
 assertion uses those measured bytes and does not claim a pre-existing body check.
 
 Measured in an isolated command during planning: Pino 10.3.1's default logger synchronously called a replaced `process.stdout.write` for one `logger.error`. This packet does not rely on that global interception because it would be unsafe under a parallel test run; tests inject a destination instead.
+
+Execution correction measured on Bun 1.4.2 before reporting wiring: both the mounted auth-outage
+fixture and the real protected route through `buildApp` return status 500, body
+`Internal Server Error`, and no content-type header. The original plan's text/plain assertion
+failed with `Received: null` in each path. Preserve that observed absence with `toBeNull()`;
+do not add a response header. After correcting only the assertion, the mounted red reached the
+intended missing-reporter count (expected 1, received 0), and the production red reached the
+ignored logger-factory count (expected 1, received 0). These observations belong in the final
+verification ledger alongside their retained command output.
 
 Inference to verify during the red test: Elysia supplies the original caught value as the `error` member of this global `onError` callback, including a rejection from `resolveIdentity`. The first test below establishes that rather than assuming it.
 
@@ -364,7 +374,7 @@ expect(failures).toEqual([]);
 const outage = await app.handle(request('{', { authorization: 'Bearer outage' }));
 expect(outage.status).toBe(500);
 expect(await outage.text()).toBe('Internal Server Error');
-expect(outage.headers.get('content-type')).toBe('text/plain;charset=UTF-8');
+expect(outage.headers.get('content-type')).toBeNull();
 expect(failures).toHaveLength(1);
 expect(failures[0]).toBeInstanceOf(Error);
 expect((failures[0] as Error).message).toBe('account store offline');
@@ -448,31 +458,12 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test \
 
 Expected: all pass. Record actual counts; do not prestate them because batch 3 may change them.
 
-- [ ] **Step 9: Run the full fast backend tier and static checks.**
-
-```sh
-NX_DAEMON=false bunx nx run wbs-be-01:test:unit --skip-nx-cache
-NX_DAEMON=false bunx nx run wbs-be-01:typecheck --skip-nx-cache
-NX_DAEMON=false bunx nx run wbs-be-01:lint --skip-nx-cache
-```
-
-Expected: all exit 0. A changed existing 4xx/500 test is a regression; do not update its expectation.
-
-- [ ] **Step 10: Commit the boundary wiring.**
-      Stage only the nine owned source/test paths from this task and inspect `git diff --cached --stat`.
-
-```sh
-git add apps/wbs/be-01/src/http/elysia/mount.ts \
-  apps/wbs/be-01/src/http/elysia/mount.test.ts \
-  apps/wbs/be-01/src/http/elysia/auth-oidc.test.ts \
-  apps/wbs/be-01/src/http/elysia/auth-password.test.ts \
-  apps/wbs/be-01/src/http/elysia/calendar-marker.test.ts \
-  apps/wbs/be-01/src/http/elysia/identity.test.ts \
-  apps/wbs/be-01/src/http/elysia/internal.test.ts \
-  apps/wbs/be-01/src/http/elysia/plan-document-boundary.test.ts \
-  apps/wbs/be-01/src/http/elysia/work-item.test.ts
-git commit -m "feat(wbs-be): classify mounted endpoint failures"
-```
+- [ ] **Step 9: Continue directly to Task 3 without committing.**
+      The required reporter leaves the production `buildApp` call incomplete at this checkpoint.
+      Preserve the focused boundary/caller evidence, then write Task 3's production test and observe
+      its red before composing the real reporter. Run whole-backend unit/static checks only after
+      that wiring is complete. Do not weaken `MountOptions` or install a production no-op to make
+      an intermediate commit pass.
 
 ### Task 3: Prove the production `buildApp` composition
 
@@ -555,7 +546,7 @@ Assert all of the following in this single test:
 expect(created).toHaveLength(1);
 expect(created[0]?.secrets).toEqual([internalAuthSecret]);
 expect(response.status).toBe(500);
-expect(response.headers.get('content-type')).toBe('text/plain;charset=UTF-8');
+expect(response.headers.get('content-type')).toBeNull();
 expect(await response.text()).toBe('Internal Server Error');
 expect(calls).toHaveLength(1);
 expect(lines).toHaveLength(1);
@@ -592,21 +583,33 @@ Expected: the extra factory argument is ignored, so the private destination rece
       `makeLogger({ service: 'be-01', version: opts.version, secrets })`, construct one reporter from that
       logger and the same array, and supply it to the production `mountEndpoints` options. Keep that same
       logger for endpoint construction, OIDC, Elysia decoration and the reporter.
-- [ ] **Step 5: Run the named production test, all `app.test.ts`, and static checks.**
+- [ ] **Step 5: Run the named production test, all `app.test.ts`, the backend unit tier, and static checks.**
 
 ```sh
 cd apps/wbs/be-01
 env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/app.test.ts -t 'reports one redacted unexpected production failure with its shared occurrence'
 env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test src/app.test.ts
 cd ../../..
+NX_DAEMON=false bunx nx run wbs-be-01:test:unit --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-be-01:typecheck --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-be-01:lint --skip-nx-cache
 ```
 
-- [ ] **Step 6: Commit the production composition.**
+- [ ] **Step 6: Commit the complete boundary and production composition together.**
+      Stage exactly the eleven source/test paths owned by Tasks 2 and 3. Inspect the staged diff;
+      retain all focused red/green evidence and require the whole-backend checks above to pass.
 
 ```sh
-git add apps/wbs/be-01/src/app.ts apps/wbs/be-01/src/app.test.ts
+git add apps/wbs/be-01/src/http/elysia/mount.ts \
+  apps/wbs/be-01/src/http/elysia/mount.test.ts \
+  apps/wbs/be-01/src/http/elysia/auth-oidc.test.ts \
+  apps/wbs/be-01/src/http/elysia/auth-password.test.ts \
+  apps/wbs/be-01/src/http/elysia/calendar-marker.test.ts \
+  apps/wbs/be-01/src/http/elysia/identity.test.ts \
+  apps/wbs/be-01/src/http/elysia/internal.test.ts \
+  apps/wbs/be-01/src/http/elysia/plan-document-boundary.test.ts \
+  apps/wbs/be-01/src/http/elysia/work-item.test.ts \
+  apps/wbs/be-01/src/app.ts apps/wbs/be-01/src/app.test.ts
 git commit -m "feat(wbs-be): compose unexpected failure reporting"
 ```
 
@@ -618,7 +621,7 @@ git commit -m "feat(wbs-be): compose unexpected failure reporting"
 - Modify: `openspec/changes/adopt-failure-reporting/tasks.md`
 - Modify: `openspec/changes/adopt-failure-reporting/verify.md`
 
-**Consumes:** the three green commits above.
+**Consumes:** the reporter commit and the combined boundary/composition commit above.
 
 **Produces:** watched R5 evidence and an honest task ledger that leaves MCP open.
 
@@ -663,8 +666,8 @@ Fault B: restore, then add `headers: { 'content-type': 'application/json' }` to 
 Run the same auth-outage test.
 
 Expected A: exact-body assertion receives `Error: account store offline` instead of `Internal Server Error`.
-Expected B: the content-type assertion receives `application/json` instead of
-`text/plain;charset=UTF-8`. Restore and rerun green after each.
+Expected B: the content-type assertion receives `application/json` instead of the
+measured absent header (`null`). Restore and rerun green after each.
 
 - [ ] **Step 6: Replay every modeled-outcome silence check.**
       Inject one call at a time immediately before the relevant normal return, run the named case, and

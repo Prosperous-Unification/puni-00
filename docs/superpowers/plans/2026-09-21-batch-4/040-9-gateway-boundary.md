@@ -14,6 +14,7 @@
 
 ## Global constraints
 
+- Tasks 2 and 3 form one commit and review boundary. Write both sets of focused tests and observe their reds before changing the controller or production composition. The required reporter and its sole production caller must land together; never insert a production no-op or make the dependency optional to bridge an intermediate commit.
 - Execute only on an integrated head containing 040.5 (`registerReportedFailure`, the guarded serializer, diagnostic/loss log schema, and logger-owned secret policy). Re-read live files before editing; source locations here were inspected at immutable `7641f5a2`.
 - Preserve forward failure bytes exactly: `{"type":"error","code":"backend_unavailable","retry_after":5}`. Do not add an occurrence id, message, detail, or alternate error code to the frame.
 - Preserve resume failure ordering and bytes: one `resume_denied` with reason `unavailable` per requested subscription in request key order, then `{"type":"resume_ack","replayed":{}}`. Do not turn it into `backend_unavailable`, disconnect, or replay partial data.
@@ -270,18 +271,23 @@ bun test src/controller/ws.controller.test.ts src/controller/ws-cancellation.tes
 
 Expected: required callback absent and/or rejection assertions receive no report.
 
-- [ ] **Step 5: Add the required field and exact catch changes above.** Update every unrelated direct test call with `reportUnexpectedBackendFailure: () => undefined`; do not make the field optional and do not put a default inside the controller.
-- [ ] **Step 6: Exhaustively inspect callers, then typecheck.**
-
-```bash
-rg -n "handleWsMessage\(" apps/wbs/gw-01/src
-NX_DAEMON=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache
-```
-
-Every call must visibly supply the required reporter. Expected: only `app.ts`, `ws.controller.test.ts`, and `ws-cancellation.test.ts` callers; typecheck passes.
-
-- [ ] **Step 7: Watch four controller mutations separately:** omit the forward report; omit the resume report; move each report above the abort guard; pass a substitute error instead of `caught`. The relevant exact-one/exact-object or cancellation test must fail. Restore and add adjacent `Proof:` comments naming each observed failure.
-- [ ] **Step 8: Commit the independently reviewable controller slice.**
+- [ ] **Step 5: Preserve the controller red and continue to Task 3's test setup.**
+      Do not change production yet. Write Task 3's integration cases and observe their red while
+      the old controller still preserves its existing frames. This avoids a transient undefined
+      required callback obscuring the intended missing-report assertion.
+- [ ] **Step 6: Implement both production sides after Task 3's red.**
+      Add the required field and exact catch changes above, update every unrelated direct test
+      call with `reportUnexpectedBackendFailure: () => undefined`, and complete the real `buildApp`
+      composition from Task 3. Do not make the field optional or default it inside the controller.
+- [ ] **Step 7: Inspect all callers after the real composition is wired.**
+      Run `rg -n "handleWsMessage\(" apps/wbs/gw-01/src` and inspect every option object.
+      Expected callers are `app.ts`, `ws.controller.test.ts`, and `ws-cancellation.test.ts`;
+      each must supply the required reporter. Run typecheck at Task 3's green checkpoint.
+- [ ] **Step 8: Watch each controller mutation after the combined implementation is green.**
+      Separately omit the forward report, omit the resume report, move each report above its abort
+      guard, and pass a substitute error instead of `caught`. The relevant exact-one/exact-object
+      or cancellation test must fail. Restore and add adjacent `Proof:` comments naming each
+      observed failure. Commit only with Task 3's completed production wiring and proofs.
 
 ## Task 3: Wire real secrets and prove the real WebSocket path
 
@@ -305,9 +311,31 @@ bun test src/failure-reporting.integration.test.ts
 
 Expected: fail because `buildApp` ignores the second factory argument at runtime and the controller has no production reporter.
 
-- [ ] **Step 7: Implement the exact `buildApp` composition above.** Pass the reporter to `handleWsMessage`. Do not change `AppOptions`, main, transport clients, controller frames, metric callbacks, or lifecycle hooks.
-- [ ] **Step 8: Watch seven production mutations separately:** no-op the reporter supplied by `buildApp`; omit `internalAuthSecret` from reporter secrets; omit it from logger options; omit current or previous JWT key; log the caught value rather than the registered outcome; append the caught message to either frame; and temporarily reorder `wsResumeAck`'s object properties to `JSON.stringify({replayed,type:'resume_ack'})` without changing its parsed object. The composition, correlation, literal-byte, or secret assertions must fail for each mutation. The `wsResumeAck` edit is a proof-only mutation of the otherwise unowned shared builder and must not be committed. Restore exact bytes after each, rerun green, and add adjacent `Proof:` comments; the byte-only comment belongs beside the raw resume-array equality.
-- [ ] **Step 9: Commit the independently reviewable composition/production-proof slice.**
+- [ ] **Step 7: Implement the controller and real `buildApp` composition together.** Complete Task 2's required option/catches/test fixtures, then pass the real composed reporter to `handleWsMessage`. Do not change `AppOptions`, main, transport clients, controller frames, metric callbacks, or lifecycle hooks.
+- [ ] **Step 8: Establish combined green before mutation proofs.**
+
+```bash
+cd apps/wbs/gw-01
+bun test src/controller/ws.controller.test.ts src/controller/ws-cancellation.test.ts src/failure-reporting.integration.test.ts
+cd ../../..
+NX_DAEMON=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache
+```
+
+Require nonzero discovered counts and exit 0, then perform Task 2's separate controller mutations.
+
+- [ ] **Step 9: Watch each production mutation separately:** no-op the reporter supplied by `buildApp`; omit `internalAuthSecret` from reporter secrets; omit it from logger options; omit current or previous JWT key; log the caught value rather than the registered outcome; append the caught message to either frame; and temporarily reorder `wsResumeAck`'s object properties to `JSON.stringify({replayed,type:'resume_ack'})` without changing its parsed object. The composition, correlation, literal-byte, or secret assertions must fail for each mutation. The `wsResumeAck` edit is a proof-only mutation of the otherwise unowned shared builder and must not be committed. Restore exact bytes after each, rerun green, and add adjacent `Proof:` comments; the byte-only comment belongs beside the raw resume-array equality. The repeated registered-outcome-to-raw-caught mutation in `unexpected-backend-failure.ts` is also proof-only for this slice: restore that reporter byte-identically, record the new integration observation in `verify.md`, and place its adjacent `Proof:` comment at the provenance/correlation assertion in `failure-reporting.integration.test.ts`. Keep the already-observed Task 1 reporter proof comment unchanged; it is not a sixth committed file here.
+- [ ] **Step 10: Commit the complete controller/composition slice.**
+      After all restored focused tests and typecheck pass, stage exactly these five paths and inspect
+      the staged diff. Keep each watched red/green and byte-restoration record for closure.
+
+```bash
+git add apps/wbs/gw-01/src/controller/ws.controller.ts \
+  apps/wbs/gw-01/src/controller/ws.controller.test.ts \
+  apps/wbs/gw-01/src/controller/ws-cancellation.test.ts \
+  apps/wbs/gw-01/src/app.ts \
+  apps/wbs/gw-01/src/failure-reporting.integration.test.ts
+git commit -m "feat(wbs-gw): report unexpected backend failures"
+```
 
 ## Task 4: Preserve deadlines, cancellation, auth, and replay behavior
 
@@ -344,7 +372,7 @@ cd ../../..
 NX_DAEMON=false bunx nx run wbs-gw-01:typecheck --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-gw-01:lint --skip-nx-cache
 NX_DAEMON=false bunx nx run wbs-gw-01:build --skip-nx-cache
-bunx openspec validate adopt-failure-reporting --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate adopt-failure-reporting --strict --json
 ```
 
 - [ ] **Step 4: Run the whole gateway target once after focused green.**
