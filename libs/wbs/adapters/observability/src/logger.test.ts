@@ -40,6 +40,25 @@ function twoLostReports(): [LoggedLoss, LoggedLoss] {
 }
 
 describe('createLogger', () => {
+  it('emits an mcp-01 record conforming to the LogRecord schema', () => {
+    const stream: string[] = [];
+    const logger = createLogger({
+      service: 'mcp-01',
+      secrets: ['mcp-owned-secret'],
+      destination: {
+        write: (chunk: string) => {
+          stream.push(chunk);
+        },
+      },
+    });
+
+    logger.error({ err: new Error('tool call failed') }, 'unexpected MCP tool failure');
+
+    const parsed = parseOrThrow(LogRecord, JSON.parse(stream.at(-1)!) as Record<string, unknown>);
+    expect(parsed.service).toBe('mcp-01');
+    expect(parsed.msg).toBe('unexpected MCP tool failure');
+  });
+
   it('emits records conforming to the LogRecord schema', () => {
     const stream: string[] = [];
     const logger = createLogger({

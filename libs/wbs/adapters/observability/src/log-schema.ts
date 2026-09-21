@@ -17,7 +17,9 @@ export const LogRecord = type({
   level: "'trace'|'debug'|'info'|'warn'|'error'|'fatal'|10|20|30|40|50|60",
   time: 'number',
   msg: 'string',
-  service: "'be-01'|'gw-01'|'fe-01'",
+  // Proof: on 2026-09-21, removing `mcp-01` while leaving the logger union widened made the real
+  // MCP logger record fail validation because its service was outside the closed schema.
+  service: "'be-01'|'gw-01'|'fe-01'|'mcp-01'",
   'request_id?': 'string',
   'connection_id?': 'string',
   'user_id?': 'string',
