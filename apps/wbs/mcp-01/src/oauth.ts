@@ -735,7 +735,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (family.upstreamRefreshToken === undefined) {
       if (!force && family.upstreamExpiresAt > now) return family;
       this.store.revokeFamily(family.familyId, now);
-      throw new Error('upstream access cannot be refreshed; the MCP family was revoked');
+      throw new UpstreamRefreshRefused(
+        'upstream access cannot be refreshed; the MCP family was revoked',
+      );
     }
     const deadline = Date.now() + 10_000;
     let candidate = family;
