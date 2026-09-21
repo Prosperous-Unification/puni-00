@@ -3,7 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 import type { FetchLike } from './wbs-client';
-import { buildRequest, callTool, EdgeGate, UpstreamRejected } from './wbs-client';
+import { buildRequest, callTool, EdgeGate, ToolInputRefused, UpstreamRejected } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -76,6 +76,15 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
   }
 }
 
+async function caughtFailure(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+    return new Error('resolved without throwing');
+  } catch (error) {
+    return error;
+  }
+}
+
 describe('buildRequest', () => {
   it('substitutes path parameters and puts the rest in the query string', () => {
     const request = buildRequest(READ, { id: 'p1', includeClosed: true }, CONFIG);
@@ -121,22 +130,60 @@ describe('buildRequest', () => {
   // Watched red for task 3.1. Delete the `location === undefined` throw and
   // forward the input instead — be-01 strips it before the handler runs, so the
   // write reports success having done something else.
-  it('throws on an input the operation does not declare, and lists the ones it does', () => {
-    expect(() => buildRequest(WRITE, { id: 'w1', parentID: 'w0' }, CONFIG)).toThrow(
-      /does not declare an input named "parentID".*id, name, estimate/s,
+  it('models an undeclared input with only its correction details and makes no request', async () => {
+    const be01 = stub(json(200, {}));
+    const failure = await caughtFailure(
+      callTool(WRITE, { id: 'w1', parentID: 'w0' }, CONFIG, be01.fetch),
     );
+    expect(failure).toBeInstanceOf(ToolInputRefused);
+    if (!(failure instanceof ToolInputRefused)) throw new Error('expected ToolInputRefused');
+    expect(failure.details).toEqual({
+      kind: 'undeclared_input',
+      toolName: 'patchApiWorkItemsById',
+      inputName: 'parentID',
+      declaredNames: ['id', 'name', 'estimate'],
+    });
+    expect(failure.message).toBe(
+      'patchApiWorkItemsById does not declare an input named "parentID". It declares id, name, estimate. be-01 strips unknown properties before the handler runs, so forwarding it would look like a success that did something else.',
+    );
+    expect(be01.calls).toHaveLength(0);
   });
 
-  it('throws when a path parameter is missing rather than leaving a literal in the URL', () => {
-    expect(() => buildRequest(WRITE, { name: 'Rewire' }, CONFIG)).toThrow(
-      /needs the path parameter "id"/,
+  it('models a missing path input with only its correction details and makes no request', async () => {
+    const be01 = stub(json(200, {}));
+    const failure = await caughtFailure(callTool(WRITE, { name: 'Rewire' }, CONFIG, be01.fetch));
+    expect(failure).toBeInstanceOf(ToolInputRefused);
+    if (!(failure instanceof ToolInputRefused)) throw new Error('expected ToolInputRefused');
+    expect(failure.details).toEqual({
+      kind: 'missing_path',
+      toolName: 'patchApiWorkItemsById',
+      parameterName: 'id',
+      path: '/api/work-items/{id}',
+    });
+    expect(failure.message).toBe(
+      'patchApiWorkItemsById needs the path parameter "id" and it was not given, so /api/work-items/{id} cannot be built.',
     );
+    expect(be01.calls).toHaveLength(0);
   });
 
-  it('throws on a non-scalar query value rather than flattening it', () => {
-    expect(() => buildRequest(READ, { id: 'p1', includeClosed: { deep: 1 } }, CONFIG)).toThrow(
-      /query parameter "includeClosed" must be a string, number or boolean/,
+  it('models a non-scalar URL input with only its correction details and makes no request', async () => {
+    const be01 = stub(json(200, {}));
+    const failure = await caughtFailure(
+      callTool(READ, { id: 'p1', includeClosed: { deep: 1 } }, CONFIG, be01.fetch),
     );
+    expect(failure).toBeInstanceOf(ToolInputRefused);
+    if (!(failure instanceof ToolInputRefused)) throw new Error('expected ToolInputRefused');
+    expect(failure.details).toEqual({
+      kind: 'non_scalar_url',
+      toolName: 'getApiProjectsByIdWorkItems',
+      parameterName: 'includeClosed',
+      location: 'query',
+      receivedType: 'object',
+    });
+    expect(failure.message).toBe(
+      'getApiProjectsByIdWorkItems: query parameter "includeClosed" must be a string, number or boolean; received object. Every query parameter be-01 declares is scalar.',
+    );
+    expect(be01.calls).toHaveLength(0);
   });
 
   it('does not send a body for an operation that declares none', () => {
@@ -227,20 +274,30 @@ describe('callTool', () => {
     expect(cause).not.toBeInstanceOf(EdgeGate);
   });
 
-  it('keeps the status when a refusal body is not JSON', async () => {
-    const be01 = stub(new Response('<html>502 Bad Gateway</html>', { status: 502 }));
-    const result = await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch);
-    expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain('502');
+  it('throws an unexpected response failure for a secret-bearing 500 body', async () => {
+    const body = 'upstream exposed boundary-secret';
+    const be01 = stub(new Response(body, { status: 500 }));
+    const failure = await caughtFailure(callTool(READ, { id: 'p1' }, CONFIG, be01.fetch));
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error)) throw new Error('expected an Error');
+    expect(failure).not.toBeInstanceOf(ToolInputRefused);
+    expect(failure.message).toContain('unexpected HTTP 500');
+    expect(failure.message).not.toContain('boundary-secret');
+    expect(failure.cause).toBe(body);
+    expect(be01.calls).toHaveLength(1);
   });
 
   // Watched red for task 3.4. Coerce the parse failure to `{}` and this goes
   // red — an empty object reported as the plan is a plan with nothing in it.
-  it('throws when a 2xx body is not JSON rather than coercing it', async () => {
-    const be01 = stub(new Response('<html>hello from a proxy</html>', { status: 200 }));
-    expect(await rejection(callTool(READ, { id: 'p1' }, CONFIG, be01.fetch))).toMatch(
-      /body that is not JSON/,
-    );
+  it('throws when a secret-bearing 2xx body is not JSON rather than returning agent content', async () => {
+    const be01 = stub(new Response('<html>boundary-secret</html>', { status: 200 }));
+    const failure = await caughtFailure(callTool(READ, { id: 'p1' }, CONFIG, be01.fetch));
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error)) throw new Error('expected an Error');
+    expect(failure).not.toBeInstanceOf(ToolInputRefused);
+    expect(failure.message).toContain('body that is not JSON');
+    expect(failure.cause).toBeInstanceOf(SyntaxError);
+    expect(be01.calls).toHaveLength(1);
   });
 
   it('does not call be-01 at all when the request cannot be built', async () => {

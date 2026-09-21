@@ -227,3 +227,41 @@ cancellation SHALL write no record and no frame.
 - **GIVEN** invalid input, an authentication or origin refusal, a declared subscription refusal, a successful replay, or an identity-recheck policy close
 - **WHEN** the gateway handles that outcome
 - **THEN** it writes no unexpected-backend-failure record
+
+### Requirement: An unexpected MCP tool failure is reported once and disclosed generically
+
+The MCP tool-call boundary SHALL preserve its tool-result envelope, SHALL disclose only a generic
+public sentence and correlation handle for an unexpected call failure, and SHALL write exactly
+one correlated sanitized diagnostic operator record. Correctable local input failures, declared
+upstream 4xx refusals, authentication/session outcomes and unknown-tool protocol errors SHALL keep
+their existing classification and useful public text and SHALL NOT write an unexpected-failure
+record.
+
+#### Scenario: A local tool input is invalid
+
+- **GIVEN** a known tool call has an undeclared input, a missing path parameter or a non-scalar URL value
+- **WHEN** mcp-01 handles the call
+- **THEN** it returns the existing correctable `isError` tool content
+- **AND** no unexpected-failure operator record is written
+
+#### Scenario: be-01 returns a declared refusal
+
+- **GIVEN** be-01 returns a 4xx refusal carrying its correction code and details
+- **WHEN** mcp-01 handles the call
+- **THEN** the existing `isError` tool content retains the status, code and useful body
+- **AND** no unexpected-failure operator record is written
+
+#### Scenario: a tool transport or successful-response decoder fails
+
+- **GIVEN** fetch rejects, response-body reading rejects, a non-4xx response fails, or a successful body is not JSON
+- **WHEN** the SDK tool-call boundary handles the failure
+- **THEN** it returns one `isError` text result containing the generic public sentence and reference
+- **AND** the agent receives no content read from the caught value or upstream body
+- **AND** one operator record carries the sanitized diagnostic report under the same occurrence identifier
+
+#### Scenario: reporting cannot inspect an unexpected failure
+
+- **GIVEN** an unexpected call failure the report library cannot inspect
+- **WHEN** the tool-call boundary handles it
+- **THEN** it returns fixed loss text with a local correlation handle without throwing
+- **AND** one operator record visibly records the reporting loss
