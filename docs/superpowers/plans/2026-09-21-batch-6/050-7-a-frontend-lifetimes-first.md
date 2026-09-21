@@ -1,88 +1,66 @@
-# 050.7a The frontend's lifetime owner: one serialized state machine
+# 050.7a The frontend's lifetime owner, held to a model
 
 |                     |                                                                                                                                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Work item           | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **first packet of several**                                                               |
 | Size class          | M                                                                                                                                                                                    |
-| Design it serves    | [Code organization design](../../specs/2026-09-19-code-organization-design.md): "Modules", the three-lifetimes table, rules F1 and F2                                                |
+| Design              | **[The frontend lifetime slot: states, events, invariants](050-7-lifetime-slot-design.md)** — read it first; this packet executes it                                                 |
+| Design it serves    | [Code organization design](../../specs/2026-09-19-code-organization-design.md): the three-lifetimes table, rules F1 and F2                                                           |
 | Reviewed source map | [050.7 frontend lifetime map](../2026-09-21-batch-4/050-7-frontend-lifetime-map.md)                                                                                                  |
 | Library research    | [DI Bag 0.4.0 React lifecycle guarantees](../../../research/2026-09-21-di-bag-0-4-lifecycle.md)                                                                                      |
 | Execution contract  | [batch 1 README](../2026-09-19-batch-1/README.md): "Execution contract", "Rules for every executor", "Standard blocks every packet uses", "Hidden constraints every frontend packet" |
-| Model of form       | [050.6 command services](../2026-09-21-batch-3/050-6-command-services.md)                                                                                                            |
 | Planning head       | `40be90d3` (`origin/main`, the Burokrat rename merged)                                                                                                                               |
-| Revision            | third, after review 2. Sections 15 and 16 disposition both reviews. **The packet was split** — see section 1.                                                                        |
+| Revision            | fourth. Three review rounds each found a new race; section 17 says what changed in method, and sections 15 to 17 disposition every finding.                                          |
 
-## 1. Goal, the split, and non-goals
+## 1. Goal and non-goals
 
-**Goal.** Build the one thing every later 050.7 packet hangs off: the lifetime owner, as an explicit
-serialized state machine whose races are proved absent by generated interleavings rather than by
-hand-written scenarios. Two things land:
+**Goal.** Land the design document's owner, and nothing else. Two things:
 
-1. **`openspec/changes/adopt-frontend-lifetimes`**, covering the whole of 050.7's target shape — the
-   three lifetimes, who owns each, the retirement rule, the superseded-transition rule and the fatal
-   state — so that every later packet ticks a task instead of opening a change.
-2. **`apps/wbs/fe-01/src/runtime/lifetime-slot.ts`**: one slot that owns one runtime, with
-   synchronous withdrawal, one serialized transition queue, the generation rechecked after the only
-   await that precedes construction, a transactional construction that releases what it acquired when
-   it fails, and a disposal failure or bounded-wait expiry that refuses the replacement and is
-   terminal. Proved by 19 named example tests **and** a `fast-check` scheduler property over
-   generated interleavings, with twelve rehearsed mutations.
+1. **`openspec/changes/adopt-frontend-lifetimes`**, covering the whole of 050.7's target shape, so
+   later packets tick a task instead of opening a change.
+2. **`apps/wbs/fe-01/src/runtime/lifetime-slot.ts`**: the five-state, single-queue owner of
+   [the design document](050-7-lifetime-slot-design.md) — synchronous withdrawal, deferred
+   notification so no subscriber ever runs inside a transition, the generation rechecked after the
+   disposal **and** after the factory, a transactional construction that gives back what it acquired,
+   and a disposal failure or bounded-wait expiry that refuses the replacement and is terminal. Proved
+   by 24 named example tests **and** a model-based `fast-check` test whose teeth are shown by six
+   sabotage runs.
 
-**The split, and why.** Two consecutive reviews found a race in this owner: round 1, two same-tick
-replacements abandoned a live runtime; round 2, a replacement that arrived _while the old runtime was
-being disposed_ passed a fence that was only checked before that disposal. Both were in code that also
-carried a DI module, an installer, a page-level slot holder, a composition rewire and a README — and
-the owner's own proofs were the smallest part of it. So the module work is now its own packet:
+**Non-goals**: no library version change (`di-bag` stays `0.4.0`); no DI module, installer or
+page-level runtime; no `composition.ts` or README edit; no React at all; no session or project
+runtime; nothing reachable from the running page — which is why the whole proof runs in the DOM-free
+tier in under half a second.
 
-- **this packet (050-7-a)**: the change, and the lifetime owner with its property test.
-- **050-7-b**: `module.frontend.preferences`, the transactional installer, the page's application
-  lifetime, the composition seam, the README and the module's wiki index. Section 12 lists what it
-  owes, including the two obligations review 2 was right about.
+## 2. Why this shape, and why a model test
 
-**Non-goals**, each because it belongs to a later packet or another change:
+Three rounds of review found three races, each between two steps of a transition: two same-tick
+replacements abandoning a runtime; a replacement arriving _during_ a disposal and passing a fence
+checked only before it; and a subscriber invoked synchronously by a state change, requesting another
+replacement before the factory ran. The design document has the table.
 
-- No library version change. `di-bag` stays `0.4.0`; `package.json` and `bun.lock` are untouched.
-- No DI module, no installer, no page-level runtime, no `composition.ts` edit, no README edit.
-- No React at all: no context, no provider, no `main.tsx`, no component. The slot publishes states; a
-  later packet renders them.
-- No session runtime and no project runtime.
-- No reader-visible behaviour: nothing in this packet is reachable from the running page yet, which is
-  exactly why it can be proved in the DOM-free tier in under a second.
-
-## 2. Why an owner with a property test, measured
-
-`fc.scheduler()` is not decoration. Rehearsed on the code this packet replaced — the owner review 1
-accepted — the property test failed on its second case:
+Hand-written scenarios kept missing the next interval, so the ownership rule is written down and a
+**model-based** test generates the interleavings, re-entrant requests included. Rehearsed against the
+implementation the previous revision shipped, it fails on its second case:
 
 ```text
 Counterexample: [schedulerFor()`
--> [task${1}] promise::issue 0 resolved
--> [task${2}] promise::issue 1 resolved
--> [task${3}] promise::dispose r0 resolved
--> [task${4}] promise::dispose r1 rejected with value new Error("r1 refused to dispose")`,[{"kind":"replace","settles":false},{"kind":"replace","settles":false}]]
+`,[{"kind":"settle"},{"kind":"replace","disposal":"settles","partial":false,"reentry":"listener"}]]
 Shrunk 2 time(s)
-Caused by: AssertionError: a superseded request acquired a runtime: expected [ 'r1' ] to deeply equal []
+Caused by: AssertionError: r1: 1 acquisitions, 0 close attempts, live=r2: expected +0 to be 1
 ```
 
-That is round 2's defect, found in 250 ms by a test nobody had to think of. The hand-written tests
-that shipped with that owner all passed, because every one of them made both requests before the first
-disposal began — one interleaving out of the many the scheduler walks.
-
-The same property also fails under six of this packet's twelve mutations, including two that no
-example test reached until it was written. Interleaving coverage is therefore part of the contract
-here, not an extra.
+That is round 3's Critical 1 — a runtime built and never closed, from a listener's re-entrant request —
+found in 250 ms by a test nobody had to imagine.
 
 ## 3. Read first
 
-1. `AGENTS.md` (rules R1 to R5) and `LLM_README.md`.
-2. The execution contract sections of the [batch 1 README](../2026-09-19-batch-1/README.md).
-3. [The 050.7 frontend lifetime map](../2026-09-21-batch-4/050-7-frontend-lifetime-map.md):
-   "Authority and DI Bag facts", "Replacement and cleanup policy", and tests 4, 12 and 14 of "Exact
-   lifecycle tests".
+1. [The lifetime slot design](050-7-lifetime-slot-design.md), whole. It is 165 lines and it is the
+   contract.
+2. `AGENTS.md` (rules R1 to R5) and `LLM_README.md`.
+3. The execution contract sections of the [batch 1 README](../2026-09-19-batch-1/README.md).
 4. [DI Bag 0.4.0 React lifecycle guarantees](../../../research/2026-09-21-di-bag-0-4-lifecycle.md),
    "Durable implementation requirements" 1 to 5.
-5. `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts`, which is the sanitized reporting this
-   owner reuses.
+5. `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts`, the sanitized reporting this owner reuses.
 
 ## 4. Verified facts
 
@@ -90,7 +68,7 @@ Every claim below was read or run in a worktree off `40be90d3`. Line numbers are
 
 ### 4.1 What DI Bag 0.4.0 actually does with a failure
 
-Probed with `bun` against the installed `node_modules/di-bag` (version `0.4.0`, pinned in
+Probed with `bun` against the installed `node_modules/di-bag` (`0.4.0`, pinned in
 `tools/tool-devsync/src/toolchain-pins.test.ts:506`):
 
 - a rejecting disposer makes `close()` reject with `DiBagCleanupError`:
@@ -98,100 +76,90 @@ Probed with `bun` against the installed `node_modules/di-bag` (version `0.4.0`, 
 - a never-settling disposer under `close({ timeoutMs: 50 })` rejects with
   `DiBagCloseCancelledError`: `DI_BAG_CLOSE_TIMEOUT: Bag close timed out after 50ms; disposers still running: r;`
   whose `details` is `{"operation":"close","reason":"timeout","timeoutMs":50,"pending":["r"],"acquiring":[]}`
-  and whose `cleanupPromise` is the shared shutdown. A disposer that settles **after** that rejection
-  resolves that promise; one that rejects late rejects it with `DiBagCleanupError`. Both are exercised.
+  and whose `cleanupPromise` is the shared shutdown. A disposer that settles after that rejection
+  resolves it; one that rejects late rejects it with `DiBagCleanupError`. Both are exercised.
 - **a partially acquired graph is released only by `close()` on its own bag.** Measured twice: after
-  `bag.resolve('a')` succeeded and `bag.resolve('b')` threw, the recorded disposals were `[]` and only
+  `bag.resolve('a')` succeeded and `bag.resolve('b')` threw, recorded disposals were `[]` and only
   `bag.close()` produced `["a"]`; and a factory that called `factoryCtx.pushDisposer(…)` and then threw
   left that disposer unrun until `bag.close()` — `[]` at the throw, `["pushed-first"]` after the close.
   `pushDisposer` needs `{ context: 'acquisition' }` as `fromSyncFactory`'s second argument, as
-  `apps/wbs/be-01/src/boot.ts:201` uses it; without it the second parameter is `undefined`.
-
-  **That is why {@link PartialAcquisitionError} exists**: a builder that resolves services one by one
-  has to keep its bag reachable, or a half-built graph is an orphan nobody can close. Marking the slot
-  fatal disposes nothing.
-
-- `build()` and `resolve()` are **synchronous** for sync factories, so the browser graph needs no
-  `await`. `apps/wbs/be-01/src/boot.ts:89` awaits only because that graph has async work.
+  `apps/wbs/be-01/src/boot.ts:201` uses it. That is why `PartialAcquisitionError` exists.
+- `build()` and `resolve()` are **synchronous** for sync factories. `apps/wbs/be-01/src/boot.ts:89`
+  awaits only because that graph has async work.
 
 ### 4.2 The frontend as it stands, and what this packet does not touch
 
-- `apps/wbs/fe-01/src/modules/` holds six module directories and **no `module.ts`**: composition is
-  `composition.ts` files. This packet adds no module and changes none of them.
-- `di-bag` is imported today from `apps/wbs/be-01/src/boot.ts:4` and from the fe-01 browser probes
-  `apps/wbs/fe-01/e2e/browser-packages-probe.ts:3`. **`di-bag` and not `di-bag/node`**:
-  `apps/wbs/fe-01/browser-packages.test.ts:48` and `e2e/browser-packages.spec.ts:50` both carry
-  observed proofs that the node entrypoint breaks the browser bundle. The slot imports
-  `DiBagCloseCancelledError` from `di-bag`, and its tests import `DiBag` from the same entrypoint.
+- `apps/wbs/fe-01/src/modules/` holds six module directories and no `module.ts`. This packet adds no
+  module and changes none of them.
+- **`di-bag` and not `di-bag/node`**: `apps/wbs/fe-01/browser-packages.test.ts:48` and
+  `e2e/browser-packages.spec.ts:50` carry observed proofs that the node entrypoint breaks the browser
+  bundle. The slot imports `DiBagCloseCancelledError` from `di-bag`; its tests import `DiBag` from the
+  same entrypoint.
 - `apps/wbs/fe-01/src/components/chrome/fault-disclosure.ts` exports `discloseFault(thrown)` and
-  `DisclosedFault`: the sanitized public sentence, the occurrence handle and what was lost. It imports
-  `@shared/failures` and **no React**, so this owner may reuse it, and the map's requirement that the
-  lifecycle-failure boundary use "the same sanitized public/diagnostic reporting … as the root fault
-  path" is met by calling it rather than by a second policy.
+  `DisclosedFault` and imports `@shared/failures` and **no React**, so this owner may reuse it: the
+  map's requirement that the lifecycle-failure boundary use the root fault path's sanitized reporting
+  is met by calling it rather than by a second policy.
 - `fast-check` is a root devDependency at `package.json:103` (`"fast-check": "^4.9.0"`, installed
-  `4.9.0`). It is already used elsewhere in the repository's test tiers, and this packet adds no
-  dependency. `scheduler.waitAll()` is **deprecated** in 4.9.0 and `wbs-fe-01:lint` refuses it
-  (`@typescript-eslint/no-deprecated`, observed twice); the listing uses `waitIdle()`.
+  `4.9.0`); this packet adds no dependency. Two of its scheduler methods are **deprecated** and
+  `wbs-fe-01:lint` refuses both (`@typescript-eslint/no-deprecated`, observed): `waitAll()` — use
+  `waitIdle()` — and `waitOne()` — use `waitNext(1)`. The listings use the replacements.
+- `apps/wbs/fe-01/src/test-tiers.test.ts:60` declares `DOM_EVIDENCE`, and it reads a test file that
+  merely writes `document`, `window`, `location` or `localStorage` as needing a browser. Both new test
+  files avoid those words and belong in the node tier.
 
 ### 4.3 How the node tier selects files, and what a red looks like here
 
-`apps/wbs/fe-01/vitest.node.config.ts` sets `include: [...NODE_SUITES]`. A path passed on the command
-line is a **filter applied after** that include list, not an override: with the file absent from
-`NODE_SUITES`, `bunx vitest run --config vitest.node.config.ts src/runtime/lifetime-slot.test.ts`
-prints `No test files found, exiting with code 1`. Observed. So slice 2 adds both suite entries in the
-same step as the test files, before any red run.
+`apps/wbs/fe-01/vitest.node.config.ts` sets `include: [...NODE_SUITES]`. A path on the command line is
+a **filter applied after** that list, not an override: with the file absent from `NODE_SUITES`,
+`bunx vitest run --config vitest.node.config.ts src/runtime/lifetime-slot.test.ts` prints
+`No test files found, exiting with code 1`. Observed. So slice 2 adds both suite entries in the same
+step as the test files, before any red run.
 
-A red here is therefore not a missing-module collection error: slice 2 writes the tests, their suite
-entries **and a skeleton whose factory throws**, so the red selects every test it is about and fails
-on one message. The skeleton's message carries **no budget number**, deliberately: three of the tests
-build a slot with a 50 ms budget, and a message that interpolated the budget produced two different
-diagnostics and an executor stop. Observed red: `Tests 20 failed (20)`, every one on
-`Error: the lifetime slot is not implemented`.
-
-`apps/wbs/fe-01/src/test-tiers.test.ts` refuses any disagreement between `NODE_SUITES` and the
-evidence in the files; its `DOM_EVIDENCE` regex (`src/test-tiers.test.ts:66`) reads a file that merely
-writes `document`, `window`, `location` or `localStorage` as needing a browser. **Both new test files
-avoid those words** and belong in the node tier.
+A red here is not a missing-module collection error: slice 2 writes the tests, their suite entries and
+a **skeleton whose factory throws**, so the red selects every test it is about and fails on one
+message. The skeleton's message carries no budget number, deliberately — tests that build a 50 ms slot
+would otherwise produce a second diagnostic and an executor stop. Observed red: `Test Files 2 failed (2)`,
+`Tests 25 failed (25)`, every one on `Error: the lifetime slot is not implemented`.
 
 ### 4.4 Targets, tiers and the sandbox
 
-- `apps/wbs/fe-01/project.json` has `test` (two vitest runs, jsdom then zoned), `test:unit` (the node
-  tier), `lint`, `lint:fast`, `typecheck`, `build`, `e2e`, `e2e-packaged`. fe-01 has **no**
-  `lint:source`; only the Burokrat project does.
+- fe-01 has `test`, `test:unit`, `lint`, `lint:fast`, `typecheck`, `build`, `e2e`, `e2e-packaged`, and
+  **no** `lint:source`.
 - **The executor never runs `wbs-fe-01:test:unit` or `wbs-fe-01:test` through Nx**: three of their
   tests spawn `bun` from Node and the sandbox refuses with `spawnSync bun EPERM`. It runs the sandbox
   unit command of step 0 instead.
-- **`bun test <dir>` is a filter, not a path.** From the repository root it also collects the compiled
-  copies a typecheck leaves under `dist/out-tsc/<dir>`, which is how a green baseline turns red in a
-  clone where an earlier slice ran `typecheck`. This packet prescribes **no** `bun test` command, and
-  its vitest commands were re-rehearsed after `wbs-fe-01:typecheck` had written
-  `dist/out-tsc/apps/wbs/fe-01/*.test.js` into the same worktree: the node tier selected exactly the
-  same files and tests, because `include` is the explicit `NODE_SUITES` list and `dist` is outside it.
+- **`bun test <dir>` is a filter, not a path**: from the repository root it also collects the compiled
+  copies a typecheck leaves under `dist/out-tsc/<dir>`. This packet prescribes no `bun test`, and its
+  vitest commands were re-rehearsed after `wbs-fe-01:typecheck` had written
+  `dist/out-tsc/apps/wbs/fe-01/*.test.js` into the same worktree: the tier selected exactly the same
+  files and tests, because `include` is the explicit `NODE_SUITES` list and `dist` is outside it.
 - The whole jsdom tier, the zoned tier, `wbs-fe-01:build`, `tool-devsync:test`,
   `twilight-burokrat:test` and every Chromium run are **planner-only**, with observed values in
-  section 10. This packet touches no component, so the browser lane has nothing new to show; the
-  planner ran it anyway (section 10).
+  section 10.
 
-### 4.5 The property test is deterministic, and fast
+### 4.5 The model test is deterministic, and fast
 
-`{ seed: 20260922, numRuns: 500 }` is pinned in the listing, so the executor walks the same 500
-interleavings the planner did. Measured: the file runs in **245 ms** (`Duration 245ms`), and the two
-runtime suites together in **386 ms**. The `endOnFailure: true` default means a failure prints one
-shrunk counterexample and the seed, which is what section 9 quotes.
+`{ seed: 20260923, numRuns: 300 }` is pinned, so the executor walks the interleavings the planner did.
+Measured: the two runtime suites together run in **455 ms**; the model test's own file is about 350 ms.
+Installed fast-check sets `endOnFailure` only when it is passed as `true`
+(`node_modules/fast-check/lib/fast-check.js:1460`), and this packet does not pass it, so **shrinking is
+on** — which is what produces the counterexamples in sections 2 and 9. The `endOnFailure: true` in a
+failure message is fast-check printing how to reproduce that exact case, not what the run used.
 
 ### 4.6 The rehearsal, and its numbers
 
 | What                                    | Observed                                                                      |
 | --------------------------------------- | ----------------------------------------------------------------------------- |
 | Sandbox unit command, before any change | `42 passed (42)` files, `614 passed (614)` tests, exit 0                      |
-| Sandbox unit command, after both slices | `44 passed (44)` files, `634 passed (634)` tests, exit 0                      |
-| The two new suites together             | `2 passed (2)` files, `20 passed (20)` tests, 386 ms                          |
-| The skeleton red                        | exit 1, `Tests 20 failed (20)`, all on `the lifetime slot is not implemented` |
-| `wbs-fe-01:typecheck`                   | exit 0                                                                        |
-| `wbs-fe-01:lint`                        | exit 0, after `waitAll` was replaced and `eslint --fix` sorted imports        |
-| Twelve mutations                        | each fails its named test; section 9 has the counts and diagnostics           |
+| Sandbox unit command, after both slices | `44 passed (44)` files, `639 passed (639)` tests, exit 0                      |
+| The two new suites together             | `2 passed (2)` files, `25 passed (25)` tests, 455 ms                          |
+| The skeleton red                        | exit 1, `Tests 25 failed (25)`, all on `the lifetime slot is not implemented` |
+| `wbs-fe-01:typecheck`                   | exit 0 — and exit 0 under every mutation in section 9                         |
+| `wbs-fe-01:lint`                        | exit 0                                                                        |
+| Six sabotages of the model test         | each fails; section 9.1 has the counterexamples                               |
+| Eight per-check mutations               | each fails its named test; section 9.2                                        |
 | `openspec validate --all --json`        | exit 0, `113` items, `113` passed, `0` failed; this change `valid: true`      |
-| Two real `git commit`s with lefthook on | exit 0 each; `tool-wiki`, `plaintext-secrets`, `format`, `lint` all ✔         |
+| Two real `git commit`s with lefthook on | exit 0 each                                                                   |
 
 Absolute numbers are orientation only: every expectation in section 7 is relative to the baseline that
 slice records itself.
@@ -201,65 +169,45 @@ slice records itself.
 `tool-devsync:test` passed with the new files committed (`366 pass`, `0 fail`). This packet adds no
 project, target or CI path, so `apps/wiki/cli/src/policy/pilot-policy.test.ts` — which reads the
 repository at `HEAD` through git — has nothing to disagree with. `docs/code-organization/kinds.json`
-gains nothing: `tools/tool-devsync/src/service-kinds.ts:15` limits `SERVICE_ROOTS` to three backend
-and library directories, and `src/runtime/` is outside all three.
+gains nothing: `tools/tool-devsync/src/service-kinds.ts:15` limits `SERVICE_ROOTS` to three backend and
+library directories, and `src/runtime/` is outside all three.
 
-**The wiki module index is 050-7-b's, and for a corrected reason.** Nine READMEs carry a
-`<!-- module-index … -->` comment today (`apps/wiki/cli`, `apps/wiki/consumer`,
-`libs/wbs/domain/domain/src/saved-plan`, `libs/wbs/application/core/src/use-cases`,
-`libs/wbs/adapters/store-memory/src`, `tools/tool-dagger/src/lib`, `docs/findings`,
-`docs/refactoring/w4-4`, and `openspec/changes/archive/2026-09-08-bounded-replay-sweep`), none under
-`apps/wbs/fe-01`. This packet adds no module directory and so owes no index. The **earlier claim that
-an index needs a `docs/wiki-policy/modules.json` row is withdrawn**: `checkIndexes`
-(`apps/wiki/cli/src/indexes/check-indexes.ts:409`) reads the index comment and the candidate's own
-entries and loads no mapping, and `apps/wiki/cli/src/policy/trust.ts:1248` requires a mapping only for
-an index whose membership hash matches a _selected pilot boundary_ — its own Proof comment says the
-unrelated `docs/findings` index stays outside that coverage. The CSS-extractor rationale is withdrawn
-too: `apps/wiki/cli/src/relationships/typescript.ts:401` now classifies a compiler-supported ambient
-import as `ambient-non-code`, with a Proof comment naming the virtual-stylesheet production test.
-Section 12 makes the index an explicit obligation of 050-7-b, where the module it indexes is created.
+**The wiki module index belongs to the packet that creates a module.** Nine READMEs carry a
+`<!-- module-index … -->` comment today, none under `apps/wbs/fe-01`, and this packet adds no module
+directory. `checkIndexes` (`apps/wiki/cli/src/indexes/check-indexes.ts:409`) reads the index comment and
+the candidate's own entries and loads **no** mapping; `apps/wiki/cli/src/policy/trust.ts:1248` requires
+a `docs/wiki-policy/modules.json` mapping only for an index whose membership matches a _selected pilot
+boundary_, its Proof comment naming `docs/findings` as one that stays outside; and
+`apps/wiki/cli/src/rules/kinds.ts:137` checks a validated README index plus a `contract.ts`. An earlier
+revision claimed an index needs a pilot mapping, and claimed the frontend's CSS import blocks the
+extractor — `apps/wiki/cli/src/relationships/typescript.ts:401` classifies a compiler-supported ambient
+import as `ambient-non-code`. **Both claims are withdrawn**, here and in task 12. Section 12 assigns
+the index to 050-7-b with the checker command.
 
 `bin/tool-wiki-lint.sh:21` prints `{"schemaVersion":1,"status":"inactive",…}` and exits 0 when
-`TOOL_WIKI_ACTIVATION_ROOT` names nothing **and** `TOOL_WIKI_REQUIRE_CERTIFIED` is `0` (its default);
-with that variable set to `1` the same state exits 78 (`bin/tool-wiki-lint.sh:19`). So the `tool-wiki`
-tick on a local commit means the launcher refused nothing, not that a validator ran.
+`TOOL_WIKI_ACTIVATION_ROOT` names nothing and `TOOL_WIKI_REQUIRE_CERTIFIED` is `0` (its default); with
+that variable `1`, the same state exits 78 (`bin/tool-wiki-lint.sh:19`). A `tool-wiki` tick on a local
+commit therefore means the launcher refused nothing, not that a validator ran.
 
-## 5. The state machine
+## 5. The shape
 
-Five states. The transition table is the contract, and it is repeated in the type's own JSDoc because
-that is where a reader of the code will look:
+[The design document](050-7-lifetime-slot-design.md) is the contract: five states, the event list, the
+eight invariants, and the two decisions — **notify from a microtask so no subscriber runs inside a
+transition**, and **recheck the generation after the disposal and after the factory**. Read it before
+the listings. What the packet adds is the exact code, the model test and the proofs.
 
-| From               | Event                                                   | To                       |
-| ------------------ | ------------------------------------------------------- | ------------------------ |
-| `empty`            | `open`                                                  | `live`                   |
-| `live`             | `replace` or `retire` accepted (**synchronously**)      | `retiring`               |
-| `retiring`         | the withdrawn runtime's disposal succeeded, build asked | `constructing`           |
-| `retiring`         | that disposal succeeded, `retire`                       | `empty`                  |
-| `retiring`         | that disposal rejected or outran its budget             | `fatal`, terminal        |
-| `retiring`         | the request was overtaken while the disposal ran        | refused as superseded    |
-| `constructing`     | the build succeeded                                     | `live`                   |
-| `constructing`     | the build failed; what it acquired was released         | `fatal`, not terminal    |
-| `constructing`     | the build failed and that release rejected or timed out | `fatal`, terminal        |
-| `fatal`, terminal  | any request                                             | refused with the refusal |
-| `fatal`, not term. | `replace`                                               | `constructing`           |
+Two consequences worth stating twice, because they change the interface:
 
-Three properties hold it together, and each has its own mutation in section 9:
-
-1. **Withdrawal is synchronous.** `replace` and `retire` withdraw publication and number the request
-   before they return their promise, so a reader cannot see a runtime the page has already given up
-   on, and a second trigger finds nothing current.
-2. **One transition at a time.** Each queues behind the previous one, so two disposals never overlap.
-3. **The generation is rechecked after the disposal**, which is the only await before construction.
-   `Acquire<S>` is synchronous, so there is nothing to recheck after it; a lifetime that ever needs an
-   asynchronous construction needs one more fence there, and the property test is what would say so.
-
-**Three checks were deleted rather than shipped unprovable.** A pre-queue fence, a post-construction
-fence and a microtask deferral all survived every mutation the planner could write, because ordinals
-are assigned synchronously and construction is synchronous: the post-disposal fence already decides
-every case they could. AGENTS.md R5 says a check that cannot fail is worse than none, so they are
-gone, and the surviving fence's comment says why there is only one.
+- **There is no `open`.** A lifetime's first runtime is a `replace` on an empty slot, awaited like any
+  other, so initial acquisition is bounded, queued and transactional. An `open` beside the queue was
+  how an initial partial acquisition leaked and how a queued replacement overwrote a live runtime.
+- **A service value is never a sentinel.** The queued request is a tagged union and so is the
+  transition's outcome (`{ kind: 'retired' } | { kind: 'published'; services: S }`), so `S` needs no
+  constraint and `createLifetimeSlot<null>()` behaves — there is a test.
 
 ## 6. File plan
+
+The design document is **already committed** by the planner and is not the executor's to write.
 
 | Path                                                                               | Slice | Create or modify | Note                                            |
 | ---------------------------------------------------------------------------------- | ----- | ---------------- | ----------------------------------------------- |
@@ -267,36 +215,31 @@ gone, and the surviving fence's comment says why there is only one.
 | `openspec/changes/adopt-frontend-lifetimes/proposal.md`                            | 1     | create           | 393 words, section 8.1                          |
 | `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` | 1     | create           | six requirements, each with a normative SHALL   |
 | `openspec/changes/adopt-frontend-lifetimes/tasks.md`                               | 1     | create           | 13 tasks; this packet ticks task 1              |
-| `openspec/changes/adopt-frontend-lifetimes/verify.md`                              | 1–4   | create, append   | every slice appends its own observations        |
+| `openspec/changes/adopt-frontend-lifetimes/verify.md`                              | 1–4   | create, append   | **every slice appends its own observations**    |
 | `apps/wbs/fe-01/src/runtime/lifetime-slot.ts`                                      | 2     | create           | the state machine                               |
-| `apps/wbs/fe-01/src/runtime/lifetime-slot.test.ts`                                 | 2     | create           | 19 named tests                                  |
-| `apps/wbs/fe-01/src/runtime/lifetime-slot.interleavings.test.ts`                   | 2     | create           | the `fast-check` scheduler property             |
+| `apps/wbs/fe-01/src/runtime/lifetime-slot.test.ts`                                 | 2     | create           | 24 named tests                                  |
+| `apps/wbs/fe-01/src/runtime/lifetime-slot.model.test.ts`                           | 2     | create           | the model-based `fast-check` test               |
 | `apps/wbs/fe-01/vitest.node-suites.ts`                                             | 2     | modify           | the two new entries, together                   |
 
-**Nine paths.** Nothing else — no module, no installer, no component, no `main.tsx`, no
-`package.json`, no `bun.lock`, no `docs/wiki-policy/`.
+**Nine paths.** Nothing else — no module, no installer, no component, no `main.tsx`, no manifest, no
+`docs/wiki-policy/`.
 
 ## 7. Slices
 
-Four slices. Each is one attempt, ends in one planner commit with the exact subject given, and begins
-with its own step 0.
+Four slices. Each is one attempt, ends in one planner commit with the exact subject given, begins with
+its own step 0, and **appends its own observations to `verify.md` before handing over**.
 
-**Dispatch.** The launcher is `/home/df/wd/puni/puni-plan/exec/run-executor.sh`; the planner runs it:
+**Dispatch.** The launcher is `/home/df/wd/puni/puni-plan/exec/run-executor.sh`:
 
 ```sh
 /home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-a-frontend-lifetimes-first <slice> <base> \
   --batch batch-6 --preserve evidence
 ```
 
-`--batch batch-6` is enough for the directory. **No `--network`** is needed by any slice: nothing here
-listens, dials or downloads, and the launcher warms the OpenSpec command before the attempt starts.
-Slice 4 is dispatched with `--seed <each earlier slice's preserved evidence directory>`, which the
-launcher merges into `$TMPDIR/evidence`.
-
-**Evidence.** Every log goes to `$TMPDIR/evidence` with a slice-specific name
-(`slice2-red.log`, `slice3-N4.log`, …), because that is the directory the launcher preserves.
-`verify.md` references those **basenames** and never an absolute clone, home or temporary path: it is
-published.
+**No `--network`** is needed by any slice. Slice 4 is dispatched with `--seed <each earlier slice's
+preserved evidence directory>`, which the launcher merges into `$TMPDIR/evidence`. Every log goes to
+`$TMPDIR/evidence` with a slice-specific name; `verify.md` references basenames only, never an absolute
+clone, home or temporary path, because it is published.
 
 ### Step 0 — at the start of every slice
 
@@ -306,8 +249,7 @@ published.
   git rev-parse HEAD; git status --short --untracked-files=all
   ```
 
-- [ ] Record the **sandbox unit command** baseline. Call its two numbers **F0** and **T0** for this
-      slice; every expectation below is relative to them:
+- [ ] Record the **sandbox unit command** baseline, and call its two numbers **F0** and **T0**:
 
   ```sh
   (cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts \
@@ -315,8 +257,7 @@ published.
     > "$TMPDIR/evidence/slice<N>-step0-unit.log" 2>&1; echo "exit=$?"
   ```
 
-  Expected: exit 0. **Never** run `wbs-fe-01:test:unit` or `wbs-fe-01:test`: three of their tests spawn
-  `bun` from Node and the sandbox refuses that with `spawnSync bun EPERM`.
+  Expected: exit 0. **Never** run `wbs-fe-01:test:unit` or `wbs-fe-01:test`.
 
 - [ ] In slices 1 and 4 only, record the OpenSpec baseline and call `summary.totals.items` **V0**:
 
@@ -329,8 +270,7 @@ published.
 
 Subject: `feat(fe-01): open the frontend lifetimes change`
 
-Pre-edit check: `openspec/changes/adopt-frontend-lifetimes/` does not exist. If it does, stop and read
-what is in it before writing anything.
+Pre-edit check: `openspec/changes/adopt-frontend-lifetimes/` does not exist.
 
 - [ ] Create the change **with the CLI**, never by hand:
 
@@ -340,10 +280,11 @@ what is in it before writing anything.
   ```
 
   Expected: exit 0, `Created change 'adopt-frontend-lifetimes' at openspec/changes/adopt-frontend-lifetimes/`,
-  and exactly one file created: `.openspec.yaml`, holding `schema: sdd-lean` and a `created:` date.
+  and exactly one file created: `.openspec.yaml`.
 
 - [ ] Write `proposal.md`, `specs/adopt-frontend-lifetimes/spec.md` and `tasks.md` **exactly** as
-      sections 8.1, 8.2 and 8.3 give them, then `verify.md` with a `## Slice 1` heading.
+      sections 8.1, 8.2 and 8.3 give them, then `verify.md` with a `## Slice 1` heading holding this
+      slice's commands and results.
 
 - [ ] Validate:
 
@@ -352,43 +293,36 @@ what is in it before writing anything.
     > "$TMPDIR/evidence/slice1-openspec-after.json" 2>&1; echo "exit=$?"
   ```
 
-  Expected: exit 0; `summary.totals.failed` is `0`; `summary.totals.items` is **V0 + 1**; and the entry
+  Expected: exit 0; `summary.totals.failed` is `0`; `summary.totals.items` is **V0 + 1**; the entry
   whose `id` is `adopt-frontend-lifetimes` has `"valid": true` and `"issues": []`. Read those fields
-  out of the JSON — an exit code alone does not say the new change was seen.
+  out of the JSON.
 
-- [ ] Format: `GSETTINGS_BACKEND=memory bunx prettier --check openspec/changes/adopt-frontend-lifetimes`
-      (`--write` first if it refuses; exit 0 afterwards).
+- [ ] `GSETTINGS_BACKEND=memory bunx prettier --check openspec/changes/adopt-frontend-lifetimes`.
 
-Hand over, **five** paths:
-
-```text
-?? openspec/changes/adopt-frontend-lifetimes/.openspec.yaml
-?? openspec/changes/adopt-frontend-lifetimes/proposal.md
-?? openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
-?? openspec/changes/adopt-frontend-lifetimes/tasks.md
-?? openspec/changes/adopt-frontend-lifetimes/verify.md
-```
-
-`F0`/`T0` must be unchanged by this slice.
+Hand over, **five** paths: `.openspec.yaml`, `proposal.md`,
+`specs/adopt-frontend-lifetimes/spec.md`, `tasks.md`, `verify.md`, all `??` under
+`openspec/changes/adopt-frontend-lifetimes/`. `F0`/`T0` unchanged by this slice.
 
 ### Slice 2 — the state machine, red then green
 
 Subject: `feat(fe-01): own one lifetime as a serialized state machine`
 
 Pre-edit check: `apps/wbs/fe-01/src/runtime/` does not exist, and
-`openspec/changes/adopt-frontend-lifetimes/proposal.md` does — if the second is missing, this slice was
-dispatched on the wrong base.
+`openspec/changes/adopt-frontend-lifetimes/proposal.md` does.
+
+- [ ] **Read [the design document](050-7-lifetime-slot-design.md) first.** The listings implement it;
+      a change that contradicts it is a stop, not a judgement call.
 
 - [ ] Write, in one step and before any run: `apps/wbs/fe-01/src/runtime/lifetime-slot.test.ts` exactly
-      as section 8.4; `apps/wbs/fe-01/src/runtime/lifetime-slot.interleavings.test.ts` exactly as
-      section 8.5; the **skeleton** `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` exactly as section
-      8.6; and **both** entries in `apps/wbs/fe-01/vitest.node-suites.ts`, in the list's sorted position
-      between `src/modules/preferences/preferences.resource.test.ts` and `src/test-tiers.test.ts`:
+      as section 8.4; `apps/wbs/fe-01/src/runtime/lifetime-slot.model.test.ts` exactly as section 8.5;
+      the **skeleton** `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` exactly as section 8.6; and both
+      entries in `apps/wbs/fe-01/vitest.node-suites.ts`, in the list's sorted position between
+      `src/modules/preferences/preferences.resource.test.ts` and `src/test-tiers.test.ts`:
 
   ```ts
   // The page's own lifetime ownership: plain TypeScript over DI Bag, no browser
   // global and no component, which is the whole point of rule F1.
-  'src/runtime/lifetime-slot.interleavings.test.ts',
+  'src/runtime/lifetime-slot.model.test.ts',
   'src/runtime/lifetime-slot.test.ts',
   ```
 
@@ -399,59 +333,62 @@ dispatched on the wrong base.
     > "$TMPDIR/evidence/slice2-red.log" 2>&1; echo "exit=$?"
   ```
 
-  Expected, observed by the planner: exit 1, `Test Files 2 failed (2)`, **`Tests 20 failed (20)`**,
-  every one of them on `Error: the lifetime slot is not implemented`. A run that says
-  `No test files found` means the suite entries are missing; a run that says `Tests no tests` means the
-  skeleton is missing. Either is a stop, not a red.
+  Expected, observed by the planner: exit 1, `Test Files 2 failed (2)`, **`Tests 25 failed (25)`**,
+  every one on `Error: the lifetime slot is not implemented`. `No test files found` means the suite
+  entries are missing; `Tests no tests` means the skeleton is missing. Either is a stop, not a red.
 
-- [ ] Replace the skeleton's body with section 8.7, keeping every
-      `eslint-disable-next-line @typescript-eslint/only-throw-error` and the comment above it that
-      names the boundary. Without those comments `lint` refuses the file: rethrowing a caught `unknown`
-      is `Expected an error object to be thrown`.
+- [ ] Replace the skeleton's body with section 8.7. Keep its one `eslint-disable` comment, inside
+      `refuse`, together with the comment above it that names the boundary: a value DI Bag already
+      threw is rethrown unchanged. Keep the `refusalSoFar()` accessor too, whose JSDoc says why the
+      terminal check is not the impossible condition the linter would otherwise read it as.
 
-- [ ] Green, twice — the directory, then the whole tier:
+- [ ] Green, twice — the directory, then the whole tier. Expected for the directory: exit 0,
+      `Test Files 2 passed (2)`, `Tests 25 passed (25)`, about 450 ms. Then the sandbox unit command:
+      exit 0, **F0 + 2** files and **T0 + 25** tests.
 
-  Expected for the directory: exit 0, `Test Files 2 passed (2)`, `Tests 20 passed (20)`, about 400 ms.
-  Then the sandbox unit command: exit 0, **F0 + 2** files and **T0 + 20** tests.
+- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0. Required here: the interface is a
+      generic whose members are readonly function-valued properties, and the scheduler's callbacks are
+      where the planner's drafts failed twice, both times `TS2345`: once on a `then` callback returning
+      a union of promises, and once on a disposal-mode parameter inferred as `never`.
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0. Required in this slice: it declares a
-      generic interface whose members are readonly function-valued properties, which is the shape batch
-      1's variance break had, and the scheduler's `then` callback is where the planner's first draft
-      failed (`TS2345 … Type 'Promise<Tracked | undefined>' is not assignable`).
+- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:lint` — exit 0. Import order is autofixable with
+      `bunx eslint --fix apps/wbs/fe-01/src/runtime`; the deprecated `waitAll`/`waitOne` are not, and
+      the listings already use `waitIdle`/`waitNext(1)`.
 
-- [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:lint` — exit 0. An import-order or Prettier complaint is
-      autofixable: `bunx eslint --fix apps/wbs/fe-01/src/runtime` and rerun. **`scheduler.waitAll()` is
-      not autofixable**: it is deprecated in fast-check 4.9.0 and the lint refuses it, which is why the
-      listing uses `waitIdle()`.
+- [ ] Append this slice's observations to `verify.md` under `## Slice 2`.
 
-Hand over, **four** paths:
+Hand over, **five** paths:
 
 ```text
-?? apps/wbs/fe-01/src/runtime/lifetime-slot.interleavings.test.ts
+?? apps/wbs/fe-01/src/runtime/lifetime-slot.model.test.ts
 ?? apps/wbs/fe-01/src/runtime/lifetime-slot.test.ts
 ?? apps/wbs/fe-01/src/runtime/lifetime-slot.ts
  M apps/wbs/fe-01/vitest.node-suites.ts
+ M openspec/changes/adopt-frontend-lifetimes/verify.md
 ```
 
-### Slice 3 — the twelve negatives
+### Slice 3 — the sabotages and the per-check mutations
 
-Subject: `test(fe-01): prove every lifetime check with its own mutation`
+Subject: `test(fe-01): prove the lifetime owner's checks and its model test`
 
 Pre-edit check: `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` exists and the directory is green.
 
-- [ ] For each row of section 9, in order: copy the passing file to `$TMPDIR`, inject **that fault
-      alone**, run `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime)`,
-      record the counts and the named test's diagnostic, restore with `cp`, and prove the restore with
-      `cmp` before asserting on any captured status.
+- [ ] Run the **six sabotages** of section 9.1 first: they are what says the model test has teeth. Each
+      must fail; a sabotage that leaves the suite green is a stop.
 
-- [ ] Write each fault's adjacent dated `Proof:` comment into `lifetime-slot.ts` on the line it was
-      injected into, naming the fault and the observed test — the format
-      `apps/wbs/be-01/src/boot.ts:94` uses.
+- [ ] Then the **eight per-check mutations** of section 9.2, each alone.
 
-- [ ] Green again after the comments: `Tests 20 passed (20)`, then `wbs-fe-01:lint` and
-      `wbs-fe-01:typecheck`, exit 0 each.
+- [ ] For every one: copy the passing file to `$TMPDIR`, inject, run
+      `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime)`, run
+      `wbs-fe-01:typecheck` (every mutation here compiles — a mutation that does not is a stop), record
+      the counts and the named test's diagnostic, restore with `cp`, and prove the restore with `cmp`
+      before asserting on any captured status. Save each patch with the block in section 9.
 
-- [ ] Append every observation to `verify.md` under `## Slice 3`.
+- [ ] Write each mutation's adjacent dated `Proof:` comment into `lifetime-slot.ts`, naming the fault
+      and the observed test — the format `apps/wbs/be-01/src/boot.ts:94` uses.
+
+- [ ] Green again after the comments; `wbs-fe-01:lint` and `wbs-fe-01:typecheck` exit 0; append
+      everything to `verify.md` under `## Slice 3`.
 
 Hand over, two paths: ` M apps/wbs/fe-01/src/runtime/lifetime-slot.ts` and
 ` M openspec/changes/adopt-frontend-lifetimes/verify.md`.
@@ -462,21 +399,18 @@ Subject: `docs(fe-01): record the lifetime owner as done`
 
 Dispatched with `--seed` for each earlier slice's preserved evidence directory.
 
-- [ ] Tick **task 1** in `openspec/changes/adopt-frontend-lifetimes/tasks.md` — `- [x]` — and nothing
-      else. Tasks 2 to 13 stay open and are the next packets' (section 12).
+- [ ] Tick **task 1** in `tasks.md` — `- [x]` — and nothing else.
 
-- [ ] Append a `## Slice 4` section to `verify.md` holding the failure-proof table of section 9 with
-      **the diagnostics the earlier attempts observed**, each row naming the attempt and the evidence
-      basename it came from. Do not claim any proof ran in this slice.
+- [ ] Append `## Slice 4` to `verify.md`: the failure-proof tables of section 9 with the diagnostics
+      **the earlier attempts observed**, each row naming the attempt and the evidence basename. Do not
+      claim any proof ran in this slice.
 
-- [ ] Re-validate. Expected: exit 0, `failed: 0`, `adopt-frontend-lifetimes` still `valid: true`, and
-      `summary.totals.items` equal to **this slice's own V0** — ticking a checkbox adds no item.
+- [ ] Re-validate: exit 0, `failed: 0`, this change still `valid: true`, and `summary.totals.items`
+      equal to **this slice's own V0** — ticking a checkbox adds no item.
 
-- [ ] `GSETTINGS_BACKEND=memory bunx prettier --check` over every path this packet owns; then
-      `wbs-fe-01:lint` and `wbs-fe-01:typecheck` once more, both exit 0.
+- [ ] `prettier --check` every owned path; `wbs-fe-01:lint` and `wbs-fe-01:typecheck` exit 0.
 
-- [ ] Print the cumulative diff, **scoped to the paths this packet owns**, so a revised packet file
-      committed by the planner cannot change the answer:
+- [ ] Print the cumulative diff, scoped to the paths this packet owns:
 
   ```sh
   git diff --name-only <slice-1 base> -- apps/wbs/fe-01 openspec/changes/adopt-frontend-lifetimes
@@ -490,7 +424,7 @@ Hand over: ` M openspec/changes/adopt-frontend-lifetimes/tasks.md` and
 ## 8. The code, rehearsed
 
 Every listing is the post-Prettier text of a file that was written, run, type-checked, linted and
-committed in the planner's worktree. Copy them exactly.
+committed in the planner's worktree.
 
 ### 8.1 `openspec/changes/adopt-frontend-lifetimes/proposal.md`
 
@@ -550,9 +484,7 @@ selection, and the router instance that survives a session update.
 
 ### 8.2 `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md`
 
-Six requirements. Validated as given: `valid: true`, no issues. Every `### Requirement:` carries a
-normative SHALL sentence directly under it, and every scenario uses four hashtags with real WHEN and
-THEN bullets.
+Six requirements, validated as given: `valid: true`, no issues.
 
 ```markdown
 ## ADDED Requirements
@@ -773,24 +705,23 @@ fails, no bootstrap SHALL be attempted and the fatal state SHALL be shown.
       selected project, replacing the per-effect ownership under `WbsTable`.
 - [ ] 11. Project switch, route unmount and Strict Mode re-entry each replace all
       project ownership; a stale completion changes nothing.
-- [ ] 12. Each module has its own isolated type check and its graph check, and the
+- [ ] 12. Each module has its own isolated type check and its graph check, and every
+      module directory carries a validated wiki index and a `contract.ts`. The
       preferences module's public `preferences` resource — kept only for
       `src/lib/remembered.ts`'s per-project layout stores — moves behind a feature of
-      its own or is recorded as accepted debt with its one caller named. The wiki
-      module index for the six frontend modules is closed here too: it needs a
-      `docs/wiki-policy/modules.json` identity, which is why MOD-LAYOUT records
-      `debt` for all six today.
+      its own or is recorded as accepted debt with its one caller named. Existing
+      trusted pilot mappings are preserved untouched.
 - [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
 ```
 
 ### 8.4 `apps/wbs/fe-01/src/runtime/lifetime-slot.test.ts`
 
-The collaborators are **real DI Bag graphs** with chosen disposers, not hand-written `close` functions
-that reject: the refusals under test are `DiBagCleanupError` and `DiBagCloseCancelledError`, and a stub
-would prove the slot against a shape the library never produces. Each fixture records its close count,
-the `timeoutMs` it was given, and the slot's status **as seen from inside its own disposer**, which is
-what makes the ordering and budget checks breakable.
+Real DI Bag graphs with chosen disposers, not hand-written `close` functions that reject: the refusals
+under test are `DiBagCleanupError` and `DiBagCloseCancelledError`. Each fixture records its close
+count, the `timeoutMs` it was given, and the slot's status **as seen from inside its own disposer**;
+the re-entrancy tests count **factory calls**, because a close count of zero does not say whether a
+runtime was ever built.
 
 ```ts
 import { DiBag } from 'di-bag';
@@ -831,6 +762,9 @@ function deferred(): Deferred {
 /** What a built runtime recorded about its own disposal, for the assertions below. */
 interface RuntimeRecord {
   readonly runtime: RetirableRuntime<NamedServices>;
+  readonly name: () => string;
+  /** How many times a factory handed this runtime out; 0 means it never built. */
+  readonly builds: () => number;
   readonly closes: () => number;
   readonly budgets: () => readonly number[];
   readonly seenWhileDisposing: () => readonly string[];
@@ -852,12 +786,16 @@ function runtimeNamed(
   watch?: () => string,
 ): RuntimeRecord {
   let closes = 0;
+  let builds = 0;
   const budgets: number[] = [];
   const seen: string[] = [];
   const bag = DiBag.createBuilder()
     .register({
       owned: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): NamedServices => ({ name })),
+        DiBag.fromSyncFactory((): NamedServices => {
+          builds += 1;
+          return { name };
+        }),
         async () => {
           closes += 1;
           if (watch !== undefined) seen.push(watch());
@@ -868,6 +806,8 @@ function runtimeNamed(
     .build();
   const services = bag.resolve('owned');
   return {
+    name: () => name,
+    builds: () => builds,
     runtime: {
       services,
       close: (options) => {
@@ -929,31 +869,119 @@ const refuses = (): Promise<void> => Promise.reject(new Error('the disposer refu
 const neverSettles = (): Promise<void> => new Promise<void>(() => undefined);
 
 describe('one lifetime’s ownership', () => {
-  it('publishes the runtime it opened', () => {
+  it('publishes the first runtime through the same transaction as any other', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles);
 
-    const services = slot.open(() => first.runtime);
+    const services = await slot.replace(() => first.runtime);
 
+    // There is no synchronous `open`: the first publication is a replacement on
+    // an empty slot, so initial acquisition is bounded, queued and transactional
+    // like every other. An `open` beside the queue was how an initial partial
+    // acquisition leaked and how a queued replacement overwrote a live runtime.
     expect(services.name).toBe('first');
     expect(slot.snapshot()).toEqual({ status: 'live', services });
   });
 
-  it('refuses a second open, because nothing would be left holding the first close', () => {
+  it('releases a first construction that fails halfway, and stays buildable', async () => {
     const slot = createLifetimeSlot<NamedServices>();
-    slot.open(() => runtimeNamed('first', settles).runtime);
+    const partial = acquiresThenThrows(settles);
+
+    await expect(slot.replace(partial.acquire)).rejects.toBeInstanceOf(PartialAcquisitionError);
+
+    expect(partial.acquired()).toBe(1);
+    expect(partial.released()).toBe(1);
+    const fatal = slot.snapshot();
+    expect(fatal.status === 'fatal' ? fatal.terminal : true).toBe(false);
+    const second = runtimeNamed('second', settles);
+    await expect(slot.replace(() => second.runtime)).resolves.toEqual({ name: 'second' });
+  });
+
+  it('never overwrites a runtime a queued request is about to publish', async () => {
+    const slot = createLifetimeSlot<NamedServices>();
+    const first = runtimeNamed('first', settles);
     const second = runtimeNamed('second', settles);
 
-    expect(() => slot.open(() => second.runtime)).toThrow(
-      'a lifetime slot that is live cannot be opened again',
-    );
-    expect(second.closes()).toBe(0);
+    // Both requests reach an empty slot in the same tick. The queue is what makes
+    // the second retire the first instead of replacing it in place.
+    let firstFactoryCalls = 0;
+    const outcomes = await Promise.allSettled([
+      slot.replace(() => {
+        firstFactoryCalls += 1;
+        return first.runtime;
+      }),
+      slot.replace(() => second.runtime),
+    ]);
+
+    expect(outcomes[1].status).toBe('fulfilled');
+    expect(slot.snapshot()).toEqual({ status: 'live', services: { name: 'second' } });
+    // Either the first was never asked for, or it was given back: never both live.
+    expect(first.closes()).toBe(firstFactoryCalls);
+  });
+
+  it('cannot be superseded by a subscriber running inside a transition', async () => {
+    const slot = createLifetimeSlot<NamedServices>();
+    await slot.replace(() => runtimeNamed('first', settles).runtime);
+    const second = runtimeNamed('second', settles);
+    const third = runtimeNamed('third', settles);
+    const handedOut = new Map<string, number>();
+    const handOut = (record: RuntimeRecord) => () => {
+      handedOut.set(record.name(), (handedOut.get(record.name()) ?? 0) + 1);
+      return record.runtime;
+    };
+    // A holder, not a `let`: the compiler would otherwise narrow a variable only
+    // assigned inside the listener to `null` and refuse the await below.
+    const reentrant: { promise: Promise<NamedServices> | null } = { promise: null };
+    let asked = false;
+    slot.subscribe(() => {
+      if (asked) return;
+      asked = true;
+      // The reentry round 3 found: a listener asking for another replacement from
+      // inside a state change. It must arrive between steps, never inside one.
+      reentrant.promise = slot.replace(handOut(third));
+    });
+
+    await slot.replace(handOut(second)).catch(() => undefined);
+    if (reentrant.promise !== null) await reentrant.promise.catch(() => undefined);
+
+    const live = slot.snapshot();
+    expect(live.status).toBe('live');
+    // Every runtime a factory handed out is either the live one or was closed
+    // exactly once. That is the invariant the leak broke.
+    for (const record of [second, third]) {
+      const handed = handedOut.get(record.name()) ?? 0;
+      if (handed === 0) continue;
+      const isLive = live.status === 'live' && live.services.name === record.name();
+      expect(record.closes(), `${record.name()} accounting`).toBe(isLive ? 0 : 1);
+    }
+  });
+
+  it('gives back a runtime whose own factory asked for another replacement', async () => {
+    const slot = createLifetimeSlot<NamedServices>();
+    await slot.replace(() => runtimeNamed('first', settles).runtime);
+    const second = runtimeNamed('second', settles);
+    const third = runtimeNamed('third', settles);
+    const reentrant: { promise: Promise<NamedServices> | null } = { promise: null };
+
+    let secondFactoryCalls = 0;
+    const superseded = slot.replace(() => {
+      secondFactoryCalls += 1;
+      reentrant.promise = slot.replace(() => third.runtime);
+      return second.runtime;
+    });
+
+    await expect(superseded).rejects.toBeInstanceOf(TransitionSupersededError);
+    await expect(reentrant.promise).resolves.toEqual({ name: 'third' });
+    // It was handed out — a factory cannot be stopped once it is running — so the
+    // fence after the factory is what gives it back.
+    expect(secondFactoryCalls).toBe(1);
+    expect(second.closes()).toBe(1);
   });
 
   it('is still withdrawn while its disposer runs, so nothing late can be read', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles, () => slot.snapshot().status);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     await slot.retire();
 
@@ -969,14 +997,16 @@ describe('one lifetime’s ownership', () => {
     slot.subscribe(() => {
       seen.push(slot.snapshot().status);
     });
-    slot.open(() => runtimeNamed('first', settles).runtime);
+    await slot.replace(() => runtimeNamed('first', settles).runtime);
 
     const replaced = await slot.replace(() => runtimeNamed('second', settles).runtime);
 
-    // The `open` above is the first entry: what matters is that `retiring` and
-    // then `constructing` come before the replacement, so no reader can ever see
-    // two live runtimes, and the states say which half of the transition is running.
-    expect(seen).toEqual(['live', 'retiring', 'constructing', 'live']);
+    // Three notifications, not four: notification is deferred to a microtask and
+    // coalesced, so `constructing` is a state a `snapshot()` can read but not
+    // necessarily one every subscriber is woken for. What matters is the order —
+    // `retiring` is published before the replacement — and that no subscriber ever
+    // runs inside a transition step. See {@link createLifetimeSlot}.
+    expect(seen).toEqual(['live', 'retiring', 'live']);
     expect(replaced.name).toBe('second');
     expect(slot.snapshot()).toEqual({ status: 'live', services: replaced });
   });
@@ -985,7 +1015,7 @@ describe('one lifetime’s ownership', () => {
     const slot = createLifetimeSlot<NamedServices>();
     const pending = deferred();
     const first = runtimeNamed('first', () => pending.promise);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     const both = Promise.all([slot.retire(), slot.retire()]);
     await new Promise((resolve) => {
@@ -1005,7 +1035,7 @@ describe('one lifetime’s ownership', () => {
   it('gives the retirement the production budget when it is built with none', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     await slot.retire();
 
@@ -1020,7 +1050,7 @@ describe('one lifetime’s ownership', () => {
     const first = runtimeNamed('first', settles);
     const second = runtimeNamed('second', settles);
     const third = runtimeNamed('third', settles);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     const outcomes = await Promise.allSettled([
       slot.replace(() => second.runtime),
@@ -1046,7 +1076,7 @@ describe('one lifetime’s ownership', () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles);
     const second = runtimeNamed('second', settles);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     await slot.replace(() => second.runtime);
     await slot.retire();
@@ -1058,7 +1088,7 @@ describe('one lifetime’s ownership', () => {
 
   it('refuses the replacement when the required retirement fails, and says so sanitized', async () => {
     const slot = createLifetimeSlot<NamedServices>();
-    slot.open(() => runtimeNamed('first', refuses).runtime);
+    await slot.replace(() => runtimeNamed('first', refuses).runtime);
     const second = runtimeNamed('second', settles);
     let built = 0;
 
@@ -1081,7 +1111,7 @@ describe('one lifetime’s ownership', () => {
 
   it('refuses every later transition of a slot whose retirement failed', async () => {
     const slot = createLifetimeSlot<NamedServices>();
-    slot.open(() => runtimeNamed('first', refuses).runtime);
+    await slot.replace(() => runtimeNamed('first', refuses).runtime);
     await expect(slot.replace(() => runtimeNamed('second', settles).runtime)).rejects.toThrow(
       'DI_BAG_CLEANUP_FAILED',
     );
@@ -1095,7 +1125,7 @@ describe('one lifetime’s ownership', () => {
 
   it('refuses a request that was already queued when the disposal failed', async () => {
     const slot = createLifetimeSlot<NamedServices>();
-    slot.open(() => runtimeNamed('first', refuses).runtime);
+    await slot.replace(() => runtimeNamed('first', refuses).runtime);
     const second = runtimeNamed('second', settles);
     const third = runtimeNamed('third', settles);
 
@@ -1118,7 +1148,7 @@ describe('one lifetime’s ownership', () => {
     // 50ms and not the production budget: the fault is the disposer that never
     // settles, and waiting the real five seconds for it proves nothing more.
     const slot = createLifetimeSlot<NamedServices>(50);
-    slot.open(() => runtimeNamed('first', neverSettles).runtime);
+    await slot.replace(() => runtimeNamed('first', neverSettles).runtime);
     let built = 0;
 
     await expect(
@@ -1139,7 +1169,7 @@ describe('one lifetime’s ownership', () => {
   it('observes a late disposal that finishes after the wait expired, without publishing anything', async () => {
     const slot = createLifetimeSlot<NamedServices>(50);
     const pending = deferred();
-    slot.open(() => runtimeNamed('first', () => pending.promise).runtime);
+    await slot.replace(() => runtimeNamed('first', () => pending.promise).runtime);
     await expect(slot.replace(() => runtimeNamed('second', settles).runtime)).rejects.toThrow(
       'DI_BAG_CLOSE_TIMEOUT',
     );
@@ -1156,7 +1186,7 @@ describe('one lifetime’s ownership', () => {
   it('observes a late disposal that fails after the wait expired', async () => {
     const slot = createLifetimeSlot<NamedServices>(50);
     const pending = deferred();
-    slot.open(() => runtimeNamed('first', () => pending.promise).runtime);
+    await slot.replace(() => runtimeNamed('first', () => pending.promise).runtime);
     await expect(slot.retire()).rejects.toThrow('DI_BAG_CLOSE_TIMEOUT');
 
     pending.refuse();
@@ -1169,7 +1199,7 @@ describe('one lifetime’s ownership', () => {
   it('is fatal but not terminal when the replacement’s construction throws', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     await expect(
       slot.replace((): RetirableRuntime<NamedServices> => {
@@ -1188,24 +1218,24 @@ describe('one lifetime’s ownership', () => {
     await expect(slot.replace(() => third.runtime)).resolves.toEqual({ name: 'third' });
   });
 
-  it('withdraws publication synchronously, before the first await', () => {
+  it('withdraws publication synchronously, before the first await', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
 
     const replacing = slot.replace(() => runtimeNamed('second', settles).runtime);
 
     // Read before any await: the map requires withdrawal to be synchronous, and a
     // slot that withdrew inside its queued transition would still say `live` here.
     expect(slot.snapshot()).toEqual({ status: 'retiring' });
-    return replacing.then(() => undefined);
+    await replacing;
   });
 
   it('does not build for a request that a newer one overtook during the disposal', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const pending = deferred();
     const first = runtimeNamed('first', () => pending.promise);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
     let secondBuilds = 0;
     let thirdBuilds = 0;
 
@@ -1236,7 +1266,7 @@ describe('one lifetime’s ownership', () => {
   it('releases what a half-finished construction acquired, and stays buildable', async () => {
     const slot = createLifetimeSlot<NamedServices>();
     const first = runtimeNamed('first', settles);
-    slot.open(() => first.runtime);
+    await slot.replace(() => first.runtime);
     const partial = acquiresThenThrows(settles);
 
     // The wrapper, not the cause: it is what says something was acquired, and the
@@ -1260,7 +1290,7 @@ describe('one lifetime’s ownership', () => {
 
   it('is terminal when the half-finished construction cannot be released', async () => {
     const slot = createLifetimeSlot<NamedServices>(50);
-    slot.open(() => runtimeNamed('first', settles).runtime);
+    await slot.replace(() => runtimeNamed('first', settles).runtime);
     const partial = acquiresThenThrows(refuses);
 
     await expect(slot.replace(partial.acquire)).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
@@ -1271,69 +1301,184 @@ describe('one lifetime’s ownership', () => {
     await expect(slot.replace(() => third.runtime)).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
     expect(third.closes()).toBe(0);
   });
+
+  it('publishes a service contract that is itself null', async () => {
+    // `S` is unconstrained, and no service value is ever a sentinel: the queued
+    // request and the transition's outcome are both tagged, so a lifetime whose
+    // published contract is literally `null` behaves like any other.
+    const slot = createLifetimeSlot<null>();
+    const bag = DiBag.createBuilder()
+      .register({ owned: DiBag.fromSyncFactory((): null => null) })
+      .build();
+
+    await expect(
+      slot.replace(() => ({
+        services: bag.resolve('owned'),
+        close: (options) => bag.close(options),
+      })),
+    ).resolves.toBe(null);
+    expect(slot.snapshot()).toEqual({ status: 'live', services: null });
+  });
+
+  it('is terminal when a half-finished construction outruns its release budget', async () => {
+    const slot = createLifetimeSlot<NamedServices>(50);
+    await slot.replace(() => runtimeNamed('first', settles).runtime);
+    const pending = deferred();
+    const partial = acquiresThenThrows(() => pending.promise);
+
+    await expect(slot.replace(partial.acquire)).rejects.toThrow('DI_BAG_CLOSE_TIMEOUT');
+
+    const fatal = slot.snapshot();
+    expect(fatal.status === 'fatal' ? fatal.terminal : false).toBe(true);
+    // The release is still running, and the slot still holds the promise that
+    // says how it ends — a timeout is not cancellation here either.
+    expect(slot.lateOutcome()).toBe('pending');
+    pending.settle();
+    await slot.lateCleanup();
+    expect(slot.lateOutcome()).toBe('settled');
+    expect(slot.snapshot().status).toBe('fatal');
+  });
 });
 ```
 
-### 8.5 `apps/wbs/fe-01/src/runtime/lifetime-slot.interleavings.test.ts`
+### 8.5 `apps/wbs/fe-01/src/runtime/lifetime-slot.model.test.ts`
 
 ```ts
 import { DiBag } from 'di-bag';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { createLifetimeSlot, type RetirableRuntime } from './lifetime-slot';
+import {
+  createLifetimeSlot,
+  type LifetimeSlot,
+  PartialAcquisitionError,
+  type RetirableRuntime,
+} from './lifetime-slot';
 
-/**
- * What one generated runtime is: a name, and a record of what happened to it.
- *
- * The record is the whole point. The invariants below are about acquisition and
- * disposal counts, not about return values: a runtime that was built and never
- * closed is the defect two rounds of hand-written tests missed.
- */
+/** What one generated runtime is, and what the world did to it. */
 interface Tracked {
   readonly name: string;
+  /** How many times a factory handed this runtime out. */
   acquisitions: number;
-  disposals: number;
+  /** How many times its bounded close was **invoked** — attempted, not completed. */
+  closeCalls: number;
+  /** How many of those completed, either way. */
+  closeSettles: number;
 }
 
-/** One generated request against the slot. */
+/**
+ * The reference implementation of the ownership rule.
+ *
+ * Deliberately not a simulator of the slot's schedule: which of several
+ * overtaking requests reaches its factory depends on timing, and a model that
+ * predicted that would be the implementation twice. It records what happened
+ * instead and states the rule as invariants that must hold at every observation
+ * point, including inside callbacks.
+ */
+class Ownership {
+  readonly runtimes: Tracked[] = [];
+  /** Names published, in order. The last one is what a reader is looking at. */
+  readonly published: string[] = [];
+  /** How many disposals are running right now; serialization means never two. */
+  disposing = 0;
+  maxConcurrentDisposals = 0;
+  /**
+   * For each replace request: its ordinal, how many requests existed when its
+   * factory ran, and what it ended up doing.
+   *
+   * A request whose factory ran while a newer request already existed must not
+   * publish — it may have acquired something, because a factory that asks for
+   * another replacement itself cannot be stopped before it runs, but then it has
+   * to give that runtime back, which invariant 2 checks.
+   */
+  readonly builds: { readonly ordinal: number; readonly issuedWhenBuilt: number }[] = [];
+  /** True once a disposal or a partial release failed: the slot is terminal from then on. */
+  terminal = false;
+  /** The outcome each issued request is still waiting for. */
+  readonly outcomes: { readonly ordinal: number; outcome: 'pending' | 'done' | 'refused' }[] = [];
+
+  track(name: string): Tracked {
+    const record: Tracked = { name, acquisitions: 0, closeCalls: 0, closeSettles: 0 };
+    this.runtimes.push(record);
+    return record;
+  }
+
+  /** Every acquired runtime is either the live one or has had exactly one close attempt. */
+  ownershipIsAccountedFor(live: string | null): void {
+    for (const runtime of this.runtimes) {
+      if (runtime.acquisitions === 0) continue;
+      const expected = runtime.name === live ? 0 : 1;
+      expect(
+        runtime.closeCalls,
+        `${runtime.name}: ${String(runtime.acquisitions)} acquisitions, ${String(runtime.closeCalls)} close attempts, live=${String(live)}`,
+      ).toBe(expected);
+      expect(runtime.acquisitions, `${runtime.name} was acquired twice`).toBe(1);
+    }
+  }
+}
+
+/** A generated request against the slot. */
 type Command =
-  { readonly kind: 'replace'; readonly settles: boolean } | { readonly kind: 'retire' };
+  | {
+      readonly kind: 'replace';
+      /** How this runtime's disposer behaves when it is eventually retired. */
+      readonly disposal: 'settles' | 'rejects' | 'never';
+      /** Whether its factory acquires one resource and then throws. */
+      readonly partial: boolean;
+      /** Whether it asks for another replacement from inside the factory or a listener. */
+      readonly reentry: 'none' | 'factory' | 'listener';
+    }
+  | { readonly kind: 'retire' }
+  | { readonly kind: 'settle' };
 
 const commandArb: fc.Arbitrary<Command> = fc.oneof(
-  fc.record({ kind: fc.constant('replace' as const), settles: fc.boolean() }),
-  fc.record({ kind: fc.constant('retire' as const) }),
+  { arbitrary: fc.constant<Command>({ kind: 'retire' }), weight: 1 },
+  { arbitrary: fc.constant<Command>({ kind: 'settle' }), weight: 2 },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('replace' as const),
+      disposal: fc.constantFrom('settles' as const, 'rejects' as const, 'never' as const),
+      partial: fc.boolean(),
+      reentry: fc.constantFrom('none' as const, 'factory' as const, 'listener' as const),
+    }),
+    weight: 4,
+  },
 );
 
 /**
- * The interleaving property: one serialized owner, whatever order promises settle in.
+ * The ownership rule, under generated command sequences and scheduled promises.
  *
- * `fc.scheduler()` owns two orderings at once — when each request is **issued**
- * and when each disposal **finishes** — so a request can arrive in the middle of
- * the previous runtime's disposal. That interval is what two rounds of
- * hand-written tests could not reach: a test that makes both requests before the
- * first disposal starts exercises one interleaving out of many, and the fence
- * that only runs before the first `await` passes it.
- *
- * Deterministic on purpose: `seed` and `numRuns` are pinned so the executor sees
- * the same interleavings the planner saw.
+ * The budget is 1 ms and a `never` disposer therefore always times out: the
+ * instant is not controlled, but the **outcome** is, and it is DI Bag's own
+ * `DiBagCloseCancelledError` rather than a hand-made rejection. Everything else
+ * that settles goes through `fc.scheduler()`, so the order of disposals,
+ * re-entrant requests and notifications is fast-check's to choose.
  */
-describe('one lifetime’s ownership, under every interleaving fast-check can find', () => {
-  it('never acquires a runtime for a superseded request, and abandons none it acquired', async () => {
+describe('the ownership rule, under generated interleavings', () => {
+  it('holds every invariant it claims', async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.scheduler(),
-        fc.array(commandArb, { minLength: 2, maxLength: 5 }),
+        fc.array(commandArb, { minLength: 2, maxLength: 7 }),
         async (scheduler, commands) => {
-          const slot = createLifetimeSlot<Tracked>(50);
-          const tracked: Tracked[] = [];
-          /** The newest request issued so far; a factory may only run for this one. */
-          let newest = 0;
-          /** Requests whose factory ran while a newer request already existed. */
-          const staleBuilds: string[] = [];
+          const world = new Ownership();
+          const slot: LifetimeSlot<Tracked> = createLifetimeSlot<Tracked>(1);
+          const pending: Promise<unknown>[] = [];
+          let issued = 0;
+          /** What a listener should do the next time it is notified, if anything. */
+          let listenerRequest: (() => void) | null = null;
+          slot.subscribe(() => {
+            const asked = listenerRequest;
+            if (asked === null) return;
+            listenerRequest = null;
+            asked();
+          });
 
-          const build = (name: string, settles: boolean): RetirableRuntime<Tracked> => {
-            const record: Tracked = { name, acquisitions: 0, disposals: 0 };
+          /** A real DI Bag runtime whose disposal settles when the scheduler says so. */
+          const buildRuntime = (
+            record: Tracked,
+            disposal: Extract<Command, { kind: 'replace' }>['disposal'],
+          ): RetirableRuntime<Tracked> => {
             const bag = DiBag.createBuilder()
               .register({
                 owned: DiBag.withDisposal(
@@ -1342,64 +1487,182 @@ describe('one lifetime’s ownership, under every interleaving fast-check can fi
                     return record;
                   }),
                   async () => {
+                    if (disposal === 'never') return new Promise<void>(() => undefined);
                     await scheduler.schedule(
-                      settles
+                      disposal === 'settles'
                         ? Promise.resolve()
-                        : Promise.reject(new Error(`${name} refused to dispose`)),
-                      `dispose ${name}`,
+                        : Promise.reject(new Error(`${record.name} refused to dispose`)),
+                      `dispose ${record.name}`,
                     );
-                    record.disposals += 1;
+                    return undefined;
                   },
                 ),
               })
               .build();
             const services = bag.resolve('owned');
-            tracked.push(record);
-            return { services, close: (options) => bag.close(options) };
+            return {
+              services,
+              close: async (options) => {
+                record.closeCalls += 1;
+                world.disposing += 1;
+                world.maxConcurrentDisposals = Math.max(
+                  world.maxConcurrentDisposals,
+                  world.disposing,
+                );
+                try {
+                  await bag.close(options);
+                } finally {
+                  world.disposing -= 1;
+                  record.closeSettles += 1;
+                }
+              },
+            };
           };
 
-          const opened = build('r0', true);
-          slot.open(() => opened);
+          /** A construction that acquires one resource and then throws, transactionally. */
+          const buildPartial = (record: Tracked): never => {
+            const bag = DiBag.createBuilder()
+              .register({
+                owned: DiBag.withDisposal(
+                  DiBag.fromSyncFactory((): Tracked => {
+                    record.acquisitions += 1;
+                    return record;
+                  }),
+                  async () => {
+                    await scheduler.schedule(Promise.resolve(), `release ${record.name}`);
+                    return undefined;
+                  },
+                ),
+              })
+              .build();
+            bag.resolve('owned');
+            throw new PartialAcquisitionError(
+              new Error(`${record.name} could not finish building`),
+              async (options) => {
+                record.closeCalls += 1;
+                world.disposing += 1;
+                world.maxConcurrentDisposals = Math.max(
+                  world.maxConcurrentDisposals,
+                  world.disposing,
+                );
+                try {
+                  await bag.close(options);
+                } finally {
+                  world.disposing -= 1;
+                  record.closeSettles += 1;
+                }
+              },
+            );
+          };
 
-          const issued = commands.map((command, at) =>
-            scheduler.schedule(Promise.resolve(), `issue ${String(at)}`).then(async () => {
-              const ordinal = (newest += 1);
-              if (command.kind === 'retire') {
-                await slot.retire().catch(() => undefined);
-                return;
-              }
-              await slot
+          const issueReplace = (command: Extract<Command, { kind: 'replace' }>): void => {
+            issued += 1;
+            const ordinal = issued;
+            const record = world.track(`r${String(ordinal)}`);
+            const entry = { ordinal, outcome: 'pending' as 'pending' | 'done' | 'refused' };
+            world.outcomes.push(entry);
+            if (command.reentry === 'listener') {
+              listenerRequest = () => {
+                issueReplace({
+                  kind: 'replace',
+                  disposal: 'settles',
+                  partial: false,
+                  reentry: 'none',
+                });
+              };
+            }
+            pending.push(
+              slot
                 .replace(() => {
-                  // The fence, asserted where it matters: a factory that runs for
-                  // a request a newer one has already replaced is the defect.
-                  if (ordinal !== newest) staleBuilds.push(`r${String(ordinal)}`);
-                  return build(`r${String(ordinal)}`, command.settles);
+                  if (command.reentry === 'factory') {
+                    issueReplace({
+                      kind: 'replace',
+                      disposal: 'settles',
+                      partial: false,
+                      reentry: 'none',
+                    });
+                  }
+                  world.builds.push({ ordinal, issuedWhenBuilt: issued });
+                  if (command.partial) return buildPartial(record);
+                  return buildRuntime(record, command.disposal);
                 })
-                .catch(() => undefined);
-            }),
-          );
+                .then(
+                  () => {
+                    entry.outcome = 'done';
+                    world.published.push(record.name);
+                  },
+                  () => {
+                    entry.outcome = 'refused';
+                  },
+                ),
+            );
+          };
+
+          for (const command of commands) {
+            if (command.kind === 'replace') {
+              issueReplace(command);
+            } else if (command.kind === 'retire') {
+              issued += 1;
+              const entry = {
+                ordinal: issued,
+                outcome: 'pending' as 'pending' | 'done' | 'refused',
+              };
+              world.outcomes.push(entry);
+              pending.push(
+                slot.retire().then(
+                  () => {
+                    entry.outcome = 'done';
+                  },
+                  () => {
+                    entry.outcome = 'refused';
+                  },
+                ),
+              );
+            } else if (scheduler.count() > 0) {
+              await scheduler.waitNext(1);
+            }
+          }
 
           await scheduler.waitIdle();
-          await Promise.all(issued);
+          await Promise.all(pending);
           await scheduler.waitIdle();
 
           const held = slot.snapshot();
-          const live = held.status === 'live' ? held.services : null;
+          const live = held.status === 'live' ? held.services.name : null;
 
-          expect(staleBuilds, 'a superseded request acquired a runtime').toEqual([]);
-          for (const record of tracked) {
-            if (record === live) continue;
-            if (record.acquisitions === 0) continue;
-            // A fatal slot has stopped disposing on purpose: its refusal is the
-            // reason, and the late-cleanup promise is what accounts for the rest.
-            if (held.status === 'fatal') continue;
-            expect(record.disposals, `${record.name} was acquired and never disposed`).toBe(1);
+          // 1. One live runtime at most, and it is the last thing published.
+          if (live !== null) expect(world.published.at(-1)).toBe(live);
+          // 2. Ownership is accounted for, in every state including fatal.
+          world.ownershipIsAccountedFor(live);
+          // 3. Disposals never overlap: that is what the queue is for.
+          expect(world.maxConcurrentDisposals, 'two disposals overlapped').toBeLessThanOrEqual(1);
+          // 4. A request that was already superseded when its factory ran never
+          //    published. This is the fence, stated as an outcome.
+          for (const { ordinal, issuedWhenBuilt } of world.builds) {
+            if (issuedWhenBuilt <= ordinal) continue;
+            const entry = world.outcomes.find((candidate) => candidate.ordinal === ordinal);
+            expect(entry?.outcome, `request ${String(ordinal)} published while superseded`).toBe(
+              'refused',
+            );
           }
+          // 5. The latest request wins: unless the slot is fatal, the last request
+          //    issued got what it asked for, and no request is still pending.
+          expect(
+            world.outcomes.filter(({ outcome }) => outcome === 'pending'),
+            'a request never settled',
+          ).toEqual([]);
+          const fatal = held.status === 'fatal';
+          const last = world.outcomes.at(-1);
+          if (!fatal && last !== undefined) {
+            expect(last.outcome, 'the latest request did not win').not.toBe('refused');
+          }
+          // 6. A fatal slot holds nothing and publishes nothing after it.
+          if (fatal) expect(live).toBe(null);
         },
       ),
-      { seed: 20260922, numRuns: 500 },
+      { seed: 20260923, numRuns: 300 },
     );
-  }, 60_000);
+  }, 120_000);
 });
 ```
 
@@ -1424,8 +1687,7 @@ export function createLifetimeSlot<S>(budgetMs: number = RETIREMENT_BUDGET_MS): 
 ```
 
 Its only import is
-`import type { DisclosedFault } from '@/components/chrome/fault-disclosure';` — the skeleton uses
-neither `di-bag` nor `discloseFault`.
+`import type { DisclosedFault } from '@/components/chrome/fault-disclosure';`.
 
 ### 8.7 `apps/wbs/fe-01/src/runtime/lifetime-slot.ts`, whole
 
@@ -1462,9 +1724,9 @@ export interface RetirableRuntime<S> {
  * {@link PartialAcquisitionError} carrying the close for what it took. DI Bag
  * releases a partially acquired graph only through `close()` on the bag that
  * acquired it (measured: a factory that pushed a disposer and then threw left it
- * unrun until `bag.close()`), so a builder that resolves services one by one
- * has to keep that bag reachable. A builder that throws anything else is taken
- * at its word: it acquired nothing.
+ * unrun until `bag.close()`), so a builder that resolves services one by one has
+ * to keep that bag reachable. A builder that throws anything else is taken at
+ * its word: it acquired nothing.
  */
 export type Acquire<S> = () => RetirableRuntime<S>;
 
@@ -1487,7 +1749,7 @@ export class PartialAcquisitionError extends Error {
 }
 
 /**
- * A transition that a newer request replaced before it could acquire anything.
+ * A request that a newer one replaced before it could publish.
  *
  * Modelled and thrown rather than resolved with somebody else's services: three
  * project selections in one page still leave one runtime live, and the losers are
@@ -1503,21 +1765,20 @@ export class TransitionSupersededError extends Error {
 /**
  * What one lifetime slot holds, as one value delivery can select from.
  *
- * The five states and the transitions between them:
- *
- * | From           | Event                                                  | To                       |
- * | -------------- | ------------------------------------------------------ | ------------------------ |
- * | `empty`        | `open`                                                 | `live`                   |
- * | `live`         | `replace` or `retire` accepted (synchronously)          | `retiring`               |
- * | `retiring`     | the withdrawn runtime's disposal succeeded, build asked  | `constructing`           |
- * | `retiring`     | the withdrawn runtime's disposal succeeded, `retire`     | `empty`                  |
- * | `retiring`     | that disposal rejected or outran its budget              | `fatal`, terminal        |
- * | `constructing` | the build succeeded and is still the newest request      | `live`                   |
- * | `constructing` | the build succeeded but a newer request exists           | closed, `retiring` again |
- * | `constructing` | the build failed; what it acquired was released          | `fatal`, not terminal    |
- * | `constructing` | the build failed and that release rejected or timed out  | `fatal`, terminal        |
- * | `fatal` term.  | anything                                                | refused with the refusal |
- * | `fatal` not t. | `replace`                                               | `constructing`           |
+ * | From              | Event                                                  | To                       |
+ * | ----------------- | ------------------------------------------------------ | ------------------------ |
+ * | `empty`           | `replace` accepted                                     | `constructing`           |
+ * | `live`            | `replace` or `retire` accepted (**synchronously**)      | `retiring`               |
+ * | `retiring`        | the withdrawn runtime's disposal succeeded, build asked  | `constructing`           |
+ * | `retiring`        | that disposal succeeded, `retire`                        | `empty`                  |
+ * | `retiring`        | that disposal rejected or outran its budget              | `fatal`, terminal        |
+ * | `retiring`        | the request was overtaken while that disposal ran        | refused as superseded    |
+ * | `constructing`    | the build succeeded and is still the newest request      | `live`                   |
+ * | `constructing`    | the build succeeded but a re-entrant request overtook it  | closed, then superseded  |
+ * | `constructing`    | the build failed; what it acquired was released           | `fatal`, not terminal    |
+ * | `constructing`    | the build failed and that release rejected or timed out   | `fatal`, terminal        |
+ * | `fatal`, terminal | any request                                            | refused with the refusal |
+ * | `fatal`, not t.   | `replace`                                              | `constructing`           |
  *
  * `fatal` is what a reader is shown: the sanitized public report — the same
  * sentence and occurrence handle the root fault path discloses — because a
@@ -1547,26 +1808,25 @@ export type LateCleanup = 'none' | 'pending' | 'settled' | 'failed';
  *
  * A store (rule F2): `subscribe` and a `snapshot` that is stable until the slot
  * changes. It imports no React and holds no component state.
+ *
+ * **There is no synchronous first publication.** A lifetime's first runtime is a
+ * `replace` on an empty slot, which is awaited like any other: initial
+ * acquisition is bounded, transactional and queued exactly as a replacement is,
+ * because an `open` beside the queue was how an initial partial acquisition
+ * leaked and how a queued replacement came to overwrite a runtime nobody closed.
+ * The page's bootstrap awaits it before it creates the React root, which is what
+ * DI Bag's own React guide prescribes anyway.
  */
 export interface LifetimeSlot<S> {
   readonly subscribe: (listener: () => void) => () => void;
   readonly snapshot: () => LifetimeState<S>;
   /**
-   * Publish the first runtime of this lifetime.
-   *
-   * @throws when the slot is not empty. A second `open` would abandon a live
-   * runtime with nobody left holding its close; replacement goes through
-   * {@link LifetimeSlot.replace}, which retires first.
-   */
-  readonly open: (acquire: Acquire<S>) => S;
-  /**
    * Retire what is current and publish the replacement **only if** that
-   * retirement succeeded and no newer request has arrived meanwhile.
+   * disposal succeeded and no newer request arrived meanwhile.
    *
    * Publication is withdrawn **synchronously**, before this returns its promise.
    * Transitions then run one at a time, in request order, and the request's
-   * generation is rechecked after every await: after the queue, after the
-   * disposal, and after the construction.
+   * generation is rechecked after every await and after the factory returns.
    *
    * @throws the disposal's failure, leaving the slot terminally fatal and the
    * replacement never built — DI Bag's own React recipe reports and continues,
@@ -1601,22 +1861,34 @@ function lateCleanupOf(refusal: unknown): Promise<void> | null {
 type Request<S> =
   { readonly kind: 'retire' } | { readonly kind: 'replace'; readonly acquire: Acquire<S> };
 
+/** What one transition did; a tagged outcome, so no service value is ever a sentinel. */
+type Outcome<S> =
+  { readonly kind: 'retired' } | { readonly kind: 'published'; readonly services: S };
+
 /**
  * One lifetime's ownership, as a serialized state machine.
  *
- * Every trigger reaches one disposal: withdrawal is synchronous, so the second
- * trigger finds nothing current, and the queue keeps the disposal itself
- * single. The generation is rechecked after every await, which is what stops a
- * request that was overtaken **during** a disposal from acquiring a runtime
- * nobody would close. The interleaving property test is what proves that;
- * `fc.scheduler()` reaches orders a hand-written test does not.
+ * Three rules hold the ownership invariant, and each has its own mutation:
+ *
+ * 1. **Withdrawal is synchronous.** `replace` and `retire` withdraw publication
+ *    and number the request before they return, so a reader cannot see a runtime
+ *    the page has given up on, and a second trigger finds nothing current.
+ * 2. **One transition at a time**, so two disposals never overlap.
+ * 3. **Subscribers never run inside a transition.** `publish` mutates the state
+ *    synchronously — `snapshot()` is correct the instant a request is accepted —
+ *    but notifies from a microtask, coalescing. A subscriber that asks for
+ *    another replacement therefore always arrives *between* steps, where the
+ *    generation checks can see it, instead of in the middle of one. The
+ *    generation is rechecked after the disposal **and after the factory
+ *    returns**, because a factory can re-enter too, and a runtime built for a
+ *    request that lost while its factory ran is given back rather than published.
  */
 export function createLifetimeSlot<S>(
   /**
    * The bounded wait this slot gives a disposal, in milliseconds.
    *
    * Production takes {@link RETIREMENT_BUDGET_MS}; a test names a short one so
-   * the never-settling-disposer proof does not sit for five seconds. There is no
+   * the never-settling-disposer proofs do not sit for five seconds. There is no
    * other reason to pass it, and no lifetime here differs.
    */
   budgetMs: number = RETIREMENT_BUDGET_MS,
@@ -1628,17 +1900,51 @@ export function createLifetimeSlot<S>(
   let withdrawn: RetirableRuntime<S> | null = null;
   let late: Promise<void> | null = null;
   let lateEnded: LateCleanup = 'none';
-  /** The refusal that made this slot terminally fatal, rethrown to every later trigger. */
-  let refused: unknown = null;
+  /**
+   * The refusal that made this slot terminally fatal, rethrown to every later
+   * trigger.
+   *
+   * A holder rather than a `let`, and that is load-bearing: `refuse()` assigns it
+   * from another function, so the compiler narrows a plain variable to `null` for
+   * the whole of `transition` and `no-unnecessary-condition` then refuses the
+   * second check below as impossible — the very check whose removal let a queued
+   * request publish into a terminal slot.
+   */
+  const terminal: { refusal: unknown } = { refusal: null };
+  /**
+   * The refusal so far, read through a call.
+   *
+   * Not `terminal.refusal` inline: the compiler narrows that property to `null`
+   * for the whole of `transition` — `refuse()` assigns it from another function —
+   * and `no-unnecessary-condition` then refuses the second check in `transition`
+   * as impossible. It is not impossible: it is the check whose removal let a
+   * request that was already queued publish into a terminal slot.
+   */
+  const refusalSoFar = (): unknown => terminal.refusal;
   /** The transition currently running, so the next one queues behind it. */
   let running: Promise<unknown> | null = null;
   /** The newest accepted request; an older one that has not published yet is superseded. */
   let newest = 0;
+  /** True while a notification is already queued, so one microtask serves many changes. */
+  let notifying = false;
   const listeners = new Set<() => void>();
 
+  /**
+   * Changes the state now and tells subscribers later.
+   *
+   * The deferral is the reentry rule, not an optimisation: a listener invoked
+   * from inside a transition could request another replacement between the
+   * generation check and the factory call, and the runtime the factory then
+   * built would belong to nobody.
+   */
   const publish = (next: LifetimeState<S>): void => {
     state = next;
-    for (const listener of listeners) listener();
+    if (notifying) return;
+    notifying = true;
+    void Promise.resolve().then(() => {
+      notifying = false;
+      for (const listener of [...listeners]) listener();
+    });
   };
 
   /** Records a bounded wait that expired, and keeps watching what it stopped waiting for. */
@@ -1649,18 +1955,18 @@ export function createLifetimeSlot<S>(
     void late.then(
       () => {
         lateEnded = 'settled';
-        for (const listener of listeners) listener();
+        for (const listener of [...listeners]) listener();
       },
       () => {
         lateEnded = 'failed';
-        for (const listener of listeners) listener();
+        for (const listener of [...listeners]) listener();
       },
     );
   };
 
   /** Makes this slot terminally fatal, and hands the refusal on. */
   const refuse = (refusal: unknown): never => {
-    refused = refusal;
+    terminal.refusal = refusal;
     observeLate(refusal);
     publish({ status: 'fatal', fault: discloseFault(refusal), terminal: true });
     // The boundary: `refusal` is a value DI Bag already threw, rethrown unchanged
@@ -1681,30 +1987,23 @@ export function createLifetimeSlot<S>(
     }
   };
 
-  /** One queued transition, generation-checked after every await. */
-  const transition = async (request: Request<S>, ordinal: number): Promise<S | null> => {
+  /** One queued transition, generation-checked after every await and after the factory. */
+  const transition = async (request: Request<S>, ordinal: number): Promise<Outcome<S>> => {
     const ahead = running;
-    const mine = (async (): Promise<S | null> => {
+    const mine = (async (): Promise<Outcome<S>> => {
       // One transition at a time, in request order: the queue is what keeps two
-      // disposals from overlapping and what makes the fence below meaningful.
+      // disposals from overlapping and what makes the fences below meaningful.
       if (ahead !== null) await ahead.catch(() => undefined);
+      if (refusalSoFar() !== null) throw terminal.refusal;
+      // A disposal that fails throws from here, through `refuse`, so a second
+      // terminal check after it would be one no mutation could break.
       await disposeWithdrawn();
-      // **The fence**, after the only await that precedes construction. A request
-      // overtaken *while* the old runtime was letting go must not build: that
-      // interval is where a fence checked once at the top of a transition fails,
-      // and where a superseded request acquired a runtime nobody would close.
-      //
-      // Ordinals are assigned synchronously in `accept`, so a same-tick successor
-      // is already counted here and needs no extra deferral; and `Acquire<S>` is
-      // synchronous, so there is no await between this check and publication. A
-      // lifetime that ever needs asynchronous construction needs one more fence
-      // after it, and the interleaving property test is what would say so.
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
-      if (refused !== null) throw refused;
       if (request.kind === 'retire') {
         if (state.status === 'retiring') publish({ status: 'empty' });
-        return null;
+        return { kind: 'retired' };
       }
+      // Fence after the disposal: a request overtaken *while* the old runtime was
+      // letting go must not build.
       if (ordinal !== newest) throw new TransitionSupersededError(ordinal, newest);
       publish({ status: 'constructing' });
       let built: RetirableRuntime<S>;
@@ -1725,9 +2024,17 @@ export function createLifetimeSlot<S>(
 
         throw failure;
       }
+      // Fence after the factory: a factory may itself ask for another
+      // replacement, so what it built is given back rather than published.
+      if (ordinal !== newest) {
+        withdrawn = built;
+        publish({ status: 'retiring' });
+        await disposeWithdrawn();
+        throw new TransitionSupersededError(ordinal, newest);
+      }
       held = built;
       publish({ status: 'live', services: built.services });
-      return built.services;
+      return { kind: 'published', services: built.services };
     })();
     running = mine;
     try {
@@ -1738,12 +2045,10 @@ export function createLifetimeSlot<S>(
   };
 
   /**
-   * Accepts a request: refuses a terminal slot, withdraws publication **now**,
-   * and numbers the request so the fences can tell it from a newer one.
+   * Accepts a request: withdraws publication **now** and numbers the request so
+   * the fences can tell it from a newer one.
    */
   const accept = (): number => {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
-    if (refused !== null) throw refused;
     newest += 1;
     if (held !== null) {
       withdrawn = held;
@@ -1761,22 +2066,13 @@ export function createLifetimeSlot<S>(
       };
     },
     snapshot: () => state,
-    open: (acquire) => {
-      if (state.status !== 'empty') {
-        throw new Error(`a lifetime slot that is ${state.status} cannot be opened again`);
-      }
-      const opened = acquire();
-      held = opened;
-      publish({ status: 'live', services: opened.services });
-      return opened.services;
-    },
     replace: async (acquire) => {
       const ordinal = accept();
-      const published = await transition({ kind: 'replace', acquire }, ordinal);
-      if (published === null) {
-        throw new Error('a replacement transition published nothing');
+      const outcome = await transition({ kind: 'replace', acquire }, ordinal);
+      if (outcome.kind !== 'published') {
+        throw new Error('a replacement transition retired instead of publishing');
       }
-      return published;
+      return outcome.services;
     },
     retire: async () => {
       const ordinal = accept();
@@ -1788,56 +2084,70 @@ export function createLifetimeSlot<S>(
 }
 ```
 
-## 9. Negative proofs
+## 9. Proofs
 
-Twelve faults, each injected **alone**, each with the counts and the diagnostic the planner really
-observed on 2026-09-22 against the listings above. Copy the passing file to `$TMPDIR` first, save the
-mutation as a patch under `$TMPDIR/evidence`, restore with `cp` and prove the restore with `cmp`
-**before** asserting on any captured status. Never `rm` a scratch file.
-
-Save a patch with one command and check its status directly — **never** through a pipeline, because
-under `pipefail` Bash reports the rightmost status and a first command that exited 2 on a missing input
-then reads as a clean diff:
+Each fault is injected **alone**. Copy the passing file to `$TMPDIR` first, save the mutation as a
+patch under `$TMPDIR/evidence`, restore with `cp`, and prove the restore with `cmp` **before**
+asserting on any captured status. Never `rm` a scratch file. Save a patch with one command, and
+**stop** if its status is anything but 1 — a `diff` that failed for another reason must never become
+evidence:
 
 ```sh
 if out=$(diff -u "$TMPDIR/<name>.passing" "<the file>"); then
   printf 'the mutation changed nothing\n' >&2; exit 1
-else
-  status=$?; test "$status" -eq 1; printf '%s\n' "$out" > "$TMPDIR/evidence/<name>.patch"
 fi
+status=$?
+if [ "$status" -ne 1 ]; then printf 'diff failed: %s\n' "$status" >&2; exit "$status"; fi
+printf '%s\n' "$out" > "$TMPDIR/evidence/<name>.patch"
 ```
 
-A proof succeeds when the **named** test fails. Extra failures are recorded, not a stop; where one
-mutation fails several tests the row says which. Six of the twelve also fail the interleaving property,
-which is quoted where it does.
+Every fault below **compiles**: `wbs-fe-01:typecheck` exited 0 under each, rehearsed one at a time.
 
-| #       | Fault, exactly                                                                                                                                             | Named test that must fail                                                                      | Observed                                                                                                                                                                                         |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **N1**  | delete the `if (refused !== null) throw refused;` line (and its `eslint-disable` comment) that stands **after** `await disposeWithdrawn()`                 | `refuses a request that was already queued when the disposal failed`                           | `2 failed \| 18 passed (20)`; `AssertionError: expected [ 'rejected', 'fulfilled' ] to deeply equal [ 'rejected', 'rejected' ]`; the property fails too, on `r1 was acquired and never disposed` |
-| **N2**  | in `refuse`, delete `refused = refusal;`                                                                                                                   | `refuses every later transition of a slot whose retirement failed`                             | `4 failed \| 16 passed (20)`; `AssertionError: promise resolved "{ name: 'third' }" instead of rejecting`                                                                                        |
-| **N3**  | in `observeLate`, replace `late = lateCleanupOf(refusal);` with `late = null;`                                                                             | `fails the transition when the retirement outruns its budget, and keeps watching the disposal` | `3 failed \| 17 passed (20)`; `AssertionError: expected null to be an instance of Promise`                                                                                                       |
-| **N4**  | in `observeLate`, delete the whole `void late.then( … );` block                                                                                            | `observes a late disposal that finishes after the wait expired, without publishing anything`   | `2 failed \| 18 passed (20)`; `AssertionError: expected 'pending' to be 'settled'`, and the rejection case on `… to be 'failed'`                                                                 |
-| **N5**  | in `open`, delete the `if (state.status !== 'empty') { throw … }` block                                                                                    | `refuses a second open, because nothing would be left holding the first close`                 | `1 failed \| 19 passed (20)`; `AssertionError: expected [Function] to throw an error`                                                                                                            |
-| **N6**  | in `transition`, delete `if (ahead !== null) await ahead.catch(() => undefined);`                                                                          | `joins one retirement for every trigger of the same runtime`                                   | `2 failed \| 18 passed (20)`; `AssertionError: expected 'empty' to be 'retiring'` — the second trigger publishes `empty` while the first is still disposing                                      |
-| **N7**  | in `accept`, delete the `if (held !== null) { withdrawn = held; held = null; publish({ status: 'retiring' }); }` block, keeping `newest += 1;`             | `withdraws publication synchronously, before the first await`                                  | `16 failed \| 4 passed (20)`; the property fails on `r0 was acquired and never disposed`, and the synchronous-withdrawal case on the immediate snapshot                                          |
-| **N8**  | change the default parameter to `budgetMs: number = 4_000`                                                                                                 | `gives the retirement the production budget when it is built with none`                        | `1 failed \| 19 passed (20)`; `AssertionError: expected [ 4000 ] to deeply equal [ 5000 ]` — read off the close the runtime really received                                                      |
-| **N9**  | delete the fence: `if (ordinal !== newest) throw new TransitionSupersededError(ordinal, newest);` immediately before `publish({ status: 'constructing' })` | `does not build for a request that a newer one overtook during the disposal`                   | `3 failed \| 17 passed (20)`; `AssertionError: expected [ 'r1' ] to deeply equal []` from the property, with the counterexample of section 2, and `expected 'fulfilled' to be 'rejected'`        |
-| **N10** | in the construction `catch`, delete `publish({ status: 'fatal', fault: discloseFault(failure), terminal: false });`                                        | `is fatal but not terminal when the replacement’s construction throws`                         | `2 failed \| 18 passed (20)`; `AssertionError: expected 'constructing' to be 'fatal'`                                                                                                            |
-| **N11** | in the construction `catch`, delete the whole `if (failure instanceof PartialAcquisitionError) { … }` block                                                | `releases what a half-finished construction acquired, and stays buildable`                     | `2 failed \| 18 passed (20)`; `AssertionError: expected +0 to be 1` — the resource it acquired was never released                                                                                |
-| **N12** | in that block, replace `catch (releaseRefusal) { refuse(releaseRefusal); }` with an empty `catch { }`                                                      | `is terminal when the half-finished construction cannot be released`                           | `1 failed \| 19 passed (20)`; `AssertionError: expected [Function] to throw error including 'DI_BAG_CLEANUP_FAILED' but got 'the lifetime could not be built, and …'`                            |
+### 9.1 Six sabotages, which are what say the model test has teeth
+
+| #      | Sabotage                                                                                              | Observed                                                                                                                                                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A1** | delete the serialization wait `if (ahead !== null) await ahead.catch(() => undefined);`               | `3 failed \| 22 passed (25)`. Model test: `AssertionError: r3: 1 acquisitions, 0 close attempts, live=null`, counterexample `-> [task${1}] promise::dispose r2 rejected …`, commands `[{retire},{replace,rejects,factory}]`, `Shrunk 1 time(s)` |
+| **A2** | make the post-disposal fence unconditional: `throw new TransitionSupersededError(ordinal, newest);`   | `25 failed (25)`. Model test: `AssertionError: the latest request did not win: expected 'refused' not to be 'refused'`, counterexample `[{replace,settles,none},{settle}]`, `Shrunk 3 time(s)`                                                  |
+| **A3** | delete the `if (failure instanceof PartialAcquisitionError) { … }` release block                      | `5 failed \| 20 passed (25)`. Model test: `AssertionError: r1: 1 acquisitions, 0 close attempts, live=null`, counterexample `[{replace,settles,partial:true,none},{settle}]`, `Shrunk 2 time(s)`                                                |
+| **A4** | delete the fence **after the factory** (`if (ordinal !== newest) { withdrawn = built; … }`)           | `2 failed \| 23 passed (25)`. Model test: `AssertionError: r2: 1 acquisitions, 0 close attempts, live=r3`, counterexample `[{retire},{replace,settles,factory}]`, `Shrunk 2 time(s)`                                                            |
+| **A5** | delete the fence **after the disposal**                                                               | `2 failed \| 23 passed (25)`, both example tests, on `AssertionError: expected 1 to be +0` — a factory ran for a doomed request. **The model test stays green here**, and section 5 of the design says why                                      |
+| **A6** | notify subscribers synchronously (`state = next; for (const listener of [...listeners]) listener();`) | `2 failed \| 23 passed (25)`: `third accounting: expected +0 to be 1` — round 3's leak — and the coalescing expectation. **The model test stays green on this implementation**, though it caught the same defect on the previous one            |
+
+**One sabotage was withdrawn as vacuous**: "skip the disposal when the slot is already fatal" left all
+300 cases green because the branch is unreachable — after a terminal failure nothing is published, so
+nothing is ever withdrawn again. A3 is the reachable fatal-state ownership case that replaced it.
+
+### 9.2 Eight per-check mutations
+
+| #      | Fault, exactly                                                                                                      | Named test that must fail                                                                      | Observed                                                                                                                                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **B1** | in `refuse`, delete `terminal.refusal = refusal;`                                                                   | `refuses every later transition of a slot whose retirement failed`                             | `3 failed \| 22 passed (25)`; `AssertionError: promise resolved "{ name: 'third' }" instead of rejecting`                                                                                                                         |
+| **B2** | in `transition`, delete the line `if (refusalSoFar() !== null) throw terminal.refusal;`                             | `refuses a request that was already queued when the disposal failed`                           | `3 failed \| 22 passed (25)`; `AssertionError: expected [ 'rejected', 'fulfilled' ] to deeply equal [ 'rejected', 'rejected' ]`                                                                                                   |
+| **B3** | **inside `lateCleanupOf`**, replace `return refusal.cleanupPromise;` with `return null;`                            | `fails the transition when the retirement outruns its budget, and keeps watching the disposal` | `4 failed \| 21 passed (25)`; `AssertionError: expected null to be an instance of Promise`. Mutating the _call site_ instead would not compile (`Property 'then' does not exist on type 'never'`), which is why the fault is here |
+| **B4** | in `observeLate`, delete the whole `void late.then( … );` block                                                     | `observes a late disposal that finishes after the wait expired, without publishing anything`   | `3 failed \| 22 passed (25)`; `AssertionError: expected 'pending' to be 'settled'`                                                                                                                                                |
+| **B5** | change the default parameter to `budgetMs: number = 4_000`                                                          | `gives the retirement the production budget when it is built with none`                        | `1 failed \| 24 passed (25)`; `AssertionError: expected [ 4000 ] to deeply equal [ 5000 ]`                                                                                                                                        |
+| **B6** | in `accept`, delete the `if (held !== null) { … }` withdrawal block, keeping `newest += 1;`                         | `withdraws publication synchronously, before the first await`                                  | `17 failed \| 8 passed (25)`; the model test on `r1: 1 acquisitions, 0 close attempts, live=r2`, and `expected [] to deeply equal [ 'retiring' ]`                                                                                 |
+| **B7** | in the construction `catch`, delete `publish({ status: 'fatal', fault: discloseFault(failure), terminal: false });` | `is fatal but not terminal when the replacement’s construction throws`                         | `4 failed \| 21 passed (25)`; `AssertionError: expected 'constructing' to be 'fatal'`                                                                                                                                             |
+| **B8** | in the release `catch`, replace `refuse(releaseRefusal);` with an empty `catch { }`                                 | `is terminal when the half-finished construction cannot be released`                           | `2 failed \| 23 passed (25)`; `AssertionError: expected [Function] to throw error including 'DI_BAG_CLEANUP_FAILED' but got 'the lifetime could not be built, and …'`                                                             |
+
+**Two checks were deleted rather than shipped unprovable**, and the code says so where they were: a
+second terminal check after the disposal (a failing disposal throws from `refuse` inside it, so nothing
+could break it) and, in earlier revisions, a pre-queue fence and a microtask deferral that the
+post-disposal fence already decided. AGENTS.md R5: a check that cannot fail is worse than none.
 
 ## 10. Verification
 
 ### The executor runs, per slice
 
-| Command                                                                             | Expected                                                   |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| the sandbox unit command of step 0                                                  | exit 0, F0/T0 recorded, then the slice's relative delta    |
-| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime)` | slice 2's red, then exit 0 with `Tests 20 passed (20)`     |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                   | exit 0                                                     |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                        | exit 0 (autofix import order; never reinstate `waitAll`)   |
-| `GSETTINGS_BACKEND=memory bunx prettier --check <the slice's files>`                | exit 0                                                     |
-| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`       | slice 1: V0 + 1 items; slice 4: V0 items; `failed: 0` both |
+| Command                                                                             | Expected                                                |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| the sandbox unit command of step 0                                                  | exit 0, F0/T0 recorded, then the slice's relative delta |
+| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime)` | slice 2's red, then exit 0 with `Tests 25 passed (25)`  |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                   | exit 0, including under every mutation of section 9     |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                        | exit 0                                                  |
+| `GSETTINGS_BACKEND=memory bunx prettier --check <the slice's files>`                | exit 0                                                  |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`       | slice 1: V0 + 1 items; slice 4: V0 items; `failed: 0`   |
 
 Keep the status of every command (`cmd > log 2>&1; echo "exit=$?"`). Never read a status through a
 `tee` or a pipeline.
@@ -1846,154 +2156,126 @@ Keep the status of every command (`cmd > log 2>&1; echo "exit=$?"`). Never read 
 
 | Command                                                                                            | Observed                                                                         |
 | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1` in `apps/wbs/fe-01` (the jsdom tier) | exit 0, `124 passed (124)` files, `2918 passed (2918)` tests                     |
-| `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`                                    | exit 0, `366 pass`, `0 fail` — no inventory or digest pin moved                  |
+| `TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1` in `apps/wbs/fe-01` (the jsdom tier) | exit 0, `123 passed (123)` files, `2921 passed (2921)` tests                     |
+| `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`                                    | exit 0, `366 pass`, `0 fail`                                                     |
 | `NX_DAEMON=false bunx nx run twilight-burokrat:test`                                               | exit 0, `764 pass`, `0 fail`, 19m, run alone on the host                         |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                      | pending planner verification; nothing in the page's bundle imports this file yet |
-| `CI=1 E2E_PORT_SHIFT=2400 … wbs-fe-01:e2e -- <three preference specs>`                             | exit 0, `21 passed (1.2m)` — unchanged, and this packet touches no component     |
+| `CI=1 E2E_PORT_SHIFT=2400 … wbs-fe-01:e2e -- <three preference specs>`                             | exit 0, `21 passed (1.2m)`; this packet touches no component                     |
 | `bin/h2puni-gate.sh <sha>`                                                                         | the planner's, after the last slice                                              |
 
-Chromium is the planner's: the executor has no browser. Pick `E2E_PORT_SHIFT` as a multiple of 300 away
-from every other live run, check the three ports (`+0`, `+100`, `+1100` from 3100/3200/4200) with
-`ss -ltn` first, and never kill a process you cannot prove is yours (`ls -l /proc/<pid>/cwd`).
+Chromium is the planner's. Pick `E2E_PORT_SHIFT` as a multiple of 300 away from every other live run,
+check the three ports (`+0`, `+100`, `+1100` from 3100/3200/4200) with `ss -ltn` first, and never kill
+a process you cannot prove is yours (`ls -l /proc/<pid>/cwd`).
 
 **Load-sensitive Burokrat tests, not this packet's.** `apps/wiki/cli` has CLI-spawning tests at Bun's
-5000 ms default. The planner watched
-`finite evidence artifact validation production CLI > rejects missing dependency identities, self obligations and cycles without timing out`
-exceed it by 30 ms while the jsdom tier and a Chromium lane shared the host, and Nx report the task
-flaky; alone, the suite was `764 pass`, `0 fail`. Run it with no other heavy target, record the result,
-and rerun once on exactly that failure. Do not edit that test.
-
-**Known race, not this packet's.** If `apps/wiki/cli/src/admission/claims.db.test.ts` ›
-`bounds terminal lock contention and retries until a held write commits` fails in a planner run, record
-it and rerun once. Do not edit it or any other unrelated test.
+5000 ms default; the planner watched one exceed it by 30 ms under concurrent load and Nx report the
+task flaky, while alone the suite was `764 pass`. Run it with no other heavy target. **Known race, not
+this packet's**: `apps/wiki/cli/src/admission/claims.db.test.ts` ›
+`bounds terminal lock contention and retries until a held write commits` — record and rerun once.
 
 ## 11. Stop conditions
 
-Each is scoped to the slice that reads it, and each is **false** on that slice's real starting tree; the
-per-slice pre-edit checks in section 7 carry them.
+Each is scoped to the slice that reads it, and each is false on that slice's real starting tree.
 
 In any slice:
 
-- a red run prints `No test files found` (the suite entries are missing) or `Tests no tests` (the
-  skeleton is missing) instead of `Tests 20 failed (20)`.
-- `bunx eslint` reports an error this packet does not name and that `--fix` does not remove.
-- a negative proof leaves its **named** test passing. That is first a location mistake: restore, check
-  the location, redo once, and stop if it happens again.
-- the interleaving property fails on the finished implementation. Record the counterexample and the
-  seed it prints and stop: a failing property here is a real race, not a flake — it is deterministic.
+- a red run prints `No test files found` or `Tests no tests` instead of `Tests 25 failed (25)`.
+- the model test fails on the finished implementation. Record the counterexample and the seed it
+  prints and stop: it is deterministic, so a failure is a real race, not a flake.
+- a sabotage in section 9.1 leaves the suite green, or a mutation in 9.2 leaves its **named** test
+  passing. Restore, check the location, redo once, and stop if it happens again.
+- a mutation does not compile. Restore and stop: every one here was rehearsed at `typecheck` exit 0.
+- `bunx eslint` reports an error this packet does not name and `--fix` does not remove.
 - any command wants the network, or any file outside section 6 needs changing.
 
 ## 12. The next 050.7 packets, in dependency order
 
-Each is a packet of its own, ticking tasks of the same change.
-
-1. **050-7-b, the preferences module through the runtime owner.** Ticks tasks 2 and 3. It owns
-   `apps/wbs/fe-01/src/modules/preferences/module.ts` (sealed, labelled `frontend.preferences`, browser
-   store private), the installer `src/runtime/application-runtime.ts`, the page's
-   `src/runtime/application-lifetime.ts`, the `composition.ts` seam and the module README. Four
-   obligations are already known and measured:
-   - the installer is **transactional**: it retains the bag before resolving and, when a resolve
-     throws, raises `PartialAcquisitionError` carrying that bag's bounded close — measured, DI Bag
-     releases a partial acquisition only that way (section 4.1);
-   - its close must be **provable**: a graph whose modules own no disposer cannot show that
-     `close: (options) => bag.close(options)` forwards anything, so the installer takes a narrow typed
-     seam — the shape `bootBe01`'s `BootDependencies` uses — registering one owned disposable for the
-     boundary test, with a mutation replacing the delegation by a resolved no-op;
-   - the module's **wiki index** is written in that packet: a `<!-- module-index … -->` comment in
-     `apps/wbs/fe-01/src/modules/preferences/README.md` declaring `module.frontend.preferences`,
-     `module.ts` and every owned file, verified through the production checker
-     (`bun apps/wiki/cli/src/cli.ts check staged . HEAD <rule-policy>.json --rule MOD-INDEX`, and
-     `--rule MOD-LAYOUT` to watch that module's `debt` row disappear). No
-     `docs/wiki-policy/modules.json` edit is needed — section 4.7 has the corrected reason;
-   - `preferences`, the resource, stays a public module export only for `src/lib/remembered.ts`'s
-     per-project layout stores, recorded as rule-K2 debt with its one caller; it is **not** put into
-     any React context.
-2. **050-7-c, the bootstrap and the fatal state.** Ticks task 4. `bootstrap()` in `main.tsx` before
-   `createRoot` and outside `<StrictMode>`; one application context exposing `RememberedPreferences`
-   only, never the resource; the sanitized fatal state rendered for both flavours, terminal and not.
+1. **050-7-b, the preferences module through the runtime owner.** Ticks tasks 2 and 3. Owns
+   `modules/preferences/module.ts` (sealed, labelled `frontend.preferences`, browser store private),
+   the installer, the page's `application-lifetime.ts`, the `composition.ts` seam and the README. Four
+   measured obligations: the installer is **transactional** (retain the bag, then resolve, and raise
+   `PartialAcquisitionError` carrying that bag's bounded close); its close must be **provable** through
+   a narrow typed seam registering one owned disposable, with a mutation replacing the delegation by a
+   resolved no-op; the module's **wiki index** is written there — a `<!-- module-index … -->` comment
+   declaring `module.frontend.preferences`, `module.ts` and every owned file, verified with
+   `bun apps/wiki/cli/src/cli.ts check staged . HEAD <rule-policy>.json --rule MOD-INDEX` and
+   `--rule MOD-LAYOUT`, and **no** `docs/wiki-policy/modules.json` edit (section 4.7); and
+   `preferences`, the resource, stays a public module export only for `src/lib/remembered.ts`, recorded
+   as rule-K2 debt and never put into a React context.
+2. **050-7-c, the bootstrap and the fatal state.** Ticks task 4. `bootstrap()` **awaits** the first
+   `replace` before `createRoot`, outside `<StrictMode>`; one application context exposing
+   `RememberedPreferences` only; the sanitized fatal state rendered for both flavours.
 3. **050-7-d, page hide, hot reload and restoration.** Ticks task 5. Map tests 2 and 3.
-4. **050-7-e and 050-7-f, the project prerequisites.** Ticks tasks 8 and 9: project-owned stores for
-   the plan snapshot, connection, roster and busy state; the command register and refusal publication
-   behind narrow ports; then the broad `ProjectApi` behind private repository ports.
+4. **050-7-e and 050-7-f, the project prerequisites.** Ticks tasks 8 and 9.
 5. **050-7-g, the session runtime.** Ticks task 6. Needs 050-7-c.
-6. **050-7-h, the project runtime.** Ticks tasks 10 and 11. Needs 050-7-e, 050-7-f and 050-7-g.
-7. **050-7-i, Log out as a coordinated local exit.** Ticks task 7. Needs 050-7-g **and** 050-7-h,
-   because the map requires project retirement before the session's.
-8. **050-7-j, the boundary checks.** Ticks tasks 12 and 13: per-module isolated type checks, the
-   architecture checks that refuse a bag, credential, broad client, repository or resource in delivery,
-   and the `preferences` resource's remaining caller.
+6. **050-7-h, the project runtime.** Ticks tasks 10 and 11. Needs 050-7-e, 050-7-f, 050-7-g.
+7. **050-7-i, Log out as a coordinated local exit.** Ticks task 7. Needs 050-7-g and 050-7-h.
+8. **050-7-j, the boundary checks.** Ticks tasks 12 and 13.
 
 ## 13. Assumptions recorded rather than asked
 
-- **The change is named `adopt-frontend-lifetimes`.** The adoption tail map names
-  `adopt-di-composition` for the _backend_ DI work, and batch 6's sibling packet 040-6-a opens that
-  change; two packets opening one change would collide.
-- **The retirement budget is 5000 ms for every lifetime**, named `RETIREMENT_BUDGET_MS`, because the
-  map calls the budget a routine implementation choice. Tests pass 50 ms so the never-settling-disposer
-  proofs do not sit for five seconds, and N8 is what says the production default is the one a real
-  close receives.
-- **A failed disposal is terminal; a failed construction whose acquisitions were released is not.** The
-  map fixes the first. The second is a case it does not name, and the slot distinguishes them because
-  the danger the terminal rule guards against is a runtime that may still hold a socket or a lock — and
-  a construction whose partials were released holds nothing. A release that itself fails is terminal
-  again. Both flavours publish the same sanitized fatal state, so a reader sees one thing.
-- **A superseded replacement is refused, not answered with the winner's services.** Returning them
-  would let a superseded project effect publish another project's feed. `TransitionSupersededError` is
-  modelled for that reason, and a retirement never suffers it: every trigger's shared intent is to let
-  go, so a retirement joins the transition that overtook it.
-- **`Acquire<S>` is synchronous, and that is a contract, not an oversight.** It is what makes one fence
-  sufficient; a lifetime needing asynchronous construction changes this type and adds a fence, and the
-  interleaving property is what would fail without it.
-- **The slot is generic over `S` with no constraint**, and `replace` never publishes a sentinel: the
-  queued request is a tagged union (`{ kind: 'retire' }` or `{ kind: 'replace', acquire }`), so
-  `createLifetimeSlot<null>()` is legal and behaves. There is no `null`-means-retirement path left to
-  get wrong.
-- **Nothing in this packet is reachable from the running page.** That is deliberate: the owner is
-  proved in the fast tier before anything depends on it, and 050-7-b is what makes it the page's.
+- **The change is named `adopt-frontend-lifetimes`**: the adoption tail map's `adopt-di-composition` is
+  the backend's, and batch 6's sibling packet opens it.
+- **The retirement budget is 5000 ms for every lifetime**, named `RETIREMENT_BUDGET_MS`. Tests pass a
+  short one; B5 is what says the production default is the one a real close receives.
+- **A failed disposal is terminal; a failed construction whose acquisitions were released is not**, and
+  a release that itself fails is terminal again. The design document argues it.
+- **A superseded request is refused, not answered with the winner's services**, and a retirement never
+  suffers supersession: every trigger's shared intent is to let go.
+- **`Acquire<S>` is synchronous, and that is a contract**: it is what makes two fences sufficient. A
+  lifetime needing asynchronous construction changes the type, adds a fence and adds a command to the
+  model test.
+- **The model test records rather than simulates.** Which of two overtaking requests reaches its
+  factory is a timing fact; a model that predicted it would be the implementation twice.
+- **Nothing in this packet is reachable from the running page.** The owner is proved in the fast tier
+  before anything depends on it; 050-7-b is what makes it the page's.
 
 ## 14. Disposition of the defect classes the 040.6 review found
 
-| Defect class in `040-6-a…review1`                       | How this packet avoids it                                                                                                                           |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stop conditions that halt the packet's own later slices | Section 11 plus each slice's pre-edit check: creation is forbidden _before_ its slice and required _after_ it.                                      |
-| A command needing network under the default dispatch    | No slice needs `--network`; nothing here listens, dials or downloads.                                                                               |
-| An encapsulation proof that builds its own host         | This packet ships no installer; 050-7-b's obligations in section 12 name the production-path seam and its mutation.                                 |
-| Implementation before tests                             | Slice 2 writes both test files, their suite entries and a throwing skeleton, records `Tests 20 failed (20)`, then implements.                       |
-| Recorded negatives that do not match the supplied tests | All twelve rows of section 9 were injected alone against these listings, after Prettier, and their counts and diagnostics are the run's own output. |
-| A handoff the prescribed workflow cannot produce        | Each slice lists the individual paths it changes, with the count stated and matching; slice 4 uses a recorded-base `git diff --name-only`.          |
-| OpenSpec files created by hand                          | Slice 1 runs `openspec new change … --schema sdd-lean` first and expects exactly `.openspec.yaml` from it.                                          |
+| Defect class                                            | How this packet avoids it                                                                                                     |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Stop conditions that halt the packet's own later slices | Section 11 plus each slice's pre-edit check.                                                                                  |
+| A command needing network under the default dispatch    | No slice needs `--network`.                                                                                                   |
+| An encapsulation proof that builds its own host         | This packet ships no installer; section 12 names 050-7-b's production-path seam and its mutation.                             |
+| Implementation before tests                             | Slice 2 writes both test files, their suite entries and a throwing skeleton, records `Tests 25 failed (25)`, then implements. |
+| Recorded negatives that do not match the supplied tests | All fourteen rows of section 9 were injected alone against these listings, after Prettier, at `typecheck` exit 0.             |
+| A handoff the prescribed workflow cannot produce        | Each slice lists the paths it changes with the count stated and matching, `verify.md` included.                               |
+| OpenSpec files created by hand                          | Slice 1 runs `openspec new change … --schema sdd-lean` first.                                                                 |
 
-## 15. Disposition of review 1
+## 15. Disposition of reviews 1 and 2
 
-Review 1's thirteen findings were dispositioned in the previous revision; review 2 confirmed eight of
-them FIXED. The rest are carried here:
+Reviews 1 and 2 are dispositioned in full in the previous revisions; review 3 confirmed C1, C3, I4, I6,
+I8 and Minor 10 of review 2 as FIXED, and this revision closes the rest:
 
-| Finding                                      | Verdict                | Where                                                                                                                                                |
-| -------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C1 red runs select zero tests                | **FIXED** (§4.3, §7)   | suite entries are written with the tests; the red is a throwing skeleton with `Tests 20 failed (20)` and one budget-free message.                    |
-| C2 concurrent replacements abandon a runtime | **FIXED** (§5, §8.7)   | closed properly this round: one queue, synchronous withdrawal, the fence after the disposal, and the interleaving property that found what was left. |
-| C3, I5, I7, I8, I11, I12, I13                | **FIXED**              | confirmed by review 2.                                                                                                                               |
-| I4 hand-over path counts                     | **FIXED** (§7)         | every slice states its count and lists that many paths; slice 2's is four.                                                                           |
-| I6 unproved lifecycle claims                 | **FIXED** (§9)         | twelve mutations, one per surviving check, plus three checks deleted for being unprovable (§5).                                                      |
-| I9 module index                              | **WITHDRAWN** (§4.7)   | review 2 was right that the rationale was false; the corrected facts are in §4.7 and the work is 050-7-b's in §12.                                   |
-| I10 construction failure leaks               | **FIXED** (§4.1, §8.7) | `PartialAcquisitionError` plus the release-then-publish path; N11 and N12 prove both halves.                                                         |
+| Finding                                        | Verdict       | Where                                                                                                                                                                 |
+| ---------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| review 2 C2 — construction acquires nothing    | **FIXED**     | `open()` is gone; **every** acquisition, the first included, runs through the transaction. §5, §8.7, and the test `releases a first construction that fails halfway`. |
+| review 2 I5 — the property proves nothing      | **FIXED**     | The hand-written property is deleted. The model test of §8.5 replaces it, and §9.1's six sabotages are what say it has teeth.                                         |
+| review 2 I7 — the `null` sentinel              | **FIXED**     | Tagged request **and** tagged outcome; `transition` returns `Outcome<S>`; `publishes a service contract that is itself null` is the test.                             |
+| review 2 I9 / review 3 8 — the index rationale | **WITHDRAWN** | §4.7 and task 12 both corrected, with the three anchors that disprove the old claim.                                                                                  |
+| review 2 Minor 9 — handover counts             | **FIXED**     | Five paths in slices 1 and 2, `verify.md` included.                                                                                                                   |
 
-## 16. Disposition of review 2
+## 16. Disposition of review 3
 
-Every finding was checked against the repository before acting, and every fix was settled by rehearsal.
-The method changed too: the owner is now a state machine with one queue, and the interleavings are
-generated rather than imagined.
+| Finding                                                       | Verdict   | Where, and what was observed                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C1** synchronous callbacks can supersede construction       | **FIXED** | Reproduced by the new model test on the old code (§2). Two decisions close it: notification is deferred to a microtask so no subscriber runs inside a transition, and the generation is rechecked **after the factory** as well. Tests `cannot be superseded by a subscriber running inside a transition` and `gives back a runtime whose own factory asked for another replacement`; sabotages A4 and A6. |
+| **C2** `open` bypasses the transaction and the queue          | **FIXED** | `open` is deleted. The first publication is a `replace` on an empty slot — bounded, queued, transactional — and the bootstrap awaits it (§5, §12). Tests `publishes the first runtime through the same transaction as any other`, `releases a first construction that fails halfway, and stays buildable`, `never overwrites a runtime a queued request is about to publish`.                              |
+| **C3** N3 does not type-check                                 | **FIXED** | Confirmed. The mutation is now **inside `lateCleanupOf`** (B3), rehearsed at `typecheck` exit 0, and §9 requires a typecheck under every mutation with a stop if one does not compile.                                                                                                                                                                                                                     |
+| **I4** the `null` sentinel is still there                     | **FIXED** | Confirmed from the listing. `Outcome<S>` is tagged; the impossible guard is gone; a `null` service contract has its own test.                                                                                                                                                                                                                                                                              |
+| **I5** the property does not establish its invariants         | **FIXED** | The property is replaced by the model test, whose recorded outcomes cover request results, disposal **attempts**, overlap, supersession and fatal states, and which generates partial acquisition and both kinds of reentry. §9.1 proves each claim by sabotage, and says plainly which two checks the model test does **not** catch.                                                                      |
+| **I6** a surviving check has no effective negative            | **FIXED** | The redundant `accept()` terminal guard is **deleted** — with it removed the suite stayed green, so R5 says it goes — and so is a second terminal check after the disposal. What remains has B1 to B8, and the partial-release timeout and late success/rejection now have their own tests.                                                                                                                |
+| **I7** slice 2's handover omits `verify.md`                   | **FIXED** | Slice 2 has an explicit append step and lists five paths.                                                                                                                                                                                                                                                                                                                                                  |
+| **I8** task 12 keeps the withdrawn rationale                  | **FIXED** | Task 12 now requires validated module indexes and contracts, preserves existing pilot mappings, and names no `modules.json` obligation.                                                                                                                                                                                                                                                                    |
+| **I9** the patch block can turn a failed `diff` into evidence | **FIXED** | §9's block exits with the captured status when it is not 1, before writing anything.                                                                                                                                                                                                                                                                                                                       |
+| **Minor 10** three factual corrections                        | **FIXED** | `DOM_EVIDENCE` at `src/test-tiers.test.ts:60` (§4.2); `endOnFailure` is set only when passed `true` (`fast-check.js:1460`) so shrinking is on and the message's `endOnFailure: true` is reproduction advice (§4.5); and the mutation-to-property matrix is §9.1 and §9.2, from a fresh native rehearsal — six of the fourteen faults move the model test, and the rows say which.                          |
 
-| Finding                                                       | Verdict      | Where, and what was observed                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **C1** the fence never runs after the asynchronous retirement | **FIXED**    | Reproduced by the new property test on the old code, with the shrunk counterexample quoted in §2. §8.7 recheck­s after the disposal — the only await before construction — and §5 says why one fence suffices while `Acquire<S>` is synchronous. N9 removes it: three tests fail, property included.                                                                                                                         |
-| **C2** failed construction acquires nothing                   | **FIXED**    | Probed: after a failed resolve, disposals were `[]` and only `bag.close()` produced `["a"]`; a factory that pushed a disposer and threw left it unrun until the close (§4.1). `PartialAcquisitionError` now carries that bounded close, the slot awaits it before publishing fatal, and a release that fails is terminal. Tests `releases what a half-finished construction acquired…` and `is terminal when…`; N11 and N12. |
-| **C3** the prescribed red is false and trips the stop rule    | **FIXED**    | Confirmed: three tests build a 50 ms slot, so the interpolated message produced two diagnostics. The skeleton's message no longer names the budget; rehearsed red is `Tests 20 failed (20)`, all on `the lifetime slot is not implemented`, and §11's stop rule names exactly that.                                                                                                                                          |
-| **I4** withdrawal is not synchronous                          | **FIXED**    | Confirmed. `accept()` withdraws and numbers the request before `replace`/`retire` return; the microtask deferral that delayed it is gone. Test `withdraws publication synchronously, before the first await` reads the snapshot with no await; N7 breaks it — `16 failed \| 4 passed (20)`.                                                                                                                                  |
-| **I5** the module-index rejection rests on false claims       | **ACCEPTED** | Verified all three: `check-indexes.ts:409` loads no mapping; `trust.ts:1248` requires one only for an index matching a selected pilot boundary, and its own Proof says `docs/findings` stays outside; `typescript.ts:401` classifies a compiler-supported ambient import as `ambient-non-code`. §4.7 withdraws both rationales, and §12 makes the index 050-7-b's stated obligation with the checker command.                |
-| **I6** the production close test proves nothing               | **MOVED**    | Accepted, and it belongs to the installer, which is now 050-7-b's. §12 states the narrow typed seam, the owned disposable, and the no-op-delegation mutation it must show.                                                                                                                                                                                                                                                   |
-| **I7** `null` is both a value and a sentinel                  | **FIXED**    | Confirmed from the listing. The queued request is a tagged union (`{ kind: 'retire' }` / `{ kind: 'replace', acquire }`), `transition` no longer returns `S                                                                                                                                                                                                                                                                  | null`, and the impossible guard is gone, so `createLifetimeSlot<null>()` behaves (§13). |
-| **I8** requirements contradict the lifecycle and the boundary | **FIXED**    | The same-tick scenario now says "every runtime that was built other than the live one has been retired", and two scenarios were added for the disposal interval and for partial acquisition. Task 4 now says the context exposes `RememberedPreferences` only, never the resource (§8.3).                                                                                                                                    |
-| **Minor 9** slice 2's hand-over count                         | **FIXED**    | Every slice states its count and lists that many paths.                                                                                                                                                                                                                                                                                                                                                                      |
-| **Minor 10** stale anchors                                    | **FIXED**    | Verified each: **nine** indexed READMEs including `openspec/changes/archive/2026-09-08-bounded-replay-sweep` (§4.7); `boot.ts:89`; `service-kinds.ts:15`; and the inactive JSON at `bin/tool-wiki-lint.sh:21` with `exit 0` on the next line, qualified by `TOOL_WIKI_REQUIRE_CERTIFIED=0` and the 78 at line 19.                                                                                                            |
+## 17. What changed in method, after three rounds
+
+Three reviews each found a race the previous round's tests could not reach. The change is not another
+fence: it is that the **rule is written down first** — [the design document](050-7-lifetime-slot-design.md),
+with five states, the event list including reentry, and eight invariants that hold inside callbacks —
+and that the interleavings are **generated against a reference recorder** instead of imagined, with the
+generator's own teeth proved by six sabotage runs before the implementation was trusted. Two checks
+that no sabotage could break were deleted rather than shipped. Where the generator is blind, §9.1 says
+so in the same table instead of claiming coverage.
