@@ -6,6 +6,12 @@
 > this packet names a renamed identifier, and `apps/wiki/cli` did not move, so the `check.wiki-cli.*`
 > identifiers are unaffected.
 >
+> **Corrected by the planner on 2026-09-22 after slice 2's first attempt stopped at its baseline.** From the repository
+> root `bun test <path>` treats a bare path as a FILTER, so it also collects the compiled copies a typecheck leaves
+> under `dist/out-tsc/<same path>` (1226 pass, 10 fail, 5 errors across 104 files in the executor's clone, where
+> slice 1 had run a typecheck). Every root-relative test command below therefore starts with `./`, which makes it a
+> path: the domain baseline is 645 pass, 0 fail across 52 files either way of writing it correctly.
+>
 > **Dispatch:** `--batch batch-6` (the launcher's batch-6 default supplies
 > `--batch-dir docs/superpowers/plans/2026-09-21-batch-6`). No slice binds a port, so **no slice
 > needs `--network`**; section 7 scopes every command to what the sandbox can run.
@@ -238,14 +244,14 @@ grep -cF "export function canEdit(project: Project, actorId: string): boolean {"
 NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-domain --skip-nx-cache
 ```
 
-The grep must print `1`; the Nx run must exit 0. Record `bun test libs/wbs/domain/domain/src` counts
+The grep must print `1`; the Nx run must exit 0. Record `bun test ./libs/wbs/domain/domain/src` counts
 as this slice's baseline. All four lines behaved as written on the base tree (observed).
 
 1. Write `project-ownership.test.ts` (section 10.6) and run it. Expect the red of row 1:
    `error: Cannot find module './project-ownership'`. This red is evidence, not a commit.
 2. Write `project-ownership.ts` (section 10.6), insert the export at the position section 10.6 names,
    and add the README row.
-3. Green: `bun test libs/wbs/domain/domain/src/project-ownership.test.ts` → exit 0, `2 pass`,
+3. Green: `bun test ./libs/wbs/domain/domain/src/project-ownership.test.ts` → exit 0, `2 pass`,
    `0 fail`, `3 expect() calls` (observed). The whole-directory count is the step-0 baseline plus 2.
 4. `NX_DAEMON=false bunx nx run-many -t test:unit,lint,typecheck -p wbs-domain --skip-nx-cache` →
    exit 0.
@@ -319,7 +325,7 @@ pipeline needs the branching form above, and this packet prescribes no other.
 
 Then the negative, row 3 of section 6: replace the body of `canEditProject` with `return true;` and
 run
-`bun test libs/wbs/application/core/src/service/broadcast.test.ts -t 'announces nothing for a write it refused'`.
+`bun test ./libs/wbs/application/core/src/service/broadcast.test.ts -t 'announces nothing for a write it refused'`.
 Expect exit 1 with the fragment in that row and `0 pass`, `1 fail`, `10 filtered out`. A run reporting
 `0 tests ran` is a stop, not a pass. Save the patch under `"$TMPDIR"/evidence` with the README's
 `if diff …; then …; else test $? -eq 1; fi` form, restore with `cp` and prove with `cmp` **before**
@@ -370,7 +376,7 @@ Tests first, then the implementation, both inside this one slice:
    `../../ports/`, and replaces the old path with the shim of section 10.8. **Do not delete the old
    path:** `service-boundaries.test.ts:22` asserts it exists.
 3. Create `contract.ts`, `module.ts`, `check.ts` and `README.md` from section 10.8.
-4. `bun test libs/wbs/application/core/src/module/plan-history/module.test.ts` → exit 0, `6 pass`,
+4. `bun test ./libs/wbs/application/core/src/module/plan-history/module.test.ts` → exit 0, `6 pass`,
    `0 fail`, `7 expect() calls` (observed).
 5. `NX_DAEMON=false bunx nx run-many -t lint,typecheck -p wbs-core --skip-nx-cache` → exit 0.
 6. The four module negatives, rows 4, 5, 6 and 7, **one at a time**, each restored and `cmp`-proved
