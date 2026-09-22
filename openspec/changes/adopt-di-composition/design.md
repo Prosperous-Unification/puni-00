@@ -63,5 +63,15 @@ shim and none for a file whose name declares its kind by suffix, because
 
 ## Not decided here
 
-Wiki registration of the new modules, and the K2 feature owners for the resources delivery reaches
-directly. Both are named in the proposal as outside this change's claim.
+The K2 feature owners for the resources delivery reaches directly remain outside this change's
+claim. Wiki registration of each new module, by contrast, is adopted scope, but only its
+pilot-mapping half: task 7.5 requires a `module-index` block naming every module file, and full
+membership in the wiki's content-review pilot — both a `modules.json` row and a matching
+`policy.json` boundary, required together (`trust.ts:1224-1230` refuses a mapped module without
+exactly one matching boundary) — keeping a declared registration's mapping row, boundary and index
+mutually consistent, checked by the pilot's own production `lint()` call. That is narrower than
+"every sealed DI module has a pilot registration": discovering an unregistered module is also out
+of scope. Whether an index block's `moduleId` names the same label its module's own `buildModule`
+call seals its bag under is explicitly **not** checked by task 7.5: four review rounds against a
+machine-checked version of that specific claim each found a new bypass, so it is deferred to a
+later change with its own design (040.6 packet D's "Deferred: label agreement").

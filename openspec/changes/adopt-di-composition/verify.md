@@ -542,3 +542,68 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
 - `wbs-domain` is not a synced main spec: `openspec spec list` names twelve capabilities and not that
   one, while 123 archived change deltas carry `specs/wbs-domain/`. The value is checkable against those
   deltas only, and syncing it is its own change.
+
+### Wiki registration, Slice 1 — 2026-09-22
+
+- The pre-edit `twilight-burokrat:typecheck` exited 0, and the focused pilot-policy baseline passed
+  1 test with 0 failures and 27 assertions (`slice-1-typecheck-baseline.log`,
+  `slice-1-pin-baseline.log`).
+- Adding Plan history's index block before replacing the literal pin failed the named test with
+  `module.application.plan-history` as one extra received entry: 0 passed, 1 failed and 21
+  assertions (`slice-1-index-transition-red.log`). The structural replacement then passed 1 test
+  with 0 failures and 27 assertions (`slice-1-pin-green.log`).
+- Removing `boundary.infra.release-assembly` made the module/boundary comparison report
+  `Expected: 5` and `Received: 6` (`policy-boundary-removed.patch`,
+  `policy-boundary-removed.log`). Restoring the saved bytes matched with `cmp` and passed 1 test
+  with 0 failures and 27 assertions (`policy-boundary-removed-restored-green.log`).
+- Removing saved-plan's `module-index` block made the declared-module/index comparison report
+  `Expected: true` and `Received: false` (`saved-plan-index-removed.patch`,
+  `saved-plan-index-removed.log`). Restoring the saved bytes matched with `cmp` and passed 1 test
+  with 0 failures and 27 assertions (`saved-plan-index-removed-restored-green.log`).
+- The final `twilight-burokrat:typecheck` and `twilight-burokrat:lint:source` targets exited 0
+  (`slice-1-typecheck-final.log`, `slice-1-lint-source.log`).
+
+### Wiki registration, Slice 2 — 2026-09-22
+
+- The slice began at `253df36d4681b89eba4f17db350ea2a012b25a30` with `M=6` module mappings
+  and `B=6` trusted boundaries. The pilot source revision carried
+  `100644 blob 8c0889017328a5c160a827ab712a9a5ea975a22a` at
+  `libs/core/src/service/history.service.ts` (`slice-2-base.txt`).
+- The pre-edit `twilight-burokrat:typecheck` exited 0. The legacy-occurrence pin baseline passed
+  1 test with 0 failures and 1 assertion, and the whole pilot-policy baseline passed 21 tests with
+  0 failures and 293 assertions (`slice-2-typecheck-baseline.log`,
+  `slice-2-legacy-pin-baseline.log`, `slice-2-pilot-policy-baseline.log`).
+- Adding only `module.application.plan-history` to the module mapping failed the named parity test
+  with `Expected: 6` and `Received: 7`, 0 passed and 1 failed
+  (`slice-2-registration-red.log`). Adding the matching
+  `boundary.application.plan-history` made the focused test pass 1 test with 0 failures and 28
+  assertions, and the whole pilot-policy file pass 21 tests with 0 failures and 294 assertions
+  (`slice-2-registration-green.log`, `slice-2-pilot-policy-green.log`).
+- The unchanged legacy-occurrence pin then failed with `historical policy selector or baseline`
+  moving from 39 to 41, occurrences from 257 to 259, and digest
+  `2f0d2926e8d85aed7089c3ad667f7a0f6ccb97c514152a9895893978fab3f22d` changing to
+  `55fafcaf0420dd5b2e0018b0a0dd467b7c3b8fae950eca69e72a99f52364b725`, with no
+  unclassified entries (`slice-2-legacy-pin-red.log`, `legacy-pin-repin.patch`). After re-pinning,
+  the focused test passed 1 test with 0 failures and 1 assertion
+  (`slice-2-legacy-pin-green.log`).
+- The final `twilight-burokrat:typecheck` exited 0 (`slice-2-typecheck-final.log`).
+
+### Wiki registration, Packet D — 2026-09-22
+
+- Slice 1 added Plan history's `module-index` block and replaced the pilot test's literal mapping
+  pins with mapping/boundary parity and discovered-index checks. Slice 2 registered
+  `module.application.plan-history` and `boundary.application.plan-history` as a full pilot member.
+  The boundary's `sourceSelector` binds the new directory to its pre-move source at the pilot's
+  frozen revision; `apps/wiki/cli/src/policy/trust.ts:388-426` validates that the source selector
+  matches the boundary selector kind and contains every baseline entry.
+- Task 7.5 now records only the delivered index and pilot-mapping scope. Label agreement between a
+  README `moduleId` and the label passed to `buildModule` remains explicitly deferred; see packet
+  D's "Deferred: label agreement." Discovering a sealed module with no registration is also
+  outside this task's narrower declared-registration guarantee.
+- Strict OpenSpec validation was unchanged by slice 3: before editing it reported 114 items, 114
+  passed and 0 failed (`slice-3-openspec-before.json`); after editing it reported the same 114
+  items, 114 passed and 0 failed (`openspec-validation.mKxFrs.json`).
+- Pending planner verification: the final whole `pilot-policy.test.ts` file (rehearsed at 21
+  passed, 0 failed); `twilight-burokrat:test` (rehearsed at 764 passed, 0 failed and 6702
+  assertions across 39 files); `tool-devsync:test` (rehearsed at 366 passed, 0 failed); and
+  `bin/h2puni-gate.sh <sha>` (not run in rehearsal or the executor sandbox).

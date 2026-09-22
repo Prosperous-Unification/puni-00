@@ -1,10 +1,6 @@
 # Plan history
 
-This module is not yet registered as a wiki module: `docs/wiki-policy/policy.json` needs a
-trusted boundary for `module.application.plan-history`, and
-`apps/wiki/cli/src/policy/pilot-policy.test.ts` pins both the mapping length and the exact set of
-discovered index identifiers. Adding the `module-index` block before those land fails that suite,
-so registration is its own packet.
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.plan-history","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"plan-history.feature.ts"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts and index.ts."},{"section":"invariants","reason":"Read-before-events, append-only and the no-view rule are documented on HistoryService and installPlanHistory; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/history.service.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the compatibility shim are declared; a deep import of plan-history.feature.ts by a test fixture elsewhere is not tracked here."}} -->
 
 The plan's history, read. This is the first sealed DI Bag module in the core: `module.ts` seals
 the graph and exports `history` alone, `check.ts` is the only place that builds a bag, and
@@ -15,7 +11,7 @@ says which module asked.
 ## Checks
 
 The applicable check is the `wbs-core:test` target declared in
-`libs/wbs/application/core/project.json`.
+`libs/wbs/application/core/project.json`, recorded above as `check.core.test`.
 
 ## Consumers
 
@@ -25,3 +21,14 @@ The applicable check is the `wbs-core:test` target declared in
 `@wbs/core/service/history.service` names. Workspace-relative paths rather than Markdown links:
 `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` resolves a relative link against the
 file that carries it, and this listing is quoted inside a plan document at another depth.
+
+## Wiki registration
+
+This module is a full member of `docs/wiki-policy/modules.json`'s content-review pilot, as
+`module.application.plan-history` (`docs/wiki-policy/policy.json`'s
+`boundary.application.plan-history`). The boundary's `sourceSelector` binds this new directory to
+the single service file it was extracted from, which existed at the pilot's frozen
+`sourceRevision` — the same mechanism `boundary.application.use-cases` and `boundary.domain.saved-plan`
+already use for their own renamed directories. Whether this README's `moduleId` names the same
+label `module.ts` seals its bag under is not machine-checked: see the plan's "Deferred: label
+agreement" for why, and what a later change needs before it can be.

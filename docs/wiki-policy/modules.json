@@ -30,6 +30,30 @@
       }
     },
     {
+      "moduleId": "module.application.plan-history",
+      "name": "Plan history sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-history",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-history/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/history.service.ts"
+          }
+        ]
+      }
+    },
+    {
       "moduleId": "module.application.use-cases",
       "name": "Core application use cases pilot boundary",
       "memberships": [

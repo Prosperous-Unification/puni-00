@@ -18,15 +18,15 @@ composition shape is left.
 
 ## Non-Goals
 
-No library version bump, no frontend lifetimes, no gateway or MCP composition, and no invented
+No library version bump, no frontend lifetimes, no gateway or MCP composition, no invented
 capability for the CRUD delivery reaches directly.
 
 ## Constraints
 
 Rules R1 to R5 govern. `bootBe01` keeps owning source, retention, optimizer and listener disposal in
-its tested order; modules borrow them without a second disposer. `servicesOver` stays per-admission:
-no singleton may leak staged stores or announcements between transactions. Every changed check ships
-a watched negative.
+its tested order; modules borrow them, never a second disposer. `servicesOver` stays per-admission:
+no singleton leaks staged stores or announcements between transactions. Every changed check ships a
+watched negative.
 
 ## Capabilities
 
@@ -45,22 +45,22 @@ None new; the map's nine resource terms are in `CONTEXT.md`.
 
 ## Module identifiers
 
-A library module is named ring then name, as `module.application.plan-history` is. A module under an
-app carries the runtime word by location: `module.backend.<name>`, `module.frontend.<name>`,
+A library module is ring then name, as `module.application.plan-history` is. An app module carries
+the runtime word by location: `module.backend.<name>`, `module.frontend.<name>`,
 `module.gateway.<name>`, `module.mcp.<name>`. Optimization, the Local solver launcher and the
 Supervisor are backend modules, so `module.backend.*`. A label drops only the `module.` prefix. The
 nine existing identifiers are untouched.
 
 ## Decisions Recorded
 
-- Full K2 closure stays outside this change: CRUD delivery for the seven resources lacks feature
-  owners, and none is invented here.
-- K3 debt is preserved, not fixed: a feature-service reading a repository port keeps doing so,
-  declared rather than implicit. Task 7.4 records it.
-- Wiki registration is separate: `policy.json` needs a boundary per identifier, and
-  `pilot-policy.test.ts` pins the mapping length and identifiers.
+- Full K2 closure stays outside this change: the seven resources' CRUD delivery lacks feature
+  owners, none invented.
+- K3 debt is preserved: a feature-service reading a repository port keeps doing so, declared not
+  implicit; task 7.4 records it.
+- Wiki registration is part of this change: task 7.5 tracks the index block and full pilot
+  membership (mapping row and boundary, both required); label agreement is deferred.
 
 ## Impact
 
-`libs/wbs/application/core/src`, `libs/wbs/domain/domain/src` and `kinds.json`. `apps/wbs/be-01`
-changes only where a shim path moves.
+`libs/wbs/application/core/src`, `libs/wbs/domain/domain/src`, `kinds.json` and
+`docs/wiki-policy`. `apps/wbs/be-01` changes only where a shim path moves.

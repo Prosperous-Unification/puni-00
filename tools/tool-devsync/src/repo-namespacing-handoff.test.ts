@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 39,
+      'historical policy selector or baseline': 41,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -797,8 +797,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // unchanged but changed the digest to `7bae8ae12d6c9f94b27fe83c102f38c67354efe4913b76371172895f1a15e9dc`;
     // without `${category}:`, exchanged and restored classes both produced
     // `681ef06d22b9d0eff7d378a2943005f1daca81573987b1aff9db8daa8475b2a2` (2026-09-21).
-    digest: '2f0d2926e8d85aed7089c3ad667f7a0f6ccb97c514152a9895893978fab3f22d',
-    occurrences: 257,
+    // Proof: registering `module.application.plan-history` in `docs/wiki-policy/policy.json` added
+    // its `boundary.application.plan-history`'s `sourceSelector` and one `baselineEntries` path,
+    // both naming the pre-move `libs/core/src/service/history.service.ts` this module was
+    // extracted from; raised `historical policy selector or baseline` from 39 to 41 and occurrences
+    // from 257 to 259, no unclassified entries (2026-09-22).
+    digest: '55fafcaf0420dd5b2e0018b0a0dd467b7c3b8fae950eca69e72a99f52364b725',
+    occurrences: 259,
     unclassified: [],
   });
 });
