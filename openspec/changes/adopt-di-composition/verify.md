@@ -241,3 +241,31 @@ ports/missing.ts`; 0 passed and 1 failed (`missing-scanned-source.patch`,
   `slice-4-project-event-cmp.log`). Core type-check and lint passed
   (`slice-4-typecheck-lint.log`), and the closing core suite remained `C=542`, `F=54` with 0
   failures (`core-final.log`).
+
+### Broadcast event port, Slice 5 — 2026-09-22
+
+- Step 0 found 7 proof comments and one production-only filter, and `wbs-core:typecheck`
+  exited 0 (`slice-5-proof-count-baseline.log`, `slice-5-filter-baseline.log`,
+  `slice-5-step0-typecheck.log`). The core baseline was `C=542`, `F=54`: 542 passed, 0 failed
+  across 54 files (`core-baseline.log`).
+- Widening the scan to every TypeScript file failed the named boundary assertion with 9 rows
+  across 8 test files: `compose.test.ts: Broadcaster`; `service/broadcast.test.ts: ProjectEvent`;
+  `service/estimate.test.ts: ProjectEvent`; `service/gateway-broadcaster.test.ts: ProjectEvent`
+  and `subscriptionFor`; `service/optimizer-trigger-broadcaster.test.ts: ProjectEvent`;
+  `service/plan-command-scope.test.ts: Broadcaster`; `service/plan-commands.test.ts: Broadcaster`;
+  and `service/working-plan.test.ts: Broadcaster`, each via `service/broadcast.ts`. The run had
+  0 passed and 1 failed (`slice-5-test-imports-red.log`).
+- Exactly 8 test importers now name `ports/project-event.ts`; ESLint sorted those edits and the
+  focused boundary check then passed 1 test with 0 failures
+  (`slice-5-importers-eslint-fix.log`, `slice-5-boundary-green.log`).
+- Replacing `service/working-plan.test.ts`'s port import with a named import from
+  `./broadcast` reported `service/working-plan.test.ts: Broadcaster via
+service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 0
+  (`working-plan-test-import.patch`, `working-plan-test-import.log`,
+  `working-plan-test-import-typecheck.log`). The passing file was restored with `cp`, matched
+  its saved bytes with `cmp`, and the focused check returned to 1 passed and 0 failed
+  (`working-plan-test-import-restore.log`, `working-plan-test-import-restored-green.log`).
+- The final proof-comment count remained 7 and the focused boundary check passed 1 test with
+  0 failures (`slice-5-proof-count-final.log`, `slice-5-boundary-final.log`). The closing core
+  suite remained `C=542`, `F=54` with 0 failures (`core-final.log`), and core type-check and
+  lint passed (`slice-5-typecheck-lint.log`).

@@ -15,10 +15,10 @@ function underSrc(fileName: string): string {
   return fileName.startsWith(coreSource) ? fileName.slice(coreSource.length) : fileName;
 }
 
-/** Every production file of the core, as a path under `src`. */
+/** Every TypeScript file of the core, as a path under `src`. */
 async function scannedSources(): Promise<readonly string[]> {
   return (await readdir(coreSource, { recursive: true }))
-    .filter((path) => path.endsWith('.ts') && !path.includes('.test.'))
+    .filter((path) => path.endsWith('.ts'))
     .map((path) => path.replaceAll('\\', '/'))
     .sort();
 }

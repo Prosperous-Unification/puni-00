@@ -10,9 +10,9 @@ import {
   type WritingServices,
 } from './compose';
 import { clockOf } from './ports/clock';
+import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
-import type { Broadcaster } from './service/broadcast';
 import { PlanCommandRunner } from './service/plan-commands';
 import { fastScheduler } from './testing/scheduler-fixture';
 import { replay } from './use-cases/replay';

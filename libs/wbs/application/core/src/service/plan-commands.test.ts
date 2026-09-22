@@ -3,12 +3,12 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
+import type { Broadcaster } from '../ports/project-event';
 import type { PlanTransactionalStores } from '../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../ports/unit-of-work';
 import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import type { Broadcaster } from './broadcast';
 import type { PlanCommand } from './plan-command';
 import { PlanCommandRunner } from './plan-commands';
 

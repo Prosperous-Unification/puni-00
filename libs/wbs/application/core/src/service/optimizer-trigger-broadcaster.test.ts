@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
+import type { ProjectEvent } from '../ports/project-event';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import type { ProjectEvent } from './broadcast';
 import { OptimizerTriggerBroadcaster } from './optimizer-trigger-broadcaster';
 
 describe('OptimizerTriggerBroadcaster', () => {
