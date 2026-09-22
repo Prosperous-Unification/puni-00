@@ -377,3 +377,100 @@ service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 
   also excludes four further eligible coordinator tests and the child-spawning
   `optimization-spawn-handshake.proc.db.test.ts`; the whole `wbs-be-01:test` target is pending
   planner verification.
+
+### Type-only preparations, Slice 4 — 2026-09-22
+
+- Step 0 found four route rows and zero proof comments. `wbs-core:typecheck` exited 0, the
+  focused rule passed 1 test with 0 failures, and the core baseline was `C=543`, `F=55`: 543
+  passed and 0 failed across 55 files (`slice-4-step0-typecheck.log`,
+  `slice-4-step0-rule.log`, `slice-4-core-baseline.log`).
+- Restoring Plan document's pre-move import reported
+  `service/plan-document.ts: './calendar-marker.service' reaches
+service/calendar-marker.service.ts` (`document-restored.patch`,
+  `document-restored.log`, `document-restored-typecheck.log`,
+  `document-restored-restored-green.log`). The type-only namespace reported the specifier,
+  `CalendarMarkerListOutcome`, and `markerService` (`document-namespace-type.patch`,
+  `document-namespace-type.log`, `document-namespace-type-typecheck.log`,
+  `document-namespace-type-restored-green.log`).
+- The marker-service value namespace reported the specifier, `markerService`, and
+  `markerService['CalendarMarkerService']` (`document-value-namespace.patch`,
+  `document-value-namespace.log`, `document-value-namespace-typecheck.log`,
+  `document-value-namespace-restored-green.log`). The indexed `typeof import` reported its
+  specifier and expression (`document-typeof-import.patch`, `document-typeof-import.log`,
+  `document-typeof-import-typecheck.log`, `document-typeof-import-restored-green.log`). The
+  bare import reported its specifier (`document-bare-import.patch`,
+  `document-bare-import.log`, `document-bare-import-typecheck.log`,
+  `document-bare-import-restored-green.log`).
+- Importing `CalendarMarkerOutcome` through the core barrel reported
+  `CalendarMarkerOutcome reaches service/calendar-marker.service.ts`
+  (`document-barrel-outcome.patch`, `document-barrel-outcome.log`,
+  `document-barrel-outcome-typecheck.log`, `document-barrel-outcome-restored-green.log`).
+- Laundering `AuthenticatedUser` through Replay orchestrator remained a documented residual:
+  1 passed and 0 failed with typecheck at exit 0 (`laundered-reexport.patch`,
+  `laundered-reexport.log`, `laundered-reexport-typecheck.log`,
+  `laundered-reexport-restored-green.log`).
+- Through a value namespace of `index.ts`, element access reported
+  `core['CalendarMarkerService']`, property access reported both `CalendarMarkerService` and
+  `core.CalendarMarkerService`, plain destructuring reported `CalendarMarkerService`, and renamed
+  destructuring also reported `CalendarMarkerService: markerClass`; all reached
+  `service/calendar-marker.service.ts` (`barrel-element-access.patch`,
+  `barrel-element-access.log`, `barrel-element-access-typecheck.log`,
+  `barrel-element-access-restored-green.log`, `barrel-property-access.patch`,
+  `barrel-property-access.log`, `barrel-property-access-typecheck.log`,
+  `barrel-property-access-restored-green.log`, `barrel-destructuring.patch`,
+  `barrel-destructuring.log`, `barrel-destructuring-typecheck.log`,
+  `barrel-destructuring-restored-green.log`, `barrel-destructuring-renamed.patch`,
+  `barrel-destructuring-renamed.log`, `barrel-destructuring-renamed-typecheck.log`,
+  `barrel-destructuring-renamed-restored-green.log`).
+- The absent owner row threw `the program holds no service/absent.service.ts`
+  (`absent-owner-row.patch`, `absent-owner-row.log`, `absent-owner-row-restored-green.log`).
+  The absent config threw `Cannot read file '…/tsconfig.absent.json'.`
+  (`absent-tsconfig.patch`, `absent-tsconfig.log`, `absent-tsconfig-restored-green.log`).
+  The malformed config made typecheck exit 1 and threw `refused tsconfig.lib.json: 6046`
+  (`malformed-tsconfig.patch`, `malformed-tsconfig-typecheck.log`,
+  `malformed-tsconfig.log`, `malformed-tsconfig-restored-green.log`). Deleting the parsed-config
+  guard under the same malformed option kept typecheck at exit 1 but produced the required false
+  green, 1 passed and 0 failed (`malformed-tsconfig-guard-deleted.patch`,
+  `malformed-tsconfig-guard-deleted-typecheck.log`,
+  `slice-4-malformed-tsconfig-guard-deleted.log`,
+  `malformed-tsconfig-guard-deleted-restored-green.log`). Adding `ports/missing.ts` to the scan
+  threw `the program holds no ports/missing.ts` (`missing-scanned-path.patch`,
+  `missing-scanned-path.log`, `missing-scanned-path-restored-green.log`).
+- Through the narrow Calendar marker forwarding file, a const key reported `markers[key]`, a
+  computed binding reported `['CalendarMarkerService']: held`, and an indexed-access type reported
+  `(typeof import('./replay-orchestrator'))[MarkerKey]`; each reached
+  `service/calendar-marker.service.ts` (`forwarded-const-key.patch`,
+  `forwarded-const-key.log`, `forwarded-const-key-typecheck.log`,
+  `forwarded-const-key-restored-green.log`, `forwarded-computed-binding.patch`,
+  `forwarded-computed-binding.log`, `forwarded-computed-binding-typecheck.log`,
+  `forwarded-computed-binding-restored-green.log`, `forwarded-indexed-access.patch`,
+  `forwarded-indexed-access.log`, `forwarded-indexed-access-typecheck.log`,
+  `forwarded-indexed-access-restored-green.log`).
+- The widened key reported `markers[key as keyof typeof markers]`, and the finite-union key
+  reported `markers[key]`; both reached `service/calendar-marker.service.ts`
+  (`forwarded-widened-key.patch`, `forwarded-widened-key.log`,
+  `forwarded-widened-key-typecheck.log`, `forwarded-widened-key-restored-green.log`,
+  `forwarded-union-key.patch`, `forwarded-union-key.log`,
+  `forwarded-union-key-typecheck.log`, `forwarded-union-key-restored-green.log`). Casting the
+  namespace's module identity away first remained the second documented residual: 1 passed and 0
+  failed with typecheck at exit 0 (`forwarded-cast-base.patch`, `forwarded-cast-base.log`,
+  `forwarded-cast-base-typecheck.log`, `forwarded-cast-base-restored-green.log`).
+- Forwarding the primitive `TOKEN_TTL_SECONDS` and reading it as an indexed-access type reported
+  `(typeof import('../service/replay-orchestrator'))['TOKEN_TTL_SECONDS']`; the const-keyed value
+  form reported `orchestrator[ttlKey]`. Both reached `service/auth.service.ts`
+  (`forwarded-primitive-indexed-type.patch`, `forwarded-primitive-indexed-type.log`,
+  `forwarded-primitive-indexed-type-typecheck.log`,
+  `forwarded-primitive-indexed-type-restored-green.log`,
+  `forwarded-primitive-const-key.patch`, `forwarded-primitive-const-key.log`,
+  `forwarded-primitive-const-key-typecheck.log`,
+  `forwarded-primitive-const-key-restored-green.log`).
+- All seventeen injected reference routes failed the one named assertion with 0 passed and 1
+  failed while their typechecks exited 0. The four guard faults failed with 0 passed and 1 failed;
+  the two residuals and the guard-deleted false-green probe passed with 1 passed and 0 failed.
+  Every fault was restored with `cp`, matched its saved passing bytes with `cmp`, and reran the
+  focused rule green before the next fault.
+- With the five proof comments added, the focused rule passed 1 test with 0 failures and the
+  proof-count block printed `proof-comments=5` (`slice-4-boundary-final.log`,
+  `slice-4-proof-count-final.log`). Core typecheck and lint exited 0
+  (`slice-4-typecheck-lint.log`), and the closing core suite remained unchanged from its baseline
+  at `C=543`, `F=55`, with 0 failures (`slice-4-core-closing.log`).

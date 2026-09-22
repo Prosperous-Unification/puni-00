@@ -49,10 +49,15 @@ async function scannedSources(): Promise<readonly string[]> {
  */
 function coreProgram(rootNames: readonly string[]): ts.Program {
   const read = ts.readConfigFile(configPath, (path) => ts.sys.readFile(path));
+  // Proof: pointing `configPath` at `tsconfig.absent.json` threw
+  // `Cannot read file '…/tsconfig.absent.json'.` and failed the assertion, 0 pass and 1 fail (2026-09-22).
   if (read.error !== undefined) {
     throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, ' '));
   }
   const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, coreRoot);
+  // Proof: `"module": "invalid"` in the real tsconfig.lib.json threw `refused tsconfig.lib.json: 6046`
+  // and failed the assertion, 0 pass and 1 fail; with this throw deleted the same malformed option left
+  // the assertion passing on unresolved symbols, 1 pass and 0 fail (2026-09-22).
   if (parsed.errors.length > 0) {
     throw new Error(
       `refused tsconfig.lib.json: ${parsed.errors.map((each) => each.code).join(', ')}`,
@@ -157,6 +162,8 @@ function sidewaysUses(paths: readonly string[]): readonly string[] {
   const program = coreProgram(paths);
   const checker = program.getTypeChecker();
   for (const route of routes) {
+    // Proof: changing one row's `reaches` to `service/absent.service.ts` threw
+    // `the program holds no service/absent.service.ts` and failed the assertion, 0 pass and 1 fail (2026-09-22).
     if (program.getSourceFile(`${coreSource}${route.reaches}`) === undefined) {
       throw new Error(`the program holds no ${route.reaches}`);
     }
@@ -165,6 +172,8 @@ function sidewaysUses(paths: readonly string[]): readonly string[] {
 
   for (const path of paths) {
     const file = program.getSourceFile(`${coreSource}${path}`);
+    // Proof: appending `'ports/missing.ts'` to what `scannedSources` returns threw
+    // `the program holds no ports/missing.ts` and failed the assertion, 0 pass and 1 fail (2026-09-22).
     if (file === undefined) throw new Error(`the program holds no ${path}`);
     const owners = routes.filter((route) => route.reaches !== path && route.from(path));
     if (owners.length === 0) continue;
@@ -325,6 +334,24 @@ function sidewaysUses(paths: readonly string[]): readonly string[] {
 
 describe('the no-sideways type routes of the 040.6 map', () => {
   it('rejects the checked sideways-type import routes', async () => {
+    // Proof: seventeen injected routes each failed this assertion with `wbs-core:typecheck` at exit 0.
+    // In `service/plan-document.ts`: its pre-move `CalendarMarkerListOutcome` import; a type-only namespace
+    // of the marker service used as a qualified type; a value namespace of it read by element access; a
+    // `typeof import(…)` indexed access; a bare side-effect import of it; and a `@wbs/core` barrel import of
+    // `CalendarMarkerOutcome`, which only the marker service declares. Through a namespace of `index.ts`,
+    // which forwards the owner: `core['CalendarMarkerService']`, `core.CalendarMarkerService`,
+    // `const { CalendarMarkerService } = core` and its renamed form. Through a narrow file forwarding only
+    // `CalendarMarkerService`: `markers[key]` with `const key = 'CalendarMarkerService'`,
+    // `const { ['CalendarMarkerService']: held } = markers`,
+    // `(typeof import('./replay-orchestrator'))[MarkerKey]`, a `keyof typeof` key from a widened `string`,
+    // and a finite-union key (`key: 'CalendarMarkerService' | 'ReplayOrchestrator'`). Through the same file
+    // forwarding the primitive `TOKEN_TTL_SECONDS`, from `use-cases/replay.ts`:
+    // `(typeof import('../service/replay-orchestrator'))['TOKEN_TTL_SECONDS']` and a `const`-keyed element
+    // access of it. Each is reported as `<file>: <specifier or expression> reaches <owner>`. Two further
+    // injections were watched **passing** and are not prevented: that namespace's module identity cast away
+    // first (`markers as unknown as Record<string, unknown>`), and a third file re-exporting the owner's own
+    // re-export of a contracts declaration, which resolves to the contracts declaration and leaves nothing
+    // of the owner to reach (2026-09-22).
     expect(sidewaysUses(await scannedSources())).toEqual([]);
   }, 120_000);
 });
