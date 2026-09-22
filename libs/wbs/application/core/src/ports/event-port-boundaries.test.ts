@@ -34,10 +34,15 @@ async function scannedSources(): Promise<readonly string[]> {
  */
 function coreProgram(rootNames: readonly string[]): ts.Program {
   const read = ts.readConfigFile(configPath, (path) => ts.sys.readFile(path));
+  // Proof: pointing `configPath` at `tsconfig.absent.json` threw
+  // `Cannot read file '…/tsconfig.absent.json'.` and failed the assertion, 0 pass and 1 fail (2026-09-22).
   if (read.error !== undefined) {
     throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, ' '));
   }
   const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, coreRoot);
+  // Proof: `"module": "invalid"` in the real tsconfig.lib.json threw `refused tsconfig.lib.json: 6046`
+  // and failed the assertion, 0 pass and 1 fail; with this throw deleted the same malformed option left
+  // the assertion passing on unresolved symbols, 1 pass and 0 fail (2026-09-22).
   if (parsed.errors.length > 0) {
     throw new Error(
       `refused tsconfig.lib.json: ${parsed.errors.map((each) => each.code).join(', ')}`,
@@ -115,8 +120,14 @@ function contractUses(paths: readonly string[]): ContractUse {
   const program = coreProgram(paths);
   const checker = program.getTypeChecker();
   const portFile = program.getSourceFile(`${coreSource}${portHome}`);
+  // Proof: pointing `coreSource` at `src/runtime/` made this throw
+  // `the program holds no ports/project-event.ts` and failed the assertion, 0 pass and 1 fail; it cannot be
+  // deleted instead, because the narrowing below needs it (2026-09-22).
   if (portFile === undefined) throw new Error(`the program holds no ${portHome}`);
   const portModule = checker.getSymbolAtLocation(portFile);
+  // Proof: replacing the port's contents with two statements and no export made this throw
+  // `ports/project-event.ts is not a module` and failed the assertion, 0 pass and 1 fail; `wbs-core:typecheck`
+  // fails on that mutation too, because every importer loses its contracts (2026-09-22).
   if (portModule === undefined) throw new Error(`${portHome} is not a module`);
   const portSymbols = new Set(
     checker.getExportsOfModule(portModule).map((each) => {
@@ -141,6 +152,8 @@ function contractUses(paths: readonly string[]): ContractUse {
 
   for (const path of paths) {
     const file = program.getSourceFile(`${coreSource}${path}`);
+    // Proof: adding `'ports/missing.ts'` to what `scannedSources` returns made this throw
+    // `the program holds no ports/missing.ts` and failed the assertion, 0 pass and 1 fail (2026-09-22).
     if (file === undefined) throw new Error(`the program holds no ${path}`);
     if (path === portHome) continue;
     /** A module reference that exposes a whole module object, and the module it names. */

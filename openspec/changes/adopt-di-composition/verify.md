@@ -206,3 +206,38 @@ service/broadcast.ts` (`typeof-import-indexed.patch`, `typeof-import-indexed.log
   (`slice-3-format-check.log`).
 - Strict OpenSpec validation reported 114 items, 114 passed and 0 failed, and its `jq -s -e`
   contract exited 0 (`openspec-validation.FfStD3.json`).
+
+### Broadcast event port, Slice 4 — 2026-09-22
+
+- Step 0 found 2 proof comments, the focused boundary test passed 1 test with 0 failures, and
+  `wbs-core:typecheck` exited 0 (`slice-4-proof-count-baseline.log`,
+  `slice-4-step0-boundary.log`, `slice-4-step0-typecheck.log`). The core baseline was `C=542`,
+  `F=54`: 542 passed, 0 failed across 54 files (`core-baseline.log`).
+- Pointing the scan root at `src/runtime/` threw `the program holds no
+ports/project-event.ts`; 0 passed and 1 failed (`scan-root.patch`, `scan-root.log`,
+  `scan-root-restored-green.log`).
+- Pointing the config path at `tsconfig.absent.json` threw `Cannot read file
+'…/tsconfig.absent.json'.`; 0 passed and 1 failed (`config-absent.patch`,
+  `config-absent.log`, `config-absent-restored-green.log`).
+- Adding `"module": "invalid"` to the real config threw `refused tsconfig.lib.json: 6046`;
+  0 passed and 1 failed (`config-malformed.patch`, `config-malformed.log`,
+  `config-malformed-restored-green.log`). Deleting the parsed-config guard with the same
+  malformed option produced the false green: 1 passed and 0 failed
+  (`config-guard-deleted.patch`, `config-guard-deleted.log`,
+  `config-guard-deleted-restored-green.log`).
+- Replacing the port with two statements and no export threw `ports/project-event.ts is not a
+module`; 0 passed and 1 failed. `wbs-core:typecheck` also exited 1 because importers lost the
+  contracts (`port-not-a-module.patch`, `port-not-a-module.log`,
+  `port-not-a-module-typecheck.log`, `port-not-a-module-restored-green.log`).
+- Adding `ports/missing.ts` to the scanned source paths threw `the program holds no
+ports/missing.ts`; 0 passed and 1 failed (`missing-scanned-source.patch`,
+  `missing-scanned-source.log`, `missing-scanned-source-restored-green.log`).
+- Every fault was restored with `cp` and matched its saved passing bytes with `cmp` before the
+  captured status was asserted and the focused test reran green.
+- With the five guard proof comments added, the focused boundary test passed 1 test with 0
+  failures and the proof-count block printed `proof-comments=7`
+  (`slice-4-boundary-final.log`, `slice-4-proof-count-final.log`). The tsconfig and project-event
+  port matched their pre-fault bytes (`slice-4-tsconfig-cmp.log`,
+  `slice-4-project-event-cmp.log`). Core type-check and lint passed
+  (`slice-4-typecheck-lint.log`), and the closing core suite remained `C=542`, `F=54` with 0
+  failures (`core-final.log`).
