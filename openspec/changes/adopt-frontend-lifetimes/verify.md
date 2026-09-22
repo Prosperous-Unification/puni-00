@@ -674,3 +674,36 @@ resource/runtime examples and once against the real-slot model.
 - The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
   targets, the whole zoned tier, Chromium, and the host gate remain pending
   planner verification under the executor sandbox contract.
+
+## Packet 050.7d, slice 3 — hand-over
+
+- Attempt `050-7-d-withdrawal-and-page-lifecycle.3.20260922T190652Z` started at
+  `8e6b6495f8de442fc957a3a1196bfacc833b46ca`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 674 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 13 files
+  and 99 tests passed. Strict OpenSpec baseline: exit 0; the strict `jq`
+  predicate accepted one object with 114 items passed and 0 failed.
+- Task 4's follow-up note now records that 050-7-d part 1 closed the two required
+  withdrawal outcomes through `preferences.resource.ts`'s `ensureLive`, fed by
+  the existing lifetime slot's synchronous snapshot. The page-lifecycle trigger
+  remains task 5 and packet 050-7-e's work.
+- This documentation-only slice adds no safety check and requires no new
+  negative proof. Its evidence is the already-committed slice 1 design record
+  and slice 2 implementation, tests, and eighteen negative-proof observations
+  above.
+
+### Slice verification
+
+- Prettier write on `tasks.md` and this verification record: exit 0; both files
+  were already formatted.
+- Strict OpenSpec validation: exit 0; the strict `jq` predicate accepted one
+  object with 114 items passed and 0 failed, unchanged from step 0.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0; Nx
+  successfully ran the uncached lint target with no diagnostics.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx accepted the local
+  cache entry and reported the build target successful.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets and the host gate remain pending planner verification under the
+  executor sandbox contract.
