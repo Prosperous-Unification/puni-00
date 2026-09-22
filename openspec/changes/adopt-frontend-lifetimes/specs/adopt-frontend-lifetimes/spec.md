@@ -1,0 +1,175 @@
+## ADDED Requirements
+
+### Requirement: Three runtimes own the frontend's services
+
+fe-01 SHALL build one DI Bag runtime per accepted lifetime - application for the
+page, session for one signed-in user identity, project for one open project -
+outside the React tree, and SHALL publish to delivery only the narrow service
+contracts each lifetime exports. A bag, a browser store, a credential, a broad
+HTTP client, a repository port and a resource-service SHALL NOT be reachable
+from delivery.
+
+#### Scenario: The page's own runtime is built once, above the components
+
+- **WHEN** the application runtime is built
+- **THEN** it is built outside the Strict Mode subtree, acquires each owned
+  service once, and exposes only its public service contracts
+
+#### Scenario: A module's private bindings stay inside it
+
+- **WHEN** the production installer returns the services of an installed module
+- **THEN** the module's private bindings are absent from that surface, and a DI
+  failure names them by the module's label
+
+#### Scenario: The session runtime is keyed by identity
+
+- **WHEN** a signed-in identity arrives from either startup identity restoration
+  or a password login
+- **THEN** the session runtime is keyed by the user id and the credential is
+  only an adapter input
+
+#### Scenario: The project runtime is keyed by the selected project
+
+- **WHEN** a project is selected
+- **THEN** a project runtime is created for that project id inside the current
+  session, and its feed, writer, command and saved-plan services are published
+  only while it is current
+
+### Requirement: One retirement per runtime, ordered by lifetime
+
+Every close trigger for one current runtime - route unmount, selection change,
+identity change, local exit, page hide and hot-reload disposal - SHALL join one
+retirement of that runtime. Publication SHALL be withdrawn before disposal
+starts. A project's retirement SHALL begin before its session's, and the
+application's SHALL begin only after both have been started and joined.
+
+#### Scenario: Two triggers retire one runtime once
+
+- **WHEN** two triggers ask to retire the same current runtime
+- **THEN** its disposal runs once and both callers observe the same outcome
+
+#### Scenario: Withdrawal precedes disposal
+
+- **WHEN** a runtime is retired
+- **THEN** delivery can no longer read its services before its first disposer
+  runs, and a completion that arrives late changes nothing a reader sees
+
+### Requirement: A failed or expired retirement refuses the replacement
+
+When a required retirement rejects, or its bounded wait expires, the runtime
+owner SHALL refuse the transition: it SHALL NOT build or publish the
+replacement, SHALL NOT republish the withdrawn services, and SHALL publish a
+fatal state carrying only the sanitized public failure report and its occurrence
+handle. The owner SHALL keep observing the disposal that is still running, and
+its eventual completion SHALL NOT publish the refused replacement.
+
+#### Scenario: A disposer rejects during a replacement
+
+- **WHEN** one disposer of the current runtime rejects while a replacement is
+  requested
+- **THEN** every other disposer is still attempted, the replacement is never
+  built, and the fatal state carries the sanitized report and occurrence handle
+
+#### Scenario: A disposal outruns the bounded wait
+
+- **WHEN** a disposer has not settled when the retirement's bounded wait expires
+- **THEN** the transition fails, the replacement is never built, and the owner
+  still holds the shared disposal promise
+
+#### Scenario: Late completion does not resume a refused transition
+
+- **WHEN** the disposal behind an expired wait later settles
+- **THEN** the refused replacement stays unpublished and the fatal state stays
+  visible
+
+#### Scenario: A further transition on a refused lifetime is refused
+
+- **WHEN** a lifetime whose retirement failed is asked to transition again
+- **THEN** it refuses with the same failure rather than starting over
+
+### Requirement: A superseded or unbuildable transition acquires nothing
+
+Transitions of one lifetime SHALL run one at a time, in request order. A request
+for a replacement that a newer request has overtaken SHALL NOT build a runtime
+and SHALL be refused as superseded, while a retirement request SHALL join the
+transition that overtook it. A request's generation SHALL be rechecked after
+every asynchronous step of its transition, not only when it is accepted. When a
+replacement's construction fails after its retirement succeeded, the owner SHALL
+release everything that construction acquired, publish the sanitized fatal state,
+hold no runtime, and remain able to build again — unlike a failed retirement, or
+a release that itself fails or outruns its wait, either of which is terminal.
+
+#### Scenario: Two replacements are requested in one tick
+
+- **WHEN** two replacements of the same lifetime are requested before either has
+  run
+- **THEN** exactly one runtime is live afterwards, the superseded request never
+  built one, and every runtime that was built other than the live one has been
+  retired
+
+#### Scenario: A newer request arrives while the old runtime is being disposed
+
+- **WHEN** a replacement is requested while the disposal started by an earlier
+  replacement has not finished
+- **THEN** the earlier request builds nothing, is refused as superseded, and only
+  the newer request's runtime is published
+
+#### Scenario: A construction acquires something and then fails
+
+- **WHEN** a construction acquires a resource and then throws
+- **THEN** everything it acquired is released before the fatal state is
+  published, and if that release rejects or outruns its wait the lifetime becomes
+  terminal
+
+#### Scenario: A retirement arrives with a replacement
+
+- **WHEN** a retirement is requested while a replacement of the same runtime is
+  pending
+- **THEN** the retirement joins that transition instead of refusing, and no
+  runtime is left without an owner
+
+#### Scenario: The replacement cannot be built
+
+- **WHEN** a replacement's construction throws after the old runtime retired
+  successfully
+- **THEN** the sanitized fatal state is published, nothing is held, and a later
+  transition may build again
+
+### Requirement: Log out stays a local exit
+
+The Log out action SHALL send no request to the server and SHALL retire the
+project runtime, then the session runtime, before the signed-out state renders.
+If either retirement fails, the signed-out state SHALL NOT render and the fatal
+state SHALL be shown instead.
+
+#### Scenario: Log out revokes nothing remotely
+
+- **WHEN** Log out is activated
+- **THEN** no logout request is sent, the project and session runtimes are
+  retired in that order, and a reload can still restore the same identity
+
+#### Scenario: Log out with a failing retirement
+
+- **WHEN** a project or session disposer rejects during Log out
+- **THEN** the signed-out state does not render, no retired service is
+  republished, and the fatal state is shown
+
+### Requirement: A restored page rebuilds only after retirement succeeds
+
+A persisted page-hide SHALL begin retirement of the project, session and
+application runtimes. A persisted page restoration SHALL join that retirement
+and SHALL run the whole bootstrap - runtimes, React root, listeners, identity
+restoration - only after it succeeds, preserving the browser address. If it
+fails, no bootstrap SHALL be attempted and the fatal state SHALL be shown.
+
+#### Scenario: Restoration waits for the retirement it joined
+
+- **WHEN** a page is restored while the retirement started by its persisted hide
+  is still running
+- **THEN** no runtime, root, listener or identity read happens until that
+  retirement succeeds, and then the whole bootstrap runs once
+
+#### Scenario: Restoration after a failed retirement
+
+- **WHEN** the joined retirement rejects or outruns its wait
+- **THEN** no bootstrap is attempted and the fatal state is shown

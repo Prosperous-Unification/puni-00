@@ -71,6 +71,10 @@ export const NODE_SUITES: readonly string[] = [
   'src/modules/preferences/composition.test.ts',
   'src/modules/preferences/preferences.feature.test.ts',
   'src/modules/preferences/preferences.resource.test.ts',
+  // The page's own lifetime ownership: plain TypeScript over DI Bag, no browser
+  // global and no component, which is the whole point of rule F1.
+  'src/runtime/lifetime-slot.model.test.ts',
+  'src/runtime/lifetime-slot.test.ts',
   'src/test-tiers.test.ts',
   'src/testing/fake-project-api.test.ts',
   'src/testing/plan-fixture-command-results.test.ts',
