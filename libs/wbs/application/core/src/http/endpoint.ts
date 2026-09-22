@@ -1,10 +1,12 @@
 import type { StandardSchemaV1 } from '@ark/schema';
 import type {
+  AuthenticatedUser,
   EmptyRefusalResponse,
   EmptyResponse,
   EndpointShape,
   ImportRefusal,
   ImportRefusalResponse,
+  InternalIdentity,
   JsonResponse,
   ParamsOf,
   Refusal,
@@ -14,8 +16,6 @@ import type {
   SchemaShape,
   TextResponse,
 } from '@wbs/contracts';
-
-import type { AuthenticatedUser } from '../service/auth.service';
 
 /**
  * An absent representation; JSON null remains an ordinary JSON value.
@@ -27,9 +27,7 @@ export const EMPTY = Symbol('empty-http-body');
 /** Ordered repeated headers, including independent Set-Cookie values. */
 export type Header = readonly [name: string, value: string];
 
-export interface InternalIdentity {
-  kind: 'internal';
-}
+export type { AuthenticatedUser, InternalIdentity } from '@wbs/contracts';
 
 export type Identity = AuthenticatedUser | InternalIdentity;
 

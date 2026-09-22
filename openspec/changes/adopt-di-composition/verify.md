@@ -333,3 +333,27 @@ service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 
   (`slice-1-downstream-typecheck.log`); and the portable browser build passed
   (`slice-1-portable-build.log`). The five owned code paths passed their formatting check
   (`slice-1-prettier-check.log`).
+
+### Type-only preparations, Slice 2 — 2026-09-22
+
+- Core baseline `C=543`, `F=55`: 543 passed, 0 failed across 55 files
+  (`slice-2-core-baseline.log`). The closing run remained unchanged at 543 passed, 0 failed
+  across 55 files (`slice-2-core-closing.log`).
+- Adding the three principal-owner rows first failed the named boundary assertion with 22 routes
+  from the six checked consumers: eight import-specifier routes and fourteen identifier routes.
+  Bun printed `Received + 24`, 0 passed, and 1 failed; observed rows included
+  `use-cases/save-plan.ts: username reaches service/auth.service.ts`,
+  `use-cases/run-command-batch.ts: scopes reaches service/auth.service.ts`, and
+  `service/retention-timer.ts: InternalIdentity reaches http/endpoint.ts`
+  (`slice-2-principal-routes-red.log`).
+- `libs/wbs/domain/contracts/src/principal.ts` now declares `AuthenticatedUser` and
+  `InternalIdentity`. `service/auth.service.ts` retains the former name as a compatibility
+  re-export, and `http/endpoint.ts` retains both names while keeping `Identity` built from them.
+  The four production use cases, retention timer, composition root, and three route/use-case
+  tests now take their principal types from `@wbs/contracts`.
+- The focused boundary test then passed 1 test with 0 failures
+  (`slice-2-sideways-green.log`). Core type-check and lint passed
+  (`slice-2-core-typecheck-lint.log`), and contracts type-check, lint, and test passed
+  (`slice-2-contracts-checks.log`). The be-01, gw-01, mcp-01, and fe-01 type-checks passed
+  (`slice-2-consumer-typechecks.log`), and the portable browser build passed
+  (`slice-2-core-portable-build.log`).

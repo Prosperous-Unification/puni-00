@@ -19,6 +19,9 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * Calendar marker resource).
  */
 const routes = [
+  { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
+  { reaches: 'http/endpoint.ts', from: (path: string) => path.startsWith('use-cases/') },
+  { reaches: 'http/endpoint.ts', from: (path: string) => path === 'service/retention-timer.ts' },
   {
     reaches: 'service/calendar-marker.service.ts',
     from: (path: string) => path === 'service/plan-document.ts',

@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   testCalendarMarkerService,
   testDirectoryService,
@@ -6,7 +7,6 @@ import {
 } from '@wbs/store-memory/testing/service-fixtures';
 import { expect, spyOn, test } from 'bun:test';
 
-import type { AuthenticatedUser } from '../service/auth.service';
 import { EMPTY } from './endpoint';
 import { projectRoutes } from './project.routes';
 
