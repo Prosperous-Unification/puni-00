@@ -39,11 +39,14 @@ against. Section 8 names the planner's checks.
 `libs/wbs/application/core/src/ports/project-event.ts`, so that every resource and feature publishes
 through a contract instead of through a file that also carries Plan commands' batch collector; point
 every importer in the core at the port; keep every `@wbs/core` and
-`@wbs/core/service/broadcast` name working; and leave behind a checked rule — the only new safety
-check this packet adds — that no file names those three contracts anywhere but the port. The rule resolves
-symbols with the installed TypeScript type checker, because a regular-expression version was bypassed four
-ways and a syntax walk two more ways, all with zero compiler diagnostics; each of those six bypasses, and
-three more this author tried, is now a watched negative.
+`@wbs/core/service/broadcast` name working; and leave behind one checked rule — the only new safety check
+this packet adds — `rejects the checked event-contract import routes`. The checker examines module exports
+and identifier alias chains by symbol identity, and property, element and indexed-access expressions by type
+identity when their base resolves to a module. It does not trace value-binding indirection. An exported
+binding such as `export const routeFor = subscriptionFor`, consumed through a named import, is not prevented
+even though its type retains the port function's symbol. This joins duplicate or merged declarations,
+structural copies and type aliases as an explicit residual for subsequent kind-rule work. Fourteen import
+routes that the rule does check are watched negatives, each rehearsed with `wbs-core:typecheck` at exit 0.
 
 **Non-goals.** No DI Bag module: section 4 shows the map classifies this file as event/port support, not
 as a service responsibility, so this packet ships **a port plus its existing adapter** and no
@@ -127,23 +130,23 @@ commands. This packet therefore leaves the collector in `service/broadcast.ts`, 
 `service-boundaries.test.ts:11` requires to exist anyway, re-points its classification at that fact, and
 leaves task 1.2 **unticked** with one note under it naming what landed and where the remainder lives.
 
-**Size.** Five slices of one 20-to-40-minute attempt each: the split is mechanical but wide, so the
+**Size.** Six slices of one 20-to-40-minute attempt each: the split is mechanical but wide, so the
 work is cut by importer group rather than by file, and the one new check is introduced in the slice whose
 red it produces.
 
 ## 5. File plan
 
-| Path                                                                | Slice   | Create or modify                                                                                                                                                             |
-| ------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `libs/wbs/application/core/src/ports/project-event.ts`              | 1       | create, from section 9.1                                                                                                                                                     |
-| `libs/wbs/application/core/src/service/broadcast.ts`                | 1       | modify: keep the collector, re-export the port (section 9.2)                                                                                                                 |
-| `libs/wbs/application/core/src/index.ts`                            | 1       | modify, two insertions (section 9.3)                                                                                                                                         |
-| `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` | 2, 3, 4 | create in slice 2 (section 9.4); slice 3 writes two of its seven `// Proof:` comments and slice 4 the other five; slice 5 widens its filter line and corrects one JSDoc line |
-| The 17 production importers of section 9.5                          | 2       | modify, one import line each                                                                                                                                                 |
-| The 8 test importers of section 9.6                                 | 4       | modify, one import line each                                                                                                                                                 |
-| `docs/code-organization/kinds.json`                                 | 5       | modify, one entry rewritten in place (section 9.7)                                                                                                                           |
-| `openspec/changes/adopt-di-composition/tasks.md`                    | 5       | modify, one note under task 1.2 (section 9.8). No box is ticked.                                                                                                             |
-| `openspec/changes/adopt-di-composition/verify.md`                   | 1–5     | modify: each slice appends its own baselines, deltas and evidence basenames                                                                                                  |
+| Path                                                                | Slice | Create or modify                                                                                                                                                             |
+| ------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `libs/wbs/application/core/src/ports/project-event.ts`              | 1     | create, from section 9.1                                                                                                                                                     |
+| `libs/wbs/application/core/src/service/broadcast.ts`                | 1     | modify: keep the collector, re-export the port (section 9.2)                                                                                                                 |
+| `libs/wbs/application/core/src/index.ts`                            | 1     | modify, two insertions (section 9.3)                                                                                                                                         |
+| `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` | 2–5   | create in slice 2 (section 9.4); slice 3 writes two of its seven `// Proof:` comments and slice 4 the other five; slice 5 widens its filter line and corrects one JSDoc line |
+| The 17 production importers of section 9.5                          | 2     | modify, one import line each                                                                                                                                                 |
+| The 8 test importers of section 9.6                                 | 5     | modify, one import line each                                                                                                                                                 |
+| `docs/code-organization/kinds.json`                                 | 6     | modify, one entry rewritten in place (section 9.7)                                                                                                                           |
+| `openspec/changes/adopt-di-composition/tasks.md`                    | 6     | modify, one note under task 1.2 (section 9.8). No box is ticked.                                                                                                             |
+| `openspec/changes/adopt-di-composition/verify.md`                   | 1–6   | modify: each slice appends its own baselines, deltas and evidence basenames                                                                                                  |
 
 **Neighbours.** No other batch-6 packet owns any of these paths. `docs/code-organization/kinds.json` is
 also the subject of `tasks.md` 1.8, which stays unticked and untouched here. Section 10's cumulative
@@ -156,17 +159,19 @@ Every row was produced in a private worktree of `f862a15a` against the final lis
 the literal fragment is what Bun 1.4.2 printed. Restore a mutated file from a copy under `"$TMPDIR"` and
 prove it with `cmp` **before** asserting on any captured status.
 
-**The contract, exactly as proven, and nothing wider.** References that TypeScript resolves to the port's
-contract symbols must reach them through the port module or a permitted file — identity by type and by
-symbol, asked of module references, of types and of identifiers. **Duplicate or merged declarations under
-the same names, differently named structural copies and type aliases are NOT prevented by this check**;
-they are Twilight Burokrat's kind rules' job (K2 to K6, and the map's preparations 3 and 4). Five review
-rounds went into that sentence: four of them found routes into the reference rule, which is now closed, and
-the fifth found that a name-based "sole declaration" promise cannot be kept at all, because a
-`declare module` augmentation merges into the port's own symbol. The declaration assertion is therefore
-**deleted** rather than weakened, and this packet claims only what the single remaining assertion proves.
+**The contract, exactly as proven, and nothing wider.** The checker examines module exports and identifier
+alias chains by symbol identity, and property, element and indexed-access expressions by type identity when
+their base resolves to a module. It does not trace value-binding indirection. An exported binding such as
+`export const routeFor = subscriptionFor`, consumed through a named import, is not prevented even though its
+type retains the port function's symbol. This joins duplicate or merged declarations, structural copies and
+type aliases as an explicit residual for subsequent kind-rule work. Six review rounds went into that
+paragraph: four found routes into the reference rule, which the residual table below bounds rather than
+claims closed; the fifth found that a name-based "sole declaration" promise cannot be kept at all, because a
+`declare module` augmentation merges into the port's own symbol, so that assertion was **deleted** rather
+than weakened; the dispatch review found the value-binding route above. The one assertion this packet ships
+is named `rejects the checked event-contract import routes`, and that name is the claim.
 
-| #   | Where                                                                           | Fault injected                                                                                                                            | Literal fragment observed on `is where every reference to the event contracts comes from`                                                                                                            |
+| #   | Where                                                                           | Fault injected                                                                                                                            | Literal fragment observed on `rejects the checked event-contract import routes`                                                                                                                      |
 | --- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | slice 2 red, on the tree slice 1 leaves                                         | none; the rule is new                                                                                                                     | `- []` then 22 rows of `<file>: <name> via service/broadcast.ts`, `+ Received + 24`; `0 pass`, `1 fail`                                                                                              |
 | 2   | slice 5 red, after the filter widens to test files                              | none; the rule's scope is what changed                                                                                                    | 9 rows of `<test file>: <name> via service/broadcast.ts`, `+ Received + 11`; `0 pass`, `1 fail`                                                                                                      |
@@ -199,17 +204,20 @@ Fault 20's second half is what proves the configuration guard is load-bearing.
 **What the check does not prevent, tried and recorded.** Each attempt was applied to a real production file
 and then restored; every one compiled with **zero TypeScript errors**:
 
-| Attempt                                                                                           | Outcome                                                                                                     |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| a second `interface Broadcaster` declared in `service/step.service.ts` in place of the import     | **not prevented.** No use resolves through the port, so rule 1 has nothing to report                        |
-| `const pushTo = function subscriptionFor(…) { … }` — a named function expression (round 5)        | **not prevented**, same reason                                                                              |
-| `declare module '../ports/project-event' { interface Broadcaster { extra?: boolean } }` (round 5) | **not prevented**, and unprevent**able** by a name rule: the augmentation merges into the port's own symbol |
-| `export type Publisher = Broadcaster;` consumed as `Publisher`                                    | **not prevented:** a new type alias is a new symbol                                                         |
-| a structural copy under another name (`interface Publisher { publish…; latestSeq… }`)             | **not prevented**, same reason                                                                              |
+| Attempt                                                                                                                                                                                                         | Outcome                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `export const routeFor = subscriptionFor;` in `service/optimizer-trigger-broadcaster.ts`, consumed by a named import in `service/gateway-broadcaster.ts` and called at both sites (the dispatch review's route) | **not prevented.** Value-binding indirection: the type keeps the port's symbol and the identifier's alias chain ends at the binding. Reproduced here: the scan returned `[]`, exit 0, `1 pass`, typecheck exit 0 |
+| a second `interface Broadcaster` declared in `service/step.service.ts` in place of the import                                                                                                                   | **not prevented.** No use resolves through the port, so rule 1 has nothing to report                                                                                                                             |
+| `const pushTo = function subscriptionFor(…) { … }` — a named function expression (round 5)                                                                                                                      | **not prevented**, same reason                                                                                                                                                                                   |
+| `declare module '../ports/project-event' { interface Broadcaster { extra?: boolean } }` (round 5)                                                                                                               | **not prevented**, and unprevent**able** by a name rule: the augmentation merges into the port's own symbol                                                                                                      |
+| `export type Publisher = Broadcaster;` consumed as `Publisher`                                                                                                                                                  | **not prevented:** a new type alias is a new symbol                                                                                                                                                              |
+| a structural copy under another name (`interface Publisher { publish…; latestSeq… }`)                                                                                                                           | **not prevented**, same reason                                                                                                                                                                                   |
 
-All five are declaration questions, not reference questions. They belong to the kind rules — K2 to K6 in
+Five of the six are declaration questions and the first is a value-binding one; none of them is a checked
+import route. They are **assigned follow-up work** under the kind rules — K2 to K6 in
 `docs/superpowers/specs/2026-09-19-code-organization-design.md` and preparations 3 and 4 of the 040.6 map —
-and `verify.md` records them as this check's stated limit rather than as work this packet claims.
+and naming them there is not evidence that anything prevents them today. `verify.md` records all six as this
+check's stated limitations.
 
 **What was tried against the reference rule and caught.** Ten further minutes, all with typecheck exit 0
 unless noted: `import type { Broadcaster } from '@wbs/core/service/broadcast';`, the deep package path
@@ -323,19 +331,9 @@ end of this slice requires `C + 1` over `F + 1`.
 
 1. Create `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` from section 9.4 and run
    `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`. Expect the red of
-   section 6 fault 1: exit 1, the 22 rows, `1 pass`, `1 fail`. A run reporting `0 tests ran` or a green run
-   is a stop. This red is evidence, not a commit: the commit hook lints test files under
+   section 6 fault 1: exit 1, the 22 violation rows, `0 pass`, `1 fail`. A run reporting `0 tests ran` or a
+   green run is a stop. This red is evidence, not a commit: the commit hook lints test files under
    `strictTypeChecked`, so the check and the edits that make it pass land in one slice.
-2. Apply section 9.5's seventeen one-line edits.
-3. `GSETTINGS_BACKEND=memory bunx eslint --fix` on those seventeen paths → exit 0. It moves any import
-   written in the old position into the sorted one (observed; afterwards it had nothing left to fix).
-4. `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` → exit 0, `1 pass`,
-   `0 fail`, `1 expect() call` (observed).
-5. `NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache` → exit 0 (observed).
-6. `(cd libs/wbs/application/core && bun test src)` → exit 0 with `C + 1` over `F + 1` (observed
-   `542 pass`, `0 fail`, 54 files).
-7. Append the baselines, the red's 22 rows and the green counts to `verify.md`, then format that file and
-   run `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
 
 Planner commit: `refactor(core): point every core publisher at the project-event port`.
 
@@ -528,10 +526,13 @@ unchanged, because it opens no change and adds no classified file.
 2. Add the note of section 9.8 under task 1.2 in `openspec/changes/adopt-di-composition/tasks.md`.
    **Tick no box:** 1.2's second half, the collector's move into Plan commands, is not done and section 4
    says why.
-3. Append to `verify.md`: `K` and `N` with their closing values, the port-and-adapter decision with its
-   map citations, this slice's evidence basenames (`slice-6-kinds-baseline.txt`,
-   `slice-6-kinds-final.txt`, the validation report's own basename), and these two findings by name, so
-   later packets do not inherit them silently: **the collector's move waits for task 5.2** because
+3. Append to `verify.md`: `K` and `N` with their closing values, the port-and-adapter decision with its map
+   citations, this slice's evidence basenames (`slice-6-kinds-baseline.txt`, `slice-6-kinds-final.txt`, the
+   validation report's own basename), **all six of the check's stated limitations from section 6 — value-binding
+   indirection through an exported binding, duplicate or merged declarations under a contract's name, a named
+   function expression, a `declare module` augmentation, a type alias and a differently named structural copy,
+   each named as assigned kind-rule follow-up rather than as prevented behaviour** — and these two findings by
+   name, so later packets do not inherit them silently: **the collector's move waits for task 5.2** because
    `import.service.ts:147` builds one too, and **`ports/project-event.ts` keeps a type-only import of
    `../service/numbered-work-item`** until `tasks.md` 6.1 moves that file to the domain library.
 4. `GSETTINGS_BACKEND=memory bunx prettier --write` on `docs/code-organization/kinds.json` and the two
@@ -805,24 +806,24 @@ function moduleOfBinding(node: ts.Node): ts.Expression | undefined {
 type ContractUse = readonly string[];
 
 /**
- * Every reference in the core that reaches one of the port's exported symbols other
- * than from the port itself.
+ * Every checked import route by which a file of the core reaches one of the port's
+ * exported symbols other than from the port itself.
  *
- * **The contract, exactly as proven.** References that TypeScript resolves to the
- * port's contract symbols must reach them through the port module or a permitted
- * file: identity by type and by symbol, asked of module references, of types and of
- * identifiers, so a rename, a `default`, a namespace, a barrel, a dynamic import, an
- * element access and an `import(…)` type are one question rather than six spellings.
+ * **The contract, exactly as proven.** The checker examines module exports and
+ * identifier alias chains by symbol identity, and property, element and
+ * indexed-access expressions by type identity when their base resolves to a module.
+ * It does not trace value-binding indirection. An exported binding such as
+ * `export const routeFor = subscriptionFor`, consumed through a named import, is not
+ * prevented even though its type retains the port function's symbol. This joins
+ * duplicate or merged declarations, structural copies and type aliases as an explicit
+ * residual for subsequent kind-rule work.
  *
- * **Duplicate or merged declarations under the same names, differently named
- * structural copies and type aliases are NOT prevented by this check.** A
- * `declare module` augmentation merges into the port's own symbol, and a named
- * function expression or a second `interface Broadcaster` is a new symbol that no use
- * resolves through the port: a name-based "sole declaration" promise cannot be kept
- * against declaration merging, and four review rounds went into learning that. Those
- * belong to the kind rules — K2 to K6 in
- * `docs/superpowers/specs/2026-09-19-code-organization-design.md`, with preparations 3
- * and 4 of the 040.6 map — not to this check.
+ * A name-based "sole declaration" promise cannot be kept against declaration merging —
+ * a `declare module` augmentation merges into the port's own symbol — so no such
+ * promise is made here. The residuals are assigned follow-up work under K2 to K6 in
+ * `docs/superpowers/specs/2026-09-19-code-organization-design.md` and preparations 3
+ * and 4 of the 040.6 map; naming them there is not evidence that anything prevents
+ * them today.
  */
 function contractUses(paths: readonly string[]): ContractUse {
   const program = coreProgram(paths);
@@ -993,7 +994,7 @@ function contractUses(paths: readonly string[]): ContractUse {
 }
 
 describe('the neutral project-event port', () => {
-  it('is where every reference to the event contracts comes from', async () => {
+  it('rejects the checked event-contract import routes', async () => {
     // Proof: thirteen routes into the contracts each failed here with `wbs-core:typecheck` exit 0 — a
     // named import and an `import` type through service/broadcast.ts; a type-only namespace of it; a value
     // namespace of it read by element access; a barrel import through index.ts; an awaited dynamic import
@@ -1392,3 +1393,20 @@ with `|| exit "$?"`.
 **Dispatchable now.** Slices 1 and 2 as written; slices 3 to 6 as their predecessors land. The contract this
 packet ships is the one sentence above, and the residual is stated as a limit rather than defended as a
 claim.
+
+## 19. Disposition of the dispatch review
+
+| Finding                                                            | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Blocking 1** — value-binding indirection was an unnamed residual | **FIXED as scope correction, with no change to the checker.** The review's replacement text is now the contract in section 1, section 6 and the checker's own JSDoc; the demonstrated case is a row in section 6's residual table, reproduced here (`[]`, exit 0, `1 pass`, `wbs-core:typecheck` exit 0); slice 6 must record all six limitations in `verify.md`; and the assertion is renamed to `rejects the checked event-contract import routes` in the listing and at every reference. The residuals are stated as assigned kind-rule follow-up, not as behaviour anything prevents today. |
+| **Blocking 2** — slice ownership contradicted the steps            | **FIXED with the review's text.** The header's slice summary reads "1 extract the port; 2 add the check and update production importers; 3 prove reference routes; 4 prove guards; 5 update test importers; 6 classification and close"; section 4 says six slices; section 5's cells are checker 2–5, test importers 5, `kinds.json` 6, `tasks.md` 6, `verify.md` 1–6.                                                                                                                                                                                                                         |
+| **Blocking 3** — slice 2's red expected a deleted test to pass     | **FIXED and re-rehearsed on the exact tree.** Slice 2 step 1 now reads: exit 1, the 22 violation rows, `0 pass`, `1 fail`, and a green run or `0 tests ran` is a stop. Observed with the slice-2 intermediate (no `Proof:` comments, production-only filter) over the seventeen reverted importers: `- []`, 22 added rows, `+ Received + 24`, `(fail) … rejects the checked event-contract import routes`, `0 pass`, `1 fail`, exit 1.                                                                                                                                                          |
+| **Note** — section 1's old wording                                 | **FIXED** by the same replacement text.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Note** — the kind rules are follow-up, not evidence              | **FIXED.** Section 6, section 9.4, assumption 7 and slice 6's `verify.md` instruction all say the residuals are assigned follow-up work and that naming them there is not evidence that anything prevents them.                                                                                                                                                                                                                                                                                                                                                                                 |
+
+The planner's post-execution checklist in that review matches sections 7, 8 and 10 as they now stand: the
+moved union and collector compared against the baseline, exactly 17 production and 8 test importers changed,
+the named reference and guard faults replayed with their patches and restored greens, proof comments at
+0 → 2 → 7 claiming only the faults their own slice injected, the final scan including test files and keeping
+the compatibility exception, the core suite at one test and one file more, classification and OpenSpec totals
+unchanged, task 1.2 unticked, and both deferred findings retained.
