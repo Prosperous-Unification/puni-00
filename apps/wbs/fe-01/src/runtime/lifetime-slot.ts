@@ -160,6 +160,8 @@ export interface LifetimeSlot<S> {
  */
 function lateCleanupOf(refusal: unknown): Promise<void> | null {
   if (!(refusal instanceof DiBagCloseCancelledError)) return null;
+  // Proof: on 2026-09-22, returning null made 'fails the transition when the retirement
+  // outruns its budget, and keeps watching the disposal' receive null instead of a Promise.
   return refusal.cleanupPromise;
 }
 
@@ -197,6 +199,8 @@ export function createLifetimeSlot<S>(
    * the never-settling-disposer proofs do not sit for five seconds. There is no
    * other reason to pass it, and no lifetime here differs.
    */
+  // Proof: on 2026-09-22, defaulting to 4,000 made 'gives the retirement the production
+  // budget when it is built with none' receive [4000] instead of [5000].
   budgetMs: number = RETIREMENT_BUDGET_MS,
 ): LifetimeSlot<S> {
   let state: LifetimeState<S> = { status: 'empty' };
@@ -245,6 +249,8 @@ export function createLifetimeSlot<S>(
    */
   const publish = (next: LifetimeState<S>): void => {
     state = next;
+    // Proof: on 2026-09-22, notifying synchronously made 'cannot be superseded by a
+    // subscriber running inside a transition' report zero closes for the third runtime.
     if (notifying) return;
     notifying = true;
     void Promise.resolve().then(() => {
@@ -258,6 +264,8 @@ export function createLifetimeSlot<S>(
     late = lateCleanupOf(refusal);
     if (late === null) return;
     lateEnded = 'pending';
+    // Proof: on 2026-09-22, dropping this observation made 'observes a late disposal that
+    // finishes after the wait expired' receive 'pending' instead of 'settled'.
     void late.then(
       () => {
         lateEnded = 'settled';
@@ -272,6 +280,8 @@ export function createLifetimeSlot<S>(
 
   /** Makes this slot terminally fatal, and hands the refusal on. */
   const refuse = (refusal: unknown): never => {
+    // Proof: on 2026-09-22, dropping this assignment made 'refuses every later transition
+    // of a slot whose retirement failed' resolve with the third runtime instead of rejecting.
     terminal.refusal = refusal;
     observeLate(refusal);
     publish({ status: 'fatal', fault: discloseFault(refusal), terminal: true });
@@ -299,7 +309,11 @@ export function createLifetimeSlot<S>(
     const mine = (async (): Promise<Outcome<S>> => {
       // One transition at a time, in request order: the queue is what keeps two
       // disposals from overlapping and what makes the fences below meaningful.
+      // Proof: on 2026-09-22, dropping this wait made the model report r3 acquired once,
+      // never closed and not live in 'holds every invariant it claims'.
       if (ahead !== null) await ahead.catch(() => undefined);
+      // Proof: on 2026-09-22, dropping this check made 'refuses a request that was already
+      // queued when the disposal failed' receive rejected then fulfilled.
       if (refusalSoFar() !== null) throw terminal.refusal;
       // A disposal that fails throws from here, through `refuse`, so a second
       // terminal check after it would be one no mutation could break.
@@ -310,28 +324,40 @@ export function createLifetimeSlot<S>(
       }
       // Fence after the disposal: a request overtaken *while* the old runtime was
       // letting go must not build.
+      // Proof: on 2026-09-22, making this condition unconditional made the model report
+      // 'the latest request did not win' and all 25 runtime tests failed.
+      // Proof: on 2026-09-22, dropping this fence made 'does not build for a request that a
+      // newer one overtook during the disposal' receive one doomed factory call, not zero.
       if (ordinal !== newest) throw new TransitionSupersededError(ordinal, newest);
       publish({ status: 'constructing' });
       let built: RetirableRuntime<S>;
       try {
         built = request.acquire();
       } catch (failure) {
+        // Proof: on 2026-09-22, dropping this release made the model report r1 acquired once,
+        // never closed and not live in 'holds every invariant it claims'.
         if (failure instanceof PartialAcquisitionError) {
           try {
             await failure.release({ timeoutMs: budgetMs });
           } catch (releaseRefusal) {
+            // Proof: on 2026-09-22, swallowing this refusal made 'is terminal when the
+            // half-finished construction cannot be released' receive the construction error.
             refuse(releaseRefusal);
           }
         }
         // Nothing is held now: the old runtime was disposed and everything this
         // construction acquired has been released. Fatal for the reader, not
         // terminal for the slot — see {@link LifetimeState}.
+        // Proof: on 2026-09-22, dropping this publication made 'is fatal but not terminal
+        // when the replacement’s construction throws' receive 'constructing', not 'fatal'.
         publish({ status: 'fatal', fault: discloseFault(failure), terminal: false });
 
         throw failure;
       }
       // Fence after the factory: a factory may itself ask for another
       // replacement, so what it built is given back rather than published.
+      // Proof: on 2026-09-22, dropping this fence made the model report r2 acquired once,
+      // never closed and r3 live in 'holds every invariant it claims'.
       if (ordinal !== newest) {
         withdrawn = built;
         publish({ status: 'retiring' });
@@ -356,6 +382,8 @@ export function createLifetimeSlot<S>(
    */
   const accept = (): number => {
     newest += 1;
+    // Proof: on 2026-09-22, dropping this withdrawal made 'withdraws publication
+    // synchronously, before the first await' still observe the live runtime.
     if (held !== null) {
       withdrawn = held;
       held = null;
