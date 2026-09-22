@@ -3,8 +3,8 @@ import {
   dispositionOfExitCode,
   dispositionOfPreflightFailure,
 } from '@wbs/contracts/solver/solver-failure-disposition';
-import type { RecordedEvent } from '@wbs/core';
-import type { Schedule } from '@wbs/domain';
+import type { ProjectEvent, RecordedEvent } from '@wbs/core';
+import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import {
   type OptimizationOutcomeEvent,
@@ -40,8 +40,6 @@ import {
   type SpawnRequest,
 } from '../repository/optimized-schedule-cache';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
-import type { SolverObjectiveName } from '../repository/schema';
-import type { ProjectEvent } from './broadcast';
 import {
   type OptimizationVariantState,
   optimizationVariantState,

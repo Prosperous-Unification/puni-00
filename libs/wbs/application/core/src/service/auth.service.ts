@@ -1,4 +1,4 @@
-import type { OidcIdentity, WbsScope } from '@wbs/contracts';
+import type { AuthenticatedUser, OidcIdentity } from '@wbs/contracts';
 
 import type { Clock } from '../ports/clock';
 import type { OidcVerifier } from '../ports/oidc-verifier';
@@ -53,11 +53,7 @@ export interface AuthServiceOptions {
   clock: Clock;
 }
 
-export interface AuthenticatedUser {
-  id: string;
-  username: string;
-  scopes: readonly WbsScope[];
-}
+export type { AuthenticatedUser } from '@wbs/contracts';
 
 /** Usernames are the WebSocket presence identity, so they are constrained here. */
 const USERNAME = /^[a-zA-Z0-9_-]{3,32}$/;

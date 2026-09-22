@@ -19,6 +19,8 @@ export * from './http/import.routes';
 export * from './module/plan-history/contract';
 export * from './module/plan-history/module';
 export * from './ports/actual-store';
+// The owner-neutral marker read: `CalendarMarkerReader` and the list outcome it answers with.
+export * from './ports/calendar-marker-read';
 export * from './ports/calendar-marker-store';
 export * from './ports/capacity-store';
 export { type Clock, clockOf } from './ports/clock';

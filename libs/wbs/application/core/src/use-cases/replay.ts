@@ -1,5 +1,5 @@
-import type { InternalIdentity } from '../http/endpoint';
-import type { AuthenticatedUser } from '../service/auth.service';
+import type { AuthenticatedUser, InternalIdentity } from '@wbs/contracts';
+
 import type { ReplayOrchestrator, ReplayOutcome } from '../service/replay-orchestrator';
 
 export interface ReplayGraph {

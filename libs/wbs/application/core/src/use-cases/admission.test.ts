@@ -1,8 +1,8 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, test } from 'bun:test';
 
-import type { AuthenticatedUser } from '../service/auth.service';
 import { PlanCommandRunner } from '../service/plan-commands';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';

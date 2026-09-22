@@ -12,17 +12,34 @@
       `ports/event-port-boundaries.test.ts` as its checked rule. The collector stays in
       `service/broadcast.ts` and moves with 5.2: `import.service.ts:148` builds one too, so Plan
       commands cannot own it privately before that module exists without a K6 feature-to-feature edge.
-- [ ] 1.3 Change Plan document's marker read to an owner-neutral read port and move
-      `CalendarMarkerListOutcome` out of the Calendar marker service file.
-- [ ] 1.4 Move the actor and principal types `runCommandBatch`, `replay`, `savePlan` and
+- [x] 1.3 Change Plan document's marker read to an owner-neutral read port and move
+      `CalendarMarkerListOutcome` out of the Calendar marker service file. Landed 2026-09-22 as
+      `libs/wbs/application/core/src/ports/calendar-marker-read.ts`, with `CalendarMarkerReader` as the
+      contract `PlanDocumentServiceOptions.markers` now names; the service keeps every name as a
+      compatibility re-export. Checked by `ports/sideways-type-boundaries.test.ts`.
+- [x] 1.4 Move the actor and principal types `runCommandBatch`, `replay`, `savePlan` and
       `retention-sweep.ts` share to a neutral contract location so none of them imports Authentication.
+      Landed 2026-09-22: `AuthenticatedUser` and `InternalIdentity` are declared in
+      `libs/wbs/domain/contracts/src/principal.ts`. `service/auth.service.ts` re-exports
+      `AuthenticatedUser` only; `http/endpoint.ts` re-exports both and keeps `Identity` built from them.
+      `service/retention-timer.ts` moved with the use cases. Checked by
+      `ports/sideways-type-boundaries.test.ts`.
 - [ ] 1.5 Move the Optimization spawn and child interfaces into the Optimization contract; keep the
       Supervisor request/attempt mapper private beside the Supervisor client and amend its
       classification to adapter-private support.
 - [ ] 1.6 Import `SolverObjectiveName` from `@wbs/domain` and replace the repository hash shim with
-      an injected cache-key port backed by SQLite's existing SHA-256.
+      an injected cache-key port backed by SQLite's existing SHA-256. First half landed 2026-09-22:
+      `apps/wbs/be-01/src/service/optimization-coordinator.ts` and `…/optimized-plan-read.test.ts` take
+      `SolverObjectiveName` from `@wbs/domain`, and the coordinator takes `ProjectEvent` from `@wbs/core`
+      rather than through `service/broadcast.ts`. No rule prevents the repository-schema path returning:
+      be-01 has no type-identity boundary check, and the Optimization module of 3.6 owns that rule. The
+      cache-key port is still owed.
 - [ ] 1.7 Wire or delete `saved-plan-retry.ts` under the accepted saved-plans obligation.
-- [ ] 1.8 Correct the four `kinds.json` capability values to `wbs-domain` and `plan-import`.
+- [x] 1.8 Correct the four `kinds.json` capability values to `wbs-domain` and `plan-import`. Done
+      2026-09-22 over **five** entries, not four: Plan history's row became a shim under 2.1, and Plan
+      commands and Saved plans each carry two rows (the service and its use case). `wbs-domain` is a
+      requirement group of 123 archived deltas and is not a synced main spec — `openspec spec list` does
+      not name it — so the value is checkable against those deltas only; syncing it is its own change.
 
 ## 2. The first sealed module
 

@@ -29,4 +29,5 @@ export * from './http/work-item-shapes';
 export * from './internal';
 export * from './logger';
 export * from './oidc-identity';
+export * from './principal';
 export * from './ws';

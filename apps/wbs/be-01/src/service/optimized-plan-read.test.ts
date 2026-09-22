@@ -1,9 +1,8 @@
-import { type Schedule, schedule, sliceKey } from '@wbs/domain';
+import { type Schedule, schedule, sliceKey, type SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';
-import type { SolverObjectiveName } from '../repository/schema';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';

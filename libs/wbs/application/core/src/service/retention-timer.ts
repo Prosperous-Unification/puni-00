@@ -1,4 +1,5 @@
-import type { InternalIdentity } from '../http/endpoint';
+import type { InternalIdentity } from '@wbs/contracts';
+
 import type { EventLogStore } from '../ports/event-log-store';
 import type { PlanEventStore } from '../ports/plan-event-store';
 import type { Intervals } from '../ports/timers';

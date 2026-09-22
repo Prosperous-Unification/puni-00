@@ -7,11 +7,11 @@ import {
   type WorkItemTree,
 } from '@wbs/contracts';
 
+import type { CalendarMarkerReader } from '../ports/calendar-marker-read';
 import type { Clock } from '../ports/clock';
 import type { DirectoryStore, PersonWithTeams, TeamWithServices } from '../ports/directory-store';
 import type { Project } from '../ports/project-store';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../ports/work-item-store';
-import type { CalendarMarkerListOutcome } from './calendar-marker.service';
 
 type PlanDirectory = Pick<
   DirectoryStore,
@@ -25,9 +25,7 @@ type PlanDirectory = Pick<
 
 export interface PlanDocumentServiceOptions {
   directory: PlanDirectory;
-  markers: {
-    list(projectId: string): Promise<CalendarMarkerListOutcome>;
-  };
+  markers: CalendarMarkerReader;
   clock: Pick<Clock, 'now'>;
 }
 
