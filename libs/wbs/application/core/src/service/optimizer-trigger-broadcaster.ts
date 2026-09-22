@@ -1,4 +1,4 @@
-import type { Broadcaster, ProjectEvent } from './broadcast';
+import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 
 export type OptimizationInputChanged = (projectId: string) => void;
 

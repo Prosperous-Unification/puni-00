@@ -1,4 +1,4 @@
-import type { Broadcaster, ProjectEvent } from '../service/broadcast';
+import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 
 export interface RecordingBroadcaster extends Broadcaster {
   readonly published: { projectId: string; event: ProjectEvent }[];

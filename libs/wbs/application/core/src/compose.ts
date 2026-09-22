@@ -4,6 +4,7 @@ import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
+import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
 import type { Digest, PasswordHasher, TokenCodec } from './ports/runtime';
 import type { Scheduler } from './ports/scheduler';
@@ -12,7 +13,6 @@ import type { PlanTransactionalStores, TransactionalStores } from './ports/store
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import { type AuthenticatedUser, AuthService } from './service/auth.service';
-import type { Broadcaster } from './service/broadcast';
 import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';

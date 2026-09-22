@@ -2,8 +2,8 @@ import { canEditProject, type PriorityBand } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
 import type { PriorityBandStore } from '../ports/priority-band-store';
+import type { Broadcaster } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
-import type { Broadcaster } from './broadcast';
 
 export interface PriorityBandServiceOptions {
   projects: ProjectStore;

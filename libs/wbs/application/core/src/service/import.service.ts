@@ -1,10 +1,11 @@
 import type { PlanDocumentRequest } from '@wbs/contracts';
 
 import type { Clock } from '../ports/clock';
+import type { Broadcaster } from '../ports/project-event';
 import type { Scheduler } from '../ports/scheduler';
 import type { SubtreeCopy } from '../ports/subtree-store';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
-import { AnnouncementCollector, type Broadcaster } from './broadcast';
+import { AnnouncementCollector } from './broadcast';
 import type { DirectoryService } from './directory.service';
 import {
   type ImportPreparation,
