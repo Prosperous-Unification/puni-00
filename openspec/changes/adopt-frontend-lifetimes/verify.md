@@ -182,6 +182,48 @@ not rerun in slice 4.
   the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
   verification under the executor sandbox contract.
 
+## Slice 4
+
+- `git rev-parse HEAD`: exit 0; `8a48d86d2e974c5ccce971b2475f28931ba4f5c6`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` before edits: exit 0; Nx
+  successfully ran the target (`slice4-step0-typecheck.log`).
+- Sandbox unit baseline: exit 0; F0 = 46 files passed and T0 = 656 tests passed
+  (`slice4-step0-unit.log`).
+- The four bootstrap and fatal-page suites against the prescribed skeletons: exit 1;
+  4 files failed and all 11 tests failed on
+  `Error: the page's bootstrap is not written yet` (`slice4-red.log`).
+- The same four suites after implementation: exit 0; 4 files passed and all 11 tests
+  passed (`slice4-green.log`).
+- `bunx vitest run src/main.test.tsx`: exit 0; 1 file and 1 test passed
+  (`slice4-main-test.log`).
+- Sandbox unit tier after implementation: exit 0; 46 files and 656 tests passed,
+  unchanged from F0/T0 because every new suite is in the jsdom tier
+  (`slice4-unit-after.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` after edits: exit 0; Nx
+  successfully ran the target (`slice4-typecheck.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint`: exit 0; Nx successfully ran the
+  target with no diagnostics (`slice4-lint.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build --skip-nx-cache`: exit 0; 991
+  modules transformed and Nx successfully ran the build target (`slice4-build.log`).
+- Strict OpenSpec validation: exit 0; 114 items passed and 0 failed;
+  `adopt-frontend-lifetimes` was valid with no issues
+  (`slice4-openspec-validation.json`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write` on the nine slice-owned code paths:
+  exit 0; every path was unchanged (`slice4-prettier-write.log`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write` on this verification record:
+  exit 0; the path was unchanged (`slice4-prettier-write-verify.log`).
+- `GSETTINGS_BACKEND=memory bunx prettier --check` on all ten slice-owned paths:
+  exit 0; all matched files used Prettier code style (`slice4-prettier-check.log`).
+- `NX_DAEMON=false bun run format:check --all`: exit 0
+  (`slice4-format-check.log`).
+- The Chromium probe and spec were written but not run in this sandbox. Planner
+  verification is pending: the packet records the focused case at 1 passed in 8.6s,
+  fault N12 at 1 failed, and the three existing smoke specs at 25 passed.
+- The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
+  the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
+  verification under the executor sandbox contract.
+
 ## Slice 3
 
 - `git rev-parse HEAD`: exit 0; `372e7a64cf1e9f6b0d75122e380b5db6124312a2`.
