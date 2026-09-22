@@ -124,3 +124,59 @@ export interface RememberedPreferences {
     isValid: (stored: string) => stored is T,
   ) => Remembered<T>;
 }
+
+/**
+ * The store this module owns for the lifetime of one installation.
+ *
+ * A {@link BrowserStorage} that can be **revoked**: the module's disposal calls
+ * `revoke`, and every later access throws. That is the whole of what the module
+ * owns, and the reason it has a disposer at all — a preference written by a
+ * component that outlived its runtime would reach the reader's browser after the
+ * page had given that runtime up, which is a write nobody owns.
+ */
+export interface RevocableBrowserStorage extends BrowserStorage {
+  /** Refuses every later read, write and forget on this store. Idempotent. */
+  readonly revoke: () => void;
+}
+
+/**
+ * What a host graph must supply to install the preferences module.
+ *
+ * The raw store adapter and nothing else. It is the host's because reaching this
+ * browser's own key-value store is the page's infrastructure, and it is a
+ * requirement rather than a module-private binding so that a host which forgets
+ * it is told **which module** asked: see {@link PREFERENCES_LABEL}.
+ */
+export interface PreferencesRequirements {
+  readonly browserStore: BrowserStorage;
+}
+
+/**
+ * What installing the preferences module adds to a host graph.
+ *
+ * `preferences`, the resource, is public and that is **recorded K2 debt, not
+ * compliance**: delivery must take {@link RememberedPreferences}, and the only
+ * reason the resource is exported is `apps/wbs/fe-01/src/lib/remembered.ts`,
+ * which builds a store per project id for the layout module and so cannot be a
+ * fixed named answer. The map's claim that the generic factory is "not a reason
+ * to expose the resource" is half right: it is not a reason to put it in a React
+ * context, and it is still the reason the module exports it.
+ */
+export interface PreferencesExports {
+  readonly preferences: Preferences;
+  readonly remembered: RememberedPreferences;
+}
+
+/**
+ * The DI Bag label this module's private bindings are named under.
+ *
+ * `frontend` is the **runtime segment**, not a ring: a module under an app is named
+ * by where it runs, so the wiki module identifier is {@link PREFERENCES_MODULE_ID}
+ * and the label drops the `module.` prefix. A library module carries its ring
+ * instead, which is why the backend's first sealed module is
+ * `application.plan-history`.
+ */
+export const PREFERENCES_LABEL = 'frontend.preferences';
+
+/** The wiki module identifier, which the module index will declare. */
+export const PREFERENCES_MODULE_ID = 'module.frontend.preferences';

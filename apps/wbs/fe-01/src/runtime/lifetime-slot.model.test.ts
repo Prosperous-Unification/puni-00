@@ -2,6 +2,9 @@ import { DiBag } from 'di-bag';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
+
+import { installApplicationRuntime } from './application-runtime';
 import {
   createLifetimeSlot,
   type LifetimeSlot,
@@ -18,6 +21,16 @@ interface Tracked {
   closeCalls: number;
   /** How many of those completed, either way. */
   closeSettles: number;
+  /**
+   * Whether the production graph behind this runtime was really closed.
+   *
+   * Only an `installed` runtime has one; `null` for the generated graphs. It is
+   * what the store-revocation invariant is stated against, because a close that
+   * was refused before it reached the bag revokes nothing.
+   */
+  graphClosed: boolean;
+  /** Answers whether the installed store has been revoked, or `null` when there is none. */
+  probeRevoked: (() => boolean) | null;
 }
 
 /**
@@ -52,7 +65,14 @@ class Ownership {
   readonly outcomes: { readonly ordinal: number; outcome: 'pending' | 'done' | 'refused' }[] = [];
 
   track(name: string): Tracked {
-    const record: Tracked = { name, acquisitions: 0, closeCalls: 0, closeSettles: 0 };
+    const record: Tracked = {
+      name,
+      acquisitions: 0,
+      closeCalls: 0,
+      closeSettles: 0,
+      graphClosed: false,
+      probeRevoked: null,
+    };
     this.runtimes.push(record);
     return record;
   }
@@ -69,6 +89,26 @@ class Ownership {
       expect(runtime.acquisitions, `${runtime.name} was acquired twice`).toBe(1);
     }
   }
+
+  /**
+   * An installed runtime's store is revoked exactly when its graph was closed.
+   *
+   * The production half of invariant 2: "the close was attempted" is what the
+   * owner controls, and "the store was given back" is what a reader's browser
+   * actually observes. A live runtime's store is never revoked, or the page would
+   * be holding services that refuse every preference.
+   */
+  storesFollowTheirGraphs(live: string | null): void {
+    for (const runtime of this.runtimes) {
+      const probe = runtime.probeRevoked;
+      if (probe === null || runtime.acquisitions === 0) continue;
+      expect(
+        probe(),
+        `${runtime.name}: revoked=${String(probe())}, graphClosed=${String(runtime.graphClosed)}, live=${String(live)}`,
+      ).toBe(runtime.graphClosed);
+      if (runtime.name === live) expect(probe(), `${runtime.name} is live and revoked`).toBe(false);
+    }
+  }
 }
 
 /** A generated request against the slot. */
@@ -81,6 +121,16 @@ type Command =
       readonly partial: boolean;
       /** Whether it asks for another replacement from inside the factory or a listener. */
       readonly reentry: 'none' | 'factory' | 'listener';
+      /**
+       * Which graph it publishes: a generated one, or the page's **real**
+       * application runtime over a fake browser store.
+       *
+       * The installed flavour is what puts the production installer — the sealed
+       * preferences module, its owned revocable store and the transaction around
+       * it — inside the generated interleavings, instead of only in named
+       * examples.
+       */
+      readonly graph: 'fake' | 'installed';
     }
   | { readonly kind: 'retire' }
   | { readonly kind: 'settle' };
@@ -94,6 +144,7 @@ const commandArb: fc.Arbitrary<Command> = fc.oneof(
       disposal: fc.constantFrom('settles' as const, 'rejects' as const, 'never' as const),
       partial: fc.boolean(),
       reentry: fc.constantFrom('none' as const, 'factory' as const, 'listener' as const),
+      graph: fc.constantFrom('fake' as const, 'installed' as const),
     }),
     weight: 4,
   },
@@ -173,6 +224,53 @@ describe('the ownership rule, under generated interleavings', () => {
             };
           };
 
+          /**
+           * The page's real runtime, published as this generated runtime.
+           *
+           * `installApplicationRuntime` is the production function, over a fake
+           * browser store: real acquisition, the real sealed module and its real
+           * revocation on close, with the **timing** of that close left to the
+           * scheduler.
+           *
+           * The chosen disposal mode decides only when the close runs, never
+           * whether it fails, and that is a fact about the graph rather than a
+           * convenience: the page's application graph has exactly one disposer, a
+           * synchronous revocation that can neither reject nor hang. The rejecting
+           * and never-settling flavours therefore stay with the generated graphs
+           * above, which is where a socket or a timer will be modelled.
+           */
+          const buildInstalled = (record: Tracked): RetirableRuntime<Tracked> => {
+            const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
+            record.acquisitions += 1;
+            record.probeRevoked = () => {
+              try {
+                installed.services.remembered.ganttDetail.read();
+                return false;
+              } catch {
+                return true;
+              }
+            };
+            return {
+              services: record,
+              close: async (options) => {
+                record.closeCalls += 1;
+                world.disposing += 1;
+                world.maxConcurrentDisposals = Math.max(
+                  world.maxConcurrentDisposals,
+                  world.disposing,
+                );
+                try {
+                  await scheduler.schedule(Promise.resolve(), `dispose ${record.name}`);
+                  await installed.close(options);
+                  record.graphClosed = true;
+                } finally {
+                  world.disposing -= 1;
+                  record.closeSettles += 1;
+                }
+              },
+            };
+          };
+
           /** A construction that acquires one resource and then throws, transactionally. */
           const buildPartial = (record: Tracked): never => {
             const bag = DiBag.createBuilder()
@@ -222,6 +320,7 @@ describe('the ownership rule, under generated interleavings', () => {
                   disposal: 'settles',
                   partial: false,
                   reentry: 'none',
+                  graph: 'fake',
                 });
               };
             }
@@ -234,10 +333,12 @@ describe('the ownership rule, under generated interleavings', () => {
                       disposal: 'settles',
                       partial: false,
                       reentry: 'none',
+                      graph: 'fake',
                     });
                   }
                   world.builds.push({ ordinal, issuedWhenBuilt: issued });
                   if (command.partial) return buildPartial(record);
+                  if (command.graph === 'installed') return buildInstalled(record);
                   return buildRuntime(record, command.disposal);
                 })
                 .then(
@@ -286,8 +387,10 @@ describe('the ownership rule, under generated interleavings', () => {
 
           // 1. One live runtime at most, and it is the last thing published.
           if (live !== null) expect(world.published.at(-1)).toBe(live);
-          // 2. Ownership is accounted for, in every state including fatal.
+          // 2. Ownership is accounted for, in every state including fatal, and an
+          //    installed runtime's store followed its own graph.
           world.ownershipIsAccountedFor(live);
+          world.storesFollowTheirGraphs(live);
           // 3. Disposals never overlap: that is what the queue is for.
           expect(world.maxConcurrentDisposals, 'two disposals overlapped').toBeLessThanOrEqual(1);
           // 4. A request that was already superseded when its factory ran never

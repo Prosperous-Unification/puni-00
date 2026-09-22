@@ -37,7 +37,8 @@ selection, and the router instance that survives a session update.
 - No backend, gateway or MCP work.
 - No server-side sign-out. The existing Log out stays a local exit that sends no
   request, so a reload can still restore the identity.
-- No new reader-visible behaviour except the fatal state above.
+- No new reader-visible behaviour except the fatal state above and a retired
+  runtime's refusal.
 - No credential rotation for one identity. No such event exists today.
 
 ## Constraints
