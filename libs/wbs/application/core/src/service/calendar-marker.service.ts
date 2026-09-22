@@ -1,5 +1,9 @@
 import { canEditProject, type IsoDate } from '@wbs/domain';
 
+import type {
+  CalendarMarkerListOutcome,
+  CalendarMarkerRefused,
+} from '../ports/calendar-marker-read';
 import type { CalendarMarker, CalendarMarkerStore } from '../ports/calendar-marker-store';
 import type { Clock } from '../ports/clock';
 import type { Broadcaster } from '../ports/project-event';
@@ -19,50 +23,20 @@ export interface CalendarMarkerServiceOptions {
 }
 
 /**
- * Why a marker could not be listed, stored or changed. All four are states.
+ * What one marker write decided.
  *
- * `not_found` covers **both** "no such project" and "no such marker of this
- * project", and it stays one reason on the wire: a caller who could tell the
- * two apart by the reason would learn that a marker it may not see exists
- * (spec.md, "a marker of another project answers `not_found` rather than
- * `forbidden`"). Which of the two it was is carried beside the reason instead,
- * as {@link CalendarMarkerSubject}.
+ * The refusal half lives in {@link CalendarMarkerRefused}, beside the read
+ * contract Plan document consumes, so that reading a project's markers costs no
+ * dependency on this service. The names stay exported here.
  */
-export type CalendarMarkerRefusal = 'not_found' | 'forbidden' | 'taken';
-
-/**
- * What a refusal is **about** — the project the request addressed, or the
- * marker inside it.
- *
- * This is not a second reason and never reaches a client as one. It exists so a
- * route can answer the spec's `field` honestly: the refusal table blames
- * `markerId` for a marker that is absent or another project's, and the routes
- * used to blame it for an **absent project** too, naming a value that had
- * nothing to do with the refusal (TASK-279 AC #7). Only the service knows
- * which check failed — `gate` reads the project, the store reads the marker
- * inside its own transaction — so only the service can say.
- *
- * It leaks nothing the reason did not already: an existing project the caller
- * may not write answers `forbidden` and an absent one answers `not_found`, so
- * project existence is already distinguishable from outside. Marker existence
- * is not, and stays that way — `about` never reaches the wire, and the routes
- * turn it into a `field` only for a request that named a marker id itself. A
- * create that let this service mint one can still be refused `about: 'marker'`
- * (the minted id collided), and the route blames nothing for it, because the
- * two questions are separate and both are asked.
- */
-export type CalendarMarkerSubject = 'project' | 'marker';
-
-export interface CalendarMarkerRefused {
-  ok: false;
-  reason: CalendarMarkerRefusal;
-  about: CalendarMarkerSubject;
-}
-
 export type CalendarMarkerOutcome = { ok: true; value: CalendarMarker } | CalendarMarkerRefused;
 
-export type CalendarMarkerListOutcome =
-  { ok: true; value: CalendarMarker[] } | CalendarMarkerRefused;
+export type {
+  CalendarMarkerListOutcome,
+  CalendarMarkerRefusal,
+  CalendarMarkerRefused,
+  CalendarMarkerSubject,
+} from '../ports/calendar-marker-read';
 
 /** What a create carries that is not the project or the actor. */
 export interface NewCalendarMarker {

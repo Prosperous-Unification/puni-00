@@ -312,3 +312,24 @@ service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 
   (`slice-6-gw-mcp-typecheck.log`).
 - The repository-wide format check passed (`slice-6-format-check-final.log`).
 - The host gate was not run in the executor sandbox and remains pending planner verification.
+
+### Type-only preparations, Slice 1 — 2026-09-22
+
+- Core baseline `C=542`, `F=54`: 542 passed, 0 failed across 54 files
+  (`slice-1-core-baseline.log`). With the new boundary test, the closing run reached the required
+  `C + 1=543` passes across `F + 1=55` files with 0 failures
+  (`slice-1-core-closing.log`).
+- The test-first red reported four routes from `service/plan-document.ts` to
+  `service/calendar-marker.service.ts`: `'./calendar-marker.service'`,
+  `CalendarMarkerListOutcome`, `ok`, and `value`; Bun printed `Expected - 1`, `Received + 6`,
+  0 passed, and 1 failed (`slice-1-sideways-red.log`).
+- `ports/calendar-marker-read.ts` now owns `CalendarMarkerReader`,
+  `CalendarMarkerListOutcome`, `CalendarMarkerRefused`, `CalendarMarkerRefusal`, and
+  `CalendarMarkerSubject`. The Calendar marker service retains compatibility re-exports for the
+  four moved outcome names, while Plan document names the reader port.
+- The focused boundary test then passed 1 test with 0 failures
+  (`slice-1-sideways-green.log`). Core type-check and lint passed
+  (`slice-1-typecheck-lint.log`); the be-01, gw-01, and mcp-01 type-checks passed
+  (`slice-1-downstream-typecheck.log`); and the portable browser build passed
+  (`slice-1-portable-build.log`). The five owned code paths passed their formatting check
+  (`slice-1-prettier-check.log`).
