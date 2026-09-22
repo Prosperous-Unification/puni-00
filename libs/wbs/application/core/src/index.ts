@@ -32,6 +32,8 @@ export type { OidcVerifier } from './ports/oidc-verifier';
 export * from './ports/plan-event-store';
 export * from './ports/priority-band-store';
 export * from './ports/progress-store';
+// The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
+export * from './ports/project-event';
 export * from './ports/project-store';
 export type { PushTransport } from './ports/push-transport';
 export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';
@@ -61,6 +63,8 @@ export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export * from './service/assumed-assignee';
 export * from './service/auth.service';
+// Compatibility export: the event contracts keep their barrel names from the
+// neutral port, and `AnnouncementCollector` still lives here.
 export * from './service/broadcast';
 export * from './service/calendar-marker.service';
 export * from './service/capacity.service';

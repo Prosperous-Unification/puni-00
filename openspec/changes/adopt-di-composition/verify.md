@@ -96,3 +96,19 @@ directory.)_
 - `wbs-be-01:test:unit` (rehearsed exit 0), `tool-devsync:test` (rehearsed 366 passed, 0 failed),
   and `wbs-core:test` (rehearsed 541 passed, 0 failed across 53 files) are pending planner
   verification because their whole targets are planner-only in this execution environment.
+
+### Broadcast event port, Slice 1 — 2026-09-22
+
+- Core baseline `C=541`, `F=53`: 541 passed, 0 failed across 53 files
+  (`core-baseline.log`). After extracting the event contracts, the closing run remained 541
+  passed, 0 failed across 53 files (`core-final.log`).
+- `ports/project-event.ts` contains the moved `ProjectEvent`, `subscriptionFor` and
+  `Broadcaster` contracts. `service/broadcast.ts` retains `HeldAnnouncement` and
+  `AnnouncementCollector` and re-exports the port for compatibility; the root barrel exports
+  both homes. The byte-for-byte extraction check passed (`slice-1-extraction-check.log`).
+- The port keeps its type-only import of `../service/numbered-work-item` until task 6.1 moves
+  that file to the domain library.
+- The pre-edit type check passed (`slice-1-step0-typecheck.log`); the owned code paths passed
+  their formatting check (`slice-1-prettier-check.log`); core type-check and lint passed
+  (`slice-1-typecheck-lint.log`); and the portable browser build passed
+  (`slice-1-portable-build.log`).
