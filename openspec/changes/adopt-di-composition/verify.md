@@ -357,3 +357,23 @@ service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 
   (`slice-2-contracts-checks.log`). The be-01, gw-01, mcp-01, and fe-01 type-checks passed
   (`slice-2-consumer-typechecks.log`), and the portable browser build passed
   (`slice-2-core-portable-build.log`).
+
+### Type-only preparations, Slice 3 — 2026-09-22
+
+- Step 0 found one `../repository/schema` import in each of
+  `service/optimization-coordinator.ts` and `service/optimized-plan-read.test.ts`, and one
+  `./broadcast` import in the coordinator. The initial be-01 type-check passed
+  (`slice-3-step0-typecheck.log`).
+- The coordinator now takes `SolverObjectiveName` from `@wbs/domain` and `ProjectEvent` from
+  `@wbs/core`; the optimized-plan reader test takes `SolverObjectiveName` from `@wbs/domain`.
+  The three old-path grep counts fell to zero (`slice-3-import-counts.log`).
+- The focused sandbox-safe be-01 subset remained unchanged at `B=60` passed over `G=6` files,
+  with 0 failures (`slice-3-be-subset-baseline.log`,
+  `slice-3-be-subset-closing.log`). Be-01 type-check and lint passed
+  (`slice-3-typecheck-lint.log`), and the core sideways-type boundary test passed 1 test with 0
+  failures (`slice-3-sideways-boundary.log`).
+- This slice does not prevent either import path from returning: be-01 has no type-identity
+  boundary check, and the Optimization module of task 3.6 owns that rule. The focused subset
+  also excludes four further eligible coordinator tests and the child-spawning
+  `optimization-spawn-handshake.proc.db.test.ts`; the whole `wbs-be-01:test` target is pending
+  planner verification.
