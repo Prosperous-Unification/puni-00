@@ -587,3 +587,23 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
   the focused test passed 1 test with 0 failures and 1 assertion
   (`slice-2-legacy-pin-green.log`).
 - The final `twilight-burokrat:typecheck` exited 0 (`slice-2-typecheck-final.log`).
+
+### Wiki registration, Packet D — 2026-09-22
+
+- Slice 1 added Plan history's `module-index` block and replaced the pilot test's literal mapping
+  pins with mapping/boundary parity and discovered-index checks. Slice 2 registered
+  `module.application.plan-history` and `boundary.application.plan-history` as a full pilot member.
+  The boundary's `sourceSelector` binds the new directory to its pre-move source at the pilot's
+  frozen revision; `apps/wiki/cli/src/policy/trust.ts:388-426` validates that the source selector
+  matches the boundary selector kind and contains every baseline entry.
+- Task 7.5 now records only the delivered index and pilot-mapping scope. Label agreement between a
+  README `moduleId` and the label passed to `buildModule` remains explicitly deferred; see packet
+  D's "Deferred: label agreement." Discovering a sealed module with no registration is also
+  outside this task's narrower declared-registration guarantee.
+- Strict OpenSpec validation was unchanged by slice 3: before editing it reported 114 items, 114
+  passed and 0 failed (`slice-3-openspec-before.json`); after editing it reported the same 114
+  items, 114 passed and 0 failed (`openspec-validation.mKxFrs.json`).
+- Pending planner verification: the final whole `pilot-policy.test.ts` file (rehearsed at 21
+  passed, 0 failed); `twilight-burokrat:test` (rehearsed at 764 passed, 0 failed and 6702
+  assertions across 39 files); `tool-devsync:test` (rehearsed at 366 passed, 0 failed); and
+  `bin/h2puni-gate.sh <sha>` (not run in rehearsal or the executor sandbox).
