@@ -3,6 +3,7 @@ import { DiBag } from 'di-bag';
 import { revocableStorage } from './browser-storage.repository';
 import {
   type BrowserStorage,
+  type IsRuntimeLive,
   type Preferences,
   PREFERENCES_LABEL,
   type RememberedPreferences,
@@ -26,6 +27,16 @@ import { createPreferences } from './preferences.resource';
  * which is what makes a host that forgets it say which module asked:
  * `Cannot resolve "frontend.preferences/preferencesStore": dependency
  * "browserStore" is not registered.`
+ *
+ * `isLive` is the module's second host requirement: a synchronous predicate
+ * `preferences.resource.ts` re-checks around every caller-supplied validator,
+ * on both its accepting and refusing branches, so a runtime withdrawn while
+ * `isValid` is still on the stack cannot have its own answer trusted either
+ * way. `application-runtime.ts` is the one host that wires it to a real
+ * lifetime slot; every other host — including this module's own tests —
+ * registers `() => true`. This is a **required** registration of the module
+ * itself, not a fallback: `createPreferences`'s own always-`true` default
+ * only applies to code that calls it directly, bypassing this module.
  */
 export const preferencesModule = DiBag.createBuilder()
   .register({
@@ -42,9 +53,20 @@ export const preferencesModule = DiBag.createBuilder()
     ),
   })
   .register({
+    // `preferencesStore` destructured before `isLive`: a host that supplies
+    // neither is told about the missing `browserStore` behind `preferencesStore`
+    // first, matching this module's own established resolution-order fact —
+    // see module.test.ts's "names itself when a host omits the browser store".
+    // Proof: on 2026-09-22, destructuring `isLive` first failed that test with
+    // missing dependency "isLive" instead of the labelled missing browser store.
     preferences: DiBag.fromSyncFactory(
-      ({ preferencesStore }: { preferencesStore: RevocableBrowserStorage }): Preferences =>
-        createPreferences(preferencesStore),
+      ({
+        preferencesStore,
+        isLive,
+      }: {
+        preferencesStore: RevocableBrowserStorage;
+        isLive: IsRuntimeLive;
+      }): Preferences => createPreferences(preferencesStore, isLive),
     ),
   })
   .register({

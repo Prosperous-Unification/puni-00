@@ -601,3 +601,76 @@ records two attempted mechanisms as withdrawn failures.
 - `NX_DAEMON=false bunx nx format:check --all`: exit 0.
 - This documentation-only slice adds no safety check and requires no negative
   proof.
+
+## Packet 050.7d, slice 2 — withdrawal refusal
+
+- Attempt `050-7-d-withdrawal-and-page-lifecycle.2.20260922T182029Z` started at
+  `f5026059bb9f408ad4243c943ae27ebd40345c7b`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 656 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 13 files
+  and 81 tests passed. Strict OpenSpec baseline: exit 0; the strict `jq`
+  predicate accepted one object with 114 items passed and 0 failed.
+- All four test/fixture edits were applied before production code. Against the
+  unchanged production tree the combined run exited 1: resource 12 failed and
+  10 passed, application runtime 4 failed and 10 passed, the model 2 failed and
+  0 passed, and the module fixture 8 passed; combined 18 failed and 28 passed.
+- After the four production edits, the owned paths passed 13 files and 99
+  tests; the sandbox node tier passed 46 files and 674 tests; the forced
+  TypeScript build and lint target exited 0. Lint required no autofix in this
+  attempt.
+
+### Negative-proof observations
+
+Every fault below typechecked with exit 0, was saved as a patch and failing log
+under this attempt's `evidence/` directory, then was restored byte-for-byte with
+`cmp` before its focused test was rerun green.
+
+| Fault                                           | Observed failure                                                                                                                                                                          |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Invert `ensureLive`                             | 27 failed and 17 passed across the resource, module and runtime files.                                                                                                                    |
+| Consult `isLive` without throwing               | Resource 12/22 and runtime 4/14 failed; module stayed 8/8 green.                                                                                                                          |
+| Remove the shared write pre-check               | Only `a write refuses, and never reaches the store` failed; 21 passed.                                                                                                                    |
+| Remove the shared forget pre-check              | Only `a forget refuses, and never reaches the store` failed; 21 passed.                                                                                                                   |
+| Remove the JSON read pre-check                  | Both JSON pre-check examples failed; 20 passed.                                                                                                                                           |
+| Remove the JSON refusal post-check              | The JSON refusal example and property failed; counterexample `["refuse","read",true]`; 20 passed.                                                                                         |
+| Remove the JSON acceptance post-check           | The JSON acceptance example and property failed; counterexample `["accept","read",true]`; 20 passed.                                                                                      |
+| Remove the post-serialization check             | Only `a value whose toJSON withdraws the runtime is never written` failed; 21 passed.                                                                                                     |
+| Remove the bare-text read pre-check             | Only the bare-text pre-check example failed; 21 passed.                                                                                                                                   |
+| Remove the bare-text refusal post-check         | Only the bare-text refusal example failed; 21 passed.                                                                                                                                     |
+| Remove the bare-text acceptance post-check      | Only the bare-text acceptance example failed; 21 passed.                                                                                                                                  |
+| Remove the unchecked read pre-check             | Only the unchecked-read pre-check example failed; 21 passed.                                                                                                                              |
+| Move the JSON pre-check after `read`            | Both JSON recording assertions failed: received `['wbs.demo', 'wbs.demo']` and `['wbs.demo']` instead of `[]`; 20 passed.                                                                 |
+| Move the bare-text pre-check after `read`       | The recording assertion received `['wbs.demo.section']` instead of `[]`; 21 passed.                                                                                                       |
+| Move the unchecked pre-check after `read`       | The recording assertion received `['wbs.demo.id']` instead of `[]`; 21 passed.                                                                                                            |
+| Resolve `isLive` before `preferencesStore`      | The module's missing-store example received missing dependency `isLive` instead of the labelled missing browser store; 1 failed and 7 passed.                                             |
+| Disable enforcement against the real-slot model | The property failed after 27 runs because `r2` was not live but its read did not throw; the deterministic example received `REVOKED` instead of `WITHDRAWN`; 2 failed.                    |
+| Make the production predicate always true       | The named singleton example received `localStorage is not defined` in the node tier and no exception in the DOM-bearing configuration; each run executed one failing test and skipped 13. |
+
+All seventeen distinct mutation sites produced the eighteen observations above;
+the disabled-enforcement site is the one exercised twice, once against the
+resource/runtime examples and once against the real-slot model.
+
+### Slice verification
+
+- Final owned runtime/preferences run: exit 0, 13 files and 99 tests passed,
+  eighteen more tests than the slice's own baseline and no files added.
+- Final sandbox node run: exit 0, 46 files and 674 tests passed, eighteen more
+  tests than the slice's own baseline and no files added. Its first final run
+  caught a literal browser-global name in a newly added proof comment: the tier
+  partition reported 2 failed and 672 passed. Replacing that prose with the
+  packet's global-free wording restored 46/46 files and 674/674 tests.
+- `preferences.resource.test.ts`: exit 0, 22 tests passed.
+- Forced TypeScript build: exit 0 with no diagnostics.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0;
+  Nx successfully ran the lint target with no diagnostics.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- Strict OpenSpec validation: exit 0; the strict `jq` predicate accepted one
+  object with 114 items passed and 0 failed, unchanged from step 0.
+- `git diff --stat apps/wbs/fe-01/src/runtime/lifetime-slot.ts` was empty, and
+  `git diff --check` reported no errors.
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets, the whole zoned tier, Chromium, and the host gate remain pending
+  planner verification under the executor sandbox contract.

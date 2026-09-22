@@ -19,6 +19,7 @@ const hostOver = (store: ReturnType<typeof fakeBrowserStorage>) =>
   DiBag.createBuilder()
     .installModule(preferencesModule)
     .register({ browserStore: DiBag.fromSyncFactory(() => store) })
+    .register({ isLive: DiBag.fromSyncFactory((): (() => boolean) => () => true) })
     .build();
 
 describe('the preferences module', () => {
