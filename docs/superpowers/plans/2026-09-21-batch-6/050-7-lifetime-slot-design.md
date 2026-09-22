@@ -5,8 +5,11 @@ design the implementation and its model test are held to; the work packet
 [050-7-a](050-7-a-frontend-lifetimes-first.md) carries it. Authority for the behaviour is the
 [050.7 frontend lifetime map](../2026-09-21-batch-4/050-7-frontend-lifetime-map.md) and
 [the DI Bag 0.4.0 research](../../../research/2026-09-21-di-bag-0-4-lifecycle.md); what is new here is
-the **ownership rule stated as invariants that hold at every point, including inside callbacks**, and
-the two decisions that close the races for good.
+the **ownership rule, stated as invariants the implementation must hold at every point, including
+inside callbacks**, and the two decisions that close the races for good. The model test checks those
+invariants over a drained run — every request settled, every scheduled promise resolved — plus two
+that a fixture can watch continuously: disposal overlap, and the status a disposer sees. The example
+tests carry the rest.
 
 ## Why a design note at all
 
@@ -127,7 +130,9 @@ settle" — and drives them under `fc.scheduler()`, which owns the order in whic
 and re-entrant requests settle. The **model** is a reference recorder of the ownership rule above: it
 does not simulate the slot's schedule (which of two overtaking requests reaches its factory is a
 timing fact, and a model that predicted it would be the implementation twice), it records what
-happened and asserts the invariants.
+happened and asserts the invariants once the run has drained. Two of them it does watch continuously,
+because a fixture can: the number of disposals in flight, and the status the slot published as seen
+from inside a disposer.
 
 The budget is 1 ms, and a `never` disposer therefore always times out: the instant is not controlled,
 but the outcome is, and it is DI Bag's own `DiBagCloseCancelledError` rather than a hand-made

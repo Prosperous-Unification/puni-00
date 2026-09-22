@@ -23,8 +23,8 @@
    notification so no subscriber ever runs inside a transition, the generation rechecked after the
    disposal **and** after the factory, a transactional construction that gives back what it acquired,
    and a disposal failure or bounded-wait expiry that refuses the replacement and is terminal. Proved
-   by 24 named example tests **and** a model-based `fast-check` test whose teeth are shown by six
-   sabotage runs.
+   by 24 named example tests **and** a model-based `fast-check` test — it drains every request, then
+   checks the ownership invariants over what happened — whose teeth are shown by six sabotage runs.
 
 **Non-goals**: no library version change (`di-bag` stays `0.4.0`); no DI module, installer or
 page-level runtime; no `composition.ts` or README edit; no React at all; no session or project
@@ -232,12 +232,19 @@ its own step 0, and **appends its own observations to `verify.md` before handing
 **Dispatch.** The launcher is `/home/df/wd/puni/puni-plan/exec/run-executor.sh`:
 
 ```sh
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-a-frontend-lifetimes-first <slice> <base> \
+# slice 1, into a fresh clone
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-a-frontend-lifetimes-first slice-1 <base> \
   --batch batch-6 --preserve evidence
+# every later slice reuses that clone
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-a-frontend-lifetimes-first slice-2 <base> \
+  --batch batch-6 --preserve evidence --resume
 ```
 
-**No `--network`** is needed by any slice. Slice 4 is dispatched with `--seed <each earlier slice's
-preserved evidence directory>`, which the launcher merges into `$TMPDIR/evidence`. Every log goes to
+**`--resume` on every slice after the first**, or the launcher exits 67 (`clone exists; pass --resume
+or remove it`) — it refuses to clone over an existing destination, and the planner's alternative is to
+move that clone aside deliberately. **No `--network`** is needed by any slice. Slice 4 also takes
+`--seed <each earlier slice's preserved evidence directory>`, which the launcher merges into
+`$TMPDIR/evidence`. Every log goes to
 `$TMPDIR/evidence` with a slice-specific name; `verify.md` references basenames only, never an absolute
 clone, home or temporary path, because it is published.
 
@@ -337,10 +344,10 @@ Pre-edit check: `apps/wbs/fe-01/src/runtime/` does not exist, and
   every one on `Error: the lifetime slot is not implemented`. `No test files found` means the suite
   entries are missing; `Tests no tests` means the skeleton is missing. Either is a stop, not a red.
 
-- [ ] Replace the skeleton's body with section 8.7. Keep its one `eslint-disable` comment, inside
-      `refuse`, together with the comment above it that names the boundary: a value DI Bag already
-      threw is rethrown unchanged. Keep the `refusalSoFar()` accessor too, whose JSDoc says why the
-      terminal check is not the impossible condition the linter would otherwise read it as.
+- [ ] Replace the skeleton's body with section 8.7, exactly. Keep the `refusalSoFar()` accessor and
+      its JSDoc: reading the refusal through a call is what stops the linter treating the terminal
+      check as an impossible condition, and it is the check whose removal let a request that was
+      already queued publish into a terminal slot.
 
 - [ ] Green, twice — the directory, then the whole tier. Expected for the directory: exit 0,
       `Test Files 2 passed (2)`, `Tests 25 passed (25)`, about 450 ms. Then the sandbox unit command:
@@ -2090,16 +2097,31 @@ Each fault is injected **alone**. Copy the passing file to `$TMPDIR` first, save
 patch under `$TMPDIR/evidence`, restore with `cp`, and prove the restore with `cmp` **before**
 asserting on any captured status. Never `rm` a scratch file. Save a patch with one command, and
 **stop** if its status is anything but 1 — a `diff` that failed for another reason must never become
-evidence:
+evidence. Use this block exactly, `status=$?` **inside** the `else`: after a completed `if` it would
+read the `if`'s own status, which is 0, and a real mutation would then print `diff failed: 0`, exit 0
+and save nothing.
 
 ```sh
 if out=$(diff -u "$TMPDIR/<name>.passing" "<the file>"); then
-  printf 'the mutation changed nothing\n' >&2; exit 1
+  printf 'the mutation changed nothing\n' >&2
+  exit 1
+else
+  status=$?
+  if [ "$status" -ne 1 ]; then
+    printf 'diff failed: %s\n' "$status" >&2
+    exit "$status"
+  fi
 fi
-status=$?
-if [ "$status" -ne 1 ]; then printf 'diff failed: %s\n' "$status" >&2; exit "$status"; fi
 printf '%s\n' "$out" > "$TMPDIR/evidence/<name>.patch"
 ```
+
+Rehearsed three ways, and these are the observations:
+
+| Input                             | Observed                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| the two files differ (a mutation) | exit 0, and `<name>.patch` written — 305 bytes for the probe                        |
+| the two files are identical       | `the mutation changed nothing` on stderr, exit 1, no patch written                  |
+| the passing copy is missing       | `diff: … No such file or directory` then `diff failed: 2`, exit 2, no patch written |
 
 Every fault below **compiles**: `wbs-fe-01:typecheck` exited 0 under each, rehearsed one at a time.
 
@@ -2279,3 +2301,13 @@ and that the interleavings are **generated against a reference recorder** instea
 generator's own teeth proved by six sabotage runs before the implementation was trusted. Two checks
 that no sabotage could break were deleted rather than shipped. Where the generator is blind, §9.1 says
 so in the same table instead of claiming coverage.
+
+## 18. Disposition of review 3 (the dispatch review)
+
+| Finding                                                          | Verdict   | Where                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Blocking** — §9's patch block exits 0 without saving evidence  | **FIXED** | Reproduced: with `status=$?` after the completed `if`, a differing file printed `diff failed: 0` and exited 0. §9 now carries the reviewer's block verbatim, `status=$?` inside the `else`, with the three rehearsed observations beside it: differing → exit 0 and a 305-byte patch; identical → `the mutation changed nothing`, exit 1, no patch; missing input → `diff: … No such file or directory`, `diff failed: 2`, exit 2, no patch. It is the only `status=$?` in the packet. |
+| A5 and A6 are example-only                                       | accepted  | Left as they are, and §9.1 still says which sabotages the model test does not move.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| The model test's claim was too strong                            | **FIXED** | §1 and the design document now say what it does: it drains every request and then checks the invariants over what happened, watching only disposal overlap and the disposer's view continuously. The example tests carry the rest.                                                                                                                                                                                                                                                     |
+| Slice 2 told the executor to keep an `eslint-disable` §8.7 lacks | **FIXED** | That instruction is gone; the surviving suppression is the one inside `refuse`, and slice 2 now points at the `refusalSoFar()` accessor instead. No suppression is invented.                                                                                                                                                                                                                                                                                                           |
+| Later launches need `--resume`                                   | **FIXED** | §7's dispatch block shows both forms and names exit 67.                                                                                                                                                                                                                                                                                                                                                                                                                                |
