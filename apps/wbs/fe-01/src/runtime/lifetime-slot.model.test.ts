@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
 
-import { installApplicationRuntime } from './application-runtime';
+import { type ApplicationServices, installApplicationRuntime } from './application-runtime';
 import {
   createLifetimeSlot,
   type LifetimeSlot,
@@ -31,6 +31,17 @@ interface Tracked {
   graphClosed: boolean;
   /** Answers whether the installed store has been revoked, or `null` when there is none. */
   probeRevoked: (() => boolean) | null;
+  /**
+   * Answers whether reading through the installed runtime throws at all —
+   * for any reason, `WITHDRAWN` (050-7-d, from the instant `accept()` ran)
+   * or `REVOKED` (once its own disposal has actually run) alike — or `null`
+   * when there is none. Distinct from {@link probeRevoked}, which matches the
+   * `REVOKED` message specifically and is therefore masked by `WITHDRAWN`
+   * whenever nothing else is currently live — see `storesFollowTheirGraphs`'s
+   * own JSDoc for exactly when that masking applies and why this probe does
+   * not need the same exception.
+   */
+  probeReadFails: (() => boolean) | null;
 }
 
 /**
@@ -72,6 +83,7 @@ class Ownership {
       closeSettles: 0,
       graphClosed: false,
       probeRevoked: null,
+      probeReadFails: null,
     };
     this.runtimes.push(record);
     return record;
@@ -91,22 +103,62 @@ class Ownership {
   }
 
   /**
-   * An installed runtime's store is revoked exactly when its graph was closed.
+   * An installed runtime's store is revoked exactly when its graph was closed
+   * — **while something is currently live**.
    *
    * The production half of invariant 2: "the close was attempted" is what the
    * owner controls, and "the store was given back" is what a reader's browser
    * actually observes. A live runtime's store is never revoked, or the page would
    * be holding services that refuse every preference.
+   *
+   * **`live === null` is excluded, and this is a design fact, not a gap in
+   * this check.** `probeRevoked` reads through `ensureLive` (050-7-d), and
+   * `ensureLive` refuses with `WITHDRAWN` — a message that does not contain
+   * `'revoked'` — from the instant `accept()` ran, *before* `storage.read` is
+   * ever reached. While the slot itself holds nothing live, every non-live
+   * runtime's own `isLive()` therefore answers `false` and every read is
+   * intercepted by `WITHDRAWN` first, regardless of whether that runtime's
+   * own disposal has actually finished — `REVOKED` becomes observable through
+   * a read again only once a *later* runtime is live (`isLive()` answers
+   * `true` again), which is exactly what happens once a request that was
+   * previously refused settles and the slot moves to `live` with someone
+   * else. {@link neverSilentlyReadsPastLive} covers the `live === null` case
+   * instead: every non-live runtime's read still throws there, for either
+   * reason, which is the guarantee that case actually admits.
    */
   storesFollowTheirGraphs(live: string | null): void {
+    if (live === null) return;
     for (const runtime of this.runtimes) {
       const probe = runtime.probeRevoked;
       if (probe === null || runtime.acquisitions === 0) continue;
       expect(
         probe(),
-        `${runtime.name}: revoked=${String(probe())}, graphClosed=${String(runtime.graphClosed)}, live=${String(live)}`,
+        `${runtime.name}: revoked=${String(probe())}, graphClosed=${String(runtime.graphClosed)}, live=${live}`,
       ).toBe(runtime.graphClosed);
       if (runtime.name === live) expect(probe(), `${runtime.name} is live and revoked`).toBe(false);
+    }
+  }
+
+  /**
+   * 050-7-d's own withdrawal invariant, over the same generated interleavings,
+   * **unconditional** on `live`: a runtime that is not the live one never
+   * answers a read, for either reason — `WITHDRAWN` from the instant its own
+   * `accept()` ran, `REVOKED` once its own disposal has completed. Holds
+   * regardless of whether something else is currently live, because the slot
+   * serializes transitions one at a time: a runtime the slot has since
+   * replaced has *already* had its own disposal fully awaited — successfully
+   * — before any newer runtime could become live at all (a disposal that
+   * rejects or times out makes the slot fatal instead, per invariant 7), so
+   * there is no interval where a stale reference's read could succeed.
+   */
+  neverSilentlyReadsPastLive(live: string | null): void {
+    for (const runtime of this.runtimes) {
+      const probe = runtime.probeReadFails;
+      if (probe === null || runtime.acquisitions === 0 || runtime.name === live) continue;
+      expect(
+        probe(),
+        `${runtime.name} is not live (live=${String(live)}) but its read did not throw`,
+      ).toBe(true);
     }
   }
 }
@@ -161,6 +213,17 @@ const commandArb: fc.Arbitrary<Command> = fc.oneof(
  */
 describe('the ownership rule, under generated interleavings', () => {
   it('holds every invariant it claims', async () => {
+    /**
+     * 050-7-d (review 2, Critical 2): counts, across the **whole pinned run**
+     * (every one of the property's own iterations, not just one), how many
+     * `retire`/`replace` commands were issued while the slot was genuinely
+     * `live`. Declared outside the property body so it accumulates across
+     * iterations; asserted once, after `fc.assert` returns, that this
+     * happened at least once — a property whose every run only ever retires
+     * or replaces an `empty` slot proves nothing about withdrawing a live
+     * runtime, which is the one thing this packet's own invariants need.
+     */
+    let liveRetirements = 0;
     await fc.assert(
       fc.asyncProperty(
         fc.scheduler(),
@@ -240,9 +303,20 @@ describe('the ownership rule, under generated interleavings', () => {
            * above, which is where a socket or a timer will be modelled.
            */
           const buildInstalled = (record: Tracked): RetirableRuntime<Tracked> => {
-            const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
+            const installed = installApplicationRuntime({
+              openStore: fakeBrowserStorage,
+              isLive: () => slot.snapshot().status === 'live',
+            });
             record.acquisitions += 1;
             record.probeRevoked = () => {
+              try {
+                installed.services.remembered.ganttDetail.read();
+                return false;
+              } catch (error) {
+                return error instanceof Error && error.message.includes('revoked');
+              }
+            };
+            record.probeReadFails = () => {
               try {
                 installed.services.remembered.ganttDetail.read();
                 return false;
@@ -259,6 +333,10 @@ describe('the ownership rule, under generated interleavings', () => {
                   world.maxConcurrentDisposals,
                   world.disposing,
                 );
+                expect(
+                  record.probeReadFails?.(),
+                  `${record.name}: a read succeeded, or threw before ensureLive could, at the instant its own disposal began`,
+                ).toBe(true);
                 try {
                   await scheduler.schedule(Promise.resolve(), `dispose ${record.name}`);
                   await installed.close(options);
@@ -354,6 +432,9 @@ describe('the ownership rule, under generated interleavings', () => {
           };
 
           for (const command of commands) {
+            if (command.kind === 'replace' || command.kind === 'retire') {
+              if (slot.snapshot().status === 'live') liveRetirements += 1;
+            }
             if (command.kind === 'replace') {
               issueReplace(command);
             } else if (command.kind === 'retire') {
@@ -375,6 +456,8 @@ describe('the ownership rule, under generated interleavings', () => {
               );
             } else if (scheduler.count() > 0) {
               await scheduler.waitNext(1);
+            } else {
+              await Promise.resolve();
             }
           }
 
@@ -391,6 +474,9 @@ describe('the ownership rule, under generated interleavings', () => {
           //    installed runtime's store followed its own graph.
           world.ownershipIsAccountedFor(live);
           world.storesFollowTheirGraphs(live);
+          // Proof: on 2026-09-22, disabling `ensureLive` failed after 27 runs:
+          // r2 was not live, but its read did not throw.
+          world.neverSilentlyReadsPastLive(live);
           // 3. Disposals never overlap: that is what the queue is for.
           expect(world.maxConcurrentDisposals, 'two disposals overlapped').toBeLessThanOrEqual(1);
           // 4. A request that was already superseded when its factory ran never
@@ -419,5 +505,27 @@ describe('the ownership rule, under generated interleavings', () => {
       ),
       { seed: 20260923, numRuns: 300 },
     );
+    expect(
+      liveRetirements,
+      'the pinned run never retired or replaced a live runtime',
+    ).toBeGreaterThan(0);
   }, 120_000);
+
+  it('acquire, then retire a live runtime, then settled: the captured handle refuses afterward', async () => {
+    const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>(50);
+    const isLive = (): boolean => slot.snapshot().status === 'live';
+
+    const services = await slot.replace(() =>
+      installApplicationRuntime({ openStore: fakeBrowserStorage, isLive }),
+    );
+    expect(slot.snapshot().status).toBe('live');
+    expect(services.remembered.ganttDetail.read()).toBeNull();
+
+    await slot.retire();
+
+    expect(slot.snapshot().status).toBe('empty');
+    expect(() => services.remembered.ganttDetail.read()).toThrow(
+      'the page withdrew this preference store before the access completed',
+    );
+  });
 });

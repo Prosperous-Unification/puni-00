@@ -168,3 +168,72 @@ case — skipping the partial release — which does fail.
   sanitized fatal state for both flavours of `fatal`.
 - A lifetime that ever needs an **asynchronous** construction adds a fence after that await and a
   command to the model test; `Acquire<S>` being synchronous is what makes two fences sufficient today.
+
+## Appendix (050-7-d, 2026-09-22): withdrawal closed from a consumer, not from the slot
+
+`docs/superpowers/plans/2026-09-21-batch-6/050-7-c-application-context.md` section 4 left a bounded,
+measured gap: a caller-supplied validator that retires or replaces its own runtime from inside
+`isValid` still had its answer trusted on either branch, and `JSON.stringify`'s own re-entrant
+`toJSON` had the same hazard on the write side, because nothing re-checked liveness between that
+foreign code returning and the resource acting on it. Two earlier mechanisms tried to close the
+validator case and were withdrawn as failed attempts — a consumer-side access-time guard that
+checked only before delegation, and a source-level `withdraw` callback invoked from inside
+`lifetime-slot.ts`'s own `accept()`, which broke ownership by running before that function's own
+bookkeeping committed. Both are recorded in full, with their exact rehearsed observations, in
+`docs/superpowers/plans/2026-09-21-batch-6/050-7-d-withdrawal-and-page-lifecycle.md` section 2, and
+in packet c's own "Disposition of review 3" and "Disposition of review 4" sections.
+
+**What 050-7-d found, by reading this file's own source rather than by trying a third variant of
+either failed shape:** `publish()` (`lifetime-slot.ts:250-260`) assigns `state = next`
+**synchronously**; only the subscriber notification is deferred to a microtask. `accept()`
+(`lifetime-slot.ts:383-393`) calls `publish({ status: 'retiring' })` as part of its own synchronous
+bookkeeping, before returning to `replace`/`retire`'s own caller. Consequently `slot.snapshot()`
+already answers correctly, synchronously, the instant a request is accepted — including from inside a
+validator, or a `toJSON`, that is itself, right now, on the call stack that triggered that same
+`accept()`. No change to `lifetime-slot.ts` is needed; it was already true. `disposeWithdrawn()`
+(`lifetime-slot.ts:294-304`) also begins running synchronously when nothing is already queued ahead of
+it, but the design below does not depend on that fact: it only ever consults `slot.snapshot()`.
+
+What was missing was a consumer positioned to ask the question at the right moments: once before
+doing anything, and once more after any foreign code it had to run inline had returned — on **both**
+the answer a validator could give, and after a serializer's own re-entrant call.
+`preferences.resource.ts` is that consumer: it already calls `isValid` synchronously inside
+`claim()` and `JSON.stringify` inside its own write path, and now also calls a supplied `isLive`
+predicate — bound to a real slot's `snapshot()` by `application-runtime.ts`, never by
+`lifetime-slot.ts` or `preferences.resource.ts` itself, preserving rule K2 — before `storage.read`,
+after `isValid` returns (on **both** its accepting and refusing branches), and after
+`JSON.stringify(value)` returns, before `storage.write`. See
+`apps/wbs/fe-01/src/modules/preferences/preferences.resource.ts`'s `ensureLive` and
+`050-7-d-withdrawal-and-page-lifecycle.md` section 4 for the full account and its rehearsed
+sabotages.
+
+**Why this is not a third attempt at either failed shape:** it is not the access-time guard, because
+it checks after the foreign call returns, on every branch, not only before. It is not the `accept()`
+callback, because it adds nothing to `lifetime-slot.ts`: `accept()`, `transition()` and
+`disposeWithdrawn()` are unchanged, and the only file this packet's own tests extend is
+`lifetime-slot.model.test.ts` — the test file, not the ownership rule it checks. The consumer only
+ever calls the slot's already-public `snapshot()`.
+
+**State/event tables: unchanged.** No new state, no new event, no new invariant. The **reference
+model** in `lifetime-slot.model.test.ts` (the `Ownership` class) is unchanged in its own rule; two
+new invariant methods are added to it (`neverSilentlyReadsPastLive`, unconditional on which runtime
+is live, and a continuous, in-disposal check inside `buildInstalled`'s own `close()`), checked
+against the same generated commands the file already produced — with the command loop's own bug
+fixed so those commands can actually reach a live runtime before retiring or replacing it (a
+`liveRetirements` counter, asserted `> 0` across the whole pinned run, is what makes this a checked
+fact rather than an assumption). `preferences.resource.test.ts`'s own property generates validator
+re-entrancy and accept/refuse/read-shape combinations with plain `fc.property`, not `fc.scheduler()`,
+because a validator's (or a `toJSON`'s) re-entrant call is a single synchronous statement with no
+scheduling ambiguity to generate — the genuinely schedulable part of the claim (captured handles
+across real retirement, replacement and pending/rejecting/never-settling disposal) is what
+`lifetime-slot.model.test.ts`'s own `fc.scheduler()`-based property already covers.
+
+**What remains a limit:** this closes the gap for the preferences resource only — a future lifetime
+that calls a caller-supplied validator synchronously inside its own resource layer needs the same
+check built for it, and `IsRuntimeLive` is written generically enough to be reused, though nothing
+forces that reuse. `IsRuntimeLive` is scoped to the **slot**, not to one runtime's own identity, and
+precedence between its two refusal messages is read from the slot's **current** state, not
+permanent: while the slot is not live, `WITHDRAWN` refuses every non-live reference; once a _later_
+publication makes the slot live again — with anyone — a stale reference's own read reaches its own
+store, and throws `REVOKED` there if that store has already been given back. A retired-then-later-replaced
+reference is observed to flip from one message to the other, tested directly.

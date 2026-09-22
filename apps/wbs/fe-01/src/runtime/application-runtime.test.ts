@@ -5,8 +5,10 @@ import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
 import { THEME_KEY } from '@/modules/preferences/preference-keys';
 
 import {
+  acquireApplicationRuntime,
   acquireTransactionally,
   type ApplicationServices,
+  applicationSlot,
   installApplicationRuntime,
 } from './application-runtime';
 import {
@@ -186,7 +188,12 @@ describe('the page’s runtime, installed transactionally', () => {
     expect(typeof services.remembered.lastOpenedProject.read).toBe('function');
   });
 
-  /** Retirement gives the store back, through the slot the page really uses. */
+  /**
+   * Retirement gives the store back, through the slot the page really uses —
+   * unchanged: this test does not wire `isLive` to the slot, so `ensureLive`
+   * keeps its own always-`true` default and this reference still falls all
+   * the way through to `REVOKED`, exactly as before 050-7-d.
+   */
   it('revokes the store it owns when the slot retires it', async () => {
     const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>(50);
     const store = fakeBrowserStorage();
@@ -201,6 +208,143 @@ describe('the page’s runtime, installed transactionally', () => {
     expect(() => {
       detail.write(true);
     }).toThrow('the preferences store was revoked with its runtime');
+  });
+
+  describe('once isLive is wired to a real slot', () => {
+    /**
+     * Precedence is read from the slot's own **current** state, not from
+     * what happened to a runtime in the past: `ensureLive` refuses
+     * `WITHDRAWN` whenever `slot.snapshot().status !== 'live'`, and once the
+     * slot is `live` again — with anyone — a stale reference's own read
+     * proceeds to its own store, which reaches `REVOKED` if that store has
+     * already been given back. Nothing here is "permanent"; it tracks the
+     * slot, moment to moment.
+     */
+    it('refuses a captured reference the instant retirement is accepted', async () => {
+      const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>();
+      const store = fakeBrowserStorage();
+      const services = await slot.replace(() =>
+        installApplicationRuntime({
+          openStore: () => store,
+          isLive: () => slot.snapshot().status === 'live',
+        }),
+      );
+      const detail = services.remembered.ganttDetail;
+
+      // Not awaited: `accept()` (`lifetime-slot.ts`) withdraws publication
+      // synchronously, so `slot.snapshot().status` is already `retiring` here
+      // — regardless of whether `disposeWithdrawn()`'s own bounded close has
+      // itself started (it typically has, by this point, when nothing else
+      // is queued ahead of this transition; `ensureLive` does not depend on
+      // that timing either way).
+      const retiring = slot.retire();
+      expect(slot.snapshot().status).toBe('retiring');
+
+      expect(() => {
+        detail.write(true);
+      }).toThrow('the page withdrew this preference store before the access completed');
+
+      await retiring;
+    });
+
+    it('keeps refusing WITHDRAWN while the slot stays non-live, once retirement has fully settled', async () => {
+      const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>(50);
+      const store = fakeBrowserStorage();
+      const services = await slot.replace(() =>
+        installApplicationRuntime({
+          openStore: () => store,
+          isLive: () => slot.snapshot().status === 'live',
+        }),
+      );
+      const detail = services.remembered.ganttDetail;
+
+      await slot.retire();
+      expect(slot.snapshot().status).toBe('empty');
+
+      expect(() => {
+        detail.write(true);
+      }).toThrow('the page withdrew this preference store before the access completed');
+    });
+
+    /**
+     * `IsRuntimeLive`'s own JSDoc names this scope limit: the predicate asks
+     * "is something live here", not "is it still me". Once a *newer* runtime
+     * is live, a stale reference from a runtime the slot has moved past
+     * passes `ensureLive()` again and reaches its own, already-revoked
+     * store — `REVOKED`, not `WITHDRAWN`, is what actually fires for this
+     * one case. Proved two ways: a direct `replace` while the reference was
+     * still live, and — the case review 2 asked to be added explicitly — a
+     * `retire` (settling to `empty`, `WITHDRAWN` observed there) followed
+     * later by a separate `replace`, after which the same reference flips
+     * from `WITHDRAWN` to `REVOKED` without any code of its own changing.
+     */
+    it('lets a stale reference from a REPLACED runtime reach REVOKED, once a newer runtime is live', async () => {
+      const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>(50);
+      const isLive = (): boolean => slot.snapshot().status === 'live';
+      const oldStore = fakeBrowserStorage();
+      const oldServices = await slot.replace(() =>
+        installApplicationRuntime({ openStore: () => oldStore, isLive }),
+      );
+      const staleDetail = oldServices.remembered.ganttDetail;
+
+      const newStore = fakeBrowserStorage();
+      await slot.replace(() => installApplicationRuntime({ openStore: () => newStore, isLive }));
+      expect(slot.snapshot().status).toBe('live');
+
+      expect(() => {
+        staleDetail.write(true);
+      }).toThrow('the preferences store was revoked with its runtime');
+    });
+
+    it('flips a retired reference from WITHDRAWN to REVOKED once a LATER replace makes the slot live again', async () => {
+      const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>(50);
+      const isLive = (): boolean => slot.snapshot().status === 'live';
+      const firstStore = fakeBrowserStorage();
+      const firstServices = await slot.replace(() =>
+        installApplicationRuntime({ openStore: () => firstStore, isLive }),
+      );
+      const staleDetail = firstServices.remembered.ganttDetail;
+
+      await slot.retire();
+      expect(slot.snapshot().status).toBe('empty');
+      expect(() => {
+        staleDetail.write(true);
+      }).toThrow('the page withdrew this preference store before the access completed');
+
+      const secondStore = fakeBrowserStorage();
+      await slot.replace(() => installApplicationRuntime({ openStore: () => secondStore, isLive }));
+      expect(slot.snapshot().status).toBe('live');
+
+      expect(() => {
+        staleDetail.write(true);
+      }).toThrow('the preferences store was revoked with its runtime');
+    });
+  });
+
+  /**
+   * The production wiring, proved through the real singleton it is written
+   * against — not only through the equivalent, purpose-built slot above.
+   * `applicationSlot` is a module-level singleton shared by every test in
+   * this file; this is the only one that drives it, and it awaits full
+   * settlement so the slot is back at `empty` for anything that runs after.
+   */
+  it('refuses a captured reference through the production singleton once withdrawal is accepted', async () => {
+    const services = await applicationSlot.replace(acquireApplicationRuntime);
+    const detail = services.remembered.ganttDetail;
+
+    const retiring = applicationSlot.retire();
+    expect(applicationSlot.snapshot().status).toBe('retiring');
+
+    // Proof: on 2026-09-22, changing `acquireApplicationRuntime`'s own
+    // `isLive` to `() => true` made this receive a `ReferenceError` from the
+    // real browser-store adapter's missing global in the node tier, while the
+    // DOM-bearing configuration received no exception.
+    expect(() => {
+      detail.write(true);
+    }).toThrow('the page withdrew this preference store before the access completed');
+
+    await retiring;
+    expect(applicationSlot.snapshot().status).toBe('empty');
   });
 
   it('gives its retirement the production budget when the slot is built with none', async () => {
