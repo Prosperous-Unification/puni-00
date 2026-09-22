@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 1. The lifetime slot owns one runtime as a serialized state machine: withdrawal
+- [x] 1. The lifetime slot owns one runtime as a serialized state machine: withdrawal
       is synchronous, the request's generation is rechecked after every await, a
       superseded request acquires nothing, a construction that fails releases what it
       acquired, and a failed or timed-out disposal refuses replacement and is terminal.

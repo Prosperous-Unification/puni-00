@@ -71,3 +71,54 @@ patch, failing output, typecheck and restored-green evidence use the row id as t
 - `GSETTINGS_BACKEND=memory bunx prettier --check` on the two slice-owned paths: exit 0; all
   matched files used Prettier code style (`slice3-prettier-check-final.log`).
 - `NX_DAEMON=false bun run format:check --all`: exit 0 (`slice3-format-check-final.log`).
+
+## Slice 4
+
+- `git rev-parse HEAD`: exit 0; `d27522ca3be14bdb5e8402d895c770e2cd64c9e3`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- Sandbox unit baseline: exit 0; 44 files passed and 639 tests passed
+  (`slice4-step0-unit.log`).
+- OpenSpec baseline: exit 0; 113 items passed and 0 failed; `adopt-frontend-lifetimes`
+  was valid with no issues (`slice4-step0-openspec.json`). This slice's V0 is 113.
+
+The proofs in the following tables were observed in the seeded slice 3 attempt. They were
+not rerun in slice 4.
+
+### Model-test sabotages
+
+| Fault                                           | Observed diagnostic                                                                                                                                                                                                | Attempt and evidence                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| A1 — delete the serialization wait              | 3 failed, 22 passed; the model reported `r3: 1 acquisitions, 0 close attempts, live=null: expected +0 to be 1`.                                                                                                    | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `A1-failing.log` |
+| A2 — make the post-disposal fence unconditional | 25 failed; the model reported `the latest request did not win: expected 'refused' not to be 'refused'`.                                                                                                            | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `A2-failing.log` |
+| A3 — delete partial-acquisition release         | 5 failed, 20 passed; the model reported `r1: 1 acquisitions, 0 close attempts, live=null: expected +0 to be 1`.                                                                                                    | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `A3-failing.log` |
+| A4 — delete the post-factory fence              | 2 failed, 23 passed; the model reported `r2: 1 acquisitions, 0 close attempts, live=r3: expected +0 to be 1`.                                                                                                      | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `A4-failing.log` |
+| A5 — delete the post-disposal fence             | 2 failed, 23 passed; `leaves exactly one runtime live when two replacements arrive together` and `does not build for a request that a newer one overtook during the disposal` each reported `expected 1 to be +0`. | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `A5-failing.log` |
+| A6 — notify subscribers synchronously           | 2 failed, 23 passed; subscriber reentry reported `third accounting: expected +0 to be 1`, and the notification sequence also failed.                                                                               | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `A6-failing.log` |
+
+### Per-check mutations
+
+| Fault                                          | Named test and observed diagnostic                                                                                                                                             | Attempt and evidence                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| B1 — do not retain the terminal refusal        | `refuses every later transition of a slot whose retirement failed`: `promise resolved "{ name: 'third' }" instead of rejecting`.                                               | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B1-failing.log` |
+| B2 — omit the queued-request terminal check    | `refuses a request that was already queued when the disposal failed`: received `['rejected', 'fulfilled']` instead of `['rejected', 'rejected']`.                              | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B2-failing.log` |
+| B3 — drop the late cleanup promise             | `fails the transition when the retirement outruns its budget, and keeps watching the disposal`: `expected null to be an instance of Promise`.                                  | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B3-failing.log` |
+| B4 — stop observing late cleanup               | `observes a late disposal that finishes after the wait expired, without publishing anything`: `expected 'pending' to be 'settled'`.                                            | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B4-failing.log` |
+| B5 — default the retirement budget to 4,000 ms | `gives the retirement the production budget when it is built with none`: `expected [ 4000 ] to deeply equal [ 5000 ]`.                                                         | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B5-failing.log` |
+| B6 — omit synchronous withdrawal               | `withdraws publication synchronously, before the first await`: received `live` instead of `retiring`; the model also reported `r1: 1 acquisitions, 0 close attempts, live=r2`. | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B6-failing.log` |
+| B7 — omit the non-terminal fatal publication   | `is fatal but not terminal when the replacement's construction throws`: `expected 'constructing' to be 'fatal'`.                                                               | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B7-failing.log` |
+| B8 — swallow a partial release failure         | `is terminal when the half-finished construction cannot be released`: expected `DI_BAG_CLEANUP_FAILED` but received the construction error.                                    | `050-7-a-frontend-lifetimes-first.slice-3.20260922T004149Z`, `B8-failing.log` |
+
+- OpenSpec validation after ticking task 1 and adding the proof tables: exit 0; 113 items
+  passed and 0 failed, equal to V0; `adopt-frontend-lifetimes` was valid with no issues
+  (`slice4-openspec-after.json`).
+- `GSETTINGS_BACKEND=memory bunx prettier --check` on all nine packet-owned paths:
+  exit 0; all matched files used Prettier code style (`slice4-prettier-check.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint`: exit 0; Nx successfully ran the target
+  from its cache (`slice4-lint.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`: exit 0; Nx successfully ran the
+  target from its cache (`slice4-typecheck.log`).
+- The same lint and typecheck targets with `--skip-nx-cache`: exit 0; Nx executed both
+  targets afresh (`slice4-lint-uncached.log`, `slice4-typecheck-uncached.log`).
+- `NX_DAEMON=false bun run format:check --all`: exit 0 (`slice4-format-check.log`).
+- Cumulative scoped diff from slice 1's base `b3b3ab6a066783861955e491eccab42158a3b1b4`:
+  exit 0; exactly the nine packet-owned paths (`slice4-cumulative-diff.log`).
