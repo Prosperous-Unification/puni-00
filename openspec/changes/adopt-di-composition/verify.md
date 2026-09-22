@@ -269,3 +269,46 @@ service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 
   0 failures (`slice-5-proof-count-final.log`, `slice-5-boundary-final.log`). The closing core
   suite remained `C=542`, `F=54` with 0 failures (`core-final.log`), and core type-check and
   lint passed (`slice-5-typecheck-lint.log`).
+
+### Broadcast event port, Slice 6 — 2026-09-22
+
+- Classification baseline `K=95`; the existing `service/broadcast.ts` row was rewritten in place,
+  and no classification was added for either file under `ports/`
+  (`slice-6-kinds-baseline.txt`; closing count recorded below).
+- Strict OpenSpec baseline `N=114`: 114 items passed and 0 failed under the `jq -s -e` contract
+  (`openspec-validation-slice-6-baseline.0dWX3q.json`; closing total recorded below).
+- The event contracts are a neutral port, not a service module: the module map's required
+  preparation 1 sends `ProjectEvent`, `Broadcaster` and `subscriptionFor` to a neutral
+  application event/port location, while its Realtime row says Realtime implements or consumes
+  that port and does not own the event union or Plan commands' collector. The existing
+  `GatewayBroadcaster` remains the production adapter and `OptimizerTriggerBroadcaster` remains
+  composition-private decoration.
+- The route check has six stated limitations. Each is assigned follow-up work under kind rules K2
+  to K6 and preparations 3 and 4 of the 040.6 module map; naming them here is not evidence that
+  the check prevents them:
+  - Value-binding indirection through an exported binding is not prevented.
+  - Duplicate or merged declarations under a contract's name are not prevented.
+  - A named function expression under a contract's name is not prevented.
+  - A `declare module` augmentation is not prevented.
+  - A type alias is not prevented.
+  - A differently named structural copy is not prevented.
+- Deferred finding: the collector's move waits for task 5.2 because
+  `import.service.ts:148` builds one too; moving it sooner would create the K6
+  feature-to-feature edge the module map forbids.
+- Deferred finding: `ports/project-event.ts` keeps its type-only import of
+  `../service/numbered-work-item` until task 6.1 moves that file to the domain library.
+- Pending planner verification: `wbs-be-01:test:unit` (rehearsed 519 passed, 0 failed across 49
+  files), `wbs-be-01:test` (1091 passed, 0 failed across 92 files), `wbs-gw-01:test` (128 passed,
+  0 failed across 17 files), `wbs-mcp-01:test` (165 passed, 0 failed across 15 files),
+  `wbs-core:test` (542 passed, 0 failed across 54 files), `wbs-core:test:portable` (rehearsed exit
+  0), and `tool-devsync:test` (366 passed, 0 failed). These whole targets remain planner-only in
+  this execution environment.
+- The closing classification count remained `K=95` (`slice-6-kinds-final.txt`). Strict OpenSpec
+  validation remained `N=114`: 114 items passed and 0 failed under the `jq -s -e` contract
+  (`openspec-validation-slice-6-final.Pr8oE5.json`).
+- Core type-check, lint, and unit targets passed (`slice-6-core-closing.log`); the portable browser
+  build passed (`slice-6-core-portable-build.log`); be-01 type-check passed
+  (`slice-6-be-typecheck.log`); and the gw-01 and mcp-01 type-checks passed
+  (`slice-6-gw-mcp-typecheck.log`).
+- The repository-wide format check passed (`slice-6-format-check-final.log`).
+- The host gate was not run in the executor sandbox and remains pending planner verification.
