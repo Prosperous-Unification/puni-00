@@ -122,3 +122,23 @@ not rerun in slice 4.
 - `NX_DAEMON=false bun run format:check --all`: exit 0 (`slice4-format-check.log`).
 - Cumulative scoped diff from slice 1's base `b3b3ab6a066783861955e491eccab42158a3b1b4`:
   exit 0; exactly the nine packet-owned paths (`slice4-cumulative-diff.log`).
+
+## Slice 1
+
+- `git rev-parse HEAD`: exit 0; `2786c893438449dcd295b992067fa94622ead964`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`: exit 0; Nx successfully ran the
+  target (`slice1-step0-typecheck.log`).
+- Sandbox unit baseline: exit 0; 44 files passed and 639 tests passed
+  (`slice1-step0-unit.log`). This slice changed only OpenSpec Markdown; the post-edit run
+  was unchanged at F0 = 44 files and T0 = 639 tests (`slice1-unit-after.log`).
+- OpenSpec baseline: exit 0; 114 items passed and 0 failed;
+  `adopt-frontend-lifetimes` was valid with no issues (`slice1-step0-openspec.json`).
+  This slice's V0 is 114.
+- OpenSpec validation after adding the revocation requirement and correcting the non-goal:
+  exit 0; 114 items passed and 0 failed, equal to V0;
+  `adopt-frontend-lifetimes` was valid with no issues (`slice1-openspec-after.json`).
+- `wc -w openspec/changes/adopt-frontend-lifetimes/proposal.md`: exit 0; 398 words,
+  inside the 400-word intent limit.
+- `GSETTINGS_BACKEND=memory bunx prettier --check` on the proposal and delta spec:
+  exit 0; both matched files used Prettier code style (`slice1-prettier-check.log`).
