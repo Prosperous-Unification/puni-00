@@ -364,3 +364,87 @@ not rerun in slice 4.
 - The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
   the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
   verification under the executor sandbox contract.
+
+## Slice 7
+
+- `git rev-parse HEAD`: exit 0; `eba4de1c59d5ac7dd74db7119570d24b11bebea9`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` before edits: exit 0; Nx
+  successfully ran the target (`slice7-step0-typecheck.log`).
+- Sandbox unit baseline: exit 0; F0 = 46 files passed and T0 = 656 tests passed
+  (`slice7-step0-unit.log`).
+- OpenSpec baseline: exit 0; V0 = 114 items passed and 0 failed;
+  `adopt-frontend-lifetimes` was valid with no issues
+  (`slice7-step0-openspec.json`).
+- Task 2 is complete. Task 3 remains open because delivery does not yet read preferences
+  from the one graph and the module index has not landed. Task 4 remains open because the
+  application context does not yet publish the feature facade; its bootstrap-ordering and
+  fatal-page clauses are already implemented.
+- No fault was injected or replayed in this slice. The observations below are the seeded
+  evidence produced by the earlier attempts.
+
+### Seeded negative-proof observations
+
+| Fault | Earlier observed diagnostic                                                                                                                             | Attempt-relative evidence                                                                                                                                                 |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1    | 4 node failures and 1 jsdom failure; the host-close case received no throw, and the slot model reported `r2: revoked=false, graphClosed=true, live=r3`. | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N1-node-red.log`; `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N1-jsdom-red.log`   |
+| N2    | 5 node failures and 1 jsdom failure; the direct revoked-store case received no throw.                                                                   | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N2-node-red.log`; `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N2-jsdom-red.log`   |
+| N3    | 4 node failures; `keeps its owned store out of a host graph` received no throw.                                                                         | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N3-node-red.log`                                                                                        |
+| N4    | 2 node failures; the graph omitted `frontend.preferences/preferencesStore`.                                                                             | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N4-node-red.log`                                                                                        |
+| N14   | 8 node failures and 5 jsdom failures on `DI_BAG_CYCLE`; this graph-shape fault earns no source comment.                                                 | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N14-node-red.log`; `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N14-jsdom-red.log` |
+| N5    | 4 node failures; the half-finished read returned a plain `Error`, not `PartialAcquisitionError`.                                                        | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N5-node-red.log`                                                                                        |
+| N7b   | 1 node failure; the disposal record stayed `[]` instead of `['first']`.                                                                                 | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N7b-node-red.log`                                                                                       |
+| N6    | 1 node failure; the published surface enumerated `['preferences', 'remembered', 'bag']`.                                                                | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N6-node-red.log`                                                                                        |
+| N6b   | 1 node failure; the no-resolver assertion received false.                                                                                               | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N6b-node-red.log`                                                                                       |
+| N7    | 3 node failures and 1 jsdom failure; the runtime-owned store remained readable after close.                                                             | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N7-node-red.log`; `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N7-jsdom-red.log`   |
+| N16   | 1 jsdom failure; the model drew the app while the slot was `retiring`.                                                                                  | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N16-jsdom-red.log`                                                                                      |
+| N11   | 5 jsdom failures; the eager root mounted while the slot was `empty`.                                                                                    | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N11-jsdom-red.log`                                                                                      |
+| N18   | 1 jsdom failure; Strict Mode acquired 3 runtimes instead of 1.                                                                                          | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N18-jsdom-red.log`                                                                                      |
+| N8    | 2 jsdom failures; the refused-start case rendered 0 trees instead of 1.                                                                                 | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N8-jsdom-red.log`                                                                                       |
+| N9    | 1 jsdom failure; a console line carried the caught value instead of disclosed strings.                                                                  | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N9-jsdom-red.log`                                                                                       |
+| N12   | 1 jsdom failure; the rendered fault props contained `alice@example.com`.                                                                                | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N12-jsdom-red.log`                                                                                      |
+| N15   | 2 jsdom failures; one refusal was rendered and logged twice.                                                                                            | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N15-jsdom-red.log`                                                                                      |
+| N10   | 1 jsdom failure; a failed retirement left 1 rendered tree instead of 2.                                                                                 | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N10-jsdom-red.log`                                                                                      |
+| N13   | 1 jsdom failure; the fatal page disclosed no occurrence reference.                                                                                      | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N13-jsdom-red.log`                                                                                      |
+| N19   | 1 jsdom failure; startup-only wording omitted `Anything already saved is on the server`.                                                                | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N19-jsdom-red.log`                                                                                      |
+| N20   | 2 jsdom failures; the losing bootstrap rejected with `the slot is empty` instead of resolving without drawing.                                          | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N20-jsdom-red.log`                                                                                      |
+| N21   | 1 jsdom failure; mount statuses were `['live', 'fatal']` instead of `['live']`.                                                                         | `050-7-b-application-runtime-preferences.slice-6.20260922T071941Z/N21-jsdom-red.log`                                                                                      |
+
+### Planner-only verification rows
+
+These rows were not run in slice 7. Values explicitly supplied by the planner are recorded as
+observed; the other final-tree checks remain pending planner verification.
+
+| Planner-only check                                         | Status                                                                                                                                         |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whole UTC jsdom tier                                       | Pending planner verification for this hand-over; the packet rehearsal recorded 130 files and 2,950 tests passed.                               |
+| Pacific/Auckland zoned tier                                | Pending planner verification; the packet rehearsal recorded 2 files and 3 tests passed.                                                        |
+| `wbs-fe-01:build`                                          | Pending final planner verification; slice 6's executor build passed with 991 modules transformed.                                              |
+| Whole `tool-devsync:test` target with owned paths staged   | Pending planner verification because it requires Git writes and tracked files; the packet rehearsal recorded 366 passing tests and 0 failures. |
+| Focused Chromium fatal-page case                           | Planner-only, observed after slice 4: 1 passed with `E2E_PORT_SHIFT=3000`.                                                                     |
+| Chromium fatal-page case with N12                          | Pending planner replay; the packet rehearsal recorded the page exposing the injected address and the case failing.                             |
+| Existing Chromium dark-mode, chart-detail and header specs | Pending planner verification; the packet rehearsal recorded 25 passing tests.                                                                  |
+| `twilight-burokrat:test`                                   | Not run: this packet adds no Burokrat source or rule.                                                                                          |
+| Commits with hooks enabled                                 | Planner-only: the six earlier slices are committed; this slice is ready for planner review and commit.                                         |
+| `bin/h2puni-gate.sh <sha>`                                 | Not run in the executor environment; pending planner verification on the host.                                                                 |
+
+- OpenSpec validation after ticking task 2 and adding this hand-over: exit 0; 114
+  items passed and 0 failed, equal to V0; `adopt-frontend-lifetimes` was valid with
+  no issues (`slice7-openspec-validation.HDil5W.json`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write` on `tasks.md` and this verification
+  record: exit 0 (`slice7-prettier-write.log`).
+- `GSETTINGS_BACKEND=memory bunx prettier --check` on all 24 packet-owned paths:
+  exit 0; all matched files used Prettier code style
+  (`slice7-prettier-check.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`: exit 0; Nx successfully ran
+  the target (`slice7-typecheck.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint`: exit 0; Nx successfully ran the
+  target (`slice7-lint.log`).
+- `NX_DAEMON=false bun run format:check --all`: exit 0
+  (`slice7-format-check.log`).
+- Cumulative scoped diff from slice 1's base
+  `2786c893438449dcd295b992067fa94622ead964`: exit 0; exactly the 24
+  packet-owned paths (`slice7-cumulative-diff.log`).
+- The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
+  the whole jsdom and zoned tiers, the remaining Chromium checks, and the host gate
+  remain pending planner verification under the executor sandbox contract.
