@@ -580,3 +580,24 @@ records two attempted mechanisms as withdrawn failures.
 - The whole `tool-devsync:test`, the whole UTC jsdom tier,
   `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the zoned tier, Chromium, and the host
   gate remain pending planner verification under the executor sandbox contract.
+
+## Packet 050.7d, slice 1 — withdrawal design record
+
+- Attempt `050-7-d-withdrawal-and-page-lifecycle.1.20260922T180759Z` started at
+  `57de05bf0c4b5714b7ac73b2d66c38e9ebb50d87`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 656 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 13 files
+  and 81 tests passed.
+- Strict OpenSpec baseline and post-edit validation: exit 0 each; the strict
+  `jq` predicate accepted one object with 114 items passed and 0 failed in both
+  runs.
+- The withdrawal-design appendix was appended verbatim to
+  `050-7-lifetime-slot-design.md`; this slice changes no production or test code.
+- `git diff --stat` for `lifetime-slot.ts` and `lifetime-slot.model.test.ts` was
+  empty: exit 0.
+- Prettier write and check on the design record and this verification record:
+  exit 0.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- This documentation-only slice adds no safety check and requires no negative
+  proof.
