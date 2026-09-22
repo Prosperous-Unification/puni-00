@@ -1,13 +1,19 @@
 import { DiBag } from 'di-bag';
-import { isValidElement, type ReactNode } from 'react';
+import { act, isValidElement, type ReactNode, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { ROOT_FAULT_OPTIONS } from '@/components/chrome/root-fault-options';
+import type { RememberedPreferences } from '@/modules/preferences/contract';
 import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
 
 import { bootstrapApplication, type BootstrapDependencies } from './application-bootstrap';
 import { type ApplicationServices, installApplicationRuntime } from './application-runtime';
+import {
+  type ApplicationServicesState,
+  useApplicationServicesState,
+} from './application-services-context';
 import {
   createLifetimeSlot,
   type LifetimeSlot,
@@ -18,6 +24,13 @@ import {
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+/**
+ * The tree these tests draw. A recording root never actually mounts it — see
+ * {@link recordingRoot} — so this stands in for the real `App`, whose own auth
+ * and router machinery has no place in a bootstrap-only test.
+ */
+const FakeApp = (): null => null;
 
 /** What the recorded root was asked to render, and with which options it was made. */
 interface RecordedRoot {
@@ -126,6 +139,7 @@ describe('the page’s bootstrap', () => {
     await bootstrapApplication(document.createElement('div'), {
       slot,
       mount: root.mount,
+      app: FakeApp,
       acquire: () => installApplicationRuntime({ openStore: fakeBrowserStorage }),
     });
 
@@ -144,6 +158,7 @@ describe('the page’s bootstrap', () => {
     await bootstrapApplication(document.createElement('div'), {
       slot,
       mount: root.mount,
+      app: FakeApp,
       acquire: refusingAcquisition(),
     });
 
@@ -160,6 +175,7 @@ describe('the page’s bootstrap', () => {
     await bootstrapApplication(document.createElement('div'), {
       slot,
       mount: root.mount,
+      app: FakeApp,
       acquire: refusingAcquisition(),
     });
 
@@ -200,6 +216,7 @@ describe('the page’s bootstrap', () => {
     const booting = bootstrapApplication(document.createElement('div'), {
       slot,
       mount: root.mount,
+      app: FakeApp,
       acquire,
     });
     const winner = slot.replace(acquire);
@@ -218,6 +235,7 @@ describe('the page’s bootstrap', () => {
     await bootstrapApplication(document.createElement('div'), {
       slot,
       mount: root.mount,
+      app: FakeApp,
       acquire: () => {
         const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
         return {
@@ -239,4 +257,57 @@ describe('the page’s bootstrap', () => {
     expect(root.mountStatuses()).toEqual(['live']);
     expect(JSON.stringify(logged.mock.calls)).not.toContain(SECRET);
   });
+});
+
+/** Isolates the ganttDetail write behind a function boundary. */
+function writeGanttDetail(remembered: RememberedPreferences, value: boolean): void {
+  remembered.ganttDetail.write(value);
+}
+
+/** Isolates the ganttDetail read behind a function boundary. */
+function readGanttDetail(remembered: RememberedPreferences): boolean | null {
+  return remembered.ganttDetail.read();
+}
+
+describe('the context this bootstrap publishes', () => {
+  itDom(
+    'a component under the tree reads the runtime this bootstrap installed, on the slot it was given',
+    async () => {
+      const slot = createLifetimeSlot<ApplicationServices>(50);
+      const host = document.createElement('div');
+      const installed: { remembered: RememberedPreferences | null } = { remembered: null };
+      const acquire = () => {
+        const built = installApplicationRuntime({ openStore: fakeBrowserStorage });
+        installed.remembered = built.services.remembered;
+        return built;
+      };
+      const captured: { state: ApplicationServicesState | null } = { state: null };
+      const Probe = (): null => {
+        const state = useApplicationServicesState();
+        // Recorded in an effect, not during render: reassigning an outer
+        // variable while rendering is impure and this file's own lint config
+        // refuses it (react-hooks/globals, observed 2026-09-22).
+        useEffect(() => {
+          captured.state = state;
+        });
+        return null;
+      };
+
+      await act(async () => {
+        await bootstrapApplication(host, {
+          slot,
+          acquire,
+          mount: (element, options) => createRoot(element, options),
+          app: Probe,
+        });
+      });
+
+      if (installed.remembered === null) throw new Error('setup: acquire never ran');
+      const finalState = captured.state;
+      if (finalState === null) throw new Error('probe never ran at all');
+      if (finalState.status !== 'live') throw new Error('probe never saw a live state');
+      writeGanttDetail(finalState.remembered, true);
+      expect(readGanttDetail(installed.remembered)).toBe(true);
+    },
+  );
 });

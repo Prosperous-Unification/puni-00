@@ -1,6 +1,7 @@
 import { DiBag } from 'di-bag';
 import { createRoot } from 'react-dom/client';
 
+import { App } from '@/app';
 import { bootstrapApplication } from '@/runtime/application-bootstrap';
 import type { ApplicationServices } from '@/runtime/application-runtime';
 import {
@@ -68,6 +69,7 @@ async function proveTheFatalPageDisclosesNothingRaw(): Promise<LifetimeFaultProo
     acquire: refuseAfterAcquiring,
     slot: createLifetimeSlot<ApplicationServices>(1_000),
     mount: (element, options) => createRoot(element, options),
+    app: App,
   });
   const deadline = Date.now() + 10_000;
   while (host.querySelector('[data-lifetime-fault]') === null) {
