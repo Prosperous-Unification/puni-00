@@ -135,6 +135,33 @@ a release that itself fails or outruns its wait, either of which is terminal.
 - **THEN** the sanitized fatal state is published, nothing is held, and a later
   transition may build again
 
+### Requirement: A retired runtime gives the reader's browser back
+
+A runtime that owns a browser store SHALL hold it through a revocable handle, and
+its retirement SHALL revoke that handle. Every read, write and removal attempted
+through a preference handle obtained from a retired runtime SHALL throw, and SHALL
+NOT reach the reader's browser. A handle obtained from the current runtime SHALL be
+unaffected by the retirement of a previous one.
+
+#### Scenario: A preference written after retirement reaches nothing
+
+- **WHEN** a reader's screen writes a preference through a handle it obtained from a
+  runtime that has since been retired
+- **THEN** the write throws, the value in the reader's browser is unchanged, and no
+  default is written over it
+
+#### Scenario: A preference read after retirement is refused rather than answered
+
+- **WHEN** a read or a removal is attempted through a handle from a retired runtime
+- **THEN** it throws rather than answering from the browser, because the answer would
+  belong to a runtime nobody owns
+
+#### Scenario: The current runtime keeps its own store
+
+- **WHEN** one runtime is retired and a replacement is published
+- **THEN** the replacement's own handles read and write normally, and only the retired
+  runtime's handles refuse
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

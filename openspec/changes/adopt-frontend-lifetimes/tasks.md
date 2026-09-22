@@ -7,7 +7,7 @@
       Proves: the named example tests, plus a `fast-check` scheduler property over
       generated interleavings. Negatives: each fence removed; the upstream
       report-and-continue policy; the retained late-cleanup promise dropped.
-- [ ] 2. The preferences module is a sealed, labelled DI Bag module whose browser store
+- [x] 2. The preferences module is a sealed, labelled DI Bag module whose browser store
       is private, installed by one transactional installer: it retains the bag before
       resolving and releases partial acquisitions on failure. Proves: the module label
       names the private binding; the installed surface carries neither the store nor the
