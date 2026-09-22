@@ -1,5 +1,7 @@
 import type { Logger } from '@wbs/contracts';
 
+import { installPlanHistory } from './module/plan-history/check';
+import type { HistoryService } from './module/plan-history/plan-history.feature';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { PushTransport } from './ports/push-transport';
@@ -15,7 +17,6 @@ import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
-import { HistoryService } from './service/history.service';
 import { ImportService } from './service/import.service';
 import { LoginThrottle } from './service/login-throttle';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
@@ -225,10 +226,10 @@ export function composeServices(
       announcements,
       batchServices: batch,
     }),
-    history: new HistoryService({
-      projects: source.stores.projects,
-      events: source.stores.planEvents,
-    }),
+    history: installPlanHistory({
+      projectStore: source.stores.projects,
+      planEventStore: source.stores.planEvents,
+    }).history,
     plans: savedPlans,
     savedPlans,
     replay: new ReplayOrchestrator({

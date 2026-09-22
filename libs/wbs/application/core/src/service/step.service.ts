@@ -1,4 +1,4 @@
-import { stepIsInUse } from '@wbs/domain';
+import { canEditProject, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
 import type { ProjectStore } from '../ports/project-store';
@@ -6,7 +6,6 @@ import type { Step, StepStore, StepUsageRows } from '../ports/step-store';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { cleanName } from './clean-name';
-import { canEdit } from './project.service';
 
 export interface StepServiceOptions {
   projects: ProjectStore;
@@ -132,7 +131,7 @@ export class StepService {
     if (clean === null) return { ok: false, reason: 'name_required' };
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
       { id: this.clock.newId(), projectId, name: clean },
@@ -237,7 +236,7 @@ export class StepService {
   ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
     const step = await this.opts.steps.findById(stepId);
     if (step?.projectId !== projectId) return { ok: false, reason: 'not_found' };
     return { ok: true };

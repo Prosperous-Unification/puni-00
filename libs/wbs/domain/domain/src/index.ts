@@ -57,6 +57,10 @@ export * from './priority-band';
 // it is WORTH relative to the others in one plan.
 export * from './priority-weight';
 export * from './progress';
+// The one write gate every resource and feature asks: `canEditProject`. Domain
+// code rather than a Project-resource export, because a resource importing a
+// sibling resource for it is the sideways edge K6 forbids.
+export * from './project-ownership';
 // The value a Saved plan's input body is, and the pure fold that produces it.
 // Types and one pure function: the reads it is folded from live in be-01, and
 // the hash is taken over this module's serialization.

@@ -29,7 +29,12 @@ import {
   UNKNOWN,
   workdaysBetween,
 } from '@wbs/domain';
-import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
+import {
+  canEditProject,
+  MEASURE_METRICS,
+  SOLVER_OBJECTIVES,
+  type SolverObjectiveName,
+} from '@wbs/domain';
 import { byTreeOrder, treeOrder } from '@wbs/domain';
 import {
   haveSameSliceOrder,
@@ -84,7 +89,6 @@ import {
 } from './compensating';
 import { canDepend } from './dependency';
 import type { NumberedWorkItem } from './numbered-work-item';
-import { canEdit } from './project.service';
 import {
   type Days,
   rollUp,
@@ -1844,7 +1848,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<WorkItem>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     // `rows` is this project only, so a parent that is not among them belongs to
@@ -2744,7 +2748,7 @@ export class WorkItemService {
   async arrangeBySchedule(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const stored = await this.opts.estimates.listByProject(projectId);
@@ -2829,7 +2833,7 @@ export class WorkItemService {
   async freeze(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const numbers = deriveNumbers(rows);
@@ -2884,7 +2888,7 @@ export class WorkItemService {
   async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const frozen = rows.filter((row) => row.frozenNumber !== null);
@@ -3676,7 +3680,7 @@ export class WorkItemService {
     if (project === null) return { ok: false, reason: 'not_found', detail: null };
     // An undo is a mutation. Being allowed to read a restricted project is not
     // being allowed to reverse somebody's work in it.
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden', detail: null };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden', detail: null };
 
     // The whole stack, because applying one entry re-stamps its neighbours.
     // It is capped at fifty rows.
@@ -4586,7 +4590,7 @@ export class WorkItemService {
     if (workItem === null) return { ok: false, reason: 'not_found' };
     const project = await this.opts.projects.findById(workItem.projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
     const rows = await this.opts.workItems.listByProject(workItem.projectId);
     return { ok: true, value: { workItem, project, rows } };
   }
