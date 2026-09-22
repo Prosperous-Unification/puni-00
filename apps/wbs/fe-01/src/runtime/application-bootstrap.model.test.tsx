@@ -34,6 +34,8 @@ const commandArb: fc.Arbitrary<Command> = fc.oneof(
   { arbitrary: fc.constant<Command>({ kind: 'settle' }), weight: 2 },
 );
 
+const FakeApp = (): null => null;
+
 /** React writes nothing here, but the bootstrap logs every fatal state it shows. */
 const muteConsoleError = () =>
   vi.spyOn(console, 'error').mockImplementation(() => {
@@ -125,6 +127,7 @@ describe("the page's bootstrap, under generated interleavings", () => {
                   acquire,
                   slot,
                   mount,
+                  app: FakeApp,
                 }).then(
                   () => {
                     bootstrapOutcomes.push('resolved');

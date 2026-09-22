@@ -1,4 +1,4 @@
-import { type ReactNode, StrictMode } from 'react';
+import { type ComponentType, type ReactNode, StrictMode } from 'react';
 import { createRoot, type RootOptions } from 'react-dom/client';
 
 import { App } from '@/app';
@@ -11,6 +11,7 @@ import {
   type ApplicationServices,
   applicationSlot,
 } from './application-runtime';
+import { ApplicationServicesProvider } from './application-services-context';
 import { type Acquire, type LifetimeSlot, TransitionSupersededError } from './lifetime-slot';
 
 /** What the page's bootstrap is wired from; production passes none of it. */
@@ -21,12 +22,15 @@ export interface BootstrapDependencies {
   readonly slot: LifetimeSlot<ApplicationServices>;
   /** React's root factory, so a test can watch what this renders into it. */
   readonly mount: (host: Element, options: RootOptions) => { render: (tree: ReactNode) => void };
+  /** The tree drawn once the runtime is live; the production entry supplies the real `App`. */
+  readonly app: ComponentType;
 }
 
 const PRODUCTION: BootstrapDependencies = {
   acquire: acquireApplicationRuntime,
   slot: applicationSlot,
   mount: (host, options) => createRoot(host, options),
+  app: App,
 };
 
 /**
@@ -136,11 +140,14 @@ export async function bootstrapApplication(
   // Proof: on 2026-09-22, removing this fence let the model draw the app while
   // the slot was `retiring` (1 failed, 11 passed).
   if (dependencies.slot.snapshot().status !== 'live') return;
+  const Tree = dependencies.app;
   rootFor().render(
     <StrictMode>
       {/* Proof: on 2026-09-22, acquiring inside this tree made the Strict Mode
       runtime count 3 instead of 1 (1 failed, 11 passed). */}
-      <App />
+      <ApplicationServicesProvider slot={dependencies.slot}>
+        <Tree />
+      </ApplicationServicesProvider>
     </StrictMode>,
   );
 }
