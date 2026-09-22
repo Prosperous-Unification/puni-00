@@ -6,12 +6,14 @@
 > committed `verify.md` of `adopt-di-composition`, never from another attempt's evidence directory.
 > Section 8 scopes every command the sandbox cannot run.
 >
-> **Revised four times on 2026-09-22.** After review 1 the boundary rule stopped matching text; after review 2
+> **Revised five times on 2026-09-22, the last time to narrow it.** After review 1 the boundary rule stopped matching text; after review 2
 > it stopped reading syntax; after round 3 it stopped reading export **names**; after round 4 it asks the
-> type checker from three vantage points — module references, types, identifiers — and runs its declaration
-> rule as an independent pass. Twelve reviewer bypasses and eight the author tried are watched negatives, and
-> section 6 states the contract as proven together with the two forms that are out of scope. Sections 14 to
-> 17 dispose of every finding; 14 to 16 are historical where they describe the implementation.
+> type checker from three vantage points — module references, types, identifiers. Round 5 confirmed that
+> reference rule held and found that the second rule, "only the port declares a contract's name", cannot be
+> kept against declaration merging: that assertion is **deleted**, and the packet now claims exactly one
+> thing, stated in section 6 and section 9.4. Fourteen reference routes are watched negatives; five
+> declaration forms are recorded as **not prevented**, with where they belong instead. Sections 14 to 18
+> dispose of every finding; 14 to 17 are historical where they describe the implementation.
 >
 > **Rehearsed on `f862a15a`** (main after batch 6's integration, which carries packet A). Every red,
 > green, count and fault below was produced in a private worktree of that commit against the listings
@@ -60,7 +62,7 @@ closure: a feature-service importing this port keeps the same preserved debt it 
 | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `AGENTS.md`                                                                        | Rules R1 to R5. R5 and R3 decide most of the review of this work.                                         |
 | `LLM_README.md`                                                                    | The index. Read only the entry your slice needs.                                                          |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                              | "Execution contract" and "Standard blocks every packet uses". Slice 5 runs the OpenSpec validation block. |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                              | "Execution contract" and "Standard blocks every packet uses". Slice 6 runs the OpenSpec validation block. |
 | `docs/superpowers/plans/2026-09-21-batch-6/040-6-a-di-composition-first-module.md` | The first packet of this item: the form, and what its three reviews refused.                              |
 | `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md`            | The ownership map. Preparation 1 is this packet; section 4 and section 11 correct the map.                |
 | `docs/superpowers/specs/2026-09-19-code-organization-design.md`                    | "Import matrix", K2 to K6, and the classification table that calls broadcast support.                     |
@@ -75,7 +77,7 @@ worktree of that commit.
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `service/broadcast.ts` is 283 lines and exports five declarations: `ProjectEvent` (`:26`), `subscriptionFor` (`:200`), `Broadcaster` (`:204`), `HeldAnnouncement` (`:218`), `AnnouncementCollector` (`:245`).                                                                                                                                                                                                                                                   | `wc -l`; `grep -c "^export"` is 5                                                                                                            |
 | The event contracts occupy lines 7 to 215 as one contiguous block: `ProjectEvent`'s JSDoc opens at `:7`, `Broadcaster` closes at `:215`, and the collector's own comment opens at `:217`.                                                                                                                                                                                                                                                                       | `sed -n '1,220p'` on that file                                                                                                               |
-| Thirty-one names of the three contracts are imported from `broadcast` across twenty-five core files: 22 names in 17 production files, 9 names in 8 test files.                                                                                                                                                                                                                                                                                                  | Slice 2's and slice 4's rehearsed reds, section 6 rows 1 and 5                                                                               |
+| Thirty-one names of the three contracts are imported from `broadcast` across twenty-five core files: 22 names in 17 production files, 9 names in 8 test files.                                                                                                                                                                                                                                                                                                  | Slice 2's and slice 5's rehearsed reds, section 6 faults 1 and 2                                                                             |
 | No file outside `libs/wbs/application/core/src` imports them by a deep path. `libs/wbs/adapters/store-sqlite` takes `ProjectEvent`, `Broadcaster` and `subscriptionFor` from the `@wbs/core` barrel; `apps/wbs/be-01` takes them from its own `src/service/broadcast.ts` shim, which is `export * from '@wbs/core/service/broadcast';`.                                                                                                                         | `git grep -n "Broadcaster\|ProjectEvent\|subscriptionFor" libs apps`; `apps/wbs/be-01/src/service/broadcast.ts:1`                            |
 | `apps/wbs/gw-01` and `apps/wbs/mcp-01` import nothing from `@wbs/core`.                                                                                                                                                                                                                                                                                                                                                                                         | `grep -rn "@wbs/core" apps/wbs/gw-01/src apps/wbs/mcp-01/src` printed nothing                                                                |
 | `subscriptionFor`'s JSDoc says gw-01 "matches sockets against it". It does not: gw-01 takes the prefix apart with its own `PROJECT_SUBSCRIPTION` regular expression and links no core code.                                                                                                                                                                                                                                                                     | `libs/wbs/application/core/src/service/broadcast.ts:196-198` against `apps/wbs/gw-01/src/controller/ws.controller.ts:68`                     |
@@ -84,7 +86,7 @@ worktree of that commit.
 | Feature-services already import repository ports directly: `plan-commands.ts:9` takes `UnitOfWork`, `import.service.ts:3-6` takes `Clock`, `Scheduler`, `SubtreeCopy` and `UnitOfWork`. A port home for the event contracts adds no new class of K3 debt.                                                                                                                                                                                                       | those lines                                                                                                                                  |
 | `import.service.ts:147` builds an `AnnouncementCollector`. Plan import is a feature and Plan commands is a feature, so moving the collector into Plan commands would create the same-kind edge K6 forbids.                                                                                                                                                                                                                                                      | `libs/wbs/application/core/src/service/import.service.ts:7`, `:147`; map "Proposed core modules"                                             |
 | `lint:source` exists **only** on the Burokrat project. For `wbs-core` the source-lint target is `lint`.                                                                                                                                                                                                                                                                                                                                                         | `bunx nx show project wbs-core --json`: targets are `build:portable`, `lint`, `lint:fast`, `test`, `test:portable`, `test:unit`, `typecheck` |
-| The whole-target values on the rehearsed tree, all exit 0: `wbs-core:test` 543 pass over 54 files, `wbs-be-01:test:unit` 519 pass over 49 files, `wbs-be-01:test` 1091 pass over 92 files, `wbs-gw-01:test` 128 pass over 17 files, `wbs-mcp-01:test` 165 pass over 15 files, `tool-devsync:test` 366 pass, `wbs-core:build:portable`, `wbs-core:test:portable`, `wbs-be-01:typecheck`, `wbs-gw-01:typecheck`, `wbs-mcp-01:typecheck`, `nx format:check --all`. | Observed 2026-09-22                                                                                                                          |
+| The whole-target values on the rehearsed tree, all exit 0: `wbs-core:test` 542 pass over 54 files, `wbs-be-01:test:unit` 519 pass over 49 files, `wbs-be-01:test` 1091 pass over 92 files, `wbs-gw-01:test` 128 pass over 17 files, `wbs-mcp-01:test` 165 pass over 15 files, `tool-devsync:test` 366 pass, `wbs-core:build:portable`, `wbs-core:test:portable`, `wbs-be-01:typecheck`, `wbs-gw-01:typecheck`, `wbs-mcp-01:typecheck`, `nx format:check --all`. | Observed 2026-09-22                                                                                                                          |
 | Strict OpenSpec validation is `{"items": 113, "passed": 113, "failed": 0}` before and after this packet: it opens no change.                                                                                                                                                                                                                                                                                                                                    | The README's `jq -s -e` block, observed exit 0                                                                                               |
 | TypeScript **6.0.2** is installed as `npm:@typescript/typescript6@6.0.2`, and a test in this repository already imports it, so the boundary rule can parse instead of matching text.                                                                                                                                                                                                                                                                            | `package.json:117`; `apps/wbs/fe-01/src/deadline-copy.test.ts:4`                                                                             |
 | `grep` is **ugrep** on the rehearsal host and **GNU grep 3.11** on the reviewer's; ugrep exits **1** for a missing input file as well as for zero matches, printing only a warning, so every step-0 count here is preceded by `test -f` whichever is installed.                                                                                                                                                                                                 | Observed: `grep -c '^ *// Proof:' <missing path>` exited 1                                                                                   |
@@ -131,17 +133,17 @@ red it produces.
 
 ## 5. File plan
 
-| Path                                                                | Slice   | Create or modify                                                                                                                                                            |
-| ------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `libs/wbs/application/core/src/ports/project-event.ts`              | 1       | create, from section 9.1                                                                                                                                                    |
-| `libs/wbs/application/core/src/service/broadcast.ts`                | 1       | modify: keep the collector, re-export the port (section 9.2)                                                                                                                |
-| `libs/wbs/application/core/src/index.ts`                            | 1       | modify, two insertions (section 9.3)                                                                                                                                        |
-| `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` | 2, 3, 4 | create in slice 2 (section 9.4); slice 3 writes two of its eight `// Proof:` comments and slice 4 the other six; slice 5 widens its filter line and corrects one JSDoc line |
-| The 17 production importers of section 9.5                          | 2       | modify, one import line each                                                                                                                                                |
-| The 8 test importers of section 9.6                                 | 4       | modify, one import line each                                                                                                                                                |
-| `docs/code-organization/kinds.json`                                 | 5       | modify, one entry rewritten in place (section 9.7)                                                                                                                          |
-| `openspec/changes/adopt-di-composition/tasks.md`                    | 5       | modify, one note under task 1.2 (section 9.8). No box is ticked.                                                                                                            |
-| `openspec/changes/adopt-di-composition/verify.md`                   | 1–5     | modify: each slice appends its own baselines, deltas and evidence basenames                                                                                                 |
+| Path                                                                | Slice   | Create or modify                                                                                                                                                             |
+| ------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `libs/wbs/application/core/src/ports/project-event.ts`              | 1       | create, from section 9.1                                                                                                                                                     |
+| `libs/wbs/application/core/src/service/broadcast.ts`                | 1       | modify: keep the collector, re-export the port (section 9.2)                                                                                                                 |
+| `libs/wbs/application/core/src/index.ts`                            | 1       | modify, two insertions (section 9.3)                                                                                                                                         |
+| `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` | 2, 3, 4 | create in slice 2 (section 9.4); slice 3 writes two of its seven `// Proof:` comments and slice 4 the other five; slice 5 widens its filter line and corrects one JSDoc line |
+| The 17 production importers of section 9.5                          | 2       | modify, one import line each                                                                                                                                                 |
+| The 8 test importers of section 9.6                                 | 4       | modify, one import line each                                                                                                                                                 |
+| `docs/code-organization/kinds.json`                                 | 5       | modify, one entry rewritten in place (section 9.7)                                                                                                                           |
+| `openspec/changes/adopt-di-composition/tasks.md`                    | 5       | modify, one note under task 1.2 (section 9.8). No box is ticked.                                                                                                             |
+| `openspec/changes/adopt-di-composition/verify.md`                   | 1–5     | modify: each slice appends its own baselines, deltas and evidence basenames                                                                                                  |
 
 **Neighbours.** No other batch-6 packet owns any of these paths. `docs/code-organization/kinds.json` is
 also the subject of `tasks.md` 1.8, which stays unticked and untouched here. Section 10's cumulative
@@ -154,89 +156,89 @@ Every row was produced in a private worktree of `f862a15a` against the final lis
 the literal fragment is what Bun 1.4.2 printed. Restore a mutated file from a copy under `"$TMPDIR"` and
 prove it with `cmp` **before** asserting on any captured status.
 
-**The contract, exactly as proven.** A reference whose **checker-resolved symbol or type** is one of the
-port's exported symbols is reported unless it came from the port itself; so is any reference to a module
-that hands out one of them, with `export *` graphs followed recursively. That is the same resolution
-TypeScript uses to type-check the program, so a rename, a `default`, a namespace, a barrel, an awaited
-dynamic import, an element access, an `import` type or an indexed `typeof import(…)` are all one question.
-**What is not covered, by design:** a _new symbol_ that merely mirrors a contract — `export type Publisher =
-Broadcaster;` or a structurally identical interface under another name — is not a reference to the port, so
-rule 1 does not see it, and rule 2 sees it only if it takes one of the port's names. Four reviews found
-routes; the residual above is stated as a limit, not defended as a claim.
+**The contract, exactly as proven, and nothing wider.** References that TypeScript resolves to the port's
+contract symbols must reach them through the port module or a permitted file — identity by type and by
+symbol, asked of module references, of types and of identifiers. **Duplicate or merged declarations under
+the same names, differently named structural copies and type aliases are NOT prevented by this check**;
+they are Twilight Burokrat's kind rules' job (K2 to K6, and the map's preparations 3 and 4). Five review
+rounds went into that sentence: four of them found routes into the reference rule, which is now closed, and
+the fifth found that a name-based "sole declaration" promise cannot be kept at all, because a
+`declare module` augmentation merges into the port's own symbol. The declaration assertion is therefore
+**deleted** rather than weakened, and this packet claims only what the single remaining assertion proves.
 
-| #   | Where                                                                                            | Fault injected                                                                                                                  | Test that observed it                                        | Literal fragment observed                                                                                                                                                                                              |
-| --- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | slice 2 red, on the tree slice 1 leaves                                                          | none; the rule is new                                                                                                           | `is where every reference to the event contracts comes from` | `- []` then 22 rows of `<file>: <name> via service/broadcast.ts`, `+ Received + 24`; `1 pass`, `1 fail`                                                                                                                |
-| 2   | slice 5 red, after the filter widens to test files                                               | none; the rule's scope is what changed                                                                                          | the same test                                                | 9 rows of `<test file>: <name> via service/broadcast.ts`, `+ Received + 11`; `1 pass`, `1 fail`                                                                                                                        |
-| 3   | `service/step.service.ts`                                                                        | the port import replaced by a named import from `'./broadcast'`                                                                 | the same test                                                | `+ "service/step.service.ts: Broadcaster via service/broadcast.ts",`                                                                                                                                                   |
-| 4   | `service/step.service.ts`                                                                        | `import type * as events from './broadcast';` with `broadcast: events.Broadcaster;`                                             | the same test                                                | three rows: the `via` row, `+ "…: './broadcast' hands out the contracts from service/broadcast.ts",` and `+ "…: events hands out the contracts from service/broadcast.ts",`                                            |
-| 5   | `service/gateway-broadcaster.ts`                                                                 | a value namespace of `'./broadcast'` read by element access through a local alias (section 9.9)                                 | the same test                                                | `+ "service/gateway-broadcaster.ts: events hands out the contracts from service/broadcast.ts",` and the specifier row                                                                                                  |
-| 6   | `service/capacity.service.ts`                                                                    | `import type { Broadcaster } from '../index';`, the barrel route                                                                | the same test                                                | `+ "service/capacity.service.ts: Broadcaster via index.ts",`                                                                                                                                                           |
-| 7   | `service/capacity.service.ts`                                                                    | the field written as an `import` type of `'./broadcast'` qualified by `Broadcaster`                                             | the same test                                                | `+ "service/capacity.service.ts: Broadcaster via service/broadcast.ts",` and the specifier row                                                                                                                         |
-| 8   | `service/optimizer-trigger-broadcaster.ts` and `service/gateway-broadcaster.ts`                  | `export { subscriptionFor as routeFor } from '../ports/project-event';`, consumed through a namespace of that file              | the same test                                                | `+ "service/gateway-broadcaster.ts: routeFor via service/optimizer-trigger-broadcaster.ts",` plus `routes hands out …`, `routes.routeFor reads a contract out of …`, and an `index.ts` specifier row                   |
-| 9   | the same two files                                                                               | `export { subscriptionFor as default } from '../ports/project-event';`, consumed as a default import                            | the same test                                                | `+ "service/gateway-broadcaster.ts: pushTo via service/optimizer-trigger-broadcaster.ts",` and the `index.ts` specifier row                                                                                            |
-| 10  | the same two files                                                                               | `export * as events from '../ports/project-event';`, consumed as `routes.events.subscriptionFor`                                | the same test                                                | `+ "service/gateway-broadcaster.ts: routes hands out the contracts from service/optimizer-trigger-broadcaster.ts",`                                                                                                    |
-| 11  | `service/optimizer-trigger-broadcaster.ts` and `service/capacity.service.ts`                     | that namespace export consumed as an `import` type qualified `events.Broadcaster`                                               | the same test                                                | `+ "service/capacity.service.ts: Broadcaster via service/optimizer-trigger-broadcaster.ts",`                                                                                                                           |
-| 12  | `service/gateway-broadcaster.ts`                                                                 | `const pushTo = (await import('./broadcast'))` indexed by the string `subscriptionFor` — round 4's first route                  | the same test                                                | `+ "service/gateway-broadcaster.ts: './broadcast' hands out the contracts from service/broadcast.ts",` **and** `+ "…: (await import('./broadcast'))['subscriptionFor'] reads a contract out of service/broadcast.ts",` |
-| 13  | `service/gateway-broadcaster.ts`                                                                 | `const pushTo: typeof import('./broadcast')['subscriptionFor'] = subscriptionFor;` — round 4's second route                     | the same test                                                | the specifier row **and** `+ "…: typeof import('./broadcast')['subscriptionFor'] reads a contract out of service/broadcast.ts",`                                                                                       |
-| 14  | `service/gateway-broadcaster.ts`                                                                 | an awaited dynamic import consumed as a property, `loaded.subscriptionFor(projectId)`                                           | the same test                                                | the specifier row and `+ "…: subscriptionFor via service/broadcast.ts",`                                                                                                                                               |
-| 15  | `service/optimizer-trigger-broadcaster.ts` and `service/capacity.service.ts`                     | a two-hop chain: `export type { Broadcaster as Hop } from './broadcast';` re-exported and then imported                         | the same test                                                | four rows naming **both** hops, `service/optimizer-trigger-broadcaster.ts` and `service/broadcast.ts`                                                                                                                  |
-| 16  | `service/step.service.ts`                                                                        | the import deleted and a local `interface Broadcaster` declared instead (section 9.9)                                           | `holds the only declaration of each event contract`          | `+ "service/step.service.ts: Broadcaster",`                                                                                                                                                                            |
-| 17  | `service/step.service.ts`                                                                        | `Broadcaster` imported as `Publisher` and a `namespace Broadcaster { export const version = 1; }` added — round 4's rule-2 hole | the same test                                                | `+ "service/step.service.ts: Broadcaster",`                                                                                                                                                                            |
-| 18  | `service/gateway-broadcaster.ts`                                                                 | `subscriptionFor` declared locally, first as a `const`, then through a binding pattern (section 9.9)                            | the same test                                                | `+ "service/gateway-broadcaster.ts: subscriptionFor",` for **both** forms                                                                                                                                              |
-| 19  | `service/working-plan.test.ts`                                                                   | the port import replaced by a named import from `'./broadcast'`                                                                 | `is where every reference to the event contracts comes from` | `+ "service/working-plan.test.ts: Broadcaster via service/broadcast.ts",`. This is what widening the scan in slice 5 buys                                                                                              |
-| 20  | `ports/event-port-boundaries.test.ts`, the `permitted` clause in `wholeModuleReference`'s caller | the one-line `const permitted = path === barrelHome && from === collectorHome;` clause and its use deleted                      | the same test                                                | `+ "index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts",`                                                                                                                               |
-| 21  | `ports/event-port-boundaries.test.ts`, `coreSource`                                              | ``const coreSource = `${coreRoot}src/runtime/`;``                                                                               | both assertions                                              | `error: the program holds no ports/project-event.ts`; `0 pass`, `2 fail`                                                                                                                                               |
-| 22  | `ports/event-port-boundaries.test.ts`, `configPath`                                              | ``const configPath = `${coreRoot}tsconfig.absent.json`;``                                                                       | both assertions                                              | `error: Cannot read file '<core>/tsconfig.absent.json'.`; `0 pass`, `2 fail`                                                                                                                                           |
-| 23  | `libs/wbs/application/core/tsconfig.lib.json`                                                    | `"module": "invalid"` added beside `"declaration": true`                                                                        | both assertions                                              | `error: refused tsconfig.lib.json: 6046`; `0 pass`, `2 fail`. With the `parsed.errors` throw **deleted** and the same option, both assertions **passed**: `2 pass`, `0 fail`                                           |
-| 24  | `libs/wbs/application/core/src/ports/project-event.ts`                                           | its whole contents replaced by two statements and no export                                                                     | both assertions                                              | `error: ports/project-event.ts is not a module`; `0 pass`, `2 fail`. `wbs-core:typecheck` fails on this one too, and that is recorded rather than claimed otherwise                                                    |
-| 25  | `ports/event-port-boundaries.test.ts`, `scannedSources`                                          | `'ports/missing.ts'` added to what it returns                                                                                   | both assertions                                              | `error: the program holds no ports/missing.ts`; `0 pass`, `2 fail`                                                                                                                                                     |
+| #   | Where                                                                           | Fault injected                                                                                                                            | Literal fragment observed on `is where every reference to the event contracts comes from`                                                                                                            |
+| --- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | slice 2 red, on the tree slice 1 leaves                                         | none; the rule is new                                                                                                                     | `- []` then 22 rows of `<file>: <name> via service/broadcast.ts`, `+ Received + 24`; `0 pass`, `1 fail`                                                                                              |
+| 2   | slice 5 red, after the filter widens to test files                              | none; the rule's scope is what changed                                                                                                    | 9 rows of `<test file>: <name> via service/broadcast.ts`, `+ Received + 11`; `0 pass`, `1 fail`                                                                                                      |
+| 3   | `service/step.service.ts`                                                       | the port import replaced by a named import from `'./broadcast'`                                                                           | `+ "service/step.service.ts: Broadcaster via service/broadcast.ts",`                                                                                                                                 |
+| 4   | `service/step.service.ts`                                                       | `import type * as events from './broadcast';` with `broadcast: events.Broadcaster;`                                                       | three rows: that `via` row, `+ "…: './broadcast' hands out the contracts from service/broadcast.ts",` and `+ "…: events hands out the contracts from service/broadcast.ts",`                         |
+| 5   | `service/gateway-broadcaster.ts`                                                | a value namespace of `'./broadcast'` read by element access through a local alias (section 9.9)                                           | `+ "service/gateway-broadcaster.ts: events hands out the contracts from service/broadcast.ts",` and the specifier row                                                                                |
+| 6   | `service/capacity.service.ts`                                                   | `import type { Broadcaster } from '../index';`, the barrel route                                                                          | `+ "service/capacity.service.ts: Broadcaster via index.ts",`                                                                                                                                         |
+| 7   | `service/capacity.service.ts`                                                   | the field written as an `import` type of `'./broadcast'` qualified by `Broadcaster`                                                       | `+ "service/capacity.service.ts: Broadcaster via service/broadcast.ts",` and the specifier row                                                                                                       |
+| 8   | `service/optimizer-trigger-broadcaster.ts` and `service/gateway-broadcaster.ts` | `export { subscriptionFor as routeFor } from '../ports/project-event';` consumed through a namespace of that file                         | `+ "service/gateway-broadcaster.ts: routeFor via service/optimizer-trigger-broadcaster.ts",` plus `routes hands out …`, `routes.routeFor reads a contract out of …`, and an `index.ts` specifier row |
+| 9   | the same two files                                                              | `export { subscriptionFor as default } from '../ports/project-event';` consumed as a default import                                       | `+ "service/gateway-broadcaster.ts: pushTo via service/optimizer-trigger-broadcaster.ts",` and the `index.ts` row                                                                                    |
+| 10  | the same two files                                                              | `export * as events from '../ports/project-event';` consumed as `routes.events.subscriptionFor`                                           | `+ "service/gateway-broadcaster.ts: routes hands out the contracts from service/optimizer-trigger-broadcaster.ts",`                                                                                  |
+| 11  | `service/optimizer-trigger-broadcaster.ts` and `service/capacity.service.ts`    | that namespace export consumed as an `import` type qualified `events.Broadcaster`                                                         | `+ "service/capacity.service.ts: Broadcaster via service/optimizer-trigger-broadcaster.ts",`                                                                                                         |
+| 12  | `service/gateway-broadcaster.ts`                                                | `(await import('./broadcast'))` indexed by the string `subscriptionFor` — round 4's first route                                           | the specifier row **and** `+ "…: (await import('./broadcast'))['subscriptionFor'] reads a contract out of service/broadcast.ts",`                                                                    |
+| 13  | `service/gateway-broadcaster.ts`                                                | `const pushTo: typeof import('./broadcast')['subscriptionFor'] = subscriptionFor;` — round 4's second route                               | the specifier row **and** `+ "…: typeof import('./broadcast')['subscriptionFor'] reads a contract out of service/broadcast.ts",`                                                                     |
+| 14  | `service/gateway-broadcaster.ts`                                                | an awaited dynamic import consumed as a property, `loaded.subscriptionFor(projectId)`                                                     | the specifier row and `+ "…: subscriptionFor via service/broadcast.ts",`                                                                                                                             |
+| 15  | `service/optimizer-trigger-broadcaster.ts` and `service/capacity.service.ts`    | a two-hop chain: `export type { Broadcaster as Hop } from './broadcast';` re-exported and then imported                                   | four rows naming **both** hops                                                                                                                                                                       |
+| 16  | `service/working-plan.test.ts`                                                  | the port import replaced by a named import from `'./broadcast'`                                                                           | `+ "service/working-plan.test.ts: Broadcaster via service/broadcast.ts",`. This is what widening the scan in slice 5 buys                                                                            |
+| 17  | `ports/event-port-boundaries.test.ts`, the permitted-barrel clause              | the single line `const permitted = path === barrelHome && from === collectorHome;` deleted with the `!permitted &&` conjunct that uses it | `+ "index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts",`                                                                                                             |
+| 18  | `ports/event-port-boundaries.test.ts`, `coreSource`                             | ``const coreSource = `${coreRoot}src/runtime/`;``                                                                                         | `error: the program holds no ports/project-event.ts`                                                                                                                                                 |
+| 19  | `ports/event-port-boundaries.test.ts`, `configPath`                             | ``const configPath = `${coreRoot}tsconfig.absent.json`;``                                                                                 | `error: Cannot read file '<core>/tsconfig.absent.json'.`                                                                                                                                             |
+| 20  | `libs/wbs/application/core/tsconfig.lib.json`                                   | `"module": "invalid"` added beside `"declaration": true`                                                                                  | `error: refused tsconfig.lib.json: 6046`. With the statement beginning `if (parsed.errors.length > 0) {` **deleted** and the same option, the assertion **passed**: `1 pass`, `0 fail`               |
+| 21  | `libs/wbs/application/core/src/ports/project-event.ts`                          | its whole contents replaced by two statements and no export                                                                               | `error: ports/project-event.ts is not a module`. `wbs-core:typecheck` fails on this one too, which its slice records                                                                                 |
+| 22  | `ports/event-port-boundaries.test.ts`, `scannedSources`                         | `'ports/missing.ts'` added to what it returns                                                                                             | `error: the program holds no ports/missing.ts`                                                                                                                                                       |
 
-Faults 3 to 15 and 19 fail only the reference assertion; 16, 17 and 18 only the declaration assertion; 20
-only the reference assertion; 21 to 25 fail both, each with its own distinct message, because they stop the
-program from being built or read correctly. **`wbs-core:typecheck` exits 0 on faults 3 to 19** — the
-compiler sees none of them — and fault 24 is the one exception, noted in its row. Fault 23's second half is
-what proves the configuration guard is load-bearing.
+There is one assertion, so every fault above reports `0 pass`, `1 fail` — faults 18 to 22 because they stop
+the program from being built or read, the rest because the assertion's array is not empty. **`wbs-core:typecheck`
+exits 0 on faults 3 to 16**, which is the argument for the rule; fault 21 is the one exception and says so.
+Fault 20's second half is what proves the configuration guard is load-bearing.
 
-**What was tried against the rule and what it did.** A further ten minutes of attack, each attempt applied
-to a real production file and then restored:
+**What the check does not prevent, tried and recorded.** Each attempt was applied to a real production file
+and then restored; every one compiled with **zero TypeScript errors**:
 
-| Attempt                                                                                   | Outcome                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `import type { Broadcaster } from '@wbs/core/service/broadcast';` — the deep package path | caught: `service/capacity.service.ts: Broadcaster via service/broadcast.ts`; typecheck exit 0                                                                                             |
-| a generic helper: `pick(await import('./broadcast'), 'subscriptionFor')`                  | caught at the import call: `'./broadcast' hands out the contracts from service/broadcast.ts`. That helper does not compile as written (typecheck exit 1); the rule reported it regardless |
-| `import type * as events from './broadcast';` in a second publisher                       | caught three ways: the specifier row, the namespace row and the `via` row; typecheck exit 0                                                                                               |
-| `import events = require('./broadcast');` with `events.Broadcaster`                       | caught (round 3's attempt, re-verified). That form does not compile under these options                                                                                                   |
-| `export type Publisher = Broadcaster;` in a publisher, consumed as `Publisher`            | **not caught, out of scope:** a new type alias is a new symbol, so the consumer references no port symbol                                                                                 |
-| a structural copy under another name (`interface Publisher { publish…; latestSeq… }`)     | **not caught, out of scope**, for the same reason                                                                                                                                         |
+| Attempt                                                                                           | Outcome                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| a second `interface Broadcaster` declared in `service/step.service.ts` in place of the import     | **not prevented.** No use resolves through the port, so rule 1 has nothing to report                        |
+| `const pushTo = function subscriptionFor(…) { … }` — a named function expression (round 5)        | **not prevented**, same reason                                                                              |
+| `declare module '../ports/project-event' { interface Broadcaster { extra?: boolean } }` (round 5) | **not prevented**, and unprevent**able** by a name rule: the augmentation merges into the port's own symbol |
+| `export type Publisher = Broadcaster;` consumed as `Publisher`                                    | **not prevented:** a new type alias is a new symbol                                                         |
+| a structural copy under another name (`interface Publisher { publish…; latestSeq… }`)             | **not prevented**, same reason                                                                              |
 
-Why the module-reference half is a closed question rather than an enumeration: a file can obtain a port
-symbol only by naming the port module, by naming another module that hands the symbol out, or by receiving
-it from a file that did one of those — and every file in the core is scanned, so the induction closes over
-the scanned set. The residual is the two out-of-scope forms above, which introduce new symbols instead of
-reaching the port's.
+All five are declaration questions, not reference questions. They belong to the kind rules — K2 to K6 in
+`docs/superpowers/specs/2026-09-19-code-organization-design.md` and preparations 3 and 4 of the 040.6 map —
+and `verify.md` records them as this check's stated limit rather than as work this packet claims.
+
+**What was tried against the reference rule and caught.** Ten further minutes, all with typecheck exit 0
+unless noted: `import type { Broadcaster } from '@wbs/core/service/broadcast';`, the deep package path
+(`Broadcaster via service/broadcast.ts`); a generic `pick(await import('./broadcast'), 'subscriptionFor')`
+(the specifier row; that helper does not compile as written); `import events = require('./broadcast');`
+(two rows; that form does not compile under these options); and `import type * as events` in a second
+publisher (three rows).
 
 **Also observed, and prescribed because of it.**
 
-- The check builds one `ts.Program` per assertion and asks the checker for types, so the whole file runs in
-  about **2 seconds** and the whole core suite in about **13** (observed); both `it` blocks carry an
-  explicit `120_000` timeout rather than relying on Bun's five-second default.
+- Deleting the declaration assertion takes the core suite from 543 tests over 54 files to **542 over 54**
+  (observed), so slice 2 ends at `C + 1` over `F + 1` and every later slice at `C` and `F` unchanged.
+- The check builds one `ts.Program` and asks the checker for types: the file runs in about a second, the
+  whole core suite in about ten (observed); the `it` block keeps an explicit `120_000` timeout.
 - `wbs-core:lint` refuses a `here !== undefined` loop over `ts.Node.parent` and a `??` on an indexed lookup
-  with `Unnecessary conditional … @typescript-eslint/no-unnecessary-condition` (observed); section 9.4's
-  `moduleOfBinding` loop and its route message are written the way they are for that reason.
-- **The proof-comment count is read with Bun, not `grep`.** `grep` is ugrep on the rehearsal host and GNU
-  grep 3.11 on the reviewers', and a status of 1 can mean "no match" or "could not read the input"; a
-  `test -f` gate cannot see an unreadable file either. Rehearsed four ways with the block slice 3 prescribes:
-  `proof-comments=8` on the finished check, `proof-comments=0` on a file with none, exit **1** with
-  `ENOENT: no such file or directory, open '…/ports/missing.ts'` on a missing path, and exit **1** with
-  `EACCES: permission denied, open '…/service/clean-name.ts'` on a file whose mode was temporarily 000.
+  with `Unnecessary conditional … @typescript-eslint/no-unnecessary-condition` (observed).
+- **The proof-comment count is read with Bun and its failure is propagated.** `grep` is ugrep on the
+  rehearsal host and GNU grep 3.11 on the reviewers', and a status of 1 can mean "no match" or "could not
+  read"; the block slice 3 prescribes ends the shell on any read error and then asserts the expected number.
+  Rehearsed four ways: `proof-comments=7` at the expected 7, exit 0; `proof-comments=0` against the slice-2
+  intermediate at the expected 0, exit 0; a missing path printed
+  `ENOENT: no such file or directory, open '…/ports/missing.ts'`, **no count**, and exited **1**; and the
+  finished file against a wrong expectation printed its count and exited **1**.
 - Writing each new import where the old one stood leaves `simple-import-sort` unsatisfied;
   `GSETTINGS_BACKEND=memory bunx eslint --fix <files>` moved all twenty-five lines into the positions
   sections 9.5 and 9.6 name, and then exited 0 with nothing further to fix.
 - `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` reads a bracketed string followed immediately by
-  a parenthesised argument in a routed Markdown document as a link: quoting an element-access call inline
-  failed `every routed current document resolves its local links and anchors` with `364 pass`, `2 fail`
-  (observed), so section 9.9 names that access through a local alias.
+  a parenthesised argument in a routed Markdown document as a link, which is why section 9.9 names the
+  element access through a local alias.
 
 ## 7. Slices
 
@@ -317,7 +319,7 @@ NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache
 
 Expect **1**, **3**, the gate line, then exit 0 (all four behaved as written after slice 1 on the
 rehearsed tree). Record this slice's own `C` and `F` the way slice 1 does; observed `541` over 53. The
-end of this slice requires `C + 2` over `F + 1`.
+end of this slice requires `C + 1` over `F + 1`.
 
 1. Create `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` from section 9.4 and run
    `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`. Expect the red of
@@ -327,11 +329,11 @@ end of this slice requires `C + 2` over `F + 1`.
 2. Apply section 9.5's seventeen one-line edits.
 3. `GSETTINGS_BACKEND=memory bunx eslint --fix` on those seventeen paths → exit 0. It moves any import
    written in the old position into the sorted one (observed; afterwards it had nothing left to fix).
-4. `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` → exit 0, `2 pass`,
-   `0 fail`, `2 expect() calls` (observed).
+4. `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` → exit 0, `1 pass`,
+   `0 fail`, `1 expect() call` (observed).
 5. `NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache` → exit 0 (observed).
-6. `(cd libs/wbs/application/core && bun test src)` → exit 0 with `C + 2` over `F + 1` (observed
-   `543 pass`, `0 fail`, 54 files).
+6. `(cd libs/wbs/application/core && bun test src)` → exit 0 with `C + 1` over `F + 1` (observed
+   `542 pass`, `0 fail`, 54 files).
 7. Append the baselines, the red's 22 rows and the green counts to `verify.md`, then format that file and
    run `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
 
@@ -339,159 +341,156 @@ Planner commit: `refactor(core): point every core publisher at the project-event
 
 ### Slice 3 — Watch the route rule fail
 
-**Step 0.** The count is read by Bun rather than by `grep`, because a `grep` status of 1 means either "no
-match" or "could not read the input", and a `test -f` gate cannot see an unreadable file; Bun throws on
-both. Rehearsed four ways in section 6.
+**Step 0.** The count is read by Bun, its failure ends the block, and the number is asserted: a `grep`
+status of 1 means either "no match" or "could not read the input", and a bare assignment swallows both.
+Rehearsed four ways in section 6.
 
 ```sh
 base=$(git rev-parse HEAD)
 check=libs/wbs/application/core/src/ports/event-port-boundaries.test.ts
-count=$(bun -e 'const lines = (await Bun.file(Bun.argv[1]).text()).split("\n"); console.log(lines.filter((line) => /^\s*\/\/ Proof:/.test(line)).length);' "$check")
+count=$(bun -e 'const lines = (await Bun.file(Bun.argv[1]).text()).split("\n"); console.log(lines.filter((line) => /^\s*\/\/ Proof:/.test(line)).length);' "$check") || exit "$?"
 echo "proof-comments=$count"
+test "$count" -eq 0
 NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache
 bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts
 ```
 
-Expect `proof-comments=0` and exit 0, then exit 0, then `2 pass`, `0 fail` (observed). Record this slice's
-`C` and `F` the way slice 2 does — observed `543` over 54 — and require them unchanged at the end.
+Expect `proof-comments=0` and exit 0, then exit 0, then `1 pass`, `0 fail` (observed: slice 2 ships the
+checker with no `Proof:` comment, because a comment may not describe a fault nobody has watched yet). Record
+this slice's `C` and `F` the way slice 2 does — observed `542` over 54 — and require them unchanged at the
+end.
 
-Inject section 6's faults 3 to 15 and 20 **one at a time**, each saved as a patch under
+Inject section 6's faults 3 to 15 and 17 **one at a time**, each saved as a patch under
 `"$TMPDIR/evidence"` with the README's `if diff …; then …; else test $? -eq 1; fi` form, each restored with
 `cp` and proved with `cmp` before the next and before asserting on any captured status. Section 9.9 gives
 every listing a fault inserts, and `NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache` runs
 with each of faults 3 to 15 in place and must exit **0**: a fault the compiler already catches would prove
-nothing about the rule.
+nothing about the rule. Every fault reports `0 pass`, `1 fail`, because the check now holds one assertion.
 
-| Fault | Exact location and edit                                                                                                                                                                                                                             | Expected result                                                                                                                                 |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3     | `service/step.service.ts`: delete its one `'../ports/project-event'` import, add `import type { Broadcaster } from './broadcast';` directly below the `'./assumed-assignee'` import                                                                 | exit 1, `+ "service/step.service.ts: Broadcaster via service/broadcast.ts",`, `1 pass`, `1 fail`                                                |
-| 4     | `service/step.service.ts`: that import line becomes `import type * as events from './broadcast';` and `StepServiceOptions`' single `broadcast: Broadcaster;` becomes `broadcast: events.Broadcaster;`                                               | exit 1, section 6 fault 4's three rows, `1 pass`, `1 fail`                                                                                      |
-| 5     | `service/gateway-broadcaster.ts`: its one import becomes section 9.9's four lines, and **both** `subscriptionFor(projectId)` calls become `pushTo(projectId)`                                                                                       | exit 1, the `events hands out the contracts from service/broadcast.ts` row and the specifier row, `1 pass`, `1 fail`                            |
-| 6     | `service/capacity.service.ts`: its one port import becomes `import type { Broadcaster } from '../index';`                                                                                                                                           | exit 1, `+ "service/capacity.service.ts: Broadcaster via index.ts",`, `1 pass`, `1 fail`                                                        |
-| 7     | `service/capacity.service.ts`: delete that import and write its single `broadcast: Broadcaster;` field as section 9.9's `import` type                                                                                                               | exit 1, `+ "service/capacity.service.ts: Broadcaster via service/broadcast.ts",` and the specifier row, `1 pass`, `1 fail`                      |
-| 8     | `service/optimizer-trigger-broadcaster.ts`: add section 9.9's `routeFor` re-export below its first import. `service/gateway-broadcaster.ts`: its one import becomes section 9.9's namespace pair and both calls become `routes.routeFor(projectId)` | exit 1, section 6 fault 8's four rows, `1 pass`, `1 fail`                                                                                       |
-| 9     | the same, with section 9.9's `default` re-export and `import pushTo from './optimizer-trigger-broadcaster';`, both calls becoming `pushTo(projectId)`                                                                                               | exit 1, `+ "service/gateway-broadcaster.ts: pushTo via service/optimizer-trigger-broadcaster.ts",` and the `index.ts` row, `1 pass`, `1 fail`   |
-| 10    | the same, with section 9.9's `export * as events` line and both calls becoming `routes.events.subscriptionFor(projectId)`                                                                                                                           | exit 1, `+ "service/gateway-broadcaster.ts: routes hands out the contracts from service/optimizer-trigger-broadcaster.ts",`, `1 pass`, `1 fail` |
-| 11    | that same namespace export, and `service/capacity.service.ts`' field written as section 9.9's qualified `import` type                                                                                                                               | exit 1, `+ "service/capacity.service.ts: Broadcaster via service/optimizer-trigger-broadcaster.ts",`, `1 pass`, `1 fail`                        |
-| 12    | `service/gateway-broadcaster.ts`: section 9.9's awaited element access, with both calls becoming `pushTo(projectId)` and the `latestSeq` call taking the subscription name inline                                                                   | exit 1, section 6 fault 12's two rows, `1 pass`, `1 fail`                                                                                       |
-| 13    | `service/gateway-broadcaster.ts`: section 9.9's `typeof import(…)` indexed annotation, keeping the port import and renaming both calls to `pushTo(projectId)`                                                                                       | exit 1, section 6 fault 13's two rows, `1 pass`, `1 fail`                                                                                       |
-| 14    | `service/gateway-broadcaster.ts`: section 9.9's awaited dynamic import consumed as a property                                                                                                                                                       | exit 1, the specifier row and `+ "service/gateway-broadcaster.ts: subscriptionFor via service/broadcast.ts",`, `1 pass`, `1 fail`               |
-| 15    | `service/optimizer-trigger-broadcaster.ts` and `service/capacity.service.ts`: section 9.9's two-hop chain                                                                                                                                           | exit 1, four rows naming both hops, `1 pass`, `1 fail`                                                                                          |
-| 20    | `ports/event-port-boundaries.test.ts`: delete the single line `const permitted = path === barrelHome && from === collectorHome;` and the `!permitted &&` conjunct that uses it — no neighbouring line changes                                       | exit 1, `+ "index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts",`, `1 pass`, `1 fail`                            |
+| Fault | Exact location and edit                                                                                                                                                                                                                             | Expected row or rows                                                                                                |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 3     | `service/step.service.ts`: delete its one `'../ports/project-event'` import, add `import type { Broadcaster } from './broadcast';` directly below the `'./assumed-assignee'` import                                                                 | `+ "service/step.service.ts: Broadcaster via service/broadcast.ts",`                                                |
+| 4     | `service/step.service.ts`: that import line becomes `import type * as events from './broadcast';` and `StepServiceOptions`' single `broadcast: Broadcaster;` becomes `broadcast: events.Broadcaster;`                                               | section 6 fault 4's three rows                                                                                      |
+| 5     | `service/gateway-broadcaster.ts`: its one import becomes section 9.9's four lines, and **both** `subscriptionFor(projectId)` calls become `pushTo(projectId)`                                                                                       | the `events hands out …` row and the specifier row                                                                  |
+| 6     | `service/capacity.service.ts`: its one port import becomes `import type { Broadcaster } from '../index';`                                                                                                                                           | `+ "service/capacity.service.ts: Broadcaster via index.ts",`                                                        |
+| 7     | `service/capacity.service.ts`: delete that import and write its single `broadcast: Broadcaster;` field as section 9.9's `import` type                                                                                                               | `+ "service/capacity.service.ts: Broadcaster via service/broadcast.ts",` and the specifier row                      |
+| 8     | `service/optimizer-trigger-broadcaster.ts`: add section 9.9's `routeFor` re-export below its first import. `service/gateway-broadcaster.ts`: its one import becomes section 9.9's namespace pair and both calls become `routes.routeFor(projectId)` | section 6 fault 8's four rows                                                                                       |
+| 9     | the same, with section 9.9's `default` re-export and `import pushTo from './optimizer-trigger-broadcaster';`, both calls becoming `pushTo(projectId)`                                                                                               | `+ "service/gateway-broadcaster.ts: pushTo via service/optimizer-trigger-broadcaster.ts",` and the `index.ts` row   |
+| 10    | the same, with section 9.9's `export * as events` line and both calls becoming `routes.events.subscriptionFor(projectId)`                                                                                                                           | `+ "service/gateway-broadcaster.ts: routes hands out the contracts from service/optimizer-trigger-broadcaster.ts",` |
+| 11    | that namespace export, and `service/capacity.service.ts`' field written as section 9.9's qualified `import` type                                                                                                                                    | `+ "service/capacity.service.ts: Broadcaster via service/optimizer-trigger-broadcaster.ts",`                        |
+| 12    | `service/gateway-broadcaster.ts`: section 9.9's awaited element access, with both calls becoming `pushTo(projectId)` and the `latestSeq` call taking the subscription name inline                                                                   | section 6 fault 12's two rows                                                                                       |
+| 13    | `service/gateway-broadcaster.ts`: section 9.9's `typeof import(…)` indexed annotation, keeping the port import and renaming both calls to `pushTo(projectId)`                                                                                       | section 6 fault 13's two rows                                                                                       |
+| 14    | `service/gateway-broadcaster.ts`: section 9.9's awaited dynamic import consumed as a property                                                                                                                                                       | the specifier row and `+ "service/gateway-broadcaster.ts: subscriptionFor via service/broadcast.ts",`               |
+| 15    | `service/optimizer-trigger-broadcaster.ts` and `service/capacity.service.ts`: section 9.9's two-hop chain                                                                                                                                           | four rows naming both hops                                                                                          |
+| 17    | `ports/event-port-boundaries.test.ts`: delete the single line `const permitted = path === barrelHome && from === collectorHome;` and the `!permitted &&` conjunct that uses it — no neighbouring line changes                                       | `+ "index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts",`                            |
 
-Fault 20 mutates the check's own file, which is what an architecture rule's negative fixture is: the
-permitted-wildcard clause has no other production path. Faults 3 to 15 are production files.
+Fault 17 mutates the check's own file, which is what an architecture rule's negative fixture is: the
+permitted-barrel clause has no other production path. Faults 3 to 15 are production files.
 
-Then write the reference assertion's `Proof:` comment and the `permitted` clause's, exactly as section 9.4
-shows — those two comments describe only the faults this slice injects — and append to `verify.md` the
-fourteen faults with the literal fragments observed and their evidence basenames
+Then write **two** `Proof:` comments, exactly as section 9.4 shows: the assertion's, which names faults 3 to
+15, and the permitted-barrel clause's, which names fault 17. Both describe only faults this slice injected.
+Append to `verify.md` the fourteen faults with the literal fragments observed and their evidence basenames
 (`step-named-import.patch` and `.log`, `step-namespace-type.*`, `gateway-element-access.*`,
 `capacity-barrel.*`, `capacity-import-type.*`, `renamed-export.*`, `default-export.*`,
 `namespace-export.*`, `qualified-import-type.*`, `awaited-element-access.*`, `typeof-import-indexed.*`,
-`awaited-property.*`, `two-hop-chain.*`, `barrel-permission-deleted.*`, and one
-`…-restored-green.log` per restore). Only after those edits:
+`awaited-property.*`, `two-hop-chain.*`, `barrel-permission-deleted.*`, and one `…-restored-green.log` per
+restore). Only after those edits:
 
-| Command                                                                          | Expect                                                                                            |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`   | exit 0, `2 pass`, `0 fail`                                                                        |
-| the step-0 count block, rerun                                                    | `proof-comments=6`, exit 0 (observed: the four that ship with the listing, plus this slice's two) |
-| `NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache` | exit 0                                                                                            |
-| `(cd libs/wbs/application/core && bun test src)`                                 | exit 0, `C` passes over `F` files, unchanged (observed 543 over 54)                               |
-| `GSETTINGS_BACKEND=memory bunx nx format:check --all`                            | exit 0                                                                                            |
+| Command                                                                          | Expect                                                               |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`   | exit 0, `1 pass`, `0 fail`                                           |
+| the step-0 count block with `test "$count" -eq 2`                                | `proof-comments=2`, exit 0 (observed on the exact intermediate file) |
+| `NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache` | exit 0                                                               |
+| `(cd libs/wbs/application/core && bun test src)`                                 | exit 0, `C` passes over `F` files, unchanged (observed 542 over 54)  |
+| `GSETTINGS_BACKEND=memory bunx nx format:check --all`                            | exit 0                                                               |
 
 Planner commit: `test(core): prove the project-event route rule can fail`.
 
-### Slice 4 — Watch the declaration rule and the guards fail
+### Slice 4 — Watch the five guards fail
 
-**Step 0.** The same Bun count block as slice 3, then the type check and the focused test.
+**Step 0.** The same block, expecting the two comments slice 3 wrote.
 
 ```sh
-base=$(git rev-parse HEAD)
 check=libs/wbs/application/core/src/ports/event-port-boundaries.test.ts
-count=$(bun -e 'const lines = (await Bun.file(Bun.argv[1]).text()).split("\n"); console.log(lines.filter((line) => /^\s*\/\/ Proof:/.test(line)).length);' "$check")
+count=$(bun -e 'const lines = (await Bun.file(Bun.argv[1]).text()).split("\n"); console.log(lines.filter((line) => /^\s*\/\/ Proof:/.test(line)).length);' "$check") || exit "$?"
 echo "proof-comments=$count"
-NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache
-bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts
+test "$count" -eq 2
 ```
 
-Expect `proof-comments=6`, exit 0, then `2 pass`, `0 fail` (observed). Record `C` and `F` again — observed
-`543` over 54 — and require them unchanged.
+Then `NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache` → exit 0 and
+`bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` → `1 pass`, `0 fail`
+(observed). Record `C` and `F` again — observed `542` over 54 — and require them unchanged.
 
-Inject section 6's faults 16 to 18 and 21 to 25, one at a time, with the same patch, restore and `cmp`
-discipline. Faults 16 to 18 must leave `wbs-core:typecheck` at exit **0**; faults 21 to 25 need no type
-check, and fault 24 fails it by construction, which its row records.
+Inject section 6's faults 18 to 22, one at a time, with the same patch, restore and `cmp` discipline. None
+of them needs a type check except fault 21, which fails it by construction and says so.
 
-| Fault | Exact location and edit                                                                                                                                                                            | Expected result                                                                                                                                                     |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 16    | `service/step.service.ts`: delete its port import and declare section 9.9's local `interface Broadcaster` directly above `export interface StepServiceOptions {`                                   | exit 1, `+ "service/step.service.ts: Broadcaster",`, `1 pass`, `1 fail`                                                                                             |
-| 17    | `service/step.service.ts`: import the contract as `Broadcaster as Publisher`, write the field as `broadcast: Publisher;`, and add section 9.9's `namespace Broadcaster` above `StepServiceOptions` | exit 1, `+ "service/step.service.ts: Broadcaster",`, `1 pass`, `1 fail`                                                                                             |
-| 18a   | `service/gateway-broadcaster.ts`: its one import drops `subscriptionFor` and section 9.9's local `const subscriptionFor` is declared beneath it                                                    | exit 1, `+ "service/gateway-broadcaster.ts: subscriptionFor",`, `1 pass`, `1 fail`                                                                                  |
-| 18b   | the same file with section 9.9's destructured form in place of that `const`                                                                                                                        | exit 1, the same row, `1 pass`, `1 fail`                                                                                                                            |
-| 21    | `ports/event-port-boundaries.test.ts`: ``const coreSource = `${coreRoot}src/runtime/`;``                                                                                                           | exit 1, `error: the program holds no ports/project-event.ts`, `0 pass`, `2 fail`                                                                                    |
-| 22    | `ports/event-port-boundaries.test.ts`: ``const configPath = `${coreRoot}tsconfig.absent.json`;``                                                                                                   | exit 1, `error: Cannot read file '…/tsconfig.absent.json'.`, `0 pass`, `2 fail`                                                                                     |
-| 23    | `libs/wbs/application/core/tsconfig.lib.json`: add `"module": "invalid"` beside `"declaration": true`                                                                                              | exit 1, `error: refused tsconfig.lib.json: 6046`, `0 pass`, `2 fail`                                                                                                |
-| 23b   | that same malformed option **and** the statement beginning `if (parsed.errors.length > 0) {` deleted whole from `coreProgram`                                                                      | exit **0**, `2 pass`, `0 fail` — the false green the guard prevents. Restore both edits together                                                                    |
-| 24    | `libs/wbs/application/core/src/ports/project-event.ts`: replace its whole contents with `const notAModule = 1;` and `void notAModule;`                                                             | exit 1, `error: ports/project-event.ts is not a module`, `0 pass`, `2 fail`. `wbs-core:typecheck` fails here too, and that is the recorded fact rather than a claim |
-| 25    | `ports/event-port-boundaries.test.ts`: add `'ports/missing.ts'` to what `scannedSources` returns                                                                                                   | exit 1, `error: the program holds no ports/missing.ts`, `0 pass`, `2 fail`                                                                                          |
+| Fault | Exact location and edit                                                                                                                | Expected result                                                                                                                                                            |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 18    | `ports/event-port-boundaries.test.ts`: ``const coreSource = `${coreRoot}src/runtime/`;``                                               | exit 1, `error: the program holds no ports/project-event.ts`, `0 pass`, `1 fail`                                                                                           |
+| 19    | `ports/event-port-boundaries.test.ts`: ``const configPath = `${coreRoot}tsconfig.absent.json`;``                                       | exit 1, `error: Cannot read file '…/tsconfig.absent.json'.`, `0 pass`, `1 fail`                                                                                            |
+| 20    | `libs/wbs/application/core/tsconfig.lib.json`: add `"module": "invalid"` beside `"declaration": true`                                  | exit 1, `error: refused tsconfig.lib.json: 6046`, `0 pass`, `1 fail`                                                                                                       |
+| 20b   | that same malformed option **and** the statement beginning `if (parsed.errors.length > 0) {` deleted whole from `coreProgram`          | exit **0**, `1 pass`, `0 fail` — the false green the guard prevents. Restore both edits together                                                                           |
+| 21    | `libs/wbs/application/core/src/ports/project-event.ts`: replace its whole contents with `const notAModule = 1;` and `void notAModule;` | exit 1, `error: ports/project-event.ts is not a module`, `0 pass`, `1 fail`. `wbs-core:typecheck` fails here too, which is the recorded fact rather than a claim otherwise |
+| 22    | `ports/event-port-boundaries.test.ts`: add `'ports/missing.ts'` to what `scannedSources` returns                                       | exit 1, `error: the program holds no ports/missing.ts`, `0 pass`, `1 fail`                                                                                                 |
 
-**Faults 23 and 24 mutate files outside this packet's permanent edit lane, and that is authorized here**:
+**Faults 20 and 21 mutate files outside this packet's permanent edit lane, and that is authorized here**:
 they are the only way to reach those two guards, each file is restored with `cp` from a copy under
 `"$TMPDIR"` and proved identical with `cmp` before anything else runs, and this slice's handoff lists
 `libs/wbs/application/core/tsconfig.lib.json` and `…/src/ports/project-event.ts` as **unchanged**.
 
-Then write the remaining four `Proof:` comments of section 9.4 — the declaration assertion's and the three
-beside the guards `coreProgram` and `contractUses` hold — and append the eight faults to `verify.md` with
-their evidence basenames (`step-local-interface.*`, `step-namespace-duplicate.*`,
-`gateway-local-const.*`, `gateway-destructured.*`, `scan-root.*`, `config-absent.*`,
-`config-malformed.*`, `config-guard-deleted.*`, `port-not-a-module.*`, `missing-scanned-source.*`, and one
-`…-restored-green.log` each). Only after those edits:
+Then write the five guard `Proof:` comments of section 9.4 — two beside `coreProgram`'s throws, three
+beside the throws in `contractUses` and its per-file loop — and append the six faults to `verify.md` with
+their basenames (`scan-root.*`, `config-absent.*`, `config-malformed.*`, `config-guard-deleted.*`,
+`port-not-a-module.*`, `missing-scanned-source.*`, and one `…-restored-green.log` each). Only after those
+edits:
 
 | Command                                                                               | Expect                                |
 | ------------------------------------------------------------------------------------- | ------------------------------------- |
-| `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`        | exit 0, `2 pass`, `0 fail`            |
-| the step-0 count block, rerun                                                         | `proof-comments=8`, exit 0 (observed) |
+| `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`        | exit 0, `1 pass`, `0 fail`            |
+| the step-0 count block with `test "$count" -eq 7`                                     | `proof-comments=7`, exit 0 (observed) |
 | `cmp libs/wbs/application/core/tsconfig.lib.json "$TMPDIR"/tsconfig.lib.json`         | exit 0                                |
 | `cmp libs/wbs/application/core/src/ports/project-event.ts "$TMPDIR"/project-event.ts` | exit 0                                |
 | `NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache`      | exit 0                                |
 | `(cd libs/wbs/application/core && bun test src)`                                      | exit 0, `C` over `F`, unchanged       |
 | `GSETTINGS_BACKEND=memory bunx nx format:check --all`                                 | exit 0                                |
 
-Planner commit: `test(core): prove the port's declaration rule and its guards can fail`.
+Planner commit: `test(core): prove the port's guards can fail`.
 
 ### Slice 5 — The rule covers the tests too
 
-**Step 0.** The same Bun count as slices 3 and 4, plus the filter this slice widens. `grep -cF --` reads a
-pattern that starts with `-`; the file it reads is the one the count just read successfully.
+**Step 0.** The same count block, expecting the seven comments slices 3 and 4 wrote, plus the filter this
+slice widens.
 
 ```sh
 base=$(git rev-parse HEAD)
 check=libs/wbs/application/core/src/ports/event-port-boundaries.test.ts
-count=$(bun -e 'const lines = (await Bun.file(Bun.argv[1]).text()).split("\n"); console.log(lines.filter((line) => /^\s*\/\/ Proof:/.test(line)).length);' "$check")
+count=$(bun -e 'const lines = (await Bun.file(Bun.argv[1]).text()).split("\n"); console.log(lines.filter((line) => /^\s*\/\/ Proof:/.test(line)).length);' "$check") || exit "$?"
 echo "proof-comments=$count"
+test "$count" -eq 7
 grep -cF -- ".filter((path) => path.endsWith('.ts') && !path.includes('.test.'))" "$check"
 NX_DAEMON=false bunx nx run wbs-core:typecheck --skip-nx-cache
 ```
 
-Expect `proof-comments=8`, then **1**, then exit 0 (observed). Record `C` and `F` again — observed `543`
-over 54 — and require them unchanged: this slice adds no test file.
+Expect `proof-comments=7`, exit 0, then **1**, then exit 0 (observed). Record `C` and `F` again — observed
+`542` over 54 — and require them unchanged: this slice adds no test file.
 
 1. Change that one filter line to `.filter((path) => path.endsWith('.ts'))` and run the check. Expect the
-   red of section 6 fault 2: exit 1, the 9 rows naming eight test files, `1 pass`, `1 fail`.
+   red of section 6 fault 2: exit 1, the 9 rows naming eight test files, `0 pass`, `1 fail`.
 2. Apply section 9.6's eight one-line edits, then
    `GSETTINGS_BACKEND=memory bunx eslint --fix` on those eight paths → exit 0.
-3. `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` → exit 0, `2 pass`,
+3. `bun test ./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts` → exit 0, `1 pass`,
    `0 fail` (observed).
-4. Inject section 6 fault 19 — in `service/working-plan.test.ts` replace
+4. Inject section 6 fault 16 — in `service/working-plan.test.ts` replace
    `import type { Broadcaster } from '../ports/project-event';` with
    `import type { Broadcaster } from './broadcast';` — and expect exit 1 with
-   `+ "service/working-plan.test.ts: Broadcaster via service/broadcast.ts",`, `1 pass`, `1 fail`, and
+   `+ "service/working-plan.test.ts: Broadcaster via service/broadcast.ts",`, `0 pass`, `1 fail`, and
    `wbs-core:typecheck` exit 0 with the fault in place (all observed). Save the patch as
    `working-plan-test-import.patch` with its `.log`, restore with `cp`, prove with `cmp`, rerun green into
    `working-plan-test-import-restored-green.log`.
 5. Correct the first line of `scannedSources`' JSDoc, which slice 2 wrote as
    `Every production file of the core, as a path under \`src\`.`, to the wording section 9.4 shows. The
-eight `Proof:` comments are already final and are not touched, so the count stays **8**.
-6. `(cd libs/wbs/application/core && bun test src)` → exit 0 with `C` over `F` (observed `543 pass`,
+seven `Proof:` comments are already final and are not touched, so the count stays **7**.
+6. `(cd libs/wbs/application/core && bun test src)` → exit 0 with `C` over `F` (observed `542 pass`,
    `0 fail`, 54 files); `NX_DAEMON=false bunx nx run-many -t typecheck,lint -p wbs-core --skip-nx-cache`
    → exit 0; append the baselines, the red's 9 rows, the fault and the basenames to `verify.md`; then
    `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
@@ -530,8 +529,8 @@ unchanged, because it opens no change and adds no classified file.
    **Tick no box:** 1.2's second half, the collector's move into Plan commands, is not done and section 4
    says why.
 3. Append to `verify.md`: `K` and `N` with their closing values, the port-and-adapter decision with its
-   map citations, this slice's evidence basenames (`slice-5-kinds-baseline.txt`,
-   `slice-5-kinds-final.txt`, the validation report's own basename), and these two findings by name, so
+   map citations, this slice's evidence basenames (`slice-6-kinds-baseline.txt`,
+   `slice-6-kinds-final.txt`, the validation report's own basename), and these two findings by name, so
    later packets do not inherit them silently: **the collector's move waits for task 5.2** because
    `import.service.ts:147` builds one too, and **`ports/project-event.ts` keeps a type-only import of
    `../service/numbered-work-item`** until `tasks.md` 6.1 moves that file to the domain library.
@@ -563,7 +562,7 @@ Planner commit: `chore(core): reclassify the broadcast shim as the collector's h
 | `NX_DAEMON=false bunx nx run wbs-be-01:test`                    | Whole target: opens SQLite databases and includes that listener test                                                               | exit 0, `1091 pass`, `0 fail`, 92 files                                                             |
 | `NX_DAEMON=false bunx nx run wbs-gw-01:test`                    | Binds loopback ports in its integration tests                                                                                      | exit 0, `128 pass`, `0 fail`, 17 files                                                              |
 | `NX_DAEMON=false bunx nx run wbs-mcp-01:test`                   | Same reason                                                                                                                        | exit 0, `165 pass`, `0 fail`, 15 files                                                              |
-| `NX_DAEMON=false bunx nx run wbs-core:test`                     | Planner integration verification of the whole target with coverage                                                                 | exit 0, `543 pass`, `0 fail`, 54 files                                                              |
+| `NX_DAEMON=false bunx nx run wbs-core:test`                     | Planner integration verification of the whole target with coverage                                                                 | exit 0, `542 pass`, `0 fail`, 54 files                                                              |
 | `NX_DAEMON=false bunx nx run wbs-core:test:portable`            | Runs Playwright; the executor has no browser. `build:portable` is the executor's and is what proves the port bundles for a browser | exit 0                                                                                              |
 | `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache` | Its index checker refuses untracked files, so it needs the slice staged or committed, and it spawns processes                      | `366 pass`, `0 fail` — unchanged, so the new port and check files move no inventory count or digest |
 | `bin/h2puni-gate.sh <sha>`                                      | Takes the host-wide heavy lock                                                                                                     | pending planner verification                                                                        |
@@ -669,46 +668,42 @@ Both star exports name the same declarations, which TypeScript accepts because t
 
 ### 9.4 `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`
 
-**The rule asks the type checker from three vantage points, and reads no export name in rule 1.** Four
-reviews defeated four narrower designs: a regular-expression scanner, a syntax walk, an identity check that
-still filtered exports by spelling, and an identifier-only identity check. What ships asks:
+**One assertion, and the contract is exactly what it proves.** References that TypeScript resolves to the
+port's contract symbols must reach them through the port module or a permitted file: identity by type and by
+symbol, asked from three vantage points, which is the same resolution the compiler uses.
 
 1. **Module references.** Every way a file can name a module — a namespace import, a wildcard or namespace
    re-export, `import … = require(…)`, an `import(…)` type, a dynamic `import(…)` call, a `require(…)` call —
    is resolved to its module symbol and reported when that module hands out a port symbol and is not the
-   port. `export *` graphs are followed recursively under a visited set.
-2. **Types.** Every element access, property access and indexed-access type whose **base type** is a module
-   object other than the port and whose own **type** resolves to a port symbol is reported. That is what
-   catches an awaited dynamic import indexed by a string, and a `typeof import(…)` indexed annotation, where
+   port. `export *` graphs are followed recursively under a visited set. Wildcard re-exports **are** checked;
+   the single permitted one is `index.ts` re-exporting `service/broadcast.ts`, the compatibility barrel, and
+   that clause carries its own negative (section 6, fault 17).
+2. **Types.** Every element access, property access and indexed-access type whose base type is a module
+   object other than the port and whose own type resolves to a port symbol is reported — which is what
+   catches an awaited dynamic import indexed by a string and a `typeof import(…)` indexed annotation, where
    no identifier ever carries the contract.
 3. **Identifiers.** Every identifier whose alias chain ends at a port symbol is reported with the files it
-   travelled through, and with the module its binding came from when that module is not the port. That is
-   what catches named imports, renames, `default` re-exports, barrels and deep package paths.
+   travelled through and with the module its binding came from when that module is not the port — named
+   imports, renames, `default` re-exports, barrels and deep package paths.
 
-Rule 2, the declaration rule, runs on **every** node as its own pass, never as the tail of a chain of
-`else if`s: a `namespace Broadcaster {}` is both a module symbol and a prohibited declaration, and an
-ordering that let the first answer stand exempted the second (round 4). It reports any declaration —
-interface, type alias, class, function, enum, namespace, `const`, binding element, import or export alias —
-that carries one of the port's exported names while not being the port's symbol, and those names come from
-the port's own exports rather than from a list in this file.
-
-**The contract, exactly as proven.** A reference whose checker-resolved symbol or type is one of the port's
-exported symbols is reported unless it came from the port; a module that hands one out is reported unless it
-is the port, with one stated permission — `index.ts` re-exporting `service/broadcast.ts`, the compatibility
-barrel, which carries its own negative (section 6, fault 20). **Not covered, by design:** a new symbol that
-merely mirrors a contract, such as `export type Publisher = Broadcaster;` or a structurally identical
-interface under another name, is not a reference to the port at all; rule 2 sees it only if it takes one of
-the port's names. Section 6 records both attempts among the ones that got through. That is a stated limit,
-not a claim, and this packet no longer asserts anywhere that no spelling can bypass the rule.
+**Not prevented by this check, by design:** duplicate or merged declarations under the same names,
+differently named structural copies and type aliases. A `declare module` augmentation merges into the port's
+own symbol, and a second `interface Broadcaster`, a named function expression or an
+`export type Publisher = Broadcaster` is a new symbol that no use resolves through the port. A name-based
+"sole declaration" promise cannot be kept against declaration merging, so the declaration assertion that
+stood here through rounds 2 to 4 is **deleted** rather than weakened; those questions belong to Twilight
+Burokrat's kind rules — K2 to K6 in
+`docs/superpowers/specs/2026-09-19-code-organization-design.md` — and to preparations 3 and 4 of the 040.6
+map. Section 6 lists every such attempt and its outcome, and `verify.md` records the limit.
 
 It stays local to this test; `apps/wiki/cli/src/relationships/typescript.ts` is not touched, imported or
 moved.
 
 Slice 2 creates the file exactly as below **except** that its `.filter` line reads
 `.filter((path) => path.endsWith('.ts') && !path.includes('.test.'))`, its `scannedSources` JSDoc first line
-says `Every production file of the core, as a path under \`src\`.`, and the eight `Proof:`comments are
-absent; slice 3 writes two of them, slice 4 the other six, and slice 5 widens the filter and corrects that
-JSDoc line. The text below is the finished file, 357 lines, Prettier-clean, and it passes`wbs-core:typecheck`and`wbs-core:lint` (observed). It runs in about two seconds.
+says `Every production file of the core, as a path under \`src\`.`, and **all seven `Proof:`comments are
+absent**; slice 3 writes two of them, slice 4 the other five, and slice 5 widens the filter and corrects that
+JSDoc line. The text below is the finished file, 300 lines, Prettier-clean, and it passes`wbs-core:typecheck`and`wbs-core:lint` (observed). It runs in about a second.
 
 ```ts
 import { readdir } from 'node:fs/promises';
@@ -748,14 +743,14 @@ async function scannedSources(): Promise<readonly string[]> {
 function coreProgram(rootNames: readonly string[]): ts.Program {
   const read = ts.readConfigFile(configPath, (path) => ts.sys.readFile(path));
   // Proof: pointing `configPath` at `tsconfig.absent.json` threw
-  // `Cannot read file '…/tsconfig.absent.json'.` and failed both tests, 0 pass and 2 fail (2026-09-22).
+  // `Cannot read file '…/tsconfig.absent.json'.` and failed the assertion, 0 pass and 1 fail (2026-09-22).
   if (read.error !== undefined) {
     throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, ' '));
   }
   const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, coreRoot);
   // Proof: `"module": "invalid"` in the real tsconfig.lib.json threw `refused tsconfig.lib.json: 6046`
-  // and failed both tests, 0 pass and 2 fail; with this throw deleted the same malformed option left
-  // both assertions passing on unresolved symbols, 2 pass and 0 fail (2026-09-22).
+  // and failed the assertion, 0 pass and 1 fail; with this throw deleted the same malformed option left
+  // the assertion passing on unresolved symbols, 1 pass and 0 fail (2026-09-22).
   if (parsed.errors.length > 0) {
     throw new Error(
       `refused tsconfig.lib.json: ${parsed.errors.map((each) => each.code).join(', ')}`,
@@ -784,30 +779,6 @@ function declarationFiles(symbol: ts.Symbol): readonly string[] {
   return (symbol.declarations ?? []).map((each) => underSrc(each.getSourceFile().fileName));
 }
 
-/** Every name a node declares, including the elements of a binding pattern. */
-function declaredNames(node: ts.Node): readonly ts.Identifier[] {
-  if (
-    ts.isInterfaceDeclaration(node) ||
-    ts.isTypeAliasDeclaration(node) ||
-    ts.isClassDeclaration(node) ||
-    ts.isFunctionDeclaration(node) ||
-    ts.isEnumDeclaration(node) ||
-    ts.isModuleDeclaration(node) ||
-    ts.isVariableDeclaration(node) ||
-    ts.isBindingElement(node) ||
-    ts.isImportSpecifier(node) ||
-    ts.isExportSpecifier(node) ||
-    ts.isImportClause(node) ||
-    ts.isNamespaceImport(node) ||
-    ts.isNamespaceExport(node) ||
-    ts.isImportEqualsDeclaration(node)
-  ) {
-    const name = ts.isImportClause(node) ? node.name : node.name;
-    return name !== undefined && ts.isIdentifier(name) ? [name] : [];
-  }
-  return [];
-}
-
 /**
  * The module specifier that introduced a binding, if the identifier is one.
  *
@@ -830,40 +801,40 @@ function moduleOfBinding(node: ts.Node): ts.Expression | undefined {
   return undefined;
 }
 
-interface ContractUse {
-  /** A reference that reached a port contract through something other than the port. */
-  readonly reached: readonly string[];
-  /** A declaration of a contract's name that is not the port's own. */
-  readonly declared: readonly string[];
-}
+/** Every reference that reached a port contract through something other than the port. */
+type ContractUse = readonly string[];
 
 /**
- * What every file of the core does with the port's exported symbols.
+ * Every reference in the core that reaches one of the port's exported symbols other
+ * than from the port itself.
  *
- * **Identity only: no export name is compared anywhere in rule 1.** A contract
- * renamed on the way out (`subscriptionFor as routeFor`), exported as `default`,
- * re-exported as a namespace (`export * as events`) or reached through a barrel is
- * the same symbol, and that is what this asks about. Rule 2 is the one that reads
- * names, because shadowing is a fact about names — and even there the names come
- * from the port's own exports rather than from a list in this file.
+ * **The contract, exactly as proven.** References that TypeScript resolves to the
+ * port's contract symbols must reach them through the port module or a permitted
+ * file: identity by type and by symbol, asked of module references, of types and of
+ * identifiers, so a rename, a `default`, a namespace, a barrel, a dynamic import, an
+ * element access and an `import(…)` type are one question rather than six spellings.
  *
- * What is proven: a reference that resolves to one of the port's symbols is caught
- * by identity, whatever it is spelled as and whatever route it took. What is not
- * in scope: a structurally identical copy declared under another name is not a
- * reference to the port at all, and rule 2 catches it only if it takes one of the
- * port's names.
+ * **Duplicate or merged declarations under the same names, differently named
+ * structural copies and type aliases are NOT prevented by this check.** A
+ * `declare module` augmentation merges into the port's own symbol, and a named
+ * function expression or a second `interface Broadcaster` is a new symbol that no use
+ * resolves through the port: a name-based "sole declaration" promise cannot be kept
+ * against declaration merging, and four review rounds went into learning that. Those
+ * belong to the kind rules — K2 to K6 in
+ * `docs/superpowers/specs/2026-09-19-code-organization-design.md`, with preparations 3
+ * and 4 of the 040.6 map — not to this check.
  */
 function contractUses(paths: readonly string[]): ContractUse {
   const program = coreProgram(paths);
   const checker = program.getTypeChecker();
   const portFile = program.getSourceFile(`${coreSource}${portHome}`);
   // Proof: pointing `coreSource` at `src/runtime/` made this throw
-  // `the program holds no ports/project-event.ts` and failed both tests, 0 pass and 2 fail; it cannot be
+  // `the program holds no ports/project-event.ts` and failed the assertion, 0 pass and 1 fail; it cannot be
   // deleted instead, because the narrowing below needs it (2026-09-22).
   if (portFile === undefined) throw new Error(`the program holds no ${portHome}`);
   const portModule = checker.getSymbolAtLocation(portFile);
   // Proof: replacing the port's contents with two statements and no export made this throw
-  // `ports/project-event.ts is not a module` and failed both tests, 0 pass and 2 fail; `wbs-core:typecheck`
+  // `ports/project-event.ts is not a module` and failed the assertion, 0 pass and 1 fail; `wbs-core:typecheck`
   // fails on that mutation too, because every importer loses its contracts (2026-09-22).
   if (portModule === undefined) throw new Error(`${portHome} is not a module`);
   const portSymbols = new Set(
@@ -872,9 +843,7 @@ function contractUses(paths: readonly string[]): ContractUse {
       return chain[chain.length - 1] ?? each;
     }),
   );
-  const portNames = new Set([...portSymbols].map((each) => each.getName()));
   const reached: string[] = [];
-  const declared: string[] = [];
 
   /** Whether a module hands out a port symbol, following `export *` graphs. */
   function handsOutContract(moduleSymbol: ts.Symbol, seen: Set<ts.Symbol>): boolean {
@@ -892,14 +861,9 @@ function contractUses(paths: readonly string[]): ContractUse {
   for (const path of paths) {
     const file = program.getSourceFile(`${coreSource}${path}`);
     // Proof: adding `'ports/missing.ts'` to what `scannedSources` returns made this throw
-    // `the program holds no ports/missing.ts` and failed both tests, 0 pass and 2 fail (2026-09-22).
+    // `the program holds no ports/missing.ts` and failed the assertion, 0 pass and 1 fail (2026-09-22).
     if (file === undefined) throw new Error(`the program holds no ${path}`);
-    if (path === portHome) {
-      for (const exported of checker.getExportsOfModule(portModule)) {
-        declared.push(`${path}: ${exported.getName()}`);
-      }
-      continue;
-    }
+    if (path === portHome) continue;
     /** A module reference that exposes a whole module object, and the module it names. */
     function wholeModuleReference(node: ts.Node): ts.Expression | undefined {
       if (ts.isImportDeclaration(node)) {
@@ -969,7 +933,7 @@ function contractUses(paths: readonly string[]): ContractUse {
           // `@wbs/core` name working while the collector lives there.
           // Proof: deleting this `permitted` clause made the rule report
           // `index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts`,
-          // 1 pass and 1 fail (2026-09-22).
+          // 0 pass and 1 fail (2026-09-22).
           const permitted = path === barrelHome && from === collectorHome;
           if (!permitted && from !== portHome && handsOutContract(end, new Set())) {
             reached.push(`${path}: ${exposed.getText()} hands out the contracts from ${from}`);
@@ -1021,51 +985,25 @@ function contractUses(paths: readonly string[]): ContractUse {
           }
         }
       }
-      // Rule 2 runs on every node, never as the tail of a chain of `else if`s: a `namespace
-      // Broadcaster {}` is both a module symbol and a prohibited declaration, and an ordering that
-      // let the first answer stand exempted the second (round 4).
-      for (const name of declaredNames(node)) {
-        const symbol = checker.getSymbolAtLocation(name);
-        if (symbol === undefined) continue;
-        if (!portNames.has(name.text)) continue;
-        const chain = aliasChain(checker, symbol);
-        const end = chain[chain.length - 1] ?? symbol;
-        if (!portSymbols.has(end) && declarationFiles(symbol).includes(path)) {
-          declared.push(`${path}: ${name.text}`);
-        }
-      }
       ts.forEachChild(node, visit);
     };
     visit(file);
   }
-  return { reached: [...new Set(reached)].sort(), declared: [...new Set(declared)].sort() };
+  return [...new Set(reached)].sort();
 }
 
 describe('the neutral project-event port', () => {
   it('is where every reference to the event contracts comes from', async () => {
     // Proof: thirteen routes into the contracts each failed here with `wbs-core:typecheck` exit 0 — a
-    // named import and an `import` type through service/broadcast.ts; a type-only namespace of it; a
-    // value namespace of it read by element access; a barrel import through index.ts; an awaited dynamic
-    // import consumed as a property and, separately, by element access; a `typeof import(…)` indexed
-    // type; a rename (`subscriptionFor as routeFor`); a `default` re-export; an `export * as events`
-    // namespace consumed as a nested property and as a qualified `import` type; and a two-hop
-    // re-export chain, which named both hops. Reported as `<file>: <name> via <route>`,
+    // named import and an `import` type through service/broadcast.ts; a type-only namespace of it; a value
+    // namespace of it read by element access; a barrel import through index.ts; an awaited dynamic import
+    // consumed as a property and, separately, by element access; a `typeof import(…)` indexed type; a
+    // rename (`subscriptionFor as routeFor`); a `default` re-export; an `export * as events` namespace
+    // consumed as a nested property and as a qualified `import` type; and a two-hop re-export chain, which
+    // named both hops. Reported as `<file>: <name> via <route>`,
     // `<file>: <specifier> hands out the contracts from <route>`, or
     // `<file>: <expression> reads a contract out of <route>` (2026-09-22).
-    expect(contractUses(await scannedSources()).reached).toEqual([]);
-  }, 120_000);
-
-  it('holds the only declaration of each event contract', async () => {
-    // Proof: four second declarations each failed here with `wbs-core:typecheck` exit 0 — a local
-    // `interface Broadcaster` and a `namespace Broadcaster` in service/step.service.ts, and a local
-    // `const subscriptionFor` and a destructured `subscriptionFor` in service/gateway-broadcaster.ts,
-    // all reported as `<file>: <name>`. The namespace is why this pass runs on every node instead of
-    // in an `else if` chain after the module-reference rule, which exempted it (2026-09-22).
-    expect(contractUses(await scannedSources()).declared).toEqual([
-      `${portHome}: Broadcaster`,
-      `${portHome}: ProjectEvent`,
-      `${portHome}: subscriptionFor`,
-    ]);
+    expect(contractUses(await scannedSources())).toEqual([]);
   }, 120_000);
 });
 ```
@@ -1099,7 +1037,7 @@ the old position to exactly these places (observed on all of them).
 All paths are under `libs/wbs/application/core/src/`. Nothing but the import line changes in any of
 them: no call site, no type annotation and no JSDoc.
 
-### 9.6 Slice 4's eight test edits
+### 9.6 Slice 5's eight test edits
 
 | File                                            | Delete                                                                    | Insert directly above                                                                                                                                                                                                 |
 | ----------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1229,43 +1167,7 @@ export type { Broadcaster as Hop } from './broadcast';
 and `service/capacity.service.ts` imports `import type { Hop as Broadcaster } from './optimizer-trigger-broadcaster';`
 in place of its port import.
 
-**Fault 16**, the second interface, goes directly above `export interface StepServiceOptions {` in
-`service/step.service.ts` once its port import is deleted:
-
-```ts
-interface Broadcaster {
-  publish(projectId: string, event: unknown): Promise<void>;
-  latestSeq(projectId: string): Promise<number>;
-}
-```
-
-**Fault 17**, the duplicate namespace, imports the contract as `Broadcaster as Publisher`, writes the field
-as `broadcast: Publisher;`, and adds above `StepServiceOptions`:
-
-```ts
-namespace Broadcaster {
-  export const version = 1;
-}
-```
-
-**Faults 18a and 18b** drop `subscriptionFor` from `service/gateway-broadcaster.ts`' import and declare it
-again, first plainly and then through a binding pattern:
-
-```ts
-import type { Broadcaster, ProjectEvent } from '../ports/project-event';
-
-const subscriptionFor = (projectId: string): string => `project:${projectId}`;
-```
-
-```ts
-import type { Broadcaster, ProjectEvent } from '../ports/project-event';
-
-const { subscriptionFor } = {
-  subscriptionFor: (projectId: string): string => `project:${projectId}`,
-};
-```
-
-**Fault 24**, the port that is not a module, replaces the whole of
+**Fault 21**, the port that is not a module, replaces the whole of
 `libs/wbs/application/core/src/ports/project-event.ts` with:
 
 ```ts
@@ -1290,8 +1192,8 @@ contradict the slice.
 | 5     | the eight files of section 9.6, `libs/wbs/application/core/src/ports/event-port-boundaries.test.ts`, `openspec/changes/adopt-di-composition/verify.md` | nothing                                                             |
 | 6     | `docs/code-organization/kinds.json`, `openspec/changes/adopt-di-composition/tasks.md`, `openspec/changes/adopt-di-composition/verify.md`               | nothing                                                             |
 
-Slices 4 and 5 restore `libs/wbs/application/core/tsconfig.lib.json` and
-`libs/wbs/application/core/src/ports/project-event.ts` byte for byte after faults 23 and 24, so neither
+Slice 4 restores `libs/wbs/application/core/tsconfig.lib.json` and
+`libs/wbs/application/core/src/ports/project-event.ts` byte for byte after faults 20 and 21, so neither
 appears in any handoff.
 
 Twenty-nine files under `libs/wbs/application/core/src` — 17 production importers, 8 test importers,
@@ -1332,14 +1234,16 @@ These are not preconditions — each slice's own step 0 holds those. Stop on any
 5. **The new check lives beside the port rather than in `service/`.** `service-boundaries.test.ts` is a
    lint harness over a hand-kept list of service files; this rule is about where three contracts are
    named, so it belongs with the contracts and is named after them.
-6. **Wildcard re-exports are not themselves checked; their consumers are.** `index.ts` re-exporting
-   `service/broadcast.ts` is the one permitted module reference, stated in section 9.4 and proven by section
-   6's fault 20; every file that reaches a contract **through** that barrel is reported (fault 6). No other
-   exception exists in the check.
-7. **The rule is about references to the port's symbols, not about resemblance.** A new symbol that
-   mirrors a contract — `export type Publisher = Broadcaster;`, or a structurally identical interface under
-   another name — passes rule 1 by design and passes rule 2 unless it takes a port name. Section 6 records
-   both attempts, section 9.4 states the limit, and review is what catches them.
+6. **Wildcard re-exports are checked, with one permitted exception.** A wildcard or namespace re-export is
+   a module reference, so it is reported when the module it names hands out a contract; the single exception
+   is `index.ts` re-exporting `service/broadcast.ts`, the compatibility barrel, and deleting that one clause
+   makes the rule report it (section 6, fault 17). Consumers that reach a contract **through** the barrel
+   are reported independently (fault 6).
+7. **The check proves one thing: every reference resolves through the port.** Declarations are not its
+   business. A duplicate or merged declaration under a contract's own name, a named function expression, a
+   differently named structural copy and a type alias all pass, because a name-based sole-declaration promise
+   cannot be kept against declaration merging. Section 6 lists all five attempts, section 9.4 states the
+   limit, and K2 to K6 with the map's preparations 3 and 4 are where those questions belong.
 8. **No `tsconfig.json` and no isolated type-check target.** `tasks.md` 7.3 carries that work with its own
    proof, and adding an Nx target would move `tools/tool-devsync/src/workspace-inventory.test.ts` counts.
 
@@ -1347,11 +1251,11 @@ These are not preconditions — each slice's own step 0 holds those. Stop on any
 
 | Where                                                                 | Finding                                                                                                                                                                                                                                                                                            | Disposition                                                                    |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `docs/code-organization/kinds.json`, the `service/broadcast.ts` row   | Its disposition said "move to the realtime module", which contradicts the map twice: preparation 1 sends the contracts to a neutral port and the Realtime row says Realtime "does not own the event union or Plan commands' collector"                                                             | Rewritten in place by slice 5 (section 9.7)                                    |
+| `docs/code-organization/kinds.json`, the `service/broadcast.ts` row   | Its disposition said "move to the realtime module", which contradicts the map twice: preparation 1 sends the contracts to a neutral port and the Realtime row says Realtime "does not own the event union or Plan commands' collector"                                                             | Rewritten in place by slice 6 (section 9.7)                                    |
 | `libs/wbs/application/core/src/service/broadcast.ts:196-198`          | `subscriptionFor`'s JSDoc says gw-01 "matches sockets against it". gw-01 imports nothing from `@wbs/core` and parses the prefix with its own `PROJECT_SUBSCRIPTION` at `apps/wbs/gw-01/src/controller/ws.controller.ts:68`                                                                         | Corrected by slice 1 as part of the move (section 9.1, edit one)               |
 | Map, required preparation 1                                           | It sends `AnnouncementCollector` into Plan commands "as batch-private support" without noticing `import.service.ts:147`, a **second feature**, which builds one; doing that before Plan commands exists would create the K6 edge the same map forbids                                              | Deferred to `tasks.md` 5.2 with the note of section 9.8; the map should say so |
 | Map, "Portable core: 50/50" and preparation 1                         | Both call the split one item, but the two halves have different owners and different earliest dates. Measured: the port half touches 25 importers and lands now; the collector half cannot land before Plan commands                                                                               | Recorded here; a later map revision should split the line                      |
-| Packet A's code, `libs/wbs/application/core/src/module/plan-history/` | Nothing wrong found. Its six files — five TypeScript files and its README — the shim at `service/history.service.ts`, the `compose.ts` installation and the `index.ts` compatibility exports are as its section 10 prescribes, and `wbs-core:test` is green at `543 pass` with this packet applied | No action                                                                      |
+| Packet A's code, `libs/wbs/application/core/src/module/plan-history/` | Nothing wrong found. Its six files — five TypeScript files and its README — the shim at `service/history.service.ts`, the `compose.ts` installation and the `index.ts` compatibility exports are as its section 10 prescribes, and `wbs-core:test` is green at `542 pass` with this packet applied | No action                                                                      |
 
 ## 14. Disposition of review 1 — historical
 
@@ -1377,7 +1281,7 @@ a parser-based rule needs no new dependency and passes `wbs-core:lint`; `grep` h
 **1** for a missing input file as well as for zero matches, so `|| test $? -eq 1` cannot distinguish them;
 and `set -euo pipefail` aborted on a failed capture in a script file but not in an inline `bash -c`
 compound, so this packet branches on captured statuses instead of trusting `set -e`. The whole-target
-values were re-observed on the parser version: `wbs-core:test` 543 pass over 54 files,
+values were re-observed on the parser version: `wbs-core:test` 542 pass over 54 files,
 `wbs-be-01:test:unit` 519 pass over 49 files, `tool-devsync:test` 366 pass, `build:portable`, all four
 type checks and `nx format:check --all` exit 0.
 
@@ -1439,7 +1343,10 @@ is **not** caught and is now stated as out of scope, with the reason; `wbs-core:
 
 **Dispatchable now.** Slices 1 and 2 as written; slices 3, 4 and 5 as their predecessors land.
 
-## 17. Disposition of round 4
+## 17. Disposition of round 4 — historical where it describes the check
+
+The findings stay closed; round 5 deleted the declaration assertion, so read sections 9.4 and 6 for the
+contract as it ships and section 18 for what changed.
 
 | Finding                                                                                                                                                                                                                                                                                                                                                                                                              | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1461,3 +1368,27 @@ new rule and `index.ts` makes one deliberately; and an `export * as` re-export o
 barrel itself a reporting site, which is why fault 8 and fault 9 each show an `index.ts` row.
 
 **Dispatchable now.** Slices 1 and 2 as written; slices 3 to 6 as their predecessors land.
+
+## 18. Disposition of round 5
+
+Round 5 confirmed rule 1 held — no new route, 22 production and 9 test violations reproduced, the checker
+compiling strict — and refused the declaration rule. This revision **narrows**: it deletes that rule rather
+than extending it again.
+
+| Finding                                                           | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical 1** — the proof-comment checkpoints were unsatisfiable | **FIXED, and recounted against the file that ships.** The listing carries **seven** `Proof:` comments, none of them in slice 2: slice 3 goes 0 → 2 (the assertion's and the permitted-barrel clause's) and slice 4 goes 2 → 7 (the five guards'). Rehearsed on the exact intermediate files: the slice-2 form counts 0 and is green, the slice-3 form counts 2 and is green, the finished file counts 7. No slice claims a comment whose fault it did not inject.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Critical 2** — the declaration rule still accepted duplicates   | **FIXED by deletion.** A named function expression escapes a declaration walk and a `declare module` augmentation merges into the port's **own symbol**, so a name-based sole-declaration promise is unkeepable. The assertion, its helper, its negatives and every sentence claiming sole declaration are gone; section 9.4 and section 6 now state: references that TypeScript resolves to the port's contract symbols must reach them through the port module or a permitted file; duplicate or merged declarations under the same names, differently named structural copies and type aliases are **not** prevented by this check — they are the kind rules' job (K2 to K6, and the map's preparations 3 and 4). Section 6 lists all five such attempts with their outcomes. The port-declaration count guard went with the assertion, because its only compile-clean mutation was a fourth export, which is legitimate growth rather than a fault. |
+| **Important 3** — read errors became successful shell runs        | **FIXED.** The count block is now `count=$(bun -e '…' "$check") \|\| exit "$?"` followed by `echo` and `test "$count" -eq <n>`. Rehearsed as a whole block four ways: 7 at the expected 7, exit 0; 0 against the slice-2 intermediate at the expected 0, exit 0; a missing path printed `ENOENT: no such file or directory, open '…/ports/missing.ts'`, printed **no count**, and exited **1**; the finished file against a wrong expectation exited **1**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Important 4** — slice ownership disagreed with the steps        | **FIXED.** Section 5 now reads: the checker in slices 2 to 5, the test importers in slice 5, classification and the task note in slice 6, `verify.md` in slices 1 to 6; the header's slice summary, section 10's handoff table and section 13 agree.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Minor 5** — wildcard behaviour described incorrectly            | **FIXED.** Assumption 6 and section 9.4 now say wildcard re-exports **are** checked, with the single compatibility exception whose deletion is fault 17, and that consumers through the barrel are checked independently.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Minor 6** — stale cross-references                              | **FIXED.** OpenSpec validation is slice 6; the importer reds are section 6 faults 1 and 2 in slices 2 and 5; section 9.6 is titled for slice 5; only slice 4 restores the two out-of-lane files; classification is slice 6 and uses `slice-6-kinds-*` evidence names.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+**New facts this revision measured:** deleting the assertion takes the core suite to **542 tests over 54
+files**, so slice 2 now ends at `C + 1` over `F + 1` and every later slice at `C` unchanged; the check runs in
+about a second; and `bun -e` propagates ENOENT and EACCES as a nonzero exit, which the block now forwards
+with `|| exit "$?"`.
+
+**Dispatchable now.** Slices 1 and 2 as written; slices 3 to 6 as their predecessors land. The contract this
+packet ships is the one sentence above, and the residual is stated as a limit rather than defended as a
+claim.
