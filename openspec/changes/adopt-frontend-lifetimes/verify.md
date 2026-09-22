@@ -142,3 +142,42 @@ not rerun in slice 4.
   inside the 400-word intent limit.
 - `GSETTINGS_BACKEND=memory bunx prettier --check` on the proposal and delta spec:
   exit 0; both matched files used Prettier code style (`slice1-prettier-check.log`).
+
+## Slice 2
+
+- `git rev-parse HEAD`: exit 0; `94ef75d9ac2aba685a386e07f19735f3c52df9cc`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` before edits: exit 0; Nx
+  successfully ran the target from its cache (`slice2-step0-typecheck.log`).
+- Sandbox unit baseline: exit 0; F0 = 44 files passed and T0 = 639 tests passed
+  (`slice2-step0-unit.log`).
+- The module suite against the prescribed skeletons: exit 1; 1 test file failed,
+  with 5 tests failed and 3 passed (`slice2-red.log`). The failures were the two
+  factories refusing with `the preferences module is not built yet`, the graph
+  omitting `frontend.preferences/preferencesStore`, the omitted-store case receiving
+  the skeleton refusal instead of the labelled missing-dependency refusal, and the
+  revoked store receiving no throw.
+- The module suite after implementation: exit 0; 1 file passed and all 8 tests passed
+  (`slice2-green.log`).
+- Sandbox unit tier after implementation: exit 0; 45 files passed and 647 tests
+  passed (`slice2-unit-after.log`), exactly F0 + 1 file and T0 + 8 tests.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` after edits: exit 0; Nx
+  successfully ran the target uncached (`slice2-typecheck.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint`: exit 0; Nx successfully ran the
+  target uncached with no diagnostics (`slice2-lint.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; 960 modules transformed and
+  Nx successfully ran the build target (`slice2-build.log`).
+- Strict OpenSpec validation: exit 0; 114 items passed and 0 failed;
+  `adopt-frontend-lifetimes` was valid with no issues
+  (`slice2-openspec-validation.nUk7G9.json`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write` on the six slice-owned paths:
+  exit 0; every path was already unchanged (`slice2-prettier-write.log`).
+- `GSETTINGS_BACKEND=memory bunx prettier --check` on the six slice-owned paths:
+  exit 0; all matched files used Prettier code style (`slice2-prettier-check.log`).
+- `NX_DAEMON=false bun run format:check --all`: exit 0
+  (`slice2-format-check.log`).
+- No `Proof:` comment was added in this slice; the packet assigns the injected-fault
+  observations and adjacent comments to slice 6.
+- The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
+  the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
+  verification under the executor sandbox contract.

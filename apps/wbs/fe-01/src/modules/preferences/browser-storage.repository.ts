@@ -1,4 +1,4 @@
-import type { BrowserStorage } from './contract';
+import type { BrowserStorage, RevocableBrowserStorage } from './contract';
 
 /**
  * The adapter over this browser's own store.
@@ -28,6 +28,48 @@ export function browserStorage(): BrowserStorage {
       // to be null` and three chart-detail drop cases, including the retired
       // key on `expected 'true' to be null`. Observed 2026-09-20.
       localStorage.removeItem(key);
+    },
+  };
+}
+
+/**
+ * What a revoked store answers: nothing, ever again.
+ *
+ * Thrown rather than ignored, and this is rule R5 rather than strictness for its
+ * own sake: a preference written after the runtime that owned the store was
+ * retired is a write whose owner is gone, and a silent no-op would leave the
+ * screen showing a choice the browser never kept.
+ */
+const REVOKED = 'the preferences store was revoked with its runtime';
+
+/**
+ * The same store, until the runtime that owns it gives it back.
+ *
+ * The one owned disposable of the preferences module: {@link BrowserStorage} on
+ * its own has nothing to close, and a module whose close did nothing would be a
+ * close nobody could prove. After `revoke` every member throws, so a component
+ * that outlived its runtime cannot reach the reader's browser through a
+ * `Remembered` it captured.
+ *
+ * @throws once revoked, from `read`, `write` and `forget` alike.
+ */
+export function revocableStorage(store: BrowserStorage): RevocableBrowserStorage {
+  let revoked = false;
+  /** The one guard, so all three members refuse in the same place. */
+  const held = (): BrowserStorage => {
+    if (revoked) throw new Error(REVOKED);
+    return store;
+  };
+  return {
+    read: (key) => held().read(key),
+    write: (key, value) => {
+      held().write(key, value);
+    },
+    forget: (key) => {
+      held().forget(key);
+    },
+    revoke: () => {
+      revoked = true;
     },
   };
 }
