@@ -2,8 +2,8 @@ import { canEditProject, type IsoDate } from '@wbs/domain';
 
 import type { CalendarMarker, CalendarMarkerStore } from '../ports/calendar-marker-store';
 import type { Clock } from '../ports/clock';
+import type { Broadcaster } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
-import type { Broadcaster } from './broadcast';
 
 export interface CalendarMarkerServiceOptions {
   projects: ProjectStore;

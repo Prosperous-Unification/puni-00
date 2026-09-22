@@ -3,13 +3,13 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
+import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
 import type { NewProject } from '../ports/project-store';
 import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
-import type { Broadcaster, ProjectEvent } from '../service/broadcast';
 import { ImportService } from '../service/import.service';
 import { classifyPlanDocument, PlanDocumentService } from '../service/plan-document';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';

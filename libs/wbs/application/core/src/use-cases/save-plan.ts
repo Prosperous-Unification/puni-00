@@ -1,7 +1,7 @@
 import { canEditProject } from '@wbs/domain';
 
+import type { Broadcaster } from '../ports/project-event';
 import type { AuthenticatedUser } from '../service/auth.service';
-import type { Broadcaster } from '../service/broadcast';
 import type { ProjectService } from '../service/project.service';
 import type {
   SavedPlanSaveOutcome,

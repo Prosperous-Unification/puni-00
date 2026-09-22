@@ -96,3 +96,219 @@ directory.)_
 - `wbs-be-01:test:unit` (rehearsed exit 0), `tool-devsync:test` (rehearsed 366 passed, 0 failed),
   and `wbs-core:test` (rehearsed 541 passed, 0 failed across 53 files) are pending planner
   verification because their whole targets are planner-only in this execution environment.
+
+### Broadcast event port, Slice 1 — 2026-09-22
+
+- Core baseline `C=541`, `F=53`: 541 passed, 0 failed across 53 files
+  (`core-baseline.log`). After extracting the event contracts, the closing run remained 541
+  passed, 0 failed across 53 files (`core-final.log`).
+- `ports/project-event.ts` contains the moved `ProjectEvent`, `subscriptionFor` and
+  `Broadcaster` contracts. `service/broadcast.ts` retains `HeldAnnouncement` and
+  `AnnouncementCollector` and re-exports the port for compatibility; the root barrel exports
+  both homes. The byte-for-byte extraction check passed (`slice-1-extraction-check.log`).
+- The port keeps its type-only import of `../service/numbered-work-item` until task 6.1 moves
+  that file to the domain library.
+- The pre-edit type check passed (`slice-1-step0-typecheck.log`); the owned code paths passed
+  their formatting check (`slice-1-prettier-check.log`); core type-check and lint passed
+  (`slice-1-typecheck-lint.log`); and the portable browser build passed
+  (`slice-1-portable-build.log`).
+
+### Broadcast event port, Slice 2 — 2026-09-22
+
+- Core baseline `C=541`, `F=53`: 541 passed, 0 failed across 53 files
+  (`core-baseline.log`). With the boundary test and the production importer move, the closing
+  run reached the required `C + 1=542` passes across `F + 1=54` files with 0 failures
+  (`core-final.log`).
+- The new production-only boundary test failed first with all 22 references reaching
+  `Broadcaster`, `ProjectEvent`, or `subscriptionFor` through `service/broadcast.ts`: 0 passed
+  and 1 failed (`slice-2-production-import-red.log`).
+- Exactly 17 production importers now name `ports/project-event.ts`; the focused boundary test
+  then passed 1 test with 0 failures (`slice-2-boundary-green.log`). The checker deliberately
+  carries 0 `Proof:` comments until slices 3 and 4 inject the route and guard faults those
+  comments will describe.
+- The step-0 type-check and lint passed (`slice-2-step0-typecheck-lint.log`); ESLint sorted the
+  17 importer edits (`slice-2-importers-eslint-fix.log`); the owned code paths passed their
+  formatting check (`slice-2-prettier-check.log`); and the closing core type-check and lint
+  passed (`slice-2-typecheck-lint.log`). The repository-wide format check passed
+  (`slice-2-format-check.log`).
+
+### Broadcast event port, Slice 3 — 2026-09-22
+
+- Step 0 found 0 proof comments, the focused boundary test passed 1 test with 0 failures, and
+  `wbs-core:typecheck` exited 0 (`slice-3-proof-count-baseline.log`,
+  `slice-3-step0-boundary.log`, `slice-3-step0-typecheck.log`). The core baseline was `C=542`,
+  `F=54`: 542 passed, 0 failed across 54 files (`core-baseline.log`).
+- A named import through `service/broadcast.ts` reported
+  `service/step.service.ts: Broadcaster via service/broadcast.ts`
+  (`step-named-import.patch`, `step-named-import.log`,
+  `step-named-import-typecheck.log`, `step-named-import-restored-green.log`).
+- A type-only namespace through `service/broadcast.ts` reported the `Broadcaster via`, module
+  specifier `hands out`, and namespace identifier `events hands out` rows
+  (`step-namespace-type.patch`, `step-namespace-type.log`,
+  `step-namespace-type-typecheck.log`, `step-namespace-type-restored-green.log`).
+- A value namespace read by element access reported `events hands out the contracts from
+service/broadcast.ts` and the `./broadcast` module-specifier row
+  (`gateway-element-access.patch`, `gateway-element-access.log`,
+  `gateway-element-access-typecheck.log`, `gateway-element-access-restored-green.log`).
+- A root-barrel import reported `service/capacity.service.ts: Broadcaster via index.ts`
+  (`capacity-barrel.patch`, `capacity-barrel.log`, `capacity-barrel-typecheck.log`,
+  `capacity-barrel-restored-green.log`).
+- An `import` type through `service/broadcast.ts` reported both `Broadcaster via
+service/broadcast.ts` and the `./broadcast` module-specifier row
+  (`capacity-import-type.patch`, `capacity-import-type.log`,
+  `capacity-import-type-typecheck.log`, `capacity-import-type-restored-green.log`).
+- A renamed re-export reported `routeFor via service/optimizer-trigger-broadcaster.ts`, the
+  `routes hands out` and `routes.routeFor reads` rows, and the root-barrel module-specifier row
+  (`renamed-export.patch`, `renamed-export.log`, `renamed-export-typecheck.log`,
+  `renamed-export-restored-green.log`).
+- A default re-export reported `pushTo via service/optimizer-trigger-broadcaster.ts` and the
+  root-barrel module-specifier row (`default-export.patch`, `default-export.log`,
+  `default-export-typecheck.log`, `default-export-restored-green.log`).
+- An `export * as events` namespace consumed as a nested property reported
+  `routes hands out the contracts from service/optimizer-trigger-broadcaster.ts`
+  (`namespace-export.patch`, `namespace-export.log`, `namespace-export-typecheck.log`,
+  `namespace-export-restored-green.log`).
+- That namespace consumed as a qualified `import` type reported
+  `service/capacity.service.ts: Broadcaster via service/optimizer-trigger-broadcaster.ts`
+  (`qualified-import-type.patch`, `qualified-import-type.log`,
+  `qualified-import-type-typecheck.log`, `qualified-import-type-restored-green.log`).
+- An awaited dynamic import indexed by `subscriptionFor` reported the `./broadcast`
+  module-specifier row and `(await import('./broadcast'))['subscriptionFor'] reads a contract
+out of service/broadcast.ts` (`awaited-element-access.patch`,
+  `awaited-element-access.log`, `awaited-element-access-typecheck.log`,
+  `awaited-element-access-restored-green.log`).
+- A `typeof import` indexed annotation reported the same module-specifier row and
+  `(typeof import('./broadcast'))['subscriptionFor'] reads a contract out of
+service/broadcast.ts` (`typeof-import-indexed.patch`, `typeof-import-indexed.log`,
+  `typeof-import-indexed-typecheck.log`, `typeof-import-indexed-restored-green.log`).
+- An awaited dynamic import consumed as a property reported the module-specifier row and
+  `subscriptionFor via service/broadcast.ts` (`awaited-property.patch`,
+  `awaited-property.log`, `awaited-property-typecheck.log`,
+  `awaited-property-restored-green.log`).
+- A two-hop type re-export reported both hops through `service/broadcast.ts` and
+  `service/optimizer-trigger-broadcaster.ts`. It also reported the root barrel's
+  `./service/optimizer-trigger-broadcaster` module reference, for five rows total
+  (`two-hop-chain.patch`, `two-hop-chain.log`, `two-hop-chain-typecheck.log`,
+  `two-hop-chain-restored-green.log`).
+- Deleting the compatibility-barrel exception reported
+  `index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts`
+  (`barrel-permission-deleted.patch`, `barrel-permission-deleted.log`,
+  `barrel-permission-deleted-restored-green.log`).
+- Every route mutation failed the one named boundary assertion at 0 passed and 1 failed; faults
+  3 through 15 also left `wbs-core:typecheck` at exit 0. Every passing file was restored with
+  `cp`, matched with `cmp`, and the focused test reran green at 1 passed and 0 failed before the
+  next mutation.
+- With the two proof comments added, the focused boundary test passed 1 test with 0 failures and
+  the proof-count block printed `proof-comments=2` (`slice-3-boundary-final.log`,
+  `slice-3-proof-count-final.log`). Core type-check and lint passed
+  (`slice-3-typecheck-lint.log`), the closing core suite remained `C=542`, `F=54` with 0 failures
+  (`core-final.log`), and the repository-wide format check passed
+  (`slice-3-format-check.log`).
+- Strict OpenSpec validation reported 114 items, 114 passed and 0 failed, and its `jq -s -e`
+  contract exited 0 (`openspec-validation.FfStD3.json`).
+
+### Broadcast event port, Slice 4 — 2026-09-22
+
+- Step 0 found 2 proof comments, the focused boundary test passed 1 test with 0 failures, and
+  `wbs-core:typecheck` exited 0 (`slice-4-proof-count-baseline.log`,
+  `slice-4-step0-boundary.log`, `slice-4-step0-typecheck.log`). The core baseline was `C=542`,
+  `F=54`: 542 passed, 0 failed across 54 files (`core-baseline.log`).
+- Pointing the scan root at `src/runtime/` threw `the program holds no
+ports/project-event.ts`; 0 passed and 1 failed (`scan-root.patch`, `scan-root.log`,
+  `scan-root-restored-green.log`).
+- Pointing the config path at `tsconfig.absent.json` threw `Cannot read file
+'…/tsconfig.absent.json'.`; 0 passed and 1 failed (`config-absent.patch`,
+  `config-absent.log`, `config-absent-restored-green.log`).
+- Adding `"module": "invalid"` to the real config threw `refused tsconfig.lib.json: 6046`;
+  0 passed and 1 failed (`config-malformed.patch`, `config-malformed.log`,
+  `config-malformed-restored-green.log`). Deleting the parsed-config guard with the same
+  malformed option produced the false green: 1 passed and 0 failed
+  (`config-guard-deleted.patch`, `config-guard-deleted.log`,
+  `config-guard-deleted-restored-green.log`).
+- Replacing the port with two statements and no export threw `ports/project-event.ts is not a
+module`; 0 passed and 1 failed. `wbs-core:typecheck` also exited 1 because importers lost the
+  contracts (`port-not-a-module.patch`, `port-not-a-module.log`,
+  `port-not-a-module-typecheck.log`, `port-not-a-module-restored-green.log`).
+- Adding `ports/missing.ts` to the scanned source paths threw `the program holds no
+ports/missing.ts`; 0 passed and 1 failed (`missing-scanned-source.patch`,
+  `missing-scanned-source.log`, `missing-scanned-source-restored-green.log`).
+- Every fault was restored with `cp` and matched its saved passing bytes with `cmp` before the
+  captured status was asserted and the focused test reran green.
+- With the five guard proof comments added, the focused boundary test passed 1 test with 0
+  failures and the proof-count block printed `proof-comments=7`
+  (`slice-4-boundary-final.log`, `slice-4-proof-count-final.log`). The tsconfig and project-event
+  port matched their pre-fault bytes (`slice-4-tsconfig-cmp.log`,
+  `slice-4-project-event-cmp.log`). Core type-check and lint passed
+  (`slice-4-typecheck-lint.log`), and the closing core suite remained `C=542`, `F=54` with 0
+  failures (`core-final.log`).
+
+### Broadcast event port, Slice 5 — 2026-09-22
+
+- Step 0 found 7 proof comments and one production-only filter, and `wbs-core:typecheck`
+  exited 0 (`slice-5-proof-count-baseline.log`, `slice-5-filter-baseline.log`,
+  `slice-5-step0-typecheck.log`). The core baseline was `C=542`, `F=54`: 542 passed, 0 failed
+  across 54 files (`core-baseline.log`).
+- Widening the scan to every TypeScript file failed the named boundary assertion with 9 rows
+  across 8 test files: `compose.test.ts: Broadcaster`; `service/broadcast.test.ts: ProjectEvent`;
+  `service/estimate.test.ts: ProjectEvent`; `service/gateway-broadcaster.test.ts: ProjectEvent`
+  and `subscriptionFor`; `service/optimizer-trigger-broadcaster.test.ts: ProjectEvent`;
+  `service/plan-command-scope.test.ts: Broadcaster`; `service/plan-commands.test.ts: Broadcaster`;
+  and `service/working-plan.test.ts: Broadcaster`, each via `service/broadcast.ts`. The run had
+  0 passed and 1 failed (`slice-5-test-imports-red.log`).
+- Exactly 8 test importers now name `ports/project-event.ts`; ESLint sorted those edits and the
+  focused boundary check then passed 1 test with 0 failures
+  (`slice-5-importers-eslint-fix.log`, `slice-5-boundary-green.log`).
+- Replacing `service/working-plan.test.ts`'s port import with a named import from
+  `./broadcast` reported `service/working-plan.test.ts: Broadcaster via
+service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 0
+  (`working-plan-test-import.patch`, `working-plan-test-import.log`,
+  `working-plan-test-import-typecheck.log`). The passing file was restored with `cp`, matched
+  its saved bytes with `cmp`, and the focused check returned to 1 passed and 0 failed
+  (`working-plan-test-import-restore.log`, `working-plan-test-import-restored-green.log`).
+- The final proof-comment count remained 7 and the focused boundary check passed 1 test with
+  0 failures (`slice-5-proof-count-final.log`, `slice-5-boundary-final.log`). The closing core
+  suite remained `C=542`, `F=54` with 0 failures (`core-final.log`), and core type-check and
+  lint passed (`slice-5-typecheck-lint.log`).
+
+### Broadcast event port, Slice 6 — 2026-09-22
+
+- Classification baseline `K=95`; the existing `service/broadcast.ts` row was rewritten in place,
+  and no classification was added for either file under `ports/`
+  (`slice-6-kinds-baseline.txt`; closing count recorded below).
+- Strict OpenSpec baseline `N=114`: 114 items passed and 0 failed under the `jq -s -e` contract
+  (`openspec-validation-slice-6-baseline.0dWX3q.json`; closing total recorded below).
+- The event contracts are a neutral port, not a service module: the module map's required
+  preparation 1 sends `ProjectEvent`, `Broadcaster` and `subscriptionFor` to a neutral
+  application event/port location, while its Realtime row says Realtime implements or consumes
+  that port and does not own the event union or Plan commands' collector. The existing
+  `GatewayBroadcaster` remains the production adapter and `OptimizerTriggerBroadcaster` remains
+  composition-private decoration.
+- The route check has six stated limitations. Each is assigned follow-up work under kind rules K2
+  to K6 and preparations 3 and 4 of the 040.6 module map; naming them here is not evidence that
+  the check prevents them:
+  - Value-binding indirection through an exported binding is not prevented.
+  - Duplicate or merged declarations under a contract's name are not prevented.
+  - A named function expression under a contract's name is not prevented.
+  - A `declare module` augmentation is not prevented.
+  - A type alias is not prevented.
+  - A differently named structural copy is not prevented.
+- Deferred finding: the collector's move waits for task 5.2 because
+  `import.service.ts:148` builds one too; moving it sooner would create the K6
+  feature-to-feature edge the module map forbids.
+- Deferred finding: `ports/project-event.ts` keeps its type-only import of
+  `../service/numbered-work-item` until task 6.1 moves that file to the domain library.
+- Pending planner verification: `wbs-be-01:test:unit` (rehearsed 519 passed, 0 failed across 49
+  files), `wbs-be-01:test` (1091 passed, 0 failed across 92 files), `wbs-gw-01:test` (128 passed,
+  0 failed across 17 files), `wbs-mcp-01:test` (165 passed, 0 failed across 15 files),
+  `wbs-core:test` (542 passed, 0 failed across 54 files), `wbs-core:test:portable` (rehearsed exit
+  0), and `tool-devsync:test` (366 passed, 0 failed). These whole targets remain planner-only in
+  this execution environment.
+- The closing classification count remained `K=95` (`slice-6-kinds-final.txt`). Strict OpenSpec
+  validation remained `N=114`: 114 items passed and 0 failed under the `jq -s -e` contract
+  (`openspec-validation-slice-6-final.Pr8oE5.json`).
+- Core type-check, lint, and unit targets passed (`slice-6-core-closing.log`); the portable browser
+  build passed (`slice-6-core-portable-build.log`); be-01 type-check passed
+  (`slice-6-be-typecheck.log`); and the gw-01 and mcp-01 type-checks passed
+  (`slice-6-gw-mcp-typecheck.log`).
+- The repository-wide format check passed (`slice-6-format-check-final.log`).
+- The host gate was not run in the executor sandbox and remains pending planner verification.

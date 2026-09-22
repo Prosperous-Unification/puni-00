@@ -8,6 +8,10 @@
 - [ ] 1.2 Split `broadcast.ts`: `ProjectEvent`, `Broadcaster` and `subscriptionFor` to a neutral
       application event port; `AnnouncementCollector` and `HeldAnnouncement` into Plan commands.
       Negative: a resource publishing through the port with the port unregistered.
+      Port landed 2026-09-22 as `libs/wbs/application/core/src/ports/project-event.ts`, with
+      `ports/event-port-boundaries.test.ts` as its checked rule. The collector stays in
+      `service/broadcast.ts` and moves with 5.2: `import.service.ts:148` builds one too, so Plan
+      commands cannot own it privately before that module exists without a K6 feature-to-feature edge.
 - [ ] 1.3 Change Plan document's marker read to an owner-neutral read port and move
       `CalendarMarkerListOutcome` out of the Calendar marker service file.
 - [ ] 1.4 Move the actor and principal types `runCommandBatch`, `replay`, `savePlan` and

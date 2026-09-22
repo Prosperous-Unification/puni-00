@@ -2,11 +2,11 @@ import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
+import type { Broadcaster } from '../ports/project-event';
 import type { PlanTransactionalStores } from '../ports/stores';
 import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import type { Broadcaster } from './broadcast';
 import { PlanCommandRunner } from './plan-commands';
 import { createWorkingPlan } from './working-plan';
 

@@ -2,8 +2,8 @@ import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { clockOf } from '../ports/clock';
+import { type ProjectEvent, subscriptionFor } from '../ports/project-event';
 import type { PushTransport } from '../ports/push-transport';
-import { type ProjectEvent, subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';

@@ -247,8 +247,8 @@
     {
       "path": "libs/wbs/application/core/src/service/broadcast.ts",
       "kind": "support",
-      "disposition": "project-event broadcaster contract and batch collector; move to the realtime module",
-      "rationale": "import.service.ts and plan-commands.ts collect announcements through it while gateway-broadcaster.ts and several resource services share its project-event publication contract"
+      "disposition": "Plan commands' batch announcement collector; move it there with task 5.2",
+      "rationale": "import.service.ts and plan-commands.ts collect announcements through it, and the event contracts it re-exports for compatibility now live in ports/project-event.ts"
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",

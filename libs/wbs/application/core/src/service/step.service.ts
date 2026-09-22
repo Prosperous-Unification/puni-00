@@ -1,10 +1,10 @@
 import { canEditProject, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
+import type { Broadcaster } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../ports/step-store';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
-import type { Broadcaster } from './broadcast';
 import { cleanName } from './clean-name';
 
 export interface StepServiceOptions {

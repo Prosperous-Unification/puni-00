@@ -6,9 +6,10 @@ import type {
   ServiceTeam,
   TeamWithServices,
 } from '../ports/directory-store';
+import type { Broadcaster } from '../ports/project-event';
 import type { Decision, Scope, UnitOfWork } from '../ports/unit-of-work';
 import type { Service, Tag, WorkItemType } from '../ports/work-item-store';
-import { AnnouncementCollector, type Broadcaster } from './broadcast';
+import { AnnouncementCollector } from './broadcast';
 import type { CapacityService } from './capacity.service';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import type {
