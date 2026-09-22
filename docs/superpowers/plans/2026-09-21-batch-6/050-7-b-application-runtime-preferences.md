@@ -34,9 +34,9 @@ left:
 
 **Non-goals.** No library version change (`di-bag` stays `0.4.0`, `application-exception` `0.5.0`,
 `caught-object-report-json` `11.0.1`). No React context: delivery still imports
-`modules/preferences/composition`, and moving it is the context packet's (section 12). No session or
+`modules/preferences/composition`, and moving it is the context packet's (section 11). No session or
 project runtime, no page-hide, hot-reload or restoration trigger, no Log out change. **No wiki index
-and no `docs/wiki-policy` registration** — see section 4.7. No change to the slot's own behaviour:
+and no `docs/wiki-policy` registration** — see section 3.5. No change to the slot's own behaviour:
 `lifetime-slot.ts` is not edited, only its model test is extended.
 
 ## 2. Read first
@@ -49,7 +49,7 @@ and no `docs/wiki-policy` registration** — see section 4.7. No change to the s
 4. The execution contract sections of the [batch 1 README](../2026-09-19-batch-1/README.md).
 5. `libs/wbs/application/core/src/module/plan-history/{module,check,contract,module.test}.ts` — the
    sealed-module precedent this packet copies, including which DI failures carry a module label.
-6. `apps/wbs/fe-01/src/modules/preferences/` whole, and its four delivery call sites (section 4.2).
+6. `apps/wbs/fe-01/src/modules/preferences/` whole, and its five call sites (section 3.2).
 7. `apps/wbs/fe-01/src/components/chrome/{fault-disclosure.ts,app-fault.tsx,root-fault-options.ts}`.
 
 ## 3. Verified facts
@@ -69,13 +69,20 @@ Run with `bun` against the installed `node_modules/di-bag` (`0.4.0`, pinned in
 - **`DI_BAG_MISSING_REGISTRATION` carries no label.** Resolving the private `store` from the host
   threw `DI_BAG_MISSING_REGISTRATION: Service "store" is not registered.; see https://…`, with
   `code` exactly `DI_BAG_MISSING_REGISTRATION` — the same message shape as a name nothing ever
-  registered (`"nope"`). So the rule is: **a missing registration is anonymous; only a labelled
-  binding's missing dependency names its module**, which is `DI_BAG_MISSING_DEPENDENCY`:
+  registered (`"nope"`). So a **missing registration is anonymous**, and the failure that does name
+  the module is `DI_BAG_MISSING_DEPENDENCY`:
   `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "frontend.preferences/preferencesStore": dependency
 "browserStore" is not registered. Resolution path: preferences -> frontend.preferences/preferencesStore -> browserStore.`
-  (observed in this packet's own module test). That is why the browser store is a **host
-  requirement** and not a module-private binding: a module whose every dependency is internal can
-  never produce a labelled failure at all.
+  (observed in this packet's own module test).
+- **Labels are not limited to that failure**, and an earlier revision of this packet claimed they
+  were. A module with **no external requirement at all** still names itself in a cycle path: two
+  private cyclic bindings under `{ label: 'frontend.preferences' }`, with nothing required of the
+  host, threw
+  `DI_BAG_CYCLE: cycle: frontend.preferences/a -> frontend.preferences/b -> frontend.preferences/a`
+  (probed here on 2026-09-22, confirming review 1's counterexample). The claim is therefore restricted
+  to the missing-**dependency** case: only a requirement a host can forget produces
+  `DI_BAG_MISSING_DEPENDENCY` naming the module, and that is one consequence of the host requirement
+  rather than the reason for it. Section 4 gives the reason, which is ownership.
 - **a partially acquired graph is released only by `close()` on its own bag** (packet a measured it
   twice; nothing here re-litigates it). That is the whole reason `acquireTransactionally` exists.
 - `build()` and `resolve()` are **synchronous** for sync factories, which is what lets the page's
@@ -108,12 +115,14 @@ state** — every value lives in the reader's browser and the adapter reaches it
 instances cannot disagree. `composition-agreement.test.ts` writes through one and reads through the
 other, in both directions, and then closes the runtime and shows that only the runtime's own store is
 revoked. Moving delivery onto the runtime's services means a React context, which is the packet
-section 12 names; doing it here would change 2,944 jsdom assertions in a tier the executor cannot run.
+section 11 names; doing it here would change 2,949 jsdom assertions in a tier the executor cannot run.
 
 ### 3.4 Tiers, targets and the sandbox
 
 - fe-01 has `test`, `test:unit`, `lint`, `lint:fast`, `typecheck`, `build`, `e2e`, `e2e-packaged`, and
-  **no** `lint:source`.
+  **no** `lint:source`. `wbs-fe-01:test` runs the UTC jsdom tier **and** the zoned tier
+  (`vitest.zoned.config.ts`); this packet adds no zoned suite, and section 9 carries the planner's
+  zoned run with its unchanged result.
 - **The executor never runs `wbs-fe-01:test:unit` or `wbs-fe-01:test`**: three of their tests spawn
   `bun` from Node and the sandbox refuses with `spawnSync bun EPERM`. It runs the batch README's
   **sandbox unit command** and, for the three jsdom files this packet adds, `bunx vitest run <file>`
@@ -136,24 +145,28 @@ section 12 names; doing it here would change 2,944 jsdom assertions in a tier th
 
 ### 3.6 The rehearsal, and its numbers
 
-| What                                                       | Observed                                                                 |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Sandbox unit command, finished tree                        | exit 0, `46 passed (46)` files, `656 passed (656)` tests                 |
-| The two node-tier suites this packet adds, with the slot's | exit 0, `4 passed (4)` files, `42 passed (42)` tests, 435 ms             |
-| The three jsdom files it adds, plus `main.test.tsx`        | exit 0, `4 passed (4)` files, `9 passed (9)` tests                       |
-| Slice 1 red (module skeleton)                              | exit 1, `4 failed \| 4 passed (8)`                                       |
-| Slice 2 red (runtime skeleton)                             | exit 1, `9 failed \| 8 passed (17)`                                      |
-| Slice 3 red (bootstrap and page skeletons)                 | exit 1, `7 failed (7)`, all on `the page's bootstrap is not written yet` |
-| The model test alone, with the production graph inside it  | exit 0, `1 passed (1)`, 355 ms, seed `20260923`, 300 runs                |
-| Whole jsdom tier                                           | exit 0, `128 passed (128)` files, `2944 passed (2944)` tests             |
-| `wbs-fe-01:typecheck`                                      | exit 0 — and exit 0 under every one of the fourteen faults in section 8  |
-| `wbs-fe-01:lint`                                           | exit 0                                                                   |
-| `wbs-fe-01:build`                                          | exit 0, `✓ built in 607ms`                                               |
-| `tool-devsync:test` with every new file staged             | exit 0, `366 pass`, `0 fail`                                             |
-| The new Chromium case                                      | exit 0, `1 passed (8.3s)` at `E2E_PORT_SHIFT=3000`                       |
-| Three existing Chromium specs                              | exit 0, `25 passed (1.2m)`                                               |
-| `openspec validate --all --json`                           | exit 0, `114` items, `114` passed, `0` failed                            |
-| Four real `git commit`s with lefthook on                   | exit 0 each; two were refused first, on Prettier after `eslint --fix`    |
+| What                                                         | Observed                                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Sandbox unit command, finished tree                          | exit 0, `46 passed (46)` files, `656 passed (656)` tests                       |
+| The two node-tier suites this packet adds, with the slot's   | exit 0, `4 passed (4)` files, `42 passed (42)` tests                           |
+| The five jsdom files it adds                                 | exit 0, `5 passed (5)` files, `11 passed (11)` tests                           |
+| `src/main.test.tsx`, unchanged and still green               | exit 0, `Tests 1 passed (1)`                                                   |
+| Slice 1 red (module skeleton)                                | exit 1, `4 failed \| 4 passed (8)`, two causes — section 6 names both          |
+| Slice 2 red (runtime skeleton)                               | exit 1, `9 failed \| 8 passed (17)`                                            |
+| Slice 3 red (bootstrap and page skeletons)                   | exit 1, `8 failed (8)`, all on `the page's bootstrap is not written yet`       |
+| The slot's model test, with the production graph inside it   | exit 0, `1 passed (1)`, 355 ms, seed `20260923`, 300 runs                      |
+| The bootstrap's own model test                               | exit 0, `1 passed (1)`, 4.8 s, seed `20260924`, 200 runs                       |
+| The Strict Mode test, with a real React root                 | exit 0, `1 passed (1)`, 4.1 s                                                  |
+| Whole jsdom tier, finished tree                              | exit 0, `130 passed (130)` files, `2949 passed (2949)` tests                   |
+| Whole jsdom tier, **base `5085f6e6`** in a second worktree   | exit 0, `123 passed (123)` files, `2921 passed (2921)` tests — so +7 and +28   |
+| `wbs-fe-01:typecheck`                                        | exit 0 — and exit 0 under every one of the twenty faults in section 8          |
+| `wbs-fe-01:lint`                                             | exit 0                                                                         |
+| `wbs-fe-01:build`                                            | exit 0, `✓ built in 1.04s`                                                     |
+| `tool-devsync:test` with all 22 changed paths staged         | exit 0, `366 pass`, `0 fail`                                                   |
+| The new Chromium case                                        | exit 0, `1 passed (8.6s)` at `E2E_PORT_SHIFT=3000`; `1 failed` under fault N12 |
+| Three existing Chromium specs                                | exit 0, `25 passed (1.2m)`                                                     |
+| `openspec validate --all --json`, with the added requirement | exit 0, `114` items, `114` passed, `0` failed, this change `valid: true`       |
+| Five real `git commit`s with lefthook on                     | exit 0 each; two were refused first, on Prettier after `eslint --fix`          |
 
 Absolute numbers are orientation only: every expectation in section 6 is relative to the baseline that
 slice records itself.
@@ -181,11 +194,15 @@ packet's README edit says so in the module's own words, and nothing in it is a `
 
 The design document is the contract; what follows is what this packet had to decide to execute it.
 
-**The browser store is the host's requirement, not the module's private binding.** A module whose every
-dependency is internal can never produce a labelled DI failure (section 3.1), so `frontend.preferences`
-requires `browserStore: BrowserStorage` and the page's runtime registers it from the existing
-`browserStorage()` adapter. What stays private is the **revocable** store built over it, which is also
-the module's one owned disposable.
+**The browser store is the host's requirement, not the module's private binding — because of who owns
+it.** Reaching this browser's own key-value store is the _page's_ infrastructure: it is one adapter over
+one `localStorage`, and the session and project lifetimes will borrow the same kind of thing from the
+same host. The preferences module borrows it, wraps it in the handle it _does_ own, and gives that
+handle back on close; a module that built the adapter itself would own something the page owns, and a
+test would have to reach a browser global to exercise the module at all (the node tier has no
+`localStorage`). A labelled `DI_BAG_MISSING_DEPENDENCY` when a host forgets the requirement is a
+consequence of that shape, not its justification — and **not** the only way a label reaches a report:
+section 3.1 has the cycle path that names the module with no requirement at all.
 
 **The module's close has something to give back.** `Preferences` owns no socket and no timer, so a
 disposer that did nothing would be a close nobody could prove, and packet a's section 12 asks for a
@@ -202,45 +219,65 @@ close. It wraps a failure that acquired nothing too, deliberately: a `resolve` t
 whether an earlier dependency of the same graph was already acquired, and closing a graph that took
 nothing runs no disposer. Every later lifetime reuses this function, which is why it is not inlined.
 
+**The root is created after the transition settles, and the page is drawn only from the runtime the
+slot publishes.** Both halves are the design document's, and review 1 found both missing. The root is
+mounted **lazily**, on the first draw, so nothing exists to render into while the runtime is still
+being acquired — that is what `createRoot` after the await means, and the recording root now records
+the slot's status at **mount** as well as at render, because an implementation that mounts early passes
+every render-time assertion. And after the await the bootstrap **re-reads the slot**: a retirement
+withdraws publication synchronously, including one a subscriber asked for while the transition was
+settling, so a bootstrap that drew the app without looking would draw it from a runtime the page has
+already given up — reproduced by the new bootstrap model test as
+`the app was drawn while the slot was retiring`. A `TransitionSupersededError` is **controlled
+cancellation**: the newest request owns the page, so the loser draws nothing at all, neither the app nor
+a fatal page it has no fault for.
+
 **The fatal page is rendered from the slot's state, never from a caught value.** `bootstrapApplication`
 catches the refusal **without binding it** and reads `slot.snapshot()` back; a refusal it could read is
 a refusal it could render. It also subscribes to the slot, so a **retirement** that rejects or outruns
 its wait reaches the same sanitized page — the map requires one reporting boundary for both — and the
 page it renders is `LifetimeFault`, which takes a `DisclosedFault` and can therefore not disclose
-anything else. The words differ from the root boundary's fallback on purpose: nothing was ever on
-screen and no plan was open, and that is the one thing a reader needs told differently.
+anything else. Its words have to be true of **both** occasions it appears on — a
+runtime that could not be acquired at startup, and a retirement that failed under a reader who was
+working — so it claims neither that the page never started nor that nothing was lost, and it borrows
+the root boundary's narrower assurance instead: what reached the server is on the server. Review 1 found
+the first draft claiming both.
 
 ## 5. File plan
 
-| Path                                                                   | Slice | Create or modify | Note                                                          |
-| ---------------------------------------------------------------------- | ----- | ---------------- | ------------------------------------------------------------- |
-| `apps/wbs/fe-01/src/modules/preferences/contract.ts`                   | 1     | modify           | append only: the label, the id, two shapes, the revocable one |
-| `apps/wbs/fe-01/src/modules/preferences/browser-storage.repository.ts` | 1     | modify           | append only: `revocableStorage`                               |
-| `apps/wbs/fe-01/src/modules/preferences/module.ts`                     | 1     | create           | the sealed module                                             |
-| `apps/wbs/fe-01/src/modules/preferences/module.test.ts`                | 1     | create           | 11 tests, node tier                                           |
-| `apps/wbs/fe-01/vitest.node-suites.ts`                                 | 1, 2  | modify           | one entry in each slice, in sorted position                   |
-| `apps/wbs/fe-01/src/runtime/application-runtime.ts`                    | 2     | create           | the owner, the transaction, the slot                          |
-| `apps/wbs/fe-01/src/runtime/application-runtime.test.ts`               | 2     | create           | 7 tests, node tier                                            |
-| `apps/wbs/fe-01/src/components/chrome/lifetime-fault.tsx`              | 3     | create           | the sanitized fatal page                                      |
-| `apps/wbs/fe-01/src/components/chrome/lifetime-fault.test.tsx`         | 3     | create           | 3 tests, jsdom tier                                           |
-| `apps/wbs/fe-01/src/runtime/application-bootstrap.tsx`                 | 3     | create           | the bootstrap                                                 |
-| `apps/wbs/fe-01/src/runtime/application-bootstrap.test.tsx`            | 3     | create           | 4 tests, jsdom tier                                           |
-| `apps/wbs/fe-01/src/main.tsx`                                          | 3     | modify           | calls the bootstrap; keeps the `#root` throw                  |
-| `apps/wbs/fe-01/e2e/lifetime-fault-probe.ts`                           | 3     | create           | Chromium probe, **planner runs it**                           |
-| `apps/wbs/fe-01/e2e/lifetime-fault.spec.ts`                            | 3     | create           | Chromium case, **planner runs it**                            |
-| `apps/wbs/fe-01/src/runtime/lifetime-slot.model.test.ts`               | 4     | modify           | the production installer inside the interleavings             |
-| `apps/wbs/fe-01/src/modules/preferences/composition.ts`                | 4     | modify           | JSDoc only: the staged duplicate                              |
-| `apps/wbs/fe-01/src/modules/preferences/composition-agreement.test.ts` | 4     | create           | 1 test, jsdom tier                                            |
-| `apps/wbs/fe-01/src/modules/preferences/README.md`                     | 4     | modify           | prose; **no `module-index` block**                            |
-| `openspec/changes/adopt-frontend-lifetimes/tasks.md`                   | 6     | modify           | ticks task 2 and nothing else                                 |
-| `openspec/changes/adopt-frontend-lifetimes/verify.md`                  | 1–6   | modify           | **every slice appends its own observations**                  |
+| Path                                                                               | Slice | Create or modify | Note                                                     |
+| ---------------------------------------------------------------------------------- | ----- | ---------------- | -------------------------------------------------------- |
+| `apps/wbs/fe-01/src/modules/preferences/contract.ts`                               | 1     | modify           | append, plus nothing else                                |
+| `apps/wbs/fe-01/src/modules/preferences/browser-storage.repository.ts`             | 1     | modify           | append **and** widen its one import (section 7.2)        |
+| `apps/wbs/fe-01/src/modules/preferences/module.ts`                                 | 1     | create           | the sealed module                                        |
+| `apps/wbs/fe-01/src/modules/preferences/module.test.ts`                            | 1     | create           | **8** tests, node tier                                   |
+| `apps/wbs/fe-01/vitest.node-suites.ts`                                             | 1, 2  | modify           | one entry in each slice, in sorted position              |
+| `apps/wbs/fe-01/src/runtime/application-runtime.ts`                                | 2     | create           | the owner, the transaction, the slot                     |
+| `apps/wbs/fe-01/src/runtime/application-runtime.test.ts`                           | 2     | create           | **9** tests, node tier                                   |
+| `apps/wbs/fe-01/src/components/chrome/lifetime-fault.tsx`                          | 3     | create           | the sanitized fatal page                                 |
+| `apps/wbs/fe-01/src/components/chrome/lifetime-fault.test.tsx`                     | 3     | create           | 4 tests, jsdom tier                                      |
+| `apps/wbs/fe-01/src/runtime/application-bootstrap.tsx`                             | 3     | create           | the bootstrap                                            |
+| `apps/wbs/fe-01/src/runtime/application-bootstrap.test.tsx`                        | 3     | create           | 4 tests, jsdom tier                                      |
+| `apps/wbs/fe-01/src/main.tsx`                                                      | 3     | modify           | calls the bootstrap; keeps the `#root` throw             |
+| `apps/wbs/fe-01/e2e/lifetime-fault-probe.ts`                                       | 3     | create           | Chromium probe, **planner runs it**                      |
+| `apps/wbs/fe-01/e2e/lifetime-fault.spec.ts`                                        | 3     | create           | Chromium case, **planner runs it**                       |
+| `apps/wbs/fe-01/src/runtime/application-bootstrap.model.test.tsx`                  | 4     | create           | 1 model-based test, jsdom tier                           |
+| `apps/wbs/fe-01/src/runtime/application-bootstrap.strictmode.test.tsx`             | 4     | create           | 1 test with a **real** React root, jsdom tier            |
+| `apps/wbs/fe-01/src/runtime/lifetime-slot.model.test.ts`                           | 4     | modify           | the production installer inside the interleavings        |
+| `apps/wbs/fe-01/src/modules/preferences/composition.ts`                            | 5     | modify           | JSDoc only: the staged duplicate                         |
+| `apps/wbs/fe-01/src/modules/preferences/composition-agreement.test.ts`             | 5     | create           | 1 test, jsdom tier                                       |
+| `apps/wbs/fe-01/src/modules/preferences/README.md`                                 | 5     | modify           | prose; **no `module-index` block**                       |
+| `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` | 5     | modify           | one added requirement and three scenarios (section 7.20) |
+| `openspec/changes/adopt-frontend-lifetimes/proposal.md`                            | 5     | modify           | one clause of one non-goal (section 7.21)                |
+| `openspec/changes/adopt-frontend-lifetimes/tasks.md`                               | 7     | modify           | ticks task 2 and nothing else                            |
+| `openspec/changes/adopt-frontend-lifetimes/verify.md`                              | 1–7   | modify           | **every slice appends its own observations**             |
 
-**Twenty paths.** Nothing else: no React context, no `docs/wiki-policy/`, no `kinds.json`, no manifest,
-no lockfile, no `lifetime-slot.ts`, and none of the five preferences call sites.
+**Twenty-four paths.** Nothing else: no React context, no `docs/wiki-policy/`, no `kinds.json`, no
+manifest, no lockfile, no `lifetime-slot.ts`, and none of the five preferences call sites.
 
 ## 6. Slices
 
-Six. Each is one attempt, ends in one planner commit with the exact subject given, begins with its own
+Seven. Each is one attempt, ends in one planner commit with the exact subject given, begins with its own
 step 0, and **appends its own observations to `verify.md` before handing over**.
 
 **Dispatch.** The launcher is `/home/df/wd/puni/puni-plan/exec/run-executor.sh`:
@@ -252,19 +289,30 @@ step 0, and **appends its own observations to `verify.md` before handing over**.
 # every later slice reuses that clone
 /home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-b-application-runtime-preferences slice-2 <base> \
   --batch batch-6 --preserve evidence --resume
-# slice 6 also seeds the five earlier attempts' evidence
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-b-application-runtime-preferences slice-6 <base> \
-  --batch batch-6 --preserve evidence --resume \
-  --seed <slice-1 evidence dir> --seed <slice-2 evidence dir> --seed <slice-3 evidence dir> \
-  --seed <slice-4 evidence dir> --seed <slice-5 evidence dir>
 ```
 
 **`--resume` on every slice after the first**, or the launcher exits 67. **No `--network`** and no
-`--browser` is needed: every Chromium command here is the planner's. Slice 6 is the hand-over slice and
-it **cites the five earlier attempts**, so it is dispatched with one `--seed` per preserved evidence
-directory, which the launcher merges into `$TMPDIR/evidence`; a bare dispatch is a stop, as packet a's
-slice 4 correctly was. `verify.md` references evidence **basenames** only, never a clone, home or
-temporary path, because it is published.
+browser is needed: every Chromium command here is the planner's.
+
+**Slice 7 cites the earlier attempts, so its evidence is seeded — as one tree, not five.** The launcher
+copies `<dir>/.` into `$TMPDIR/$(basename <dir>)/`, so five directories all called `evidence` merge
+**flat** and the second attempt's `slice-lint.log` overwrites the first's. The planner therefore builds
+one staging tree first, one subdirectory per attempt id, and seeds that single directory:
+
+```sh
+staging=$(mktemp -d)/evidence
+mkdir -p "$staging"
+# one subdirectory per attempt id, from each preserved evidence directory
+cp -a <attempt-1 evidence dir> "$staging/<attempt-1 id>"
+cp -a <attempt-2 evidence dir> "$staging/<attempt-2 id>"
+# … through attempt 6, then:
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 050-7-b-application-runtime-preferences slice-7 <base> \
+  --batch batch-6 --preserve evidence --resume --seed "$staging"
+```
+
+Slice 7 then finds every earlier log at `$TMPDIR/evidence/<attempt-id>/<file>`, and `verify.md` names
+each observation as `<attempt-id>/<file>` — attempt-relative basenames, never a clone, home or
+temporary path, because `verify.md` is published.
 
 ### Step 0 — at the start of every slice
 
@@ -284,11 +332,11 @@ temporary path, because it is published.
 
   Expected: exit 0. **Never** run `wbs-fe-01:test:unit` or `wbs-fe-01:test`.
 
-- [ ] In slice 6 only, record the OpenSpec baseline and call `summary.totals.items` **V0**:
+- [ ] In slices 5 and 7 only, record the OpenSpec baseline and call `summary.totals.items` **V0**:
 
   ```sh
   OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json \
-    > "$TMPDIR/evidence/slice6-step0-openspec.json" 2>&1; echo "exit=$?"
+    > "$TMPDIR/evidence/slice<N>-step0-openspec.json" 2>&1; echo "exit=$?"
   ```
 
 ### Slice 1 — preferences as a sealed, labelled module
@@ -298,15 +346,15 @@ Subject: `feat(fe-01): seal the preferences module behind one label`
 Pre-edit check: `apps/wbs/fe-01/src/modules/preferences/module.ts` does not exist and
 `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` does.
 
-- [ ] Append section 7.1 to `contract.ts` and section 7.2 to `browser-storage.repository.ts`. Both are
-      **appends**: no existing line changes.
-- [ ] Write `module.test.ts` exactly as section 7.4, the **skeleton** `module.ts` of section 7.3, and
-      the `vitest.node-suites.ts` entry `'src/modules/preferences/module.test.ts'` in its sorted
-      position, immediately after `'src/modules/preferences/composition.test.ts'`.
-
-  The skeleton is what makes the red a red about this packet: the suite entry and the tests exist, so
-  every test in the file is selected and fails on one message.
-
+- [ ] Append section 7.1 to `contract.ts`, and apply section 7.2 to `browser-storage.repository.ts`:
+      an append **plus one authorized edit to an existing line** — its import becomes
+      `import type { BrowserStorage, RevocableBrowserStorage } from './contract';`. Without that edit
+      the file does not compile (`TS2304: Cannot find name 'RevocableBrowserStorage'`). Nothing else in
+      either file changes.
+- [ ] Write `module.test.ts` exactly as section 7.4 — **eight** tests — and the **skeleton** `module.ts`
+      of section 7.3, and add `'src/modules/preferences/module.test.ts'` to
+      `apps/wbs/fe-01/vitest.node-suites.ts` in its sorted position, immediately after
+      `'src/modules/preferences/composition.test.ts'`.
 - [ ] Run the red:
 
   ```sh
@@ -314,19 +362,31 @@ Pre-edit check: `apps/wbs/fe-01/src/modules/preferences/module.ts` does not exis
     src/modules/preferences/module.test.ts) > "$TMPDIR/evidence/slice1-red.log" 2>&1; echo "exit=$?"
   ```
 
-  Expected, observed by the planner: exit 1, `Test Files 1 failed (1)`, `Tests 11 failed (11)`, every
-  one on `Error: the preferences module is not built yet`. `No test files found` means the suite entry
-  is missing and `Tests no tests` means the skeleton is missing; either is a stop, not a red.
+  Expected, observed by the planner: exit 1, `Test Files 1 failed (1)`,
+  **`Tests 4 failed | 4 passed (8)`**. The four failures and their causes, which are **not** one
+  message: `publishes the answers delivery asks for, over the store its host supplied` and
+  `gives the store back when its host graph closes` fail on
+  `Error: the preferences module is not built yet`; `labels its owned store with the module name` fails
+  on `expected [ 'preferences', 'remembered', …(1) ] to include 'frontend.preferences/preferencesStore'`;
+  and `names itself when a host omits the browser store` fails on
+  `expected [Function] to throw error including 'Cannot resolve "frontend.preferences/…'`. The four that
+  **pass** are about the revocable store and the identifier constant, which slice 1 writes in the same
+  step and the skeleton does not touch. `No test files found` means the suite entry is missing and
+  `Tests no tests` means the skeleton is missing; either is a stop, not a red.
 
 - [ ] Replace the skeleton with section 7.3's whole module, and run the green: exit 0,
-      `Tests 11 passed (11)`. Then the sandbox unit command: exit 0, **F0 + 1** files and **T0 + 11**
-      tests.
+      `Tests 8 passed (8)`. Then the sandbox unit command: exit 0, **F0 + 1** files and **T0 + 8** tests.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` — exit 0. Required in this slice: the module's
-      three factories are generic DI Bag registrations whose dependency objects are written out, and
-      `buildModule`'s export tuple is type-checked against them.
+      three factories are DI Bag registrations whose dependency objects are written out, and
+      `buildModule`'s export tuple is checked against them.
 - [ ] `NX_DAEMON=false bunx nx run wbs-fe-01:lint` — exit 0. Import order is autofixable with
-      `bunx eslint --fix apps/wbs/fe-01/src/modules/preferences`.
-- [ ] Append this slice's observations to `verify.md` under `## Slice 1`.
+      `bunx eslint --fix apps/wbs/fe-01/src/modules/preferences`; **then re-run
+      `GSETTINGS_BACKEND=memory bunx prettier --write` on the same files and `--check` after it**, because
+      `eslint --fix` sorts imports and leaves the file not Prettier-clean (watched here: lefthook's
+      `format` command refused two commits with `[warn] apps/wbs/fe-01/src/…` and `exit status 1`).
+- [ ] Append this slice's observations to `verify.md` under `## Slice 1`. **No `Proof:` comment is
+      written in this slice**: preamble rule 9 allows one only after the failure has been observed, which
+      is slice 6.
 
 Hand over, **six** paths:
 
@@ -346,12 +406,11 @@ Subject: `feat(fe-01): own the page's runtime through the lifetime slot`
 Pre-edit check: `apps/wbs/fe-01/src/modules/preferences/module.ts` exists and
 `apps/wbs/fe-01/src/runtime/application-runtime.ts` does not.
 
-- [ ] Write `application-runtime.test.ts` exactly as section 7.6, the **skeleton**
-      `application-runtime.ts` of section 7.5 (its two exported functions throw), and the
-      `vitest.node-suites.ts` entry `'src/runtime/application-runtime.test.ts'` in its sorted position,
-      immediately before `'src/runtime/lifetime-slot.model.test.ts'` and under the same comment.
-- [ ] Red: exit 1, `Tests 7 failed (7)` on `Error: the page's runtime is not installed yet`, plus the
-      four module tests that install through it — **11 failed** in the two files together. Command:
+- [ ] Write `application-runtime.test.ts` exactly as section 7.6 — **nine** tests — the **skeleton**
+      `application-runtime.ts` of section 7.5, and the entry
+      `'src/runtime/application-runtime.test.ts'` in `vitest.node-suites.ts`, immediately before
+      `'src/runtime/lifetime-slot.model.test.ts'` and under the same comment.
+- [ ] Red:
 
   ```sh
   (cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts \
@@ -359,11 +418,18 @@ Pre-edit check: `apps/wbs/fe-01/src/modules/preferences/module.ts` exists and
     > "$TMPDIR/evidence/slice2-red.log" 2>&1; echo "exit=$?"
   ```
 
+  Expected, observed: exit 1, `Test Files 1 failed | 1 passed (2)`, **`Tests 9 failed | 8 passed (17)`**
+  — all nine runtime tests fail, five of them directly on
+  `Error: the page's runtime is not installed yet` and four on
+  `expected Error: the page's runtime is not installe… to be an instance of PartialAcquisitionError`.
+  **The eight module tests pass**: `module.test.ts` imports no runtime module, which is what makes
+  slice 1 dispatchable on its own.
+
 - [ ] Replace the skeleton with section 7.5's whole file. Green: the same command at exit 0 with
-      `Tests 18 passed (18)`; then the sandbox unit command at **F0 + 1** files and **T0 + 7** tests.
-- [ ] `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each. Required here: `acquireTransactionally`
-      is generic over the services it reads, and the slot's `RetirableRuntime<S>` members are readonly
-      function-valued properties.
+      `Tests 17 passed (17)`; then the sandbox unit command at **F0 + 1** files and **T0 + 9** tests.
+- [ ] `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each (and the Prettier step after any
+      `eslint --fix`). Required here: `acquireTransactionally` is generic over the services it reads,
+      and the slot's `RetirableRuntime<S>` members are readonly function-valued properties.
 - [ ] Append `## Slice 2` to `verify.md`.
 
 Hand over, four paths: `?? src/runtime/application-runtime.test.ts`, `?? src/runtime/application-runtime.ts`,
@@ -376,8 +442,7 @@ Subject: `feat(fe-01): build the page's runtime before it renders, and say so wh
 Pre-edit check: `apps/wbs/fe-01/src/runtime/application-runtime.ts` exists;
 `src/components/chrome/lifetime-fault.tsx` does not.
 
-These four files are in the **jsdom** tier, so they are run **by file** and never through
-`wbs-fe-01:test`:
+These files are in the **jsdom** tier, so they are run **by file** and never through `wbs-fe-01:test`:
 
 ```sh
 (cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.test.tsx \
@@ -387,102 +452,142 @@ echo "exit=$?"
 
 - [ ] Write `lifetime-fault.test.tsx` (section 7.8), `application-bootstrap.test.tsx` (section 7.10),
       and the **skeletons** of `lifetime-fault.tsx` (7.7) and `application-bootstrap.tsx` (7.9).
-- [ ] Red: exit 1, `Test Files 2 failed (2)`, `Tests 7 failed (7)`, every one on
+- [ ] Red: exit 1, `Test Files 2 failed (2)`, `Tests 8 failed (8)`, every one on
       `Error: the page's bootstrap is not written yet`.
 - [ ] Replace both skeletons with sections 7.7 and 7.9, and edit `src/main.tsx` to section 7.11
       exactly — five lines and a comment, keeping the `#root missing` throw where it is.
-- [ ] Green: exit 0, `Tests 7 passed (7)`. Then `bunx vitest run src/main.test.tsx` — exit 0,
+- [ ] Green: exit 0, `Tests 8 passed (8)`. Then `bunx vitest run src/main.test.tsx` — exit 0,
       `Tests 1 passed (1)`: that suite mocks `react-dom/client` and asserts the root is still created
-      once with `ROOT_FAULT_OPTIONS`, which the new bootstrap has to keep true.
+      once with `ROOT_FAULT_OPTIONS`, which the new bootstrap has to keep true **even though it now
+      creates that root lazily**.
 - [ ] Write `e2e/lifetime-fault-probe.ts` (7.12) and `e2e/lifetime-fault.spec.ts` (7.13). **Do not run
-      them**: there is no browser in the sandbox. Say in `verify.md` that they are pending planner
-      verification.
+      them**: there is no browser in the sandbox. Record them in `verify.md` as pending planner
+      verification with the values section 9 gives.
 - [ ] `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each. The typecheck is what covers the two
       e2e files, through `tsconfig.e2e.json`.
 - [ ] The sandbox unit command: exit 0 and **unchanged** at F0/T0 — every file in this slice is in the
       jsdom tier. A change here is a stop.
 - [ ] Append `## Slice 3` to `verify.md`.
 
-Hand over, seven paths: the four new `src` files, the two new `e2e` files, ` M src/main.tsx`, and
-` M openspec/changes/adopt-frontend-lifetimes/verify.md` — eight lines in all.
+Hand over, **eight** paths: the four new `src` files, the two new `e2e` files, ` M src/main.tsx`, and
+` M openspec/changes/adopt-frontend-lifetimes/verify.md`.
 
-### Slice 4 — the production installer inside the generated interleavings, and the seam
+### Slice 4 — the interleavings the bootstrap really has, and Strict Mode
 
-Subject: `test(fe-01): drive the real application graph through the ownership model`
+Subject: `test(fe-01): hold the bootstrap and the owner to generated interleavings`
 
-Pre-edit check: `src/runtime/application-runtime.ts` and `src/modules/preferences/module.ts` exist.
+Pre-edit check: `src/runtime/application-bootstrap.tsx` exists and the slice-3 command is green.
 
-- [ ] Apply section 7.14's four edits to `src/runtime/lifetime-slot.model.test.ts`: the two new
-      `Tracked` fields, the new invariant method, the new `graph` command field and its arbitrary, the
-      `buildInstalled` builder, and the call in the factory. **Add commands; change no invariant that
-      is already there.**
-- [ ] Run the model test alone and record its duration:
+Three proofs, and they are the reason this packet's ordering claims are more than prose. **They are
+written after the code they hold, and their teeth are slice 6's**: N16 removes the bootstrap's fence and
+the model test reproduces the race, N11 moves root creation before acquisition and the same test plus
+two examples fail, and N18 moves acquisition into the tree and the Strict Mode test counts three. The
+planner watched each of those before writing the fix; section 8.4 has the counterexamples.
+
+- [ ] Write `src/runtime/application-bootstrap.model.test.tsx` exactly as section 7.18 and run it:
 
   ```sh
-  (cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts \
-    src/runtime/lifetime-slot.model.test.ts) > "$TMPDIR/evidence/slice4-model.log" 2>&1; echo "exit=$?"
+  (cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.model.test.tsx) \
+    > "$TMPDIR/evidence/slice4-bootstrap-model.log" 2>&1; echo "exit=$?"
   ```
 
-  Expected: exit 0, `Tests 1 passed (1)`, about 1.2 s — the seed and run count are unchanged
-  (`{ seed: 20260923, numRuns: 300 }`), so the executor walks the interleavings the planner did.
+  Expected: exit 0, `Tests 1 passed (1)`, about 4 s. Seed `20260924`, 200 runs, pinned.
 
-- [ ] Write `composition-agreement.test.ts` (section 7.15) and apply section 7.16's JSDoc to
+- [ ] Write `src/runtime/application-bootstrap.strictmode.test.tsx` exactly as section 7.19 and run it:
+      exit 0, `Tests 1 passed (1)`. It mounts the **real** `App` through the real `createRoot` inside
+      `<StrictMode>`, so it is the one test here that can see a double invocation at all; its `fetch` is
+      refused deliberately, because jsdom has no server and the app's first effect asks for one.
+- [ ] Apply section 7.14's edits to `src/runtime/lifetime-slot.model.test.ts` — two `Tracked` fields,
+      one invariant method, one command field with its arbitrary, one builder, one call. **Add commands;
+      change no invariant that is already there.** Then run it: exit 0, `Tests 1 passed (1)`, about
+      355 ms, seed `20260923` and 300 runs unchanged.
+- [ ] The sandbox unit command: exit 0, **F0** files and **T0** tests — the slot's model test is already
+      listed and the two new files are jsdom.
+- [ ] `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each.
+- [ ] Append `## Slice 4` to `verify.md`.
+
+Hand over, four paths: `?? src/runtime/application-bootstrap.model.test.tsx`,
+`?? src/runtime/application-bootstrap.strictmode.test.tsx`,
+` M src/runtime/lifetime-slot.model.test.ts`, ` M openspec/changes/adopt-frontend-lifetimes/verify.md`.
+
+### Slice 5 — the seam, its agreement, and the revocation requirement
+
+Subject: `docs(fe-01): record the preferences seam and the revocation it now guarantees`
+
+Pre-edit check: `src/modules/preferences/module.ts` exists and
+`openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` does.
+
+- [ ] Write `composition-agreement.test.ts` (section 7.15), apply section 7.16's JSDoc to
       `composition.ts` and section 7.17's prose to the module's `README.md`. The README gains **no**
       `module-index` block: section 3.5.
 - [ ] `bunx vitest run src/modules/preferences/composition-agreement.test.ts` — exit 0,
       `Tests 1 passed (1)`.
-- [ ] The sandbox unit command: exit 0, F0 files and T0 tests — the model test file is already listed
-      and the agreement test is jsdom.
-- [ ] `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each.
-- [ ] Append `## Slice 4` to `verify.md`.
-
-Hand over, five paths: `?? src/modules/preferences/composition-agreement.test.ts`,
-` M src/modules/preferences/README.md`, ` M src/modules/preferences/composition.ts`,
-` M src/runtime/lifetime-slot.model.test.ts`, ` M openspec/changes/adopt-frontend-lifetimes/verify.md`.
-
-### Slice 5 — every fault, alone
-
-Subject: `test(fe-01): prove the module's seal, the transaction and the fatal page`
-
-Pre-edit check: the four commands of section 9's executor table are green.
-
-- [ ] For each of the fourteen faults in section 8, in order: copy the file to `$TMPDIR`, inject the
-      fault **alone**, save the patch with the block in section 8, run the two suites the row names,
-      run `wbs-fe-01:typecheck` (**every fault here compiles**; one that does not is a stop), restore
-      with `cp`, prove the restore with `cmp`, and only then assert on the captured statuses.
-- [ ] Compare each row's failing tests and message with the planner's. The `Proof:` comments are
-      already in the listings and name these observations; a row that reports something else is
-      recorded in `verify.md` **and** its comment is corrected to what this attempt saw.
-- [ ] Green again after the restores: the two suites at their slice-4 counts, `wbs-fe-01:typecheck` and
-      `wbs-fe-01:lint` at exit 0.
-- [ ] Append `## Slice 5` to `verify.md`: one row per fault, with the evidence basenames.
-
-Hand over: ` M openspec/changes/adopt-frontend-lifetimes/verify.md`, plus any source file whose
-`Proof:` comment this attempt corrected.
-
-### Slice 6 — tick the change and hand over
-
-Subject: `docs(fe-01): record the page's runtime and its preferences module as done`
-
-Dispatched with `--seed` for each of the five earlier slices' preserved evidence directories.
-
-- [ ] Tick **task 2** in `tasks.md` — `- [x]` — and nothing else. Tasks 3 and 4 stay open on purpose:
-      each has a clause this packet does not do (delivery reading out of the one graph, the module
-      index, and the React context). `verify.md` says which clause of each is already true.
-- [ ] Append `## Slice 6` to `verify.md`: the fault table of section 8 with the diagnostics **the
-      earlier attempts observed**, each row naming the attempt and the evidence basename, and the
-      planner-only rows of section 9 marked as such. Do not claim any proof ran in this slice.
-- [ ] Re-validate:
+- [ ] Add section 7.20's requirement and its three scenarios to
+      `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md`, immediately
+      before `### Requirement: Log out stays a local exit`, and apply section 7.21 to `proposal.md` —
+      one clause of one non-goal, because a retired runtime's refusal **is** reader-visible behaviour
+      and the proposal said there was none. The proposal stays inside the 400-word intent limit: 398
+      words, counted.
+- [ ] Validate:
 
   ```sh
   OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json \
-    > "$TMPDIR/evidence/slice6-openspec-after.json" 2>&1; echo "exit=$?"
+    > "$TMPDIR/evidence/slice5-openspec-after.json" 2>&1; echo "exit=$?"
   ```
 
   Expected: exit 0, `summary.totals.failed` `0`, `summary.totals.items` equal to this slice's own
-  **V0** — ticking a checkbox adds no item — and the `adopt-frontend-lifetimes` entry still
-  `"valid": true` with `"issues": []`.
+  **V0** — a requirement added inside an existing change adds no item — and the
+  `adopt-frontend-lifetimes` entry `"valid": true` with `"issues": []`. Read those fields out of the
+  JSON.
 
+- [ ] `GSETTINGS_BACKEND=memory bunx prettier --check` on the two OpenSpec files and the three source
+      files — exit 0. `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each.
+- [ ] Append `## Slice 5` to `verify.md`.
+
+Hand over, six paths: `?? src/modules/preferences/composition-agreement.test.ts`,
+` M src/modules/preferences/README.md`, ` M src/modules/preferences/composition.ts`,
+` M openspec/changes/adopt-frontend-lifetimes/proposal.md`,
+` M openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md`,
+` M openspec/changes/adopt-frontend-lifetimes/verify.md`.
+
+### Slice 6 — every fault, alone, and the comments they earn
+
+Subject: `test(fe-01): prove the module's seal, the transaction, the ordering and the fatal page`
+
+Pre-edit check: the four commands of section 9's executor table are green.
+
+- [ ] For each of the twenty faults in section 8, in order: copy the file to `$TMPDIR`, inject the fault
+      **alone**, save the patch with the block in section 8, run the two suites the row names, run
+      `wbs-fe-01:typecheck` (**every fault here compiles**; one that does not is a stop), restore with
+      `cp`, prove the restore with `cmp`, and only then assert on the captured statuses.
+- [ ] **Only after observing a failure**, write that fault's adjacent `Proof:` comment, in the file and
+      at the anchor section 8 names, describing what **this attempt** saw. Preamble rule 9. Section 8
+      gives the planner's own text for each; where this attempt's diagnostic differs, the comment says
+      what this attempt saw and `verify.md` records both.
+- [ ] Green again after the restores and the comments: the two suites at their section 9 counts,
+      `wbs-fe-01:typecheck` and `wbs-fe-01:lint` at exit 0, and Prettier `--check` on every file a
+      comment was added to.
+- [ ] Append `## Slice 6` to `verify.md`: one row per fault, with the evidence basenames.
+
+Hand over: ` M openspec/changes/adopt-frontend-lifetimes/verify.md` and the five source files that
+gained `Proof:` comments — `src/modules/preferences/module.ts`,
+`src/modules/preferences/browser-storage.repository.ts`, `src/runtime/application-runtime.ts`,
+`src/runtime/application-bootstrap.tsx` and `src/components/chrome/lifetime-fault.tsx`.
+
+### Slice 7 — tick the change and hand over
+
+Subject: `docs(fe-01): record the page's runtime and its preferences module as done`
+
+Dispatched with the single seeded evidence tree described above.
+
+- [ ] Tick **task 2** in `tasks.md` — `- [x]` — and nothing else. Tasks 3 and 4 stay open on purpose:
+      each has a clause this packet does not do (delivery reading its preferences out of the one graph,
+      the module index, and the React context). `verify.md` says which clause of each is already true.
+- [ ] Append `## Slice 7` to `verify.md`: the fault table of section 8 with the diagnostics **the
+      earlier attempts observed**, each row naming `<attempt-id>/<file>`, and the planner-only rows of
+      section 9 marked as such. Do not claim any proof ran in this slice.
+- [ ] Re-validate: exit 0, `failed: 0`, this change still `valid: true`, and `summary.totals.items`
+      equal to this slice's own **V0** — ticking a checkbox adds no item.
 - [ ] `GSETTINGS_BACKEND=memory bunx prettier --check` every path this packet owns, then
       `wbs-fe-01:typecheck` and `wbs-fe-01:lint` — exit 0 each.
 - [ ] Print the cumulative diff, scoped to the paths this packet owns:
@@ -491,8 +596,8 @@ Dispatched with `--seed` for each of the five earlier slices' preserved evidence
   git diff --name-only <slice-1 base> -- apps/wbs/fe-01 openspec/changes/adopt-frontend-lifetimes
   ```
 
-  Expected: exactly the twenty paths of section 5. The planner may have added a revised copy of this
-  packet under `docs/`, which this command does not look at.
+  Expected: exactly the twenty-four paths of section 5. The planner may have added a revised copy of
+  this packet under `docs/`, which this command does not look at.
 
 Hand over: ` M openspec/changes/adopt-frontend-lifetimes/tasks.md` and
 ` M openspec/changes/adopt-frontend-lifetimes/verify.md`.
@@ -500,8 +605,9 @@ Hand over: ` M openspec/changes/adopt-frontend-lifetimes/tasks.md` and
 ## 7. The code, rehearsed
 
 Every listing is the post-Prettier text of a file that was written, run, type-checked, linted and
-**committed with lefthook on** in the planner's worktree. The `Proof:` comments are the planner's own
-observations from section 8; slice 5 re-observes each and corrects any that differ.
+**committed with lefthook on** in the planner's worktree. **No listing carries a `Proof:` comment**:
+preamble rule 9 allows one only after its failure has been watched, so slice 6 writes them, at the
+anchors and with the text section 8 gives.
 
 ### 7.1 Appended to `src/modules/preferences/contract.ts`
 
@@ -563,11 +669,12 @@ export const PREFERENCES_LABEL = 'frontend.preferences';
 export const PREFERENCES_MODULE_ID = 'module.frontend.preferences';
 ```
 
-### 7.2 Appended to `src/modules/preferences/browser-storage.repository.ts`
+### 7.2 `src/modules/preferences/browser-storage.repository.ts`: one edit and one append
 
-Two edits: the import on line 1 becomes
-`import type { BrowserStorage, RevocableBrowserStorage } from './contract';`, and this is appended
-after `browserStorage`.
+The edit: line 1 becomes
+`import type { BrowserStorage, RevocableBrowserStorage } from './contract';`. Without it the file does
+not compile — `TS2304: Cannot find name 'RevocableBrowserStorage'`. The append goes after
+`browserStorage`, and nothing between them changes.
 
 ```ts
 /**
@@ -595,12 +702,6 @@ export function revocableStorage(store: BrowserStorage): RevocableBrowserStorage
   let revoked = false;
   /** The one guard, so all three members refuse in the same place. */
   const held = (): BrowserStorage => {
-    // Proof: on 2026-09-22, making this guard `if (false)` let
-    // 'refuses every access once its runtime has given the store back' read 'dark'
-    // instead of throwing (1 fail, 8 pass).
-    // Proof: on 2026-09-22, making this guard hand the store back either way made
-    // 'revokes the store it owns when the installation closes' read 'false' instead of
-    // throwing (3 fail, 37 pass).
     if (revoked) throw new Error(REVOKED);
     return store;
   };
@@ -680,8 +781,6 @@ export const preferencesModule = DiBag.createBuilder()
         ({ browserStore }: { browserStore: BrowserStorage }): RevocableBrowserStorage =>
           revocableStorage(browserStore),
       ),
-      // Proof: on 2026-09-22, dropping this disposal made 'revokes the store it owns when
-      // the installation closes' read 'dark' back instead of throwing (1 fail, 8 pass).
       (store) => {
         store.revoke();
       },
@@ -699,17 +798,13 @@ export const preferencesModule = DiBag.createBuilder()
         createRememberedPreferences(preferences),
     ),
   })
-  // Proof: on 2026-09-22, exporting `preferencesStore` made 'keeps its owned store out of a
-  // host graph' report "Received function did not throw" (1 fail, 8 pass).
-  // Proof: on 2026-09-22, dropping the label made 'names itself when a host omits the
-  // browser store' receive a message without `frontend.preferences/` (2 fail, 7 pass).
   .buildModule(['preferences', 'remembered'], { label: PREFERENCES_LABEL });
 ```
 
 ### 7.4 `src/modules/preferences/module.test.ts`
 
-Eight tests, node tier. It imports **no** runtime module, which is what makes slice 1 dispatchable on
-its own.
+**Eight** tests, node tier. It imports **no** runtime module, which is what makes slice 1 dispatchable on
+its own, and it builds its own host graph — the assertions here are the ones no installer can make.
 
 ```ts
 import { DiBag } from 'di-bag';
@@ -963,8 +1058,6 @@ export function acquireTransactionally<S>(
   try {
     return { services: read(), close: (options) => graph.close(options) };
   } catch (failure) {
-    // Proof: on 2026-09-22, rethrowing `failure` unwrapped made 'releases everything a
-    // half-finished read acquired' record 0 disposals of the resource it took (1 fail, 9 pass).
     throw new PartialAcquisitionError(failure, (options) => graph.close(options));
   }
 }
@@ -996,8 +1089,6 @@ export function installApplicationRuntime(
     .installModule(preferencesModule)
     .register({ browserStore: DiBag.fromSyncFactory(() => dependencies.openStore()) })
     .build();
-  // Proof: on 2026-09-22, returning `{ ...services, bag }` made 'publishes its two public
-  // services and nothing else' receive the extra `bag` key (1 fail, 9 pass).
   return acquireTransactionally(bag, () => ({
     preferences: bag.resolve('preferences'),
     remembered: bag.resolve('remembered'),
@@ -1022,7 +1113,7 @@ export const acquireApplicationRuntime: Acquire<ApplicationServices> = () =>
 
 ### 7.6 `src/runtime/application-runtime.test.ts`
 
-Nine tests, node tier.
+**Nine** tests, node tier.
 
 ```ts
 import { DiBag } from 'di-bag';
@@ -1277,6 +1368,13 @@ import type { DisclosedFault } from './fault-disclosure';
 /**
  * What a reader sees when the page's own runtime could not be built or retired.
  *
+ * **One page for both, so its words have to be true of both.** This is shown when a
+ * runtime could not be acquired at startup — nothing was ever on screen — and when a
+ * retirement rejected or outran its wait, which happens to a page a reader has been
+ * working in. So it claims neither that the page never started nor that nothing was
+ * lost, and it borrows the root boundary's narrower assurance instead: what reached
+ * the server is on the server.
+ *
  * The lifecycle twin of {@link import('./app-fault').AppFaultBoundary}'s
  * fallback, and **not** that fallback reused: a cleanup or construction failure is
  * not a caught render fault, there is no boundary above it and no tree to lose,
@@ -1302,11 +1400,9 @@ export function LifetimeFault({ fault }: { fault: DisclosedFault }): ReactNode {
     >
       <h1 className="mb-3 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
       <p className="mb-4 text-sm">
-        The page could not start: {fault.sentence}. Nothing here can put it back — reload to try
-        again. Nothing was lost: no plan was open.
+        The page&rsquo;s services stopped: {fault.sentence}. Nothing here can put it back — reload
+        to start again. Anything already saved is on the server.
       </p>
-      {/* Proof: on 2026-09-22, deleting this element left the logged handle absent from the
-      page in 'shows the same reference it logged, and nothing of the refusal' (1 fail, 4 pass). */}
       <p className="text-muted-foreground mb-4 font-mono text-xs" data-lifetime-fault-reference>
         Reference {fault.occurrenceId}
       </p>
@@ -1325,6 +1421,8 @@ export function LifetimeFault({ fault }: { fault: DisclosedFault }): ReactNode {
 ```
 
 ### 7.8 `src/components/chrome/lifetime-fault.test.tsx`
+
+Four tests, jsdom tier.
 
 ```tsx
 import { cleanup, render, screen } from '@testing-library/react';
@@ -1358,11 +1456,24 @@ describe('the page that could not start', () => {
     const reference = document.querySelector('[data-lifetime-fault-reference]');
     expect(reference, 'the page disclosed no reference to quote').not.toBeNull();
     expect(reference?.textContent).toContain(fault.occurrenceId);
-    // Proof: on 2026-09-22, rendering `String(thrown)` in place of the sentence put
-    // 'alice@example.com' on the page and failed this case (1 fail, 4 pass).
     expect(page).not.toContain('alice@example.com');
     expect(page).not.toContain('sk-live-4419');
     expect(page).not.toContain('p-7');
+  });
+
+  /**
+   * The same page is shown when a **retirement** fails, so it may not say the page
+   * never started or that nothing was lost: a reader can have been working in it for
+   * an hour. The assurance it does give is the root boundary's, which is true of both.
+   */
+  itDom('says nothing that a failed retirement would make false', () => {
+    render(<LifetimeFault fault={discloseFault(refusal())} />);
+
+    const page = document.querySelector('[data-lifetime-fault]')?.textContent ?? null;
+    expect(page).toContain('Anything already saved is on the server');
+    expect(page).not.toContain('could not start');
+    expect(page).not.toContain('no plan was open');
+    expect(page).not.toContain('Nothing was lost');
   });
 
   itDom('offers the one thing that works, a fresh document', () => {
@@ -1405,7 +1516,9 @@ export function bootstrapApplication(
 }
 ```
 
-And the whole file:
+And the whole file. Three orderings are load-bearing and each has a fault in section 8: the root is
+created **lazily**, the slot is re-read **after** the await, and a supersession returns without drawing
+anything.
 
 ```tsx
 import { type ReactNode, StrictMode } from 'react';
@@ -1421,7 +1534,7 @@ import {
   type ApplicationServices,
   applicationSlot,
 } from './application-runtime';
-import type { Acquire, LifetimeSlot } from './lifetime-slot';
+import { type Acquire, type LifetimeSlot, TransitionSupersededError } from './lifetime-slot';
 
 /** What the page's bootstrap is wired from; production passes none of it. */
 export interface BootstrapDependencies {
@@ -1463,45 +1576,72 @@ export async function bootstrapApplication(
   host: Element,
   dependencies: BootstrapDependencies = PRODUCTION,
 ): Promise<void> {
-  const root = dependencies.mount(host, ROOT_FAULT_OPTIONS);
+  /**
+   * The React root, created on **first draw** and never before.
+   *
+   * The design document's "the bootstrap awaits the first `replace` before creating
+   * the React root" is a real ordering and not a preference: a root that exists
+   * while the runtime is still being acquired is a root a later edit can render
+   * into. Nothing here mounts one until there is something true to draw.
+   */
+  let root: { render: (tree: ReactNode) => void } | null = null;
+  const rootFor = (): { render: (tree: ReactNode) => void } => {
+    root ??= dependencies.mount(host, ROOT_FAULT_OPTIONS);
+    return root;
+  };
   /** The fault already on screen, so one refusal is shown and logged once. */
   let shown: DisclosedFault | null = null;
   const showFatal = (fault: DisclosedFault): void => {
     if (shown === fault) return;
     shown = fault;
-    // Proof: on 2026-09-22, logging the caught refusal instead made 'says nothing raw about a
-    // refused start, on the page or in the console' find 'alice@example.com' in the console
-    // line (1 fail, 5 pass).
-    console.error('the page could not start', fault.sentence, fault.occurrenceId, fault.lost);
-    // Proof: on 2026-09-22, dropping this render left the document empty and made 'renders the
-    // sanitized fatal page when the first runtime cannot be built' receive null for the fatal
-    // element (2 fail, 4 pass).
-    root.render(<LifetimeFault fault={fault} />);
+    console.error("the page's runtime failed", fault.sentence, fault.occurrenceId, fault.lost);
+    rootFor().render(<LifetimeFault fault={fault} />);
   };
   // Every later fatal state reaches the page through the slot rather than through a
   // second policy: a retirement that rejects or outruns its wait is a disclosure
   // boundary exactly as a refused construction is, and the map requires the same
   // sanitized report for both.
-  // Proof: on 2026-09-22, dropping this subscription made 'shows the fatal page when a
-  // retirement fails, without republishing anything' receive null for the fatal element
-  // (1 fail, 5 pass).
   dependencies.slot.subscribe(() => {
     const state = dependencies.slot.snapshot();
     if (state.status === 'fatal') showFatal(state.fault);
   });
   try {
     await dependencies.slot.replace(dependencies.acquire);
-  } catch {
-    // The refusal is deliberately not bound: the slot disclosed it already, and a
-    // value this function could read is a value it could render.
+  } catch (refusal: unknown) {
+    // A newer request won: controlled cancellation, which the slot models rather
+    // than treats as a fault. Whoever won owns the page now, so this bootstrap
+    // draws nothing at all — not the app, and not a fatal page it has no fault for.
+    if (refusal instanceof TransitionSupersededError) return;
+    // Nothing else about the refusal is read: the slot disclosed it already, and a
+    // value this function could read is a value it could render. Only its type is.
     const refused = dependencies.slot.snapshot();
     if (refused.status !== 'fatal') {
-      throw new Error(`the page's runtime was refused and the slot is ${refused.status}`);
+      // The cause is attached and never read here: this Error ends the bootstrap, it
+      // is not disclosed to anybody, and `preserve-caught-error` is right that
+      // dropping the refusal would lose the only account of what happened.
+      throw new Error(`the page's runtime was refused and the slot is ${refused.status}`, {
+        cause: refusal,
+      });
     }
     showFatal(refused.fault);
     return;
   }
-  root.render(
+  // The fence after the await: a retirement — including one a subscriber asked for
+  // while this transition was settling — withdraws publication **synchronously**, so
+  // a bootstrap that drew the app here without looking would draw it from a runtime
+  // the page has already given up. Nothing is drawn instead: whoever won owns the
+  // page now.
+  //
+  // It compares the **status** and not the identity of the services this transition
+  // returned, and that is rule R5 rather than laziness: a slot that reached `live`
+  // holding somebody else's runtime between this `await` and this line is not
+  // reachable — transitions are serialized and every replacement passes through
+  // `retiring`, which this catches — so an identity check here could not be made to
+  // fail by any fault (measured: removing that half left all 11 cases green). The
+  // packet that publishes these services through a React context adds it back with
+  // the test that can then break it.
+  if (dependencies.slot.snapshot().status !== 'live') return;
+  rootFor().render(
     <StrictMode>
       <App />
     </StrictMode>,
@@ -1510,6 +1650,10 @@ export async function bootstrapApplication(
 ```
 
 ### 7.10 `src/runtime/application-bootstrap.test.tsx`
+
+Four tests, jsdom tier. Its recording root records the slot's status at **mount** as well as at render,
+because the design's ordering is about `createRoot` and an implementation that mounts early passes every
+render-time assertion.
 
 ```tsx
 import { DiBag } from 'di-bag';
@@ -1540,6 +1684,16 @@ interface RecordedRoot {
   readonly trees: () => readonly ReactNode[];
   /** The status the slot held each time a tree was rendered, in order. */
   readonly statuses: () => readonly string[];
+  /**
+   * The status the slot held each time a **root was created**, in order.
+   *
+   * Recorded as well as the render statuses, because the design's ordering is about
+   * `createRoot` and not about `render`: a root built while the runtime is still
+   * being acquired is a root something can draw into before there is anything true
+   * to draw. Without this the prescribed implementation could violate the contract
+   * and every assertion would still pass.
+   */
+  readonly mountStatuses: () => readonly string[];
 }
 
 /**
@@ -1554,12 +1708,15 @@ function recordingRoot(slot: LifetimeSlot<ApplicationServices>): RecordedRoot {
   const options: unknown[] = [];
   const trees: ReactNode[] = [];
   const statuses: string[] = [];
+  const mountStatuses: string[] = [];
   return {
     options: () => options,
     trees: () => trees,
     statuses: () => statuses,
+    mountStatuses: () => mountStatuses,
     mount: (_host, rootOptions) => {
       options.push(rootOptions);
+      mountStatuses.push(slot.snapshot().status);
       return {
         render: (tree) => {
           trees.push(tree);
@@ -1631,9 +1788,9 @@ describe('the page’s bootstrap', () => {
     });
 
     expect(root.options()).toEqual([ROOT_FAULT_OPTIONS]);
+    // The design's ordering: the runtime is installed before the root exists.
+    expect(root.mountStatuses()).toEqual(['live']);
     expect(root.trees()).toHaveLength(1);
-    // Proof: on 2026-09-22, awaiting the replacement after the render made this case receive
-    // 'constructing' instead of 'live' (1 fail, 5 pass).
     expect(root.statuses()).toEqual(['live']);
     expect(elementType(root.trees()[0])).not.toBe(LifetimeFault);
   });
@@ -1650,6 +1807,7 @@ describe('the page’s bootstrap', () => {
 
     expect(root.trees()).toHaveLength(1);
     expect(elementType(root.trees()[0])).toBe(LifetimeFault);
+    expect(root.mountStatuses()).toEqual(['fatal']);
     expect(slot.snapshot().status).toBe('fatal');
   });
 
@@ -1887,7 +2045,7 @@ test('a refused application runtime discloses a public report and nothing raw', 
   // A refused construction is a modelled outcome: nothing escaped to the page's own
   // error handler, or every assertion below would be vacuous.
   expect(pageErrors).toEqual([]);
-  expect(proof?.pageText).toContain('The page could not start: Something went wrong');
+  expect(proof?.pageText).toContain('The page’s services stopped: Something went wrong');
   expect(proof?.reference).toMatch(/^AE_[0-9A-Z]+$/);
   // The fatal page's own subtree, markup and all, and **not** `page.content()`: the probe
   // is injected with `addScriptTag`, so the whole document contains the probe's own source
@@ -1899,12 +2057,12 @@ test('a refused application runtime discloses a public report and nothing raw', 
   const whole = consoleLines.join('\n');
   expect(RAW_MARKERS.filter((marker) => whole.includes(marker))).toEqual([]);
   expect(consoleLines).toContain(
-    `the page could not start Something went wrong ${String(proof?.reference)} nothing`,
+    `the page's runtime failed Something went wrong ${String(proof?.reference)} nothing`,
   );
 });
 ```
 
-### 7.14 The model test's new commands, as a diff
+### 7.14 The slot model test's new commands, as a diff
 
 Applied to `src/runtime/lifetime-slot.model.test.ts`. Nothing already there is weakened: two fields, one
 invariant method, one command field with its arbitrary, one builder, and one call.
@@ -2147,9 +2305,11 @@ test('the runtime-owned preferences and the module-load ones read the same bytes
 ### 7.16 `src/modules/preferences/composition.ts`, as a diff
 
 ```diff
---- a/composition.ts
-+++ b/composition.ts
-@@ -4,7 +4,16 @@
+diff --git a/apps/wbs/fe-01/src/modules/preferences/composition.ts b/apps/wbs/fe-01/src/modules/preferences/composition.ts
+index 9b870cdf..d93ff1ba 100644
+--- a/apps/wbs/fe-01/src/modules/preferences/composition.ts
++++ b/apps/wbs/fe-01/src/modules/preferences/composition.ts
+@@ -4,7 +4,16 @@ import { createRememberedPreferences } from './preferences.feature';
  import { createPreferences } from './preferences.resource';
 
  /**
@@ -2172,9 +2332,11 @@ test('the runtime-owned preferences and the module-load ones read the same bytes
 ### 7.17 `src/modules/preferences/README.md`, as a diff
 
 ```diff
---- a/README.md
-+++ b/README.md
-@@ -39,15 +39,25 @@
+diff --git a/apps/wbs/fe-01/src/modules/preferences/README.md b/apps/wbs/fe-01/src/modules/preferences/README.md
+index 6323ff80..71d7a150 100644
+--- a/apps/wbs/fe-01/src/modules/preferences/README.md
++++ b/apps/wbs/fe-01/src/modules/preferences/README.md
+@@ -39,15 +39,25 @@ whatever that reader had said. The two bare-text keys cannot become JSON.
  ## Relationships
 
  The exported types are in `contract.ts`; the repository adapter is
@@ -2209,13 +2371,362 @@ test('the runtime-owned preferences and the module-load ones read the same bytes
  layout, chart, settings and project page suites in that same target.
 ```
 
+### 7.18 `src/runtime/application-bootstrap.model.test.tsx`
+
+The bootstrap's own interleavings. This is the test that found review 1's Critical 2; section 8.4 has the
+counterexample it printed against the previous prescription.
+
+```tsx
+import fc from 'fast-check';
+import { isValidElement, type ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { LifetimeFault } from '@/components/chrome/lifetime-fault';
+import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
+
+import { bootstrapApplication } from './application-bootstrap';
+import { type ApplicationServices, installApplicationRuntime } from './application-runtime';
+import { createLifetimeSlot, type LifetimeSlot } from './lifetime-slot';
+
+/** What the page was asked to draw, and what the slot held at that instant. */
+interface Rendered {
+  /** True for the sanitized fatal page, false for the app. */
+  readonly fatal: boolean;
+  readonly status: string;
+  /** The services the slot published then, or null when it published none. */
+  readonly services: ApplicationServices | null;
+}
+
+/** A generated event against one page's bootstrap. */
+type Command =
+  | { readonly kind: 'bootstrap' }
+  | { readonly kind: 'retire' }
+  | { readonly kind: 'replace' }
+  | { readonly kind: 'retireFromListener' }
+  | { readonly kind: 'settle' };
+
+const commandArb: fc.Arbitrary<Command> = fc.oneof(
+  { arbitrary: fc.constant<Command>({ kind: 'bootstrap' }), weight: 3 },
+  { arbitrary: fc.constant<Command>({ kind: 'retire' }), weight: 2 },
+  { arbitrary: fc.constant<Command>({ kind: 'replace' }), weight: 2 },
+  { arbitrary: fc.constant<Command>({ kind: 'retireFromListener' }), weight: 2 },
+  { arbitrary: fc.constant<Command>({ kind: 'settle' }), weight: 2 },
+);
+
+/** React writes nothing here, but the bootstrap logs every fatal state it shows. */
+const muteConsoleError = () =>
+  vi.spyOn(console, 'error').mockImplementation(() => {
+    return undefined;
+  });
+
+let logged: ReturnType<typeof muteConsoleError>;
+
+beforeEach(() => {
+  logged = muteConsoleError();
+});
+
+afterEach(() => {
+  logged.mockRestore();
+});
+
+/**
+ * The bootstrap's own interleavings, generated rather than imagined.
+ *
+ * The bootstrap is lifecycle code: it awaits a transition and then renders, and
+ * anything can happen in between — a retirement, another replacement, a subscriber
+ * that retires from inside a notification. Two named examples cannot cover that, so
+ * the orders are `fc.scheduler()`'s to choose and the invariants are stated over
+ * **what the page was drawn from** rather than over a sequence somebody predicted.
+ *
+ * The slot is the real one, the installer is the production one over a fake browser
+ * store, and the root records instead of committing: what is under test is which
+ * tree is rendered and against which published runtime.
+ */
+describe("the page's bootstrap, under generated interleavings", () => {
+  it('only ever draws the page from the runtime the slot publishes', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.scheduler(),
+        fc.array(commandArb, { minLength: 2, maxLength: 6 }),
+        async (scheduler, commands) => {
+          const slot: LifetimeSlot<ApplicationServices> =
+            createLifetimeSlot<ApplicationServices>(1);
+          const rendered: Rendered[] = [];
+          /** The status the slot held each time a root was created, in order. */
+          const mounted: string[] = [];
+          const pending: Promise<unknown>[] = [];
+          /** Set when a listener should retire what is current, once. */
+          let listenerRetires = false;
+          slot.subscribe(() => {
+            if (!listenerRetires) return;
+            listenerRetires = false;
+            pending.push(slot.retire().then(undefined, () => undefined));
+          });
+
+          const acquire = () => {
+            const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
+            return {
+              services: installed.services,
+              close: async (options: { timeoutMs: number }) => {
+                await scheduler.schedule(Promise.resolve(), 'dispose the page runtime');
+                await installed.close(options);
+              },
+            };
+          };
+
+          const mount = () => {
+            mounted.push(slot.snapshot().status);
+            return {
+              render: (tree: ReactNode) => {
+                const held = slot.snapshot();
+                rendered.push({
+                  fatal: isValidElement(tree) && tree.type === LifetimeFault,
+                  status: held.status,
+                  services: held.status === 'live' ? held.services : null,
+                });
+              },
+            };
+          };
+
+          for (const command of commands) {
+            if (command.kind === 'bootstrap') {
+              pending.push(
+                bootstrapApplication(globalThis.document.createElement('div'), {
+                  acquire,
+                  slot,
+                  mount,
+                }).then(undefined, () => undefined),
+              );
+            } else if (command.kind === 'retire') {
+              pending.push(slot.retire().then(undefined, () => undefined));
+            } else if (command.kind === 'replace') {
+              pending.push(slot.replace(acquire).then(undefined, () => undefined));
+            } else if (command.kind === 'retireFromListener') {
+              listenerRetires = true;
+            } else if (scheduler.count() > 0) {
+              await scheduler.waitNext(1);
+            }
+          }
+
+          await scheduler.waitIdle();
+          await Promise.all(pending);
+          await scheduler.waitIdle();
+
+          // 1. The page is only ever drawn from the runtime the slot publishes.
+          for (const draw of rendered) {
+            if (draw.fatal) continue;
+            expect(draw.status, `the app was drawn while the slot was ${draw.status}`).toBe('live');
+            expect(draw.services, 'the app was drawn from no services').not.toBe(null);
+          }
+          // 2. The fatal page is only ever drawn from a fatal slot.
+          for (const draw of rendered) {
+            if (!draw.fatal) continue;
+            expect(draw.status, `the fatal page was drawn while the slot was ${draw.status}`).toBe(
+              'fatal',
+            );
+          }
+          // 3. No root is created before its transition has settled: the design's
+          //    "await the installation before createRoot".
+          for (const status of mounted) {
+            expect(status, `a root was created while the slot was ${status}`).not.toBe('empty');
+            expect(status, `a root was created while the slot was ${status}`).not.toBe(
+              'constructing',
+            );
+          }
+        },
+      ),
+      { seed: 20260924, numRuns: 200 },
+    );
+  }, 120_000);
+});
+```
+
+### 7.19 `src/runtime/application-bootstrap.strictmode.test.tsx`
+
+The map's lifecycle test 1, with a **real** React root: the only test here that can see Strict Mode's
+double invocation at all.
+
+```tsx
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { BrowserStorage } from '@/modules/preferences/contract';
+import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
+
+import { bootstrapApplication } from './application-bootstrap';
+import { type ApplicationServices, installApplicationRuntime } from './application-runtime';
+import { createLifetimeSlot, type LifetimeSlot } from './lifetime-slot';
+
+// fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
+const hasDom = typeof document !== 'undefined';
+const itDom = hasDom ? it : it.skip;
+
+/** What a real mount acquired, counted where production acquires it. */
+interface Counted {
+  readonly acquire: () => ReturnType<typeof installApplicationRuntime>;
+  readonly runtimes: () => number;
+  readonly stores: () => number;
+}
+
+/**
+ * The production installation, counted twice over.
+ *
+ * Two numbers and not one, because the map's lifecycle test 1 asks for both: how
+ * many times the page's runtime was built, and how many times the resource it owns
+ * was acquired. A runtime built inside the tree moves the first; a resource resolved
+ * inside a component or a lazy initialiser moves the second.
+ */
+function countedAcquisition(): Counted {
+  let runtimes = 0;
+  let stores = 0;
+  const openStore = (): BrowserStorage => {
+    stores += 1;
+    return fakeBrowserStorage();
+  };
+  return {
+    runtimes: () => runtimes,
+    stores: () => stores,
+    acquire: () => {
+      runtimes += 1;
+      return installApplicationRuntime({ openStore });
+    },
+  };
+}
+
+/**
+ * The app's own first effect fetches the signed-in identity; jsdom has no server.
+ *
+ * Named helpers rather than `ReturnType<typeof vi.spyOn>`: that type is `any` for a
+ * two-argument `spyOn`, and every `.mockRestore` under it is an
+ * `@typescript-eslint/no-unsafe-member-access` error (observed 2026-09-22).
+ */
+const refuseFetch = () => vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('no server'));
+const muteConsoleError = () =>
+  vi.spyOn(console, 'error').mockImplementation(() => {
+    return undefined;
+  });
+
+let fetching: ReturnType<typeof refuseFetch>;
+let logged: ReturnType<typeof muteConsoleError>;
+
+beforeEach(() => {
+  fetching = refuseFetch();
+  logged = muteConsoleError();
+});
+
+afterEach(() => {
+  fetching.mockRestore();
+  logged.mockRestore();
+});
+
+describe('the page under Strict Mode', () => {
+  /**
+   * The map's lifecycle test 1, with a real React root.
+   *
+   * A recording root cannot answer this: it never mounts its tree, so Strict Mode's
+   * double invocation never happens and a runtime built inside the tree would be
+   * counted once. This mounts the real `App` through the real `createRoot`, inside
+   * `<StrictMode>`, and counts what production counted.
+   */
+  itDom(
+    'acquires its runtime once, above the tree that is mounted twice',
+    async () => {
+      const host = document.createElement('div');
+      document.body.append(host);
+      const counted = countedAcquisition();
+      const slot: LifetimeSlot<ApplicationServices> = createLifetimeSlot<ApplicationServices>(50);
+
+      await act(async () => {
+        await bootstrapApplication(host, {
+          acquire: counted.acquire,
+          slot,
+          mount: (element, options) => createRoot(element, options),
+        });
+      });
+
+      // The tree really mounted, or the counts below would be about nothing.
+      expect(host.innerHTML).not.toBe('');
+      expect(counted.runtimes()).toBe(1);
+      expect(counted.stores()).toBe(1);
+      expect(slot.snapshot().status).toBe('live');
+    },
+    30_000,
+  );
+});
+```
+
+### 7.20 The revocation requirement, as a diff
+
+Applied to `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md`.
+
+```diff
+diff --git a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
+index f0f68e4e..9c22737f 100644
+--- a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
++++ b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
+@@ -135,6 +135,33 @@ a release that itself fails or outruns its wait, either of which is terminal.
+ - **THEN** the sanitized fatal state is published, nothing is held, and a later
+   transition may build again
+
++### Requirement: A retired runtime gives the reader's browser back
++
++A runtime that owns a browser store SHALL hold it through a revocable handle, and
++its retirement SHALL revoke that handle. Every read, write and removal attempted
++through a preference handle obtained from a retired runtime SHALL throw, and SHALL
++NOT reach the reader's browser. A handle obtained from the current runtime SHALL be
++unaffected by the retirement of a previous one.
++
++#### Scenario: A preference written after retirement reaches nothing
++
++- **WHEN** a reader's screen writes a preference through a handle it obtained from a
++  runtime that has since been retired
++- **THEN** the write throws, the value in the reader's browser is unchanged, and no
++  default is written over it
++
++#### Scenario: A preference read after retirement is refused rather than answered
++
++- **WHEN** a read or a removal is attempted through a handle from a retired runtime
++- **THEN** it throws rather than answering from the browser, because the answer would
++  belong to a runtime nobody owns
++
++#### Scenario: The current runtime keeps its own store
++
++- **WHEN** one runtime is retired and a replacement is published
++- **THEN** the replacement's own handles read and write normally, and only the retired
++  runtime's handles refuse
++
+ ### Requirement: Log out stays a local exit
+
+ The Log out action SHALL send no request to the server and SHALL retire the
+```
+
+### 7.21 The proposal's one corrected non-goal, as a diff
+
+```diff
+diff --git a/openspec/changes/adopt-frontend-lifetimes/proposal.md b/openspec/changes/adopt-frontend-lifetimes/proposal.md
+index e6da8fd1..3c0f5577 100644
+--- a/openspec/changes/adopt-frontend-lifetimes/proposal.md
++++ b/openspec/changes/adopt-frontend-lifetimes/proposal.md
+@@ -37,7 +37,8 @@ selection, and the router instance that survives a session update.
+ - No backend, gateway or MCP work.
+ - No server-side sign-out. The existing Log out stays a local exit that sends no
+   request, so a reload can still restore the identity.
+-- No new reader-visible behaviour except the fatal state above.
++- No new reader-visible behaviour except the fatal state above and a retired
++  runtime's refusal.
+ - No credential rotation for one identity. No such event exists today.
+
+ ## Constraints
+```
+
 ## 8. Proofs
 
-Fourteen faults, each injected **alone**, each at `wbs-fe-01:typecheck` exit 0. Copy the file to
-`$TMPDIR` first, save the mutation as a patch, restore with `cp`, and prove the restore with `cmp`
-**before** asserting on any captured status. Never `rm` a scratch file. Save a patch with this block
-exactly, `status=$?` **inside** the `else` — after a completed `if` it would read the `if`'s own status,
-which is 0:
+Twenty faults, each injected **alone**, each at `wbs-fe-01:typecheck` exit 0, each rehearsed against the
+listings in section 7. Copy the file to `$TMPDIR` first, save the mutation as a patch, restore with `cp`,
+and prove the restore with `cmp` **before** asserting on any captured status. Never `rm` a scratch file.
+Save a patch with this block exactly, `status=$?` **inside** the `else` — after a completed `if` it would
+read the `if`'s own status, which is 0:
 
 ```sh
 if out=$(diff -u "$TMPDIR/<name>.passing" "<the file>"); then
@@ -2231,111 +2742,159 @@ fi
 printf '%s\n' "$out" > "$TMPDIR/evidence/<name>.patch"
 ```
 
-Two commands read the faults. **Node** is
+Two commands read these faults. **Node** is
 `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime src/modules/preferences/module.test.ts)`,
 green at `Tests 42 passed (42)`. **Jsdom** is
-`(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.test.tsx src/components/chrome/lifetime-fault.test.tsx src/modules/preferences/composition-agreement.test.ts)`,
-green at `Tests 8 passed (8)`. Keep each status (`cmd > log 2>&1; echo "exit=$?"`).
+`(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.test.tsx src/runtime/application-bootstrap.model.test.tsx src/runtime/application-bootstrap.strictmode.test.tsx src/components/chrome/lifetime-fault.test.tsx src/modules/preferences/composition-agreement.test.ts)`,
+green at `Tests 11 passed (11)`. Keep each status (`cmd > log 2>&1; echo "exit=$?"`).
+
+**The `Proof:` comment for each fault is written in slice 6, after that fault has been watched failing**
+— preamble rule 9. The "comment to write" column is the planner's own sentence for it; where this
+attempt's diagnostic differs, the comment says what this attempt saw and `verify.md` records both.
 
 ### 8.1 The module, its seal and its owned store
 
-| #       | Fault, exactly                                                                                                                          | Named test that must fail                                                   | Observed                                                                                                                                                                                                                                                |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **N1**  | in `module.ts`, replace the `preferencesStore` `DiBag.withDisposal(…)` with its inner `DiBag.fromSyncFactory(…)` alone                  | `gives the store back when its host graph closes`                           | node `4 failed \| 38 passed (42)`, jsdom `1 failed \| 7 passed (8)`: `AssertionError: expected [Function] to throw an error`, and the model test on `r2: revoked=false, graphClosed=true, live=r3`                                                      |
-| **N2**  | in `revocableStorage`'s `held`, replace `if (revoked) throw new Error(REVOKED); return store;` with `return revoked ? store : store;`   | `refuses every access once the store has been given back`                   | node `5 failed \| 37 passed (42)`, jsdom `1 failed \| 7 passed (8)`: the same `to throw an error` on five named tests — N1's four **plus** this one, which is how the two faults are told apart                                                         |
-| **N3**  | in `module.ts`, add `'preferencesStore'` to the `buildModule` export tuple                                                              | `keeps its owned store out of a host graph`                                 | node `4 failed \| 38 passed (42)`: `expected [Function] to throw an error`, and `expected [ 'preferences', …(3) ] to include 'frontend.preferences/preferencesStore'`                                                                                   |
-| **N4**  | in `module.ts`, drop `{ label: PREFERENCES_LABEL }` from `buildModule`                                                                  | `labels its owned store with the module name`                               | node `2 failed \| 40 passed (42)`: `expected [ 'preferences', 'remembered', …(2) ] to include 'frontend.preferences/preferencesStore'`, and the omitted-requirement message without the label prefix                                                    |
-| **N14** | in `module.ts`, make the `preferencesStore` factory take `remembered` too and call `remembered.ganttDetail.read()` — a registered cycle | `publishes the answers delivery asks for, over the store its host supplied` | node `8 failed \| 34 passed (42)`, jsdom `3 failed \| 5 passed (8)`: `Error: DI_BAG_CYCLE: cycle: preferences -> frontend.preferences/preferencesStore -> remembered -> preferences`, so the label reaches a cycle path as well as a missing dependency |
+| #       | Fault, exactly                                                                                                                        | Named test that must fail                                                   | Observed                                                                                                                                                                                                    | Comment to write, and where                                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **N1**  | in `module.ts`, replace the `preferencesStore` `DiBag.withDisposal(…)` with its inner `DiBag.fromSyncFactory(…)` alone                | `gives the store back when its host graph closes`                           | node `4 failed \| 38 passed (42)`, jsdom `1 failed \| 10 passed (11)`: `AssertionError: expected [Function] to throw an error`, and the slot's model test on `r2: revoked=false, graphClosed=true, live=r3` | above the disposer in `module.ts`: dropping this disposal made `gives the store back when its host graph closes` receive no throw (4 fail, 38 pass) |
+| **N2**  | in `revocableStorage`'s `held`, replace `if (revoked) throw new Error(REVOKED); return store;` with `return revoked ? store : store;` | `refuses every access once the store has been given back`                   | node `5 failed \| 37 passed (42)`, jsdom `1 failed \| 10 passed (11)`: the same `to throw an error`, on N1's four named tests **plus** this one — which is how the two faults are told apart                | above the guard in `revocableStorage`: handing the store back either way made `refuses every access once the store has been given back` not throw   |
+| **N3**  | in `module.ts`, add `'preferencesStore'` to the `buildModule` export tuple                                                            | `keeps its owned store out of a host graph`                                 | node `4 failed \| 38 passed (42)`: `expected [Function] to throw an error`, and `expected [ 'preferences', …(3) ] to include 'frontend.preferences/preferencesStore'`                                       | above `buildModule` in `module.ts`: exporting `preferencesStore` made `keeps its owned store out of a host graph` receive no throw                  |
+| **N4**  | in `module.ts`, drop `{ label: PREFERENCES_LABEL }` from `buildModule`                                                                | `labels its owned store with the module name`                               | node `2 failed \| 40 passed (42)`: `expected [ 'preferences', 'remembered', …(2) ] to include 'frontend.preferences/preferencesStore'`, and the omitted-requirement message without the label               | above `buildModule` in `module.ts`: dropping the label made the graph omit `frontend.preferences/preferencesStore`                                  |
+| **N14** | in `module.ts`, make the `preferencesStore` factory take `remembered` too and read it — a registered cycle                            | `publishes the answers delivery asks for, over the store its host supplied` | node `8 failed \| 34 passed (42)`, jsdom `4 failed \| 7 passed (11)`: `Error: DI_BAG_CYCLE: cycle: preferences -> frontend.preferences/preferencesStore -> remembered -> preferences`                       | no comment: this fault proves the sealed graph's shape rather than a check of ours, and `verify.md` records it                                      |
 
 ### 8.2 The runtime, its transaction and its close
 
-| #      | Fault, exactly                                                                                                              | Named test that must fail                                | Observed                                                                                                                                                                                                                                                  |
-| ------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **N5** | in `acquireTransactionally`'s `catch`, replace the `throw new PartialAcquisitionError(…)` with `throw failure;`             | `releases everything a half-finished read acquired`      | node `4 failed \| 38 passed (42)`: `AssertionError: expected Error: alice@example.com could not be com… to be an instance of PartialAcquisitionError`, on all four transaction tests                                                                      |
-| **N6** | in `installApplicationRuntime`, add `bag,` to the object the `read` closure returns                                         | `publishes its two public services and nothing else`     | node `1 failed \| 41 passed (42)`: `expected [ 'preferences', 'remembered', 'bag' ] to deeply equal [ 'preferences', 'remembered' ]`                                                                                                                      |
-| **N7** | in `acquireTransactionally`, replace `close: (options) => graph.close(options)` with `close: async () => Promise.resolve()` | `revokes the store it owns when the installation closes` | node `3 failed \| 39 passed (42)`, jsdom `1 failed \| 7 passed (8)`: `expected [Function] to throw an error`, and the model test on `r2: revoked=false, graphClosed=true, live=r3`. It does **not** fail N1's or N2's own tests, which is the distinction |
+| #       | Fault, exactly                                                                                                              | Named test that must fail                                | Observed                                                                                                                                                                                  | Comment to write, and where                                                                                             |
+| ------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **N5**  | in `acquireTransactionally`'s `catch`, replace the `throw new PartialAcquisitionError(…)` with `throw failure;`             | `releases everything a half-finished read acquired`      | node `4 failed \| 38 passed (42)`: `expected Error: alice@example.com could not be com… to be an instance of PartialAcquisitionError`, on all four transaction tests                      | in that `catch`: rethrowing unwrapped made the named test receive a plain `Error` instead of `PartialAcquisitionError`  |
+| **N7b** | in the same `throw`, replace the release with `async () => Promise.resolve()`                                               | `releases everything a half-finished read acquired`      | node `1 failed \| 41 passed (42)`: `AssertionError: expected [] to deeply equal [ 'first' ]` — the graph's own disposer never ran                                                         | beside the release argument: a resolved no-op release made the named test record no disposal of what the read had taken |
+| **N6**  | in `installApplicationRuntime`, add `bag,` to the object the `read` closure returns                                         | `publishes its two public services and nothing else`     | node `1 failed \| 41 passed (42)`: `expected [ 'preferences', 'remembered', 'bag' ] to deeply equal [ 'preferences', 'remembered' ]`                                                      | above that closure: returning the bag made the surface enumerate three keys                                             |
+| **N6b** | in the same closure, wrap `preferences` in `Object.assign(…, { resolve })`                                                  | `publishes its two public services and nothing else`     | node `1 failed \| 41 passed (42)`: `AssertionError: expected false to be true` — the **second** assertion of that test, the one that refuses a resolver on any published value            | beside the same closure: hanging a `resolve` beneath an allowed export made the no-resolver assertion receive false     |
+| **N7**  | in `acquireTransactionally`, replace `close: (options) => graph.close(options)` with `close: async () => Promise.resolve()` | `revokes the store it owns when the installation closes` | node `3 failed \| 39 passed (42)`, jsdom `1 failed \| 10 passed (11)`: `expected [Function] to throw an error`. It fails **neither** of N1's and N2's own tests, which is the distinction | beside the `close` delegation: a resolved no-op close left the store readable after the installation closed             |
 
-### 8.3 The bootstrap and the fatal page
+N6 and N6b fail the same named test at **different assertions** — the enumerated keys and the
+no-resolver predicate — which is the review's "two checks behind one test" rule satisfied without
+splitting a test that is about one surface.
 
-| #       | Fault, exactly                                                                                                  | Named test that must fail                                                     | Observed                                                                                                                                         |
-| ------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **N8**  | in `showFatal`, delete `root.render(<LifetimeFault fault={fault} />);`                                          | `renders the sanitized fatal page when the first runtime cannot be built`     | jsdom `2 failed \| 6 passed (8)`: `AssertionError: expected [] to have a length of 1 but got +0`                                                 |
-| **N9**  | bind the refusal and log it: `} catch (refusal: unknown) { console.error('the page could not start', refusal);` | `says nothing raw about a refused start, on the page or in the console`       | jsdom `1 failed \| 7 passed (8)`: `AssertionError: a console line carried a value instead of a disclosure: expected [ …(1) ] to deeply equal []` |
-| **N10** | delete the `dependencies.slot.subscribe(…)` block                                                               | `shows the fatal page when a retirement fails, without republishing anything` | jsdom `1 failed \| 7 passed (8)`: `AssertionError: expected [ { …(10) } ] to have a length of 2 but got 1`                                       |
-| **N11** | move the `root.render(<StrictMode><App /></StrictMode>)` above the `try` and delete the one at the end          | `renders the app only once its runtime is live, with the root fault options`  | jsdom `2 failed \| 6 passed (8)`: `AssertionError: expected [ 'empty' ] to deeply equal [ 'live' ]`                                              |
-| **N12** | in `showFatal`, render `fault={{ ...fault, sentence: \`alice@example.com: ${fault.sentence}\` }}`               | `says nothing raw about a refused start, on the page or in the console`       | jsdom `1 failed \| 7 passed (8)`: `AssertionError: expected '{"fault":{"sentence":"alice@example.c…' not to contain 'alice@example.com'`         |
-| **N13** | in `lifetime-fault.tsx`, delete the `<p … data-lifetime-fault-reference>` element                               | `shows the same reference it logged, and nothing of the refusal`              | jsdom `1 failed \| 7 passed (8)`: `AssertionError: the page disclosed no reference to quote: expected null not to be null`                       |
+### 8.3 The bootstrap, its ordering and the fatal page
 
-N9 and N12 share a named test and are still separate checks: one puts a **value** in the console and the
-other puts a **string** on the page, and the test's two assertions fail one each — the shape assertion
-for N9, the DOM-props assertion for N12. That is the "two checks behind one test" rule satisfied by two
-assertions with their own messages, and the Chromium case of section 7.13 reads both in a real browser.
+| #       | Fault, exactly                                                                                         | Named test that must fail                                                     | Observed                                                                                                                                                                                                     | Comment to write, and where                                                                                               |
+| ------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| **N16** | delete the fence `if (dependencies.slot.snapshot().status !== 'live') return;`                         | `only ever draws the page from the runtime the slot publishes`                | jsdom `1 failed \| 10 passed (11)`: `AssertionError: the app was drawn while the slot was retiring: expected 'retiring' to be 'live'`; counterexample in §8.4                                                | above the fence: removing it let the model test draw the app while the slot was `retiring`                                |
+| **N11** | make the root eager: `let root … = dependencies.mount(host, ROOT_FAULT_OPTIONS);`                      | `renders the app only once its runtime is live, with the root fault options`  | jsdom `3 failed \| 8 passed (11)`: `expected [ 'empty' ] to deeply equal [ 'live' ]`, `expected [ 'empty' ] to deeply equal [ 'fatal' ]`, and the model test's `a root was created while the slot was empty` | above `rootFor`: creating the root eagerly made the mount statuses read `empty` instead of `live`                         |
+| **N18** | render `<Acquiring acquire={dependencies.acquire} />` — a component that acquires — under `StrictMode` | `acquires its runtime once, above the tree that is mounted twice`             | jsdom `1 failed \| 10 passed (11)`: `AssertionError: expected 3 to be 1`                                                                                                                                     | above the `StrictMode` render: acquiring inside the tree made the Strict Mode count read 3                                |
+| **N8**  | in `showFatal`, delete `rootFor().render(<LifetimeFault fault={fault} />);`                            | `renders the sanitized fatal page when the first runtime cannot be built`     | jsdom `2 failed \| 9 passed (11)`: `AssertionError: expected [] to have a length of 1 but got +0`                                                                                                            | above that render: dropping it left the page with nothing drawn at all                                                    |
+| **N9**  | after the supersession check, add `console.error("the page's runtime failed", refusal);`               | `says nothing raw about a refused start, on the page or in the console`       | jsdom `1 failed \| 10 passed (11)`: `AssertionError: a console line carried a value instead of a disclosure: expected [ …(1) ] to deeply equal []`                                                           | beside the `console.error` in `showFatal`: logging the caught refusal put a value rather than a disclosure in the console |
+| **N12** | in `showFatal`, render `fault={{ ...fault, sentence: \`alice@example.com: ${fault.sentence}\` }}`      | `says nothing raw about a refused start, on the page or in the console`       | jsdom `1 failed \| 10 passed (11)`: `expected '{"fault":{"sentence":"alice@example.c…' not to contain 'alice@example.com'`; in Chromium the page read it too                                                 | beside the same render: putting the refusal in the sentence exposed `alice@example.com` on the page                       |
+| **N15** | in `showFatal`, delete `if (shown === fault) return;`                                                  | `renders the sanitized fatal page when the first runtime cannot be built`     | jsdom `2 failed \| 9 passed (11)`: `expected [ { …(10) }, { …(10) } ] to have a length of 1 but got 2`, and the console line twice                                                                           | above that guard: dropping it drew and logged one refusal twice                                                           |
+| **N10** | delete the `dependencies.slot.subscribe(…)` block                                                      | `shows the fatal page when a retirement fails, without republishing anything` | jsdom `1 failed \| 10 passed (11)`: `expected [ { …(10) } ] to have a length of 2 but got 1`                                                                                                                 | above the subscription: dropping it left a failed retirement undrawn                                                      |
+| **N13** | in `lifetime-fault.tsx`, delete the `<p … data-lifetime-fault-reference>` element                      | `shows the same reference it logged, and nothing of the refusal`              | jsdom `1 failed \| 10 passed (11)`: `AssertionError: the page disclosed no reference to quote: expected null not to be null`                                                                                 | above that element: deleting it left the page with no handle to quote                                                     |
+| **N19** | in `lifetime-fault.tsx`, restore the startup-only wording (`could not start`, `Nothing was lost`)      | `says nothing that a failed retirement would make false`                      | jsdom `1 failed \| 10 passed (11)`: `expected 'WBS tool v2The page could not start: …' to contain 'Anything already saved is on the serv…'`                                                                  | above the sentence: startup-only wording made the retirement case fail on the assurance it drops                          |
 
-### 8.4 What the model test's new commands are worth
+### 8.4 What the two model tests and the Strict Mode test are worth
 
-The extension is only worth what it catches. Rehearsed three ways:
+**The bootstrap's race was found by the model test, not by reasoning.** Rehearsed in this order, which is
+also the order review 1 asked for:
 
-- with **N1** injected, the model test fails: `Error: Property failed after 27 tests`,
-  `{ seed: 20260923, path: "26:0:0", endOnFailure: true }`, counterexample
-  ``[schedulerFor()`\n-> [task${1}] promise::dispose r2 resolved`,[{"kind":"retire"},{"kind":"replace","disposal":"settles","partial":false,"reentry":"factory","graph":"installed"}]]``,
-  `Shrunk 2 time(s)`, on `AssertionError: r2: revoked=false, graphClosed=true, live=r3: expected false to be true`.
-- with **N1 injected and the `graph` arbitrary forced to `fc.constant('fake')`**, the same model test
-  **passes** (`Tests 1 passed (1)`). So it is the new `installed` commands, and not the old ones, that
-  reach this fault: the extension earns its place rather than decorating the file.
-- **N7** moves it too, identically — the production close being a no-op is indistinguishable from the
-  module having no disposer, as far as ownership is concerned, and the example tests of section 8.2 are
-  what separate them.
+1. The model test of section 7.18 was written against the bootstrap **as the previous revision
+   prescribed it** — root mounted first, no fence after the await. It failed twice, on two different
+   invariants. First on the ordering:
+   `AssertionError: a root was created while the slot was empty: expected 'empty' not to be 'empty'`,
+   `{ seed: 20260924, path: "0:0" }`, `Shrunk 1 time(s)`.
+2. With the root made lazy and nothing else changed, it failed on the race itself:
 
-`{ seed: 20260923, numRuns: 300 }` is unchanged, so the executor walks the interleavings the planner
-did, and the file runs in **355 ms** measured.
+   ```text
+   Error: Property failed after 14 tests
+   { seed: 20260924, path: "13", endOnFailure: true }
+   Counterexample: [schedulerFor()`
+   -> [task${1}] promise::dispose the page runtime resolved`,[{"kind":"retireFromListener"},{"kind":"bootstrap"}]]
+   Shrunk 0 time(s)
+   Caused by: AssertionError: the app was drawn while the slot was retiring: expected 'retiring' to be 'live'
+   ```
+
+   That is review 1's Critical 2, reproduced in 14 generated cases: a subscriber retires the runtime
+   while the bootstrap's `replace` is settling, and the bootstrap draws the app from a runtime the page
+   has already withdrawn.
+
+3. With the fence added, `Tests 1 passed (1)`. Removing the fence again — fault **N16** — reproduces the
+   same counterexample, which is what says the fence is load-bearing rather than decorative.
+
+**The slot's model test earns its new commands too.** With **N1** injected it fails on
+`r2: revoked=false, graphClosed=true, live=r3`,
+counterexample `[{"kind":"retire"},{"kind":"replace","disposal":"settles","partial":false,"reentry":"factory","graph":"installed"}]`,
+`Shrunk 2 time(s)`; and with N1 injected **and** the `graph` arbitrary forced to `fc.constant('fake')`
+the same test **passes** — so it is the new `installed` commands, and not the inherited ones, that reach
+this fault. N7 moves it identically, and section 8.2's example tests are what separate the two.
+
+**The Strict Mode test is the only one that can see a double invocation**, because it is the only one
+that mounts a real React tree: `createRoot` from `react-dom/client`, the real `App`, inside
+`<StrictMode>`. With acquisition moved into that tree (**N18**) it reads `expected 3 to be 1`. The
+recording root of section 7.10 cannot see this at all, which is why both exist.
+
+**A check that no fault could break was deleted.** The fence after the await was first written as
+`current.status !== 'live' || current.services !== published`. With the identity half removed, all 11
+jsdom cases stayed green: transitions are serialized and every replacement passes through `retiring`, so
+a slot that is `live` at that line is live with this bootstrap's own runtime. Rule R5 says such a check
+goes, so it is gone, and section 12 records who reinstates it.
 
 ## 9. Verification
 
 ### The executor runs, per slice
 
-| Command                                                                                                                                                | Expected                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| the sandbox unit command of step 0                                                                                                                     | exit 0; F0/T0 recorded, then the slice's own relative delta     |
-| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/modules/preferences/module.test.ts)`                                         | slice 1: red `4 failed \| 4 passed (8)`, then `8 passed (8)`    |
-| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime/application-runtime.test.ts src/modules/preferences/module.test.ts)` | slice 2: red `9 failed \| 8 passed (17)`, then `17 passed (17)` |
-| `(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.test.tsx src/components/chrome/lifetime-fault.test.tsx)`                      | slice 3: red `7 failed (7)`, then `7 passed (7)`                |
-| `(cd apps/wbs/fe-01 && bunx vitest run src/main.test.tsx)`                                                                                             | slice 3: exit 0, `Tests 1 passed (1)`                           |
-| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime/lifetime-slot.model.test.ts)`                                        | slice 4: exit 0, `Tests 1 passed (1)`, about 355 ms             |
-| `(cd apps/wbs/fe-01 && bunx vitest run src/modules/preferences/composition-agreement.test.ts)`                                                         | slice 4: exit 0, `Tests 1 passed (1)`                           |
-| the two fault commands of section 8                                                                                                                    | slice 5: green at `42 passed (42)` and `8 passed (8)`           |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                                      | exit 0, including under every one of the fourteen faults        |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                                           | exit 0                                                          |
-| `GSETTINGS_BACKEND=memory bunx prettier --check <the slice's files>`                                                                                   | exit 0                                                          |
-| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                          | slice 6: `items` = V0, `failed: 0`, this change `valid: true`   |
+| Command                                                                                                                                                | Expected                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| the sandbox unit command of step 0                                                                                                                     | exit 0; F0/T0 recorded, then the slice's own relative delta                       |
+| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/modules/preferences/module.test.ts)`                                         | slice 1: red `4 failed \| 4 passed (8)`, then `8 passed (8)`                      |
+| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime/application-runtime.test.ts src/modules/preferences/module.test.ts)` | slice 2: red `9 failed \| 8 passed (17)`, then `17 passed (17)`                   |
+| `(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.test.tsx src/components/chrome/lifetime-fault.test.tsx)`                      | slice 3: red `8 failed (8)`, then `8 passed (8)`                                  |
+| `(cd apps/wbs/fe-01 && bunx vitest run src/main.test.tsx)`                                                                                             | slice 3: exit 0, `Tests 1 passed (1)`                                             |
+| `(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.model.test.tsx)`                                                              | slice 4: exit 0, `Tests 1 passed (1)`, 4.8 s                                      |
+| `(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.strictmode.test.tsx)`                                                         | slice 4: exit 0, `Tests 1 passed (1)`, 4.1 s                                      |
+| `(cd apps/wbs/fe-01 && bunx vitest run --config vitest.node.config.ts src/runtime/lifetime-slot.model.test.ts)`                                        | slice 4: exit 0, `Tests 1 passed (1)`, 355 ms                                     |
+| `(cd apps/wbs/fe-01 && bunx vitest run src/modules/preferences/composition-agreement.test.ts)`                                                         | slice 5: exit 0, `Tests 1 passed (1)`                                             |
+| the two fault commands of section 8                                                                                                                    | slice 6: green at `42 passed (42)` and `11 passed (11)`                           |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                                      | exit 0, including under every one of the twenty faults                            |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                                           | exit 0 — after any `eslint --fix`, re-run Prettier `--write` and `--check`        |
+| `GSETTINGS_BACKEND=memory bunx prettier --check <the slice's files>`                                                                                   | exit 0                                                                            |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                          | slices 5 and 7: `items` = that slice's V0, `failed: 0`, this change `valid: true` |
 
-The whole-tree sandbox unit command ends at **F0 + 2** files and **T0 + 17** tests across slices 1 and 2
-and does not move in slices 3 to 6. Measured on the finished tree: `46 passed (46)` files,
-`656 passed (656)` tests — absolute numbers as orientation only.
+The whole-tree sandbox unit command ends at **F0 + 2** files and **T0 + 17** tests across slices 1 and 2,
+and does not move in slices 3 to 7 — every later file is in the jsdom tier. Measured on the finished
+tree: `46 passed (46)` files, `656 passed (656)` tests; absolute numbers as orientation only.
 
 **Order matters once.** Run each slice's baseline **after** that slice's first `wbs-fe-01:typecheck`,
 never before: a typecheck writes `dist/out-tsc/apps/wbs/fe-01/*`, and although the node tier's explicit
-`include` list ignores it (re-measured here: same files, same counts), a `bun test <dir>` anywhere near
-this tree would collect it. This packet prescribes no `bun test`.
+`include` list ignores it — re-measured here, same files and same counts with `dist/` present — a
+`bun test <dir>` anywhere near this tree would collect it. This packet prescribes no `bun test`.
 
 ### Planner-only, with the values the planner observed
 
-| Command                                                                                                     | Observed                                                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1` in `apps/wbs/fe-01` (the whole jsdom tier)    | exit 0, `128 passed (128)` files, `2944 passed (2944)` tests, 434 s — packet a's tier was `123`/`2921`, so this packet adds 5 files and 23 tests and **changes no existing assertion**                                                   |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                               | exit 0, `✓ built in 607ms` — `main.tsx` uses no top-level `await`, so no build target question arises                                                                                                                                    |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run tool-devsync:test --skip-nx-cache` | exit 0, `366 pass`, `0 fail`, with every new file **staged** — same count as packet a, so no pin moves                                                                                                                                   |
-| `CI=1 E2E_PORT_SHIFT=3000 NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- e2e/lifetime-fault.spec.ts`          | exit 0, `1 passed (8.3s)`                                                                                                                                                                                                                |
-| the same command with fault **N12** injected                                                                | `1 failed`; the page read `The page could not start: alice@example.com: Something went wrong` and the case failed on `expect(proof?.pageText).toContain('The page could not start: Something went wrong')` — the Chromium case has teeth |
-| `CI=1 E2E_PORT_SHIFT=3000 … -- e2e/dark-mode.spec.ts e2e/gantt-detail.spec.ts e2e/header.spec.ts`           | exit 0, `25 passed (1.2m)` — the page still boots through the asynchronous bootstrap, with the theme, chart-detail and header behaviour unchanged                                                                                        |
-| `NX_DAEMON=false bunx nx run twilight-burokrat:test`                                                        | not run for this packet; it adds no file under `apps/wiki/cli` and registers no rule                                                                                                                                                     |
-| four real `git commit`s with lefthook on, one per code slice                                                | exit 0 each, after two refusals this rehearsal caught — see below                                                                                                                                                                        |
-| `bin/h2puni-gate.sh <sha>`                                                                                  | the planner's, after the last slice                                                                                                                                                                                                      |
+| Command                                                                                                      | Observed                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1` in `apps/wbs/fe-01` (the whole jsdom tier)     | exit 0, `130 passed (130)` files, `2949 passed (2949)` tests, 447 s. The **baseline on `5085f6e6` was measured in a second worktree**: `123 passed (123)` files, `2921 passed (2921)` tests, so this packet adds exactly 7 files and 28 tests and **changes no existing assertion** |
+| `TZ=Pacific/Kiritimati bunx vitest run --config vitest.zoned.config.ts` in `apps/wbs/fe-01` (the zoned tier) | **pending planner verification, expected unchanged**: this packet adds no `*.zoned.test.*` file and touches none of the two that exist. Run it as `wbs-fe-01:test` does, and record the same counts as the base tree                                                                |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                | exit 0, `✓ built in 1.04s` — `main.tsx` uses no top-level `await`, so no build-target question arises                                                                                                                                                                               |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run tool-devsync:test --skip-nx-cache`  | exit 0, `366 pass`, `0 fail`, with all 22 changed paths **staged** — the same count as packet a, so no pin moves                                                                                                                                                                    |
+| `CI=1 E2E_PORT_SHIFT=3000 NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- e2e/lifetime-fault.spec.ts`           | exit 0, `1 passed (8.6s)`                                                                                                                                                                                                                                                           |
+| the same command with fault **N12** injected                                                                 | `1 failed`: the page read `The page’s services stopped: alice@example.com: Something went wrong…` and the case failed on its sentence assertion — the Chromium case has teeth                                                                                                       |
+| `CI=1 E2E_PORT_SHIFT=3000 … -- e2e/dark-mode.spec.ts e2e/gantt-detail.spec.ts e2e/header.spec.ts`            | exit 0, `25 passed (1.2m)` — the page still boots through the asynchronous bootstrap, with the theme, chart-detail and header behaviour unchanged                                                                                                                                   |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:test`                                                         | not run for this packet: it adds no file under `apps/wiki/cli` and registers no rule                                                                                                                                                                                                |
+| five real `git commit`s with lefthook on, one per code or document slice                                     | exit 0 each, after the refusals described below                                                                                                                                                                                                                                     |
+| `bin/h2puni-gate.sh <sha>`                                                                                   | the planner's, after the last slice                                                                                                                                                                                                                                                 |
+
+**Known race, not this packet's.** `apps/wiki/cli/src/admission/claims.db.test.ts` ›
+`bounds terminal lock contention and retries until a held write commits` failed one host gate on
+2026-09-21 because its holder's `COMMIT` runs with `busy_timeout = 0`. If exactly that test fails with
+exactly that shape in a gate run, record it and rerun once; do not touch it.
 
 **What the commit rehearsal caught, and the executor will too.** `bunx eslint --fix` sorts imports and
-leaves the file **not** Prettier-clean, so two of the four commits were refused by lefthook's `format`
-command with `[warn] apps/wbs/fe-01/src/…/<file>` and `exit status 1`. After `--fix`, run
+leaves the file **not** Prettier-clean, so lefthook's `format` command refused two commits with
+`[warn] apps/wbs/fe-01/src/…/<file>` and `exit status 1`. After `--fix`, run
 `GSETTINGS_BACKEND=memory bunx prettier --write` on the same files and then `--check`; the executor does
-not commit, so it must run both itself before handing over. Never `--no-verify`.
+not commit, so it must run both itself before handing over. A second rehearsal found a lint rule this
+packet's own test code has to satisfy: `ReturnType<typeof vi.spyOn>` is `any` for a two-argument
+`spyOn`, so every `.mockRestore` under it is an `@typescript-eslint/no-unsafe-member-access` error. The
+listings name their spies through small helpers for that reason. Never `--no-verify`.
 
 **Chromium.** Pick `E2E_PORT_SHIFT` as a multiple of 300 away from every other live run and check the
 three ports — `+0`, `+100` and `+1100` from 3100/3200/4200 — with `ss -ltn` first. This rehearsal used
@@ -2353,8 +2912,11 @@ production retirement trigger, which is 050-7-d's; section 11 says so.
 Each is scoped to the slice that reads it, and each is false on that slice's real starting tree.
 
 - a red run prints `No test files found` or `Tests no tests` instead of the count the slice names.
-- the model test fails on the finished tree. Record the counterexample and the seed it prints and
-  stop: seed and run count are pinned, so a failure is a real race and not a flake.
+- **either** model test fails on the finished tree — the slot's (`lifetime-slot.model.test.ts`) or the
+  bootstrap's (`application-bootstrap.model.test.tsx`). Record the counterexample and the seed each
+  prints and stop: seeds and run counts are pinned, so a failure is a real race and not a flake.
+- the Strict Mode test reports more than one acquisition on the finished tree. That is the map's
+  lifecycle test 1 failing, and it means the runtime is being built inside the React tree.
 - a fault in section 8 leaves its **named** test passing. Restore, check the location, redo once, and
   stop if it happens again.
 - a fault does not compile. Restore and stop: all fourteen were rehearsed at `wbs-fe-01:typecheck`
@@ -2401,8 +2963,17 @@ Each is scoped to the slice that reads it, and each is false on that slice's rea
   nothing: a `resolve` that throws cannot say what was acquired first, and closing an empty graph runs
   no disposer.
 - **The bootstrap takes its dependencies as one object with production defaults**, as
-  `apps/wbs/be-01/src/boot.ts:83` does. That is what lets a test refuse an installation through the
+  `apps/wbs/be-01/src/boot.ts:84`, whose `dependencies` default is line 86, does. That is what lets a test refuse an installation through the
   production function instead of a copy of it.
+- **The fence after the await compares the slot's status, not the identity of the services it
+  returned.** The identity half was written first and then **deleted**, because no fault could make it
+  fail: transitions are serialized and every replacement passes through `retiring`, so a slot that is
+  `live` at that line is live with this bootstrap's own runtime. Measured — with the identity half
+  removed, all 11 jsdom cases stayed green — and rule R5 says a check that cannot fail goes. The packet
+  that publishes these services through a React context adds it back with the test that can break it.
+- **The React root is created lazily, on the first draw.** That is what the design document's
+  "the bootstrap awaits the first `replace` before creating the React root" means operationally, and it
+  is the only way the fatal path can still render after a refused installation.
 - **`main.tsx` does not await.** It calls the bootstrap and does not handle the promise: the modelled
   failure is already the fatal page, and what is left is a defect in the bootstrap itself, where an
   unhandled rejection is louder than a handler nobody reads. Top-level `await` was not used, so no
@@ -2432,3 +3003,32 @@ Nothing in this packet scans source text for a forbidden import: the two encapsu
 at **run time** over the values a host and an installer really hand out, which no spelling
 (`ns['name']`, `import type * as x`, a re-exported alias) can bypass. The source-shape checks belong to
 050-7-j, which is where the architecture rule over delivery's imports lives.
+
+## 14. Disposition of review 1
+
+Every finding was checked against the repository before it was acted on, and the two that are defects in
+the **code** this packet prescribes were fixed in the prescription, with the test that would have caught
+them added and rehearsed red then green.
+
+| Finding                                                      | Verdict   | Where, and what was observed                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C1** contradictory test expectations                       | **FIXED** | Confirmed: the prose said eleven and seven while the listings defined eight and nine, and slice 2 claimed module tests fail through the installer, which they cannot — `module.test.ts` imports no runtime module. Every count in sections 5, 6, 8 and 9 is now the measured one, and the three reds are quoted with the diagnostics and the **causes** the planner saw, including slice 1's four vacuous passes and why they pass.                                                               |
+| **C2** the bootstrap renders after withdrawal                | **FIXED** | Reproduced, not reasoned about: the new bootstrap model test (section 7.18) fails on the old prescription with `the app was drawn while the slot was retiring`, from `[{"kind":"retireFromListener"},{"kind":"bootstrap"}]`. The bootstrap now re-reads the slot after the await and draws nothing unless it is still `live`; `TransitionSupersededError` is handled as controlled cancellation, not as an impossible state. Fault N16 removes the fence and reproduces the counterexample. §8.4. |
+| **I3** root created before the transition settles            | **FIXED** | Confirmed against the design record and task 4. The root is now created **lazily**, on the first draw, and the recording root records the slot's status at **mount** as well as at render — which is what makes the violation visible: fault N11 reads `expected [ 'empty' ] to deeply equal [ 'live' ]`. The model test asserts it too, as invariant 3.                                                                                                                                          |
+| **I4** the Strict Mode proof was absent                      | **FIXED** | Section 7.19 mounts the real `App` through the real `createRoot` inside `<StrictMode>` and counts both the runtime and the store it owns. Fault N18 moves acquisition into the tree: `expected 3 to be 1`. The recording root cannot see this, and section 8.4 says so.                                                                                                                                                                                                                           |
+| **I5** the fatal page made false claims                      | **FIXED** | It now reads "The page's services stopped: … Anything already saved is on the server", true of a refused startup and of a failed retirement alike, and a named test says so: `says nothing that a failed retirement would make false`. Fault N19 restores the startup-only wording and fails it. The Chromium assertion and the console tag moved with it.                                                                                                                                        |
+| **I6** independent checks without negatives                  | **FIXED** | Three faults added: **N6b** hangs a `resolve` beneath an allowed export (the no-resolver assertion fails, `expected false to be true`), **N7b** replaces the partial-release callback with a resolved no-op (`expected [] to deeply equal [ 'first' ]`), **N15** removes the one-disclosure guard (one refusal drawn and logged twice). Every stale comment is gone: the listings carry **no** `Proof:` comments at all, and slice 6 writes them after observation, per preamble rule 9.          |
+| **I7** the revocation contract was not in OpenSpec           | **FIXED** | Section 7.20 adds `Requirement: A retired runtime gives the reader's browser back` with three scenarios to the existing change's delta spec, and 7.21 corrects the one non-goal clause that claimed no new reader-visible behaviour. Validated: exit 0, 114 items, 0 failed, this change `valid: true`, item count unchanged. The proposal stays inside the intent limit at 398 words.                                                                                                            |
+| **I8** the labelled-failure claim was false                  | **FIXED** | Reproduced the reviewer's counterexample here: two private cyclic bindings, no host requirement, gave `DI_BAG_CYCLE: cycle: frontend.preferences/a -> frontend.preferences/b -> frontend.preferences/a`. Section 3.1 now restricts the claim to `DI_BAG_MISSING_DEPENDENCY`, and section 4 justifies the host requirement by **ownership** — the adapter is the page's, one per document, borrowed by the module — with the diagnostic named as a consequence.                                    |
+| **I9** seeded evidence lost attempt separation               | **FIXED** | Section 6's dispatch block assembles one staging tree with a subdirectory per attempt id and seeds it **once**, so slice 7 reads `$TMPDIR/evidence/<attempt-id>/<file>` and `verify.md` names observations that way.                                                                                                                                                                                                                                                                              |
+| **Minor 10** "appends only" versus the required import edit  | **FIXED** | Slice 1 now authorizes that one edit explicitly and quotes the diagnostic the append-only reading produces (`TS2304`).                                                                                                                                                                                                                                                                                                                                                                            |
+| **Minor 11** stale references and counts                     | **FIXED** | 4.7 → 3.5, 4.2 → 3.2, section 12 → 11, slice 3's "seven paths" → eight, and `boot.ts:83` → `boot.ts:84` with its `dependencies` default at line 86 (read).                                                                                                                                                                                                                                                                                                                                        |
+| **Minor 12** the zoned tier and the known contention failure | **FIXED** | Section 9 carries the zoned-tier command as pending planner verification with its expected unchanged result and why it is unchanged, and the `claims.db.test.ts` record-and-rerun-once disposition is stated where the planner will read it.                                                                                                                                                                                                                                                      |
+
+**Nothing was rejected.** Two things went further than the review asked. The fence it proposed was
+written as `status !== 'live' || services !== published`, and the identity half was then **deleted**:
+with it removed all 11 jsdom cases stayed green, so no fault could break it, and rule R5 refuses a check
+that cannot fail — section 12 records the packet that reinstates it with a test that can. And the review's
+"add bootstrap interleaving tests" is satisfied by a **model-based** test rather than by examples,
+because brief lesson 15 asks for generated orders on lifecycle code and because that is what found the
+race in fourteen cases.
