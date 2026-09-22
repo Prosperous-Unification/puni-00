@@ -1,4 +1,4 @@
-import type { Logger } from '@wbs/contracts';
+import type { AuthenticatedUser, Logger } from '@wbs/contracts';
 
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
@@ -12,7 +12,7 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
-import { type AuthenticatedUser, AuthService } from './service/auth.service';
+import { AuthService } from './service/auth.service';
 import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';

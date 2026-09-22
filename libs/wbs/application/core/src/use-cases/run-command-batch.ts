@@ -1,4 +1,5 @@
-import type { AuthenticatedUser } from '../service/auth.service';
+import type { AuthenticatedUser } from '@wbs/contracts';
+
 import type { PlanCommand } from '../service/plan-command';
 import type { BatchOutcome, PlanCommandRunner } from '../service/plan-commands';
 

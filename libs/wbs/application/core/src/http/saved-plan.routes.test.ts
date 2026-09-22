@@ -1,8 +1,8 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, mock, test } from 'bun:test';
 
 import type { SavedPlanWrite } from '../ports/saved-plan-store';
-import type { AuthenticatedUser } from '../service/auth.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { EMPTY } from './endpoint';
 import { savedPlanRoutes } from './saved-plan.routes';

@@ -318,8 +318,8 @@
     {
       "path": "libs/wbs/application/core/src/service/import.service.ts",
       "kind": "feature",
-      "capability": "unspecified",
-      "rationale": "importRoutes calls it for one atomic user-visible import that owns UnitOfWork and coordinates DirectoryService, work-item insertion, scheduler and announcement ports; no accepted capability specifies import"
+      "capability": "plan-import",
+      "rationale": "importRoutes calls it for one atomic user-visible import that owns UnitOfWork and coordinates DirectoryService, work-item insertion, scheduler and announcement ports, the capability the plan-json-import change names"
     },
     {
       "path": "libs/wbs/application/core/src/service/login-throttle.ts",
@@ -348,8 +348,8 @@
     {
       "path": "libs/wbs/application/core/src/service/plan-commands.ts",
       "kind": "feature",
-      "capability": "core-lib-extraction",
-      "rationale": "run-command-batch and work-item routes call it to own UnitOfWork and coordinate directory, capacity, priority-band and work-item services for one admitted command batch"
+      "capability": "wbs-domain",
+      "rationale": "run-command-batch and work-item routes call it to own UnitOfWork and coordinate directory, capacity, priority-band and work-item services for one admitted command batch, the user-facing batch behaviour specified by the archived 2026-08-30-plan-commands requirement group"
     },
     {
       "path": "libs/wbs/application/core/src/service/plan-document.ts",
@@ -450,8 +450,8 @@
     {
       "path": "libs/wbs/application/core/src/service/saved-plan.service.ts",
       "kind": "feature",
-      "capability": "core-lib-extraction",
-      "rationale": "saved-plan routes and the save-plan use case call it to coordinate SavedPlanCaptureStore, SavedPlanStore, Scheduler and Digest for user-visible save, read, compare, rename and delete operations covered by the extracted core capability"
+      "capability": "wbs-domain",
+      "rationale": "saved-plan routes and the save-plan use case call it to coordinate SavedPlanCaptureStore, SavedPlanStore, Scheduler and Digest for the user-visible save, read, compare, rename and delete behaviour specified by the archived 2026-09-10-scheduler-runtime-port requirement group"
     },
     {
       "path": "libs/wbs/application/core/src/service/smoke.service.ts",
@@ -522,14 +522,14 @@
     {
       "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts",
       "kind": "feature",
-      "capability": "core-lib-extraction",
-      "rationale": "workItemRoutes and the portable composition call it to enforce write-scope admission before coordinating project or directory command batches through PlanCommandRunner"
+      "capability": "wbs-domain",
+      "rationale": "workItemRoutes and the portable composition call it to enforce write-scope admission before coordinating project or directory command batches through PlanCommandRunner for the same archived 2026-08-30-plan-commands requirement group"
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/save-plan.ts",
       "kind": "feature",
-      "capability": "core-lib-extraction",
-      "rationale": "savedPlanRoutes and the portable composition call it to coordinate ProjectService access, SavedPlanService persistence and Broadcaster publication for one save operation"
+      "capability": "wbs-domain",
+      "rationale": "savedPlanRoutes and the portable composition call it to coordinate ProjectService access, SavedPlanService persistence and Broadcaster publication for one save of the archived 2026-09-10-scheduler-runtime-port saved-plan requirement group"
     }
   ]
 }

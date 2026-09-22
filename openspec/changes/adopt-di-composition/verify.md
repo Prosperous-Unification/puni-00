@@ -312,3 +312,233 @@ service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 
   (`slice-6-gw-mcp-typecheck.log`).
 - The repository-wide format check passed (`slice-6-format-check-final.log`).
 - The host gate was not run in the executor sandbox and remains pending planner verification.
+
+### Type-only preparations, Slice 1 — 2026-09-22
+
+- Core baseline `C=542`, `F=54`: 542 passed, 0 failed across 54 files
+  (`slice-1-core-baseline.log`). With the new boundary test, the closing run reached the required
+  `C + 1=543` passes across `F + 1=55` files with 0 failures
+  (`slice-1-core-closing.log`).
+- The test-first red reported four routes from `service/plan-document.ts` to
+  `service/calendar-marker.service.ts`: `'./calendar-marker.service'`,
+  `CalendarMarkerListOutcome`, `ok`, and `value`; Bun printed `Expected - 1`, `Received + 6`,
+  0 passed, and 1 failed (`slice-1-sideways-red.log`).
+- `ports/calendar-marker-read.ts` now owns `CalendarMarkerReader`,
+  `CalendarMarkerListOutcome`, `CalendarMarkerRefused`, `CalendarMarkerRefusal`, and
+  `CalendarMarkerSubject`. The Calendar marker service retains compatibility re-exports for the
+  four moved outcome names, while Plan document names the reader port.
+- The focused boundary test then passed 1 test with 0 failures
+  (`slice-1-sideways-green.log`). Core type-check and lint passed
+  (`slice-1-typecheck-lint.log`); the be-01, gw-01, and mcp-01 type-checks passed
+  (`slice-1-downstream-typecheck.log`); and the portable browser build passed
+  (`slice-1-portable-build.log`). The five owned code paths passed their formatting check
+  (`slice-1-prettier-check.log`).
+
+### Type-only preparations, Slice 2 — 2026-09-22
+
+- Core baseline `C=543`, `F=55`: 543 passed, 0 failed across 55 files
+  (`slice-2-core-baseline.log`). The closing run remained unchanged at 543 passed, 0 failed
+  across 55 files (`slice-2-core-closing.log`).
+- Adding the three principal-owner rows first failed the named boundary assertion with 22 routes
+  from the six checked consumers: eight import-specifier routes and fourteen identifier routes.
+  Bun printed `Received + 24`, 0 passed, and 1 failed; observed rows included
+  `use-cases/save-plan.ts: username reaches service/auth.service.ts`,
+  `use-cases/run-command-batch.ts: scopes reaches service/auth.service.ts`, and
+  `service/retention-timer.ts: InternalIdentity reaches http/endpoint.ts`
+  (`slice-2-principal-routes-red.log`).
+- `libs/wbs/domain/contracts/src/principal.ts` now declares `AuthenticatedUser` and
+  `InternalIdentity`. `service/auth.service.ts` retains the former name as a compatibility
+  re-export, and `http/endpoint.ts` retains both names while keeping `Identity` built from them.
+  The four production use cases, retention timer, composition root, and three route/use-case
+  tests now take their principal types from `@wbs/contracts`.
+- The focused boundary test then passed 1 test with 0 failures
+  (`slice-2-sideways-green.log`). Core type-check and lint passed
+  (`slice-2-core-typecheck-lint.log`), and contracts type-check, lint, and test passed
+  (`slice-2-contracts-checks.log`). The be-01, gw-01, mcp-01, and fe-01 type-checks passed
+  (`slice-2-consumer-typechecks.log`), and the portable browser build passed
+  (`slice-2-core-portable-build.log`).
+
+### Type-only preparations, Slice 3 — 2026-09-22
+
+- Step 0 found one `../repository/schema` import in each of
+  `service/optimization-coordinator.ts` and `service/optimized-plan-read.test.ts`, and one
+  `./broadcast` import in the coordinator. The initial be-01 type-check passed
+  (`slice-3-step0-typecheck.log`).
+- The coordinator now takes `SolverObjectiveName` from `@wbs/domain` and `ProjectEvent` from
+  `@wbs/core`; the optimized-plan reader test takes `SolverObjectiveName` from `@wbs/domain`.
+  The three old-path grep counts fell to zero (`slice-3-import-counts.log`).
+- The focused sandbox-safe be-01 subset remained unchanged at `B=60` passed over `G=6` files,
+  with 0 failures (`slice-3-be-subset-baseline.log`,
+  `slice-3-be-subset-closing.log`). Be-01 type-check and lint passed
+  (`slice-3-typecheck-lint.log`), and the core sideways-type boundary test passed 1 test with 0
+  failures (`slice-3-sideways-boundary.log`).
+- This slice does not prevent either import path from returning: be-01 has no type-identity
+  boundary check, and the Optimization module of task 3.6 owns that rule. The focused subset
+  also excludes four further eligible coordinator tests and the child-spawning
+  `optimization-spawn-handshake.proc.db.test.ts`; the whole `wbs-be-01:test` target is pending
+  planner verification.
+
+### Type-only preparations, Slice 4 — 2026-09-22
+
+- Step 0 found four route rows and zero proof comments. `wbs-core:typecheck` exited 0, the
+  focused rule passed 1 test with 0 failures, and the core baseline was `C=543`, `F=55`: 543
+  passed and 0 failed across 55 files (`slice-4-step0-typecheck.log`,
+  `slice-4-step0-rule.log`, `slice-4-core-baseline.log`).
+- Restoring Plan document's pre-move import reported
+  `service/plan-document.ts: './calendar-marker.service' reaches
+service/calendar-marker.service.ts` (`document-restored.patch`,
+  `document-restored.log`, `document-restored-typecheck.log`,
+  `document-restored-restored-green.log`). The type-only namespace reported the specifier,
+  `CalendarMarkerListOutcome`, and `markerService` (`document-namespace-type.patch`,
+  `document-namespace-type.log`, `document-namespace-type-typecheck.log`,
+  `document-namespace-type-restored-green.log`).
+- The marker-service value namespace reported the specifier, `markerService`, and
+  `markerService['CalendarMarkerService']` (`document-value-namespace.patch`,
+  `document-value-namespace.log`, `document-value-namespace-typecheck.log`,
+  `document-value-namespace-restored-green.log`). The indexed `typeof import` reported its
+  specifier and expression (`document-typeof-import.patch`, `document-typeof-import.log`,
+  `document-typeof-import-typecheck.log`, `document-typeof-import-restored-green.log`). The
+  bare import reported its specifier (`document-bare-import.patch`,
+  `document-bare-import.log`, `document-bare-import-typecheck.log`,
+  `document-bare-import-restored-green.log`).
+- Importing `CalendarMarkerOutcome` through the core barrel reported
+  `CalendarMarkerOutcome reaches service/calendar-marker.service.ts`
+  (`document-barrel-outcome.patch`, `document-barrel-outcome.log`,
+  `document-barrel-outcome-typecheck.log`, `document-barrel-outcome-restored-green.log`).
+- Laundering `AuthenticatedUser` through Replay orchestrator remained a documented residual:
+  1 passed and 0 failed with typecheck at exit 0 (`laundered-reexport.patch`,
+  `laundered-reexport.log`, `laundered-reexport-typecheck.log`,
+  `laundered-reexport-restored-green.log`).
+- Through a value namespace of `index.ts`, element access reported
+  `core['CalendarMarkerService']`, property access reported both `CalendarMarkerService` and
+  `core.CalendarMarkerService`, plain destructuring reported `CalendarMarkerService`, and renamed
+  destructuring also reported `CalendarMarkerService: markerClass`; all reached
+  `service/calendar-marker.service.ts` (`barrel-element-access.patch`,
+  `barrel-element-access.log`, `barrel-element-access-typecheck.log`,
+  `barrel-element-access-restored-green.log`, `barrel-property-access.patch`,
+  `barrel-property-access.log`, `barrel-property-access-typecheck.log`,
+  `barrel-property-access-restored-green.log`, `barrel-destructuring.patch`,
+  `barrel-destructuring.log`, `barrel-destructuring-typecheck.log`,
+  `barrel-destructuring-restored-green.log`, `barrel-destructuring-renamed.patch`,
+  `barrel-destructuring-renamed.log`, `barrel-destructuring-renamed-typecheck.log`,
+  `barrel-destructuring-renamed-restored-green.log`).
+- The absent owner row threw `the program holds no service/absent.service.ts`
+  (`absent-owner-row.patch`, `absent-owner-row.log`, `absent-owner-row-restored-green.log`).
+  The absent config threw `Cannot read file '…/tsconfig.absent.json'.`
+  (`absent-tsconfig.patch`, `absent-tsconfig.log`, `absent-tsconfig-restored-green.log`).
+  The malformed config made typecheck exit 1 and threw `refused tsconfig.lib.json: 6046`
+  (`malformed-tsconfig.patch`, `malformed-tsconfig-typecheck.log`,
+  `malformed-tsconfig.log`, `malformed-tsconfig-restored-green.log`). Deleting the parsed-config
+  guard under the same malformed option kept typecheck at exit 1 but produced the required false
+  green, 1 passed and 0 failed (`malformed-tsconfig-guard-deleted.patch`,
+  `malformed-tsconfig-guard-deleted-typecheck.log`,
+  `slice-4-malformed-tsconfig-guard-deleted.log`,
+  `malformed-tsconfig-guard-deleted-restored-green.log`). Adding `ports/missing.ts` to the scan
+  threw `the program holds no ports/missing.ts` (`missing-scanned-path.patch`,
+  `missing-scanned-path.log`, `missing-scanned-path-restored-green.log`).
+- Through the narrow Calendar marker forwarding file, a const key reported `markers[key]`, a
+  computed binding reported `['CalendarMarkerService']: held`, and an indexed-access type reported
+  `(typeof import('./replay-orchestrator'))[MarkerKey]`; each reached
+  `service/calendar-marker.service.ts` (`forwarded-const-key.patch`,
+  `forwarded-const-key.log`, `forwarded-const-key-typecheck.log`,
+  `forwarded-const-key-restored-green.log`, `forwarded-computed-binding.patch`,
+  `forwarded-computed-binding.log`, `forwarded-computed-binding-typecheck.log`,
+  `forwarded-computed-binding-restored-green.log`, `forwarded-indexed-access.patch`,
+  `forwarded-indexed-access.log`, `forwarded-indexed-access-typecheck.log`,
+  `forwarded-indexed-access-restored-green.log`).
+- The widened key reported `markers[key as keyof typeof markers]`, and the finite-union key
+  reported `markers[key]`; both reached `service/calendar-marker.service.ts`
+  (`forwarded-widened-key.patch`, `forwarded-widened-key.log`,
+  `forwarded-widened-key-typecheck.log`, `forwarded-widened-key-restored-green.log`,
+  `forwarded-union-key.patch`, `forwarded-union-key.log`,
+  `forwarded-union-key-typecheck.log`, `forwarded-union-key-restored-green.log`). Casting the
+  namespace's module identity away first remained the second documented residual: 1 passed and 0
+  failed with typecheck at exit 0 (`forwarded-cast-base.patch`, `forwarded-cast-base.log`,
+  `forwarded-cast-base-typecheck.log`, `forwarded-cast-base-restored-green.log`).
+- Forwarding the primitive `TOKEN_TTL_SECONDS` and reading it as an indexed-access type reported
+  `(typeof import('../service/replay-orchestrator'))['TOKEN_TTL_SECONDS']`; the const-keyed value
+  form reported `orchestrator[ttlKey]`. Both reached `service/auth.service.ts`
+  (`forwarded-primitive-indexed-type.patch`, `forwarded-primitive-indexed-type.log`,
+  `forwarded-primitive-indexed-type-typecheck.log`,
+  `forwarded-primitive-indexed-type-restored-green.log`,
+  `forwarded-primitive-const-key.patch`, `forwarded-primitive-const-key.log`,
+  `forwarded-primitive-const-key-typecheck.log`,
+  `forwarded-primitive-const-key-restored-green.log`).
+- All seventeen injected reference routes failed the one named assertion with 0 passed and 1
+  failed while their typechecks exited 0. The four guard faults failed with 0 passed and 1 failed;
+  the two residuals and the guard-deleted false-green probe passed with 1 passed and 0 failed.
+  Every fault was restored with `cp`, matched its saved passing bytes with `cmp`, and reran the
+  focused rule green before the next fault.
+- With the five proof comments added, the focused rule passed 1 test with 0 failures and the
+  proof-count block printed `proof-comments=5` (`slice-4-boundary-final.log`,
+  `slice-4-proof-count-final.log`). Core typecheck and lint exited 0
+  (`slice-4-typecheck-lint.log`), and the closing core suite remained unchanged from its baseline
+  at `C=543`, `F=55`, with 0 failures (`slice-4-core-closing.log`).
+
+## The type-only preparations, 2026-09-22
+
+- Task 1.3: `ports/calendar-marker-read.ts` declares `CalendarMarkerReader`,
+  `CalendarMarkerListOutcome`, `CalendarMarkerRefused`, `CalendarMarkerRefusal` and
+  `CalendarMarkerSubject`. `service/calendar-marker.service.ts` re-exports the **four** moved names
+  (not `CalendarMarkerReader`, which only Plan document needs) and keeps `CalendarMarkerOutcome` as its
+  own declaration; `service/plan-document.ts` names the reader. Slice 1 observed: `wbs-core` type-check
+  and lint, the portable browser build, and the be-01, gw-01 and mcp-01 type-checks at exit 0, and the
+  core suite moving from 542 passed over 54 files to 543 over 55, the one new file
+  being the rule
+  (`seeded/040-6-c-type-only-preparations.1.20260922T102114Z/slice-1-core-baseline.log`,
+  `seeded/040-6-c-type-only-preparations.1.20260922T102114Z/slice-1-core-closing.log`).
+- Task 1.4: `libs/wbs/domain/contracts/src/principal.ts` declares `AuthenticatedUser` and
+  `InternalIdentity`. `service/auth.service.ts` re-exports `AuthenticatedUser` only;
+  `http/endpoint.ts` re-exports both and keeps `Identity` built from them. The four use cases,
+  `service/retention-timer.ts`, `compose.ts` and three test files take them from `@wbs/contracts`.
+  Slice 2 observed: `wbs-contracts` type-check, lint and test at exit 0, and the core suite unchanged at
+  543 over 55
+  (`seeded/040-6-c-type-only-preparations.2.20260922T103704Z/slice-2-core-baseline.log`,
+  `seeded/040-6-c-type-only-preparations.2.20260922T103704Z/slice-2-core-closing.log`).
+- Task 1.6, first half: `apps/wbs/be-01/src/service/optimization-coordinator.ts` and
+  `…/optimized-plan-read.test.ts` take `SolverObjectiveName` from `@wbs/domain`, and the coordinator
+  takes `ProjectEvent` from `@wbs/core`. Slice 3 observed be-01 type-check and lint at exit 0 and its
+  **focused sandbox-safe subset** (the six selected be-01 tests closest to the changed files; four further
+  eligible ones, and the spawning `optimization-spawn-handshake.proc.db.test.ts`, are the planner's)
+  unchanged at 60 passed over 6 files
+  (`seeded/040-6-c-type-only-preparations.3.20260922T105840Z/slice-3-be-subset-baseline.log`,
+  `seeded/040-6-c-type-only-preparations.3.20260922T105840Z/slice-3-be-subset-closing.log`). The whole
+  `wbs-be-01:test` target is pending planner verification: two of its files bind a socket and the slice
+  was dispatched without network.
+- Preparation 6 of the module map was already met before this work and is recorded, not redone: the
+  root supplies the optimizer's event callback at `apps/wbs/be-01/src/services.ts:149-150`, and
+  `service/optimizer-trigger-broadcaster.ts:1` takes only the neutral port and an injected
+  `inputChanged`, so neither feature imports the other.
+- The one new safety check is `ports/sideways-type-boundaries.test.ts` ›
+  `rejects the checked sideways-type import routes`. A type-only move has no runtime behaviour, so its
+  production-path negative is this rule's red, not a behaviour test's: re-introducing a sideways type
+  import leaves `wbs-core:typecheck` at exit 0 and fails this assertion. Slice 4 watched 17
+  reference routes fail and 4 guards throw, including the false green the malformed-tsconfig
+  guard prevents, and two probes recorded as **not** prevented, each with the literal fragment recorded
+  beside its evidence basename; the guard's own log is
+  `seeded/040-6-c-type-only-preparations.4.20260922T111104Z/slice-4-malformed-tsconfig-guard-deleted.log`.
+- Stated limits of the rule. It compares resolved declaration files, never spelling, and what it rejects
+  is the list of forms in the packet's section 6, each with a watched negative — not a category. **Two
+  residuals were observed here returning `[]` with the type check at exit 0**: a selection whose base has
+  had its module identity cast away first
+  (`(markers as unknown as Record<string, unknown>)['CalendarMarkerService']`, fault 23), and a third file
+  re-exporting an owner's own re-export of a **contracts** declaration, because what is reached then is the
+  contracts declaration and nothing of the owner remains in it (fault 9). **Two further limits are
+  analysis, not measured here**: value-binding indirection through an exported binding, and a structural
+  copy or a duplicate declaration of the same shape — `ports/event-port-boundaries.test.ts` records the
+  same two for its own rule after five rounds, which is attributed precedent rather than a measurement of
+  this one. All four belong to kind rules K2 to K6. Six further forms the implementation handles are
+  **unverified here** and claimed neither way: a dynamic `import(...)`, `import x = require(...)`, a
+  renamed import, a `default` re-export, an `export * as ns` re-export and a multi-hop re-export chain.
+  Nothing prevents the be-01 repository-schema type path returning: be-01 has no type-identity check, and
+  task 3.6 owns that rule. `ports/event-port-boundaries.test.ts` says nothing about a file forwarding the
+  Calendar marker service, which is out of that rule's scope and not a gap in it.
+- Task 1.8 touched **five** entries, not four: Plan history's row became a shim under 2.1, and Plan
+  commands and Saved plans each carry two rows. This slice observed the classification count unchanged
+  at 95, and strict OpenSpec validation unchanged at 114 items passed and 0 failed before and after —
+  the four files this slice wrote itself: `slice-5-kinds-before.txt`, `slice-5-kinds-after.txt`,
+  `slice-5-openspec-before.json`, `slice-5-openspec-after.json`. `tool-devsync:test` is pending planner
+  verification: its index checker refuses untracked files and it spawns processes.
+- `wbs-domain` is not a synced main spec: `openspec spec list` names twelve capabilities and not that
+  one, while 123 archived change deltas carry `specs/wbs-domain/`. The value is checkable against those
+  deltas only, and syncing it is its own change.
