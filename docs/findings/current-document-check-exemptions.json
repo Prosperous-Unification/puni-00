@@ -235,6 +235,11 @@
       "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-d-wiki-registration.md",
       "reason": "task packet whose verified facts and exact-content sections repeatedly cite libs/core/src/service/history.service.ts, the pre-move file docs/wiki-policy/policy.json's new sourceSelector boundary binds to",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e-bounded-replay-sweep.md",
+      "reason": "task packet whose verified facts and exact-content sections repeatedly cite libs/core/src/use-cases/retention-sweep.ts, the pre-move file docs/wiki-policy/policy.json's new sourceSelector boundary binds to",
+      "excuses": ["legacy-root"]
     }
   ]
 }
