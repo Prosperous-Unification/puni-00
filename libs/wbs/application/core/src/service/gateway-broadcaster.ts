@@ -1,7 +1,7 @@
 import type { Clock } from '../ports/clock';
 import type { EventLogStore, RecordedEvent } from '../ports/event-log-store';
+import { type Broadcaster, type ProjectEvent, subscriptionFor } from '../ports/project-event';
 import type { PushTransport } from '../ports/push-transport';
-import { type Broadcaster, type ProjectEvent, subscriptionFor } from './broadcast';
 import type { ReplayBuffer } from './replay-buffer';
 
 export interface GatewayBroadcasterOptions {

@@ -14,9 +14,9 @@ import type {
   TeamWithServices,
   TouchedProjects,
 } from '../ports/directory-store';
+import type { Broadcaster } from '../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../ports/work-item-store';
 import type { WriteStamp } from '../ports/write-stamp';
-import type { Broadcaster } from './broadcast';
 import { cleanName } from './clean-name';
 import {
   type DirectoryUsage,

@@ -3,6 +3,7 @@ import { STEP_POSITION_STEP } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../ports/clock';
+import type { Broadcaster } from '../ports/project-event';
 import type {
   NewProject,
   Project,
@@ -12,7 +13,6 @@ import type {
 } from '../ports/project-store';
 import type { OptimizerAvailability } from '../ports/scheduler';
 import type { Step } from '../ports/step-store';
-import type { Broadcaster } from './broadcast';
 
 /**
  * The steps a project starts with, **in step order**. Two sets of estimates is

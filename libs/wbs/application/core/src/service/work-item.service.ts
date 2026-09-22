@@ -58,6 +58,7 @@ import type { EstimateStore, StoredEstimate } from '../ports/estimate-store';
 import type { MeasureStore, StoredMeasure } from '../ports/measure-store';
 import type { PriorityBandStore } from '../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../ports/progress-store';
+import type { Broadcaster } from '../ports/project-event';
 import type { Project, ProjectStore } from '../ports/project-store';
 import type {
   EngineUnavailable,
@@ -76,7 +77,6 @@ import type {
 } from '../ports/work-item-store';
 import type { WriteStamp } from '../ports/write-stamp';
 import { assumedAssignee } from './assumed-assignee';
-import type { Broadcaster } from './broadcast';
 import {
   type CompensatingCommand,
   quoteName,

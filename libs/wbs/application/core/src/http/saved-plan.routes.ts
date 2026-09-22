@@ -7,7 +7,7 @@ import {
   savePlan as savePlanShape,
 } from '@wbs/contracts';
 
-import type { Broadcaster } from '../service/broadcast';
+import type { Broadcaster } from '../ports/project-event';
 import type { ProjectService } from '../service/project.service';
 import type {
   SavedPlanService,

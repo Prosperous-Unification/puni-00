@@ -2,8 +2,8 @@ import { canEditProject } from '@wbs/domain';
 
 import type { CapacityStore, TeamCapacity } from '../ports/capacity-store';
 import type { Clock } from '../ports/clock';
+import type { Broadcaster } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
-import type { Broadcaster } from './broadcast';
 
 export interface CapacityServiceOptions {
   projects: ProjectStore;

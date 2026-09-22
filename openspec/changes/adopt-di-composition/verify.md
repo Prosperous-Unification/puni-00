@@ -112,3 +112,22 @@ directory.)_
   their formatting check (`slice-1-prettier-check.log`); core type-check and lint passed
   (`slice-1-typecheck-lint.log`); and the portable browser build passed
   (`slice-1-portable-build.log`).
+
+### Broadcast event port, Slice 2 — 2026-09-22
+
+- Core baseline `C=541`, `F=53`: 541 passed, 0 failed across 53 files
+  (`core-baseline.log`). With the boundary test and the production importer move, the closing
+  run reached the required `C + 1=542` passes across `F + 1=54` files with 0 failures
+  (`core-final.log`).
+- The new production-only boundary test failed first with all 22 references reaching
+  `Broadcaster`, `ProjectEvent`, or `subscriptionFor` through `service/broadcast.ts`: 0 passed
+  and 1 failed (`slice-2-production-import-red.log`).
+- Exactly 17 production importers now name `ports/project-event.ts`; the focused boundary test
+  then passed 1 test with 0 failures (`slice-2-boundary-green.log`). The checker deliberately
+  carries 0 `Proof:` comments until slices 3 and 4 inject the route and guard faults those
+  comments will describe.
+- The step-0 type-check and lint passed (`slice-2-step0-typecheck-lint.log`); ESLint sorted the
+  17 importer edits (`slice-2-importers-eslint-fix.log`); the owned code paths passed their
+  formatting check (`slice-2-prettier-check.log`); and the closing core type-check and lint
+  passed (`slice-2-typecheck-lint.log`). The repository-wide format check passed
+  (`slice-2-format-check.log`).

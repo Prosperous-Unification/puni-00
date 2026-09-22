@@ -8,9 +8,9 @@ import {
   testWorkItemService,
 } from '@wbs/store-memory/testing/service-fixtures';
 
+import type { Broadcaster } from '../ports/project-event';
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
-import type { Broadcaster } from '../service/broadcast';
 import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { ImportService } from '../service/import.service';
 import type { PlanCommandServices } from '../service/plan-commands';
