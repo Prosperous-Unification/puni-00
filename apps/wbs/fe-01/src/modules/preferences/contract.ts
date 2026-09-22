@@ -140,15 +140,53 @@ export interface RevocableBrowserStorage extends BrowserStorage {
 }
 
 /**
+ * Whether the runtime that owns a store is still the one a lifetime slot is
+ * publishing, checked synchronously.
+ *
+ * `createLifetimeSlot`'s own `accept()` (`runtime/lifetime-slot.ts`) assigns its
+ * published state **synchronously** — only the subscriber notification is
+ * deferred to a microtask — so `() => slot.snapshot().status === 'live'` is
+ * already correct the instant withdrawal is accepted, including from inside a
+ * caller-supplied validator that re-enters and asks for a replacement or a
+ * retirement of its own. Nothing about this predicate is specific to
+ * preferences; it is named here because this module is its first caller. See
+ * `preferences.resource.ts`'s `ensureLive` for what refuses once it answers
+ * `false`.
+ *
+ * **Scoped to the slot, not to one runtime's identity.** A stale reference
+ * from a runtime the slot has since *replaced* (rather than emptied) reads
+ * `true` again once the newer runtime is live — this predicate answers "is
+ * something live here", not "is it still me". For a `replace`d (not merely
+ * `retire`d) runtime, a stale reference's own storage is what still refuses,
+ * once that runtime's own disposal has revoked it (`browser-storage.repository.ts`'s
+ * `REVOKED`) — see
+ * `docs/superpowers/plans/2026-09-21-batch-6/050-7-d-withdrawal-and-page-lifecycle.md`
+ * section 4.4 for the precedence this implies and the test that proves it.
+ */
+export type IsRuntimeLive = () => boolean;
+
+/**
  * What a host graph must supply to install the preferences module.
  *
- * The raw store adapter and nothing else. It is the host's because reaching this
- * browser's own key-value store is the page's infrastructure, and it is a
- * requirement rather than a module-private binding so that a host which forgets
- * it is told **which module** asked: see {@link PREFERENCES_LABEL}.
+ * The raw store adapter, and a way to ask whether this installation's own
+ * runtime is still live. Both are **required** registrations of the module
+ * itself (`module.ts`'s `preferences` factory declares `isLive` as a
+ * dependency the same way it declares `preferencesStore`): a host that omits
+ * `isLive` gets `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "preferences":
+ * dependency "isLive" is not registered.` — not a silent default, and not the
+ * `DI_BAG_MISSING_REGISTRATION` code, which is what resolving a name nobody
+ * ever registered (`preferencesStore` itself, from outside the module)
+ * answers instead; see `module.ts`'s own JSDoc for that distinct case.
+ * `createPreferences`'s own always-`true` default (`preferences.resource.ts`)
+ * only applies to code that builds a `Preferences` directly, bypassing this
+ * module — it is not a fallback the module's own DI Bag registration can use.
+ * Both are requirements rather than module-private bindings so that a host
+ * which forgets one is told **which module** asked: see
+ * {@link PREFERENCES_LABEL}.
  */
 export interface PreferencesRequirements {
   readonly browserStore: BrowserStorage;
+  readonly isLive: IsRuntimeLive;
 }
 
 /**

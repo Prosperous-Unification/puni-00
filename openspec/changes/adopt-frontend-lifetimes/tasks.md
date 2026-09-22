@@ -25,6 +25,10 @@
       withdrawn runtime's facade must refuse, and a validator that retires the runtime
       from inside `isValid` must not still have its return value trusted. These are
       required outcomes; this task mandates no mechanism.
+      Closed by 050-7-d's part 1 (`preferences.resource.ts`'s `ensureLive`, fed by a
+      synchronous `isLive` predicate over the existing `LifetimeSlot.snapshot()`; no
+      change to `lifetime-slot.ts`) — see
+      `docs/superpowers/plans/2026-09-21-batch-6/050-7-d-withdrawal-and-page-lifecycle.md`.
 - [ ] 5. Page hide, hot-reload disposal and persisted restoration join one
       application retirement; restoration rebuilds only after it succeeds.
 - [ ] 6. The session runtime is keyed by user id and installs the directory

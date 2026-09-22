@@ -3,6 +3,7 @@ import { DiBag } from 'di-bag';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
 import type {
   BrowserStorage,
+  IsRuntimeLive,
   Preferences,
   RememberedPreferences,
 } from '@/modules/preferences/contract';
@@ -73,10 +74,21 @@ export function acquireTransactionally<S>(
   }
 }
 
-/** The one dependency of the page's runtime: how this browser's store is reached. */
+/** The page's runtime's own dependencies: its store, and its own liveness. */
 export interface ApplicationDependencies {
   /** Defaults to the real adapter; a test passes a fake, and nothing else does. */
   readonly openStore: () => BrowserStorage;
+  /**
+   * Whether this installation's own runtime is still the one a lifetime slot
+   * is publishing, checked synchronously — see `contract.ts`'s
+   * {@link IsRuntimeLive}. Optional because most callers of
+   * {@link installApplicationRuntime} — every test that builds a runtime
+   * directly, without a slot — never retire anything and so never need it;
+   * omitting it keeps this module's preferences always live, exactly as
+   * before this dependency existed. {@link acquireApplicationRuntime} is the
+   * one caller that supplies the real one.
+   */
+  readonly isLive?: IsRuntimeLive;
 }
 
 /**
@@ -96,9 +108,11 @@ export interface ApplicationDependencies {
 export function installApplicationRuntime(
   dependencies: ApplicationDependencies = { openStore: browserStorage },
 ): RetirableRuntime<ApplicationServices> {
+  const isLive = dependencies.isLive ?? (() => true);
   const bag = DiBag.createBuilder()
     .installModule(preferencesModule)
     .register({ browserStore: DiBag.fromSyncFactory(() => dependencies.openStore()) })
+    .register({ isLive: DiBag.fromSyncFactory(() => isLive) })
     .build();
   // Proof: on 2026-09-22, returning the bag made this surface enumerate
   // ['preferences', 'remembered', 'bag'] (1 failed, 41 passed).
@@ -121,6 +135,27 @@ export function installApplicationRuntime(
 export const applicationSlot: LifetimeSlot<ApplicationServices> =
   createLifetimeSlot<ApplicationServices>();
 
-/** The production acquisition, named so a caller passes a function and not a call. */
+/**
+ * The production acquisition, named so a caller passes a function and not a call.
+ *
+ * The one production wiring of `isLive`: `applicationSlot.snapshot().status ===
+ * 'live'`, checked against the same slot this factory is passed to
+ * (`applicationSlot.replace(acquireApplicationRuntime)`, in
+ * `application-bootstrap.tsx`). Reading `applicationSlot` from inside this
+ * closure rather than importing it into `preferences.resource.ts` or
+ * `module.ts` is what keeps rule K2's boundary: the slot is runtime
+ * infrastructure, and only this composition root — never a module beneath
+ * it — is allowed to know its own lifetime slot exists. Proved end to end,
+ * through this real singleton, by `application-runtime.test.ts`'s own
+ * "refuses a captured reference through the production singleton…" example —
+ * not only by the equivalent, non-singleton example built against a
+ * purpose-built slot.
+ */
 export const acquireApplicationRuntime: Acquire<ApplicationServices> = () =>
-  installApplicationRuntime();
+  installApplicationRuntime({
+    openStore: browserStorage,
+    // Proof: on 2026-09-22, returning true made the production-singleton test
+    // reach the real adapter: `localStorage is not defined` in the node tier
+    // and no exception at all in the DOM-bearing configuration.
+    isLive: () => applicationSlot.snapshot().status === 'live',
+  });
