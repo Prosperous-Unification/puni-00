@@ -448,3 +448,43 @@ observed; the other final-tree checks remain pending planner verification.
 - The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
   the whole jsdom and zoned tiers, the remaining Chromium checks, and the host gate
   remain pending planner verification under the executor sandbox contract.
+
+## Packet 050.7c, slice 1 — application services context
+
+- Attempt `050-7-c-application-context.1.20260922T131854Z` started at
+  `cb5d44453bf5242bc34808330854c756dca6fd3a`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 656 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 12 files
+  and 68 tests passed.
+- The compiling skeleton failed as prescribed: exit 1, 2 tests passed and 10
+  failed. After implementing only the selector, exit 1, 3 passed and 9 hook
+  tests failed on `Error: not implemented`. After implementing the hook, exit 0,
+  12 tests passed.
+- Final focused context suite: exit 0, 1 file and 12 tests passed. Final owned
+  runtime/preferences paths: exit 0, 13 files and 80 tests passed, the required
+  +1 file/+12 tests delta. Final sandbox unit comparison: exit 0, unchanged at
+  46 files and 656 tests.
+- Forced TypeScript build: exit 0. `wbs-fe-01:lint --skip-nx-cache`: exit 0;
+  Nx successfully ran the target. `wbs-fe-01:build`: exit 0; 991 modules were
+  transformed and Nx successfully ran the target. Repository format check:
+  exit 0.
+- Strict OpenSpec validation: exit 0; the strict `jq` predicate accepted one
+  object with 114 items passed and 0 failed.
+
+### Negative-proof observations
+
+Each mutation compiled, its patch and failing output are stored under this
+attempt's `evidence/` directory, and the source was restored byte-for-byte with
+`cmp` before the 12-test suite was rerun green.
+
+| Fault                                                     | Observed failure                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Permanently cache the initial hook snapshot               | Exit 1, 4 failed and 8 passed. The pending-disposal and failed-retirement cases received `live` instead of `withdrawn`; the generated property received `true` where slot truth was `false`. The packet rehearsal had reported five failures, but the named facts failed in this attempt. |
+| Make the selector retain its last live state              | Exit 1, 6 failed and 6 passed. The selector's retirement case and the generated property failed; the property received `true` where slot truth was `false`.                                                                                                                               |
+| Re-serve the cached live state while retiring             | Exit 1, 2 failed and 10 passed. Only the pending-disposal example and generated property failed; the property received `true` where slot truth was `false`.                                                                                                                               |
+| Replace the missing-provider throw with `applicationSlot` | Exit 1, 1 failed and 11 passed. `throws when read below no provider` received `null` instead of the required message. The adjacent production `Proof:` comment records this observation with the actual date, 2026-09-22.                                                                 |
+
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets, the whole jsdom and zoned tiers, Chromium, and the host gate remain
+  pending planner verification under the executor sandbox contract.
