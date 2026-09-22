@@ -1,10 +1,6 @@
 # Plan history
 
-This module is not yet registered as a wiki module: `docs/wiki-policy/policy.json` needs a
-trusted boundary for `module.application.plan-history`, and
-`apps/wiki/cli/src/policy/pilot-policy.test.ts` pins both the mapping length and the exact set of
-discovered index identifiers. Adding the `module-index` block before those land fails that suite,
-so registration is its own packet.
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.plan-history","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"plan-history.feature.ts"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts and index.ts."},{"section":"invariants","reason":"Read-before-events, append-only and the no-view rule are documented on HistoryService and installPlanHistory; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/history.service.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the compatibility shim are declared; a deep import of plan-history.feature.ts by a test fixture elsewhere is not tracked here."}} -->
 
 The plan's history, read. This is the first sealed DI Bag module in the core: `module.ts` seals
 the graph and exports `history` alone, `check.ts` is the only place that builds a bag, and
@@ -15,7 +11,7 @@ says which module asked.
 ## Checks
 
 The applicable check is the `wbs-core:test` target declared in
-`libs/wbs/application/core/project.json`.
+`libs/wbs/application/core/project.json`, recorded above as `check.core.test`.
 
 ## Consumers
 

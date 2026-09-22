@@ -542,3 +542,23 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
 - `wbs-domain` is not a synced main spec: `openspec spec list` names twelve capabilities and not that
   one, while 123 archived change deltas carry `specs/wbs-domain/`. The value is checkable against those
   deltas only, and syncing it is its own change.
+
+### Wiki registration, Slice 1 — 2026-09-22
+
+- The pre-edit `twilight-burokrat:typecheck` exited 0, and the focused pilot-policy baseline passed
+  1 test with 0 failures and 27 assertions (`slice-1-typecheck-baseline.log`,
+  `slice-1-pin-baseline.log`).
+- Adding Plan history's index block before replacing the literal pin failed the named test with
+  `module.application.plan-history` as one extra received entry: 0 passed, 1 failed and 21
+  assertions (`slice-1-index-transition-red.log`). The structural replacement then passed 1 test
+  with 0 failures and 27 assertions (`slice-1-pin-green.log`).
+- Removing `boundary.infra.release-assembly` made the module/boundary comparison report
+  `Expected: 5` and `Received: 6` (`policy-boundary-removed.patch`,
+  `policy-boundary-removed.log`). Restoring the saved bytes matched with `cmp` and passed 1 test
+  with 0 failures and 27 assertions (`policy-boundary-removed-restored-green.log`).
+- Removing saved-plan's `module-index` block made the declared-module/index comparison report
+  `Expected: true` and `Received: false` (`saved-plan-index-removed.patch`,
+  `saved-plan-index-removed.log`). Restoring the saved bytes matched with `cmp` and passed 1 test
+  with 0 failures and 27 assertions (`saved-plan-index-removed-restored-green.log`).
+- The final `twilight-burokrat:typecheck` and `twilight-burokrat:lint:source` targets exited 0
+  (`slice-1-typecheck-final.log`, `slice-1-lint-source.log`).

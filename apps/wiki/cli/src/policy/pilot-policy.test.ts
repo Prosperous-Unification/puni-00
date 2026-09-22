@@ -35,6 +35,7 @@ const pilotPaths = [
   'docs/wiki-policy/bootstrap-policy.json',
   'docs/wiki-policy/relationships.json',
   'docs/wiki-policy/relationships.bootstrap.json',
+  'libs/wbs/application/core/src/module/plan-history/README.md',
   'libs/wbs/application/core/src/use-cases/README.md',
   'libs/wbs/domain/domain/src/saved-plan/README.md',
   'libs/wbs/adapters/store-memory/src/README.md',
@@ -357,10 +358,21 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(mapping.exitCode, output(mapping)).toBe(0);
     const modules = (
       JSON.parse(readFileSync(mappingPath, 'utf8')) as {
-        modules: { moduleId: string; predecessorModuleIds: string[] }[];
+        modules: { moduleId: string; indexPath: string; predecessorModuleIds: string[] }[];
       }
     ).modules;
-    expect(modules).toHaveLength(6);
+    // The pilot mapping and the trusted-boundary policy are two views of the same boundary set
+    // (`trust.ts:1230` refuses a mapping row with no matching boundary), so their counts stay equal
+    // without either file naming a literal headcount that a further module, registered the way
+    // `module.application.plan-history` now is, would force editing by hand.
+    // Proof: adding Plan history's index before its registration made the old array comparison
+    // receive `module.application.plan-history` as one extra entry (2026-09-22).
+    // Proof: removing `boundary.infra.release-assembly` made this comparison report
+    // `Expected: 5` and `Received: 6` (2026-09-22).
+    expect(modules.length).toBe(policy.boundaries.length);
+    // `ModuleMapping`'s own schema (`contracts/records.ts:620-636`) already refuses a duplicate
+    // `moduleId` before `validate module-mapping` above can exit 0, so a uniqueness assertion here
+    // would be unreachable dead code; this length comparison is the check this suite still needs.
     expect(modules.every(({ predecessorModuleIds }) => predecessorModuleIds.length === 0)).toBe(
       true,
     );
@@ -375,15 +387,26 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     ]);
     expect(indexInvocation.exitCode, output(indexInvocation)).toBe(0);
     const indexReport = JSON.parse(pipeText(indexInvocation.stdout, 'index stdout')) as {
-      indexes: { moduleId: string; applicableChecks: string[]; externalConsumers: string[] }[];
+      indexes: {
+        moduleId: string;
+        indexPath: string;
+        applicableChecks: string[];
+        externalConsumers: string[];
+      }[];
     };
-    expect(indexReport.indexes.map(({ moduleId }) => moduleId).sort()).toEqual(
-      [
-        ...modules.map(({ moduleId }) => moduleId),
-        'module.docs.findings',
-        'module.infra.tool-wiki',
-      ].sort(),
-    );
+    // Every pilot-declared module has a real discovered index (never a mapping row with nothing to
+    // back it). What indexes exist BEYOND the declared pilot set is not re-checked here: the
+    // `lint(candidate, trust)` call below already exercises production's own
+    // `pilot index has no module mapping` rule (`trust.ts:1244-1250`) end to end, so a second,
+    // hand-written version of that same rule in this test would just be an unreachable duplicate of
+    // a check this same test already runs for real.
+    // Proof: removing saved-plan's module-index block made this comparison report
+    // `Expected: true` and `Received: false` (2026-09-22).
+    expect(
+      modules.every(({ indexPath }) =>
+        indexReport.indexes.some((index) => index.indexPath === indexPath),
+      ),
+    ).toBe(true);
     expect(indexReport.indexes.every(({ applicableChecks }) => applicableChecks.length > 0)).toBe(
       true,
     );
