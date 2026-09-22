@@ -878,6 +878,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.plan-history",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/plan-history"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/history.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "8c0889017328a5c160a827ab712a9a5ea975a22a",
+          "path": "libs/core/src/service/history.service.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

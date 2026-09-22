@@ -93,4 +93,23 @@
       type check the design names actually runs. Proof: the target fails on a module that breaks its
       own contract.
 - [ ] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
-      tracked. Full K2 closure and wiki registration stay outside this change.
+      tracked. Full K2 closure stays outside this change.
+- [x] 7.5 Register each sealed module's directory as a wiki index: a `<!-- module-index -->` block
+      naming every module file by path, and full membership in `docs/wiki-policy/modules.json`'s
+      content-review pilot (a `modules.json` row matched one-to-one by a `policy.json` boundary).
+      This keeps a declared mapping row, boundary and README index mutually consistent, checked
+      by `apps/wiki/cli/src/policy/pilot-policy.test.ts`'s own production `lint()` call — a
+      narrower guarantee than "every sealed DI module has a pilot registration": that stronger
+      claim, and label agreement, are both out of this task's scope (packet D's "Deferred: label
+      agreement"). Landed 2026-09-22 for Plan history as
+      `libs/wbs/application/core/src/module/plan-history/README.md`,
+      `docs/wiki-policy/modules.json`'s `module.application.plan-history` row and
+      `docs/wiki-policy/policy.json`'s `boundary.application.plan-history`, using a
+      `sourceSelector` bound to the pre-move `libs/core/src/service/history.service.ts` this
+      directory was extracted from — the same mechanism `boundary.application.use-cases` and
+      `boundary.domain.saved-plan` already use for their own renamed directories. Whether the
+      index block's `moduleId` names the same label the module's own `buildModule` call seals its
+      bag under is explicitly **not** checked by this task: four review rounds against a
+      machine-checked version of that specific claim each found a new compile- or runtime-valid
+      bypass (040.6 packet D's "Deferred: label agreement"), so that check is a later task with its
+      own design, not part of 7.5. Each future module ticks 7.5 for its own directory.
