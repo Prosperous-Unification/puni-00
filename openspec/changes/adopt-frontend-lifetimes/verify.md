@@ -448,3 +448,135 @@ observed; the other final-tree checks remain pending planner verification.
 - The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
   the whole jsdom and zoned tiers, the remaining Chromium checks, and the host gate
   remain pending planner verification under the executor sandbox contract.
+
+## Packet 050.7c, slice 1 — application services context
+
+- Attempt `050-7-c-application-context.1.20260922T131854Z` started at
+  `cb5d44453bf5242bc34808330854c756dca6fd3a`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 656 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 12 files
+  and 68 tests passed.
+- The compiling skeleton failed as prescribed: exit 1, 2 tests passed and 10
+  failed. After implementing only the selector, exit 1, 3 passed and 9 hook
+  tests failed on `Error: not implemented`. After implementing the hook, exit 0,
+  12 tests passed.
+- Final focused context suite: exit 0, 1 file and 12 tests passed. Final owned
+  runtime/preferences paths: exit 0, 13 files and 80 tests passed, the required
+  +1 file/+12 tests delta. Final sandbox unit comparison: exit 0, unchanged at
+  46 files and 656 tests.
+- Forced TypeScript build: exit 0. `wbs-fe-01:lint --skip-nx-cache`: exit 0;
+  Nx successfully ran the target. `wbs-fe-01:build`: exit 0; 991 modules were
+  transformed and Nx successfully ran the target. Repository format check:
+  exit 0.
+- Strict OpenSpec validation: exit 0; the strict `jq` predicate accepted one
+  object with 114 items passed and 0 failed.
+
+### Negative-proof observations
+
+Each mutation compiled, its patch and failing output are stored under this
+attempt's `evidence/` directory, and the source was restored byte-for-byte with
+`cmp` before the 12-test suite was rerun green.
+
+| Fault                                                     | Observed failure                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Permanently cache the initial hook snapshot               | Exit 1, 4 failed and 8 passed. The pending-disposal and failed-retirement cases received `live` instead of `withdrawn`; the generated property received `true` where slot truth was `false`. The packet rehearsal had reported five failures, but the named facts failed in this attempt. |
+| Make the selector retain its last live state              | Exit 1, 6 failed and 6 passed. The selector's retirement case and the generated property failed; the property received `true` where slot truth was `false`.                                                                                                                               |
+| Re-serve the cached live state while retiring             | Exit 1, 2 failed and 10 passed. Only the pending-disposal example and generated property failed; the property received `true` where slot truth was `false`.                                                                                                                               |
+| Replace the missing-provider throw with `applicationSlot` | Exit 1, 1 failed and 11 passed. `throws when read below no provider` received `null` instead of the required message. The adjacent production `Proof:` comment records this observation with the actual date, 2026-09-22.                                                                 |
+
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets, the whole jsdom and zoned tiers, Chromium, and the host gate remain
+  pending planner verification under the executor sandbox contract.
+
+## Packet 050.7c, slice 2 — bootstrap context wiring
+
+- Attempt `050-7-c-application-context.2.20260922T134900Z` started at
+  `18a6a4d43bbea2a7431c59cc827a758f5f7c9fa7`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 656 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 13 files
+  and 80 tests passed.
+- Adding only the required `app` dependency and production default made the
+  forced TypeScript build exit 2 with eight `TS2741` diagnostics in the four
+  prescribed caller files. Adding `app` at those eight call sites and drawing
+  `dependencies.app` restored the build to exit 0; the three bootstrap suites
+  remained at 3 files and 7 tests passed.
+- The production-path probe then failed before the provider existed: exit 1,
+  1 failed and 5 passed, with
+  `useApplicationServicesState must be read below ApplicationServicesProvider`.
+  Wrapping the drawn tree in `ApplicationServicesProvider` over the injected
+  slot made the three bootstrap suites pass: 3 files and 8 tests.
+- Final focused bootstrap suites: exit 0, 3 files and 8 tests passed. Final
+  owned runtime/preferences paths: exit 0, 13 files and 81 tests passed, the
+  required +0 file/+1 test delta. Final sandbox unit comparison: exit 0,
+  unchanged at 46 files and 656 tests.
+- Forced TypeScript build: exit 0. `wbs-fe-01:lint --skip-nx-cache`: exit 0;
+  Nx successfully ran the target. `wbs-fe-01:build`: exit 0; Nx accepted the
+  cached build output, which records 992 transformed modules.
+- Owned-path Prettier writes: exit 0. Repository format check: exit 0.
+- Strict OpenSpec validation: exit 0; the strict `jq` predicate accepted one
+  object with 114 items passed and 0 failed.
+
+### Negative-proof observations
+
+Each mutation compiled, its patch and failing output are stored under this
+attempt's `evidence/` directory, and the source was restored byte-for-byte with
+`cmp` before the six-test file was rerun green.
+
+| Fault                                                                   | Observed failure                                                                                                                                                                   |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove `ApplicationServicesProvider` and draw the substituted tree bare | Exit 1, 1 failed and 5 passed. The production-path probe threw `useApplicationServicesState must be read below ApplicationServicesProvider`.                                       |
+| Pass `applicationSlot` instead of the injected slot                     | Exit 1, 1 failed and 5 passed. The production-path probe threw `probe never saw a live state`, because it observed the untouched singleton rather than the bootstrap's local slot. |
+
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets, the whole jsdom and zoned tiers, Chromium, and the host gate remain
+  pending planner verification under the executor sandbox contract.
+
+## Packet 050.7c, slice 3 — task 4 hand-over
+
+- Attempt `050-7-c-application-context.3.20260922T142656Z` started at
+  `d31085fc8bbac989bf3b405a02eade53a5b7c416`; its recorded starting inventory
+  was empty.
+- Step-0 sandbox unit baseline: exit 0, 46 files and 656 tests passed. Forced
+  TypeScript build: exit 0. Owned runtime/preferences baseline: exit 0, 13 files
+  and 81 tests passed.
+- Task 4 is complete. Task 3 remains open: the five delivery call sites still
+  read from `modules/preferences/composition.ts`, and the preferences module's
+  wiki index remains task 12's work.
+- This slice changes no code path and adds no negative proof. The context and
+  bootstrap proof observations are recorded in packet 050.7c's slice 1 and
+  slice 2 sections above.
+
+### Residual limits handed to 050-7-d
+
+These are required outcomes, not a mandated design. The packet's section 4
+records two attempted mechanisms as withdrawn failures.
+
+| Limit                                                                                                               | Observed behavior                                                                                                                                                                                                                                                | Required outcome                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| A mounted consumer lags the slot until React processes the slot's notification.                                     | Before retirement the hook was `live`; immediately after unflushed retirement the slot was `retiring` while the hook remained `live`; after the notification, with disposal still held open, the hook was `withdrawn`; after settlement it remained `withdrawn`. | None: this is React's notification contract, and the context proves convergence independently of disposal.                                    |
+| Before that notification is processed, a facade already captured by the mounted consumer can still reach its store. | `read` and `readAndDrop` returned `"light"` while the slot was already `retiring`; `readAndDrop` left the accepted bytes unchanged.                                                                                                                              | 050-7-d must make reads and writes through a withdrawn runtime's facade refuse once withdrawal has been accepted. The mechanism remains open. |
+| A validator retires the runtime from inside `isValid` and accepts the claimed value.                                | `read` and `readAndDrop` returned `"light"` while the slot was `retiring`, and the accepted bytes remained `{"wbs.theme":"\"light\""}`.                                                                                                                          | 050-7-d must ensure that such a validator cannot still have its return value trusted. The mechanism remains open.                             |
+
+### Slice verification
+
+- Prettier write on `tasks.md` and this verification record: exit 0; `tasks.md`
+  was unchanged and Prettier formatted this record (`slice3-prettier-write.log`).
+- Strict OpenSpec validation: exit 0; the strict `jq` predicate accepted one
+  object with 114 items passed and 0 failed; `adopt-frontend-lifetimes` was valid
+  with no issues (`openspec-validation.*.json`).
+- Forced TypeScript build: exit 0 with no diagnostics (`slice3-tsc.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0; Nx
+  executed the target in 43.0 seconds with no diagnostics (`slice3-lint.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx accepted the cached
+  build output (`slice3-build.log`).
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0
+  (`slice3-format.log`).
+- Ending owned runtime/preferences paths: exit 0, 13 files and 81 tests passed,
+  unchanged from the slice's baseline (`slice3-owned-final.log`).
+- Final inventory and scoped diff audit: exit 0; only `tasks.md` and this
+  verification record were modified, and `git diff --check` reported no errors.
+- The whole `tool-devsync:test`, the whole UTC jsdom tier,
+  `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the zoned tier, Chromium, and the host
+  gate remain pending planner verification under the executor sandbox contract.

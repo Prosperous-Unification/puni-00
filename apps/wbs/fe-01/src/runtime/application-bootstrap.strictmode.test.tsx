@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { App } from '@/app';
 import type { BrowserStorage } from '@/modules/preferences/contract';
 import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
 
@@ -93,6 +94,7 @@ describe('the page under Strict Mode', () => {
           acquire: counted.acquire,
           slot,
           mount: (element, options) => createRoot(element, options),
+          app: App,
         });
       });
 

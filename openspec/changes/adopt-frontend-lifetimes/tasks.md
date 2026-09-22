@@ -17,10 +17,14 @@
 - [ ] 3. The page's application lifetime is opened through the slot at module load and
       delivery reads its preferences out of that one graph, with the module's wiki index
       declaring `module.frontend.preferences` and its files.
-- [ ] 4. The application bootstrap owns the React root: it builds the runtime before
+- [x] 4. The application bootstrap owns the React root: it builds the runtime before
       `createRoot`, publishes `RememberedPreferences` — the feature facade only, never
       the `Preferences` resource — through one context, and renders the sanitized fatal
       state when the slot is fatal, terminal or not.
+      Follow-up for 050-7-d: once withdrawal is accepted, reads and writes through the
+      withdrawn runtime's facade must refuse, and a validator that retires the runtime
+      from inside `isValid` must not still have its return value trusted. These are
+      required outcomes; this task mandates no mechanism.
 - [ ] 5. Page hide, hot-reload disposal and persisted restoration join one
       application retirement; restoration rebuilds only after it succeeds.
 - [ ] 6. The session runtime is keyed by user id and installs the directory
