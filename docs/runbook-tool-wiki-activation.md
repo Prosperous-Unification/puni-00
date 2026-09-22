@@ -23,8 +23,8 @@ registry version or GitHub release and never rebuilds after transfer.
 
 Before the first tag, administrators must restrict `twilight-burokrat-v*`, create the protected
 environment, verify ownership of the `twilight-burokrat` registry name, and install its
-least-privilege `NPM_TOKEN`. Publication remains pending while the package is `UNLICENSED`; add the
-actual repository license before granting the environment approval.
+least-privilege `NPM_TOKEN`. The package carries the MIT License (`apps/wiki/cli/LICENSE`); the release
+check refuses a manifest marked `UNLICENSED` or a checkout without that file.
 
 To reproduce the prepared artifact without publishing:
 

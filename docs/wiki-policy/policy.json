@@ -413,6 +413,10 @@
           {
             "kind": "name",
             "value": "NOTICE"
+          },
+          {
+            "kind": "name",
+            "value": "LICENSE"
           }
         ],
         "exclude": [
