@@ -474,3 +474,71 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
   `slice-4-proof-count-final.log`). Core typecheck and lint exited 0
   (`slice-4-typecheck-lint.log`), and the closing core suite remained unchanged from its baseline
   at `C=543`, `F=55`, with 0 failures (`slice-4-core-closing.log`).
+
+## The type-only preparations, 2026-09-22
+
+- Task 1.3: `ports/calendar-marker-read.ts` declares `CalendarMarkerReader`,
+  `CalendarMarkerListOutcome`, `CalendarMarkerRefused`, `CalendarMarkerRefusal` and
+  `CalendarMarkerSubject`. `service/calendar-marker.service.ts` re-exports the **four** moved names
+  (not `CalendarMarkerReader`, which only Plan document needs) and keeps `CalendarMarkerOutcome` as its
+  own declaration; `service/plan-document.ts` names the reader. Slice 1 observed: `wbs-core` type-check
+  and lint, the portable browser build, and the be-01, gw-01 and mcp-01 type-checks at exit 0, and the
+  core suite moving from 542 passed over 54 files to 543 over 55, the one new file
+  being the rule
+  (`seeded/040-6-c-type-only-preparations.1.20260922T102114Z/slice-1-core-baseline.log`,
+  `seeded/040-6-c-type-only-preparations.1.20260922T102114Z/slice-1-core-closing.log`).
+- Task 1.4: `libs/wbs/domain/contracts/src/principal.ts` declares `AuthenticatedUser` and
+  `InternalIdentity`. `service/auth.service.ts` re-exports `AuthenticatedUser` only;
+  `http/endpoint.ts` re-exports both and keeps `Identity` built from them. The four use cases,
+  `service/retention-timer.ts`, `compose.ts` and three test files take them from `@wbs/contracts`.
+  Slice 2 observed: `wbs-contracts` type-check, lint and test at exit 0, and the core suite unchanged at
+  543 over 55
+  (`seeded/040-6-c-type-only-preparations.2.20260922T103704Z/slice-2-core-baseline.log`,
+  `seeded/040-6-c-type-only-preparations.2.20260922T103704Z/slice-2-core-closing.log`).
+- Task 1.6, first half: `apps/wbs/be-01/src/service/optimization-coordinator.ts` and
+  `…/optimized-plan-read.test.ts` take `SolverObjectiveName` from `@wbs/domain`, and the coordinator
+  takes `ProjectEvent` from `@wbs/core`. Slice 3 observed be-01 type-check and lint at exit 0 and its
+  **focused sandbox-safe subset** (the six selected be-01 tests closest to the changed files; four further
+  eligible ones, and the spawning `optimization-spawn-handshake.proc.db.test.ts`, are the planner's)
+  unchanged at 60 passed over 6 files
+  (`seeded/040-6-c-type-only-preparations.3.20260922T105840Z/slice-3-be-subset-baseline.log`,
+  `seeded/040-6-c-type-only-preparations.3.20260922T105840Z/slice-3-be-subset-closing.log`). The whole
+  `wbs-be-01:test` target is pending planner verification: two of its files bind a socket and the slice
+  was dispatched without network.
+- Preparation 6 of the module map was already met before this work and is recorded, not redone: the
+  root supplies the optimizer's event callback at `apps/wbs/be-01/src/services.ts:149-150`, and
+  `service/optimizer-trigger-broadcaster.ts:1` takes only the neutral port and an injected
+  `inputChanged`, so neither feature imports the other.
+- The one new safety check is `ports/sideways-type-boundaries.test.ts` ›
+  `rejects the checked sideways-type import routes`. A type-only move has no runtime behaviour, so its
+  production-path negative is this rule's red, not a behaviour test's: re-introducing a sideways type
+  import leaves `wbs-core:typecheck` at exit 0 and fails this assertion. Slice 4 watched 17
+  reference routes fail and 4 guards throw, including the false green the malformed-tsconfig
+  guard prevents, and two probes recorded as **not** prevented, each with the literal fragment recorded
+  beside its evidence basename; the guard's own log is
+  `seeded/040-6-c-type-only-preparations.4.20260922T111104Z/slice-4-malformed-tsconfig-guard-deleted.log`.
+- Stated limits of the rule. It compares resolved declaration files, never spelling, and what it rejects
+  is the list of forms in the packet's section 6, each with a watched negative — not a category. **Two
+  residuals were observed here returning `[]` with the type check at exit 0**: a selection whose base has
+  had its module identity cast away first
+  (`(markers as unknown as Record<string, unknown>)['CalendarMarkerService']`, fault 23), and a third file
+  re-exporting an owner's own re-export of a **contracts** declaration, because what is reached then is the
+  contracts declaration and nothing of the owner remains in it (fault 9). **Two further limits are
+  analysis, not measured here**: value-binding indirection through an exported binding, and a structural
+  copy or a duplicate declaration of the same shape — `ports/event-port-boundaries.test.ts` records the
+  same two for its own rule after five rounds, which is attributed precedent rather than a measurement of
+  this one. All four belong to kind rules K2 to K6. Six further forms the implementation handles are
+  **unverified here** and claimed neither way: a dynamic `import(...)`, `import x = require(...)`, a
+  renamed import, a `default` re-export, an `export * as ns` re-export and a multi-hop re-export chain.
+  Nothing prevents the be-01 repository-schema type path returning: be-01 has no type-identity check, and
+  task 3.6 owns that rule. `ports/event-port-boundaries.test.ts` says nothing about a file forwarding the
+  Calendar marker service, which is out of that rule's scope and not a gap in it.
+- Task 1.8 touched **five** entries, not four: Plan history's row became a shim under 2.1, and Plan
+  commands and Saved plans each carry two rows. This slice observed the classification count unchanged
+  at 95, and strict OpenSpec validation unchanged at 114 items passed and 0 failed before and after —
+  the four files this slice wrote itself: `slice-5-kinds-before.txt`, `slice-5-kinds-after.txt`,
+  `slice-5-openspec-before.json`, `slice-5-openspec-after.json`. `tool-devsync:test` is pending planner
+  verification: its index checker refuses untracked files and it spawns processes.
+- `wbs-domain` is not a synced main spec: `openspec spec list` names twelve capabilities and not that
+  one, while 123 archived change deltas carry `specs/wbs-domain/`. The value is checkable against those
+  deltas only, and syncing it is its own change.
