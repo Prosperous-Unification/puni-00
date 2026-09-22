@@ -210,6 +210,9 @@ function contractUses(paths: readonly string[]): ContractUse {
           // The compatibility barrel is the one permitted wildcard: `index.ts` re-exports the
           // collector's file, which re-exports the contracts, and that is what keeps every
           // `@wbs/core` name working while the collector lives there.
+          // Proof: deleting this `permitted` clause made the rule report
+          // `index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts`,
+          // 0 pass and 1 fail (2026-09-22).
           const permitted = path === barrelHome && from === collectorHome;
           if (!permitted && from !== portHome && handsOutContract(end, new Set())) {
             reached.push(`${path}: ${exposed.getText()} hands out the contracts from ${from}`);
@@ -270,6 +273,15 @@ function contractUses(paths: readonly string[]): ContractUse {
 
 describe('the neutral project-event port', () => {
   it('rejects the checked event-contract import routes', async () => {
+    // Proof: thirteen routes into the contracts each failed here with `wbs-core:typecheck` exit 0 — a
+    // named import and an `import` type through service/broadcast.ts; a type-only namespace of it; a value
+    // namespace of it read by element access; a barrel import through index.ts; an awaited dynamic import
+    // consumed as a property and, separately, by element access; a `typeof import(…)` indexed type; a
+    // rename (`subscriptionFor as routeFor`); a `default` re-export; an `export * as events` namespace
+    // consumed as a nested property and as a qualified `import` type; and a two-hop re-export chain, which
+    // named both hops. Reported as `<file>: <name> via <route>`,
+    // `<file>: <specifier> hands out the contracts from <route>`, or
+    // `<file>: <expression> reads a contract out of <route>` (2026-09-22).
     expect(contractUses(await scannedSources())).toEqual([]);
   }, 120_000);
 });

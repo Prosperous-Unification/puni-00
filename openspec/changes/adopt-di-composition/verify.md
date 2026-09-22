@@ -131,3 +131,78 @@ directory.)_
   formatting check (`slice-2-prettier-check.log`); and the closing core type-check and lint
   passed (`slice-2-typecheck-lint.log`). The repository-wide format check passed
   (`slice-2-format-check.log`).
+
+### Broadcast event port, Slice 3 — 2026-09-22
+
+- Step 0 found 0 proof comments, the focused boundary test passed 1 test with 0 failures, and
+  `wbs-core:typecheck` exited 0 (`slice-3-proof-count-baseline.log`,
+  `slice-3-step0-boundary.log`, `slice-3-step0-typecheck.log`). The core baseline was `C=542`,
+  `F=54`: 542 passed, 0 failed across 54 files (`core-baseline.log`).
+- A named import through `service/broadcast.ts` reported
+  `service/step.service.ts: Broadcaster via service/broadcast.ts`
+  (`step-named-import.patch`, `step-named-import.log`,
+  `step-named-import-typecheck.log`, `step-named-import-restored-green.log`).
+- A type-only namespace through `service/broadcast.ts` reported the `Broadcaster via`, module
+  specifier `hands out`, and namespace identifier `events hands out` rows
+  (`step-namespace-type.patch`, `step-namespace-type.log`,
+  `step-namespace-type-typecheck.log`, `step-namespace-type-restored-green.log`).
+- A value namespace read by element access reported `events hands out the contracts from
+service/broadcast.ts` and the `./broadcast` module-specifier row
+  (`gateway-element-access.patch`, `gateway-element-access.log`,
+  `gateway-element-access-typecheck.log`, `gateway-element-access-restored-green.log`).
+- A root-barrel import reported `service/capacity.service.ts: Broadcaster via index.ts`
+  (`capacity-barrel.patch`, `capacity-barrel.log`, `capacity-barrel-typecheck.log`,
+  `capacity-barrel-restored-green.log`).
+- An `import` type through `service/broadcast.ts` reported both `Broadcaster via
+service/broadcast.ts` and the `./broadcast` module-specifier row
+  (`capacity-import-type.patch`, `capacity-import-type.log`,
+  `capacity-import-type-typecheck.log`, `capacity-import-type-restored-green.log`).
+- A renamed re-export reported `routeFor via service/optimizer-trigger-broadcaster.ts`, the
+  `routes hands out` and `routes.routeFor reads` rows, and the root-barrel module-specifier row
+  (`renamed-export.patch`, `renamed-export.log`, `renamed-export-typecheck.log`,
+  `renamed-export-restored-green.log`).
+- A default re-export reported `pushTo via service/optimizer-trigger-broadcaster.ts` and the
+  root-barrel module-specifier row (`default-export.patch`, `default-export.log`,
+  `default-export-typecheck.log`, `default-export-restored-green.log`).
+- An `export * as events` namespace consumed as a nested property reported
+  `routes hands out the contracts from service/optimizer-trigger-broadcaster.ts`
+  (`namespace-export.patch`, `namespace-export.log`, `namespace-export-typecheck.log`,
+  `namespace-export-restored-green.log`).
+- That namespace consumed as a qualified `import` type reported
+  `service/capacity.service.ts: Broadcaster via service/optimizer-trigger-broadcaster.ts`
+  (`qualified-import-type.patch`, `qualified-import-type.log`,
+  `qualified-import-type-typecheck.log`, `qualified-import-type-restored-green.log`).
+- An awaited dynamic import indexed by `subscriptionFor` reported the `./broadcast`
+  module-specifier row and `(await import('./broadcast'))['subscriptionFor'] reads a contract
+out of service/broadcast.ts` (`awaited-element-access.patch`,
+  `awaited-element-access.log`, `awaited-element-access-typecheck.log`,
+  `awaited-element-access-restored-green.log`).
+- A `typeof import` indexed annotation reported the same module-specifier row and
+  `(typeof import('./broadcast'))['subscriptionFor'] reads a contract out of
+service/broadcast.ts` (`typeof-import-indexed.patch`, `typeof-import-indexed.log`,
+  `typeof-import-indexed-typecheck.log`, `typeof-import-indexed-restored-green.log`).
+- An awaited dynamic import consumed as a property reported the module-specifier row and
+  `subscriptionFor via service/broadcast.ts` (`awaited-property.patch`,
+  `awaited-property.log`, `awaited-property-typecheck.log`,
+  `awaited-property-restored-green.log`).
+- A two-hop type re-export reported both hops through `service/broadcast.ts` and
+  `service/optimizer-trigger-broadcaster.ts`. It also reported the root barrel's
+  `./service/optimizer-trigger-broadcaster` module reference, for five rows total
+  (`two-hop-chain.patch`, `two-hop-chain.log`, `two-hop-chain-typecheck.log`,
+  `two-hop-chain-restored-green.log`).
+- Deleting the compatibility-barrel exception reported
+  `index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts`
+  (`barrel-permission-deleted.patch`, `barrel-permission-deleted.log`,
+  `barrel-permission-deleted-restored-green.log`).
+- Every route mutation failed the one named boundary assertion at 0 passed and 1 failed; faults
+  3 through 15 also left `wbs-core:typecheck` at exit 0. Every passing file was restored with
+  `cp`, matched with `cmp`, and the focused test reran green at 1 passed and 0 failed before the
+  next mutation.
+- With the two proof comments added, the focused boundary test passed 1 test with 0 failures and
+  the proof-count block printed `proof-comments=2` (`slice-3-boundary-final.log`,
+  `slice-3-proof-count-final.log`). Core type-check and lint passed
+  (`slice-3-typecheck-lint.log`), the closing core suite remained `C=542`, `F=54` with 0 failures
+  (`core-final.log`), and the repository-wide format check passed
+  (`slice-3-format-check.log`).
+- Strict OpenSpec validation reported 114 items, 114 passed and 0 failed, and its `jq -s -e`
+  contract exited 0 (`openspec-validation.FfStD3.json`).
