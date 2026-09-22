@@ -21,3 +21,14 @@ The applicable check is the `wbs-core:test` target declared in
 `@wbs/core/service/history.service` names. Workspace-relative paths rather than Markdown links:
 `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` resolves a relative link against the
 file that carries it, and this listing is quoted inside a plan document at another depth.
+
+## Wiki registration
+
+This module is a full member of `docs/wiki-policy/modules.json`'s content-review pilot, as
+`module.application.plan-history` (`docs/wiki-policy/policy.json`'s
+`boundary.application.plan-history`). The boundary's `sourceSelector` binds this new directory to
+the single service file it was extracted from, which existed at the pilot's frozen
+`sourceRevision` — the same mechanism `boundary.application.use-cases` and `boundary.domain.saved-plan`
+already use for their own renamed directories. Whether this README's `moduleId` names the same
+label `module.ts` seals its bag under is not machine-checked: see the plan's "Deferred: label
+agreement" for why, and what a later change needs before it can be.

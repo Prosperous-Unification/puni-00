@@ -562,3 +562,28 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
   with 0 failures and 27 assertions (`saved-plan-index-removed-restored-green.log`).
 - The final `twilight-burokrat:typecheck` and `twilight-burokrat:lint:source` targets exited 0
   (`slice-1-typecheck-final.log`, `slice-1-lint-source.log`).
+
+### Wiki registration, Slice 2 — 2026-09-22
+
+- The slice began at `253df36d4681b89eba4f17db350ea2a012b25a30` with `M=6` module mappings
+  and `B=6` trusted boundaries. The pilot source revision carried
+  `100644 blob 8c0889017328a5c160a827ab712a9a5ea975a22a` at
+  `libs/core/src/service/history.service.ts` (`slice-2-base.txt`).
+- The pre-edit `twilight-burokrat:typecheck` exited 0. The legacy-occurrence pin baseline passed
+  1 test with 0 failures and 1 assertion, and the whole pilot-policy baseline passed 21 tests with
+  0 failures and 293 assertions (`slice-2-typecheck-baseline.log`,
+  `slice-2-legacy-pin-baseline.log`, `slice-2-pilot-policy-baseline.log`).
+- Adding only `module.application.plan-history` to the module mapping failed the named parity test
+  with `Expected: 6` and `Received: 7`, 0 passed and 1 failed
+  (`slice-2-registration-red.log`). Adding the matching
+  `boundary.application.plan-history` made the focused test pass 1 test with 0 failures and 28
+  assertions, and the whole pilot-policy file pass 21 tests with 0 failures and 294 assertions
+  (`slice-2-registration-green.log`, `slice-2-pilot-policy-green.log`).
+- The unchanged legacy-occurrence pin then failed with `historical policy selector or baseline`
+  moving from 39 to 41, occurrences from 257 to 259, and digest
+  `2f0d2926e8d85aed7089c3ad667f7a0f6ccb97c514152a9895893978fab3f22d` changing to
+  `55fafcaf0420dd5b2e0018b0a0dd467b7c3b8fae950eca69e72a99f52364b725`, with no
+  unclassified entries (`slice-2-legacy-pin-red.log`, `legacy-pin-repin.patch`). After re-pinning,
+  the focused test passed 1 test with 0 failures and 1 assertion
+  (`slice-2-legacy-pin-green.log`).
+- The final `twilight-burokrat:typecheck` exited 0 (`slice-2-typecheck-final.log`).
