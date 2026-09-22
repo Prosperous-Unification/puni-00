@@ -263,3 +263,42 @@ not rerun in slice 4.
 - The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
   the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
   verification under the executor sandbox contract.
+
+## Slice 5
+
+- `git rev-parse HEAD`: exit 0; `f3db94c72fcb8a3d4bbb6e084552fe7c762b5b1f`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` before edits: exit 0; Nx
+  successfully ran the target from its cache (`slice5-step0-typecheck.log`).
+- Sandbox unit baseline: exit 0; F0 = 46 files passed and T0 = 656 tests passed
+  (`slice5-step0-unit.log`).
+- The lifetime-slot model with the production application graph in its generated
+  interleavings: exit 0; 1 file and 1 test passed at seed 20260923 with 300 runs
+  (`slice5-slot-model.log`).
+- The staged-composition agreement case: exit 0; 1 file and 1 test passed
+  (`slice5-composition-agreement.log`).
+- Sandbox unit tier after the model extension and agreement case: exit 0; 46 files and
+  656 tests passed, unchanged from F0/T0 because the model suite was already listed and
+  the agreement case is in the jsdom tier (`slice5-unit-after.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` after edits: exit 0; Nx executed
+  the target successfully (`slice5-typecheck.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint`: exit 0; Nx executed the target
+  successfully with no diagnostics (`slice5-lint.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; 991 modules transformed and
+  Nx executed the target successfully (`slice5-build.log`).
+- Strict OpenSpec validation: exit 0; 114 items passed and 0 failed;
+  `adopt-frontend-lifetimes` was valid with no issues
+  (`slice5-openspec-validation.GqfMkO.json`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write` on the four code and module-document
+  paths: exit 0; every path was unchanged (`slice5-prettier-write.log`).
+- `GSETTINGS_BACKEND=memory bunx prettier --write` on this verification record:
+  exit 0 (`slice5-prettier-write-verify-final.log`).
+- `GSETTINGS_BACKEND=memory bunx prettier --check` on all five slice-owned paths:
+  exit 0; all matched files used Prettier code style (`slice5-prettier-check-final.log`).
+- `NX_DAEMON=false bun run format:check --all`: exit 0
+  (`slice5-format-check-final.log`).
+- No negative proof was run and no `Proof:` comment was added in this slice; the packet
+  assigns the installed-graph fault N1 and every adjacent proof comment to slice 6.
+- The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
+  the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
+  verification under the executor sandbox contract.
