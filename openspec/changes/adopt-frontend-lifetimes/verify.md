@@ -182,6 +182,68 @@ not rerun in slice 4.
   the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
   verification under the executor sandbox contract.
 
+## Slice 6
+
+- `git rev-parse HEAD`: exit 0; `4f321dcd27d4a258f2267dcf98b91eabd2ad673c`.
+- `git status --short --untracked-files=all`: exit 0; no paths before the slice.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` before edits: exit 0
+  (`slice6-step0-typecheck.log`).
+- Sandbox unit baseline: exit 0; F0 = 46 files passed and T0 = 656 tests passed
+  (`slice6-step0-unit.log`).
+- The focused node prerequisite: exit 0; 4 files and 42 tests passed
+  (`slice6-node-green-before.log`). The focused jsdom prerequisite: exit 0; 5 files
+  and 12 tests passed (`slice6-jsdom-green-before.log`).
+- Every mutation below passed `wbs-fe-01:typecheck`, failed its named test, was
+  restored byte-for-byte with `cmp`, and had its applicable focused suite rerun green.
+
+| Fault | Observed failure                                                                                                                                        | Evidence                                                                                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1    | 4 node failures and 1 jsdom failure; the host-close case received no throw, and the slot model reported `r2: revoked=false, graphClosed=true, live=r3`. | `N1.patch`, `N1-typecheck.log`, `N1-node-red.log`, `N1-jsdom-red.log`, `N1-restore-cmp.log`, `N1-node-green.log`, `N1-jsdom-green.log`        |
+| N2    | 5 node failures and 1 jsdom failure; the direct revoked-store case received no throw, distinguishing this from N1.                                      | `N2.patch`, `N2-typecheck.log`, `N2-node-red.log`, `N2-jsdom-red.log`, `N2-restore-cmp.log`, `N2-node-green.log`, `N2-jsdom-green.log`        |
+| N3    | 4 node failures; `keeps its owned store out of a host graph` received no throw.                                                                         | `N3.patch`, `N3-typecheck.log`, `N3-node-red.log`, `N3-restore-cmp.log`, `N3-node-green.log`                                                  |
+| N4    | 2 node failures; the graph omitted `frontend.preferences/preferencesStore`.                                                                             | `N4.patch`, `N4-typecheck.log`, `N4-node-red.log`, `N4-restore-cmp.log`, `N4-node-green.log`                                                  |
+| N14   | 8 node failures and 5 jsdom failures on `DI_BAG_CYCLE`; by design this graph-shape fault earns no source comment.                                       | `N14.patch`, `N14-typecheck.log`, `N14-node-red.log`, `N14-jsdom-red.log`, `N14-restore-cmp.log`, `N14-node-green.log`, `N14-jsdom-green.log` |
+| N5    | 4 node failures; the half-finished read returned a plain `Error`, not `PartialAcquisitionError`.                                                        | `N5.patch`, `N5-typecheck.log`, `N5-node-red.log`, `N5-restore-cmp.log`, `N5-node-green.log`                                                  |
+| N7b   | 1 node failure; the disposal record stayed `[]` instead of `['first']`.                                                                                 | `N7b.patch`, `N7b-typecheck.log`, `N7b-node-red.log`, `N7b-restore-cmp.log`, `N7b-node-green.log`                                             |
+| N6    | 1 node failure; the published surface enumerated `['preferences', 'remembered', 'bag']`.                                                                | `N6.patch`, `N6-typecheck.log`, `N6-node-red.log`, `N6-restore-cmp.log`, `N6-node-green.log`                                                  |
+| N6b   | 1 node failure; the no-resolver assertion received false.                                                                                               | `N6b.patch`, `N6b-typecheck.log`, `N6b-node-red.log`, `N6b-restore-cmp.log`, `N6b-node-green.log`                                             |
+| N7    | 3 node failures and 1 jsdom failure; the runtime-owned store remained readable after close.                                                             | `N7.patch`, `N7-typecheck.log`, `N7-node-red.log`, `N7-jsdom-red.log`, `N7-restore-cmp.log`, `N7-node-green.log`, `N7-jsdom-green.log`        |
+| N16   | 1 jsdom failure; the model drew the app while the slot was `retiring`.                                                                                  | `N16.patch`, `N16-typecheck.log`, `N16-jsdom-red.log`, `N16-restore-cmp.log`, `N16-jsdom-green.log`                                           |
+| N11   | 5 jsdom failures; the eager root mounted while the slot was `empty`.                                                                                    | `N11.patch`, `N11-typecheck.log`, `N11-jsdom-red.log`, `N11-restore-cmp.log`, `N11-jsdom-green.log`                                           |
+| N18   | 1 jsdom failure; Strict Mode acquired 3 runtimes instead of 1.                                                                                          | `N18.patch`, `N18-typecheck.log`, `N18-jsdom-red.log`, `N18-restore-cmp.log`, `N18-jsdom-green.log`                                           |
+| N8    | 2 jsdom failures; the refused-start case rendered 0 trees instead of 1.                                                                                 | `N8.patch`, `N8-typecheck.log`, `N8-jsdom-red.log`, `N8-restore-cmp.log`, `N8-jsdom-green.log`                                                |
+| N9    | 1 jsdom failure; a console line carried the caught value instead of disclosed strings.                                                                  | `N9.patch`, `N9-typecheck.log`, `N9-jsdom-red.log`, `N9-restore-cmp.log`, `N9-jsdom-green.log`                                                |
+| N12   | 1 jsdom failure; the rendered fault props contained `alice@example.com`.                                                                                | `N12.patch`, `N12-typecheck.log`, `N12-jsdom-red.log`, `N12-restore-cmp.log`, `N12-jsdom-green.log`                                           |
+| N15   | 2 jsdom failures; one refusal was rendered and logged twice.                                                                                            | `N15.patch`, `N15-typecheck.log`, `N15-jsdom-red.log`, `N15-restore-cmp.log`, `N15-jsdom-green.log`                                           |
+| N10   | 1 jsdom failure; a failed retirement left 1 rendered tree instead of 2.                                                                                 | `N10.patch`, `N10-typecheck.log`, `N10-jsdom-red.log`, `N10-restore-cmp.log`, `N10-jsdom-green.log`                                           |
+| N13   | 1 jsdom failure; the fatal page disclosed no occurrence reference.                                                                                      | `N13.patch`, `N13-typecheck.log`, `N13-jsdom-red.log`, `N13-restore-cmp.log`, `N13-jsdom-green.log`                                           |
+| N19   | 1 jsdom failure; startup-only wording omitted `Anything already saved is on the server`.                                                                | `N19.patch`, `N19-typecheck.log`, `N19-jsdom-red.log`, `N19-restore-cmp.log`, `N19-jsdom-green.log`                                           |
+| N20   | 2 jsdom failures; the losing bootstrap rejected with `the slot is empty` instead of resolving without drawing.                                          | `N20.patch`, `N20-typecheck.log`, `N20-jsdom-red.log`, `N20-restore-cmp.log`, `N20-jsdom-green.log`                                           |
+| N21   | 1 jsdom failure; mount statuses were `['live', 'fatal']` instead of `['live']`.                                                                         | `N21.patch`, `N21-typecheck.log`, `N21-jsdom-red.log`, `N21-restore-cmp.log`, `N21-jsdom-green.log`                                           |
+
+- After the comments, the focused node command passed 4 files and 42 tests and the
+  focused jsdom command passed 5 files and 12 tests
+  (`slice6-node-green-after-comments.log`, `slice6-jsdom-green-after-comments.log`).
+- Sandbox unit after the comments: exit 0; 46 files and 656 tests passed, unchanged
+  from F0/T0 (`slice6-unit-after.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`: exit 0
+  (`slice6-typecheck-final.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint`: exit 0 with no diagnostics
+  (`slice6-lint.log`).
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; 991 modules transformed
+  (`slice6-build.log`).
+- Prettier write on the six slice-owned paths: exit 0; only this verification record
+  changed. Prettier check on the same paths: exit 0
+  (`slice6-prettier-write.log`, `slice6-prettier-check.log`).
+- `NX_DAEMON=false bun run format:check --all`: exit 0
+  (`slice6-format-check-rerun.log`).
+- Strict OpenSpec validation: exit 0; 114 items passed and 0 failed;
+  `adopt-frontend-lifetimes` was valid with no issues
+  (`slice6-openspec-validation.*.json`).
+- The whole `wbs-fe-01:test:unit`, `wbs-fe-01:test`, and `tool-devsync:test` targets,
+  the whole jsdom and zoned tiers, Chromium, and the host gate remain pending planner
+  verification under the executor sandbox contract.
+
 ## Slice 4
 
 - `git rev-parse HEAD`: exit 0; `8a48d86d2e974c5ccce971b2475f28931ba4f5c6`.

@@ -29,6 +29,8 @@ import { createPreferences } from './preferences.resource';
  */
 export const preferencesModule = DiBag.createBuilder()
   .register({
+    // Proof: on 2026-09-22, dropping this disposal made 'gives the store back when
+    // its host graph closes' receive no throw (4 failed, 38 passed).
     preferencesStore: DiBag.withDisposal(
       DiBag.fromSyncFactory(
         ({ browserStore }: { browserStore: BrowserStorage }): RevocableBrowserStorage =>
@@ -51,4 +53,8 @@ export const preferencesModule = DiBag.createBuilder()
         createRememberedPreferences(preferences),
     ),
   })
+  // Proof: on 2026-09-22, exporting `preferencesStore` made 'keeps its owned store
+  // out of a host graph' receive no throw (4 failed, 38 passed).
+  // Proof: on 2026-09-22, dropping the label made the graph omit
+  // `frontend.preferences/preferencesStore` (2 failed, 40 passed).
   .buildModule(['preferences', 'remembered'], { label: PREFERENCES_LABEL });

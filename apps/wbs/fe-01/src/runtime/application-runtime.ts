@@ -61,8 +61,14 @@ export function acquireTransactionally<S>(
   read: () => S,
 ): RetirableRuntime<S> {
   try {
+    // Proof: on 2026-09-22, a resolved no-op close left the store readable after
+    // 'revokes the store it owns when the installation closes' (3 failed, 39 passed).
     return { services: read(), close: (options) => graph.close(options) };
   } catch (failure) {
+    // Proof: on 2026-09-22, rethrowing this unwrapped made 'releases everything a
+    // half-finished read acquired' receive Error instead of PartialAcquisitionError.
+    // Proof: on 2026-09-22, a resolved no-op release made that test record []
+    // instead of ['first']; the graph's disposer never ran (1 failed, 41 passed).
     throw new PartialAcquisitionError(failure, (options) => graph.close(options));
   }
 }
@@ -94,6 +100,10 @@ export function installApplicationRuntime(
     .installModule(preferencesModule)
     .register({ browserStore: DiBag.fromSyncFactory(() => dependencies.openStore()) })
     .build();
+  // Proof: on 2026-09-22, returning the bag made this surface enumerate
+  // ['preferences', 'remembered', 'bag'] (1 failed, 41 passed).
+  // Proof: on 2026-09-22, hanging `resolve` beneath `preferences` made the
+  // no-resolver assertion receive false (1 failed, 41 passed).
   return acquireTransactionally(bag, () => ({
     preferences: bag.resolve('preferences'),
     remembered: bag.resolve('remembered'),

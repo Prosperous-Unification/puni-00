@@ -35,10 +35,14 @@ export function LifetimeFault({ fault }: { fault: DisclosedFault }): ReactNode {
       role="alert"
     >
       <h1 className="mb-3 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+      {/* Proof: on 2026-09-22, startup-only wording dropped the assurance
+      'Anything already saved is on the server' (1 failed, 11 passed). */}
       <p className="mb-4 text-sm">
         The page&rsquo;s services stopped: {fault.sentence}. Nothing here can put it back — reload
         to start again. Anything already saved is on the server.
       </p>
+      {/* Proof: on 2026-09-22, deleting this element left the page with no
+      occurrence reference to quote (1 failed, 11 passed). */}
       <p className="text-muted-foreground mb-4 font-mono text-xs" data-lifetime-fault-reference>
         Reference {fault.occurrenceId}
       </p>

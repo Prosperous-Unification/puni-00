@@ -63,21 +63,35 @@ export async function bootstrapApplication(
    */
   let root: { render: (tree: ReactNode) => void } | null = null;
   const rootFor = (): { render: (tree: ReactNode) => void } => {
+    // Proof: on 2026-09-22, creating the root eagerly made its mount status
+    // `empty` instead of `live` (5 failed, 7 passed).
+    // Proof: on 2026-09-22, assigning here unconditionally mounted a second root
+    // for the fatal page: ['live', 'fatal'] instead of ['live'].
     root ??= dependencies.mount(host, ROOT_FAULT_OPTIONS);
     return root;
   };
   /** The fault already on screen, so one refusal is shown and logged once. */
   let shown: DisclosedFault | null = null;
   const showFatal = (fault: DisclosedFault): void => {
+    // Proof: on 2026-09-22, dropping this guard drew and logged one refusal twice
+    // (2 failed, 10 passed).
     if (shown === fault) return;
     shown = fault;
+    // Proof: on 2026-09-22, logging the caught refusal beside this disclosure put
+    // a value rather than disclosed strings in the console (1 failed, 11 passed).
     console.error("the page's runtime failed", fault.sentence, fault.occurrenceId, fault.lost);
+    // Proof: on 2026-09-22, dropping this render left the fatal page with no tree;
+    // its expected length 1 was 0 (2 failed, 10 passed).
+    // Proof: on 2026-09-22, putting alice@example.com in the sentence exposed it
+    // in the rendered fault props (1 failed, 11 passed).
     rootFor().render(<LifetimeFault fault={fault} />);
   };
   // Every later fatal state reaches the page through the slot rather than through a
   // second policy: a retirement that rejects or outruns its wait is a disclosure
   // boundary exactly as a refused construction is, and the map requires the same
   // sanitized report for both.
+  // Proof: on 2026-09-22, dropping this subscription left a failed retirement
+  // with one rendered tree instead of two (1 failed, 11 passed).
   dependencies.slot.subscribe(() => {
     const state = dependencies.slot.snapshot();
     if (state.status === 'fatal') showFatal(state.fault);
@@ -88,6 +102,8 @@ export async function bootstrapApplication(
     // A newer request won: controlled cancellation, which the slot models rather
     // than treats as a fault. Whoever won owns the page now, so this bootstrap
     // draws nothing at all — not the app, and not a fatal page it has no fault for.
+    // Proof: on 2026-09-22, dropping this branch made the losing bootstrap reject
+    // with 'the slot is empty' instead of drawing nothing (2 failed, 10 passed).
     if (refusal instanceof TransitionSupersededError) return;
     // Nothing else about the refusal is read: the slot disclosed it already, and a
     // value this function could read is a value it could render. Only its type is.
@@ -117,9 +133,13 @@ export async function bootstrapApplication(
   // fail by any fault (measured: removing that half left all 11 cases green). The
   // packet that publishes these services through a React context adds it back with
   // the test that can then break it.
+  // Proof: on 2026-09-22, removing this fence let the model draw the app while
+  // the slot was `retiring` (1 failed, 11 passed).
   if (dependencies.slot.snapshot().status !== 'live') return;
   rootFor().render(
     <StrictMode>
+      {/* Proof: on 2026-09-22, acquiring inside this tree made the Strict Mode
+      runtime count 3 instead of 1 (1 failed, 11 passed). */}
       <App />
     </StrictMode>,
   );

@@ -57,6 +57,8 @@ export function revocableStorage(store: BrowserStorage): RevocableBrowserStorage
   let revoked = false;
   /** The one guard, so all three members refuse in the same place. */
   const held = (): BrowserStorage => {
+    // Proof: on 2026-09-22, handing the store back either way made 'refuses every
+    // access once the store has been given back' receive no throw (5 failed, 37 passed).
     if (revoked) throw new Error(REVOKED);
     return store;
   };
