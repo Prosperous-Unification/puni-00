@@ -3435,7 +3435,8 @@ Each is scoped to the slice that reads it, and each is false on that slice's rea
 - `src/test-tiers.test.ts` fails on the tier partition. That means a file this packet put in the
   DOM-free list names a browser global **somewhere in its text, comments included** — section 3.4 —
   and the fix is the wording, never the list.
-- the sandbox unit command's count moves in slice 3 or 4, where every new file is in the jsdom tier.
+- the sandbox unit command's counts differ from that slice's Step 0 baseline by anything other than +1 file/+8 tests in
+  slice 2, +1 file/+9 tests in slice 3, and no change in slices 1, 4, 5, 6 or 7.
 - `bunx eslint` reports an error this packet does not name and `--fix` does not remove.
 - any command wants the network, or any file outside section 5 needs changing.
 - the five preferences call sites (`src/lib/theme.ts`, `src/lib/remembered.ts`,
@@ -3570,3 +3571,11 @@ each is settled by a rehearsal in this document rather than by an argument.
 handing out the bag's own bound method would have made the mutation a second fault (an unbound `resolve`
 throws differently), so the patch in section 8.5 wraps it in a typed arrow instead, which is what was
 rehearsed.
+
+## Disposition of the dispatch review
+
+- Blocking 1 (the §10 unit-count stop condition halted a successful slice 3): FIXED by the planner with the review's exact
+  replacement text; §6 slice 3 and §9 already state the +1 file/+9 tests delta.
+- Notes: §§14–15 red-count summaries are historical; the operative counts are the slice instructions. Slice 6 may apply
+  a saved mutation by hand when proof comments have moved its context, checking it still changes exactly the prescribed
+  behaviour.
