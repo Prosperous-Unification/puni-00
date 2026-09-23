@@ -75,7 +75,19 @@
       `tools/tool-devsync/src/service-kinds.ts`'s `SERVICE_ROOTS` does not scan `src/module`.
 - [ ] 3.3 Saved plans, absorbing project and admission checks and the publication after save,
       rename and delete.
-- [ ] 3.4 Plan import, with its per-scope factory.
+- [x] 3.4 Plan import, with its per-scope factory. Landed 2026-09-23 as
+      `libs/wbs/application/core/src/module/plan-import/`, with `service/import.service.ts` and
+      `service/prepare-import.ts` kept as compatibility re-export shims, and
+      `docs/code-organization/kinds.json`'s two rows for them rewritten in place (95 entries,
+      unchanged). The per-scope `ImportServices` factory (`batchServices`) is passed through as a
+      requirement, unresolved, exactly as the map's Plan import row names — the module builds no
+      resource graph of its own. `ImportService`'s existing K3 debt (direct calls into
+      `scope.stores.projects.create`, `priorityBands.replace`, `capacity.set` and
+      `subtrees.insertSubtree`) is preserved rather than fixed and is tracked under task 7.4.
+      Proof: negatives for the installer leaking its bag, its resolver leaking through the
+      returned `ImportService`, the private `importOptions` binding exported, and the label
+      dropped. Wiki registration (task 7.5) is **not** landed for this module; see 7.5's own note
+      below.
 - [ ] 3.5 Authentication, absorbing the login throttle and covering the password-only and OIDC
       graphs; the accountless graph exports neither.
 - [ ] 3.6 Optimization, with its repository ports and event projections.
@@ -148,4 +160,20 @@
       bound to the pre-move `libs/core/src/use-cases/replay.ts` alone — the file `kinds.json`
       classified `capability: realtime` before the move. `gateway-broadcaster.ts`,
       `replay-buffer.ts` and `replay-orchestrator.ts` have no separate baseline entry, for the same
-      reason.
+      reason. **Not landed for Plan import (task 3.4).** Every existing pilot boundary under the
+      namespaced tree is registered through a `sourceSelector` bound to a pre-namespacing
+      predecessor file that existed at the pilot's frozen `sourceRevision`. Both of Plan import's
+      own files existed before namespacing — `libs/core/src/service/import.service.ts` introduced
+      at commit `56a8776b`, `libs/core/src/service/prepare-import.ts` introduced separately at
+      commit `3188852c`, both renamed `R100` into `libs/wbs/application/core/src/service/` at the
+      same commit `7c5dee9e` — but all three commits postdate the pilot's frozen `sourceRevision`,
+      so the frozen tree still holds neither predecessor and no `sourceSelector` yields even one
+      matching entry. The production loader refuses any boundary whose `baselineEntries` come back
+      empty (`trusted boundary baseline is empty: <id>`, observed 2026-09-23 against a
+      deliberately empty baseline). The module still carries a `<!-- module-index -->` block and a
+      `contract.ts`, satisfying the Burokrat rule model's own module-layout requirement
+      independently of the pilot: `check-indexes committed` against this packet's own slice-3
+      commit reports `module.application.plan-import` among its indexes. Registering the wiki
+      boundary needs either the pilot's `sourceRevision` moved forward or a documented exemption
+      for a boundary with no predecessor, neither of which this packet decides; see
+      `docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md`.
