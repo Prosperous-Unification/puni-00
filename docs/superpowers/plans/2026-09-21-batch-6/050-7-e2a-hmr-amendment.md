@@ -8,6 +8,11 @@
 | Decision    | Dany, 2026-09-23: take the **amendment** path of the held record's section 1, not a gated in-document replacement mechanism                                                                                        |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. This packet checks task 5 and adds no change directory                                                                                             |
 
+## Revision note (round 1)
+
+Review 1 (`050-7-e2a-hmr-amendment.review1.md`) found no critical defect and reproduced every anchor,
+diff, count and negative. Section 15 disposes of its four important and five minor findings.
+
 ## 1. Goal, decision, non-goals
 
 **Goal.** Make the contract say what the code does. Today an edit to
@@ -76,7 +81,7 @@ All read or run on 2026-09-23 against `474be8df` (main `0ad6f109` plus planning 
   when the page is live and idle, the runtime's disposal has **begun** by the time the dispatch
   returns. When a transition is already running, disposal waits for it — the new test deliberately
   uses an idle live page, and the spec scenario says so.
-- `preferences.resource.ts:78`: `if (!isLive()) throw new Error(WITHDRAWN);`, and production wires
+- `apps/wbs/fe-01/src/modules/preferences/preferences.resource.ts`, line 78: `if (!isLive()) throw new Error(WITHDRAWN);`, and production wires
   `isLive` to `applicationSlot.snapshot().status === 'live'` (`application-runtime.ts:160`). A
   preference access through a handle the withdrawn runtime published therefore throws from the
   moment `accept()` has run.
@@ -84,12 +89,25 @@ All read or run on 2026-09-23 against `474be8df` (main `0ad6f109` plus planning 
 
 ### 3.2 Why a development edit is a document replacement
 
-No module in `apps/wbs/fe-01/src` registers hot-update acceptance: `grep -rn "import.meta.hot"
-apps/wbs/fe-01/src` prints exactly one line, `application-bootstrap.tsx:98`, which is JSDoc text
-saying the module has no such dependency. The held record's section 3.1 traces Vite's own
-`propagateUpdate` from an unaccepted edit to `full-reload`. This packet adds nothing to that
-evidence and does not re-derive it; the second spec scenario (section 7.1) rests on it, and no
-automated check keeps it true (section 9.4).
+No module in `apps/wbs/fe-01/src` registers hot-update acceptance in its source: `grep -rn
+"import.meta.hot" apps/wbs/fe-01/src` prints exactly one line, `application-bootstrap.tsx:98`, which
+is JSDoc text saying the module has no such dependency. Source is not the whole story, because an
+accepting boundary can also be **injected** at transform time: `apps/wbs/fe-01/vite.config.ts:84`
+installs `@vitejs/plugin-react` (installed `6.1.1`), whose React Refresh wrapper injects
+`import.meta.hot.accept` only into modules that define components. Neither `main.tsx` nor
+`application-bootstrap.tsx` defines one. Measured on 2026-09-24 with the development server this
+tree serves (`bunx vite --port 5977 --strictPort` from `apps/wbs/fe-01`, placeholder `VITE_BE_URL`
+and `VITE_GW_URL`, stopped by its own pid afterwards): the served `src/main.tsx` contains no
+`import.meta.hot` at all; the served `src/runtime/application-bootstrap.tsx` contains it once, inside
+the same JSDoc text; the served `src/components/chrome/lifetime-fault.tsx`, a component module,
+contains `import.meta.hot.accept`. So the chain from the bootstrap to the page's entry has no
+accepting boundary, and the held record's section 3.1 traces Vite's own `propagateUpdate` from such
+an edit to `full-reload`.
+
+The second spec scenario (section 7.1) rests on that basis, and **no automated check keeps it
+true**: it is kept by review (section 9.4, and step 7's pending list). A later option — a
+TypeScript-compiler-API scan asserting that neither chain file contains an `import.meta`
+`MetaProperty` and neither defines a component — is out of scope here.
 
 ### 3.3 What 050.7e's tests already prove — measured, not assumed
 
@@ -259,7 +277,8 @@ The executor never runs `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:e2e`
   `git apply` lines, and record which tool applied the diffs. The author applied all six both ways
   against `474be8df` and got byte-identical files.
 
-- [ ] 3. **The contract validates.** Rerun the strict OpenSpec block of step 0. Expected: exits 0,
+- [ ] 3. **The contract validates.** Rerun the strict OpenSpec block of step 0 with its report
+      named `openspec-after.XXXXXX.json` instead of `openspec-base.XXXXXX.json`. Expected: exits 0,
       `passed` equal to step 0's number — the total counts changes and specs, not requirements.
 - [ ] 4. **Green.** Rerun both step-0 Vitest commands with the same wrappers, into
       `after-runtime.log` and `after-sandbox.log`. Expected: `status=0`; the runtime directory at
@@ -289,7 +308,9 @@ The executor never runs `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:e2e`
       date **the executor observed** each failure, and rerun the new test alone:
       `(cd apps/wbs/fe-01 && bunx vitest run src/runtime/application-bootstrap.test.tsx -t 'starts retirement before its pagehide dispatch returns')`.
       Expected: exactly one test passed and none failed; the rest of the file is reported skipped
-      (rehearsed: `Tests 1 passed | 17 skipped (18)`).
+      (rehearsed: `Tests 1 passed | 17 skipped (18)`). Then rerun step 5's typecheck-and-lint block
+      unchanged, into `typecheck-final.log` and `lint-final.log`, so the file with its `Proof:`
+      comments is what lint saw. Expected: `status=0` in both.
 - [ ] 7. **Append this slice's entry to `openspec/changes/adopt-frontend-lifetimes/verify.md`**, as
       a new `## Packet 050.7e2a — document replacement amendment` section after the last existing
       one, with `### Negative-proof observations` and `### Slice verification` subsections in the
@@ -297,7 +318,14 @@ The executor never runs `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:e2e`
       the extraction output; each command's status and counts; the five faults, each with the message
       it failed on; and, under slice verification, "Task 5 is checked: hot-reload disposal is closed
       by amendment (Dany, 2026-09-23) — a development edit to the bootstrap is a document
-      replacement, and a gated in-document replacement is not provided", followed by the list of what
+      replacement, and a gated in-document replacement is not provided"; the note "the requirement's
+      disjunct 'or queued it behind a transition that is already running' is stated, not proved: the
+      new test and its scenario cover an idle live page only"; and the note "the scenario 'An edit to
+      the bootstrap reloads the document' has no automated check; it rests on vite.config.ts's React
+      plugin (@vitejs/plugin-react 6.1.1, refresh runtime injecting import.meta.hot.accept only into
+      modules that define components) injecting no accepting boundary into main.tsx or
+      application-bootstrap.tsx, neither of which defines a component, and is kept by review" —
+      followed by the list of what
       stays **pending planner verification** (section 9.3). Evidence references are basenames
       relative to this attempt's evidence directory, never absolute paths.
 - [ ] 8. **Formatting, after the last edit.** Owned-file Prettier over all seven paths, `--write`
@@ -324,7 +352,8 @@ The executor never runs `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:e2e`
   every diff in section 7 is already in its post-Prettier form (`prettier --check` passed on all six
   rehearsed files; the held record's re-padded header table is part of its diff).
 
-- [ ] 9. Rerun the strict OpenSpec block once more, **after** the `verify.md` edit, so the document
+- [ ] 9. Rerun the strict OpenSpec block once more, its report named `openspec-final.XXXXXX.json`,
+      **after** the `verify.md` edit, so the document
       just changed is what was validated. Expected: exits 0, `passed` equal to step 0's.
 - [ ] 10. **Hand over.**
 
@@ -360,7 +389,7 @@ form.
 
 ```diff
 diff --git a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
-index 9c22737f..0fd51628 100644
+index 9c22737f..57417ef9 100644
 --- a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
 +++ b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
 @@ -38,8 +38,9 @@ from delivery.
@@ -381,7 +410,7 @@ index 9c22737f..0fd51628 100644
  handle. The owner SHALL keep observing the disposal that is still running, and
 -its eventual completion SHALL NOT publish the refused replacement.
 +its eventual completion SHALL NOT publish the refused replacement. This governs
-+every replacement inside one document, including any future gated in-document
++every transition inside one document, including any future gated in-document
 +replacement of the bootstrap module; a document replacement cannot refuse and is
 +governed by the requirement that names it.
 
@@ -401,13 +430,13 @@ index 9c22737f..0fd51628 100644
 +the React root, withdrawn the application runtime's publication, so that every
 +preference access through a handle that runtime published throws, and begun that
 +runtime's disposal, or queued it behind a transition that is already running. The
-+old document SHALL NOT wait for the disposal, and fe-01 SHALL NOT claim that it
-+completed, that its failure was observed, or that its failure refused anything:
-+the new document's bootstrap runs regardless, and no terminal refusal crosses from
-+the old document to the new one. A gated
-+in-document replacement, which holds a replacement module's bootstrap behind the
-+old runtime's retirement inside one live document, SHALL NOT be provided until a
-+mechanism for it meets "A failed or expired retirement refuses the replacement".
++old document SHALL NOT wait for the disposal; its completion and its failure are
++not observed by fe-01 and refuse nothing; the new document's bootstrap SHALL run
++regardless, and no terminal refusal SHALL cross from the old document to the new
++one. A gated in-document replacement, which holds a replacement module's bootstrap
++behind the old runtime's retirement inside one live document, SHALL NOT be
++provided until a mechanism for it meets "A failed or expired retirement refuses
++the replacement".
 +
 +#### Scenario: The old document starts retirement before its page hide returns
 +
@@ -432,7 +461,7 @@ retirement gate" sentence goes, and a new paragraph defines the two terms.
 
 ```diff
 diff --git a/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md b/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
-index 885bbe7b..5de0713a 100644
+index 885bbe7b..11c66972 100644
 --- a/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
 +++ b/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
 @@ -56,14 +56,16 @@ Presentational and ephemeral React state does not become a runtime service: pick
@@ -442,7 +471,7 @@ index 885bbe7b..5de0713a 100644
 -The accepted table says application closes on page hide, including a persisted `pagehide`. Therefore BFCache restoration is an implementation consequence, not a new product choice: page hide initiates project, then session, then application retirement and unmounts/invalidates the React root. A persisted `pageshow` joins that same retirement promise and invokes the complete bootstrap path only after it succeeds: build fresh runtimes/root/listeners, restore the signed-in identity through `fetchMe`, preserve the browser address, and let catalog/directory/feed perform their normal arrival reads. Retirement rejection or bounded-wait expiry publishes the sanitized fatal state and starts no bootstrap; eventual cleanup completion does not silently resume it. Non-persisted navigation does not rebuild. Vite HMR disposal uses the same terminal retirement gate before the replacement module performs ordinary bootstrap. Since a browser lifecycle event cannot be relied on to await a promise, `pagehide` provides best-effort initiation rather than proof of completion; controlled tests await the coordinator promise.
 +The accepted table says application closes on page hide, including a persisted `pagehide`. Therefore BFCache restoration is an implementation consequence, not a new product choice: page hide initiates project, then session, then application retirement and unmounts/invalidates the React root. A persisted `pageshow` joins that same retirement promise and invokes the complete bootstrap path only after it succeeds: build fresh runtimes/root/listeners, restore the signed-in identity through `fetchMe`, preserve the browser address, and let catalog/directory/feed perform their normal arrival reads. Retirement rejection or bounded-wait expiry publishes the sanitized fatal state and starts no bootstrap; eventual cleanup completion does not silently resume it. Non-persisted navigation does not rebuild. Since a browser lifecycle event cannot be relied on to await a promise, `pagehide` provides best-effort initiation rather than proof of completion; controlled tests await the coordinator promise.
 +
-+A development edit that reaches the bootstrap is a **document replacement**, not a hot update: no module on the path to the page's entry accepts it, so Vite reloads the whole page. The old document's retirement is then initiated by its own `pagehide`, exactly as for any other navigation, and is not a gate: its completion is not observed, its failure cannot refuse the reload, and the new document bootstraps regardless. A **gated in-document replacement** — the replacement module bootstrapping inside the same live document only after the old runtime's retirement has succeeded, under the same terminal retirement gate as every other transition — is not provided. Whoever adds one inherits that gate and the races recorded in [the 050.7 e2 record](../2026-09-21-batch-6/050-7-e2-hmr-ownership.md). The OpenSpec change `adopt-frontend-lifetimes` states both as requirements.
++A development edit that reaches the bootstrap is a **document replacement**, not a hot update: no module on the path to the page's entry accepts it, so Vite reloads the whole page. The old document's retirement is then initiated by its own `pagehide`, exactly as for any other navigation, and is not a gate: its completion is not observed, its failure cannot refuse the reload, and the new document bootstraps regardless. A **gated in-document replacement** — the replacement module bootstrapping inside the same live document only after the old runtime's retirement has succeeded, under the same terminal retirement gate as every other transition — is not provided. Whoever adds one inherits that gate and the races recorded in [the 050.7 e2 record](../2026-09-21-batch-6/050-7-e2-hmr-ownership.md). The OpenSpec change `adopt-frontend-lifetimes` states document replacement as a requirement and gated in-document replacement as not provided.
 
  Hazards:
 
@@ -498,19 +527,22 @@ The decision date in the note is Dany's decision date, a fact, not an observatio
 
 ```diff
 diff --git a/openspec/changes/adopt-frontend-lifetimes/tasks.md b/openspec/changes/adopt-frontend-lifetimes/tasks.md
-index ef9a1533..6e10bc21 100644
+index ef9a1533..6310353d 100644
 --- a/openspec/changes/adopt-frontend-lifetimes/tasks.md
 +++ b/openspec/changes/adopt-frontend-lifetimes/tasks.md
-@@ -29,7 +29,7 @@
+@@ -29,8 +29,9 @@
        synchronous `isLive` predicate over the existing `LifetimeSlot.snapshot()`; no
        change to `lifetime-slot.ts`) — see
        `docs/superpowers/plans/2026-09-21-batch-6/050-7-d-withdrawal-and-page-lifecycle.md`.
 -- [ ] 5. Page hide, hot-reload disposal and persisted restoration join one
-+- [x] 5. Page hide, hot-reload disposal and persisted restoration join one
-       application retirement; restoration rebuilds only after it succeeds.
+-      application retirement; restoration rebuilds only after it succeeds.
++- [x] 5. Page hide and persisted restoration join one application retirement;
++      restoration rebuilds only after it succeeds; a development edit that reaches
++      the bootstrap is a document replacement that retires through page hide.
        Page hide and persisted restoration are closed by 050-7-e: `pagehide`
        retires the runtime through the slot and invalidates the mounted React
-@@ -38,11 +38,19 @@
+       root; a persisted `pageshow` rebuilds through the same path, joining
+@@ -38,11 +39,19 @@
        (the slot's own serialization is the join); a retirement that rejects
        or times out leaves the sanitized fatal page showing, redrawn without a
        second report across a hide-and-restore of an already-fatal page. Hot-
@@ -729,7 +761,7 @@ Restore **before** reading the status. `status=0` voids the proof: re-read the l
 | N2  | `application-bootstrap.tsx:321`, inside `onPageHide`: `    startRetirement();` → `    setTimeout(startRetirement, 0);`                                                                                                       | the same message as N1                                                                               | the same assertion, below N1's comment                                                   |
 | N3  | `application-bootstrap.tsx:320`, inside `onPageHide`: `    invalidateRoot();` → `    queueMicrotask(invalidateRoot);`                                                                                                        | `AssertionError: pagehide returned before invalidating the root: expected +0 to be 1`                | the `expect(root.unmounts(), 'pagehide returned before invalidating the root')`          |
 | N4  | `lifetime-slot.ts:320`, in `transition()`, the **six-space-indented** `      await disposeWithdrawn();` (not the eight-space one at `:364`): insert above it `      await new Promise((resolve) => setTimeout(resolve, 0));` | `AssertionError: pagehide returned before the disposal began: expected +0 to be 1`                   | the `expect(closeCalls, 'pagehide returned before the disposal began')`                  |
-| N5  | `preferences.resource.ts:78`: `if (!isLive()) throw new Error(WITHDRAWN);` → `if (false) throw new Error(WITHDRAWN);`                                                                                                        | `AssertionError: expected [Function] to throw an error`                                              | the `expect(() => { detail.write(true); }).toThrow(…)`                                   |
+| N5  | `apps/wbs/fe-01/src/modules/preferences/preferences.resource.ts`, line 78: `if (!isLive()) throw new Error(WITHDRAWN);` → `if (false) throw new Error(WITHDRAWN);`                                                           | `AssertionError: expected [Function] to throw an error`                                              | the `expect(() => { detail.write(true); }).toThrow(…)`                                   |
 
 N2 is the fault the amendment is about: a retirement deferred to a later task is one a reload may
 never run. N1 and N2 share an assertion because they break the same guarantee by different routes;
@@ -824,7 +856,9 @@ guarantee under test is observable in jsdom.
   requirement's last sentence makes such a change a gated in-document replacement that must first
   meet the refusal requirement, so the review of that change is where it is caught. A code-shape
   scanner for it was not added: addendum 18 says such checks must resolve symbols, and a regex over
-  `import.meta.hot` would be exactly the check it warns against.
+  `import.meta.hot` would be exactly the check it warns against. Nor would a source scan alone be
+  enough: the React plugin injects acceptance at transform time into component modules (section
+  3.2), so a future scan must also assert that neither chain file defines a component.
 - **Retirement starting while a transition is already running.** The disposal then waits behind the
   running one (section 3.1), so "disposal has begun" is only guaranteed for an idle live page. The
   requirement says "begun … or queued it behind a transition that is already running", the scenario
@@ -852,7 +886,7 @@ Each is false on the real starting tree, checked on 2026-09-23.
 
 ## 11. Out of lane
 
-- Every production file: `application-bootstrap.tsx`, `lifetime-slot.ts`, `preferences.resource.ts`,
+- Every production file: `application-bootstrap.tsx`, `lifetime-slot.ts`, `apps/wbs/fe-01/src/modules/preferences/preferences.resource.ts`,
   `application-runtime.ts`, `main.tsx`. Mutated only for section 8's negatives and restored.
 - `proposal.md` of the change, `CONTEXT.md`, `docs/adr/`: untouched. The decision is recorded in the
   held record and the task note; it has one real alternative, but it is not hard to reverse — adding
@@ -911,3 +945,28 @@ Each is false on the real starting tree, checked on 2026-09-23.
 After the commit the host gate runs on the shared build host with the committed hash, and its printed
 running-hash line and exit status are recorded; anywhere else it is reported as not run, with the
 reason.
+
+## 15. Disposition of review round 1
+
+- **Important 1 (task 5's checked headline still names hot-reload disposal) — FIXED.** Diff 7.4's
+  headline now reads "Page hide and persisted restoration join one application retirement;
+  restoration rebuilds only after it succeeds; a development edit that reaches the bootstrap is a
+  document replacement that retires through page hide." Historical copies in the 050.7a and 050.7e
+  packets are left as they were.
+- **Important 2 (`preferences.resource.ts` has no path) — FIXED** in section 3.1, section 8's N5 row
+  and section 11: `apps/wbs/fe-01/src/modules/preferences/preferences.resource.ts`.
+- **Important 3 ("SHALL NOT claim" is not a behaviour) — FIXED.** Diff 7.1 now reads "The old
+  document SHALL NOT wait for the disposal; its completion and its failure are not observed by fe-01
+  and refuse nothing; the new document's bootstrap SHALL run regardless, and no terminal refusal
+  SHALL cross from the old document to the new one."
+- **Important 4 (the reload scenario has no check) — FIXED by stating the basis and the gap.**
+  Section 3.2 now names the React plugin's transform-time injection as the real boundary question,
+  and records a fresh measurement of the served modules. Step 7's pending list carries the
+  reviewer's sentence. A TypeScript-API scan is noted as a later option, out of scope.
+- **Minor 1 — FIXED.** The scoping sentence reads "every transition inside one document".
+- **Minor 2 — FIXED.** The map paragraph reads "states document replacement as a requirement and
+  gated in-document replacement as not provided".
+- **Minor 3 — FIXED.** Step 6 reruns step 5's typecheck-and-lint block after the `Proof:` comments.
+- **Minor 4 — FIXED.** Steps 3 and 9 name their reports `openspec-after` and `openspec-final`.
+- **Minor 5 — FIXED as asked.** The `verify.md` entry records the queued-behind-a-transition disjunct
+  as stated, not proved; section 9.4 already said so.
