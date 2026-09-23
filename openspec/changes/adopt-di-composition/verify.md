@@ -823,3 +823,23 @@ libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 fa
 - `contract.ts` records preserved K3 debt tracked under task 7.4: direct
   `scope.stores.projects.create`, `priorityBands.replace`, `capacity.set` and
   `subtrees.insertSubtree` calls remain inside `ImportService.import`'s own `UnitOfWork.run`.
+
+### Plan import, Slice 2 — 2026-09-23
+
+- Classification baseline `K=95`; rewriting the two retained compatibility-shim rows in place
+  kept the count at 95 (`slice2-kinds-closing.txt`).
+- Core baseline `C=561`: 561 passed, 0 failed and 1,831 assertions across 58 files before
+  composition-root wiring (`slice2-core-baseline.log`). The closing run remained 561 passed, 0
+  failed and 1,831 assertions across 58 files (`slice2-core-closing.log`).
+- The pre-edit `wbs-domain` unit, lint and type-check gates exited 0
+  (`slice2-wbs-domain-baseline.log`). After the edit, the `wbs-core` and `wbs-domain` unit, lint
+  and type-check gates all exited 0 (`slice2-core-domain-closing.log`).
+- The portable build exited 0, and its bundle contained 1 occurrence of
+  `application.plan-import` (`slice2-portable-build.log`,
+  `slice2-portable-label-count.txt`).
+- The be-01 type-check exited 0 both before and after the edit
+  (`slice2-wbs-be-01-typecheck-baseline.log`, `slice2-wbs-be-01-typecheck-closing.log`).
+- The SQLite focused tests were unchanged from baseline to closing at 13 passed, 0 failed and 84
+  assertions across 2 files (`slice2-sqlite-baseline.log`, `slice2-sqlite-closing.log`). The
+  memory focused test was unchanged at 12 passed, 0 failed and 71 assertions across 1 file
+  (`slice2-memory-baseline.log`, `slice2-memory-closing.log`).
