@@ -843,3 +843,21 @@ libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 fa
   assertions across 2 files (`slice2-sqlite-baseline.log`, `slice2-sqlite-closing.log`). The
   memory focused test was unchanged at 12 passed, 0 failed and 71 assertions across 1 file
   (`slice2-memory-baseline.log`, `slice2-memory-closing.log`).
+
+### Plan import, Slice 3 — 2026-09-23
+
+- Wiki-policy baselines were `M=9` mapped modules and `B=9` boundaries. At the frozen
+  `sourceRevision` `7851161bf96312750d07b933ca5d42b75ce575c7`, `git ls-tree` returned no tuple for
+  either `libs/core/src/service/import.service.ts` or
+  `libs/core/src/service/prepare-import.ts`; the packet's section 3 and section 6 record the
+  planner's separate wiki-pilot refusal measurements.
+- Before the README edit, the whole pilot-policy file passed `T=21` tests with `TF=0` failures and
+  `P=296` assertions (`slice3-pilot-baseline.log`). After adding the inert, unregistered
+  `module-index` block, the same file remained exactly `21` passed, `0` failed and `296`
+  assertions (`slice3-pilot-after-readme.log`). This is the prescribed non-regression result, not
+  proof of pilot registration.
+- Core type-check exited 0 before and after the documentation edits
+  (`slice3-core-typecheck-baseline.log`, `slice3-core-typecheck-final.log`).
+- Strict OpenSpec validation remained `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.NVABYn.json`,
+  `openspec-validation-slice3-final.1YEKZK.json`).
