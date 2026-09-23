@@ -307,8 +307,7 @@
     {
       "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts",
       "kind": "support",
-      "disposition": "private member of compose.ts",
-      "rationale": "composeServices is its only production importer and binds EventLogStore, PushTransport, ReplayBuffer and Clock into the composition's durable project-event publisher"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/history.service.ts",
@@ -378,14 +377,12 @@
     {
       "path": "libs/wbs/application/core/src/service/replay-buffer.ts",
       "kind": "support",
-      "disposition": "realtime replay buffer; move to the realtime module",
-      "rationale": "composeServices constructs it and GatewayBroadcaster plus ReplayOrchestrator share its injected-clock bounded event buffer for realtime publication and recovery"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/replay-orchestrator.ts",
-      "kind": "feature",
-      "capability": "realtime",
-      "rationale": "the replay use case calls it to coordinate ReplayBuffer with EventLogStore and return one complete replay-or-refusal outcome for realtime resume"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/retention-job.ts",
@@ -507,9 +504,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/replay.ts",
-      "kind": "feature",
-      "capability": "realtime",
-      "rationale": "internalRoutes and the portable composition call it to admit an internal principal before replaying resume points through the ReplayOrchestrator port for realtime recovery"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/retention-sweep.ts",

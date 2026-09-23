@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 43,
+      'historical policy selector or baseline': 45,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -807,8 +807,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // both naming the pre-move `libs/core/src/use-cases/retention-sweep.ts` this module was
     // extracted from; raised `historical policy selector or baseline` from 41 to 43 and occurrences
     // from 259 to 261, no unclassified entries (2026-09-23).
-    digest: 'fb0d422785019f2351c00082e4533b820b0aca3cce8f9789a348e6167099363e',
-    occurrences: 261,
+    // Proof: registering `module.application.realtime` added its `boundary.application.realtime`'s
+    // `sourceSelector` and one `baselineEntries` path, both naming the pre-move
+    // `libs/core/src/use-cases/replay.ts` this module was extracted from; raised `historical policy
+    // selector or baseline` from 43 to 45 and occurrences from 261 to 263, no unclassified entries
+    // (2026-09-23).
+    digest: 'a3db8f9766fa58137d1067c35e0628fd9020100aac871e07c0137a28ac772cd4',
+    occurrences: 263,
     unclassified: [],
   });
 });

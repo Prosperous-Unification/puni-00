@@ -695,3 +695,95 @@ libs/core/src/use-cases/retention-sweep.ts`. The pilot baseline passed 21 tests 
   (`openspec-validation-baseline.uudZp9.json`, `openspec-validation-final.jklwzl.json`). Final core
   and wiki-CLI type-checks and wiki source lint exited 0 (`slice-3-core-typecheck-final.log`,
   `slice-3-wiki-typecheck.log`, `slice-3-wiki-lint-source.log`).
+
+### Realtime, Slice 1 — 2026-09-23
+
+- The whole-core baseline was `C=549` passed, 0 failed and 1,810 assertions across `F=56` files
+  (`slice-1-core-baseline.log`). Before implementation, the new module test failed because
+  `./check` did not exist: 0 passed, 1 failed and 1 error (`slice-1-module-red.log`). Its first
+  green passed 6 tests with 0 failures and 13 assertions (`slice-1-module-green.log`).
+- Returning the bag beside `replayBuffer`, `broadcaster` and `replay` failed the installer-surface
+  test's first assertion: the received keys included extra `"bag"`, with 0 passed, 1 failed and 5
+  filtered out (`row-3-bag-leak.patch`, `row-3-bag-leak.log`). Keeping the key list correct but
+  attaching `resolve` to the returned broadcaster failed the second assertion with
+  `Expected: true`, `Received: false`, also 0 passed, 1 failed and 5 filtered out
+  (`row-4-exposed-resolver.patch`, `row-4-exposed-resolver.log`). The `wbs-core:typecheck` target
+  still exited 0 for both mutations (`row-3-bag-leak-typecheck.log`,
+  `row-4-exposed-resolver-typecheck.log`). Each saved version was restored byte-for-byte with
+  `cmp`, and the named test passed afterward (`row-3-bag-leak-restored.log`,
+  `row-4-exposed-resolver-restored.log`, `row-3-typecheck-restored-green.log`,
+  `row-4-typecheck-restored-green.log`).
+- Exporting `broadcasterOptions` made the module suite report 3 passed and 3 failed:
+  `resolve('broadcasterOptions')` no longer threw, the graph exposed the bare key, and the missing
+  dependency message lost the module label (`row-5-broadcaster-options-export.patch`,
+  `row-5-broadcaster-options-export.log`). Exporting `replayOptions` independently made its own
+  privacy and label assertions fail while `broadcasterOptions` remained hidden and labelled, for
+  4 passed and 2 failed (`row-6-replay-options-export.patch`,
+  `row-6-replay-options-export.log`). Dropping the module label made only the two label tests fail,
+  for 4 passed and 2 failed (`row-7-dropped-label.patch`, `row-7-dropped-label.log`). Each file was
+  restored byte-for-byte with `cmp`, and the full module suite returned to 6 passed and 0 failed
+  (`row-5-broadcaster-options-export-restored.log`,
+  `row-6-replay-options-export-restored.log`, `row-7-dropped-label-restored.log`).
+- Importing `Identity` from `../../http/endpoint` into the moved broadcaster failed the
+  sideways-route suite with both the module-specifier and identifier violations reaching
+  `http/endpoint.ts`, 0 passed and 1 failed (`row-8-http-endpoint-sideways.patch`,
+  `row-8-http-endpoint-sideways.log`). Importing `AuthenticatedUser` from
+  `../../service/auth.service` independently failed it with only the `service/auth.service.ts`
+  violation and no HTTP entry, also 0 passed and 1 failed (`row-9-auth-service-sideways.patch`,
+  `row-9-auth-service-sideways.log`). Each mutation was restored byte-for-byte with `cmp`, and the
+  boundary suite passed after each restoration (`row-8-http-endpoint-sideways-restored.log`,
+  `row-9-auth-service-sideways-restored.log`).
+- The final focused checks passed 6 module tests and 1 boundary test with 0 failures
+  (`slice-1-module-final.log`, `slice-1-sideways-final.log`). The whole-core closing run delivered
+  the required relative delta, `C+6=555` passed and 0 failed with 1,823 assertions across
+  `F+1=57` files (`slice-1-core-closing.log`). The final `wbs-core` lint and typecheck targets both
+  exited 0 (`slice-1-closing-lint-typecheck.log`).
+
+### Realtime, Slice 2 — 2026-09-23
+
+- Classification baseline `K=95`; rewriting the four retained compatibility-shim rows in place
+  kept the count at 95 (`slice-2-kinds-final.txt`).
+- Core baseline `C=555`: 555 passed, 0 failed and 1,823 assertions across 57 files before
+  composition-root wiring (`slice-2-core-baseline.log`). The closing run remained 555 passed, 0
+  failed and 1,823 assertions across 57 files (`slice-2-core-final.log`).
+- The pre-edit `wbs-domain` unit, lint and type-check gates exited 0
+  (`slice-2-domain-baseline.log`). After the edit, the `wbs-core` and `wbs-domain` unit, lint and
+  type-check gates all exited 0 (`slice-2-core-domain-green.log`).
+- The portable build exited 0, and its bundle contained 1 occurrence of
+  `application.realtime` (`slice-2-portable-build.log`,
+  `slice-2-portable-label-count.txt`).
+- The be-01 type-check exited 0 both before and after the edit
+  (`slice-2-be-typecheck-baseline.log`, `slice-2-be-typecheck-green.log`). The focused be-01
+  shim-chain checks were unchanged at 38 passed, 0 failed and 89 assertions across 4 files
+  (`slice-2-be-focused-baseline.log`, `slice-2-be-focused-green.log`).
+
+### Realtime, Slice 3 — 2026-09-23
+
+- Wiki-policy baselines were `M=8` mapped modules and `B=8` boundaries. The frozen predecessor
+  tuple was `100644 blob d18bf8e74e82501358dd994e2226a87e068b9220
+libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 failures and `P=295`
+  assertions (`slice-3-pilot-baseline.log`); core type-check and the filtered legacy pin were also
+  green (`slice-3-core-typecheck-baseline.log`, `slice-3-legacy-pin-baseline.log`).
+- With the mapping row added before its boundary, the named pilot test failed at mapping/boundary
+  parity with `Expected: 8`, `Received: 9`; the whole file reported 15 passed, 6 failed and 260
+  assertions (`slice-3-mapping-count-red.log`). After adding the boundary but before adding the
+  README to `pilotPaths`, parity passed and the named test failed at discovered-index coverage
+  with `Expected: true`, `Received: false`; this run reported 15 passed, 6 failed and 264
+  assertions, one fewer collateral failure than the packet's rehearsal
+  (`slice-3-discovered-index-red.log`). Adding the path returned the whole file to 21 passed, 0
+  failed and `P+1=296` assertions (`slice-3-pilot-green.log`).
+- Registration moved the filtered legacy pin's `historical policy selector or baseline` category
+  from 43 to 45, occurrences from 261 to 263, and digest from
+  `fb0d422785019f2351c00082e4533b820b0aca3cce8f9789a348e6167099363e` to
+  `a3db8f9766fa58137d1067c35e0628fd9020100aac871e07c0137a28ac772cd4`
+  (`slice-3-legacy-pin-red.log`). The filtered test then passed 1 test with 0 failures and 1
+  assertion (`slice-3-legacy-pin-green.log`).
+- `tool-devsync:typecheck`, `tool-devsync:lint`, `twilight-burokrat:typecheck` and
+  `twilight-burokrat:lint:source` all exited 0 before editing
+  (`slice-3-tool-devsync-typecheck-baseline.log`, `slice-3-tool-devsync-lint-baseline.log`,
+  `slice-3-wiki-typecheck-baseline.log`, `slice-3-wiki-lint-baseline.log`) and after their owned
+  edits (`slice-3-tool-devsync-typecheck-green.log`, `slice-3-tool-devsync-lint-green.log`,
+  `slice-3-wiki-typecheck-green.log`, `slice-3-wiki-lint-green.log`). Final core type-check also
+  exited 0 (`slice-3-core-typecheck-final.log`).
+- Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.K03o8G.json`, `openspec-validation-final.QQTy1A.json`).

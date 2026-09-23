@@ -4,6 +4,10 @@ import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
 import type { RetentionTimer } from './module/bounded-replay-sweep/retention-timer';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
+import { installRealtime } from './module/realtime/check';
+import type { GatewayBroadcaster } from './module/realtime/gateway-broadcaster';
+import type { ReplayBuffer } from './module/realtime/replay-buffer';
+import type { ReplayOrchestrator } from './module/realtime/replay-orchestrator';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
@@ -18,14 +22,11 @@ import { AuthService } from './service/auth.service';
 import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
-import { GatewayBroadcaster } from './service/gateway-broadcaster';
 import { ImportService } from './service/import.service';
 import { LoginThrottle } from './service/login-throttle';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
-import { ReplayBuffer } from './service/replay-buffer';
-import { ReplayOrchestrator } from './service/replay-orchestrator';
 import { SavedPlanService } from './service/saved-plan.service';
 import { StepService } from './service/step.service';
 import { WorkItemService } from './service/work-item.service';
@@ -174,20 +175,18 @@ export function composeServices(
   options: AccountfulOptions | AccountlessOptions,
 ): AccountfulServices | AccountlessServices {
   const { source, runtime, shared } = options;
-  const buffer = new ReplayBuffer({
-    maxPerSubscription: shared.replayMaxPerSubscription,
-    maxAgeMs: shared.replayMaxAgeMs,
-    now: () => runtime.clock.now(),
-  });
-  const broadcaster = new GatewayBroadcaster({
+  const realtime = installRealtime({
     eventLog: source.stores.eventLog,
     clock: runtime.clock,
     push: runtime.push,
-    buffer,
+    maxPerSubscription: shared.replayMaxPerSubscription,
+    maxAgeMs: shared.replayMaxAgeMs,
+    ...(shared.replayMaxEvents === undefined ? {} : { maxEvents: shared.replayMaxEvents }),
     onPushFailed: (error, subscription) => {
       shared.logger.warn({ err: error, subscription }, 'project event recorded but not pushed');
     },
   });
+  const { replayBuffer: buffer, broadcaster } = realtime;
   const announcements: Broadcaster =
     runtime.onPlanChanged === undefined
       ? broadcaster
@@ -233,11 +232,7 @@ export function composeServices(
     }).history,
     plans: savedPlans,
     savedPlans,
-    replay: new ReplayOrchestrator({
-      log: source.stores.eventLog,
-      buffer,
-      ...(shared.replayMaxEvents === undefined ? {} : { maxEvents: shared.replayMaxEvents }),
-    }),
+    replay: realtime.replay,
     retention: installBoundedReplaySweep({
       eventLog: source.stores.eventLog,
       maxPerSubscription: shared.replayMaxPerSubscription,
