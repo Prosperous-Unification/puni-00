@@ -316,9 +316,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/import.service.ts",
-      "kind": "feature",
-      "capability": "plan-import",
-      "rationale": "importRoutes calls it for one atomic user-visible import that owns UnitOfWork and coordinates DirectoryService, work-item insertion, scheduler and announcement ports, the capability the plan-json-import change names"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-import module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/login-throttle.ts",
@@ -359,8 +358,7 @@
     {
       "path": "libs/wbs/application/core/src/service/prepare-import.ts",
       "kind": "support",
-      "disposition": "private member of import.service.ts",
-      "rationale": "ImportService is its only production importer; it validates and prepares a plan document over values but also asks the Scheduler port whether an engine is supported, so it is not pure domain code"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-import module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/priority-band.service.ts",
