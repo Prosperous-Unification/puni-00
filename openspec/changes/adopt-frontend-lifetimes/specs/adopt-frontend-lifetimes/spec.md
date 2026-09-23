@@ -38,8 +38,9 @@ from delivery.
 ### Requirement: One retirement per runtime, ordered by lifetime
 
 Every close trigger for one current runtime - route unmount, selection change,
-identity change, local exit, page hide and hot-reload disposal - SHALL join one
-retirement of that runtime. Publication SHALL be withdrawn before disposal
+identity change, local exit and page hide - SHALL join one retirement of that
+runtime. A development edit that reloads the document retires the page through
+its page hide, not through a trigger of its own. Publication SHALL be withdrawn before disposal
 starts. A project's retirement SHALL begin before its session's, and the
 application's SHALL begin only after both have been started and joined.
 
@@ -61,7 +62,10 @@ owner SHALL refuse the transition: it SHALL NOT build or publish the
 replacement, SHALL NOT republish the withdrawn services, and SHALL publish a
 fatal state carrying only the sanitized public failure report and its occurrence
 handle. The owner SHALL keep observing the disposal that is still running, and
-its eventual completion SHALL NOT publish the refused replacement.
+its eventual completion SHALL NOT publish the refused replacement. This governs
+every transition inside one document, including any future gated in-document
+replacement of the bootstrap module; a document replacement cannot refuse and is
+governed by the requirement that names it.
 
 #### Scenario: A disposer rejects during a replacement
 
@@ -200,3 +204,35 @@ fails, no bootstrap SHALL be attempted and the fatal state SHALL be shown.
 
 - **WHEN** the joined retirement rejects or outruns its wait
 - **THEN** no bootstrap is attempted and the fatal state is shown
+
+### Requirement: A document replacement starts retirement and promises nothing after it
+
+When a development edit reaches the bootstrap module, or a module above it that
+no hot-update boundary accepts, fe-01 SHALL be replaced by a full reload of the
+document - a document replacement - and SHALL NOT be updated in place. Before
+the old document's pagehide dispatch returns, its bootstrap SHALL have taken down
+the React root, withdrawn the application runtime's publication, so that every
+preference access through a handle that runtime published throws, and begun that
+runtime's disposal, or queued it behind a transition that is already running. The
+old document SHALL NOT wait for the disposal; its completion and its failure are
+not observed by fe-01 and refuse nothing; the new document's bootstrap SHALL run
+regardless, and no terminal refusal SHALL cross from the old document to the new
+one. A gated in-document replacement, which holds a replacement module's bootstrap
+behind the old runtime's retirement inside one live document, SHALL NOT be
+provided until a mechanism for it meets "A failed or expired retirement refuses
+the replacement".
+
+#### Scenario: The old document starts retirement before its page hide returns
+
+- **WHEN** a live page with no transition running receives a pagehide that does
+  not persist it, as a reload's does, and its runtime's disposal does not settle
+- **THEN** by the time the dispatch returns the root has been taken down, the
+  runtime is withdrawn, its disposal has begun, and a preference write through a
+  handle it published throws, and the dispatch has not waited for the disposal
+
+#### Scenario: An edit to the bootstrap reloads the document
+
+- **WHEN** the bootstrap module, or a module above it with no accepting boundary,
+  changes while the development server is serving the page
+- **THEN** the page is reloaded as a new document, and no second bootstrap runs
+  inside the old one

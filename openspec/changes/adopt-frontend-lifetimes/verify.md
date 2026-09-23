@@ -871,3 +871,65 @@ observed faults.
   `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the opt-in Chromium case, and the
   host gate remain pending planner verification under the executor sandbox
   contract.
+
+## Packet 050.7e2a — document replacement amendment
+
+- Attempt `050-7-e2a-hmr-amendment.1.20260923T212406Z` started at
+  `b34ace7cb500cf988bbc849b9179c867b65a8e47` (`base.txt`); its recorded
+  starting inventory was empty (`status-before.txt`).
+- Pre-edit runtime baseline (`base-runtime.log`): exit 0, 7 files and 71 tests
+  passed. The sandbox node subset (`base-sandbox.log`): exit 0, 46 files and
+  674 tests. Strict OpenSpec validation passed its exact predicate with one
+  report, 114 items passed and 0 failed.
+- The packet's six section-7 diffs were extracted and applied with
+  `git apply` (working tree only): `extracted=6`, then `all patches applied`.
+- Strict OpenSpec validation after the diffs: exit 0; one report, 114 items
+  passed and 0 failed, unchanged from the baseline.
+- After the diffs (`after-runtime.log`, `after-sandbox.log`): the runtime
+  directory passed 7 files and 72 tests, exactly one more than the baseline;
+  the sandbox node subset stayed at 46 files and 674 tests. The new test is
+  green on unchanged production code by design: it characterises what
+  `pagehide` already does.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck` and `wbs-fe-01:lint`: exit
+  0 both before (`typecheck.log`, `lint.log`) and after the `Proof:` comments
+  (`typecheck-final.log`, `lint-final.log`); no autofix round.
+
+### Negative-proof observations
+
+Every fault below was saved as a patch and failing log under this attempt's
+`evidence/` directory, run against the new test alone
+(`-t 'starts retirement before its pagehide dispatch returns'`: 1 failed, 17
+skipped each time), then restored byte-for-byte with `cmp`.
+
+| Fault                                                                                          | Observed failure                                                                                     |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| N1: delete the `pagehide` registration in `application-bootstrap.tsx`                          | `AssertionError: pagehide returned before withdrawing the runtime: expected 'live' to be 'retiring'` |
+| N2: `startRetirement();` → `setTimeout(startRetirement, 0);` in `onPageHide`                   | `AssertionError: pagehide returned before withdrawing the runtime: expected 'live' to be 'retiring'` |
+| N3: `invalidateRoot();` → `queueMicrotask(invalidateRoot);` in `onPageHide`                    | `AssertionError: pagehide returned before invalidating the root: expected +0 to be 1`                |
+| N4: a `setTimeout` wait before `lifetime-slot.ts`'s `transition()` `await disposeWithdrawn();` | `AssertionError: pagehide returned before the disposal began: expected +0 to be 1`                   |
+| N5: `if (!isLive())` → `if (false)` in `preferences.resource.ts`'s `ensureLive`                | `AssertionError: expected [Function] to throw an error`                                              |
+
+After the five adjacent `Proof:` comments were added, the new test alone
+passed: 1 passed, 17 skipped (`new-test-after-proofs.log`).
+
+### Slice verification
+
+- Task 5 is checked: hot-reload disposal is closed by amendment (Dany,
+  2026-09-23) — a development edit to the bootstrap is a document replacement,
+  and a gated in-document replacement is not provided.
+- The requirement's disjunct "or queued it behind a transition that is already
+  running" is stated, not proved: the new test and its scenario cover an idle
+  live page only.
+- The scenario "An edit to the bootstrap reloads the document" has no automated
+  check; it rests on vite.config.ts's React plugin (@vitejs/plugin-react 6.1.1,
+  refresh runtime injecting import.meta.hot.accept only into modules that
+  define components) injecting no accepting boundary into main.tsx or
+  application-bootstrap.tsx, neither of which defines a component, and is kept
+  by review.
+- Owned-file Prettier and `nx format:check --all`, and the final strict
+  OpenSpec validation, run after this entry was written; their results are in
+  `prettier-check.log`, `format-check.log` and `openspec-final.*.json`.
+- Pending planner verification: the whole `wbs-fe-01:test` target (expected:
+  the jsdom tier's baseline plus 1 test, plus 0 files), `wbs-fe-01:test:unit`
+  (expected unchanged), `tool-devsync:test` with the seven paths staged, and
+  the host gate `bin/h2puni-gate.sh <sha>`.
