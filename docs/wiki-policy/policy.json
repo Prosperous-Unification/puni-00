@@ -954,6 +954,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.saved-plans",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/saved-plans"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/saved-plan.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "f3a12fbc600b51ff3794e3593c4a6634960198d9",
+          "path": "libs/core/src/service/saved-plan.service.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

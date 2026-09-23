@@ -1063,3 +1063,42 @@ reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`
   exited 0 (`slice2-be01-typecheck.log`); the core suite passed `C + 1 = 572` tests over 59 files
   (`slice2-core-closing.log`); `kinds.json` still holds `K=93` entries and the filesystem
   substitute for `service-kinds.test.ts` printed `93 []`.
+
+### Saved plans, Slice 3 — 2026-09-23
+
+- The slice started from `base=be57d4b984e35dd74d4c4806e874e64d556ba0a2` on a clean tree, with
+  `module/saved-plans/module.ts` last changed by `1a51cd12a37c5026e5b558a151754ab22f203de4`, `M=10`
+  pilot modules and `B=10` boundaries. The frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7` lists
+  `100644 blob f3a12fbc600b51ff3794e3593c4a6634960198d9	libs/core/src/service/saved-plan.service.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice3-typecheck-baseline.log`,
+  `slice3-burokrat-lint-source-baseline.log`, `slice3-devsync-lint-baseline.log`);
+  `pilot-policy.test.ts` passed `T=21` tests with `TF=0` failures and `P=297` `expect()` calls
+  (`slice3-pilot-baseline.log`); the legacy pin passed, 1 pass (`slice3-legacy-pin-baseline.log`);
+  OpenSpec validation passed `N=114` of 114 with 0 failed (`openspec-validation.KnQmA0.json`).
+- Parity red: with only the `modules.json` row added (`slice3-10.12a-modules.patch`),
+  `pins exact pre-index tuples and passes observe lint from external trust` failed at
+  `pilot-policy.test.ts:375`, `Expected: 10`, `Received: 11`; 0 pass, 1 fail, 22 `expect()` calls
+  (`slice3-row15-parity-red.log`).
+- Discovered-index red: with the `policy.json` boundary added (`slice3-10.12b-policy.patch`) and the
+  README not yet in `pilotPaths`, the same test failed at `pilot-policy.test.ts:412`,
+  `Expected: true`, `Received: false`; 0 pass, 1 fail, 26 `expect()` calls
+  (`slice3-row16-index-red.log`).
+- Green: with the `pilotPaths` entry (`slice3-10.12c-pilot-paths.patch`) and the final README, the
+  whole pilot file passed `T=21` tests, `TF=0` failures and `P + 1 = 298` `expect()` calls
+  (`slice3-row17-pilot-green.log`).
+- Legacy pin red, pin unchanged: `every legacy source occurrence and relevant text family is pinned`
+  failed with `historical policy selector or baseline` 47 to 49, `occurrences` 265 to 267 and the
+  digest `3eca3cf1…` to `86721c9c2457e04146bd4db56db16869936be5a012fddc671bf2e39989c23d0f`,
+  `unclassified` still `[]`, `Expected  - 3` / `Received  + 3`; 0 pass, 1 fail
+  (`slice3-row18-legacy-pin-red.log`). After the re-pin (`slice3-10.14-repin.patch`) it passed,
+  1 pass (`slice3-legacy-pin-green.log`); its Proof comment followed
+  (`slice3-10.14-proof.patch`). No other pinned literal moved.
+- Task records: `adopt-di-composition` 1.7 ticked, 3.3 noted and left unticked, 7.5 extended;
+  `saved-plans` 4.5 carries the "Withdrawn" note.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`,
+  `tool-devsync:lint` and `wbs-core:typecheck` exited 0 (`slice3-typecheck-after.log`,
+  `slice3-burokrat-lint-source-after.log`, `slice3-devsync-lint-after.log`,
+  `slice3-core-typecheck-after.log`); the legacy pin passed, 1 pass (`slice3-legacy-pin-after.log`);
+  OpenSpec validation passed `N=114` of 114 with 0 failed (`openspec-validation.J7QPlz.json`).
