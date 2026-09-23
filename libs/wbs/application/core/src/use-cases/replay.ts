@@ -1,26 +1,8 @@
-import type { AuthenticatedUser, InternalIdentity } from '@wbs/contracts';
-
-import type { ReplayOrchestrator, ReplayOutcome } from '../service/replay-orchestrator';
-
-export interface ReplayGraph {
-  replay(resumePoints: Record<string, number>): Promise<Record<string, ReplayOutcome>>;
-}
-
-export interface ReplayInput {
-  readonly resumePoints: Record<string, number>;
-  readonly principal: InternalIdentity | AuthenticatedUser;
-}
-
-export type ReplayUseCaseOutcome =
-  Record<string, ReplayOutcome> | { readonly status: 'denied'; readonly reason: 'noninternal' };
-
-/** Replays only for a principal admitted by the internal authentication adapter. */
-export function replay(
-  graph: ReplayGraph | Pick<ReplayOrchestrator, 'replay'>,
-  input: ReplayInput,
-): Promise<ReplayUseCaseOutcome> {
-  if (!('kind' in input.principal)) {
-    return Promise.resolve({ status: 'denied', reason: 'noninternal' });
-  }
-  return graph.replay(input.resumePoints);
-}
+/**
+ * Compatibility re-export: Realtime moved into its own sealed module.
+ *
+ * Kept because `use-cases/admission.test.ts` imports this relative path
+ * directly and `@wbs/core`'s barrel still deep-imports it. It goes when every
+ * importer names the module.
+ */
+export * from '../module/realtime/realtime.feature';

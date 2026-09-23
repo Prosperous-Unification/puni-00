@@ -60,7 +60,19 @@
       kept as compatibility re-export shims, and `docs/code-organization/kinds.json`'s three rows
       for them rewritten in place (95 entries, unchanged) rather than added or removed, because
       `tools/tool-devsync/src/service-kinds.ts`'s `SERVICE_ROOTS` does not scan `src/module`.
-- [ ] 3.2 Realtime, implementing the neutral event port.
+- [x] 3.2 Realtime, implementing the neutral event port. Proof: the module's own tests;
+      negatives: the installer leaking its bag, either private binding
+      (`broadcasterOptions`/`replayOptions`) exported independently, and the label dropped. The
+      `Broadcaster` composition question packet E's own section 9 raised is answered by
+      measurement, not by a contract change: `GatewayBroadcaster` is exported as the concrete
+      class (`apps/wbs/be-01/src/services.ts` needs its `pushRecorded` method, beyond the neutral
+      port), and `compose.ts`'s `OptimizerTriggerBroadcaster` decoration is byte-for-byte
+      unchanged. Landed 2026-09-23 as `libs/wbs/application/core/src/module/realtime/`, with
+      `use-cases/replay.ts`, `service/gateway-broadcaster.ts`, `service/replay-buffer.ts` and
+      `service/replay-orchestrator.ts` kept as compatibility re-export shims, and
+      `docs/code-organization/kinds.json`'s four rows for them rewritten in place (95 entries,
+      unchanged) rather than added or removed, because
+      `tools/tool-devsync/src/service-kinds.ts`'s `SERVICE_ROOTS` does not scan `src/module`.
 - [ ] 3.3 Saved plans, absorbing project and admission checks and the publication after save,
       rename and delete.
 - [ ] 3.4 Plan import, with its per-scope factory.
@@ -129,4 +141,11 @@
       `retention-timer.ts` and `retention-job.ts` have no separate baseline entry: 7.5's guarantee
       names one predecessor per module directory, not one per file it holds, exactly as Plan
       history's single `history.service.ts` predecessor did not separately name a
-      `contract.ts`/`module.ts`/`check.ts` predecessor either.
+      `contract.ts`/`module.ts`/`check.ts` predecessor either. Landed again 2026-09-23 for
+      Realtime as `libs/wbs/application/core/src/module/realtime/README.md`,
+      `docs/wiki-policy/modules.json`'s `module.application.realtime` row and
+      `docs/wiki-policy/policy.json`'s `boundary.application.realtime`, using a `sourceSelector`
+      bound to the pre-move `libs/core/src/use-cases/replay.ts` alone — the file `kinds.json`
+      classified `capability: realtime` before the move. `gateway-broadcaster.ts`,
+      `replay-buffer.ts` and `replay-orchestrator.ts` have no separate baseline entry, for the same
+      reason.

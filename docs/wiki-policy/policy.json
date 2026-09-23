@@ -916,6 +916,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.realtime",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/realtime"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/use-cases/replay.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "d18bf8e74e82501358dd994e2226a87e068b9220",
+          "path": "libs/core/src/use-cases/replay.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

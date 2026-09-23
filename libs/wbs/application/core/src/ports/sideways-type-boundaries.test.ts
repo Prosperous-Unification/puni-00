@@ -39,6 +39,31 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * `service/auth.service.ts` row while leaving the HTTP-endpoint fault above in
  * place leaves that fault's two violations unchanged, so this second fault is
  * what proves the Authentication row independently.
+ *
+ * The sixth and seventh rows are preparation 4's other half re-scoped to the
+ * Realtime module's own directory once `replay.ts` (now `realtime.feature.ts`)
+ * moved out of `use-cases/` and stopped being covered by the first two rows'
+ * `path.startsWith('use-cases/')` — a new directory row rather than a renamed
+ * single-file one, since no row ever targeted a single Realtime file, and the
+ * module also holds `gateway-broadcaster.ts`, `replay-buffer.ts` and
+ * `replay-orchestrator.ts`, none of which carried a principal type before but
+ * should not gain one unnoticed either.
+ *
+ * Proof: importing `type { Identity } from '../../http/endpoint'` into the
+ * Realtime module's `gateway-broadcaster.ts` failed this suite with both a
+ * module-specifier and an identifier violation — `"module/realtime/gateway-broadcaster.ts:
+ * '../../http/endpoint' reaches http/endpoint.ts"` and `"…: Identity reaches
+ * http/endpoint.ts"` — against an expected empty array, 0 pass and 1 fail
+ * (2026-09-23).
+ * Proof: importing `type { AuthenticatedUser } from '../../service/auth.service'`
+ * into the same file, independently, failed this suite with only
+ * `"module/realtime/gateway-broadcaster.ts: '../../service/auth.service'
+ * reaches service/auth.service.ts"` — no `http/endpoint.ts` entry — against an
+ * expected empty array, 0 pass and 1 fail (2026-09-23). Deleting the new
+ * Realtime `service/auth.service.ts` row while leaving the Realtime
+ * HTTP-endpoint fault above in place leaves that fault's two violations
+ * unchanged, so this second fault is what proves the Realtime Authentication
+ * row independently.
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -54,6 +79,14 @@ const routes = [
   {
     reaches: 'service/calendar-marker.service.ts',
     from: (path: string) => path === 'service/plan-document.ts',
+  },
+  {
+    reaches: 'service/auth.service.ts',
+    from: (path: string) => path.startsWith('module/realtime/'),
+  },
+  {
+    reaches: 'http/endpoint.ts',
+    from: (path: string) => path.startsWith('module/realtime/'),
   },
 ] as const;
 
