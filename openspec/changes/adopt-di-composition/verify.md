@@ -1158,3 +1158,61 @@ reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`
   `nx format:check --all` exited 0 (`slice1-format-check.log`).
 - Recorded K2 debt: delivery (`http/project.routes.ts`) still installs the Plan document resource
   over the Directory and Calendar marker resources it is handed; tracked under task 7.4.
+
+### Solver launcher, Slice 2 — 2026-09-23
+
+- The slice started from `base=b53693a22de992d4d33f04d71c37f45744eddcf3` on a clean tree, with
+  `module/plan-document/module.ts` present, no `apps/wbs/be-01/src/module`,
+  `service/solver-launcher-process.ts` at 163 lines holding one five-level
+  `'../../../../../libs/wbs/adapters/solver-py/src/wbs_solver/__init__.py',` literal, and `K=93`
+  `kinds.json` entries.
+- Before any edit: `wbs-be-01` lint and typecheck exited 0 (`slice2-lint-typecheck-baseline.log`);
+  the be-01 unit command (no `*.db.test.ts`, no `app.routes.test.ts`) passed `E=513` over `EF=48`
+  files (`slice2-be01-unit-baseline.log`); `services.db.test.ts` and
+  `service/solver-child-lifecycle.db.test.ts` passed `D=13` over `DF=2` files inside the sandbox
+  (`slice2-be01-db-baseline.log`).
+- Bundle reds: `bun build apps/wbs/be-01/src/main.ts --target=bun` and the same for `dev/main.ts`
+  exited 0 and neither bundle held `backend.solver-launcher` (grep exit 1, `count=0`;
+  `slice2-main-bundle-red.log`, `slice2-dev-main-bundle-red.log`).
+- Module red: the new `module/solver-launcher/module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice2-module-red.log`).
+- Green: after the `cp`/`mv` move, the moved test's import line and the moved file's one
+  relative-depth literal (`slice2-10.9-moved.patch`), the shim and the four module files,
+  `bun test ./apps/wbs/be-01/src/module/solver-launcher/` passed 13 over 2 files, 28 `expect()`
+  calls (`slice2-module-green.log`).
+- Bundle greens: after both entrypoints read the solver version through `installSolverLauncher({})`
+  (`slice2-10.12-install.patch`), both builds exited 0 and both greps printed `count=1`
+  (`slice2-main-bundle-green.log`, `slice2-dev-main-bundle-green.log`);
+  `production-entrypoint.test.ts` passed 2 (`slice2-entrypoint.log`), so the production bundle still
+  reaches no `local-solver` string. `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-step6.log`).
+- Faults against `module/solver-launcher/module.test.ts`, each restored by `cp` and proved with
+  `cmp` before the next:
+  - Key tuple widened to `['solverLauncher', 'launcherSeams']` (`row18-key-tuple.patch`): the
+    private-binding test's resolver `did not throw`, the graph-label test received bare
+    `launcherSeams`, and the missing-requirement message read `Cannot resolve "launcherSeams"`;
+    4 pass, 3 fail (`row18-key-tuple.log`).
+  - Label argument dropped (`row19-label.patch`): only the two label tests failed; 5 pass, 2 fail
+    (`row19-label.log`).
+  - `readInstalledSolverVersion()` called without the installed probe (`row20-probe.patch`):
+    `error: Executable not found in $PATH: "wbs-solver-launcher"`; 6 pass, 1 fail
+    (`row20-probe.log`).
+  - `check.ts` returning an `exposed` object with `bag` (`row21-extra-key.patch`): the received keys
+    added `"bag"`; 6 pass, 1 fail (`row21-extra-key.log`); `wbs-be-01:typecheck` exit 0 on the
+    mutated tree (`row21-typecheck.log`).
+  - `check.ts` attaching `resolve` to the returned launcher (`row22-resolver.patch`):
+    `Expected: true`, `Received: false`; 6 pass, 1 fail (`row22-resolver.log`);
+    `wbs-be-01:typecheck` exit 0 (`row22-typecheck.log`).
+  - The moved file's pre-move five-level source-module URL kept (`row23-source-url.patch`):
+    `error: ENOENT: no such file or directory, open '…/apps/libs/wbs/adapters/solver-py/src/wbs_solver/__init__.py'`;
+    6 pass, 1 fail (`row23-source-url.log`).
+- Proof comments added after the observations (`slice2-10.13-proofs.patch`); the module directory
+  then passed 13 over 2 files (`slice2-after-proofs.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []` (`slice2-kinds-substitute.log`).
+- Closing: the be-01 unit command passed `E + 7 = 520` over `EF + 1 = 49` files
+  (`slice2-be01-unit-closing.log`); the database pair passed `D = 13` over `DF = 2` files
+  (`slice2-be01-db-closing.log`); the entrypoint test passed 2 (`slice2-entrypoint-closing.log`);
+  `wbs-be-01` lint and typecheck exited 0 (`slice2-lint-typecheck-closing.log`); the module
+  directory holds seven files; `nx format:check --all` exited 0 (`slice2-format-check.log`).
+- be-01 has no sideways or type-identity boundary check; the module's K5 compliance (imports
+  `node:fs`, `di-bag` and its own files) is read, not watched.

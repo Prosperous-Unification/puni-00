@@ -3,7 +3,7 @@ import { createLogger } from '@wbs/observability';
 import { bootBe01 } from './boot';
 import { loadConfig } from './config';
 import { oidcRouteOptionsFromEnv } from './controller/oidc-options';
-import { readRuntimeSolverVersion } from './service/solver-launcher-process';
+import { installSolverLauncher } from './module/solver-launcher/check';
 import { solverSupervisorSpawner } from './service/solver-supervisor-spawner';
 
 const cfg = loadConfig();
@@ -19,7 +19,8 @@ const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
 // Local dev opts in through `apps/wbs/be-01/.env`.
 let running;
 try {
-  const solverVersion = readRuntimeSolverVersion(process.env.NODE_ENV);
+  const { solverLauncher } = installSolverLauncher({});
+  const solverVersion = solverLauncher.readRuntimeVersion(process.env.NODE_ENV);
   const callerId = process.env['HOSTNAME'];
   if (callerId === undefined || callerId.length === 0) {
     throw new Error('HOSTNAME is required for solver supervisor authentication');
