@@ -935,6 +935,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.authentication",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/authentication"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/auth.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "73c84b20a377349c4fd215cb90a4807ef3370267",
+          "path": "libs/core/src/service/auth.service.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

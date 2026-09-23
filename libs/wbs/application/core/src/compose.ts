@@ -1,5 +1,8 @@
 import type { AuthenticatedUser, Logger } from '@wbs/contracts';
 
+import type { AuthService } from './module/authentication/authentication.feature';
+import { installAuthentication } from './module/authentication/check';
+import type { LoginThrottle } from './module/authentication/login-throttle';
 import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
 import type { RetentionTimer } from './module/bounded-replay-sweep/retention-timer';
 import { installPlanHistory } from './module/plan-history/check';
@@ -20,11 +23,9 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
-import { AuthService } from './service/auth.service';
 import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
-import { LoginThrottle } from './service/login-throttle';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
@@ -140,14 +141,23 @@ interface CommonServices extends WritingServices {
   readonly savedPlans: SavedPlanService;
   readonly replay: ReplayOrchestrator;
   readonly retention: RetentionTimer;
-  readonly loginThrottle: LoginThrottle;
   readonly imports: ImportService;
 }
 
 export type AccountlessServices = CommonServices;
 
+/**
+ * `auth` and `loginThrottle` both come from the Authentication module and
+ * both stay accountful-only: {@link LoginThrottle} throttles password
+ * verification, which does not exist without an account graph to verify
+ * against. Moving it here (it previously sat on {@link CommonServices},
+ * unconditionally constructed even for the accountless graph) closes the
+ * map's own "Accountless exports neither Authentication nor throttle"
+ * requirement.
+ */
 export interface AccountfulServices extends CommonServices {
   readonly auth: AuthService;
+  readonly loginThrottle: LoginThrottle;
 }
 
 export type AccountlessSource = Source<PlanTransactionalStores & { readonly users?: never }>;
@@ -254,10 +264,6 @@ export function composeServices(
         shared.logger.error({ err: error }, 'retention sweep failed');
       },
     }).retention,
-    loginThrottle: new LoginThrottle({
-      now: () => runtime.clock.now(),
-      maxConcurrent: shared.maxConcurrentLogins ?? 8,
-    }),
   };
 
   const hasAccounts = hasAccountStores(source);
@@ -266,11 +272,9 @@ export function composeServices(
     throw new Error('account stores and account runtime must be supplied together');
   }
   if (!hasAccounts || !hasRuntime) return common;
-  return {
-    ...common,
-    auth: new AuthService({
+  const { auth, loginThrottle } = installAuthentication({
+    account: {
       users: source.stores.users,
-      identities: source.stores.users,
       passwords: runtime.passwords,
       tokens: runtime.tokens,
       clock: runtime.clock,
@@ -279,8 +283,11 @@ export function composeServices(
         ? {}
         : { passwordSessions: runtime.passwordSessions }),
       ...(runtime.localIdentity === undefined ? {} : { localIdentity: runtime.localIdentity }),
-    }),
-  };
+    },
+    now: () => runtime.clock.now(),
+    maxConcurrentLogins: shared.maxConcurrentLogins ?? 8,
+  });
+  return { ...common, auth, loginThrottle };
 }
 
 function hasAccountRuntime(
