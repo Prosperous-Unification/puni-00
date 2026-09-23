@@ -871,3 +871,49 @@ observed faults.
   `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the opt-in Chromium case, and the
   host gate remain pending planner verification under the executor sandbox
   contract.
+
+## Packet 050.7f1, slice 1 — typed preference-store lifecycle refusals
+
+- Attempt `050-7-f1-theme-hook-model.1.20260923T192617Z` started at
+  `474be8df0826bdd36ce4003adb1034b880d3fa6a` with an empty working tree and
+  fast-check 4.9.0.
+- Step-0 focused baseline: exit 0, 4 files and 59 tests passed. The theme-only
+  baseline passed 1 file and 17 tests; the preferences baseline passed 6 files
+  and 39 tests; the sandbox node baseline passed 46 files and 674 tests.
+- Strict OpenSpec baseline: exit 0; the strict predicate accepted one report
+  with 114 items passed and 0 failed. After the classification requirement was
+  added first, the same strict check remained at 114 passed and 0 failed.
+- With the new class, predicate and classification tests present but both
+  production throws still plain `Error`s, the preferences red checkpoint exited
+  1: 2 files failed and 4 passed; exactly the 2 new tests failed while 39 passed,
+  both on `expected false to be true`. Typecheck on that red tree exited 0.
+- After both refusal sites used `PreferenceStoreLifecycleError`, the preferences
+  suite exited 0 with 6 files and 41 tests passed, and the sandbox node suite
+  exited 0 with 46 files and 675 tests passed. Typecheck and lint both exited 0.
+
+### Negative-proof observations
+
+Each fault was saved as a patch and failing log under this attempt's
+`evidence/` directory, restored byte-for-byte with `cmp`, and its named test
+rerun green before the adjacent production `Proof:` comment was added.
+
+| Fault                                                                      | Named test and observed failure                                                                                                                                                               | Evidence                                                                                                                                |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the withdrawn `PreferenceStoreLifecycleError` with a plain `Error` | `a withdrawn refusal is a lifecycle refusal of kind withdrawn` exited 1 on `AssertionError: expected false to be true`; 1 failed and 22 skipped, then 1 passed and 22 skipped after restore   | `withdrawn-lifecycle-classification.patch`, `withdrawn-lifecycle-classification.log`, `withdrawn-lifecycle-classification-restored.log` |
+| Replace the revoked `PreferenceStoreLifecycleError` with a plain `Error`   | `a revoked store refuses with a lifecycle refusal of kind revoked` exited 1 on `AssertionError: expected false to be true`; 1 failed and 3 skipped, then 1 passed and 3 skipped after restore | `revoked-lifecycle-classification.patch`, `revoked-lifecycle-classification.log`, `revoked-lifecycle-classification-restored.log`       |
+
+### Slice verification
+
+- Owned-file Prettier write and check exited 0. The repository-wide
+  `NX_DAEMON=false bunx nx format:check --all` exited 0.
+- The final preferences suite exited 0 with 6 files and 41 tests passed; the
+  final sandbox node suite exited 0 with 46 files and 675 tests passed.
+- Final typecheck and lint both exited 0.
+- Final strict OpenSpec validation exited 0; the exact predicate accepted one
+  report with 114 items passed and 0 failed, unchanged from step 0.
+
+### Pending planner verification
+
+- `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+  `wbs-fe-01:e2e`, `tool-devsync:test`, and the host gate were not run in the
+  executor sandbox and remain pending planner verification.

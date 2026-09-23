@@ -218,3 +218,41 @@ export const PREFERENCES_LABEL = 'frontend.preferences';
 
 /** The wiki module identifier, which the module index will declare. */
 export const PREFERENCES_MODULE_ID = 'module.frontend.preferences';
+
+/**
+ * A refusal a delivery-layer caller may recover from, told apart from every
+ * other failure a store can raise.
+ *
+ * Two call sites throw it, over the same two messages they always have — this
+ * class changes nothing about *when* a refusal happens or what it says, only
+ * whether a caller can tell it apart from an unmodelled failure without
+ * matching on message text:
+ *
+ * - `preferences.resource.ts`'s `ensureLive`, `kind: 'withdrawn'` — the slot is
+ *   not `live` right now, checked synchronously.
+ * - `browser-storage.repository.ts`'s `revocableStorage`, `kind: 'revoked'` —
+ *   this store's own runtime has already given it back.
+ *
+ * A delivery consumer (`lib/theme.ts`'s `useTheme`) catches only this class —
+ * {@link isPreferenceStoreLifecycleError} — and rethrows everything else: R5's
+ * rule that a catch is for modeled recovery, never a blanket swallow. A storage
+ * failure that is not a lifecycle refusal (a browser with site data blocked,
+ * {@link BrowserStorage}'s own JSDoc) still propagates out of a delivery call
+ * site exactly as it always has.
+ */
+export class PreferenceStoreLifecycleError extends Error {
+  readonly kind: 'withdrawn' | 'revoked';
+
+  constructor(message: string, kind: 'withdrawn' | 'revoked') {
+    super(message);
+    this.name = 'PreferenceStoreLifecycleError';
+    this.kind = kind;
+  }
+}
+
+/** Whether a caught value is a {@link PreferenceStoreLifecycleError}, for a narrow catch. */
+export function isPreferenceStoreLifecycleError(
+  error: unknown,
+): error is PreferenceStoreLifecycleError {
+  return error instanceof PreferenceStoreLifecycleError;
+}
