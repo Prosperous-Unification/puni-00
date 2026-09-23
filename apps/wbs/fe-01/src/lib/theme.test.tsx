@@ -1,16 +1,27 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { DriveableMediaQueryList } from '../../vitest.setup';
+import type { Remembered } from '../modules/preferences/contract';
+import { fakeBrowserStorage } from '../modules/preferences/fake-browser-storage';
+import {
+  type ApplicationServices,
+  installApplicationRuntime,
+} from '../runtime/application-runtime';
+import { ApplicationServicesProvider } from '../runtime/application-services-context';
+import { createLifetimeSlot, type LifetimeSlot } from '../runtime/lifetime-slot';
 import {
   DARK_CLASS,
   DARK_QUERY,
+  isThemeChoice,
   paintPalette,
   paletteFor,
   readTheme,
   rememberedTheme,
   systemMedia,
   THEME_KEY,
+  type ThemeChoice,
   useTheme,
 } from './theme';
 
@@ -26,14 +37,85 @@ const itDom = hasDom ? it : it.skip;
 const platform = (): DriveableMediaQueryList =>
   window.matchMedia(DARK_QUERY) as DriveableMediaQueryList;
 
+/**
+ * Every {@link LifetimeSlot} this file built, retired by this file's own
+ * `afterEach` rather than by each test body — so a slot a failed assertion left
+ * live is still given back. `retire()` on an already-empty slot is a documented
+ * no-op, so retiring one a test retired itself costs nothing, and lifecycle under
+ * test stays distinct from fixture teardown.
+ */
+const builtSlots: LifetimeSlot<ApplicationServices>[] = [];
+
+/** A fresh, tracked slot, `empty` until a test `replace`s it. */
+function freshSlot(): LifetimeSlot<ApplicationServices> {
+  const slot = createLifetimeSlot<ApplicationServices>(50);
+  builtSlots.push(slot);
+  return slot;
+}
+
+/**
+ * A slot `live` over the production installer, its liveness predicate wired
+ * exactly as `acquireApplicationRuntime` wires the real one — not
+ * `installApplicationRuntime()` bare, whose default `isLive` is always `true` and
+ * so could never reproduce a withdrawn access. `store` defaults to a fresh
+ * in-memory fake rather than real `localStorage`, so a test can tell the
+ * runtime's own store apart from `composition.ts`'s module-load singleton, which
+ * always wraps the real one.
+ *
+ * Awaits the real `replace` promise, so the slot is genuinely `live` on return.
+ */
+async function liveSlot(
+  store: ReturnType<typeof fakeBrowserStorage> = fakeBrowserStorage(),
+): Promise<{
+  slot: LifetimeSlot<ApplicationServices>;
+  store: ReturnType<typeof fakeBrowserStorage>;
+}> {
+  const slot = freshSlot();
+  await slot.replace(() =>
+    installApplicationRuntime({
+      openStore: () => store,
+      isLive: () => slot.snapshot().status === 'live',
+    }),
+  );
+  return { slot, store };
+}
+
+function wrapperFor(slot: LifetimeSlot<ApplicationServices>) {
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <ApplicationServicesProvider slot={slot}>{children}</ApplicationServicesProvider>;
+  }
+  return Wrapper;
+}
+
+/**
+ * A runtime's own theme store, over a fresh, real installation — the runtime path
+ * the bare-function cases below now take instead of importing `composition.ts`'s
+ * module-load duplicate. Retained and given back after `run`, matching
+ * `composition-agreement.test.ts`'s own pattern.
+ */
+async function withThemeStore<T>(run: (themeStore: Remembered<ThemeChoice>) => T): Promise<T> {
+  const installed = installApplicationRuntime();
+  try {
+    return run(installed.services.remembered.themeChoice(isThemeChoice));
+  } finally {
+    await installed.close({ timeoutMs: 50 });
+  }
+}
+
 beforeEach(() => {
   localStorage.removeItem(THEME_KEY);
   document.documentElement.classList.remove(DARK_CLASS);
   platform().setMatches(false);
 });
 
-afterEach(() => {
+/**
+ * React `cleanup()` first, before any slot this file built is retired, including
+ * after a failed assertion: `afterEach` runs whatever the test body reached.
+ */
+afterEach(async () => {
   cleanup();
+  const slots = builtSlots.splice(0);
+  await Promise.all(slots.map((slot) => slot.retire()));
 });
 
 /**
@@ -58,31 +140,39 @@ describe('what the theme setting resolves to', () => {
 });
 
 describe('what this browser remembers', () => {
-  itDom('starts on system, having never been told', () => {
-    expect(rememberedTheme()).toBe('system');
+  itDom('starts on system, having never been told', async () => {
+    await withThemeStore((themeStore) => {
+      expect(rememberedTheme(themeStore)).toBe('system');
+    });
   });
 
-  itDom('reads back an answer it was given', () => {
+  itDom('reads back an answer it was given', async () => {
     localStorage.setItem(THEME_KEY, JSON.stringify('dark'));
 
-    expect(rememberedTheme()).toBe('dark');
+    await withThemeStore((themeStore) => {
+      expect(rememberedTheme(themeStore)).toBe('dark');
+    });
   });
 
-  itDom('refuses a stored answer that is not one of the three, and drops the key', () => {
+  itDom('refuses a stored answer that is not one of the three, and drops the key', async () => {
     localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
 
-    expect(rememberedTheme()).toBe('system');
+    await withThemeStore((themeStore) => {
+      expect(rememberedTheme(themeStore)).toBe('system');
+    });
     expect(localStorage.getItem(THEME_KEY)).toBeNull();
   });
 
-  itDom('refuses storage that is not JSON at all, and drops the key', () => {
+  itDom('refuses storage that is not JSON at all, and drops the key', async () => {
     localStorage.setItem(THEME_KEY, '{not json');
 
-    expect(rememberedTheme()).toBe('system');
+    await withThemeStore((themeStore) => {
+      expect(rememberedTheme(themeStore)).toBe('system');
+    });
     expect(localStorage.getItem(THEME_KEY)).toBeNull();
   });
 
-  itDom('reads the same answer without writing anything, for a render to call', () => {
+  itDom('reads the same answer without writing anything, for a render to call', async () => {
     // The half `useTheme`'s lazy initialiser is allowed to do. Both refusals
     // above are the same read plus a write, and a `useState` initialiser is a
     // render — StrictMode calls it twice on purpose to surface exactly that.
@@ -92,7 +182,9 @@ describe('what this browser remembers', () => {
     // Watched on h2puni under vitest, 2026-08-12.
     localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
 
-    expect(readTheme()).toBe('system');
+    await withThemeStore((themeStore) => {
+      expect(readTheme(themeStore)).toBe('system');
+    });
     expect(localStorage.getItem(THEME_KEY)).toBe(JSON.stringify('midnight'));
   });
 });
@@ -120,50 +212,60 @@ describe('what the theme puts on the document', () => {
 });
 
 describe('the theme, followed and remembered while the app is open', () => {
-  itDom('opens on the answer this browser last gave, without a paint in between', () => {
-    localStorage.setItem(THEME_KEY, JSON.stringify('dark'));
+  itDom('opens on the answer this browser last gave, without a paint in between', async () => {
+    const { slot } = await liveSlot(fakeBrowserStorage({ [THEME_KEY]: JSON.stringify('dark') }));
 
-    const held = renderHook(() => useTheme());
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
 
     expect(held.result.current.choice).toBe('dark');
     expect(held.result.current.palette).toBe('dark');
+    expect(held.result.current.persists).toBe(true);
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
   });
 
-  itDom('drops an answer it cannot read, from an effect rather than from a render', () => {
-    localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
+  itDom('drops an answer it cannot read, from an effect rather than from a render', async () => {
+    const { slot, store } = await liveSlot(
+      fakeBrowserStorage({ [THEME_KEY]: JSON.stringify('midnight') }),
+    );
 
-    const held = renderHook(() => useTheme());
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
 
     // The behaviour is unchanged by the move — a corrupt key is gone by the
     // time the hook has mounted, which is all a reader could ever have seen.
+    // The removal is now asserted against the store this hook really reads and
+    // writes, through the injected fake's own `held()`, rather than against the
+    // module-load singleton it no longer touches.
     expect(held.result.current.choice).toBe('system');
-    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+    expect(store.held()[THEME_KEY]).toBeUndefined();
   });
 
-  itDom('opens on the machine’s own answer where nothing was ever chosen', () => {
+  itDom('opens on the machine’s own answer where nothing was ever chosen', async () => {
     platform().setMatches(true);
+    const { slot } = await liveSlot();
 
-    const held = renderHook(() => useTheme());
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
 
     expect(held.result.current.choice).toBe('system');
     expect(held.result.current.palette).toBe('dark');
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
   });
 
-  itDom('writes the answer down as it is chosen, and paints it', () => {
-    const held = renderHook(() => useTheme());
+  itDom('writes the answer down as it is chosen, and paints it', async () => {
+    const { slot, store } = await liveSlot();
+
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
 
     act(() => {
       held.result.current.chooseTheme('dark');
     });
 
-    expect(localStorage.getItem(THEME_KEY)).toBe(JSON.stringify('dark'));
+    expect(store.held()[THEME_KEY]).toBe(JSON.stringify('dark'));
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
   });
 
-  itDom('follows the machine changing under it while the choice is system', () => {
-    const held = renderHook(() => useTheme());
+  itDom('follows the machine changing under it while the choice is system', async () => {
+    const { slot } = await liveSlot();
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
 
     act(() => {
@@ -174,8 +276,9 @@ describe('the theme, followed and remembered while the app is open', () => {
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
   });
 
-  itDom('leaves a chosen palette where it is when the machine changes under it', () => {
-    const held = renderHook(() => useTheme());
+  itDom('leaves a chosen palette where it is when the machine changes under it', async () => {
+    const { slot } = await liveSlot();
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
     act(() => {
       held.result.current.chooseTheme('light');
     });
@@ -188,9 +291,10 @@ describe('the theme, followed and remembered while the app is open', () => {
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
   });
 
-  itDom('goes back to the machine’s answer when system is chosen again', () => {
+  itDom('goes back to the machine’s answer when system is chosen again', async () => {
     platform().setMatches(true);
-    const held = renderHook(() => useTheme());
+    const { slot } = await liveSlot();
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
     act(() => {
       held.result.current.chooseTheme('light');
     });
@@ -204,7 +308,7 @@ describe('the theme, followed and remembered while the app is open', () => {
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
   });
 
-  itDom('stops listening to the machine once it is gone', () => {
+  itDom('stops listening to the machine once it is gone', async () => {
     // **The class cannot answer this and the listener count can.** This test
     // asserted only the third block below, and it could not fail: `paintPalette`
     // runs from a `useEffect`, React runs no effect for an unmounted hook, so
@@ -224,7 +328,8 @@ describe('the theme, followed and remembered while the app is open', () => {
     // asserted is the *difference* one mount and one unmount make.
     const before = platform().listenerCount;
 
-    const held = renderHook(() => useTheme());
+    const { slot } = await liveSlot();
+    const held = renderHook(() => useTheme(), { wrapper: wrapperFor(slot) });
     expect(platform().listenerCount, 'the hook never subscribed at all').toBe(before + 1);
 
     held.unmount();

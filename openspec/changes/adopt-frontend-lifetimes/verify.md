@@ -917,3 +917,54 @@ rerun green before the adjacent production `Proof:` comment was added.
 - `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
   `wbs-fe-01:e2e`, `tool-devsync:test`, and the host gate were not run in the
   executor sandbox and remain pending planner verification.
+
+## Packet 050.7f1, slice 2 — runtime-owned theme preferences and model
+
+- Attempt `050-7-f1-theme-hook-model.2.20260923T195454Z` started at
+  `61cb28144ccfdc4bb81566bca88e9bc29088d223` with an empty working tree and
+  fast-check 4.9.0.
+- Step-0 focused baseline: exit 0, 4 files and 59 tests passed. The theme-only
+  baseline passed 1 file and 17 tests; preferences passed 6 files and 41 tests;
+  the sandbox node baseline passed 46 files and 675 tests.
+- Strict OpenSpec baseline and the check after adding the delivery-degradation
+  requirement each exited 0 with one report, 114 items passed and 0 failed.
+- With the model and migrated call-site tests present but `theme.ts` unchanged,
+  the red typecheck exited 1 with 12 errors in the named 3 files. The red focused
+  run exited 1 with 2 files failed and 3 passed, and 4 tests failed while 56
+  passed. After the hook change, typecheck exited 0 and all 5 files and 60 tests
+  passed.
+- Lint exited 0 without an autofix round. Preferences remained at 6 files and
+  41 tests; the sandbox node suite remained at 46 files and 675 tests.
+
+### Negative-proof observations
+
+Every fault used seed 20260925 and 300 runs. It was saved as the named patch and
+log under this attempt's `evidence/` directory, restored byte-for-byte with
+`cmp`, and the model test reran green before the next fault.
+
+| Fault                                                  | Run, shrunk counterexample, and observed failure                                                                                                                     | Evidence                                                                                        |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Replace the theme write with a read                    | Run 14, shrunk 5 times to `chooseWhileAcquiring(A, system), choose(system)` (`AFAAAK:q`): stored bytes in A were `undefined` instead of `"system"`.                  | `s2-a-persistence-removed.patch`, `s2-a-persistence-removed.log`, `s2-a-restored-green.log`     |
+| Disable the superseded-chooser guard                   | Run 14, shrunk 3 times to `retainChooser, chooseWhileAcquiring(A, system), useRetainedChooser(system)` (`ACDI:K`): `persists` was false instead of true.             | `s2-b-superseded-guard.patch`, `s2-b-superseded-guard.log`, `s2-b-restored-green.log`           |
+| Swallow the chooser's ordinary failure                 | Run 42, shrunk once to `replace(denied, settles), choose(system)` (`AAACB:V`): expected the retained `write denied` error but received null.                         | `s2-c-chooser-rethrow.patch`, `s2-c-chooser-rethrow.log`, `s2-c-restored-green.log`             |
+| Remove the resync effect's lifecycle recovery          | Run 1, shrunk twice to `replaceThenRetireFromLayoutEffect(A)` (`BAABDB:q`): the withdrawn `PreferenceStoreLifecycleError` escaped.                                   | `s2-d-effect-catch.patch`, `s2-d-effect-catch.log`, `s2-d-restored-green.log`                   |
+| Remove the withdrawn-state reset                       | Run 1, shrunk 4 times to `replace(A, settles), retire` (`BAAEAK:q`): `persists` was true instead of false.                                                           | `s2-e-withdrawn-branch.patch`, `s2-e-withdrawn-branch.log`, `s2-e-restored-green.log`           |
+| Substitute an ordinary cleanup error for budget expiry | Run 9, shrunk once to `replace(A, never), retire` (`BCAB:K`): the disposal was not the slot's typed budget expiry, and teardown reported the cleanup corruption too. | `s2-f-expiry-classification.patch`, `s2-f-expiry-classification.log`, `s2-f-restored-green.log` |
+| Inject an unrelated teardown failure                   | Run 1, shrunk once to the empty command list (`BAAF:K`): teardown reported the unverified `unrelated teardown failure`.                                              | `s2-g-teardown-accounting.patch`, `s2-g-teardown-accounting.log`, `s2-g-restored-green.log`     |
+
+### Slice verification
+
+- Final focused suite: exit 0, 5 files and 60 tests passed. Final preferences
+  suite: exit 0, 6 files and 41 tests passed. Final sandbox node suite: exit 0,
+  46 files and 675 tests passed.
+- Final typecheck and lint exited 0; lint required no autofix round.
+- Owned-file Prettier write and check exited 0. Repository-wide
+  `NX_DAEMON=false bunx nx format:check --all` exited 0.
+- Final strict OpenSpec validation exited 0; the exact predicate accepted one
+  report with 114 items passed and 0 failed, unchanged from step 0.
+
+### Pending planner verification
+
+- `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+  `wbs-fe-01:e2e`, `tool-devsync:test`, and the host gate were not run in the
+  executor sandbox and remain pending planner verification.

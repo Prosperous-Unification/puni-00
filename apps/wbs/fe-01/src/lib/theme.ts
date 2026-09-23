@@ -7,11 +7,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
-import { rememberedPreferences } from '@/modules/preferences/composition';
+import { isPreferenceStoreLifecycleError, type Remembered } from '@/modules/preferences/contract';
 import { THEME_KEY } from '@/modules/preferences/preference-keys';
+import { useApplicationServicesState } from '@/runtime/application-services-context';
 
 /**
  * What a reader has asked for, which is not the same as what is painted.
@@ -44,22 +46,31 @@ export const DARK_QUERY = '(prefers-color-scheme: dark)';
 /** The class `styles.css` hangs the dark token set on. */
 export const DARK_CLASS = 'dark';
 
-function isThemeChoice(claimed: unknown): claimed is ThemeChoice {
+/** Whether a value read from storage names one of the three {@link ThemeChoice}s. */
+export function isThemeChoice(claimed: unknown): claimed is ThemeChoice {
   return claimed === 'system' || claimed === 'light' || claimed === 'dark';
 }
 
-/** The choice as stored, judged by {@link isThemeChoice}. */
-const storedChoice = rememberedPreferences.themeChoice(isThemeChoice);
-
 /**
- * The choice as this browser last said it — and `system` where it has never
- * said, which is the state every reader starts in.
+ * The choice as this browser last said it, over the given store — and `system`
+ * where it has never said, which is the state every reader starts in.
  *
- * The stored value is a claim, not a fact, and {@link remembered} is where that
+ * Takes its store rather than closing over a module-load singleton:
+ * {@link useTheme} is this file's one caller inside a render tree, and it builds
+ * the store from {@link useApplicationServicesState} instead — a module-scope
+ * binding here would be built at import time, before any runtime exists.
+ *
+ * The stored value is a claim, not a fact, and {@link Remembered} is where that
  * is dealt with for every key this app holds: anything that is not one of the
  * three takes the key with it and the answer goes back to `system`.
+ *
+ * @throws `PreferenceStoreLifecycleError` when `themeStore`'s own runtime has
+ * gone withdrawn or been revoked since this store was built — see
+ * `modules/preferences/contract.ts`. {@link useTheme}'s own resync effect is the
+ * one caller that catches it; every other caller runs it against a store it
+ * knows is live.
  */
-export function rememberedTheme(): ThemeChoice {
+export function rememberedTheme(themeStore: Remembered<ThemeChoice>): ThemeChoice {
   // Proof: `readAndDrop` replaced by `read`, which is what "read the claim,
   // drop nothing" comes to. `refuses a stored answer that is not one of the
   // three, and drops the key` failed on `expected '"midnight"' to be null` —
@@ -68,14 +79,14 @@ export function rememberedTheme(): ThemeChoice {
   // Proof: the shared refusal drop made a no-op failed three resource cases,
   // including `a read that drops removes the refused key; a plain read writes
   // nothing`, on `expected '"midnight"' to be undefined`. Observed 2026-09-20.
-  return storedChoice.readAndDrop() ?? 'system';
+  return themeStore.readAndDrop() ?? 'system';
 }
 
 /**
  * The same read with **nothing written** — what a React render is allowed to
  * do.
  *
- * {@link useTheme}'s lazy `useState` initialiser calls this and its mount
+ * {@link useTheme}'s lazy `useState` initialiser calls this and its resync
  * effect calls {@link rememberedTheme}, which is the same split
  * {@link useTheme}'s own `chooseTheme` states in prose: a function React may
  * call twice during a render is no place for a side effect. Cross-review,
@@ -87,13 +98,15 @@ export function rememberedTheme(): ThemeChoice {
  * (`index-bootstrap.test.ts`) and that check reads "what does this module make
  * of these bytes, storage and all".
  */
-export function readTheme(): ThemeChoice {
-  return storedChoice.read() ?? 'system';
+export function readTheme(themeStore: Remembered<ThemeChoice>): ThemeChoice {
+  return themeStore.read() ?? 'system';
 }
 
 /** Writes the answer down. `system` is stored, not absent — see {@link rememberedTheme}. */
-export function rememberTheme(choice: ThemeChoice): void {
-  storedChoice.write(choice);
+export function rememberTheme(themeStore: Remembered<ThemeChoice>, choice: ThemeChoice): void {
+  // Proof: on 2026-09-23, replacing this write with a read failed the model at
+  // run 14: stored bytes in A were undefined instead of '"system"'.
+  themeStore.write(choice);
 }
 
 /**
@@ -143,12 +156,35 @@ export function paintPalette(palette: Palette): void {
   document.documentElement.classList.toggle(DARK_CLASS, palette === 'dark');
 }
 
-/** What {@link useTheme} hands back: the answer, and the way to change it. */
+/**
+ * What {@link useTheme} hands back: the answer, the way to change it, and
+ * whether that answer is actually being remembered right now.
+ */
 export interface Theme {
   choice: ThemeChoice;
   /** What is on screen right now, which is `choice` unless `choice` is `system`. */
   palette: Palette;
   chooseTheme: (choice: ThemeChoice) => void;
+  /**
+   * Whether this browser is remembering `choice`, as of the render that produced
+   * this value.
+   *
+   * React state, not a live probe, and the difference is observable: the slot
+   * withdraws publication **synchronously**, while this flag is only corrected by
+   * the chooser (within its own call) or by the resynchronisation effect (after
+   * the commit the slot's own deferred notification caused). Between those two
+   * instants a reader can still see `true` for a runtime that has already gone.
+   * That lag is exactly why `chooseTheme` catches the store's lifecycle refusal
+   * instead of consulting this flag, and it is what
+   * `docs/superpowers/plans/2026-09-21-batch-6/050-7-f1-theme-hook-model.md`
+   * section 3.2 states precisely.
+   *
+   * Once it has converged it is the explicit, visible degradation R5 asks for — a
+   * silently-accepted, unpersisted choice is exactly the misleading behaviour
+   * `browser-storage.repository.ts`'s own JSDoc warns against for a blocked
+   * store.
+   */
+  persists: boolean;
 }
 
 /**
@@ -167,25 +203,87 @@ export interface Theme {
  * {@link readTheme} and not {@link rememberedTheme}, because the initialiser is
  * a render: dropping an unreadable key is a write, StrictMode calls this twice
  * on purpose, and the rule against a side effect in a function React may call
- * twice is the one `chooseTheme` states at the bottom of this file. The drop
- * happens in the mount effect below instead. Nothing on screen moved either
- * way — see {@link readTheme}.
+ * twice is the one `chooseTheme` states below. The drop happens in the resync
+ * effect instead. Nothing on screen moved either way — see {@link readTheme}.
+ *
+ * ## The state machine
+ *
+ * `docs/superpowers/plans/2026-09-21-batch-6/050-7-f1-theme-hook-model.md`
+ * section 3 is the record, and `theme.model.test.tsx` is that record executed
+ * against this hook. In short: four states of the store this hook reads (no
+ * store; live; withdrawn after live; replaced by another live one), five events
+ * (render, chooser call, slot notification, this effect, disposal), and four
+ * invariants —
+ *
+ * 1. the displayed `choice` and `persists` are functions of the model alone,
+ * 2. a superseded chooser never changes the current runtime's state,
+ * 3. an unexpected storage failure propagates unchanged, with the displayed
+ *    state and the stored bytes unchanged, and
+ * 4. withdrawal is handled at the access boundary that observes it — the
+ *    chooser's own write and this effect's own read each catch the lifecycle
+ *    refusal where it is raised, and nothing else.
  */
 export function useTheme(): Theme {
-  const [choice, setChoice] = useState<ThemeChoice>(readTheme);
+  const services = useApplicationServicesState();
+  const remembered = services.status === 'live' ? services.remembered : null;
+  const themeStore = useMemo<Remembered<ThemeChoice> | null>(
+    () => (remembered ? remembered.themeChoice(isThemeChoice) : null),
+    [remembered],
+  );
+
+  /**
+   * The store the most recent render built, read by `chooseTheme` below to tell
+   * a superseded closure apart from the current one — invariant 2.
+   *
+   * Assigned in the render body rather than from an effect: an effect would
+   * leave one commit where a stale closure could read a stale ref, and the write
+   * here is idempotent.
+   */
+  const themeStoreRef = useRef<Remembered<ThemeChoice> | null>(themeStore);
+  themeStoreRef.current = themeStore;
+
+  const [choice, setChoice] = useState<ThemeChoice>(() =>
+    themeStore ? readTheme(themeStore) : 'system',
+  );
+  const [persists, setPersists] = useState<boolean>(() => themeStore !== null);
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => systemMedia().matches);
 
   /**
-   * Drops a stored answer this module cannot read, once, after the first paint.
+   * Resyncs `choice`/`persists` to the store this render holds — on mount, on
+   * withdrawal, and on reactivation or replacement.
    *
-   * The write half of {@link rememberedTheme}, moved out of the initialiser
-   * above. Its return value is the same answer `readTheme` already gave — the
-   * state is not re-seeded from it, because between the two calls nothing but
-   * this line can have written the key.
+   * {@link rememberedTheme} rather than {@link readTheme} on the live branch:
+   * the write half of the drop, exactly as it was before this hook read the
+   * runtime's own store. Its return value reseeds `choice` directly, which is
+   * what makes a newly published runtime's own saved answer the displayed one.
+   *
+   * The `themeStore` this effect closes over can itself go withdrawn between
+   * this render and this effect actually running — a passive effect runs after
+   * every layout effect has committed, and a sibling's layout effect can retire
+   * the slot in between. `rememberedTheme` then raises the lifecycle refusal;
+   * caught here as the same recoverable transition the withdrawn branch already
+   * models, never left to reach `AppFaultBoundary`, because a withdrawn tick is
+   * a normal lifecycle event and not a fault. Anything else is rethrown.
    */
   useEffect(() => {
-    rememberedTheme();
-  }, []);
+    if (!themeStore) {
+      // Proof: on 2026-09-23, deleting these two state updates failed the model
+      // at run 1: persists was true instead of false after withdrawal.
+      setChoice('system');
+      setPersists(false);
+      return;
+    }
+    // Proof: on 2026-09-23, removing this recovery failed the model at run 1
+    // when the withdrawn PreferenceStoreLifecycleError escaped the effect.
+    try {
+      setChoice(rememberedTheme(themeStore));
+      setPersists(true);
+    } catch (refusal) {
+      if (!isPreferenceStoreLifecycleError(refusal)) throw refusal;
+      setChoice('system');
+      setPersists(false);
+    }
+  }, [themeStore]);
 
   /**
    * Follows the machine while the page is open.
@@ -217,15 +315,40 @@ export function useTheme(): Theme {
     paintPalette(palette);
   }, [palette]);
 
-  const chooseTheme = useCallback((next: ThemeChoice): void => {
-    // Written here, beside the setter and outside it: a state updater React may
-    // call twice is no place for a side effect. `gantt-panel.tsx`'s arrows
-    // switch makes the same bargain for the same reason.
-    rememberTheme(next);
-    setChoice(next);
-  }, []);
+  const chooseTheme = useCallback(
+    (next: ThemeChoice): void => {
+      // Superseded: this closure's own store is not the one the most recent
+      // render read, so a replacement runtime made this callback stale
+      // (invariant 2). A no-op, before any store access or state write at all.
+      // Proof: on 2026-09-23, disabling this guard failed the model at run 14:
+      // persists was false instead of true after a superseded chooser ran.
+      if (themeStore !== themeStoreRef.current) return;
+      if (!themeStore) {
+        setChoice(next);
+        setPersists(false);
+        return;
+      }
+      try {
+        // Written before `setChoice` below, on purpose: an unexpected failure —
+        // never a lifecycle refusal, which is caught just below — must
+        // propagate without this hook ever having shown a choice it could not
+        // keep (invariant 3).
+        rememberTheme(themeStore, next);
+      } catch (refusal) {
+        // Proof: on 2026-09-23, swallowing every refusal failed the model at
+        // run 42: the retained write-denied Error did not reach the caller.
+        if (!isPreferenceStoreLifecycleError(refusal)) throw refusal;
+        setChoice(next);
+        setPersists(false);
+        return;
+      }
+      setChoice(next);
+      setPersists(true);
+    },
+    [themeStore],
+  );
 
-  return { choice, palette, chooseTheme };
+  return { choice, palette, chooseTheme, persists };
 }
 
 /**
@@ -244,6 +367,8 @@ export function useTheme(): Theme {
 export interface ThemeContextValue {
   choice: ThemeChoice;
   chooseTheme: (choice: ThemeChoice) => void;
+  /** See {@link Theme.persists}. Not yet read by any consumer below this provider. */
+  persists: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -254,8 +379,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
  * the answer is shared with whatever reads it through {@link useThemeChoice}.
  */
 export function ThemeProvider({ children }: { children: ReactNode }): ReactElement {
-  const { choice, chooseTheme } = useTheme();
-  const value = useMemo<ThemeContextValue>(() => ({ choice, chooseTheme }), [choice, chooseTheme]);
+  const { choice, chooseTheme, persists } = useTheme();
+  const value = useMemo<ThemeContextValue>(
+    () => ({ choice, chooseTheme, persists }),
+    [choice, chooseTheme, persists],
+  );
   return createElement(ThemeContext.Provider, { value }, children);
 }
 

@@ -5,7 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { DriveableMediaQueryList } from '../vitest.setup';
-import { DARK_CLASS, DARK_QUERY, paletteFor, rememberedTheme, THEME_KEY } from './lib/theme';
+import {
+  DARK_CLASS,
+  DARK_QUERY,
+  isThemeChoice,
+  paletteFor,
+  rememberedTheme,
+  THEME_KEY,
+} from './lib/theme';
+import { installApplicationRuntime } from './runtime/application-runtime';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -109,7 +117,7 @@ describe('the palette applied before the first paint', () => {
     for (const machineIsDark of [false, true]) {
       itDom(
         `agrees with the module: stored ${stored ?? '(nothing)'}, machine ${machineIsDark ? 'dark' : 'light'}`,
-        () => {
+        async () => {
           if (stored !== null) localStorage.setItem(THEME_KEY, stored);
           platform().setMatches(machineIsDark);
 
@@ -118,8 +126,16 @@ describe('the palette applied before the first paint', () => {
           // `rememberedTheme` reads the same bytes and drops the key when it
           // cannot use them; the bootstrap deliberately writes nothing, so it
           // is read here **after** the run, from what the module would have
-          // made of the same store.
-          expect(painted).toBe(paletteFor(rememberedTheme(), machineIsDark));
+          // made of the same store — the runtime's own, not a module-load
+          // duplicate. Retained and given back, matching
+          // `composition-agreement.test.ts`'s own pattern.
+          const installed = installApplicationRuntime();
+          try {
+            const themeStore = installed.services.remembered.themeChoice(isThemeChoice);
+            expect(painted).toBe(paletteFor(rememberedTheme(themeStore), machineIsDark));
+          } finally {
+            await installed.close({ timeoutMs: 50 });
+          }
         },
       );
     }
