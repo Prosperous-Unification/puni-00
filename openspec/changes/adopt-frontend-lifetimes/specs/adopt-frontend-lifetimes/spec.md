@@ -162,6 +162,61 @@ unaffected by the retirement of a previous one.
 - **THEN** the replacement's own handles read and write normally, and only the retired
   runtime's handles refuse
 
+### Requirement: A lifecycle refusal is classified, not only worded
+
+Every refusal a preference store raises because its own runtime is no longer the one
+publishing it SHALL carry a machine-readable classification naming which lifecycle
+state raised it, and the preferences module SHALL export a predicate for recognising
+it. A caller that recovers from a lifecycle refusal SHALL narrow on that
+classification and SHALL NOT match on message text. Every other failure a store can
+raise SHALL remain unclassified and SHALL propagate unchanged.
+
+#### Scenario: The two lifecycle refusals are told apart from each other
+
+- **WHEN** a store refuses because its runtime is withdrawn, and another refuses
+  because its own store has already been given back
+- **THEN** both refusals are recognised by the module's predicate and each names its
+  own lifecycle state, while their messages stay exactly as they were
+
+#### Scenario: An ordinary storage failure is not a lifecycle refusal
+
+- **WHEN** a live store's own read or write fails for a reason of the browser's own,
+  such as blocked site data
+- **THEN** the module's predicate does not recognise it, and the failure reaches the
+  caller unchanged rather than being recovered from
+
+### Requirement: A delivery consumer of preferences degrades visibly when withdrawn
+
+A hook or component reading the runtime's preferences through
+`useApplicationServicesState` SHALL render the modelled withdrawn state without
+throwing, SHALL report explicitly when its own displayed choice is not being
+persisted rather than accepting it silently, SHALL let an unexpected storage
+failure propagate unchanged, and, while it stays mounted, SHALL adopt a later
+runtime's own saved answer once one is published.
+
+#### Scenario: A choice made while withdrawn is not silently accepted as persisted
+
+- **WHEN** a reader chooses an answer while the application services are
+  withdrawn, or while the runtime backing an already-read handle is withdrawn
+  between renders
+- **THEN** the in-tree choice still changes and nothing throws, and the
+  consumer's own contract reports that this choice is not being remembered
+
+#### Scenario: Withdrawal while mounted resets to the documented default
+
+- **WHEN** a mounted consumer's runtime is withdrawn
+- **THEN** its choice resets to the same default an unread key already produces,
+  without waiting for disposal to finish, and a later published runtime's own
+  saved answer is adopted once one arrives
+
+#### Scenario: A superseded chooser and an unexpected storage failure
+
+- **WHEN** a caller retains a chooser obtained while one runtime was live and
+  invokes it after a later runtime replaced that one, or a live store's own write
+  fails for a reason that is not a lifecycle refusal
+- **THEN** the retained chooser changes nothing at all, and the storage failure
+  propagates unchanged with the displayed choice and the stored bytes untouched
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

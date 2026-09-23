@@ -1,4 +1,8 @@
-import type { BrowserStorage, RevocableBrowserStorage } from './contract';
+import {
+  type BrowserStorage,
+  PreferenceStoreLifecycleError,
+  type RevocableBrowserStorage,
+} from './contract';
 
 /**
  * The adapter over this browser's own store.
@@ -59,7 +63,9 @@ export function revocableStorage(store: BrowserStorage): RevocableBrowserStorage
   const held = (): BrowserStorage => {
     // Proof: on 2026-09-22, handing the store back either way made 'refuses every
     // access once the store has been given back' receive no throw (5 failed, 37 passed).
-    if (revoked) throw new Error(REVOKED);
+    // Proof: on 2026-09-23, replacing the typed refusal with a plain Error made
+    // 'a revoked store refuses with a lifecycle refusal of kind revoked' fail on expected false to be true.
+    if (revoked) throw new PreferenceStoreLifecycleError(REVOKED, 'revoked');
     return store;
   };
   return {
