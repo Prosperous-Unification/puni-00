@@ -6,9 +6,9 @@
 | Size class | S, in three slices                                                                                                                       |
 | Slices     | 1 seals the module, 2 installs it from composition, 3 registers it in the wiki content-review pilot                                      |
 | Implements | `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md`, task 3.5                                                        |
-| Planned on | 2026-09-24, revised after review 1; every slice rehearsed end to end in a private worktree of `7a2f25efc21156c86fa0b02389fb68039bd76e96` |
+| Planned on | 2026-09-23, revised after review 1; every slice rehearsed end to end in a private worktree of `7a2f25efc21156c86fa0b02389fb68039bd76e96` |
 
-**You execute one slice and stop.** The end of your instructions names which. Each slice in section
+**Dates in `Proof:` comments, `Landed …` notes and the `no unclassified entries` comment are the planner's rehearsal date; write the date you actually observe (`date -u +%F`) when you add them.** **You execute one slice and stop.** The end of your instructions names which. Each slice in section
 7 opens with its own step 0: the preconditions that must hold **before** it edits anything, and the
 baselines it compares against. Section 8 names the planner's checks.
 
@@ -103,7 +103,7 @@ packets in dependency order (section 9).
 ## 3. Verified facts
 
 Every line was read, or the command run, in this private worktree of
-`7a2f25efc21156c86fa0b02389fb68039bd76e96` on 2026-09-24.
+`7a2f25efc21156c86fa0b02389fb68039bd76e96` on 2026-09-23.
 
 | Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Evidence                                                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -329,7 +329,7 @@ type 'UserStore' but required in type 'OidcIdentityStore'` at `module.ts`'s own 
    added here — replace that placeholder with:
 
    ```ts
-   * Proof (2026-09-24): removing `NonNullable<AuthServiceOptions['identities']>`
+   * Proof (2026-09-23): removing `NonNullable<AuthServiceOptions['identities']>`
    * from `AuthenticationRequirements['account']`'s own `users` intersection
    * made this directive fail `wbs-core:typecheck` with "Unused '@ts-expect-error'
    * directive" at the fixture (TS2578) and, as expected collateral, with
@@ -346,27 +346,27 @@ type 'UserStore' but required in type 'OidcIdentityStore'` at `module.ts`'s own 
    placeholder noting these five comments are added here — replace that placeholder with, in order:
 
    ```ts
-    * Proof (2026-09-24): importing `type { AuthenticatedUser } from
+    * Proof (2026-09-23): importing `type { AuthenticatedUser } from
     * '../module/authentication/authentication.feature'` into `use-cases/run-command-batch.ts`
     * failed this suite with `"use-cases/run-command-batch.ts:
     * '../module/authentication/authentication.feature' reaches
     * module/authentication/authentication.feature.ts"` (0 pass, 1 fail) — reproduced
     * with the four pre-existing `service/auth.service.ts` rows unchanged, proving the gap
     * they leave.
-    * Proof (2026-09-24): independently importing `type { AuthenticatedUser } from
+    * Proof (2026-09-23): independently importing `type { AuthenticatedUser } from
     * '../authentication/authentication.feature'` into
     * `module/bounded-replay-sweep/retention-timer.ts` failed this suite with
     * `"module/bounded-replay-sweep/retention-timer.ts: '../authentication/authentication.feature'
     * reaches module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
-    * Proof (2026-09-24): independently importing the same type into
+    * Proof (2026-09-23): independently importing the same type into
     * `module/realtime/gateway-broadcaster.ts` failed this suite with
     * `"module/realtime/gateway-broadcaster.ts: '../authentication/authentication.feature' reaches
     * module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
-    * Proof (2026-09-24): independently importing the same type into
+    * Proof (2026-09-23): independently importing the same type into
     * `module/plan-import/plan-import.feature.ts` failed this suite with
     * `"module/plan-import/plan-import.feature.ts: '../authentication/authentication.feature'
     * reaches module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
-    * Proof (2026-09-24): importing `type { Identity } from '../../http/endpoint'` into
+    * Proof (2026-09-23): importing `type { Identity } from '../../http/endpoint'` into
     * `module/authentication/authentication.feature.ts` itself failed this suite with both a
     * module-specifier and an identifier violation — `"module/authentication/authentication.feature.ts:
     * '../../http/endpoint' reaches http/endpoint.ts"` and `"…: Identity reaches http/endpoint.ts"`
@@ -467,7 +467,7 @@ step 1 (immediately after `expect(graph.auth).toBeUndefined();`), naming what st
 observed:
 
 ```ts
-// Proof (2026-09-24): on the unchanged tree (`loginThrottle` still on `CommonServices`,
+// Proof (2026-09-23): on the unchanged tree (`loginThrottle` still on `CommonServices`,
 // constructed unconditionally), this directive's own `@ts-expect-error` failed
 // `wbs-core:typecheck` with `TS2578: Unused '@ts-expect-error' directive` (1 error), and the
 // runtime assertion below failed with a real `LoginThrottle` instance instead of `undefined`
@@ -1473,7 +1473,7 @@ index 9f3c64b6..3394fcaa 100644
 +    // `boundary.application.authentication`'s `sourceSelector` and one `baselineEntries` path, both
 +    // naming the pre-move `libs/core/src/service/auth.service.ts` this module was extracted from;
 +    // raised `historical policy selector or baseline` from 45 to 47 and occurrences from 263 to 265,
-+    // no unclassified entries (2026-09-24).
++    // no unclassified entries (2026-09-23).
 +    digest: '3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62',
 +    occurrences: 265,
      unclassified: [],
@@ -1495,7 +1495,7 @@ index 5e8d4d09..0001d184 100644
 -- [ ] 3.5 Authentication, absorbing the login throttle and covering the password-only and OIDC
 -      graphs; the accountless graph exports neither.
 +- [x] 3.5 Authentication, absorbing the login throttle and covering the password-only and OIDC
-+      graphs; the accountless graph exports neither. Landed 2026-09-24 as
++      graphs; the accountless graph exports neither. Landed 2026-09-23 as
 +      `libs/wbs/application/core/src/module/authentication/`, with `service/auth.service.ts` and
 +      `service/login-throttle.ts` kept as compatibility re-export shims, and
 +      `docs/code-organization/kinds.json`'s two rows for them rewritten in place (95 entries,
@@ -1520,7 +1520,7 @@ index 5e8d4d09..0001d184 100644
        classified `capability: realtime` before the move. `gateway-broadcaster.ts`,
        `replay-buffer.ts` and `replay-orchestrator.ts` have no separate baseline entry, for the same
 -      reason. **Not landed for Plan import (task 3.4).** Every existing pilot boundary under the
-+      reason. Landed again 2026-09-24 for Authentication as
++      reason. Landed again 2026-09-23 for Authentication as
 +      `libs/wbs/application/core/src/module/authentication/README.md`,
 +      `docs/wiki-policy/modules.json`'s `module.application.authentication` row and
 +      `docs/wiki-policy/policy.json`'s `boundary.application.authentication`, using a
