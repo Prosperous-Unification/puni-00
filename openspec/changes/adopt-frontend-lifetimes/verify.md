@@ -968,3 +968,56 @@ log under this attempt's `evidence/` directory, restored byte-for-byte with
 - `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
   `wbs-fe-01:e2e`, `tool-devsync:test`, and the host gate were not run in the
   executor sandbox and remain pending planner verification.
+
+## Packet 050.7f1, slice 3 — named theme transitions and hand-over
+
+- Attempt `050-7-f1-theme-hook-model.3.20260923T201611Z` started at
+  `61473d5b873ea701ca9ddd570c6714065648101a` with an empty working-tree status and
+  fast-check 4.9.0.
+- Step-0 focused baseline (`theme.test.tsx`, `index-bootstrap.test.ts`, `app.test.tsx`,
+  `account-menu.test.tsx`): exit 0, 4 files and 59 tests passed. The theme suite alone
+  passed 1 file and 17 tests; preferences passed 6 files and 41 tests; the sandbox node
+  suite passed 46 files and 675 tests.
+- Strict OpenSpec baseline exited 0 with one report: 114 items, 114 passed, 0 failed.
+- With the ten named examples added, the theme suite exited 0 with 27 tests passed
+  (17 + 10). Each of the ten `-t` titles, read byte for byte from the packet, selected
+  exactly one test before any fault was injected (`s3-filter-check.log`).
+- Typecheck exited 0 and lint exited 0 without an autofix round.
+
+### Negative-proof observations
+
+Each fault was injected into `apps/wbs/fe-01/src/lib/theme.ts` alone, saved as
+`s3-proof-NN.patch` with its failing output as `s3-proof-NN.log` under this attempt's
+`evidence/` directory, restored from the saved passing bytes and verified with `cmp`,
+and its named test reran green (`s3-proof-NN.green.log`) before the next fault. Every
+failing run reported `Tests 1 failed | 26 skipped (27)` and exit 1.
+
+| #   | Fault                                                  | Observed failure                                                                                |
+| --- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| 1   | Lazy initialiser reads the store unguarded             | `TypeError: Cannot read properties of null (reading 'read')`                                    |
+| 2   | Resync effect's withdrawn reset deleted                | `AssertionError: expected 'dark' to be 'system'`                                                |
+| 3   | Resync effect's live branch sets no state              | `AssertionError: expected 'system' to be 'dark'`                                                |
+| 4   | Chooser's whole `try`/`catch` removed                  | `AssertionError: expected [Function] to not throw an error but 'PreferenceStoreLifecycleError…` |
+| 5   | Chooser's null guard drops `setChoice(next)`           | `AssertionError: expected 'system' to be 'light'`                                               |
+| 6   | Superseded-chooser guard disabled                      | `AssertionError: expected 'dark' to be 'light'`                                                 |
+| 7   | Resync effect's whole `try`/`catch` removed            | `AssertionError: expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to be null`  |
+| 8   | Only the chooser's non-lifecycle rethrow removed       | `AssertionError: expected null to be Error: write denied`                                       |
+| 9   | Only the resync effect's non-lifecycle rethrow removed | `AssertionError: expected null to be Error: read denied`                                        |
+| 10  | Resync effect reads without dropping                   | `AssertionError: expected '"midnight"' to be undefined`                                         |
+
+### Slice verification
+
+- Final focused suite: exit 0, 4 files and 69 tests passed (59 + 10). Final theme suite:
+  exit 0, 27 tests. Model test: exit 0, 1 test. Final preferences suite: exit 0, 6 files
+  and 41 tests. Final sandbox node suite: exit 0, 46 files and 675 tests.
+- Final typecheck and lint exited 0.
+- Owned-file Prettier write and check exited 0 with all five files unchanged.
+  Repository-wide `NX_DAEMON=false bunx nx format:check --all` exited 0.
+- Final strict OpenSpec validation exited 0 with one report: 114 items passed and 0
+  failed, unchanged from the step-0 baseline.
+
+### Pending planner verification
+
+- `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`,
+  `tool-devsync:test`, and the host gate were not run in the executor sandbox and remain
+  pending planner verification.

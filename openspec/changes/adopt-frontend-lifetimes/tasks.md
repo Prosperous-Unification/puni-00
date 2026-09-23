@@ -17,6 +17,15 @@
 - [ ] 3. The page's application lifetime is opened through the slot at module load and
       delivery reads its preferences out of that one graph, with the module's wiki index
       declaring `module.frontend.preferences` and its files.
+      Partly moved by 050-7-f1: `lib/theme.ts` reads through
+      `useApplicationServicesState()`, degrading visibly — never throwing — when
+      withdrawn, per the delivery-degradation requirement this change now carries.
+      `gantt-detail.ts`, `project-page.tsx`, `project-settings-modal.tsx` and
+      `lib/remembered.ts` still read `modules/preferences/composition.ts`'s staged
+      duplicate, and the module's wiki index is still absent
+      (`apps/wbs/fe-01/src/modules/preferences/README.md`). This box stays
+      unchecked until all five call sites have moved, the duplicate is deleted and
+      the index exists.
 - [x] 4. The application bootstrap owns the React root: it builds the runtime before
       `createRoot`, publishes `RememberedPreferences` — the feature facade only, never
       the `Preferences` resource — through one context, and renders the sanitized fatal

@@ -242,6 +242,9 @@ export function useTheme(): Theme {
   const themeStoreRef = useRef<Remembered<ThemeChoice> | null>(themeStore);
   themeStoreRef.current = themeStore;
 
+  // Proof: on 2026-09-23, reading `themeStore` unguarded here failed `degrades
+  // to system and never throws when never live` on `TypeError: Cannot read
+  // properties of null (reading 'read')`.
   const [choice, setChoice] = useState<ThemeChoice>(() =>
     themeStore ? readTheme(themeStore) : 'system',
   );
@@ -269,16 +272,31 @@ export function useTheme(): Theme {
     if (!themeStore) {
       // Proof: on 2026-09-23, deleting these two state updates failed the model
       // at run 1: persists was true instead of false after withdrawal.
+      // Proof: on 2026-09-23, the same deletion failed `resets to system and
+      // stops persisting once the runtime is withdrawn, without waiting for
+      // disposal` on `expected 'dark' to be 'system'`.
       setChoice('system');
       setPersists(false);
       return;
     }
     // Proof: on 2026-09-23, removing this recovery failed the model at run 1
     // when the withdrawn PreferenceStoreLifecycleError escaped the effect.
+    // Proof: on 2026-09-23, the same removal failed `recovers, instead of
+    // throwing, when the store is retired between this hook’s render and its
+    // resync effect` on `expected PreferenceStoreLifecycleError … to be null`.
     try {
+      // Proof: on 2026-09-23, dropping both state updates here failed `adopts
+      // a later live store’s own saved choice once one is published` on
+      // `expected 'system' to be 'dark'`; `readTheme` in place of
+      // `rememberedTheme` failed `drops an answer it cannot read, from an
+      // effect rather than from a render` on `expected '"midnight"' to be
+      // undefined`.
       setChoice(rememberedTheme(themeStore));
       setPersists(true);
     } catch (refusal) {
+      // Proof: on 2026-09-23, removing only this rethrow failed `propagates the
+      // resync effect’s own ordinary storage failure by identity, rather than
+      // recovering from it` on `expected null to be Error: read denied`.
       if (!isPreferenceStoreLifecycleError(refusal)) throw refusal;
       setChoice('system');
       setPersists(false);
@@ -322,12 +340,21 @@ export function useTheme(): Theme {
       // (invariant 2). A no-op, before any store access or state write at all.
       // Proof: on 2026-09-23, disabling this guard failed the model at run 14:
       // persists was false instead of true after a superseded chooser ran.
+      // Proof: on 2026-09-23, the same change failed `does not let a
+      // superseded chooser change a replacement runtime’s own state` on
+      // `expected 'dark' to be 'light'`.
       if (themeStore !== themeStoreRef.current) return;
       if (!themeStore) {
+        // Proof: on 2026-09-23, deleting this `setChoice` failed `lets a reader
+        // still operate the control while never live, through the same null
+        // guard` on `expected 'system' to be 'light'`.
         setChoice(next);
         setPersists(false);
         return;
       }
+      // Proof: on 2026-09-23, removing this whole `try`/`catch` failed `does not
+      // throw when the closured store goes withdrawn between renders, and
+      // settles on the withdrawn state`: the lifecycle refusal was thrown.
       try {
         // Written before `setChoice` below, on purpose: an unexpected failure —
         // never a lifecycle refusal, which is caught just below — must
@@ -337,6 +364,9 @@ export function useTheme(): Theme {
       } catch (refusal) {
         // Proof: on 2026-09-23, swallowing every refusal failed the model at
         // run 42: the retained write-denied Error did not reach the caller.
+        // Proof: on 2026-09-23, the same change failed `propagates the
+        // chooser’s own ordinary storage failure by identity, showing no choice
+        // it could not keep` on `expected null to be Error: write denied`.
         if (!isPreferenceStoreLifecycleError(refusal)) throw refusal;
         setChoice(next);
         setPersists(false);
