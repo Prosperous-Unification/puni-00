@@ -31,6 +31,22 @@
       `docs/superpowers/plans/2026-09-21-batch-6/050-7-d-withdrawal-and-page-lifecycle.md`.
 - [ ] 5. Page hide, hot-reload disposal and persisted restoration join one
       application retirement; restoration rebuilds only after it succeeds.
+      Page hide and persisted restoration are closed by 050-7-e: `pagehide`
+      retires the runtime through the slot and invalidates the mounted React
+      root; a persisted `pageshow` rebuilds through the same path, joining
+      whatever retirement is already pending with no bookkeeping of its own
+      (the slot's own serialization is the join); a retirement that rejects
+      or times out leaves the sanitized fatal page showing, redrawn without a
+      second report across a hide-and-restore of an already-fatal page. Hot-
+      reload disposal is this packet's own explicit non-goal after three
+      review rounds each found a further HMR ownership race — see
+      `docs/superpowers/plans/2026-09-21-batch-6/050-7-e-page-lifecycle.md`,
+      sections 1 and 11 — and is handed to 050-7-e2, which checks this box
+      once it lands. A bounded Chromium application-lifecycle case exists
+      (`e2e/lifetime-bfcache-probe.ts`, `lifetime-bfcache.spec.ts`) and was
+      run through the real `wbs-fe-01:e2e` Nx target, `CI=1`, a checked-free
+      port shift: one test, passing (section 4.7 has the exact command and
+      output).
 - [ ] 6. The session runtime is keyed by user id and installs the directory
       module; the router instance and address survive a same-session update.
 - [ ] 7. Log out is a coordinated local exit: no request, project then session

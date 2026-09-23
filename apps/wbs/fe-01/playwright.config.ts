@@ -263,6 +263,14 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      // `chromium-regular` owns `lifetime-bfcache.spec.ts`: it needs the
+      // regular Chromium channel this default project's own
+      // `chromium-headless-shell` build cannot restore a page from
+      // back/forward cache under (050-7-e's own plan document, section 4.7).
+      // Excluded here rather than left to collide with that project's own
+      // `testMatch`, which would otherwise also pick it up and fail it under
+      // the wrong browser.
+      testIgnore: /lifetime-bfcache\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         // After the spread, not in the top-level `use`: a project's options
@@ -277,6 +285,26 @@ export default defineConfig({
         viewport: { width: 1400, height: 900 },
       },
     },
+    // `chromium-regular` (`lifetime-bfcache.spec.ts`) is added to `projects`
+    // only when a planner opts in with `PLAYWRIGHT_CHROMIUM_REGULAR=1` —
+    // never unconditionally. CI already installs regular Chromium alongside
+    // `chromium-headless-shell` (`.github/workflows/ci.yml`'s own `bunx
+    // playwright install --with-deps chromium` installs both), so this is a
+    // verification-policy choice, not an availability one: this file's own
+    // `webServer`/`e2e` target run unconditionally in CI, and an
+    // always-present project here would run this one narrow bfcache
+    // regression on every ordinary `bunx playwright test` invocation — a
+    // scope decision this packet does not make unilaterally. See this
+    // packet's own plan document, section 4.7, for the exact command.
+    ...(process.env['PLAYWRIGHT_CHROMIUM_REGULAR'] === '1'
+      ? [
+          {
+            name: 'chromium-regular',
+            testMatch: /lifetime-bfcache\.spec\.ts/,
+            use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+          },
+        ]
+      : []),
   ],
   // Every port and every cross-tier URL below comes from `portShift`, and none
   // of them is written twice: an environment variable that moved a listener
