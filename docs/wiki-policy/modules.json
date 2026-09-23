@@ -30,6 +30,32 @@
       }
     },
     {
+      "moduleId": "module.application.bounded-replay-sweep",
+      "name": "Bounded replay sweep sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/bounded-replay-sweep",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/bounded-replay-sweep/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/service/retention-job.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/service/retention-timer.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/use-cases/retention-sweep.ts"
+          }
+        ]
+      }
+    },
+    {
       "moduleId": "module.application.plan-history",
       "name": "Plan history sealed DI Bag module",
       "memberships": [

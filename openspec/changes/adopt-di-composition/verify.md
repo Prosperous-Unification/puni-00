@@ -668,3 +668,30 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
 - The focused be-01 shim-chain checks passed 13 tests with 0 failures and 37 assertions
   (`slice-2-be-focused-tests.log`); be-01 type-check exited 0
   (`slice-2-be-typecheck.log`).
+
+### Bounded replay sweep, Slice 3 — 2026-09-23
+
+- Wiki-policy baselines were `M=7` mapped modules and `B=7` boundaries. The frozen predecessor
+  tuple was `100644 blob 95be165f6581580326f3e10e40de1304138601d2
+libs/core/src/use-cases/retention-sweep.ts`. The pilot baseline passed 21 tests with 0 failures
+  and `P=294` assertions (`slice-3-pilot-baseline.log`); core type-check and the filtered legacy
+  pin were also green (`slice-3-core-typecheck-baseline.log`,
+  `slice-3-legacy-pin-baseline.log`).
+- With the mapping row added before its boundary, the named pilot test failed at mapping/boundary
+  parity with `Expected: 7`, `Received: 8` (`slice-3-mapping-count-red.log`). Five other cases in
+  the full file also failed because their fresh candidates saw the committed README without its
+  uncommitted module-index metadata. After adding the boundary but before adding the README to
+  `pilotPaths`, the named test failed at discovered-index coverage with `Expected: true`,
+  `Received: false` (`slice-3-discovered-index-red.log`); the same five additional cases failed
+  for the same invisible-README reason. Adding the path returned the whole file to 21 passed, 0
+  failed and `P+1=295` assertions (`slice-3-pilot-green.log`).
+- Registration moved the filtered legacy pin's `historical policy selector or baseline` category
+  from 41 to 43, occurrences from 259 to 261, and digest from
+  `55fafcaf0420dd5b2e0018b0a0dd467b7c3b8fae950eca69e72a99f52364b725` to
+  `fb0d422785019f2351c00082e4533b820b0aca3cce8f9789a348e6167099363e`
+  (`slice-3-legacy-pin-red.log`). The filtered test then passed 1 test with 0 failures and 1
+  assertion (`slice-3-legacy-pin-green.log`).
+- Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.uudZp9.json`, `openspec-validation-final.jklwzl.json`). Final core
+  and wiki-CLI type-checks and wiki source lint exited 0 (`slice-3-core-typecheck-final.log`,
+  `slice-3-wiki-typecheck.log`, `slice-3-wiki-lint-source.log`).

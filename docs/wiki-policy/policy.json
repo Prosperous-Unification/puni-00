@@ -897,6 +897,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.bounded-replay-sweep",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/bounded-replay-sweep"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/use-cases/retention-sweep.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "95be165f6581580326f3e10e40de1304138601d2",
+          "path": "libs/core/src/use-cases/retention-sweep.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],
