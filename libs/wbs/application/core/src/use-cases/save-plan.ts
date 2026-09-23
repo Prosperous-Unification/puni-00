@@ -1,60 +1,9 @@
-import type { AuthenticatedUser } from '@wbs/contracts';
-import { canEditProject } from '@wbs/domain';
-
-import type { Broadcaster } from '../ports/project-event';
-import type { ProjectService } from '../service/project.service';
-import type {
-  SavedPlanSaveOutcome,
-  SavedPlanSaveRequest,
-  SavedPlanService,
-} from '../service/saved-plan.service';
-
-export interface SavePlanGraph {
-  readonly projects: Pick<ProjectService, 'read'>;
-  readonly plans: Pick<SavedPlanService, 'save'>;
-  readonly announcements: Pick<Broadcaster, 'publish'>;
-}
-
-export interface SavePlanInput {
-  readonly projectId: string;
-  readonly actor: AuthenticatedUser;
-  readonly name?: string;
-}
-
-export type SavedPlanUseCaseOutcome =
-  SavedPlanSaveOutcome | { readonly outcome: 'not_found' | 'forbidden' | 'insufficient_scope' };
-
-/** Identifies a failure from the saved-plan write so transports classify only that boundary. */
-export class SavedPlanWriteError extends Error {
-  constructor(readonly writeCause: unknown) {
-    super('Saved-plan write failed', { cause: writeCause });
-    this.name = 'SavedPlanWriteError';
-  }
-}
-
-/** Saves and announces a plan after transport-independent admission succeeds. */
-export async function savePlan(
-  graph: SavePlanGraph,
-  input: SavePlanInput,
-): Promise<SavedPlanUseCaseOutcome> {
-  if (!input.actor.scopes.includes('write')) return { outcome: 'insufficient_scope' };
-  const found = await graph.projects.read(input.projectId);
-  if (found === null) return { outcome: 'not_found' };
-  if (!canEditProject(found.project, input.actor.id)) return { outcome: 'forbidden' };
-  const request: SavedPlanSaveRequest = {
-    projectId: input.projectId,
-    ...(input.name === undefined ? {} : { name: input.name }),
-    createdBy: input.actor.username,
-    createdById: input.actor.id,
-  };
-  let outcome: SavedPlanSaveOutcome;
-  try {
-    outcome = await graph.plans.save(request);
-  } catch (error) {
-    throw new SavedPlanWriteError(error);
-  }
-  if (outcome.outcome === 'saved') {
-    await graph.announcements.publish(input.projectId, { type: 'saved_plans_changed' });
-  }
-  return outcome;
-}
+/**
+ * Compatibility re-export: the save-plan use case moved into the Saved plans module.
+ *
+ * Kept because `http/saved-plan.routes.ts`, `use-cases/admission.test.ts`,
+ * `compose.test.ts` and `libs/wbs/application/core/testing/portable-composition.ts`
+ * import this relative path directly and `@wbs/core`'s barrel still
+ * deep-imports it. It goes when every importer names the module.
+ */
+export * from '../module/saved-plans/save-plan';

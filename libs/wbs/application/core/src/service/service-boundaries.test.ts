@@ -35,7 +35,6 @@ const services = [
   'saved-plan-default-name',
   'saved-plan-input',
   'saved-plan-quota',
-  'saved-plan-retry',
   'saved-plan-schedule-body',
   'saved-plan-schedule',
   'saved-plan.service',
