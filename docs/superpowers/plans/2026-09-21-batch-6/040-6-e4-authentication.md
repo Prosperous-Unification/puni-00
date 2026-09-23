@@ -334,8 +334,8 @@ type 'UserStore' but required in type 'OidcIdentityStore'` at `module.ts`'s own 
    * made this directive fail `wbs-core:typecheck` with "Unused '@ts-expect-error'
    * directive" at the fixture (TS2578) and, as expected collateral, with
    * "Property 'resolveOidcIdentity' is missing in type 'UserStore'" at
-   * `module.ts`'s own `authOptions` factory (TS2741) — the insufficient store
-   * then satisfied the requirement at runtime.
+   * `module.ts`'s own `authOptions` factory (TS2741) — the weakened
+   * requirement accepted the insufficient store at compile time.
    ```
 
    Also add two beside `module.ts`'s `buildModule` call (rows 3 and 3b — the widened-tuple fault;
