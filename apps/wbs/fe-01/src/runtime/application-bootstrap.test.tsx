@@ -369,6 +369,81 @@ describe('the page-lifecycle retirement trigger', () => {
     },
   );
 
+  itDom(
+    'starts retirement before its pagehide dispatch returns, and never waits for the disposal to settle',
+    async () => {
+      const slot = createLifetimeSlot<ApplicationServices>(50);
+      const root = recordingRoot(slot);
+      const eventTarget = new EventTarget();
+      let closeCalls = 0;
+      const closeRelease: { current: (() => void) | null } = { current: null };
+      const acquire = (): RetirableRuntime<ApplicationServices> => {
+        const installed = installApplicationRuntime({
+          openStore: fakeBrowserStorage,
+          isLive: () => slot.snapshot().status === 'live',
+        });
+        return {
+          services: installed.services,
+          close: () => {
+            closeCalls += 1;
+            return new Promise<void>((resolve) => {
+              closeRelease.current = resolve;
+            });
+          },
+        };
+      };
+
+      await bootstrapApplication(document.createElement('div'), {
+        slot,
+        mount: root.mount,
+        app: FakeApp,
+        acquire,
+        eventTarget,
+      });
+      const published = slot.snapshot();
+      if (published.status !== 'live') {
+        throw new Error(`setup: the page never went live; the slot is ${published.status}`);
+      }
+      const detail = published.services.remembered.ganttDetail;
+
+      // A full reload gives the old document this dispatch and no later task
+      // that is guaranteed to run, so everything below is read synchronously,
+      // with no await between the dispatch and the reads.
+      eventTarget.dispatchEvent(pageHideEvent(false));
+
+      // Proof: on 2026-09-23, deleting the `pagehide` registration in
+      // `bootstrapApplication` failed this test with "pagehide returned before
+      // withdrawing the runtime: expected 'live' to be 'retiring'".
+      // Proof: on 2026-09-23, deferring `startRetirement()` in `onPageHide` to
+      // `setTimeout(startRetirement, 0)` failed this test with the same message.
+      expect(slot.snapshot().status, 'pagehide returned before withdrawing the runtime').toBe(
+        'retiring',
+      );
+      // Proof: on 2026-09-23, inserting a `setTimeout` wait before the slot's
+      // `await disposeWithdrawn()` in `transition()` failed this test with
+      // "pagehide returned before the disposal began: expected +0 to be 1".
+      expect(closeCalls, 'pagehide returned before the disposal began').toBe(1);
+      // Proof: on 2026-09-23, deferring `invalidateRoot()` in `onPageHide` to
+      // `queueMicrotask(invalidateRoot)` failed this test with "pagehide
+      // returned before invalidating the root: expected +0 to be 1".
+      expect(root.unmounts(), 'pagehide returned before invalidating the root').toBe(1);
+      // Proof: on 2026-09-23, replacing `ensureLive`'s `!isLive()` with `false`
+      // in `preferences.resource.ts` failed this test with "expected
+      // [Function] to throw an error".
+      expect(() => {
+        detail.write(true);
+      }).toThrow('the page withdrew this preference store before the access completed');
+
+      // The disposal is still running: the dispatch returned without it.
+      if (closeRelease.current === null) throw new Error('setup: the close was never called');
+      const release = closeRelease.current;
+      release();
+      await waitFor(() => {
+        expect(slot.snapshot().status).toBe('empty');
+      });
+    },
+  );
+
   itDom('a non-persisted pageshow does not rebuild', async () => {
     const slot = createLifetimeSlot<ApplicationServices>(50);
     const root = recordingRoot(slot);

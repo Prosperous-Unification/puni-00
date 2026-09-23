@@ -34,7 +34,14 @@
       rather than through `service/broadcast.ts`. No rule prevents the repository-schema path returning:
       be-01 has no type-identity boundary check, and the Optimization module of 3.6 owns that rule. The
       cache-key port is still owed.
-- [ ] 1.7 Wire or delete `saved-plan-retry.ts` under the accepted saved-plans obligation.
+- [x] 1.7 Wire or delete `saved-plan-retry.ts` under the accepted saved-plans obligation. Deleted
+      2026-09-23, with its unit test, be-01's re-export shim and its database test, its barrel
+      export, its `service/service-boundaries.test.ts` entry and both `kinds.json` rows (95 to 93
+      entries). `saveWithBoundedRetry` never had a production caller, and no archived
+      specification requires a caller retry: the saved-plans delta only lets a later save succeed
+      as a fresh save, which `SavedPlanService.save` already does on every call. Wiring it into
+      the save route would change how long a contended save waits, an observable change no
+      accepted task asks for. Recorded against saved-plans task 4.5.
 - [x] 1.8 Correct the four `kinds.json` capability values to `wbs-domain` and `plan-import`. Done
       2026-09-22 over **five** entries, not four: Plan history's row became a shim under 2.1, and Plan
       commands and Saved plans each carry two rows (the service and its use case). `wbs-domain` is a
@@ -74,7 +81,18 @@
       unchanged) rather than added or removed, because
       `tools/tool-devsync/src/service-kinds.ts`'s `SERVICE_ROOTS` does not scan `src/module`.
 - [ ] 3.3 Saved plans, absorbing project and admission checks and the publication after save,
-      rename and delete.
+      rename and delete. Sealed 2026-09-23 as `libs/wbs/application/core/src/module/saved-plans/`,
+      with `service/saved-plan.service.ts`, `service/saved-plan-integrity.ts`,
+      `service/saved-plan-schedule.ts` and `use-cases/save-plan.ts` kept as compatibility
+      re-export shims and their four `kinds.json` rows rewritten in place (93 entries,
+      unchanged). The save path's project, admission and publication checks now live in the
+      module's own `save-plan.ts`. **Not yet done, so not ticked:** rename and delete still read
+      the project and publish `saved_plans_changed` inline in `http/saved-plan.routes.ts`. The
+      contract's `plans` and `capture` stores are preserved K3 debt, tracked under 7.4. Proof: the
+      module's own tests; negatives for the installer leaking its bag, its resolver leaking
+      through the returned `SavedPlanService`, the private `savedPlanOptions` binding exported,
+      the label dropped, the optional quota dropped, and the two composition names given two
+      instances. Wiki registration (task 7.5) IS landed for this module; see 7.5's own note below.
 - [x] 3.4 Plan import, with its per-scope factory. Landed 2026-09-23 as
       `libs/wbs/application/core/src/module/plan-import/`, with `service/import.service.ts` and
       `service/prepare-import.ts` kept as compatibility re-export shims, and
@@ -187,6 +205,14 @@
       module cannot register (040-6 packet E4, first revision): Realtime's own precedent above
       already refutes it, and the second rehearsed experiment's own failure was a missing
       `pilotPaths` overlay entry — packet D's own lesson — not a mechanism limit.
+      Landed again 2026-09-23 for Saved plans as
+      `libs/wbs/application/core/src/module/saved-plans/README.md`,
+      `docs/wiki-policy/modules.json`'s `module.application.saved-plans` row and
+      `docs/wiki-policy/policy.json`'s `boundary.application.saved-plans`, using a
+      `sourceSelector` bound to the pre-namespacing `libs/core/src/service/saved-plan.service.ts`
+      alone — the file `kinds.json` classified as the Saved plans feature before the move.
+      `save-plan.ts`, `saved-plan-integrity.ts` and `saved-plan-schedule.ts` have no separate
+      baseline entry, for the same reason.
       **Not landed for Plan import (task 3.4).** Every existing pilot boundary under the
       namespaced tree is registered through a `sourceSelector` bound to a pre-namespacing
       predecessor file that existed at the pilot's frozen `sourceRevision`. Both of Plan import's

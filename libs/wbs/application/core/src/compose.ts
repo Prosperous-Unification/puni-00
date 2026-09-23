@@ -13,6 +13,8 @@ import { installRealtime } from './module/realtime/check';
 import type { GatewayBroadcaster } from './module/realtime/gateway-broadcaster';
 import type { ReplayBuffer } from './module/realtime/replay-buffer';
 import type { ReplayOrchestrator } from './module/realtime/replay-orchestrator';
+import { installSavedPlans } from './module/saved-plans/check';
+import type { SavedPlanService } from './module/saved-plans/saved-plans.feature';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
@@ -29,7 +31,6 @@ import { DirectoryService } from './service/directory.service';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
-import { SavedPlanService } from './service/saved-plan.service';
 import { StepService } from './service/step.service';
 import { WorkItemService } from './service/work-item.service';
 
@@ -213,7 +214,7 @@ export function composeServices(
       broadcast,
       scheduler: runtime.scheduler,
     });
-  const savedPlans = new SavedPlanService({
+  const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
     capture: source.history.savedPlanCapture,
     plans: source.history.savedPlans,

@@ -266,6 +266,17 @@ comparison UI) and start only after slice 6 is merged.
       `inputBytes).toContain('wi-3')`, whose received value listed `wi-1` and
       `wi-2` alone. So the two weaker assertions cannot stand in for it, which
       is exactly the claim.
+      **Withdrawn 2026-09-23** by `adopt-di-composition` task 1.7: no route
+      ever called `saveWithBoundedRetry`, so it, its unit test, its database
+      test and be-01's re-export shim were deleted. The `busy_timeout` 0
+      refusal above is unchanged, and a caller that retries sends a new save,
+      which captures a fresh read snapshot by construction. The retry negative
+      described above was deleted with its test. The delta spec's scenario
+      `a retry after the rival committed` (`specs/wbs-domain/spec.md:190-194`)
+      is now backed by no test: a caller's retry is a fresh `save`, so it holds
+      by construction and stays in the spec as the caller's permission. The
+      first lines of this task and `design.md:130-133` still describe the
+      bounded retry loop.
 - [x] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check

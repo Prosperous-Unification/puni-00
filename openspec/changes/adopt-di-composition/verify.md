@@ -982,3 +982,123 @@ type 'UserStore'` at the `authOptions` factory (`row7-combined-store-weakened.pa
 - Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
   (`openspec-validation-baseline.2MGeen.json`,
   `openspec-validation-slice3-final.j5lVF0.json`).
+
+### Saved plans, Slice 1 — 2026-09-23
+
+- The slice started from `base=06dd588ff51d0e29b0ad24a30abf704e860839f5` on a clean tree with the
+  module directory absent, `saved-plan.service.ts` at 996 lines, `use-cases/save-plan.ts` at 60
+  lines and `K=95` `kinds.json` entries. Before any edit, `wbs-core` lint and type-check and
+  `wbs-be-01:typecheck` exited 0 (`slice1-core-gate-baseline.log`,
+  `slice1-be01-typecheck-baseline.log`); the core suite passed `C=570` tests over `F=59` files
+  (`slice1-core-baseline.log`) and the be-01 saved-plan files passed `E=124` tests over `EF=13`
+  files (`slice1-be01-saved-baseline.log`).
+- Red: with only `module/saved-plans/module.test.ts` present, the file failed with
+  `error: Cannot find module './check'`, 0 pass, 1 fail, 1 error (`slice1-red-module-test.log`).
+- Task 1.7 was resolved by deleting `saved-plan-retry.ts`, its unit test, be-01's shim and its
+  database test, with the barrel line, the `service-boundaries.test.ts` entry and both `kinds.json`
+  rows. After the move, shims, contract, module, check and README, the module directory passed 16
+  tests with 0 failures and 27 assertions across 2 files (`slice1-green-module-dir.log`);
+  `wbs-core` lint and type-check and `wbs-be-01:typecheck` exited 0 on the first run
+  (`slice1-core-gate-green.log`, `slice1-be01-typecheck-green.log`). The three sideways rows passed
+  (1 pass, `slice1-sideways-green.log`).
+- Widening `buildModule`'s key tuple to `['savedPlans', 'savedPlanOptions']` failed 3 of 7 tests:
+  `Received function did not throw`, labels `[ "savedPlans", "savedPlanOptions", … ]`, and a
+  message naming bare `Cannot resolve "savedPlanOptions"` (`row03-key-tuple.patch`,
+  `row03-key-tuple.fail.log`).
+- Dropping `{ label: SAVED_PLANS_LABEL }` failed only the two label tests (5 pass, 2 fail):
+  `Expected to contain: "application.saved-plans/savedPlanOptions"` (`row04-label.patch`,
+  `row04-label.fail.log`).
+- Deleting the quota spread failed `passes a supplied quota through to the installed feature`
+  with `Expected: "refused"`, `Received: "saved"` (6 pass, 1 fail; `row05-quota.patch`,
+  `row05-quota.fail.log`).
+- Returning `exposed` with `bag` failed the installer-surface test with the received keys adding
+  `"bag"` (6 pass, 1 fail), while `wbs-core:typecheck` exited 0 (`row06-bag-leak.patch`,
+  `row06-bag-leak.fail.log`, `row06-bag-leak.typecheck.log`). Attaching `resolve` to the returned
+  service failed the same test's second assertion with `Expected: true`, `Received: false` (6 pass,
+  1 fail), typecheck exit 0 (`row07-resolver.patch`, `row07-resolver.fail.log`,
+  `row07-resolver.typecheck.log`).
+- Bare imports prepended to `module/saved-plans/save-plan.ts` each failed the sideways suite
+  (0 pass, 1 fail) with exactly one violation: `'../../service/auth.service' reaches
+service/auth.service.ts` (`row09-auth-shim.*`), `'../authentication/authentication.feature'
+reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`) and
+  `'../../http/endpoint' reaches http/endpoint.ts` (`row11-endpoint.*`).
+- Every fault was restored by copying the saved bytes back, proved with `cmp`, and the named file
+  rerun green (`*.regreen.log`).
+- `service-kinds.test.ts` compares with `git ls-files` and is planner-only; its filesystem
+  substitute printed `93 []`.
+- Closing: the core suite passed `C + 1 = 571` tests over 59 files (`slice1-core-closing.log`); the
+  be-01 saved-plan files passed `E - 1 = 123` over 12 (`slice1-be01-saved-closing.log`);
+  `wbs-core` lint and type-check, `wbs-be-01:typecheck` and the repository format check exited 0
+  (`slice1-core-gate-closing.log`, `slice1-be01-typecheck-closing.log`,
+  `slice1-format-check-1.log`).
+- Preserved K3 debt: the module's `plans` and `capture` requirements are repository ports
+  (`SavedPlanStore`, `SavedPlanCaptureStore`), tracked under task 7.4.
+
+### Saved plans, Slice 2 — 2026-09-23
+
+- The slice started from `base=1a51cd12a37c5026e5b558a151754ab22f203de4` on a clean tree with slice
+  1's `module/saved-plans/module.ts` present, one `new SavedPlanService({` in `compose.ts` and
+  `K=93` `kinds.json` entries. Before any edit, `wbs-be-01:typecheck` exited 0
+  (`slice2-be01-typecheck-baseline.log`) and the core suite passed `C=571` tests over `F=59` files
+  (`slice2-core-baseline.log`).
+- Red: `wbs-core:build:portable` exited 0 on the unchanged tree and
+  `grep -c "application.saved-plans" dist/libs/wbs/application/core/portable-composition.js`
+  exited 1 with no match (`count=0`): the composition root did not reach the module yet
+  (`slice2-portable-build-baseline.log`, `slice2-portable-bundle-red.txt`).
+- The alias test `composes one Saved plans instance behind both the plans and savedPlans names`
+  passed on the unchanged `compose.ts`, 9 pass, 0 fail (`slice2-alias-test-unchanged-root.log`),
+  because the aliases already shared one instance.
+- Giving `plans` its own `installSavedPlans({...}).savedPlans` in `composeServices` failed the
+  alias test with `expect(received).toBe(expected)` over two distinct `SavedPlanService` objects,
+  0 pass, 1 fail, 8 filtered out, while `wbs-core:typecheck` exited 0
+  (`slice2-row14-duplicate-plans.patch`, `slice2-row14-duplicate-plans.log`,
+  `slice2-row14-typecheck.log`). The saved bytes were copied back, proved with `cmp`, and the named
+  test passed again (`slice2-row14-restored.log`).
+- Green: `compose.ts` installs the module through `installSavedPlans`; `index.ts` exports the
+  module's contract and module; four `kinds.json` rows became shim rows. The rebuilt bundle now
+  contains the label (`count=1`, `slice2-portable-build.log`, `slice2-portable-bundle-green.txt`),
+  and `grep -cF "new SavedPlanService({"` over `compose.ts` exits 1 with no match.
+- Closing: `wbs-core` `test:unit`, lint and type-check exited 0 (`slice2-core-runmany.log`);
+  `compose.test.ts` passed 9 with 0 failures (`slice2-compose-test.log`); `wbs-be-01:typecheck`
+  exited 0 (`slice2-be01-typecheck.log`); the core suite passed `C + 1 = 572` tests over 59 files
+  (`slice2-core-closing.log`); `kinds.json` still holds `K=93` entries and the filesystem
+  substitute for `service-kinds.test.ts` printed `93 []`.
+
+### Saved plans, Slice 3 — 2026-09-23
+
+- The slice started from `base=be57d4b984e35dd74d4c4806e874e64d556ba0a2` on a clean tree, with
+  `module/saved-plans/module.ts` last changed by `1a51cd12a37c5026e5b558a151754ab22f203de4`, `M=10`
+  pilot modules and `B=10` boundaries. The frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7` lists
+  `100644 blob f3a12fbc600b51ff3794e3593c4a6634960198d9	libs/core/src/service/saved-plan.service.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice3-typecheck-baseline.log`,
+  `slice3-burokrat-lint-source-baseline.log`, `slice3-devsync-lint-baseline.log`);
+  `pilot-policy.test.ts` passed `T=21` tests with `TF=0` failures and `P=297` `expect()` calls
+  (`slice3-pilot-baseline.log`); the legacy pin passed, 1 pass (`slice3-legacy-pin-baseline.log`);
+  OpenSpec validation passed `N=114` of 114 with 0 failed (`openspec-validation.KnQmA0.json`).
+- Parity red: with only the `modules.json` row added (`slice3-10.12a-modules.patch`),
+  `pins exact pre-index tuples and passes observe lint from external trust` failed at
+  `pilot-policy.test.ts:375`, `Expected: 10`, `Received: 11`; 0 pass, 1 fail, 22 `expect()` calls
+  (`slice3-row15-parity-red.log`).
+- Discovered-index red: with the `policy.json` boundary added (`slice3-10.12b-policy.patch`) and the
+  README not yet in `pilotPaths`, the same test failed at `pilot-policy.test.ts:412`,
+  `Expected: true`, `Received: false`; 0 pass, 1 fail, 26 `expect()` calls
+  (`slice3-row16-index-red.log`).
+- Green: with the `pilotPaths` entry (`slice3-10.12c-pilot-paths.patch`) and the final README, the
+  whole pilot file passed `T=21` tests, `TF=0` failures and `P + 1 = 298` `expect()` calls
+  (`slice3-row17-pilot-green.log`).
+- Legacy pin red, pin unchanged: `every legacy source occurrence and relevant text family is pinned`
+  failed with `historical policy selector or baseline` 47 to 49, `occurrences` 265 to 267 and the
+  digest `3eca3cf1…` to `86721c9c2457e04146bd4db56db16869936be5a012fddc671bf2e39989c23d0f`,
+  `unclassified` still `[]`, `Expected  - 3` / `Received  + 3`; 0 pass, 1 fail
+  (`slice3-row18-legacy-pin-red.log`). After the re-pin (`slice3-10.14-repin.patch`) it passed,
+  1 pass (`slice3-legacy-pin-green.log`); its Proof comment followed
+  (`slice3-10.14-proof.patch`). No other pinned literal moved.
+- Task records: `adopt-di-composition` 1.7 ticked, 3.3 noted and left unticked, 7.5 extended;
+  `saved-plans` 4.5 carries the "Withdrawn" note.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`,
+  `tool-devsync:lint` and `wbs-core:typecheck` exited 0 (`slice3-typecheck-after.log`,
+  `slice3-burokrat-lint-source-after.log`, `slice3-devsync-lint-after.log`,
+  `slice3-core-typecheck-after.log`); the legacy pin passed, 1 pass (`slice3-legacy-pin-after.log`);
+  OpenSpec validation passed `N=114` of 114 with 0 failed (`openspec-validation.J7QPlz.json`).

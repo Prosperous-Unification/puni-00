@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 47,
+      'historical policy selector or baseline': 49,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -817,8 +817,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // naming the pre-move `libs/core/src/service/auth.service.ts` this module was extracted from;
     // raised `historical policy selector or baseline` from 45 to 47 and occurrences from 263 to 265,
     // no unclassified entries (2026-09-23).
-    digest: '3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62',
-    occurrences: 265,
+    // Proof: registering `module.application.saved-plans` added its
+    // `boundary.application.saved-plans`'s `sourceSelector` and one `baselineEntries` path, both
+    // naming the pre-move `libs/core/src/service/saved-plan.service.ts` this module was extracted
+    // from; raised `historical policy selector or baseline` from 47 to 49 and occurrences from 265
+    // to 267, no unclassified entries (2026-09-23).
+    digest: '86721c9c2457e04146bd4db56db16869936be5a012fddc671bf2e39989c23d0f',
+    occurrences: 267,
     unclassified: [],
   });
 });
