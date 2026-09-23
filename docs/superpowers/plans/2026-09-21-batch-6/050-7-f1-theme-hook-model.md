@@ -6,7 +6,7 @@
 | Size class  | L — three slices, each one executor attempt                                                                                                                                                                                                               |
 | Predecessor | [050.7e](050-7-e-page-lifecycle.md), the runtime services of [050.7c](050-7-c-application-context.md), the withdrawal rules of [050.7d](050-7-d-withdrawal-and-page-lifecycle.md)                                                                         |
 | Replaces    | [050.7f, held](050-7-f-delivery-call-sites.md). Lesson 16 of the batch addendum asked for a state-machine record and a model-based test before any call-site packet; this packet is that, and it carries the call sites the held packet had converged on. |
-| Revision    | Third. Rounds 1 and 2 of its own review refused it; section 14 disposes of every finding of both.                                                                                                                                                         |
+| Revision    | Fourth. Rounds 1 and 2 refused it; round 3 said READY AFTER FIXES. Sections 14, 14b and 14c dispose of every finding of all three.                                                                                                                        |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Task 3 stays unchecked.                                                                                                                                                                   |
 
 ## 1. Goal, non-goals, and the cut
@@ -19,10 +19,11 @@ teeth by five sabotages of the implementation.
 
 **Non-goals.**
 
-- The other four delivery call sites (`components/wbs/gantt-detail.ts`,
+- The other four delivery call sites: `components/wbs/gantt-detail.ts`,
   `components/wbs/project-page.tsx`, `components/wbs/project-settings-modal.tsx`, and
-  `lib/remembered.ts`'s module-scope `storedMermaidSectionMode`, which has to become lazy first).
-  They wait on a later packet.
+  `lib/remembered.ts`, whose two factories the layout module uses. They wait on a later packet, and
+  so does `components/wbs/remembered-layout.ts`'s module-scope `storedMermaidSectionMode`
+  (line 247), which has to become lazy before `lib/remembered.ts`'s own site can move.
 - Deleting `modules/preferences/composition.ts`. It still has four importers.
 - The preferences module's `module-index` registration. Its README exists and says it carries no
   such block yet; adopting one is its own packet, and task 3 of the change stays unchecked for
@@ -30,13 +31,23 @@ teeth by five sabotages of the implementation.
 - Any change to `lifetime-slot.ts`, `application-runtime.ts`, `application-services-context.tsx`
   or `application-bootstrap.tsx`. This packet only **reads** them.
 
-**Why `theme.ts` and not the other four.** All five sites read a store built at **module scope**
-today, this one included — `const storedChoice = rememberedPreferences.themeChoice(isThemeChoice);`,
-as section 4 records. What makes this one migratable through a hook boundary alone is that its only
-callers inside the app are `useTheme` and the bare functions that hook calls: one boundary moves the
-whole site. `lib/remembered.ts` builds a store per project id from module scope for the layout
-module, and a module-scope binding cannot read a React context — it has to become lazy first, and
-that is the decision this packet does not take. The other three sites wait behind it.
+**Why `theme.ts` and not the other four.** What all five sites share is a dependency on the
+**module-load preferences composition** (`modules/preferences/composition.ts`), not one shape of
+store: the individual handles differ. `components/wbs/project-settings-modal.tsx:76` builds its
+handle per call, `const storedSection = (projectId: string) =>
+rememberedPreferences.projectSettingsSection(projectId, isSettingsSection)`; `lib/remembered.ts`
+builds handles inside its two exported factories; and the per-project factories that call those live
+in `components/wbs/remembered-layout.ts`.
+
+`theme.ts`'s own handle is the separate case, and it is why this site goes first: it is a single
+**module-scope** binding, `const storedChoice = rememberedPreferences.themeChoice(isThemeChoice);`
+(section 4 records the line), read only by `useTheme` and the three bare functions that hook calls.
+One hook boundary therefore moves the whole site and nothing else has to change shape.
+
+What blocks the rest is `components/wbs/remembered-layout.ts`'s module-scope
+`storedMermaidSectionMode` (line 247): a module-scope binding cannot read a React context, so it has
+to become lazy before the factories above it can take a runtime's preferences. That is the decision
+this packet does not take, and the three remaining component sites wait behind it.
 
 ## 2. Read first
 
@@ -238,34 +249,32 @@ echo "base=$base" | tee "$TMPDIR/evidence/base.txt"
 #    clone, so this comparison is independent of the clone's own state.
 reviewed=<the SHA named in this attempt's slice note>
 test "$base" = "$reviewed"
-# 2. No file this slice owns may already differ. `--` scopes the status to
-#    exactly this slice's own owned list, from section 5.
-git status --porcelain -- <this slice's owned paths> | tee "$TMPDIR/evidence/owned-before.txt"
-test ! -s "$TMPDIR/evidence/owned-before.txt"
-# 3. Anything else already dirty is preserved, and preservation is checked
-#    rather than assumed: record what each such file contains right now.
-git status --porcelain | tee "$TMPDIR/evidence/status-before.txt"
-git status --porcelain --untracked-files=all | awk '{ print $2 }' \
-  | while IFS= read -r path; do test -f "$path" && sha256sum "$path"; done \
-  > "$TMPDIR/evidence/foreign-before.sha256"
-cat "$TMPDIR/evidence/foreign-before.sha256"
+# 2. The clone must be entirely clean. The launcher either cuts a fresh checkout
+#    at `$base` or resumes a clone whose earlier slice the planner has committed,
+#    so anything uncommitted here means this attempt is not starting where it was
+#    reviewed. One snapshot, one file, one emptiness test — and `--untracked-files=all`
+#    so a new file inside an untracked directory is listed individually rather than
+#    collapsed into its directory.
+git status --porcelain --untracked-files=all | tee "$TMPDIR/evidence/status-before.txt"
+test ! -s "$TMPDIR/evidence/status-before.txt"
 test -f node_modules/fast-check/package.json
 version=$(bun -e 'console.log(JSON.parse(await Bun.file("node_modules/fast-check/package.json").text()).version)')
 echo "fast-check=$version" | tee "$TMPDIR/evidence/fast-check.txt"
 test "$version" = 4.9.0
 ```
 
-Expected: `base=` one 40-character hash equal to the slice note's, an **empty** `owned-before.txt`,
-a (possibly empty) list of foreign hashes, and `fast-check=4.9.0`.
+Expected: `base=` one 40-character hash equal to the slice note's, an **empty** `status-before.txt`,
+and `fast-check=4.9.0`.
 
-Three distinct safeguards, because one `git status` snapshot cannot be its own oracle — written to
-a file and then compared with that same file, a dirty start is simply recorded as normal:
+Two safeguards, both of which compare against something the clone cannot manufacture:
 
-- **Owned paths must be clean** (step 2). A pre-existing change to a file this slice edits is a stop,
-  not something to work on top of. Only the planner may waive it, before dispatch, by naming the path
-  in the slice note.
-- **Foreign dirt is preserved, and the preservation is proved** (step 3). At hand-over the executor
-  recomputes the same hashes and they must be identical; a changed one is a stop.
+- **The tree must be entirely clean** (step 2). An earlier revision of this packet instead recorded
+  the starting status and then compared later states against that same recording, which cannot
+  detect a dirty start at all, and tried to hash "permitted" foreign dirt — a pipeline that
+  mis-parses Git paths, records nothing at all for a pre-existing deletion, and whose exit status
+  depends on whether the missing path happens to come last. All of that is gone: the launcher's own
+  workflow guarantees a clean start, so requiring one costs nothing and makes the hand-over
+  comparison exact.
 - **The starting HEAD is compared with a value from outside the clone** (step 1), so a resumed clone
   left at the wrong commit is caught here rather than at the planner's review.
 
@@ -391,21 +400,16 @@ kind withdrawn` and `a revoked store refuses with a lifecycle refusal of kind re
       its own observations only, in the shape section 6's closing note gives — then run owned-file
       Prettier over all seven owned paths (`--write` then `--check`) and rerun the strict OpenSpec
       block, **after** the evidence edit, so the document it just changed is what was checked.
-- [ ] 11. Hand over. Recompute the foreign hashes and compare them, then print the status:
+- [ ] 11. Hand over:
 
   ```sh
   set -euo pipefail
-  git status --porcelain --untracked-files=all | awk '{ print $2 }' \
-    | while IFS= read -r path; do test -f "$path" && sha256sum "$path"; done \
-    > "$TMPDIR/evidence/foreign-after.sha256"
-  comm -13 <(sort "$TMPDIR/evidence/foreign-after.sha256") \
-           <(sort "$TMPDIR/evidence/foreign-before.sha256")
-  git status --short --untracked-files=all
+  git status --porcelain --untracked-files=all | tee "$TMPDIR/evidence/status-after.txt"
   ```
 
-  Expected: `comm` prints nothing — every file that was already dirty at step 0 still has the same
-  contents — and the status lists exactly the seven owned paths as modified, plus only paths that
-  were already in `status-before.txt`.
+  Expected: exactly the seven owned paths, all as ` M`, and nothing else. Because step 0 required an
+  empty status, every line here is a line this slice put there, so the comparison is exact rather
+  than a difference against a permitted baseline.
 
 Planner commit subject: `feat(preferences): type the store's lifecycle refusal`.
 
@@ -491,14 +495,29 @@ Owns: `fake-browser-storage.ts`, the delta `spec.md`, `theme.model.test.tsx` (ne
 - [ ] 11. The five sabotage proofs of section 8.2, each restored and `cmp`-verified before the next.
       Add the adjacent `Proof:` comments to `theme.ts` only after observing each failure, each dated
       with the executor's own observed date.
-- [ ] 12. Append this slice's own entry to `verify.md`, then owned-file Prettier over all nine owned
+- [ ] 12. **The two proofs of section 8.4, which sabotage the model test itself.** Same patch form as
+      section 8: save the passing bytes, inject, write the mutation patch and the failing output under
+      `$TMPDIR/evidence`, restore, `cmp`, and rerun the model test green before the next one. Both
+      faults are in `src/lib/theme.model.test.tsx`, so that file is the one copied aside and restored.
+      Then add their two observed `Proof:` comments to **that** file, not to `theme.ts`:
+
+  - fault **f** beside `isDisposalExpiry`'s own returned condition — the line beginning
+    `refusal instanceof DiBagCloseCancelledError &&` — because that is the check it removes;
+  - fault **g** beside `giveEverythingBack`'s `if (world.verifiedRefusals.has(refusal)) continue;` —
+    the teardown rejection accounting it defeats.
+
+  Each comment names the injected fault and the failure the executor observed, dated with the
+  executor's own date. Rehearsed: `f` exits 1 and fails at run 9, `g` exits 1 and fails at run 1, and
+  the model test returns to `Tests 1 passed (1)` after each restore.
+
+- [ ] 13. Append this slice's own entry to `verify.md`, then owned-file Prettier over all nine owned
       paths (`--write` then `--check`), then rerun the strict OpenSpec block, **after** the evidence
       edit.
-- [ ] 13. Hand over, with slice 1 step 11's foreign-hash comparison first. Expected: `comm` prints
-      nothing, and the status shows **seven modified** paths (`fake-browser-storage.ts`, `spec.md`,
-      `index-bootstrap.test.ts`, `app.test.tsx`, `account-menu.test.tsx`, `theme.ts`, `verify.md`),
-      **two new** paths (`src/lib/theme.model.test.tsx`, `src/lib/theme.test.tsx`) and **one
-      deletion** (`src/lib/theme.test.ts`) — plus only paths already in `status-before.txt`.
+- [ ] 14. Hand over, with slice 1 step 11's command. Expected exactly, and nothing else: **seven
+      modified** paths (`fake-browser-storage.ts`, `spec.md`, `index-bootstrap.test.ts`,
+      `app.test.tsx`, `account-menu.test.tsx`, `theme.ts`, `verify.md`), **two new** paths
+      (`src/lib/theme.model.test.tsx`, `src/lib/theme.test.tsx`) and **one deletion**
+      (`src/lib/theme.test.ts`).
 
 Planner commit subject: `feat(theme): read the palette off the page runtime's preferences`.
 
@@ -561,10 +580,9 @@ Owns: `theme.test.tsx`, `theme.ts` (its `Proof:` comments only), `composition.ts
   Expected: `status=0` and no listed file. Never a repository-wide format **write**.
 
 - [ ] 10. Rerun the strict OpenSpec block. Expected: exits 0, `passed` equal to step 0's number.
-- [ ] 11. Hand over, with slice 1 step 11's foreign-hash comparison first. Expected: `comm` prints
-      nothing, and the status shows **five** modified paths — `src/lib/theme.test.tsx`,
-      `src/lib/theme.ts`, `composition.ts`, `tasks.md`, `verify.md` — plus only paths already in
-      `status-before.txt`.
+- [ ] 11. Hand over, with slice 1 step 11's command. Expected exactly **five** modified paths and
+      nothing else — `src/lib/theme.test.tsx`, `src/lib/theme.ts`, `composition.ts`, `tasks.md`,
+      `verify.md`.
 
 Planner commit subject: `test(theme): name the hook's four lifecycle transitions`.
 
@@ -572,8 +590,9 @@ Planner commit subject: `test(theme): name the hook's four lifecycle transitions
 
 Each slice appends one entry to `openspec/changes/adopt-frontend-lifetimes/verify.md`, containing
 only its own observations: the step-0 baselines as numbers; every command's status; the red
-checkpoint's own output where the slice has one; the green counts; each proof with its observed
-message (and, for the model test, its seed, run number and shrunk counterexample); and what stayed
+checkpoint's own output where the slice has one; the green counts; all nineteen proofs with their
+observed messages (and, for the seven model-test faults, their seed, run number and shrunk
+counterexample); and what stayed
 **pending planner verification** — `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate. Evidence references are basenames relative
 to that attempt's evidence directory, never absolute paths.
@@ -3245,10 +3264,10 @@ index d6af811..1126e34 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/modules/preferences/composition.ts b/apps/wbs/fe-01/src/modules/preferences/composition.ts
-index d93ff1ba..2d549bb1 100644
+index d93ff1ba..8e140b62 100644
 --- a/apps/wbs/fe-01/src/modules/preferences/composition.ts
 +++ b/apps/wbs/fe-01/src/modules/preferences/composition.ts
-@@ -15,6 +15,16 @@ import { createPreferences } from './preferences.resource';
+@@ -15,6 +15,19 @@ import { createPreferences } from './preferences.resource';
   * runtime's instance has and this one has not is an owner: retiring it revokes
   * its store.
   *
@@ -3256,11 +3275,14 @@ index d93ff1ba..2d549bb1 100644
 + * reads and writes through `useApplicationServicesState()`, not this module —
 + * see
 + * `docs/superpowers/plans/2026-09-21-batch-6/050-7-f1-theme-hook-model.md`.
-+ * `gantt-detail.ts`, `project-page.tsx` and `project-settings-modal.tsx` still
-+ * import {@link rememberedPreferences}; `lib/remembered.ts` still imports
-+ * {@link browserPreferences} for `remembered-layout.ts`'s per-project stores.
-+ * This file is deleted once all five have moved, and the module-scope
-+ * `storedMermaidSectionMode` in `lib/remembered.ts` must become lazy first.
++ * `components/wbs/gantt-detail.ts`, `components/wbs/project-page.tsx` and
++ * `components/wbs/project-settings-modal.tsx` still import
++ * {@link rememberedPreferences}; `lib/remembered.ts` still imports
++ * {@link browserPreferences} to offer its two factories to the layout module.
++ * This file is deleted once all five have moved, and
++ * `components/wbs/remembered-layout.ts`'s module-scope
++ * `storedMermaidSectionMode` must become lazy first — a module-scope binding
++ * cannot read a React context.
 + *
   * Exported because `apps/wbs/fe-01/src/lib/remembered.ts` still offers the
   * generic factory to the layout module, which builds a store per project id and
@@ -3430,10 +3452,15 @@ mutation that rewrapped the failure instead of swallowing it would also fail the
 
 An assertion that accepts any rejection proves nothing about the one it names. These two faults are
 injected into `theme.model.test.tsx` itself, not into `theme.ts`, and each must fail the property.
-They are the watched negatives for the two ways the first revision of this file manufactured a green
+They are the watched negatives for the two ways an earlier revision of this file manufactured a green
 run, both of which a reviewer reproduced before they were fixed.
 
-Same command as section 8.2. Rehearsed on 2026-09-23.
+**Slice 2 step 12 runs them**, with section 8's patch form over `src/lib/theme.model.test.tsx` as the
+file copied aside and restored, and places their observed `Proof:` comments in that same file: fault
+f's beside `isDisposalExpiry`'s returned condition, fault g's beside `giveEverythingBack`'s
+`if (world.verifiedRefusals.has(refusal)) continue;`. Same command as section 8.2. Rehearsed on
+2026-09-23, each with its mutation patch and failing output written under `$TMPDIR/evidence`, restored,
+`cmp`-verified, and the model test rerun to `Tests 1 passed (1)` before the next.
 
 | #   | Fault injected in `theme.model.test.tsx`                                                                                                                                                                 | Run | Shrunk counterexample                                                                                                                                                                                                                                                                                                         | Observed failure                                                                                                                                                                                                                                                                                           |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -3557,22 +3584,22 @@ command guard rejects `rm -f`, so nothing deletes it.
 All on 2026-09-23, by this packet's author, in a private worktree, not inside an executor sandbox.
 Statuses are the shell's, captured with the wrappers of section 6.
 
-| Command                                                                          | Before this packet's edits                       | After                                                        |
-| -------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------ |
-| focused suite (four, then five files)                                            | exit 0, `4 files`, `59 tests`                    | exit 0, `5 files`, `70 tests`                                |
-| `bunx vitest run <theme suite>`                                                  | exit 0, `17 tests` (as `.ts`)                    | exit 0, `27 tests` (as `.tsx`)                               |
-| `bunx vitest run src/lib/theme.model.test.tsx`                                   | —                                                | exit 0, `1 test`, 300 pinned runs                            |
-| `bunx vitest run src/modules/preferences`                                        | exit 0, `6 files`, `39 tests`                    | exit 0, `6 files`, `41 tests`                                |
-| sandbox node suite (README's command)                                            | exit 0, `46 files`, `674 tests`                  | exit 0, `46 files`, `675 tests`                              |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                | exit 0                                           | exit 0                                                       |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                     | exit 0                                           | exit 0                                                       |
-| `NX_DAEMON=false bunx nx format:check --all`                                     | exit 0                                           | exit 0, nothing listed                                       |
-| the strict OpenSpec block of 9.2                                                 | exits 0, `{"items":114,"passed":114,"failed":0}` | exits 0, same totals                                         |
-| slice-1 red (tests applied, throws unchanged)                                    | —                                                | exit 1, `Tests 2 failed \| 39 passed (41)`, typecheck exit 0 |
-| slice-2 red typecheck (test files applied, `theme.ts` not)                       | —                                                | exit 1, `Found 12 errors in 3 files.`                        |
-| slice-2 red Vitest (same tree)                                                   | —                                                | exit 1, `Tests 4 failed \| 56 passed (60)`                   |
-| slice-2 green (after `theme.ts`)                                                 | —                                                | exit 0, `5 files`, `60 tests`                                |
-| the two slice-1 negatives, the five slice-2 sabotages, the ten slice-3 mutations | —                                                | every one observed, restored, `cmp` clean                    |
+| Command                                                                                                                                                                         | Before this packet's edits                       | After                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| focused suite (four, then five files)                                                                                                                                           | exit 0, `4 files`, `59 tests`                    | exit 0, `5 files`, `70 tests`                                                                                  |
+| `bunx vitest run <theme suite>`                                                                                                                                                 | exit 0, `17 tests` (as `.ts`)                    | exit 0, `27 tests` (as `.tsx`)                                                                                 |
+| `bunx vitest run src/lib/theme.model.test.tsx`                                                                                                                                  | —                                                | exit 0, `1 test`, 300 pinned runs                                                                              |
+| `bunx vitest run src/modules/preferences`                                                                                                                                       | exit 0, `6 files`, `39 tests`                    | exit 0, `6 files`, `41 tests`                                                                                  |
+| sandbox node suite (README's command)                                                                                                                                           | exit 0, `46 files`, `674 tests`                  | exit 0, `46 files`, `675 tests`                                                                                |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                                                               | exit 0                                           | exit 0                                                                                                         |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint`                                                                                                                                    | exit 0                                           | exit 0                                                                                                         |
+| `NX_DAEMON=false bunx nx format:check --all`                                                                                                                                    | exit 0                                           | exit 0, nothing listed                                                                                         |
+| the strict OpenSpec block of 9.2                                                                                                                                                | exits 0, `{"items":114,"passed":114,"failed":0}` | exits 0, same totals                                                                                           |
+| slice-1 red (tests applied, throws unchanged)                                                                                                                                   | —                                                | exit 1, `Tests 2 failed \| 39 passed (41)`, typecheck exit 0                                                   |
+| slice-2 red typecheck (test files applied, `theme.ts` not)                                                                                                                      | —                                                | exit 1, `Found 12 errors in 3 files.`                                                                          |
+| slice-2 red Vitest (same tree)                                                                                                                                                  | —                                                | exit 1, `Tests 4 failed \| 56 passed (60)`                                                                     |
+| slice-2 green (after `theme.ts`)                                                                                                                                                | —                                                | exit 0, `5 files`, `60 tests`                                                                                  |
+| **all nineteen negatives**: 2 slice-1 classification (§8.1), 5 slice-2 implementation sabotages (§8.2), 2 slice-2 model-test faults (§8.4), 10 slice-3 example mutations (§8.3) | —                                                | every one observed failing its named check, restored, `cmp`-verified byte-identical, and its suite rerun green |
 
 ### 9.4 Planner-only, with the expected relative delta
 
@@ -3606,10 +3633,11 @@ output and fails 13 unrelated tests in this repository.
 
 Each is false on the real starting tree, checked on 2026-09-23.
 
-1. Step 0's `owned-before.txt` is not empty — a file **this slice owns** already differs. Stop,
-   unless the slice note explicitly approved that path before dispatch. This is scoped with
-   `git status --porcelain -- <owned paths>` precisely so it cannot be satisfied by the same snapshot
-   it is compared against.
+1. Step 0's `git status --porcelain --untracked-files=all` is not empty. Stop: the clone this packet
+   is dispatched into is a fresh checkout, or a resume whose earlier slice the planner has already
+   committed, so a clean tree is the only correct starting state and anything else means the attempt
+   is not starting where it was reviewed. No exception, and nothing to preserve — which is why this
+   packet no longer tries to record and re-check foreign dirt.
 2. `fast-check=` anything other than `4.9.0`, or step 0's `base` differs from the SHA the slice note
    names. Stop on either: the pinned counterexamples in sections 8.2 and 8.4 were recorded under
    4.9.0 and a different version reorders generation, and a clone at the wrong commit is not the tree
@@ -3620,10 +3648,10 @@ Each is false on the real starting tree, checked on 2026-09-23.
 5. A negative proof leaves its named check passing. Restore, re-read the location, redo once; if it
    still passes, stop and report — the check may not be where this packet says it is.
 6. The strict OpenSpec block exits non-zero, or `passed` falls below step 0's recorded number.
-7. At hand-over, `comm` reports any foreign file whose `sha256sum` differs from step 0's
-   `foreign-before.sha256` — a change this slice made to something it does not own — or the status
-   shows a path outside the slice's own list that was not already in `status-before.txt`. Either is a
-   stop. Recording a path as dirty at step 0 permits leaving it alone, never editing it.
+7. At hand-over, `git status --porcelain --untracked-files=all` shows any path outside this slice's
+   own owned list. Stop. Because step 0 required an empty status, the comparison is exact: every path
+   listed at hand-over is a path this slice created or changed, and the list must be exactly the
+   slice's own.
 8. Slice 1's or slice 2's red checkpoint produces **no** failures, or a different count than
    section 6 names. Either means the tests did not land as written.
 9. Anything asks for a `git` state change in the clone, a network call, a browser, or `--no-verify`.
@@ -3638,6 +3666,9 @@ Each is false on the real starting tree, checked on 2026-09-23.
   `application-bootstrap.tsx`: read only.
 - `components/wbs/gantt-detail.ts`, `components/wbs/project-page.tsx`,
   `components/wbs/project-settings-modal.tsx`, `lib/remembered.ts`: the next packet's.
+- `components/wbs/remembered-layout.ts`: **not this packet's either**, and named separately because
+  it is where the blocking binding actually lives (`storedMermaidSectionMode`, line 247). Nothing
+  here edits it.
 - `modules/preferences/module.ts`, `preferences.feature.ts`, `README.md`,
   `composition-agreement.test.ts`, `module.test.ts`: untouched. The README already exists and already
   states that it carries no `module-index` block; adopting one stays deferred, and this packet adds
@@ -3655,10 +3686,10 @@ Each is false on the real starting tree, checked on 2026-09-23.
 ## 12. Hand-over to the next packet
 
 - Task 3 of `adopt-frontend-lifetimes` stays unchecked, with the reason written into it.
-- Four call sites remain on `modules/preferences/composition.ts`, and `lib/remembered.ts`'s
-  module-scope `storedMermaidSectionMode` must become lazy before its own site can move. That is the
-  next packet's first decision, and it is a real one: a module-scope binding cannot read a React
-  context.
+- Four call sites remain on `modules/preferences/composition.ts`. Before `lib/remembered.ts`'s own
+  site can move, `components/wbs/remembered-layout.ts`'s module-scope `storedMermaidSectionMode`
+  (line 247) must become lazy. That is the next packet's first decision, and it is a real one: a
+  module-scope binding cannot read a React context.
 - `ThemeContextValue.persists` is published and no consumer reads it yet. The account menu is the
   obvious first reader — "not being remembered" is a thing a reader should be able to see — but that
   is a design decision about the chrome, with its own copy and its own accessibility question, and
@@ -3689,7 +3720,27 @@ Each is false on the real starting tree, checked on 2026-09-23.
    is the unfiltered `wbs-fe-01:e2e` on the final integration commit; section 9.4 requires both and
    both are pending, not waived.
 
-## 14. Disposition of review round 2
+## 14. Disposition of review round 3
+
+`puni-plan/reviews-batch-6/050-7-f1-theme-hook-model.round3.md` — READY AFTER FIXES, no critical.
+All five are applied. Sections 14b and 14c keep rounds 2 and 1.
+
+### Important
+
+| #   | Finding                                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Foreign-file preservation silently omitted some permitted starting states | **Applied.** The hash machinery is gone. Step 0 now requires an entirely clean clone — one `git status --porcelain --untracked-files=all`, written once and tested for emptiness — which the launcher's fresh-checkout and committed-resume workflow already guarantees. Hand-over prints the same command and expects exactly the slice's own owned paths, so the comparison is exact rather than a difference against a permitted baseline. The foreign-dirt exceptions are removed from step 0, from both hand-over blocks and from stop conditions 1 and 7, and §14b's own I2 disposition is corrected below.                                                                                                                |
+| 2   | The new cleanup proofs were missing from the executable checklist         | **Applied.** Slice 2 has a new step 12 that runs both §8.4 faults with section 8's patch form over `src/lib/theme.model.test.tsx`, restores, `cmp`-verifies and reruns green, and places their observed `Proof:` comments in that file — f beside `isDisposalExpiry`'s returned condition, g beside `giveEverythingBack`'s `verifiedRefusals.has(refusal)` guard. The later steps renumber to 13 and 14. §8.4 names the step and the two comment sites; §9.3 now enumerates all **nineteen** negatives (2 + 5 + 2 + 10); and the verification-record note asks for all nineteen with the seven model-test faults' seeds and counterexamples. Both faults were re-rehearsed in the full patch-and-restore form for this revision. |
+| 3   | §15 still overstated initial-state and proof-workflow compliance          | **Applied.** §15 is rebuilt from round 3's own table. Point 9 is the one entry the reviewer left Partial pending findings 1 and 2; both are fixed above, so it reads Met with the establishing sections named.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+### Minor
+
+| #   | Finding                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `storedMermaidSectionMode` was assigned to the wrong file | **Applied.** It is `apps/wbs/fe-01/src/components/wbs/remembered-layout.ts:247`, verified by reading the line. Corrected in §1, §12 and — because it is committed text — in the prescribed `composition.ts` JSDoc of §7.16, which now also spells the three component sites' full paths. §11 names `components/wbs/remembered-layout.ts` separately as out of lane, so the file the binding really lives in is explicitly not editable here.                                                            |
+| 2   | §1's module-scope rationale was too broad                 | **Applied.** §1 now says what the five sites actually share — a dependency on the module-load preferences composition — and notes that individual handles may be built per call, quoting `project-settings-modal.tsx:76`'s `storedSection(projectId)` and naming `lib/remembered.ts`'s factories and `remembered-layout.ts`'s per-project factories. `theme.ts`'s own `storedChoice` is described separately as the single module-scope binding that makes this site movable through one hook boundary. |
+
+## 14b. Disposition of review round 2
 
 `puni-plan/reviews-batch-6/050-7-f1-theme-hook-model.review2.md`. Nothing here argues with a
 finding; each was checked against the tree and each was right. Section 14b keeps round 1's
@@ -3703,12 +3754,12 @@ disposition, which round 2 confirmed as fixed apart from the five entries it re-
 
 ### Important
 
-| #   | Finding                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | The patch-validation loop could print a false success     | **Resolved.** Section 9.1 puts `git apply --check` and `git apply` on separate commands in both loops and asserts `test "$count" -eq 17`. The false success was rehearsed side by side with the fix on a deliberately broken patch: the `&&` form printed `all patches applied` and exited **0**; the separate-command form printed no success line and exited **1**. Both rows are in section 9.1.                                                                                                                       |
-| 2   | The baseline could not detect the dirty state it rejected | **Resolved.** Step 0 now has three independent safeguards: owned paths must be clean (`git status --porcelain -- <owned paths>` must be empty, waivable only by the slice note before dispatch); every already-dirty foreign file's `sha256sum` is recorded and re-compared with `comm` at hand-over; and the starting HEAD is compared with the SHA the slice note carries, which does not come from the clone. Stop conditions 1, 2 and 7 are rewritten accordingly, and the dispatch commands now pass `--slice-note`. |
-| 3   | The browser obligation was narrowed without authority     | **Resolved.** Section 9.4 keeps the focused `e2e/dark-mode.spec.ts` run per slice **and** adds the planner-owned unfiltered `wbs-fe-01:e2e` on the final integration commit, on its own isolated port shift, quoting the batch README's overriding "Integration verification". Assumption 6 no longer claims the focused run suffices. Both are pending, neither waived.                                                                                                                                                  |
-| 4   | The compliance table still overstated several points      | **Resolved.** Section 15 now prints the reviewer's round-2 assessment verbatim beside this revision's, and a row only claims more once its fix has been rehearsed here.                                                                                                                                                                                                                                                                                                                                                   |
+| #   | Finding                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | The patch-validation loop could print a false success     | **Resolved.** Section 9.1 puts `git apply --check` and `git apply` on separate commands in both loops and asserts `test "$count" -eq 17`. The false success was rehearsed side by side with the fix on a deliberately broken patch: the `&&` form printed `all patches applied` and exited **0**; the separate-command form printed no success line and exited **1**. Both rows are in section 9.1.                                                               |
+| 2   | The baseline could not detect the dirty state it rejected | **Resolved, and superseded by round 3's finding 1.** The independent HEAD comparison stands: the reviewed SHA travels in `--slice-note`, which does not come from the clone. The owned-path and foreign-hash halves of that answer are gone; round 3 showed the hash pipeline mis-parsed Git paths, recorded nothing for a pre-existing deletion and had an order-dependent exit status. Step 0 now requires an entirely clean clone instead — see §14 finding 1. |
+| 3   | The browser obligation was narrowed without authority     | **Resolved.** Section 9.4 keeps the focused `e2e/dark-mode.spec.ts` run per slice **and** adds the planner-owned unfiltered `wbs-fe-01:e2e` on the final integration commit, on its own isolated port shift, quoting the batch README's overriding "Integration verification". Assumption 6 no longer claims the focused run suffices. Both are pending, neither waived.                                                                                          |
+| 4   | The compliance table still overstated several points      | **Resolved.** Section 15 now prints the reviewer's round-2 assessment verbatim beside this revision's, and a row only claims more once its fix has been rehearsed here.                                                                                                                                                                                                                                                                                           |
 
 ### Minor
 
@@ -3719,7 +3770,7 @@ disposition, which round 2 confirmed as fixed apart from the five entries it re-
 | 3   | The fast-check importer count was wrong          | **Resolved.** Section 11 names all four files.                                                                                                                                                                                                                                                                                                   |
 | 4   | §9.1's typecheck summary contradicted itself     | **Resolved.** It now says exactly one tree fails typecheck — slice 2's red — and that slice 1's red is behavioural with typecheck exiting 0.                                                                                                                                                                                                     |
 
-## 14b. Disposition of review round 1
+## 14c. Disposition of review round 1
 
 `puni-plan/reviews-batch-6/050-7-f1-theme-hook-model.review1.md`, finding by finding. Every
 "resolved" claim names the section of **this revision** that establishes it. Nothing here argues with
@@ -3755,32 +3806,32 @@ a finding; each was checked against the tree and each was right.
 
 ## 15. Batch-6 addendum, point by point
 
-The addendum has 20 points. The **round-2 reviewer's own assessment is printed verbatim** in the
-middle column; the right-hand column says what this revision changed, and claims more than the
-reviewer only where the fix has been rehearsed in this document.
+The addendum has 20 points. The **round-3 reviewer's own assessment is printed verbatim** in the
+middle column. The right-hand column changes only one entry — point 9, the single Partial round 3
+left, and only because the two findings it named are applied in this revision.
 
-| Point                       | Round-2 review                                                                                   | After this revision                                                                                                                                                                                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Reproduced red           | Met: both slices specify red checkpoints and diagnostics.                                        | **Met**, unchanged. §6 slices 1 and 2; §9.3.                                                                                                                                                                                                               |
-| 2. Typecheck and lint       | Checks and rehearsal evidence supplied; virtual TypeScript verified here, native lint not rerun. | **Met as far as this planner can take it.** Both were run natively here and exit 0 (§9.3). The reviewer's caveat is about a read-only review, not about the packet, and it stands as written.                                                              |
-| 3. Path counts              | Met: corrected enumerations match the prescribed edits.                                          | **Met**, unchanged. §6 slice 2 step 13, slice 3 step 11, §16.                                                                                                                                                                                              |
-| 4. Failure-visible commands | Partial: §9.1 can falsely report success.                                                        | **Met.** §9.1 splits `--check` from `apply`, asserts the extracted count is 17, and records the side-by-side rehearsal: `&&` exits 0 with the success line, the fix exits 1 without it.                                                                    |
-| 5. HEAD-reading tests       | N/A: no project, target or CI-path rename.                                                       | **N/A**, unchanged.                                                                                                                                                                                                                                        |
-| 6. Sandbox constraints      | Met: unavailable whole targets, build and browser runs are planner-owned.                        | **Met**, and §9.4 now also assigns the unfiltered browser suite.                                                                                                                                                                                           |
-| 7. Known race               | Met: named, one rerun, no repair authority.                                                      | **Met**, unchanged. Stop condition 10.                                                                                                                                                                                                                     |
-| 8. Names                    | Met: no renamed Burokrat identifier needs repointing.                                            | **Met**, unchanged.                                                                                                                                                                                                                                        |
-| 9. Packet form/evidence     | Partial: cleanup proof and initial-state safeguards remain defective.                            | **Met.** The cleanup proof is §8.4's two watched negatives over the class-and-identity accounting; the initial-state safeguards are §6 step 0's three checks and stop conditions 1, 2 and 7.                                                               |
-| 10. Pins                    | Met: versions are correct and protected.                                                         | **Met**, unchanged.                                                                                                                                                                                                                                        |
-| 11. Pipeline exit handling  | Met: accepted `diff` status follows one command.                                                 | **Met**, unchanged.                                                                                                                                                                                                                                        |
-| 12. Planner chaining        | Partial: the patch loop continues after failed checks.                                           | **Met.** Same fix as point 4, rehearsed in §9.1.                                                                                                                                                                                                           |
-| 13. Module index            | N/A: no new file enters a module directory.                                                      | **N/A**, unchanged.                                                                                                                                                                                                                                        |
-| 14. Bun directory filters   | N/A: prescribed tests use Vitest.                                                                | **N/A**, unchanged.                                                                                                                                                                                                                                        |
-| 15. Interleaving property   | Met within the stated single-transition scope: notifications and disposal are scheduled.         | **Met within that scope**, unchanged, and §3.6 states the scope.                                                                                                                                                                                           |
-| 16. Model-based remedy      | Partial: timeout generation exists, but its asserted coverage accepts ordinary errors.           | **Met.** `isDisposalExpiry` checks the class, `reason: 'timeout'` and the retained `cleanupPromise`; §8.4 row f is the watched negative for the ordinary-error substitution.                                                                               |
-| 17. Seeded evidence         | N/A: no earlier attempt's evidence is consumed.                                                  | **N/A**, unchanged.                                                                                                                                                                                                                                        |
-| 18. Symbol-based checks     | N/A: no code-shape checker is introduced.                                                        | **N/A**, unchanged.                                                                                                                                                                                                                                        |
-| 19. Missing-file grep       | Met for the prescribed uses.                                                                     | **Met**, unchanged.                                                                                                                                                                                                                                        |
-| 20. Honest limits           | Partial: cleanup and timeout claims exceed what the assertions establish.                        | **Met.** The claims are now exactly what §8.4 establishes, and §3.6 and §9.5 still list the four residuals — the single-transition scope, the example-proved effect rethrow, the pending browser runs, and coverage that is reached rather than exhausted. |
+| Point                       | Round-3 review                                                                         | After this revision                                                                                                                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Reproduced red           | Met: behavioural red checkpoints and diagnostics are specified.                        | Met, unchanged.                                                                                                                                                                                              |
+| 2. Typecheck and lint       | Met in virtual-source verification; native Nx checks were not rerun here.              | Met, unchanged. Both were run natively by this planner and exit 0 (§9.3); the caveat is about a read-only review.                                                                                            |
+| 3. Path counts              | Met: slice ownership and hand-over counts reconcile.                                   | Met, unchanged.                                                                                                                                                                                              |
+| 4. Failure-visible commands | Met for the repaired patch loop; startup snapshot defects are covered by point 9.      | Met, and the startup defects point 9 referred to are now fixed — §6 step 0 requires a clean clone.                                                                                                           |
+| 5. HEAD-reading tests       | N/A: no project, target or CI-path rename.                                             | N/A, unchanged.                                                                                                                                                                                              |
+| 6. Sandbox constraints      | Met: unavailable checks are assigned to the planner.                                   | Met, unchanged.                                                                                                                                                                                              |
+| 7. Known race               | Met: named, one rerun, no repair authority.                                            | Met, unchanged.                                                                                                                                                                                              |
+| 8. Names                    | Met: no old Burokrat identifier requires repointing.                                   | Met, unchanged.                                                                                                                                                                                              |
+| 9. Packet form/evidence     | **Partial:** foreign-state safeguards and the cleanup-proof checklist need correction. | **Met.** The foreign-state machinery is replaced by §6 step 0's clean-clone requirement (stop conditions 1 and 7), and the cleanup proofs are slice 2 step 12, named in §8.4 and counted in §9.3's nineteen. |
+| 10. Pins                    | Met: installed versions agree and remain outside the lane.                             | Met, unchanged.                                                                                                                                                                                              |
+| 11. Pipeline exit handling  | Met for the mutation-patch `diff` block.                                               | Met, unchanged.                                                                                                                                                                                              |
+| 12. Planner chaining        | Met: repaired patch checks stop on failure.                                            | Met, unchanged. §9.1.                                                                                                                                                                                        |
+| 13. Module index            | N/A: no new file enters a module directory.                                            | N/A, unchanged.                                                                                                                                                                                              |
+| 14. Bun directory filters   | N/A: prescribed suites use Vitest.                                                     | N/A, unchanged.                                                                                                                                                                                              |
+| 15. Interleaving property   | Met within the explicitly stated single-transition scope.                              | Met within that scope, unchanged. §3.6.                                                                                                                                                                      |
+| 16. Model-based remedy      | Met: model, scheduler, controlled expiry and effective sabotages exist.                | Met, unchanged. §7.9, §8.2, §8.4.                                                                                                                                                                            |
+| 17. Seeded evidence         | N/A: slices do not consume earlier evidence.                                           | N/A, unchanged.                                                                                                                                                                                              |
+| 18. Symbol-based checks     | N/A: no code-shape checker is introduced.                                              | N/A, unchanged.                                                                                                                                                                                              |
+| 19. Missing-file grep       | Met for the prescribed grep uses.                                                      | Met, unchanged.                                                                                                                                                                                              |
+| 20. Honest limits           | Met for runtime claims: browser and coverage limits are explicit.                      | Met, unchanged. §3.6, §9.5.                                                                                                                                                                                  |
 
 ## 16. Ready to commit
 
