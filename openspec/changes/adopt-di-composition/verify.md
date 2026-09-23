@@ -695,3 +695,46 @@ libs/core/src/use-cases/retention-sweep.ts`. The pilot baseline passed 21 tests 
   (`openspec-validation-baseline.uudZp9.json`, `openspec-validation-final.jklwzl.json`). Final core
   and wiki-CLI type-checks and wiki source lint exited 0 (`slice-3-core-typecheck-final.log`,
   `slice-3-wiki-typecheck.log`, `slice-3-wiki-lint-source.log`).
+
+### Realtime, Slice 1 — 2026-09-23
+
+- The whole-core baseline was `C=549` passed, 0 failed and 1,810 assertions across `F=56` files
+  (`slice-1-core-baseline.log`). Before implementation, the new module test failed because
+  `./check` did not exist: 0 passed, 1 failed and 1 error (`slice-1-module-red.log`). Its first
+  green passed 6 tests with 0 failures and 13 assertions (`slice-1-module-green.log`).
+- Returning the bag beside `replayBuffer`, `broadcaster` and `replay` failed the installer-surface
+  test's first assertion: the received keys included extra `"bag"`, with 0 passed, 1 failed and 5
+  filtered out (`row-3-bag-leak.patch`, `row-3-bag-leak.log`). Keeping the key list correct but
+  attaching `resolve` to the returned broadcaster failed the second assertion with
+  `Expected: true`, `Received: false`, also 0 passed, 1 failed and 5 filtered out
+  (`row-4-exposed-resolver.patch`, `row-4-exposed-resolver.log`). The `wbs-core:typecheck` target
+  still exited 0 for both mutations (`row-3-bag-leak-typecheck.log`,
+  `row-4-exposed-resolver-typecheck.log`). Each saved version was restored byte-for-byte with
+  `cmp`, and the named test passed afterward (`row-3-bag-leak-restored.log`,
+  `row-4-exposed-resolver-restored.log`, `row-3-typecheck-restored-green.log`,
+  `row-4-typecheck-restored-green.log`).
+- Exporting `broadcasterOptions` made the module suite report 3 passed and 3 failed:
+  `resolve('broadcasterOptions')` no longer threw, the graph exposed the bare key, and the missing
+  dependency message lost the module label (`row-5-broadcaster-options-export.patch`,
+  `row-5-broadcaster-options-export.log`). Exporting `replayOptions` independently made its own
+  privacy and label assertions fail while `broadcasterOptions` remained hidden and labelled, for
+  4 passed and 2 failed (`row-6-replay-options-export.patch`,
+  `row-6-replay-options-export.log`). Dropping the module label made only the two label tests fail,
+  for 4 passed and 2 failed (`row-7-dropped-label.patch`, `row-7-dropped-label.log`). Each file was
+  restored byte-for-byte with `cmp`, and the full module suite returned to 6 passed and 0 failed
+  (`row-5-broadcaster-options-export-restored.log`,
+  `row-6-replay-options-export-restored.log`, `row-7-dropped-label-restored.log`).
+- Importing `Identity` from `../../http/endpoint` into the moved broadcaster failed the
+  sideways-route suite with both the module-specifier and identifier violations reaching
+  `http/endpoint.ts`, 0 passed and 1 failed (`row-8-http-endpoint-sideways.patch`,
+  `row-8-http-endpoint-sideways.log`). Importing `AuthenticatedUser` from
+  `../../service/auth.service` independently failed it with only the `service/auth.service.ts`
+  violation and no HTTP entry, also 0 passed and 1 failed (`row-9-auth-service-sideways.patch`,
+  `row-9-auth-service-sideways.log`). Each mutation was restored byte-for-byte with `cmp`, and the
+  boundary suite passed after each restoration (`row-8-http-endpoint-sideways-restored.log`,
+  `row-9-auth-service-sideways-restored.log`).
+- The final focused checks passed 6 module tests and 1 boundary test with 0 failures
+  (`slice-1-module-final.log`, `slice-1-sideways-final.log`). The whole-core closing run delivered
+  the required relative delta, `C+6=555` passed and 0 failed with 1,823 assertions across
+  `F+1=57` files (`slice-1-core-closing.log`). The final `wbs-core` lint and typecheck targets both
+  exited 0 (`slice-1-closing-lint-typecheck.log`).
