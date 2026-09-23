@@ -49,6 +49,39 @@ function serversOf(config: { webServer?: unknown }): WebServerEntry[] {
   return webServer as WebServerEntry[];
 }
 
+interface ProjectEntry {
+  name?: string;
+  testIgnore?: RegExp | RegExp[];
+  testMatch?: RegExp | RegExp[];
+  use?: { channel?: string };
+}
+
+/**
+ * Loads the config with `PLAYWRIGHT_CHROMIUM_REGULAR` set or absent — the one
+ * environment variable that decides whether `chromium-regular` exists in
+ * `projects` at all (`playwright.config.ts`, section 4.7 of the 050-7-e plan).
+ */
+async function loadConfigWithChromiumRegular(set: boolean) {
+  vi.resetModules();
+  delete process.env['E2E_PORT_SHIFT'];
+  if (set) process.env['PLAYWRIGHT_CHROMIUM_REGULAR'] = '1';
+  else delete process.env['PLAYWRIGHT_CHROMIUM_REGULAR'];
+  const { default: config } = await import('./playwright.config');
+  return config;
+}
+
+function projectsOf(config: { projects?: unknown }): ProjectEntry[] {
+  const { projects } = config;
+  if (!Array.isArray(projects)) throw new Error('the config declares no projects to assert on');
+  return projects as ProjectEntry[];
+}
+
+const matches = (pattern: RegExp | RegExp[] | undefined, value: string): boolean => {
+  if (pattern === undefined) return false;
+  const patterns = Array.isArray(pattern) ? pattern : [pattern];
+  return patterns.some((one) => one.test(value));
+};
+
 describe('the browser gate’s port shift', () => {
   beforeEach(() => {
     vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
@@ -241,6 +274,65 @@ describe('the browser gate’s port shift', () => {
 
     expect(callerId).toBe('e2e000000000');
     expect(callerId).toMatch(/^[0-9a-f]{12}$/);
+  });
+});
+
+describe('the chromium-regular project gate', () => {
+  beforeEach(() => {
+    vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env['PLAYWRIGHT_CHROMIUM_REGULAR'];
+  });
+
+  it('does not exist when PLAYWRIGHT_CHROMIUM_REGULAR is unset — the default gate', async () => {
+    const projects = projectsOf(await loadConfigWithChromiumRegular(false));
+
+    // Proof: on 2026-09-23, adding `chromium-regular` to `projects`
+    // unconditionally (removing the `PLAYWRIGHT_CHROMIUM_REGULAR === '1'`
+    // guard in `playwright.config.ts`) made this assertion fail: `expected 2
+    // to be 1` — the exact shape a silent gate regression would take, since
+    // every ordinary `bunx playwright test` run — CI's included — would then
+    // also run this one narrow bfcache regression under the regular Chromium
+    // channel, not because that channel is unavailable (CI installs it), but
+    // because that scope decision belongs to a planner, not to every run.
+    expect(projects).toHaveLength(1);
+    expect(projects.map((project) => project.name)).toEqual(['chromium']);
+  });
+
+  it('exists, gated to the bfcache spec, only when a planner opts in', async () => {
+    const projects = projectsOf(await loadConfigWithChromiumRegular(true));
+    const regular = projects.find((project) => project.name === 'chromium-regular');
+
+    expect(projects).toHaveLength(2);
+    if (regular === undefined) throw new Error('chromium-regular was not added');
+    // Proof: on 2026-09-23, corrupting this project's own `testMatch` to a
+    // pattern matching nothing made this assertion fail: `expected false to
+    // be true` — the project would exist but never actually select the spec
+    // it owns.
+    expect(matches(regular.testMatch, 'e2e/lifetime-bfcache.spec.ts')).toBe(true);
+    expect(matches(regular.testMatch, 'e2e/dark-mode.spec.ts')).toBe(false);
+    // Proof: on 2026-09-23, dropping `channel: 'chromium'` from this
+    // project's own `use` made this assertion fail: `expected undefined to
+    // be 'chromium'` — the project would exist and match the right spec, but
+    // launch the default (headless-shell) channel that cannot restore from
+    // bfcache at all, silently defeating the whole point of the project.
+    expect(regular.use?.channel).toBe('chromium');
+  });
+
+  it('the default project excludes the bfcache spec either way', async () => {
+    for (const config of [
+      await loadConfigWithChromiumRegular(false),
+      await loadConfigWithChromiumRegular(true),
+    ]) {
+      const [defaultProject] = projectsOf(config);
+      // Proof: on 2026-09-23, removing the default project's own
+      // `testIgnore` made this assertion fail: `expected false to be true` —
+      // the default `chromium` project (headless-shell) would then also try
+      // to run the bfcache spec itself and fail it under the wrong browser.
+      expect(matches(defaultProject.testIgnore, 'e2e/lifetime-bfcache.spec.ts')).toBe(true);
+    }
   });
 });
 

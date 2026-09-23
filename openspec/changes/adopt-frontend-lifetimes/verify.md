@@ -811,3 +811,63 @@ faults.
 - The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
   targets and the host gate remain pending planner verification under the
   executor sandbox contract.
+
+## Packet 050.7e, slice 3 — bounded Chromium application lifecycle and hand-over
+
+- Attempt `050-7-e-page-lifecycle.3.20260923T070723Z` started at
+  `ef83ebf5c3bd868b88db5c457d0cecaa023cfc89`; its recorded starting inventory
+  was empty.
+- The pre-edit sandbox node subset passed 46 files and 674 tests. Strict
+  OpenSpec validation passed its exact predicate with one report, 114 items
+  passed and 0 failed.
+- The three `chromium-regular` configuration cases landed before the config
+  change. Against the unchanged config, the focused run exited 1 with two
+  failures and one pass: the opt-in project was absent and the default project
+  did not exclude the bfcache spec. Vitest 5 also reported the file's other 11
+  cases as skipped by the filter.
+- The opt-in `chromium-regular` project now selects only the bfcache spec under
+  the regular Chromium channel, while the default project excludes that spec.
+  The browser probe drives the real application bootstrap and records both
+  acquisition count and service usability across a persisted restoration.
+- Task 5 remains unchecked: page hide and persisted restoration are closed by
+  this packet, while hot-reload disposal is handed to 050-7-e2 with the state-
+  machine requirements in the packet's sections 1 and 11.
+
+### Negative-proof observations
+
+Every fault below was saved as a patch and failing log under this attempt's
+`evidence/` directory, then restored byte-for-byte with `cmp` before its named
+test reran green.
+
+| Fault                                           | Observed failure                                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
+| Make the regular Chromium project unconditional | The default-gate case received 2 projects instead of the required 1. |
+| Remove the default project's bfcache exclusion  | The exclusion assertion received `false` instead of `true`.          |
+| Corrupt the regular project's test match        | The bfcache-spec match assertion received `false` instead of `true`. |
+| Remove the regular Chromium channel             | The channel assertion received `undefined` instead of `chromium`.    |
+
+The four adjacent configuration-test `Proof:` comments record only these
+observed faults.
+
+### Slice verification
+
+- Forced TypeScript build: exit 0 with no diagnostics.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0; Nx
+  successfully ran the uncached lint target without an autofix round.
+- The focused `chromium-regular` configuration block passed all 3 selected
+  tests; Vitest 5 reported the file's other 11 tests as skipped by the filter.
+- Strict OpenSpec validation after implementation: exit 0; one report, 114
+  items passed and 0 failed, unchanged from the slice baseline.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target.
+- The post-edit sandbox node subset passed 46 files and 674 tests, exactly
+  matching this slice's own baseline.
+- Prettier write over the six slice-owned files: exit 0; the four source/test
+  files and `tasks.md` were already formatted, and this verification record was
+  formatted. `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` and its model test remain
+  unchanged.
+- The whole `playwright-config.test.ts`, `tool-devsync:test`,
+  `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the opt-in Chromium case, and the
+  host gate remain pending planner verification under the executor sandbox
+  contract.
