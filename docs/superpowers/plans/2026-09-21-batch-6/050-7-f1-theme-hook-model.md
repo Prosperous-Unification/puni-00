@@ -6,7 +6,7 @@
 | Size class  | L — three slices, each one executor attempt                                                                                                                                                                                                               |
 | Predecessor | [050.7e](050-7-e-page-lifecycle.md), the runtime services of [050.7c](050-7-c-application-context.md), the withdrawal rules of [050.7d](050-7-d-withdrawal-and-page-lifecycle.md)                                                                         |
 | Replaces    | [050.7f, held](050-7-f-delivery-call-sites.md). Lesson 16 of the batch addendum asked for a state-machine record and a model-based test before any call-site packet; this packet is that, and it carries the call sites the held packet had converged on. |
-| Revision    | Second. Round 1 of its own review refused it; section 14 disposes of every finding.                                                                                                                                                                       |
+| Revision    | Third. Rounds 1 and 2 of its own review refused it; section 14 disposes of every finding of both.                                                                                                                                                         |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Task 3 stays unchecked.                                                                                                                                                                   |
 
 ## 1. Goal, non-goals, and the cut
@@ -30,9 +30,13 @@ teeth by five sabotages of the implementation.
 - Any change to `lifetime-slot.ts`, `application-runtime.ts`, `application-services-context.tsx`
   or `application-bootstrap.tsx`. This packet only **reads** them.
 
-**Why `theme.ts` and not the other four.** It is the only delivery site whose stores are all built
-inside a React render — so a hook boundary is enough, and no module-scope binding has to become
-lazy first. The other four each need a second decision this packet does not take.
+**Why `theme.ts` and not the other four.** All five sites read a store built at **module scope**
+today, this one included — `const storedChoice = rememberedPreferences.themeChoice(isThemeChoice);`,
+as section 4 records. What makes this one migratable through a hook boundary alone is that its only
+callers inside the app are `useTheme` and the bare functions that hook calls: one boundary moves the
+whole site. `lib/remembered.ts` builds a store per project id from module scope for the layout
+module, and a module-scope binding cannot read a React context — it has to become lazy first, and
+that is the decision this packet does not take. The other three sites wait behind it.
 
 ## 2. Read first
 
@@ -228,19 +232,46 @@ set -euo pipefail
 mkdir -p "${TMPDIR:?}/evidence"
 base=$(git rev-parse HEAD)
 echo "base=$base" | tee "$TMPDIR/evidence/base.txt"
+# 1. The starting HEAD must be the commit this attempt was dispatched against.
+#    The planner puts that hash in this attempt's own slice note (see Dispatch);
+#    it reaches the executor in its instructions and is not derived from the
+#    clone, so this comparison is independent of the clone's own state.
+reviewed=<the SHA named in this attempt's slice note>
+test "$base" = "$reviewed"
+# 2. No file this slice owns may already differ. `--` scopes the status to
+#    exactly this slice's own owned list, from section 5.
+git status --porcelain -- <this slice's owned paths> | tee "$TMPDIR/evidence/owned-before.txt"
+test ! -s "$TMPDIR/evidence/owned-before.txt"
+# 3. Anything else already dirty is preserved, and preservation is checked
+#    rather than assumed: record what each such file contains right now.
 git status --porcelain | tee "$TMPDIR/evidence/status-before.txt"
+git status --porcelain --untracked-files=all | awk '{ print $2 }' \
+  | while IFS= read -r path; do test -f "$path" && sha256sum "$path"; done \
+  > "$TMPDIR/evidence/foreign-before.sha256"
+cat "$TMPDIR/evidence/foreign-before.sha256"
 test -f node_modules/fast-check/package.json
 version=$(bun -e 'console.log(JSON.parse(await Bun.file("node_modules/fast-check/package.json").text()).version)')
 echo "fast-check=$version" | tee "$TMPDIR/evidence/fast-check.txt"
 test "$version" = 4.9.0
 ```
 
-Expected: `base=` one 40-character hash, a status list, and `fast-check=4.9.0`. **Every ownership
-check in this packet compares against `status-before.txt` and the recorded `base`, never against a
-fixed historical hash and never against a fixed list** — a pre-existing modification of a file this
-slice does not own is preserved and reported, not a stop. The version check is not decoration: the
-counterexamples in section 8 were recorded under 4.9.0, a different version reorders generation, and
-the model test asserts `fc.__version` itself for the same reason.
+Expected: `base=` one 40-character hash equal to the slice note's, an **empty** `owned-before.txt`,
+a (possibly empty) list of foreign hashes, and `fast-check=4.9.0`.
+
+Three distinct safeguards, because one `git status` snapshot cannot be its own oracle — written to
+a file and then compared with that same file, a dirty start is simply recorded as normal:
+
+- **Owned paths must be clean** (step 2). A pre-existing change to a file this slice edits is a stop,
+  not something to work on top of. Only the planner may waive it, before dispatch, by naming the path
+  in the slice note.
+- **Foreign dirt is preserved, and the preservation is proved** (step 3). At hand-over the executor
+  recomputes the same hashes and they must be identical; a changed one is a stop.
+- **The starting HEAD is compared with a value from outside the clone** (step 1), so a resumed clone
+  left at the wrong commit is caught here rather than at the planner's review.
+
+The version check is not decoration either: the counterexamples in section 8 were recorded under
+4.9.0, a different version reorders generation, and the model test asserts `fc.__version` itself for
+the same reason.
 
 Then, before any edit, the four comparison runs. Each is wrapped so a failure is visible and its
 status is durable. `<theme-suite>` is `src/lib/theme.test.ts` in slices 1 and 2 and
@@ -360,8 +391,21 @@ kind withdrawn` and `a revoked store refuses with a lifecycle refusal of kind re
       its own observations only, in the shape section 6's closing note gives — then run owned-file
       Prettier over all seven owned paths (`--write` then `--check`) and rerun the strict OpenSpec
       block, **after** the evidence edit, so the document it just changed is what was checked.
-- [ ] 11. Hand over with `git status --short --untracked-files=all`. Expected: the seven owned paths
-      modified, plus nothing else that was not already in `status-before.txt`.
+- [ ] 11. Hand over. Recompute the foreign hashes and compare them, then print the status:
+
+  ```sh
+  set -euo pipefail
+  git status --porcelain --untracked-files=all | awk '{ print $2 }' \
+    | while IFS= read -r path; do test -f "$path" && sha256sum "$path"; done \
+    > "$TMPDIR/evidence/foreign-after.sha256"
+  comm -13 <(sort "$TMPDIR/evidence/foreign-after.sha256") \
+           <(sort "$TMPDIR/evidence/foreign-before.sha256")
+  git status --short --untracked-files=all
+  ```
+
+  Expected: `comm` prints nothing — every file that was already dirty at step 0 still has the same
+  contents — and the status lists exactly the seven owned paths as modified, plus only paths that
+  were already in `status-before.txt`.
 
 Planner commit subject: `feat(preferences): type the store's lifecycle refusal`.
 
@@ -450,11 +494,11 @@ Owns: `fake-browser-storage.ts`, the delta `spec.md`, `theme.model.test.tsx` (ne
 - [ ] 12. Append this slice's own entry to `verify.md`, then owned-file Prettier over all nine owned
       paths (`--write` then `--check`), then rerun the strict OpenSpec block, **after** the evidence
       edit.
-- [ ] 13. Hand over with `git status --short --untracked-files=all`. Expected: **seven modified**
-      paths (`fake-browser-storage.ts`, `spec.md`, `index-bootstrap.test.ts`, `app.test.tsx`,
-      `account-menu.test.tsx`, `theme.ts`, `verify.md`), **two new** paths
-      (`src/lib/theme.model.test.tsx`, `src/lib/theme.test.tsx`) and **one deletion**
-      (`src/lib/theme.test.ts`) — plus nothing else that was not already in `status-before.txt`.
+- [ ] 13. Hand over, with slice 1 step 11's foreign-hash comparison first. Expected: `comm` prints
+      nothing, and the status shows **seven modified** paths (`fake-browser-storage.ts`, `spec.md`,
+      `index-bootstrap.test.ts`, `app.test.tsx`, `account-menu.test.tsx`, `theme.ts`, `verify.md`),
+      **two new** paths (`src/lib/theme.model.test.tsx`, `src/lib/theme.test.tsx`) and **one
+      deletion** (`src/lib/theme.test.ts`) — plus only paths already in `status-before.txt`.
 
 Planner commit subject: `feat(theme): read the palette off the page runtime's preferences`.
 
@@ -517,9 +561,10 @@ Owns: `theme.test.tsx`, `theme.ts` (its `Proof:` comments only), `composition.ts
   Expected: `status=0` and no listed file. Never a repository-wide format **write**.
 
 - [ ] 10. Rerun the strict OpenSpec block. Expected: exits 0, `passed` equal to step 0's number.
-- [ ] 11. Hand over with `git status --short --untracked-files=all`. Expected **five** modified
-      paths — `src/lib/theme.test.tsx`, `src/lib/theme.ts`, `composition.ts`, `tasks.md`,
-      `verify.md` — plus nothing else that was not already in `status-before.txt`.
+- [ ] 11. Hand over, with slice 1 step 11's foreign-hash comparison first. Expected: `comm` prints
+      nothing, and the status shows **five** modified paths — `src/lib/theme.test.tsx`,
+      `src/lib/theme.ts`, `composition.ts`, `tasks.md`, `verify.md` — plus only paths already in
+      `status-before.txt`.
 
 Planner commit subject: `test(theme): name the hook's four lifecycle transitions`.
 
@@ -541,11 +586,13 @@ default for `batch-6` and is passed anyway so the command is complete on its own
 the only absolute paths in this document.
 
 ```sh
-# Slice 1, from the reviewed base.
+# Slice 1, from the reviewed base. The slice note carries that same SHA, so the
+# executor's step 0 can compare its own HEAD against a value from outside the clone.
 /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   050-7-f1-theme-hook-model 1 <reviewed-base-sha> \
   --batch batch-6 \
   --batch-dir docs/superpowers/plans/2026-09-21-batch-6 \
+  --slice-note 'reviewed base <reviewed-base-sha>' \
   --preserve evidence
 
 # Slice 2, into the same clone, once slice 1 is reviewed and committed.
@@ -554,6 +601,7 @@ the only absolute paths in this document.
   --batch batch-6 \
   --batch-dir docs/superpowers/plans/2026-09-21-batch-6 \
   --resume --require-ancestor <slice-1 planner commit> \
+  --slice-note 'reviewed base <slice-1 planner commit>' \
   --preserve evidence
 
 # Slice 3, likewise.
@@ -562,12 +610,15 @@ the only absolute paths in this document.
   --batch batch-6 \
   --batch-dir docs/superpowers/plans/2026-09-21-batch-6 \
   --resume --require-ancestor <slice-2 planner commit> \
+  --slice-note 'reviewed base <slice-2 planner commit>' \
   --preserve evidence
 ```
 
 No `--seed`: no slice here reads another attempt's evidence, and `--preserve evidence` is there so
 the planner can copy each attempt's proofs out, not so a later slice can consume them. No
-`--network`: nothing here reaches a host.
+`--network`: nothing here reaches a host. `--slice-note` is load-bearing rather than decorative: it
+is the only channel by which the reviewed SHA reaches the executor without passing through the clone,
+and step 0's first check reads it. A slice dispatched without it cannot satisfy step 0 and must stop.
 
 ## 7. The code
 
@@ -993,12 +1044,12 @@ actually happened.
 ```diff
 diff --git a/apps/wbs/fe-01/src/lib/theme.model.test.tsx b/apps/wbs/fe-01/src/lib/theme.model.test.tsx
 new file mode 100644
-index 00000000..08b0ce00
+index 00000000..c4c8e377
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/lib/theme.model.test.tsx
-@@ -0,0 +1,873 @@
+@@ -0,0 +1,927 @@
 +import { act, cleanup, render } from '@testing-library/react';
-+import { DiBag } from 'di-bag';
++import { DiBag, DiBagCloseCancelledError } from 'di-bag';
 +import fc from 'fast-check';
 +import { type ReactNode, useLayoutEffect } from 'react';
 +import { afterEach, describe, expect, it } from 'vitest';
@@ -1155,14 +1206,27 @@ index 00000000..08b0ce00
 +  readonly gate: DisposalGate;
 +  readonly scheduler: fc.Scheduler;
 +  /**
-+   * Whether a transition refusing from here on is legitimate — the slot has gone
-+   * fatal, or the runtime it currently publishes will outrun its disposal budget.
++   * The refusals this run has already **verified**, by identity.
++   *
++   * A transition that refuses is accounted for exactly once, by the command that
++   * issued it, and only after {@link assertRefusal} has checked that it is DI
++   * Bag's own bounded-close cancellation. Teardown suppresses a rejection only
++   * when it is one of these very objects — never because some flag said a
++   * refusal was plausible. `lifetime-slot.ts` rethrows the refusal it recorded to
++   * every later transition, so identity is exactly the right key: the fatal
++   * slot's own later refusals *are* the object already verified here.
++   */
++  readonly verifiedRefusals: Set<unknown>;
++  /**
++   * Whether the runtime currently published will outrun its disposal budget, so
++   * teardown's own final retirement is expected to expire.
 +   *
 +   * Recorded by {@link assertAgrees} because teardown runs outside
-+   * `fc.asyncModelRun` and cannot see the model, and because it must report a
-+   * cleanup refusal it did not expect rather than discard it.
++   * `fc.asyncModelRun` and cannot see the model. It excuses **only** a refusal
++   * that {@link isDisposalExpiry} recognises, and every other cleanup rejection is
++   * reported whatever this says.
 +   */
-+  readonly refusalsExpected: { yes: boolean };
++  readonly liveDisposalHangs: { yes: boolean };
 +  unmount: () => void;
 +}
 +
@@ -1273,11 +1337,11 @@ index 00000000..08b0ce00
 +/**
 + * What the model says the hook must be showing, and what each store must hold.
 + *
-+ * Also records, for teardown, whether a transition refusing from here on would be
-+ * legitimate — see {@link ThemeWorld.refusalsExpected}.
++ * Also records, for teardown, whether the runtime currently published will outrun
++ * its disposal budget — see {@link ThemeWorld.liveDisposalHangs}.
 + */
 +function assertAgrees(model: ThemeModel, world: ThemeWorld): void {
-+  world.refusalsExpected.yes = expectsRefusal(model);
++  world.liveDisposalHangs.yes = model.liveStore !== null && model.liveDisposal === 'never';
 +  const theme = world.captured.theme;
 +  expect(theme, 'the page rendered no theme at all').not.toBeNull();
 +  if (theme === null) return;
@@ -1374,13 +1438,55 @@ index 00000000..08b0ce00
 +
 +type ThemeCommand = fc.AsyncCommand<ThemeModel, ThemeWorld>;
 +
-+/** Asserts a transition refused exactly when the model says it had to. */
-+function assertRefusal(model: ThemeModel, refusal: unknown, what: string): void {
-+  if (expectsRefusal(model)) {
-+    expect(refusal, `${what}: an expiring or terminal transition did not refuse`).not.toBeNull();
++/**
++ * Whether a refusal is the slot's own **budget expiry** and nothing else.
++ *
++ * `lifetime-slot.ts`'s `disposeWithdrawn` awaits `close({ timeoutMs })` and hands
++ * whatever it threw to `refuse`, and its `lateCleanupOf` reads
++ * `DiBagCloseCancelledError.cleanupPromise` — so a genuine expiry is that class,
++ * with `reason: 'timeout'` and the still-running cleanup promise the slot keeps
++ * watching. Anything else that came out of a disposal is a defect in the graph,
++ * not a timeout, and must not be counted as one.
++ */
++function isDisposalExpiry(refusal: unknown): refusal is DiBagCloseCancelledError {
++  return (
++    refusal instanceof DiBagCloseCancelledError &&
++    refusal.reason === 'timeout' &&
++    refusal.cleanupPromise instanceof Promise
++  );
++}
++
++/**
++ * Asserts a transition refused exactly when the model says it had to, **and for
++ * the reason the model says**, and records the refusal so teardown can tell an
++ * accounted-for rejection from a new one.
++ *
++ * The check on the refusal's own class is the whole point: a first draft counted
++ * any non-null rejection as an expiry, so substituting an ordinary error for the
++ * hanging disposer left all 300 runs green.
++ */
++function assertRefusal(model: ThemeModel, world: ThemeWorld, refusal: unknown, what: string): void {
++  if (!expectsRefusal(model)) {
++    expect(refusal, `${what}: a transition refused unexpectedly`).toBeNull();
 +    return;
 +  }
-+  expect(refusal, `${what}: a transition refused unexpectedly`).toBeNull();
++  expect(refusal, `${what}: an expiring or terminal transition did not refuse`).not.toBeNull();
++  if (model.terminal) {
++    // A terminal slot rethrows the very refusal it recorded, so this must be an
++    // object some earlier command already verified. A new failure here is a new
++    // failure, not the recorded one.
++    expect(
++      world.verifiedRefusals.has(refusal),
++      `${what}: a terminal slot refused with a failure nothing had verified: ${String(refusal)}`,
++    ).toBe(true);
++    return;
++  }
++  expect(
++    isDisposalExpiry(refusal),
++    `${what}: the disposal did not expire the way the slot's budget expires; it failed some other way: ${String(refusal)}`,
++  ).toBe(true);
++  world.verifiedRefusals.add(refusal);
++  reached.expiredDisposal += 1;
 +}
 +
 +/** A chooser call through the hook's own current return value. */
@@ -1447,11 +1553,8 @@ index 00000000..08b0ce00
 +    note('retire');
 +    const expiring = expectsRefusal(model);
 +    const refusal = await settle(world, 'retire', world.slot.retire());
-+    assertRefusal(model, refusal, 'retire');
-+    if (expiring) {
-+      reached.expiredDisposal += 1;
-+      model.terminal = true;
-+    }
++    assertRefusal(model, world, refusal, 'retire');
++    if (expiring) model.terminal = true;
 +    applyWithdrawn(model);
 +    assertAgrees(model, world);
 +  }
@@ -1513,9 +1616,8 @@ index 00000000..08b0ce00
 +      `replace(${this.target})`,
 +      world.slot.replace(acquireOver(world, this.target, this.disposal)),
 +    );
-+    assertRefusal(model, refusal, `replace(${this.target})`);
++    assertRefusal(model, world, refusal, `replace(${this.target})`);
 +    if (expiring) {
-+      reached.expiredDisposal += 1;
 +      model.terminal = true;
 +      applyWithdrawn(model);
 +    } else {
@@ -1552,7 +1654,7 @@ index 00000000..08b0ce00
 +    });
 +    try {
 +      const refusal = await settle(world, 'retire from notification', world.slot.retire());
-+      assertRefusal(model, refusal, 'retire from notification');
++      assertRefusal(model, world, refusal, 'retire from notification');
 +      applyWithdrawn(model);
 +      assertAgrees(model, world);
 +    } finally {
@@ -1593,7 +1695,7 @@ index 00000000..08b0ce00
 +        return acquired;
 +      }),
 +    );
-+    assertRefusal(model, refusal, `chooseWhileAcquiring(${this.target})`);
++    assertRefusal(model, world, refusal, `chooseWhileAcquiring(${this.target})`);
 +    applyPublished(model, this.target, 'settles');
 +    assertAgrees(model, world);
 +  }
@@ -1674,7 +1776,7 @@ index 00000000..08b0ce00
 +      `replaceThenRetireFromLayoutEffect(${this.target})`,
 +      world.slot.replace(acquireOver(world, this.target, 'settles')),
 +    );
-+    assertRefusal(model, refusal, `replaceThenRetireFromLayoutEffect(${this.target})`);
++    assertRefusal(model, world, refusal, `replaceThenRetireFromLayoutEffect(${this.target})`);
 +    // The layout effect's own retirement was pushed into `issued`; drain it and
 +    // its notification before reading the invariants.
 +    const drained = Promise.all(world.issued.map(({ outcome }) => outcome));
@@ -1718,26 +1820,28 @@ index 00000000..08b0ce00
 +/**
 + * Gives every runtime and every notification back, and **reports** what refused.
 + *
-+ * Nothing here converts a rejection to success: a cleanup failure that nobody
-+ * reported is a failure of this test, exactly as R5 says. Refusals are expected
-+ * only once the slot has gone fatal, where every transition legitimately refuses
-+ * with the recorded terminal refusal; those are not reported.
++ * Two, and only two, kinds of rejection are suppressed: one this run already
++ * verified by identity ({@link ThemeWorld.verifiedRefusals}), and the budget
++ * expiry of a runtime the commands knowingly left hanging — recognised by
++ * {@link isDisposalExpiry}, never by a flag on its own. Everything else is
++ * returned and thrown by the caller, because a cleanup failure nobody reported is
++ * a failure of this test, exactly as R5 says.
 + */
-+async function giveEverythingBack(world: ThemeWorld): Promise<unknown[]> {
-+  const unreported: unknown[] = [];
++async function giveEverythingBack(world: ThemeWorld): Promise<Error[]> {
++  const unreported: Error[] = [];
 +  world.unmount();
 +  world.gate.release();
 +  world.issued.push({ label: 'teardown retire', outcome: world.slot.retire() });
 +  for (const { label, outcome } of [...world.issued]) {
 +    try {
 +      await world.scheduler.waitFor(outcome);
-+    } catch {
-+      // The refusal itself is not rethrown here: what the caller needs is *which*
-+      // transition refused when none should have, and every command has already
-+      // asserted its own transition's outcome by then.
-+      if (!world.refusalsExpected.yes) {
-+        unreported.push(new Error(`${label} refused during teardown`));
++    } catch (refusal) {
++      if (world.verifiedRefusals.has(refusal)) continue;
++      if (world.liveDisposalHangs.yes && isDisposalExpiry(refusal)) {
++        world.verifiedRefusals.add(refusal);
++        continue;
 +      }
++      unreported.push(new Error(`${label} refused during teardown with: ${String(refusal)}`));
 +    }
 +  }
 +  await world.scheduler.waitIdle();
@@ -1791,7 +1895,8 @@ index 00000000..08b0ce00
 +              notificationRefusal: { thrown: null },
 +              gate: createDisposalGate(),
 +              scheduler,
-+              refusalsExpected: { yes: false },
++              verifiedRefusals: new Set<unknown>(),
++              liveDisposalHangs: { yes: false },
 +              unmount: () => undefined,
 +            };
 +            const held = render(<Page world={world} />);
@@ -2490,7 +2595,7 @@ the lines section 8.3 names, each dated with the executor's own observation date
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/lib/theme.ts b/apps/wbs/fe-01/src/lib/theme.ts
-index 8b67409d..b6c43bd9 100644
+index 8b67409d..59b3834a 100644
 --- a/apps/wbs/fe-01/src/lib/theme.ts
 +++ b/apps/wbs/fe-01/src/lib/theme.ts
 @@ -7,11 +7,13 @@ import {
@@ -2583,7 +2688,7 @@ index 8b67409d..b6c43bd9 100644
  }
 
  /**
-@@ -143,12 +154,28 @@ export function paintPalette(palette: Palette): void {
+@@ -143,12 +154,35 @@ export function paintPalette(palette: Palette): void {
    document.documentElement.classList.toggle(DARK_CLASS, palette === 'dark');
  }
 
@@ -2598,14 +2703,21 @@ index 8b67409d..b6c43bd9 100644
    palette: Palette;
    chooseTheme: (choice: ThemeChoice) => void;
 +  /**
-+   * Whether this browser is remembering `choice` right now — `false` for exactly
-+   * as long as the application services are withdrawn, including the transient
-+   * window between a store going withdrawn and this hook's next render: nothing
-+   * here reads or writes a store, `choice` is the in-tree default or a
-+   * local-only pick, and no write reaches the reader's browser.
++   * Whether this browser is remembering `choice`, as of the render that produced
++   * this value.
 +   *
-+   * The explicit, visible degradation R5 asks for — a silently-accepted,
-+   * unpersisted choice is exactly the misleading behaviour
++   * React state, not a live probe, and the difference is observable: the slot
++   * withdraws publication **synchronously**, while this flag is only corrected by
++   * the chooser (within its own call) or by the resynchronisation effect (after
++   * the commit the slot's own deferred notification caused). Between those two
++   * instants a reader can still see `true` for a runtime that has already gone.
++   * That lag is exactly why `chooseTheme` catches the store's lifecycle refusal
++   * instead of consulting this flag, and it is what
++   * `docs/superpowers/plans/2026-09-21-batch-6/050-7-f1-theme-hook-model.md`
++   * section 3.2 states precisely.
++   *
++   * Once it has converged it is the explicit, visible degradation R5 asks for — a
++   * silently-accepted, unpersisted choice is exactly the misleading behaviour
 +   * `browser-storage.repository.ts`'s own JSDoc warns against for a blocked
 +   * store.
 +   */
@@ -2613,7 +2725,7 @@ index 8b67409d..b6c43bd9 100644
  }
 
  /**
-@@ -167,25 +194,83 @@ export interface Theme {
+@@ -167,25 +201,83 @@ export interface Theme {
   * {@link readTheme} and not {@link rememberedTheme}, because the initialiser is
   * a render: dropping an unreadable key is a write, StrictMode calls this twice
   * on purpose, and the rule against a side effect in a function React may call
@@ -2708,7 +2820,7 @@ index 8b67409d..b6c43bd9 100644
 
    /**
     * Follows the machine while the page is open.
-@@ -217,15 +302,36 @@ export function useTheme(): Theme {
+@@ -217,15 +309,36 @@ export function useTheme(): Theme {
      paintPalette(palette);
    }, [palette]);
 
@@ -2753,7 +2865,7 @@ index 8b67409d..b6c43bd9 100644
  }
 
  /**
-@@ -244,6 +350,8 @@ export function useTheme(): Theme {
+@@ -244,6 +357,8 @@ export function useTheme(): Theme {
  export interface ThemeContextValue {
    choice: ThemeChoice;
    chooseTheme: (choice: ThemeChoice) => void;
@@ -2762,7 +2874,7 @@ index 8b67409d..b6c43bd9 100644
  }
 
  const ThemeContext = createContext<ThemeContextValue | null>(null);
-@@ -254,8 +362,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
+@@ -254,8 +369,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
   * the answer is shared with whatever reads it through {@link useThemeChoice}.
   */
  export function ThemeProvider({ children }: { children: ReactNode }): ReactElement {
@@ -3247,6 +3359,10 @@ Rehearsed on 2026-09-23 under fast-check 4.9.0. Seed `20260925`, `numRuns: 300`,
 "run" is fast-check's own `Property failed after N tests`. The shrunk counterexamples are pasted
 verbatim, scheduler report included.
 
+Rows a–e sabotage the **implementation**. Section 8.4 sabotages the **model test's own accounting**,
+because a property that quietly forgives a cleanup failure is green for the wrong reason — which is
+exactly what an earlier revision of this file did.
+
 | #   | Fault injected in `theme.ts`                                                                                                                                            | Run | Shrunk counterexample                                                                                                                                                                                                                                                                                                             | Assertion message                                                                                                                    |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | a   | **persistence removed**: `rememberTheme`'s `themeStore.write(choice)` → `themeStore.read()`                                                                             | 14  | ``[schedulerFor()`⏎-> [task${1}] promise::deliver the slot notification resolved⏎-> [task${2}] promise::dispose A resolved`,chooseWhileAcquiring(A, system),choose(system) /*replayPath="AFAAAK:q"*/]``, shrunk 5 time(s)                                                                                                         | `stored bytes in A: expected undefined to be '"system"'`                                                                             |
@@ -3310,6 +3426,31 @@ rows 2 and 3 cover the effect's two branches independently. Row 10 is the indepe
 restored hook-level corrupt-key removal needed. Rows 8 and 9 assert exception **identity**, so a
 mutation that rewrapped the failure instead of swallowing it would also fail them.
 
+### 8.4 Slice 2 — two sabotages of the model test's own cleanup accounting
+
+An assertion that accepts any rejection proves nothing about the one it names. These two faults are
+injected into `theme.model.test.tsx` itself, not into `theme.ts`, and each must fail the property.
+They are the watched negatives for the two ways the first revision of this file manufactured a green
+run, both of which a reviewer reproduced before they were fixed.
+
+Same command as section 8.2. Rehearsed on 2026-09-23.
+
+| #   | Fault injected in `theme.model.test.tsx`                                                                                                                                                                 | Run | Shrunk counterexample                                                                                                                                                                                                                                                                                                         | Observed failure                                                                                                                                                                                                                                                                                           |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| f   | **an ordinary error where the budget expiry belongs**: `acquireOver`'s `if (hanging !== null) await hanging.close(options);` → `if (hanging !== null) throw new Error('unexpected cleanup corruption');` | 9   | ``[schedulerFor()`⏎-> [task${1}] promise::deliver the slot notification resolved⏎-> [task${3}] promise::dispose A resolved⏎-> [task${2}] promise::deliver the slot notification resolved⏎-> [task${4}] promise::deliver the slot notification resolved`,replace(A, never),retire /*replayPath="BCAB:K"*/]``, shrunk 1 time(s) | `AssertionError: retire: the disposal did not expire the way the slot's budget expires; it failed some other way: Error: unexpected cleanup corruption`, carried inside `Error: the property failed and its teardown refused: … retire refused during teardown with: Error: unexpected cleanup corruption` |
+| g   | **an unrelated teardown failure**: `giveEverythingBack`'s final `world.slot.retire()` wrapped in `.then(() => { throw new Error('unrelated teardown failure'); })`                                       | 1   | ``[schedulerFor()`⏎`, /*replayPath="BAAF:K"*/]`` — the empty command list, shrunk 1 time(s): teardown runs even when no command did                                                                                                                                                                                           | `Error: teardown refused: Error: teardown retire refused during teardown with: Error: unrelated teardown failure`                                                                                                                                                                                          |
+
+Row f is the one that matters most, and it is why `isDisposalExpiry` checks the class, the
+`reason: 'timeout'` and the retained `cleanupPromise` rather than "something rejected":
+`lifetime-slot.ts`'s own `lateCleanupOf` reads exactly those, so they are the observable facts a
+genuine budget expiry has and an ordinary failure does not. Row g is why teardown suppresses a
+rejection only when it is an object some command already verified **by identity**, or a typed expiry
+of a runtime the commands knowingly left hanging — never because a boolean said a refusal was
+plausible somewhere in this run.
+
+Row f's message also shows the aggregation working: the assertion travels as the thrown error's
+`cause` while the cleanup refusals are named in its message, so neither hides the other.
+
 ## 9. Verification
 
 ### 9.1 Every fenced diff applies, extracted from this document
@@ -3331,20 +3472,26 @@ awk -v out="$work/patches" '
   capture && /^```$/ { capture=0; next }
   capture { print >> f }
 ' "$packet"
-ls "$work/patches" | wc -l
+count=$(ls "$work/patches" | wc -l)
+echo "extracted=$count"
+test "$count" -eq 17
 # 2. A real git repository holding exactly the base tree, so --check has an index.
 git archive HEAD | tar -x -C "$work/tree"
 git -C "$work/tree" init -q
 git -C "$work/tree" add -A
 git -C "$work/tree" -c user.email=x@example.invalid -c user.name=x commit -qm base
-# 3. Apply in slice order, with the rename in its place.
+# 3. Apply in slice order, with the rename in its place. `--check` and `apply` are
+#    SEPARATE commands: joined with `&&` under `set -e`, a failed check does not stop
+#    the shell and a later iteration can still reach the success line below.
 for p in "$work"/patches/0[1-9].diff; do
-  git -C "$work/tree" apply --check "$p" && git -C "$work/tree" apply "$p"
+  git -C "$work/tree" apply --check "$p"
+  git -C "$work/tree" apply "$p"
 done
 mv "$work/tree/apps/wbs/fe-01/src/lib/theme.test.ts" \
    "$work/tree/apps/wbs/fe-01/src/lib/theme.test.tsx"
 for p in "$work"/patches/1[0-7].diff; do
-  git -C "$work/tree" apply --check "$p" && git -C "$work/tree" apply "$p"
+  git -C "$work/tree" apply --check "$p"
+  git -C "$work/tree" apply "$p"
 done
 echo "all patches applied"
 ````
@@ -3352,11 +3499,25 @@ echo "all patches applied"
 Observed on 2026-09-23, after the final Prettier `--check`:
 
 ```
-17
+extracted=17
 all patches applied
 ```
 
-`git apply --check` prints nothing on success, which is why the script's own `echo` is the evidence.
+`git apply --check` prints nothing on success, which is why the script's own `echo` is the evidence —
+and why the count is asserted rather than printed: a run that extracted sixteen patches would
+otherwise apply sixteen and still say "all patches applied".
+
+**That success line has to be unreachable when a check fails, and this was rehearsed.** One patch's
+context line was rewritten to text the file does not contain, and both loop forms were run against
+the same tree:
+
+| Loop form                                                        | Observed on 2026-09-23                                                                                  |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `git apply --check "$p" && git apply "$p"` (an earlier revision) | printed `error: … patch does not apply`, then `all patches applied`, and **exited 0** — a false success |
+| `git apply --check "$p"` then `git apply "$p"` (above)           | printed the same `error:` lines, **no** success line, and **exited 1**                                  |
+
+The `&&` form is not a style preference: under `set -e` a compound command's failure is the
+compound's own value, so the loop simply continues.
 The applied tree was then compared file by file against the planner's rehearsed working tree: all
 **fifteen** paths byte-identical — seventeen patches over fifteen paths, because `theme.test.tsx` and
 the delta `spec.md` each take one patch per slice — with `theme.model.test.tsx` included and the old
@@ -3365,9 +3526,10 @@ with `error: apps/wbs/fe-01/src/lib/theme.test.tsx: No such file or directory`, 
 ordering above is not cosmetic.
 
 Intermediate trees typecheck: `wbs-fe-01:typecheck` exits 0 after slice 1's six diffs alone, and
-again after slice 2's, and again after slice 3's. The two trees that do **not** are the deliberate red
-checkpoints — slice 1's, where the classification tests fail behaviourally while typecheck still
-exits 0, and slice 2's, where patches 01–13 are applied and 14 is not.
+again after slice 2's, and again after slice 3's. Exactly **one** tree does not: slice 2's red
+checkpoint, where patches 01–13 are applied and 14 is not (`Found 12 errors in 3 files.`). Slice 1's
+red checkpoint typechecks cleanly — its red is behavioural, two named tests failing on
+`expected false to be true` while the class exists and only the throws do not use it.
 
 ### 9.2 The strict OpenSpec block, reproduced
 
@@ -3417,14 +3579,15 @@ Statuses are the shell's, captured with the wrappers of section 6.
 The sandbox cannot run these: three tests in two files spawn `bun` from Node and the sandbox refuses
 it, there is no browser, and a build writes outside the attempt's lane.
 
-| Check                                                                                                                                                                                                         | Expectation                                                                                                                                        | Planner's own rehearsal (2026-09-23)                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                                 | the node tier's baseline **+ 1** test (the withdrawn-classification case), 0 file change                                                           | exit 0; before `48 files`, `697 tests`; after `48 files`, `698 tests`                                                         |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                                      | the jsdom tier's baseline **+ 13** tests (2 classification, 1 model, 10 named) in **+ 1** file                                                     | exit 0; UTC before `131 files`, `2995 tests`, after `132 files`, `3008 tests`; Auckland zoned `2 files`, `3 tests` both times |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                                 | exit 0                                                                                                                                             | exit 0, `✓ built in 1.02s`                                                                                                    |
-| `CI=1 E2E_PORT_SHIFT=<multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- e2e/dark-mode.spec.ts` | exit 0, unchanged. `ThemeProvider`'s runtime dependency changes, so the contract's frontend browser suite applies whatever the rendered strings do | **Pending planner verification.** Not run in this rehearsal. The executor never launches a browser.                           |
-| `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`, staged                                                                                                                                       | unchanged; this packet adds no module README and no project target                                                                                 | run by the planner's own commit helper while committing this document                                                         |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                    | exit 0 on the shared build host                                                                                                                    | **not run**; reported as pending, never as passed                                                                             |
+| Check                                                                                                                                                                                                                                   | Expectation                                                                                                                                                                                           | Planner's own rehearsal (2026-09-23)                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                                                           | the node tier's baseline **+ 1** test (the withdrawn-classification case), 0 file change                                                                                                              | exit 0; before `48 files`, `697 tests`; after `48 files`, `698 tests`                                                         |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                                                                | the jsdom tier's baseline **+ 13** tests (2 classification, 1 model, 10 named) in **+ 1** file                                                                                                        | exit 0; UTC before `131 files`, `2995 tests`, after `132 files`, `3008 tests`; Auckland zoned `2 files`, `3 tests` both times |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                                                           | exit 0                                                                                                                                                                                                | exit 0, `✓ built in 1.02s`                                                                                                    |
+| `CI=1 E2E_PORT_SHIFT=<multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- e2e/dark-mode.spec.ts`, per slice                | exit 0, unchanged — the focused check, run after each slice that touches the theme                                                                                                                    | **Pending planner verification.** Not run in this rehearsal. The executor never launches a browser.                           |
+| `CI=1 E2E_PORT_SHIFT=<a second shift, also a multiple of 300 away from every live run> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e`, **unfiltered**, on the final integration commit | exit 0, unchanged. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend extraction has landed, and it overrides any packet wording that narrows it | **Pending planner verification.** Not run in this rehearsal, and not waived.                                                  |
+| `NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`, staged                                                                                                                                                                 | unchanged; this packet adds no module README and no project target                                                                                                                                    | run by the planner's own commit helper while committing this document                                                         |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                                              | exit 0 on the shared build host                                                                                                                                                                       | **not run**; reported as pending, never as passed                                                                             |
 
 `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` is not decoration: `CLAUDECODE=1` changes Bun's test
 output and fails 13 unrelated tests in this repository.
@@ -3443,20 +3606,24 @@ output and fails 13 unrelated tests in this repository.
 
 Each is false on the real starting tree, checked on 2026-09-23.
 
-1. Step 0's `git status --porcelain` shows a modification to a file **this slice owns** that is not
-   already recorded in that slice's own `status-before.txt`. Stop. A modification to any other file
-   is recorded and preserved, not a stop.
-2. `fast-check=` anything other than `4.9.0`. Stop: the pinned counterexamples in section 8.2 were
-   recorded under 4.9.0 and a different version reorders generation. The model test asserts the same
-   thing itself.
+1. Step 0's `owned-before.txt` is not empty — a file **this slice owns** already differs. Stop,
+   unless the slice note explicitly approved that path before dispatch. This is scoped with
+   `git status --porcelain -- <owned paths>` precisely so it cannot be satisfied by the same snapshot
+   it is compared against.
+2. `fast-check=` anything other than `4.9.0`, or step 0's `base` differs from the SHA the slice note
+   names. Stop on either: the pinned counterexamples in sections 8.2 and 8.4 were recorded under
+   4.9.0 and a different version reorders generation, and a clone at the wrong commit is not the tree
+   this packet was reviewed against. The model test asserts the version itself as well.
 3. A fenced diff in section 7 fails `git apply --check` against the tree with this slice's earlier
    diffs applied. Stop and report the exact error; do not hand-edit the file into shape.
 4. Any `-t` filter in section 8.3 matches zero tests, or more than one. Stop.
 5. A negative proof leaves its named check passing. Restore, re-read the location, redo once; if it
    still passes, stop and report — the check may not be where this packet says it is.
 6. The strict OpenSpec block exits non-zero, or `passed` falls below step 0's recorded number.
-7. A slice's hand-over `git status --short --untracked-files=all` shows a path outside that slice's
-   own list which was not already in `status-before.txt`.
+7. At hand-over, `comm` reports any foreign file whose `sha256sum` differs from step 0's
+   `foreign-before.sha256` — a change this slice made to something it does not own — or the status
+   shows a path outside the slice's own list that was not already in `status-before.txt`. Either is a
+   stop. Recording a path as dirty at step 0 permits leaving it alone, never editing it.
 8. Slice 1's or slice 2's red checkpoint produces **no** failures, or a different count than
    section 6 names. Either means the tests did not land as written.
 9. Anything asks for a `git` state change in the clone, a network call, a browser, or `--no-verify`.
@@ -3481,7 +3648,9 @@ Each is false on the real starting tree, checked on 2026-09-23.
   The new file is a `.tsx` under jsdom, so it needs no node-tier registration, and
   `src/test-tiers.test.ts` asserts the tiers as a partition with no absolute count.
 - No dependency is added, removed or bumped. `fast-check` stays at the locked `4.9.0` and is already
-  imported by three test files in this project.
+  imported by four frontend test files: `runtime/application-bootstrap.model.test.tsx`,
+  `runtime/lifetime-slot.model.test.ts`, `runtime/application-services-context.test.tsx` and
+  `modules/preferences/preferences.resource.test.ts`.
 
 ## 12. Hand-over to the next packet
 
@@ -3514,11 +3683,43 @@ Each is false on the real starting tree, checked on 2026-09-23.
 4. **The migration belongs to slice 2**, and the example-level proofs to slice 3 (section 5's own
    subsection). Recorded as a deviation from the commissioning brief, with the reason.
 5. **The two refusing stores belong in `fake-browser-storage.ts`**, not duplicated in two test files.
-6. **`e2e/dark-mode.spec.ts` is the right Chromium spec** for the planner's browser check: it is the
-   only browser spec that exercises the theme control end to end. It is named rather than guessed at
-   dispatch time, and it is pending, not waived.
+6. **`e2e/dark-mode.spec.ts` is the right _focused_ Chromium spec** for a per-slice check: it is the
+   only browser spec that exercises the theme control end to end, so it is named rather than guessed
+   at dispatch time. It does **not** stand in for the batch README's integration requirement, which
+   is the unfiltered `wbs-fe-01:e2e` on the final integration commit; section 9.4 requires both and
+   both are pending, not waived.
 
-## 14. Disposition of review round 1
+## 14. Disposition of review round 2
+
+`puni-plan/reviews-batch-6/050-7-f1-theme-hook-model.review2.md`. Nothing here argues with a
+finding; each was checked against the tree and each was right. Section 14b keeps round 1's
+disposition, which round 2 confirmed as fixed apart from the five entries it re-opened.
+
+### Critical
+
+| #   | Finding                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Unexpected cleanup failures still became passing evidence | **Resolved.** `assertRefusal` now takes the world and checks the refusal's own class before counting an expiry: `isDisposalExpiry` requires `DiBagCloseCancelledError` with `reason === 'timeout'` and a retained `cleanupPromise` — the two facts `lifetime-slot.ts`'s own `lateCleanupOf` reads. A verified refusal is recorded in `verifiedRefusals` **by identity**, and a terminal slot's later refusals must already be in that set (the slot rethrows the very object it recorded). `giveEverythingBack` suppresses a rejection only when it is one of those objects, or a typed expiry of a runtime the commands knowingly left hanging; everything else is reported. Both of the reviewer's probes are now watched negatives in section 8.4, rehearsed for real: the ordinary-error substitution fails at run 9, the unrelated teardown failure at run 1. |
+
+### Important
+
+| #   | Finding                                                   | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | The patch-validation loop could print a false success     | **Resolved.** Section 9.1 puts `git apply --check` and `git apply` on separate commands in both loops and asserts `test "$count" -eq 17`. The false success was rehearsed side by side with the fix on a deliberately broken patch: the `&&` form printed `all patches applied` and exited **0**; the separate-command form printed no success line and exited **1**. Both rows are in section 9.1.                                                                                                                       |
+| 2   | The baseline could not detect the dirty state it rejected | **Resolved.** Step 0 now has three independent safeguards: owned paths must be clean (`git status --porcelain -- <owned paths>` must be empty, waivable only by the slice note before dispatch); every already-dirty foreign file's `sha256sum` is recorded and re-compared with `comm` at hand-over; and the starting HEAD is compared with the SHA the slice note carries, which does not come from the clone. Stop conditions 1, 2 and 7 are rewritten accordingly, and the dispatch commands now pass `--slice-note`. |
+| 3   | The browser obligation was narrowed without authority     | **Resolved.** Section 9.4 keeps the focused `e2e/dark-mode.spec.ts` run per slice **and** adds the planner-owned unfiltered `wbs-fe-01:e2e` on the final integration commit, on its own isolated port shift, quoting the batch README's overriding "Integration verification". Assumption 6 no longer claims the focused run suffices. Both are pending, neither waived.                                                                                                                                                  |
+| 4   | The compliance table still overstated several points      | **Resolved.** Section 15 now prints the reviewer's round-2 assessment verbatim beside this revision's, and a row only claims more once its fix has been rehearsed here.                                                                                                                                                                                                                                                                                                                                                   |
+
+### Minor
+
+| #   | Finding                                          | Disposition                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `Theme.persists` kept the false timing guarantee | **Resolved.** Its JSDoc (section 7.14) now says it is React state as of the render that produced it, names the two instants that correct it, and states that a reader can still see `true` for a runtime that has already gone — which is why `chooseTheme` catches the refusal instead of consulting it. The pre-render accuracy claim is gone. |
+| 2   | §1 described the starting implementation wrongly | **Resolved.** Section 1 now says all five sites read a module-scope store, quotes the line, and explains that what makes this one migratable is that a single hook boundary covers its only callers.                                                                                                                                             |
+| 3   | The fast-check importer count was wrong          | **Resolved.** Section 11 names all four files.                                                                                                                                                                                                                                                                                                   |
+| 4   | §9.1's typecheck summary contradicted itself     | **Resolved.** It now says exactly one tree fails typecheck — slice 2's red — and that slice 1's red is behavioural with typecheck exiting 0.                                                                                                                                                                                                     |
+
+## 14b. Disposition of review round 1
 
 `puni-plan/reviews-batch-6/050-7-f1-theme-hook-model.review1.md`, finding by finding. Every
 "resolved" claim names the section of **this revision** that establishes it. Nothing here argues with
@@ -3554,31 +3755,32 @@ a finding; each was checked against the tree and each was right.
 
 ## 15. Batch-6 addendum, point by point
 
-The addendum has 20 points. The reviewer's own round-1 assessment is the baseline; each row says what
-this revision changed and where.
+The addendum has 20 points. The **round-2 reviewer's own assessment is printed verbatim** in the
+middle column; the right-hand column says what this revision changed, and claims more than the
+reviewer only where the fix has been rehearsed in this document.
 
-| Point                            | Assessment | Where                                                                                                                                                                                                                                                                                                                   |
-| -------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Reproduced red                | **Met**    | Was Partial: slice 1 never observed one. §6 slice 1 step 5 now does, and §9.3 records it.                                                                                                                                                                                                                               |
-| 2. Typecheck and lint            | **Met**    | §9.3: both exit 0 on the rehearsed tree, run natively. §6 slice 2 step 9 names the five lint findings that were hit and fixed rather than avoided.                                                                                                                                                                      |
-| 3. Path counts                   | **Met**    | Was Not met. §6 slice 2 step 13 and slice 3 step 11, and §16, carry the corrected enumerations including `theme.ts`.                                                                                                                                                                                                    |
-| 4. Failure-visible commands      | **Met**    | Unchanged: statuses are retained, never inferred from filtered output.                                                                                                                                                                                                                                                  |
-| 5. HEAD-reading tests            | **N/A**    | No project, target or CI-path rename.                                                                                                                                                                                                                                                                                   |
-| 6. Sandbox constraints           | **Met**    | §6 step 0 and §9.4: the two whole targets, the build and Chromium are the planner's, each with its expected relative delta.                                                                                                                                                                                             |
-| 7. Known race                    | **Met**    | Stop condition 10 names it, permits one rerun, grants no repair authority.                                                                                                                                                                                                                                              |
-| 8. Names                         | **Met**    | New identifiers: `PreferenceStoreLifecycleError`, `isPreferenceStoreLifecycleError`, `writeRefusingBrowserStorage`, `readRefusingBrowserStorage`, `themeStore`, `persists`. No `data`, `result`, `obj`, `tmp`, `item` or `handle`.                                                                                      |
-| 9. Packet form/evidence          | **Met**    | Was Not met. Slice 1 owns and appends `verify.md` (§6 slice 1 step 10); the ownership contradictions are fixed (point 3); the two rethrows have independent proofs (§8.2 row c, §8.3 rows 8 and 9).                                                                                                                     |
-| 10. Pins                         | **Met**    | Was "Met on ownership; version claim false". §4 records 4.9.0 from lockfile, manifest and installed package; §6 step 0 checks it; the model test asserts it; no pin is touched.                                                                                                                                         |
-| 11. Pipeline exit handling       | **Met**    | The only accepted-nonzero command is `diff` in §8's patch form, after a single command.                                                                                                                                                                                                                                 |
-| 12. Planner chaining             | **Met**    | Every block is `set -euo pipefail`; no push, PR or gate follows a `;`.                                                                                                                                                                                                                                                  |
-| 13. Module index                 | **N/A**    | The new file is `src/lib/theme.model.test.tsx`, outside any module directory. The false claim that the existing fake is indexed is gone (§11): registration is absent for the whole module and stays deferred.                                                                                                          |
-| 14. Bun directory filters        | **N/A**    | Every test command is `bunx vitest run <explicit files>` or a named config, from `apps/wbs/fe-01`.                                                                                                                                                                                                                      |
-| 15. Interleaving property        | **Met**    | Was Partial: only disposal was scheduler-controlled. §7.9 now routes notification delivery through `scheduler.schedule` and gives the scheduler React's `act`, so the re-render's instant is ordered against every disposal completion; §3.5 lists both.                                                                |
-| 16. Model-based remedy           | **Met**    | Was Partial. `Replace` chooses `'settles'` or `'never'`, so DI Bag's own bounded close expires and the slot goes fatal and terminal inside generated runs (§7.9, §3.5), with a coverage assertion that it happened; the effect-rethrow proof is §8.3 row 9, and §3.6 states why it is an example rather than a command. |
-| 17. Seeded evidence              | **N/A**    | No slice consumes an earlier attempt's evidence; §6's Dispatch says so and passes no `--seed`.                                                                                                                                                                                                                          |
-| 18. Symbol-based boundary checks | **N/A**    | This packet prescribes no code-shape checker. Its checks are behavioural tests.                                                                                                                                                                                                                                         |
-| 19. Missing-file grep behaviour  | **Met**    | No check is gated on a `grep` exit status. The one `grep -c` counts lines of captured output and its result is compared with `test "$n" -eq 1`, which tells 0 from 1.                                                                                                                                                   |
-| 20. Honest limits                | **Met**    | Was Not met. §3.6 and §9.5 state the four residuals, including that the effect's rethrow is proved by an example rather than by the property, and the "both rethrows" claim is gone.                                                                                                                                    |
+| Point                       | Round-2 review                                                                                   | After this revision                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Reproduced red           | Met: both slices specify red checkpoints and diagnostics.                                        | **Met**, unchanged. §6 slices 1 and 2; §9.3.                                                                                                                                                                                                               |
+| 2. Typecheck and lint       | Checks and rehearsal evidence supplied; virtual TypeScript verified here, native lint not rerun. | **Met as far as this planner can take it.** Both were run natively here and exit 0 (§9.3). The reviewer's caveat is about a read-only review, not about the packet, and it stands as written.                                                              |
+| 3. Path counts              | Met: corrected enumerations match the prescribed edits.                                          | **Met**, unchanged. §6 slice 2 step 13, slice 3 step 11, §16.                                                                                                                                                                                              |
+| 4. Failure-visible commands | Partial: §9.1 can falsely report success.                                                        | **Met.** §9.1 splits `--check` from `apply`, asserts the extracted count is 17, and records the side-by-side rehearsal: `&&` exits 0 with the success line, the fix exits 1 without it.                                                                    |
+| 5. HEAD-reading tests       | N/A: no project, target or CI-path rename.                                                       | **N/A**, unchanged.                                                                                                                                                                                                                                        |
+| 6. Sandbox constraints      | Met: unavailable whole targets, build and browser runs are planner-owned.                        | **Met**, and §9.4 now also assigns the unfiltered browser suite.                                                                                                                                                                                           |
+| 7. Known race               | Met: named, one rerun, no repair authority.                                                      | **Met**, unchanged. Stop condition 10.                                                                                                                                                                                                                     |
+| 8. Names                    | Met: no renamed Burokrat identifier needs repointing.                                            | **Met**, unchanged.                                                                                                                                                                                                                                        |
+| 9. Packet form/evidence     | Partial: cleanup proof and initial-state safeguards remain defective.                            | **Met.** The cleanup proof is §8.4's two watched negatives over the class-and-identity accounting; the initial-state safeguards are §6 step 0's three checks and stop conditions 1, 2 and 7.                                                               |
+| 10. Pins                    | Met: versions are correct and protected.                                                         | **Met**, unchanged.                                                                                                                                                                                                                                        |
+| 11. Pipeline exit handling  | Met: accepted `diff` status follows one command.                                                 | **Met**, unchanged.                                                                                                                                                                                                                                        |
+| 12. Planner chaining        | Partial: the patch loop continues after failed checks.                                           | **Met.** Same fix as point 4, rehearsed in §9.1.                                                                                                                                                                                                           |
+| 13. Module index            | N/A: no new file enters a module directory.                                                      | **N/A**, unchanged.                                                                                                                                                                                                                                        |
+| 14. Bun directory filters   | N/A: prescribed tests use Vitest.                                                                | **N/A**, unchanged.                                                                                                                                                                                                                                        |
+| 15. Interleaving property   | Met within the stated single-transition scope: notifications and disposal are scheduled.         | **Met within that scope**, unchanged, and §3.6 states the scope.                                                                                                                                                                                           |
+| 16. Model-based remedy      | Partial: timeout generation exists, but its asserted coverage accepts ordinary errors.           | **Met.** `isDisposalExpiry` checks the class, `reason: 'timeout'` and the retained `cleanupPromise`; §8.4 row f is the watched negative for the ordinary-error substitution.                                                                               |
+| 17. Seeded evidence         | N/A: no earlier attempt's evidence is consumed.                                                  | **N/A**, unchanged.                                                                                                                                                                                                                                        |
+| 18. Symbol-based checks     | N/A: no code-shape checker is introduced.                                                        | **N/A**, unchanged.                                                                                                                                                                                                                                        |
+| 19. Missing-file grep       | Met for the prescribed uses.                                                                     | **Met**, unchanged.                                                                                                                                                                                                                                        |
+| 20. Honest limits           | Partial: cleanup and timeout claims exceed what the assertions establish.                        | **Met.** The claims are now exactly what §8.4 establishes, and §3.6 and §9.5 still list the four residuals — the single-transition scope, the example-proved effect rethrow, the pending browser runs, and coverage that is reached rather than exhausted. |
 
 ## 16. Ready to commit
 
