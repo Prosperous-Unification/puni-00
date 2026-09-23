@@ -787,3 +787,39 @@ libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 fa
   exited 0 (`slice-3-core-typecheck-final.log`).
 - Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
   (`openspec-validation-baseline.K03o8G.json`, `openspec-validation-final.QQTy1A.json`).
+
+### Plan import, Slice 1 — 2026-09-23
+
+- The whole-core baseline was `C=555` passed, 0 failed across `F=57` files
+  (`slice1-core-baseline.log`). Before implementation, the new module test failed because
+  `./check` did not exist: 0 passed, 1 failed and 1 error (`slice1-module-red.log`). Its first
+  green passed 6 tests with 0 failures and 8 assertions (`slice1-module-green.log`).
+- Exporting `importOptions` made the module suite report 3 passed and 3 failed:
+  `resolve('importOptions')` returned the raw options object, `inspectGraph()` reported the bare
+  `importOptions` key rather than `application.plan-import/importOptions`, and the missing-
+  requirement message lost the module label (`row3-private-binding-exported.patch`,
+  `row3-private-binding-exported.log`). Dropping the module label independently left only the two
+  label assertions failing, for 4 passed and 2 failed (`row4-label-dropped.patch`,
+  `row4-label-dropped.log`). Each passing version was restored byte-for-byte with `cmp`, and the
+  full module suite returned to 6 passed and 0 failed (`row3-restored-green.log`,
+  `row4-restored-green.log`).
+- Returning a structurally assignable object containing `bag` failed the installer-surface test's
+  first assertion: the received keys included `bag`, with 5 passed and 1 failed
+  (`row5-installer-bag-leak.patch`, `row5-installer-bag-leak.log`). Keeping the key list correct
+  but attaching `resolve` to the returned `ImportService` failed the second assertion with
+  `Expected: true`, `Received: false`, also 5 passed and 1 failed
+  (`row6-installer-resolver-leak.patch`, `row6-installer-resolver-leak.log`). Each passing version
+  was restored byte-for-byte with `cmp`, and the module suite passed afterward
+  (`row5-restored-green.log`, `row6-restored-green.log`).
+- Importing `Identity` from `../../http/endpoint` into `plan-import.feature.ts` failed the
+  sideways-route suite with both the module-specifier and identifier violations reaching
+  `http/endpoint.ts`, 0 passed and 1 failed (`row7-http-endpoint-route.patch`,
+  `row7-http-endpoint-route.log`). Importing `AuthenticatedUser` from
+  `../../service/auth.service` independently failed it with only the `service/auth.service.ts`
+  violation and no HTTP entry, also 0 passed and 1 failed (`row8-auth-service-route.patch`,
+  `row8-auth-service-route.log`). Each passing version was restored byte-for-byte with `cmp`, and
+  the boundary suite passed after each restoration (`row7-restored-green.log`,
+  `row8-restored-green.log`).
+- `contract.ts` records preserved K3 debt tracked under task 7.4: direct
+  `scope.stores.projects.create`, `priorityBands.replace`, `capacity.set` and
+  `subtrees.insertSubtree` calls remain inside `ImportService.import`'s own `UnitOfWork.run`.

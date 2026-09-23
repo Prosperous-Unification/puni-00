@@ -64,6 +64,23 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * HTTP-endpoint fault above in place leaves that fault's two violations
  * unchanged, so this second fault is what proves the Realtime Authentication
  * row independently.
+ *
+ * The eighth and ninth rows are preparation 4's other half re-scoped to the
+ * Plan import module's own directory once `import.service.ts` (now
+ * `plan-import.feature.ts`) moved out of `service/` — a directory row, since
+ * the module also holds `prepare-import.ts`, which never carried a principal
+ * type before but should not gain one unnoticed either. Neither of these two
+ * files ever imported `service/auth.service.ts` or `http/endpoint.ts` before
+ * this move; the row is added for the same reason the other module rows were,
+ * not because a violation existed.
+ *
+ * Proof (2026-09-23): importing `type { Identity } from '../../http/endpoint'`
+ * into `plan-import.feature.ts` failed this suite with both the module-specifier
+ * and `Identity` violations reaching `http/endpoint.ts` (0 pass, 1 fail).
+ * Proof (2026-09-23): independently importing `type { AuthenticatedUser } from
+ * '../../service/auth.service'` into the same file failed this suite with only
+ * the `service/auth.service.ts` violation and no `http/endpoint.ts` entry
+ * (0 pass, 1 fail).
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -87,6 +104,14 @@ const routes = [
   {
     reaches: 'http/endpoint.ts',
     from: (path: string) => path.startsWith('module/realtime/'),
+  },
+  {
+    reaches: 'service/auth.service.ts',
+    from: (path: string) => path.startsWith('module/plan-import/'),
+  },
+  {
+    reaches: 'http/endpoint.ts',
+    from: (path: string) => path.startsWith('module/plan-import/'),
   },
 ] as const;
 
