@@ -1,8 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_PERT_WEIGHTS_VIEW, type PriorityBandView } from '@/lib/wbs-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import {
   isSettingsSection,
@@ -15,6 +16,8 @@ import { INITIAL_HIDDEN_COLUMNS } from './table-frame';
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 afterEach(cleanup);
 beforeEach(() => {

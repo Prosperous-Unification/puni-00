@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
 
@@ -17,6 +18,8 @@ import { type SubscriptionHandlers, WbsTable, type WbsTableProps } from './wbs-t
 const hasDom = typeof document !== 'undefined';
 
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 /**
  * How many times the chart has been laid out.

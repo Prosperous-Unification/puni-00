@@ -1083,3 +1083,67 @@ passed: 1 passed, 17 skipped (`new-test-after-proofs.log`).
   the jsdom tier's baseline plus 1 test, plus 0 files), `wbs-fe-01:test:unit`
   (expected unchanged), `tool-devsync:test` with the seven paths staged, and
   the host gate `bin/h2puni-gate.sh <sha>`.
+
+## Packet 050.7f2, slice 1 — the call-time reader, and the fixture in the twenty-one files
+
+Attempt `050-7-f2-delivery-call-sites.1.20260923T233913Z`, starting hash
+`1698ed98bb247062b89e7c156ef8fcada93c1fce`, empty status before any edit
+(`status-before.txt`), `fast-check=4.9.0`. Observed on 2026-09-23 (UTC), inside
+the executor sandbox; every log named below is in the attempt's evidence
+directory.
+
+### Baselines, before any edit
+
+| Check                                           | Result                                   | Log                    |
+| ----------------------------------------------- | ---------------------------------------- | ---------------------- |
+| preferences suite (`src/modules/preferences`)   | 6 files, 41 tests, `status=0`            | `base-preferences.log` |
+| sandbox node suite (the batch README's command) | 46 files, 675 tests, `status=0`          | `base-sandbox.log`     |
+| strict OpenSpec validation                      | `{"items":114,"passed":114,"failed":0}`  | `openspec-base.*.json` |
+| the twenty adopted default-tier files, serially | 20 files, 1204 tests, `status=0` (318 s) | `s1-base-adopted.log`  |
+| zoned config (`TZ=Pacific/Auckland`)            | 2 files, 3 tests, `status=0`             | `s1-base-zoned.log`    |
+| `application-services-context.test.tsx`         | 12 tests, `status=0`                     | `s1-base-context.log`  |
+
+### Contract, red and green
+
+- The new requirement applied first; strict OpenSpec validation stayed
+  `{"items":114,"passed":114,"failed":0}` (`openspec-s1-contract.*.json`).
+- Red, with the four reader examples applied and the context unchanged:
+  `wbs-fe-01:typecheck` `status=1` with one diagnostic,
+  `application-services-context.test.tsx:17:3 - error TS2724: '"./application-services-context"' has no exported member named 'useApplicationServicesReader'. Did you mean 'useApplicationServicesState'?`
+  (`s1-red-typecheck.log`); Vitest `status=1`, `Tests 4 failed | 12 passed (16)`
+  — three on `TypeError: useApplicationServicesReader is not a function`, and
+  `refuses to read below no provider, naming itself` on
+  `AssertionError: expected '(0 , __vite_ssr_import_5__.useApplica…' to be 'useApplicationServicesReader must be …'`
+  (`s1-red-vitest.log`).
+- Green, with the reader, the fixture and the twenty-one adoptions applied:
+  typecheck `status=0`; context 16 tests (12 + 4); adopted 20 files, 1204
+  tests (unchanged, 316 s); zoned 2 files, 3 tests (unchanged); lint
+  `status=0` (`s1-green-*.log`, `s1-lint.log`).
+
+### Negative-proof observations
+
+Each filter matched exactly one test first (`s1-proof-filters.log`). Every
+fault was injected from its fault patch, observed failing, restored from the
+saved bytes and compared with `cmp`, then rerun green (`r1`–`r3` `.patch`,
+`.log`, `.green.log`; `s1-proof-loop.log`).
+
+| Fault                                                  | Named test                                                                                 | Observed (`Tests 1 failed \| 15 skipped (16)` each)                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| r1: the reader answers the state its render saw        | `answers withdrawn the instant a retirement is accepted, while the render still says live` | `AssertionError: expected { Object (status, remembered) } to deeply equal { status: 'withdrawn' }` |
+| r2: the reader is a new function every render          | `keeps its identity across renders of the same provider`                                   | `AssertionError: expected [Function] to be [Function]`                                             |
+| r3: below no provider it falls back to the page's slot | `refuses to read below no provider, naming itself`                                         | `AssertionError: expected null to be 'useApplicationServicesReader must be …'`                     |
+
+After the three `Proof:` comments were added: context 16 tests, preferences 6
+files and 41 tests, sandbox node suite 46 files and 675 tests, all
+`status=0`, unchanged from the baselines (`s1-final-*.log`).
+
+### Slice verification
+
+- Owned-file Prettier, the repository-wide format check and the final strict
+  OpenSpec validation run after this entry was written; their results are in
+  `s1-prettier-check.log`, `s1-format-check.log` and `openspec-s1-final.*.json`.
+- Pending planner verification: `wbs-fe-01:test` (expected: UTC + 4 tests,
+  - 0 files; Auckland zoned unchanged), `wbs-fe-01:test:unit` (unchanged),
+    `wbs-fe-01:build`, `wbs-fe-01:e2e` (no production path changed in this
+    slice), `tool-devsync:test` with the twenty-six paths staged, and the host
+    gate `bin/h2puni-gate.sh <sha>`.

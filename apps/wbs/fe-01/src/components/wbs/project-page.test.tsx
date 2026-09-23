@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { PlanDocumentRequest } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +18,7 @@ import type {
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW, PlanImportRefusalError } from '@/lib/wbs-api';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
@@ -28,6 +29,8 @@ import type { SavedPlansPanelDeps } from './saved-plans-panel';
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 /**
  * A ProjectApi over an in-memory project list. The table's methods answer

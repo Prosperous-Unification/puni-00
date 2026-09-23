@@ -221,6 +221,28 @@ runtime's own saved answer once one is published.
 - **THEN** the retained chooser changes nothing at all, and the storage failure
   propagates unchanged with the displayed choice and the stored bytes untouched
 
+### Requirement: A preference used at an event reaches the runtime live at that event
+
+Delivery code that reads or writes a remembered answer from an event handler, an
+effect or an asynchronous continuation SHALL resolve the page's runtime at the
+instant of that access rather than at the render that preceded it, and SHALL
+reach no runtime other than the one live at that instant. When no runtime is
+live, the access SHALL read, drop and write nothing, SHALL NOT throw, and SHALL
+report through its own return type that the answer is not being remembered. A
+live store's own failure that is not a lifecycle refusal SHALL propagate
+unchanged, with nothing shown that the store did not keep. A consumer that
+keeps a remembered answer on screen through `useApplicationServicesState` MAY
+answer a callback bound under a runtime that has since been replaced by making
+no access at all, as the requirement on degrading visibly already states.
+
+#### Scenario: A callback kept from before a replacement reaches only the replacement
+
+- **WHEN** a handler or continuation that was bound while one runtime was live
+  runs after a later runtime has replaced it, before anything has re-rendered
+- **THEN** any access it makes reaches the replacement's own store and never the
+  replaced runtime's, and a reader kept from that earlier render answers the
+  replacement
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

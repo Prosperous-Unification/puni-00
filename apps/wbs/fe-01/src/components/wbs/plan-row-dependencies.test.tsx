@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import { shortIsoDate } from './short-date';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
@@ -10,6 +11,8 @@ import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 const hasDom = typeof document !== 'undefined';
 
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 // The table remembers each project's open branches and hidden columns in
 // localStorage, so one test's shape would arrive as the next test's start.

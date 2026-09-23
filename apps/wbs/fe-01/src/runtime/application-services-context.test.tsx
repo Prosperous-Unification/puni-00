@@ -1,5 +1,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import fc from 'fast-check';
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
@@ -13,6 +14,7 @@ import {
   ApplicationServicesProvider,
   type ApplicationServicesState,
   applicationServicesStateFor,
+  useApplicationServicesReader,
   useApplicationServicesState,
 } from './application-services-context';
 import { createLifetimeSlot, type LifetimeSlot, TransitionSupersededError } from './lifetime-slot';
@@ -293,6 +295,75 @@ describe('useApplicationServicesState', () => {
       expect(applicationSlot.snapshot().status).toBe('empty');
     },
   );
+});
+
+describe('useApplicationServicesReader', () => {
+  /** The rendered state and the call-time reader, read from one render. */
+  function useRenderedAndReader() {
+    return { rendered: useApplicationServicesState(), read: useApplicationServicesReader() };
+  }
+
+  function wrapperFor(slot: LifetimeSlot<ApplicationServices>) {
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <ApplicationServicesProvider slot={slot}>{children}</ApplicationServicesProvider>;
+    }
+    return Wrapper;
+  }
+
+  itDom('refuses to read below no provider, naming itself', () => {
+    const { result: hook } = renderHook(() => safely(() => useApplicationServicesReader()));
+    expect(hook.current.threw).toBe(
+      'useApplicationServicesReader must be read below ApplicationServicesProvider',
+    );
+  });
+
+  itDom(
+    'answers withdrawn the instant a retirement is accepted, while the render still says live',
+    async () => {
+      const slot = liveSlot();
+      await Promise.resolve();
+      const { result: hook } = renderHook(useRenderedAndReader, { wrapper: wrapperFor(slot) });
+      expectLive(hook.current.rendered);
+
+      const retiring = slot.retire();
+      expect(hook.current.read()).toEqual({ status: 'withdrawn' });
+      expect(hook.current.rendered.status, 'setup: React has not re-rendered yet').toBe('live');
+      await act(async () => {
+        await retiring;
+      });
+    },
+  );
+
+  itDom(
+    'a reader kept from before a replacement answers the replacement, never the runtime it was rendered under',
+    async () => {
+      const slot = liveSlot();
+      await Promise.resolve();
+      const { result: hook } = renderHook(useRenderedAndReader, { wrapper: wrapperFor(slot) });
+      const kept = hook.current.read;
+      const before = expectLive(kept()).remembered;
+
+      await act(async () => {
+        await slot.replace(() => installApplicationRuntime({ openStore: fakeBrowserStorage }));
+      });
+      const replacement = slot.snapshot();
+      if (replacement.status !== 'live') throw new Error('setup: expected live');
+      const answered = expectLive(kept()).remembered;
+      expect(answered).toBe(replacement.services.remembered);
+      expect(answered).not.toBe(before);
+    },
+  );
+
+  itDom('keeps its identity across renders of the same provider', async () => {
+    const slot = liveSlot();
+    await Promise.resolve();
+    const { result: hook, rerender } = renderHook(useRenderedAndReader, {
+      wrapper: wrapperFor(slot),
+    });
+    const first = hook.current.read;
+    rerender();
+    expect(hook.current.read).toBe(first);
+  });
 });
 
 /**

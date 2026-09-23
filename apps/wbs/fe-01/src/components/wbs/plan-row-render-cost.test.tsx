@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import type * as InlineMarkdownModule from './inline-markdown';
 import type * as PlanCellPropsModule from './plan-cell-props';
@@ -14,6 +15,8 @@ import { WbsTable } from './wbs-table';
 const hasDom = typeof document !== 'undefined';
 
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 /**
  * How many `<td>`/`<th>` render boundaries performed their layout work,
