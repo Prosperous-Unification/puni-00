@@ -13,15 +13,44 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  *
  * Each row is a preparation of
  * `docs/superpowers/plans/2026-09-21-batch-4/040-6-backend-module-map.md`: the
- * first three are preparations 4 and 5 (no use case and no retention timer
- * imports Authentication or the HTTP endpoint for a principal), the fourth is
- * preparation 3 (Plan document reads markers through a port, not through the
- * Calendar marker resource).
+ * first two are preparations 4 and 5 (no use case imports Authentication or the
+ * HTTP endpoint for a principal); the third and fourth are the same rule
+ * re-scoped to the Bounded replay sweep module's own directory once its
+ * `retention-timer.ts` and `retention-sweep.ts` (now
+ * `bounded-replay-sweep.feature.ts`) moved out of `use-cases/` and stopped
+ * being covered by the first two rows' `path.startsWith('use-cases/')` — a
+ * directory row rather than the single-file one this replaces, since the
+ * module also holds `retention-job.ts`, which never carried a principal type
+ * but should not gain one unnoticed either; the fifth is preparation 3 (Plan
+ * document reads markers through a port, not through the Calendar marker
+ * resource).
+ *
+ * Proof: importing `type { Identity } from '../../http/endpoint'` into the
+ * module's `retention-timer.ts` failed this suite with both a module-specifier
+ * and an identifier violation — `"module/bounded-replay-sweep/retention-timer.ts:
+ * '../../http/endpoint' reaches http/endpoint.ts"` and `"…: Identity reaches
+ * http/endpoint.ts"` — against an expected empty array, 0 pass and 1 fail
+ * (2026-09-23).
+ * Proof: importing `type { AuthenticatedUser } from '../../service/auth.service'`
+ * into the same file, independently, failed this suite with only
+ * `"module/bounded-replay-sweep/retention-timer.ts: '../../service/auth.service'
+ * reaches service/auth.service.ts"` — no `http/endpoint.ts` entry — against an
+ * expected empty array, 0 pass and 1 fail (2026-09-23). Deleting the new
+ * `service/auth.service.ts` row while leaving the HTTP-endpoint fault above in
+ * place leaves that fault's two violations unchanged, so this second fault is
+ * what proves the Authentication row independently.
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
   { reaches: 'http/endpoint.ts', from: (path: string) => path.startsWith('use-cases/') },
-  { reaches: 'http/endpoint.ts', from: (path: string) => path === 'service/retention-timer.ts' },
+  {
+    reaches: 'service/auth.service.ts',
+    from: (path: string) => path.startsWith('module/bounded-replay-sweep/'),
+  },
+  {
+    reaches: 'http/endpoint.ts',
+    from: (path: string) => path.startsWith('module/bounded-replay-sweep/'),
+  },
   {
     reaches: 'service/calendar-marker.service.ts',
     from: (path: string) => path === 'service/plan-document.ts',

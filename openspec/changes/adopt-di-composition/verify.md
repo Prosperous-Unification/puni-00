@@ -607,3 +607,47 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
   passed, 0 failed); `twilight-burokrat:test` (rehearsed at 764 passed, 0 failed and 6702
   assertions across 39 files); `tool-devsync:test` (rehearsed at 366 passed, 0 failed); and
   `bin/h2puni-gate.sh <sha>` (not run in rehearsal or the executor sandbox).
+
+### Bounded replay sweep, Slice 1 — 2026-09-23
+
+- The whole-core baseline was `C=543` passed, 0 failed across `F=55` files
+  (`slice-1-core-baseline.log`). Before implementation, the new module test failed because
+  `./check` did not exist: 0 passed, 1 failed and 1 error (`slice-1-module-red.log`). Its first
+  green passed 6 tests with 0 failures and 9 assertions (`slice-1-module-green.log`).
+- Returning the bag beside `retention` failed the installer-surface test's first assertion:
+  `Object.keys(exposed)` received `["retention", "bag"]`, with 0 passed, 1 failed and 5 filtered
+  out (`proof-installer-leaks-bag.patch`, `proof-installer-leaks-bag.log`). Keeping the key list
+  correct but attaching `resolve` to the returned timer failed the second assertion with
+  `Expected: true`, `Received: false`, also 0 passed, 1 failed and 5 filtered out
+  (`proof-installer-exposes-resolve.patch`, `proof-installer-exposes-resolve.log`). The
+  `wbs-core:typecheck` target still exited 0 for both mutations
+  (`proof-installer-leaks-bag-typecheck.log`, `proof-installer-exposes-resolve-typecheck.log`).
+  Each saved version was restored byte-for-byte with `cmp`, and the named test passed afterward
+  (`proof-installer-leaks-bag-restored-green.log`,
+  `proof-installer-exposes-resolve-restored-green.log`).
+- Exporting `retentionOptions` made the module suite report 3 passed and 3 failed:
+  `resolve('retentionOptions')` no longer threw, the graph exposed the bare key, and the missing
+  dependency message lost the module label (`proof-private-binding-exported.patch`,
+  `proof-private-binding-exported.log`). Dropping the module label made only the two label tests
+  fail, for 4 passed and 2 failed (`proof-module-label-dropped.patch`,
+  `proof-module-label-dropped.log`). Both files were restored byte-for-byte with `cmp`, and the
+  full module suite returned to 6 passed and 0 failed
+  (`proof-private-binding-exported-restored-green.log`,
+  `proof-module-label-dropped-restored-green.log`).
+- Importing `Identity` from `../../http/endpoint` into the moved timer failed the sideways-route
+  suite with both the module-specifier and identifier violations reaching `http/endpoint.ts`, 0
+  passed and 1 failed (`proof-http-sideways-import.patch`, `proof-http-sideways-import.log`).
+  Importing `AuthenticatedUser` from `../../service/auth.service` independently failed it with
+  only the `service/auth.service.ts` violation and no HTTP entry, also 0 passed and 1 failed
+  (`proof-auth-sideways-import.patch`, `proof-auth-sideways-import.log`). Removing the new
+  Authentication route while the HTTP fault remained left the same two HTTP violations, proving
+  the new row independently (`proof-auth-row-independent.patch`,
+  `proof-auth-row-independent.log`). Every mutation was restored byte-for-byte with `cmp`, and
+  the boundary suite passed after each restoration (`proof-http-sideways-import-restored-green.log`,
+  `proof-auth-sideways-import-restored-green.log`,
+  `proof-auth-row-independent-restored-green.log`).
+- The final focused checks passed 6 module tests and 1 boundary test with 0 failures
+  (`slice-1-module-final.log`, `slice-1-sideways-final.log`). The whole-core closing run delivered
+  the required relative delta, `C+6=549` passed and 0 failed across `F+1=56` files
+  (`slice-1-core-closing.log`). The final `wbs-core` lint and typecheck targets both exited 0
+  (`slice-1-closing-lint-typecheck.log`).
