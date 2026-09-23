@@ -738,3 +738,21 @@ libs/core/src/use-cases/retention-sweep.ts`. The pilot baseline passed 21 tests 
   the required relative delta, `C+6=555` passed and 0 failed with 1,823 assertions across
   `F+1=57` files (`slice-1-core-closing.log`). The final `wbs-core` lint and typecheck targets both
   exited 0 (`slice-1-closing-lint-typecheck.log`).
+
+### Realtime, Slice 2 — 2026-09-23
+
+- Classification baseline `K=95`; rewriting the four retained compatibility-shim rows in place
+  kept the count at 95 (`slice-2-kinds-final.txt`).
+- Core baseline `C=555`: 555 passed, 0 failed and 1,823 assertions across 57 files before
+  composition-root wiring (`slice-2-core-baseline.log`). The closing run remained 555 passed, 0
+  failed and 1,823 assertions across 57 files (`slice-2-core-final.log`).
+- The pre-edit `wbs-domain` unit, lint and type-check gates exited 0
+  (`slice-2-domain-baseline.log`). After the edit, the `wbs-core` and `wbs-domain` unit, lint and
+  type-check gates all exited 0 (`slice-2-core-domain-green.log`).
+- The portable build exited 0, and its bundle contained 1 occurrence of
+  `application.realtime` (`slice-2-portable-build.log`,
+  `slice-2-portable-label-count.txt`).
+- The be-01 type-check exited 0 both before and after the edit
+  (`slice-2-be-typecheck-baseline.log`, `slice-2-be-typecheck-green.log`). The focused be-01
+  shim-chain checks were unchanged at 38 passed, 0 failed and 89 assertions across 4 files
+  (`slice-2-be-focused-baseline.log`, `slice-2-be-focused-green.log`).
