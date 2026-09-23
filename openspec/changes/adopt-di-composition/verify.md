@@ -1216,3 +1216,56 @@ reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`
   directory holds seven files; `nx format:check --all` exited 0 (`slice2-format-check.log`).
 - be-01 has no sideways or type-identity boundary check; the module's K5 compliance (imports
   `node:fs`, `di-bag` and its own files) is read, not watched.
+
+### Solver launcher registration, Slice 3 — 2026-09-23
+
+- The slice started from `base=f3f4562235567684c47f79e051f5a59b1f21fc06` on a clean tree, with
+  `module/solver-launcher/module.ts` last changed by `f3f4562235567684c47f79e051f5a59b1f21fc06`,
+  `M=11` pilot modules, `B=11` boundaries and 7 relationship facts. The frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7` lists
+  `100644 blob cb21f58d1daaa28e7e5159ef038c0a38c4cf190e	apps/be-01/src/service/solver-launcher-process.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0 (`step0-typecheck.log`,
+  `step0-lint-burokrat.log`, `step0-lint-devsync.log`); `pilot-policy.test.ts` passed `T=21` tests
+  with `TF=0` failures and `P=298` `expect()` calls (`step0-pilot.log`);
+  `committed-target-facts.test.ts` passed 2 with `Q=16` `expect()` calls
+  (`step0-targetfacts.log`); the legacy pin passed, 1 pass (`step0-legacy-pin.log`); OpenSpec
+  validation passed `N=114` of 114 with 0 failed (`openspec-validation.1WIrLJ.json`).
+- Parity red (row 25): with only the `modules.json` row added (`slice3-10.14a-modules.patch`),
+  `pins exact pre-index tuples and passes observe lint from external trust` failed at
+  `pilot-policy.test.ts:376`, `Expected: 11`, `Received: 12`; 0 pass, 1 fail, 23 `expect()` calls
+  (`row25-parity-red.log`).
+- Discovered-index red (row 26): with the `policy.json` boundary added
+  (`slice3-10.14b-policy.patch`) and the README not yet in `pilotPaths`, the same test failed at
+  `pilot-policy.test.ts:413`, `Expected: true`, `Received: false`; 0 pass, 1 fail, 27 `expect()`
+  calls (`row26-discovered-index-red.log`).
+- Target fact: with `check.be-01.test` added first in `relationships.json`
+  (`slice3-10.14c-relationships.patch`), `committed-target-facts.test.ts` passed 2 with
+  `Q + 1 = 17` `expect()` calls (`step3-targetfacts-green.log`). Row 27: its `command` changed to
+  `bun test --coverage` (`row27-fact-command.patch`) failed with
+  `- "command": "bun test --coverage --coverage-reporter=lcov"` /
+  `+ "command": "bun test --coverage"` under `check.be-01.test`; 1 pass, 1 fail
+  (`row27-fact-command-red.log`). Restored by `cp`, `cmp` equal, 2 pass, 17 calls
+  (`row27-restored-green.log`).
+- Prose-pin red (row 28): with the `pilotPaths` entry (`slice3-10.14d-pilot-paths.patch`) and the
+  final README, the whole pilot file failed only
+  `refuses prose facts presented as applicable checks`, receiving
+  `applicable check has no executable authority in apps/wbs/be-01/src/module/solver-launcher/README.md: check.be-01.test (external-consumer)`;
+  20 pass, 1 fail, 299 `expect()` calls (`row28-prose-pin-red.log`).
+- Green (row 29): after the prose pin moved (`slice3-10.16-prose-pin.patch`), the whole pilot
+  file passed `T=21` tests, `TF=0` failures and `P + 1 = 299` `expect()` calls
+  (`row29-pilot-green.log`).
+- Legacy pin red, pin unchanged (row 30): `every legacy source occurrence and relevant text family
+is pinned` failed with `historical policy selector or baseline` 49 to 51, `occurrences` 267 to
+  269 and the digest `86721c9c…` to
+  `113681cd7a2c98566f565cca8176456eb50fb453b6fb94ce5bf3f611a0d576bb`, `Expected  - 3` /
+  `Received  + 3`; 0 pass, 1 fail (`row30-legacy-pin-red.log`). After the re-pin
+  (`slice3-10.17-repin.patch`) it passed, 1 pass (`step6-legacy-pin-green.log`); its Proof comment
+  followed (`slice3-10.17-proof.patch`). No other pinned literal moved.
+- Task records (`slice3-10.18-tasks.patch`): 4.1 ticked, 4.2 noted and left unticked, 7.5
+  extended.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`step8-typecheck.log`, `step8-lint-burokrat.log`,
+  `step8-lint-devsync.log`); the legacy pin passed, 1 pass (`step8-legacy-pin.log`); OpenSpec
+  validation passed `N=114` of 114 with 0 failed (`openspec-validation.pA9RJm.json`); `M=12`,
+  `B=12`, 8 relationship facts.

@@ -973,6 +973,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.backend.solver-launcher",
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/be-01/src/module/solver-launcher"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/be-01/src/service/solver-launcher-process.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "cb21f58d1daaa28e7e5159ef038c0a38c4cf190e",
+          "path": "apps/be-01/src/service/solver-launcher-process.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

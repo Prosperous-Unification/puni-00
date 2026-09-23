@@ -128,9 +128,35 @@
 
 ## 4. Plan document and the adapter-side modules
 
-- [ ] 4.1 Plan document as a resource module over the neutral marker read port from 1.3.
+- [x] 4.1 Plan document as a resource module over the neutral marker read port from 1.3. Landed
+      2026-09-23 as `libs/wbs/application/core/src/module/plan-document/`, with
+      `service/plan-document.ts` kept as a compatibility re-export shim, its `kinds.json` row
+      rewritten in place (93 entries, unchanged) and `plan-document.test.ts` moved beside it.
+      `http/project.routes.ts` installs it through `installPlanDocument` where it used to construct
+      `PlanDocumentService`; moving that construction into composition, the map's delivery
+      hazard, is K2 debt tracked under 7.4, not done here. `ports/sideways-type-boundaries.test.ts`
+      carries a module-directory row beside the shim's own. Proof: the module's own tests;
+      negatives for the installer leaking its bag, its resolver leaking through the returned
+      `PlanDocumentService`, the private `planDocumentOptions` binding exported, the label
+      dropped, the supplied clock replaced, and the moved resource importing the Calendar marker
+      service. Wiki registration (7.5) is not landed for this module; see 7.5's own note below.
 - [ ] 4.2 Local solver launcher as a standalone repository module; Supervisor as a repository
-      module with the request/attempt mapper private to it.
+      module with the request/attempt mapper private to it. Local solver launcher landed
+      2026-09-23 as `apps/wbs/be-01/src/module/solver-launcher/`, identified
+      `module.backend.solver-launcher` rather than `local-solver-launcher` because
+      `apps/wbs/be-01/src/production-entrypoint.test.ts` refuses any `local-solver` string in the
+      production bundle and `main.ts` reads the solver version through this module.
+      `service/solver-launcher-process.ts` is a compatibility re-export shim and its `kinds.json`
+      row is rewritten in place (93 entries, unchanged). Proof: the module's own tests; negatives
+      for the installer leaking its bag, its resolver leaking through the returned launcher, the
+      private `launcherSeams` binding exported, the label dropped, the supplied probe bypassed,
+      and the moved file keeping its pre-move source-module depth. **Supervisor is not landed, so
+      not ticked:** `solver-supervisor-spawner.ts`, the mapper that would become its private
+      support, imports `ReservedSpawner` and `ReservedSolverChild` from
+      `optimization-coordinator.ts`, the Optimization feature, which a repository module may not
+      do (K5). Task 1.5 moves those types into the Optimization contract, which does not exist
+      before 3.6, and they still name `@wbs/store-sqlite`'s `SpawnRequest` and
+      `SolverSlotAdmission` and Optimization's private `SolverChildProcess`.
 
 ## 5. The per-admission modules
 
@@ -213,6 +239,16 @@
       alone — the file `kinds.json` classified as the Saved plans feature before the move.
       `save-plan.ts`, `saved-plan-integrity.ts` and `saved-plan-schedule.ts` have no separate
       baseline entry, for the same reason.
+      Landed again 2026-09-23 for the Solver launcher, the first backend module, as
+      `apps/wbs/be-01/src/module/solver-launcher/README.md`, `docs/wiki-policy/modules.json`'s
+      `module.backend.solver-launcher` row and `docs/wiki-policy/policy.json`'s
+      `boundary.backend.solver-launcher`, using a `sourceSelector` bound to the pre-namespacing
+      `apps/be-01/src/service/solver-launcher-process.ts` alone. Its index names
+      `check.be-01.test`, a new `docs/wiki-policy/relationships.json` fact for `wbs-be-01:test`,
+      because the pilot requires every index to name an applicable check.
+      **Not landed for Plan document (task 4.1)**, for Plan import's reason below:
+      `libs/core/src/service/plan-document.ts` was introduced at commit `8c34a33f` and renamed
+      `R100` at `7c5dee9e`, both after the pilot's frozen `sourceRevision`.
       **Not landed for Plan import (task 3.4).** Every existing pilot boundary under the
       namespaced tree is registered through a `sourceSelector` bound to a pre-namespacing
       predecessor file that existed at the pilot's frozen `sourceRevision`. Both of Plan import's
