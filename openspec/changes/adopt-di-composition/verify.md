@@ -861,3 +861,124 @@ libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 fa
 - Strict OpenSpec validation remained `N=114` passed and 0 failed before and after this slice
   (`openspec-validation-baseline.NVABYn.json`,
   `openspec-validation-slice3-final.1YEKZK.json`).
+
+### Authentication, Slice 1 — 2026-09-23
+
+- The slice started from `base=31cf2b4ef6ceba90932d22b09b95bad95209cb4a`. The whole-core baseline
+  was `C=561` passed, 0 failed across `F=58` files (`slice1-core-baseline.log`). Before
+  implementation, the new module test failed because `./check` did not exist: 0 passed, 1 failed
+  and 1 error (`slice1-module-red.log`). Its first green passed 11 tests with 0 failures and 16
+  assertions across 2 files (`slice1-module-green.log`).
+- Exporting `authOptions` alone made host resolution return the raw options and graph inspection
+  report bare `authOptions`: 7 passed and 2 failed, while the independent `throttleOptions`
+  privacy and missing-requirement tests stayed green (`row3-auth-options-exported.patch`,
+  `row3-auth-options-exported.log`). Independently exporting `throttleOptions` made host
+  resolution return its raw options, graph inspection report bare `throttleOptions`, and the
+  missing-requirement message lose the module label: 6 passed and 3 failed, while `authOptions`
+  privacy stayed green (`row3b-throttle-options-exported.patch`,
+  `row3b-throttle-options-exported.log`). Dropping the label independently made graph inspection
+  report both private bindings unlabelled and the missing-requirement message name bare
+  `throttleOptions`: 7 passed and 2 failed (`row4-label-dropped.patch`,
+  `row4-label-dropped.log`). Each passing `module.ts` was restored byte-for-byte with `cmp`, and
+  the module test returned to 9 passed and 0 failed (`row3-restored-green.log`,
+  `row3b-restored-green.log`, `row4-restored-green.log`).
+- Returning a structurally assignable object containing `bag` failed the installer-surface test's
+  first assertion because the received keys gained `bag`, with 8 passed and 1 failed
+  (`row5-installer-bag-leak.patch`, `row5-installer-bag-leak.log`). Keeping the key list correct
+  but attaching `resolve` to the returned `AuthService` failed the second assertion with
+  `Expected: true`, `Received: false`, also 8 passed and 1 failed
+  (`row6-installer-resolver-leak.patch`, `row6-installer-resolver-leak.log`). Each passing
+  `check.ts` was restored byte-for-byte with `cmp`, and the module test returned to 9 passed and 0
+  failed (`row5-restored-green.log`, `row6-restored-green.log`).
+- Removing `NonNullable<AuthServiceOptions['identities']>` from the combined-store requirement
+  made `wbs-core:typecheck` fail with `TS2578: Unused '@ts-expect-error' directive` at the
+  compile-negative fixture and collateral `TS2741: Property 'resolveOidcIdentity' is missing in
+type 'UserStore'` at the `authOptions` factory (`row7-combined-store-weakened.patch`,
+  `row7-combined-store-weakened.log`). Restoring `contract.ts` byte-for-byte with `cmp` returned
+  type-check to exit 0 (`row7-restored-green.log`).
+- Five independent imports failed the sideways-route assertion with 0 passed and 1 failed each:
+  `use-cases/run-command-batch.ts` reaching the Authentication implementation
+  (`row8-use-cases-authentication-route.patch`, `row8-use-cases-authentication-route.log`),
+  `module/bounded-replay-sweep/retention-timer.ts` reaching it
+  (`row9-bounded-replay-authentication-route.patch`,
+  `row9-bounded-replay-authentication-route.log`),
+  `module/realtime/gateway-broadcaster.ts` reaching it
+  (`row10-realtime-authentication-route.patch`, `row10-realtime-authentication-route.log`),
+  `module/plan-import/plan-import.feature.ts` reaching it
+  (`row11-plan-import-authentication-route.patch`,
+  `row11-plan-import-authentication-route.log`), and Authentication's own feature reaching
+  `http/endpoint.ts` by both module specifier and `Identity` identifier
+  (`row12-authentication-http-endpoint-route.patch`,
+  `row12-authentication-http-endpoint-route.log`). Each mutated source was restored
+  byte-for-byte with `cmp`, and the boundary suite returned to 1 passed and 0 failed after each
+  restoration (`row8-restored-green.log`, `row9-restored-green.log`,
+  `row10-restored-green.log`, `row11-restored-green.log`, `row12-restored-green.log`).
+- `AuthenticationRequirements` records preserved K3 debt tracked under task 7.4: `AuthService`
+  still calls the `users.create`, `users.findByUsername`, `users.findById` and
+  `identities.resolveOidcIdentity` repository ports directly. This extraction discloses that debt;
+  it does not claim to close it.
+- The closing whole-core run reached the required relative delta, `C + 9 = 570` passed, 0 failed
+  across `F + 1 = 59` files (`slice1-core-closing.log`). Closing `wbs-core` lint and type-check
+  both exited 0 (`slice1-core-lint-typecheck-closing.log`), and the repository-wide format check
+  exited 0 (`slice1-format-check.log`). Strict OpenSpec validation reported 114 passed and 0
+  failed (`openspec-validation-slice1-final.hz0Hon.json`).
+
+### Authentication, Slice 2 — 2026-09-23
+
+- The slice started from `base=76b49c19ee1009abdfdd3c4de39595bf5a95c13b`. Classification
+  baseline `K=95`; rewriting the two compatibility-shim rows in place kept the count at 95
+  (`slice2-kinds-count.log`).
+- The whole-core baseline was `C=570` passed, 0 failed and 1,843 assertions across `F=59` files
+  (`slice2-core-baseline.log`). The closing run remained 570 passed, 0 failed across 59 files,
+  with the two new assertions raising the assertion count to 1,845
+  (`slice2-core-closing.log`).
+- On the unchanged composition root, the accountless throttle negative made
+  `wbs-core:typecheck` fail with `TS2578: Unused '@ts-expect-error' directive`, one error
+  (`slice2-red-typecheck.log`); the focused runtime test received a real `LoginThrottle` instead
+  of `undefined`, with 0 passed and 1 failed (`slice2-red-accountless-runtime.log`). After moving
+  the throttle to the accountful graph, the composition file passed 8 tests with 0 failures and
+  28 assertions (`slice2-compose-green.log`).
+- The portable build exited 0 before and after the edit
+  (`slice2-portable-build-baseline.log`, `slice2-portable-build-green.log`), and the closing
+  bundle contained 1 occurrence of `application.authentication`
+  (`slice2-portable-grep.log`).
+- The be-01 type-check exited 0 both before and after the edit
+  (`slice2-be-typecheck-baseline.log`, `slice2-be-typecheck-green.log`). The closing `wbs-core`
+  unit, lint and type-check gate also exited 0 (`slice2-core-test-lint-typecheck-green.log`).
+
+### Authentication, Slice 3 — 2026-09-23
+
+- The slice started from `base=a5ae36a3fd1a8c89ab1fca169a3586faad9f9a4c`, with `M=9` mapped
+  modules and `B=9` trusted boundaries. At frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7`, Authentication's selected predecessor was
+  `100644 blob 73c84b20a377349c4fd215cb90a4807ef3370267`
+  `libs/core/src/service/auth.service.ts` (`slice3-step0.log`).
+- Before registration, the whole pilot-policy file passed 21 tests with 0 failures and `P=296`
+  assertions (`slice3-pilot-baseline.log`). Adding only the mapping row failed the exact parity
+  assertion with `Expected: 9`, `Received: 10` (`row14-wiki-policy-parity.patch`,
+  `row14-wiki-policy-parity.log`). After adding the matching boundary while the README was still
+  outside `pilotPaths`, parity and the structural baseline comparison passed, then the discovered
+  index assertion failed with `Expected: true`, `Received: false` after 25 assertions
+  (`row15-wiki-policy-discovered-index.patch`, `row15-wiki-policy-discovered-index.log`). Each
+  fault was restored byte-for-byte with `cmp` and the focused test returned to 1 pass before the
+  registration was reapplied (`row14-restored-green-corrected.log`,
+  `row15-restored-green.log`). With the README and `pilotPaths` entry present, the whole file
+  passed 21 tests with 0 failures and `P + 1 = 297` assertions
+  (`slice3-pilot-registration-green.log`).
+- The unchanged legacy pin passed before registration (`slice3-legacy-pin-baseline.log`). The
+  registration then failed it with `historical policy selector or baseline` moving from 45 to 47,
+  occurrences from 263 to 265, and digest from
+  `a3db8f9766fa58137d1067c35e0628fd9020100aac871e07c0137a28ac772cd4` to
+  `3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62`, with no unclassified
+  entries (`row17-registration-moves-legacy-pin.patch`, `row17-legacy-pin-red.log`). Restoring the
+  policy byte-for-byte returned the pin to 1 pass (`row17-restored-green.log`); reapplying the
+  registration and those exact pin values also passed (`row17-legacy-pin-green.log`).
+- `tool-devsync:typecheck`, `twilight-burokrat:typecheck`,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` all exited 0 before the edits and after
+  them (`slice3-baseline-typechecks.log`, `slice3-baseline-burokrat-lint.log`,
+  `slice3-baseline-devsync-lint.log`, `slice3-final-typechecks.log`,
+  `slice3-final-burokrat-lint.log`, `slice3-final-devsync-lint.log`). `wbs-core:typecheck` also
+  exited 0 after the registration (`slice3-core-typecheck.log`).
+- Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.2MGeen.json`,
+  `openspec-validation-slice3-final.j5lVF0.json`).
