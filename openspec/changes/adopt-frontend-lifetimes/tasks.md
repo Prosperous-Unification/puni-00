@@ -38,8 +38,9 @@
       synchronous `isLive` predicate over the existing `LifetimeSlot.snapshot()`; no
       change to `lifetime-slot.ts`) — see
       `docs/superpowers/plans/2026-09-21-batch-6/050-7-d-withdrawal-and-page-lifecycle.md`.
-- [ ] 5. Page hide, hot-reload disposal and persisted restoration join one
-      application retirement; restoration rebuilds only after it succeeds.
+- [x] 5. Page hide and persisted restoration join one application retirement;
+      restoration rebuilds only after it succeeds; a development edit that reaches
+      the bootstrap is a document replacement that retires through page hide.
       Page hide and persisted restoration are closed by 050-7-e: `pagehide`
       retires the runtime through the slot and invalidates the mounted React
       root; a persisted `pageshow` rebuilds through the same path, joining
@@ -47,11 +48,19 @@
       (the slot's own serialization is the join); a retirement that rejects
       or times out leaves the sanitized fatal page showing, redrawn without a
       second report across a hide-and-restore of an already-fatal page. Hot-
-      reload disposal is this packet's own explicit non-goal after three
-      review rounds each found a further HMR ownership race — see
+      reload disposal was 050-7-e's own explicit non-goal after three review
+      rounds each found a further HMR ownership race — see
       `docs/superpowers/plans/2026-09-21-batch-6/050-7-e-page-lifecycle.md`,
-      sections 1 and 11 — and is handed to 050-7-e2, which checks this box
-      once it lands. A bounded Chromium application-lifecycle case exists
+      sections 1 and 11. It is closed by amendment (Dany, 2026-09-23): an
+      edit that reaches the bootstrap is a document replacement, whose
+      retirement page hide starts before its dispatch returns and nobody
+      awaits, and a gated in-document replacement is not provided — the
+      requirement "A document replacement starts retirement and promises
+      nothing after it", landed by
+      `docs/superpowers/plans/2026-09-21-batch-6/050-7-e2a-hmr-amendment.md`.
+      The held record
+      `docs/superpowers/plans/2026-09-21-batch-6/050-7-e2-hmr-ownership.md`
+      keeps the races any gated mechanism must answer. A bounded Chromium application-lifecycle case exists
       (`e2e/lifetime-bfcache-probe.ts`, `lifetime-bfcache.spec.ts`) and was
       run through the real `wbs-fe-01:e2e` Nx target, `CI=1`, a checked-free
       port shift: one test, passing (section 4.7 has the exact command and

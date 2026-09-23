@@ -1,11 +1,11 @@
-# 050.7 e2 — hot module replacement: held
+# 050.7 e2 — hot module replacement: closed by amendment
 
-|             |                                                                                                                                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **sixth packet, held**                                                                                     |
-| Size class  | — a documentation record; no code, no test, no config change; no executor slice                                                                                                                       |
-| Predecessor | [050.7e](050-7-e-page-lifecycle.md), merged at `e9b7f83b`: page-hide/persisted-restoration retirement, root invalidation, the report/draw split, and section 11's hand-over naming three races        |
-| Status      | **Held.** In-document hot-module replacement of the bootstrap module is deferred. Task 5 stays unchecked. This record is committed by the planner as documentation; nothing is dispatched (section 9) |
+|             |                                                                                                                                                                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **sixth packet, closed by amendment**                                                                                                                                                         |
+| Size class  | — a documentation record; no code, no test, no config change; no executor slice                                                                                                                                                                                                          |
+| Predecessor | [050.7e](050-7-e-page-lifecycle.md), merged at `e9b7f83b`: page-hide/persisted-restoration retirement, root invalidation, the report/draw split, and section 11's hand-over naming three races                                                                                           |
+| Status      | **Closed by amendment (Dany, 2026-09-23).** A development edit to the bootstrap is a document replacement; gated in-document replacement is not provided. [050.7 e2a](050-7-e2a-hmr-amendment.md) lands the amendment and checks task 5. This record keeps the history (sections 3 to 5) |
 
 ## Revision note (round 4: held, not cut to "done")
 
@@ -27,23 +27,25 @@ wait for retirement to complete, does not observe whether it succeeded or failed
 a terminal refusal across the navigation — the new document's own fresh bootstrap runs regardless of
 how the old document's retirement ended (section 3).
 
-**Task 5 (`openspec/changes/adopt-frontend-lifetimes/tasks.md`) stays UNCHECKED.** Closing it requires
-one of two things, neither decided by this packet:
+**The decision (Dany, 2026-09-23): the amendment, not a gated mechanism.** Round 4 left two ways
+to close task 5 (`openspec/changes/adopt-frontend-lifetimes/tasks.md`):
 
-1. **A gated in-document replacement** — an actual mechanism that awaits retirement and refuses
-   replacement on failure or timeout, the way `openspec/changes/adopt-frontend-lifetimes/specs/
-adopt-frontend-lifetimes/spec.md`'s own "A failed or expired retirement refuses the replacement"
-   requirement already demands for every other transition in this codebase. The three races and two
-   abandoned mechanisms three prior rounds reproduced (sections 4.1–4.2) are recorded here as this
-   mechanism's own adversarial history, for whoever attempts it next.
-2. **An amendment** to the existing OpenSpec change and the lifetime map, explicitly distinguishing
-   **document replacement** (today's real behaviour: a full reload, best-effort, no completion proof)
-   from **gated in-document replacement** (what the map's own "Vite HMR disposal uses the same
-   terminal retirement gate" sentence currently promises), stating the former's limits plainly, and
-   validating that amendment before any packet claims the obligation closed under it.
+1. **A gated in-document replacement** — a mechanism that awaits retirement and refuses replacement
+   on failure or timeout, as the spec's "A failed or expired retirement refuses the replacement"
+   requirement demands for every other transition. **Not taken.** It stays not provided, and the
+   three races and two abandoned mechanisms of section 4 remain its adversarial history, for whoever
+   attempts it next.
+2. **An amendment** to the OpenSpec change and the lifetime map, distinguishing **document
+   replacement** (today's real behaviour: a full reload whose retirement `pagehide` starts and nobody
+   awaits) from **gated in-document replacement**, and stating the former's limits plainly.
+   **Taken.** [050.7 e2a](050-7-e2a-hmr-amendment.md) adds the requirement "A document replacement
+   starts retirement and promises nothing after it", scopes "A failed or expired retirement refuses
+   the replacement" to replacements inside one document, amends the map and the slot design, proves
+   the guarantee that remains with a test that fails under five injected faults, and checks task 5.
 
-Choosing between these is a decision for the planner or Dany, not something this packet decides or
-implements.
+Sections 2 to 9 below are round 4's text, unchanged. Where they say task 5 stays unchecked, or quote
+the map's "Vite HMR disposal uses the same terminal retirement gate" sentence, they describe the
+state before the amendment: the map no longer carries that sentence.
 
 ## 2. Read first
 

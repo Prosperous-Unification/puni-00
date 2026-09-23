@@ -50,7 +50,7 @@ Five, and `snapshot()` is correct the instant a request is accepted.
 | Event                                       | Where it comes from                                                    |
 | ------------------------------------------- | ---------------------------------------------------------------------- |
 | `replace(acquire)`                          | bootstrap (the first publication), identity change, selection change   |
-| `retire()`                                  | route unmount, local exit, page hide, hot-reload disposal              |
+| `retire()`                                  | route unmount, local exit, page hide (a document replacement's too)    |
 | retirement settles                          | DI Bag's `close()` resolving                                           |
 | retirement rejects                          | `DiBagCleanupError` — a disposer threw                                 |
 | retirement outruns its budget               | `DiBagCloseCancelledError` — the wait ended, the disposal did not      |
