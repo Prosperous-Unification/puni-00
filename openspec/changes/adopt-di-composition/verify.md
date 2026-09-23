@@ -258,6 +258,7 @@ ports/missing.ts`; 0 passed and 1 failed (`missing-scanned-source.patch`,
 - Exactly 8 test importers now name `ports/project-event.ts`; ESLint sorted those edits and the
   focused boundary check then passed 1 test with 0 failures
   (`slice-5-importers-eslint-fix.log`, `slice-5-boundary-green.log`).
+
 - Replacing `service/working-plan.test.ts`'s port import with a named import from
   `./broadcast` reported `service/working-plan.test.ts: Broadcaster via
 service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 0
@@ -607,3 +608,90 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
   passed, 0 failed); `twilight-burokrat:test` (rehearsed at 764 passed, 0 failed and 6702
   assertions across 39 files); `tool-devsync:test` (rehearsed at 366 passed, 0 failed); and
   `bin/h2puni-gate.sh <sha>` (not run in rehearsal or the executor sandbox).
+
+### Bounded replay sweep, Slice 1 — 2026-09-23
+
+- The whole-core baseline was `C=543` passed, 0 failed across `F=55` files
+  (`slice-1-core-baseline.log`). Before implementation, the new module test failed because
+  `./check` did not exist: 0 passed, 1 failed and 1 error (`slice-1-module-red.log`). Its first
+  green passed 6 tests with 0 failures and 9 assertions (`slice-1-module-green.log`).
+- Returning the bag beside `retention` failed the installer-surface test's first assertion:
+  `Object.keys(exposed)` received `["retention", "bag"]`, with 0 passed, 1 failed and 5 filtered
+  out (`proof-installer-leaks-bag.patch`, `proof-installer-leaks-bag.log`). Keeping the key list
+  correct but attaching `resolve` to the returned timer failed the second assertion with
+  `Expected: true`, `Received: false`, also 0 passed, 1 failed and 5 filtered out
+  (`proof-installer-exposes-resolve.patch`, `proof-installer-exposes-resolve.log`). The
+  `wbs-core:typecheck` target still exited 0 for both mutations
+  (`proof-installer-leaks-bag-typecheck.log`, `proof-installer-exposes-resolve-typecheck.log`).
+  Each saved version was restored byte-for-byte with `cmp`, and the named test passed afterward
+  (`proof-installer-leaks-bag-restored-green.log`,
+  `proof-installer-exposes-resolve-restored-green.log`).
+- Exporting `retentionOptions` made the module suite report 3 passed and 3 failed:
+  `resolve('retentionOptions')` no longer threw, the graph exposed the bare key, and the missing
+  dependency message lost the module label (`proof-private-binding-exported.patch`,
+  `proof-private-binding-exported.log`). Dropping the module label made only the two label tests
+  fail, for 4 passed and 2 failed (`proof-module-label-dropped.patch`,
+  `proof-module-label-dropped.log`). Both files were restored byte-for-byte with `cmp`, and the
+  full module suite returned to 6 passed and 0 failed
+  (`proof-private-binding-exported-restored-green.log`,
+  `proof-module-label-dropped-restored-green.log`).
+- Importing `Identity` from `../../http/endpoint` into the moved timer failed the sideways-route
+  suite with both the module-specifier and identifier violations reaching `http/endpoint.ts`, 0
+  passed and 1 failed (`proof-http-sideways-import.patch`, `proof-http-sideways-import.log`).
+  Importing `AuthenticatedUser` from `../../service/auth.service` independently failed it with
+  only the `service/auth.service.ts` violation and no HTTP entry, also 0 passed and 1 failed
+  (`proof-auth-sideways-import.patch`, `proof-auth-sideways-import.log`). Removing the new
+  Authentication route while the HTTP fault remained left the same two HTTP violations, proving
+  the new row independently (`proof-auth-row-independent.patch`,
+  `proof-auth-row-independent.log`). Every mutation was restored byte-for-byte with `cmp`, and
+  the boundary suite passed after each restoration (`proof-http-sideways-import-restored-green.log`,
+  `proof-auth-sideways-import-restored-green.log`,
+  `proof-auth-row-independent-restored-green.log`).
+- The final focused checks passed 6 module tests and 1 boundary test with 0 failures
+  (`slice-1-module-final.log`, `slice-1-sideways-final.log`). The whole-core closing run delivered
+  the required relative delta, `C+6=549` passed and 0 failed across `F+1=56` files
+  (`slice-1-core-closing.log`). The final `wbs-core` lint and typecheck targets both exited 0
+  (`slice-1-closing-lint-typecheck.log`).
+
+### Bounded replay sweep, Slice 2 — 2026-09-23
+
+- Classification baseline `K=95`; rewriting the three retained compatibility-shim rows in place
+  kept the count at 95 (`slice-2-kinds-final.txt`).
+- Core baseline `C=549`: 549 passed, 0 failed across 56 files before composition-root wiring
+  (`slice-2-core-baseline.log`). The closing run remained 549 passed, 0 failed across 56 files
+  (`slice-2-core-final.log`).
+- Core and domain unit, lint and type-check targets all passed
+  (`slice-2-core-domain-nx.log`).
+- The portable build exited 0, and the bundle contained 1 occurrence of
+  `application.bounded-replay-sweep` (`slice-2-portable-build.log`,
+  `slice-2-portable-label-count.txt`).
+- The focused be-01 shim-chain checks passed 13 tests with 0 failures and 37 assertions
+  (`slice-2-be-focused-tests.log`); be-01 type-check exited 0
+  (`slice-2-be-typecheck.log`).
+
+### Bounded replay sweep, Slice 3 — 2026-09-23
+
+- Wiki-policy baselines were `M=7` mapped modules and `B=7` boundaries. The frozen predecessor
+  tuple was `100644 blob 95be165f6581580326f3e10e40de1304138601d2
+libs/core/src/use-cases/retention-sweep.ts`. The pilot baseline passed 21 tests with 0 failures
+  and `P=294` assertions (`slice-3-pilot-baseline.log`); core type-check and the filtered legacy
+  pin were also green (`slice-3-core-typecheck-baseline.log`,
+  `slice-3-legacy-pin-baseline.log`).
+- With the mapping row added before its boundary, the named pilot test failed at mapping/boundary
+  parity with `Expected: 7`, `Received: 8` (`slice-3-mapping-count-red.log`). Five other cases in
+  the full file also failed because their fresh candidates saw the committed README without its
+  uncommitted module-index metadata. After adding the boundary but before adding the README to
+  `pilotPaths`, the named test failed at discovered-index coverage with `Expected: true`,
+  `Received: false` (`slice-3-discovered-index-red.log`); the same five additional cases failed
+  for the same invisible-README reason. Adding the path returned the whole file to 21 passed, 0
+  failed and `P+1=295` assertions (`slice-3-pilot-green.log`).
+- Registration moved the filtered legacy pin's `historical policy selector or baseline` category
+  from 41 to 43, occurrences from 259 to 261, and digest from
+  `55fafcaf0420dd5b2e0018b0a0dd467b7c3b8fae950eca69e72a99f52364b725` to
+  `fb0d422785019f2351c00082e4533b820b0aca3cce8f9789a348e6167099363e`
+  (`slice-3-legacy-pin-red.log`). The filtered test then passed 1 test with 0 failures and 1
+  assertion (`slice-3-legacy-pin-green.log`).
+- Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.uudZp9.json`, `openspec-validation-final.jklwzl.json`). Final core
+  and wiki-CLI type-checks and wiki source lint exited 0 (`slice-3-core-typecheck-final.log`,
+  `slice-3-wiki-typecheck.log`, `slice-3-wiki-lint-source.log`).

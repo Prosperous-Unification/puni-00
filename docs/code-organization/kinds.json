@@ -390,14 +390,12 @@
     {
       "path": "libs/wbs/application/core/src/service/retention-job.ts",
       "kind": "support",
-      "disposition": "private member of retention-sweep.ts",
-      "rationale": "retention-sweep.ts is its only production importer and uses its two port-backed pruning functions while coordinating the bounded replay sweep"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/retention-timer.ts",
       "kind": "support",
-      "disposition": "periodic retention trigger; move to the bounded replay sweep module",
-      "rationale": "composeServices constructs it to invoke the retentionSweep feature over EventLogStore and PlanEventStore on an injected Intervals schedule and Clock, with lifecycle and failure reporting"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/roll-up.ts",
@@ -515,9 +513,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/retention-sweep.ts",
-      "kind": "feature",
-      "capability": "bounded-replay-sweep",
-      "rationale": "RetentionTimer calls it to coordinate count-bounded EventLogStore pruning and age-bounded PlanEventStore pruning for the bounded replay sweep"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts",

@@ -16,6 +16,8 @@
  */
 export * from './compose';
 export * from './http/import.routes';
+export * from './module/bounded-replay-sweep/contract';
+export * from './module/bounded-replay-sweep/module';
 export * from './module/plan-history/contract';
 export * from './module/plan-history/module';
 export * from './ports/actual-store';
