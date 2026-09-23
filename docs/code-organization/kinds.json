@@ -240,9 +240,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/auth.service.ts",
-      "kind": "feature",
-      "capability": "authentication",
-      "rationale": "composeServices and the backend authentication delivery call it to coordinate user and identity stores with verifier, password, token and clock ports for registration and sign-in"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/broadcast.ts",
@@ -322,8 +321,7 @@
     {
       "path": "libs/wbs/application/core/src/service/login-throttle.ts",
       "kind": "support",
-      "disposition": "authentication admission throttle; move to the authentication module",
-      "rationale": "composeServices constructs it and auth-password-endpoints.ts applies its injected-clock failure windows and bounded admission around password verification"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",

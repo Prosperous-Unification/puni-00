@@ -140,6 +140,14 @@ test('accountless composition has no auth capability', () => {
   // satisfy this negative by making the whole fixture unknown.
   // @ts-expect-error An accountless composition deliberately has no auth capability.
   expect(graph.auth).toBeUndefined();
+  // Proof (2026-09-23): on the unchanged tree (`loginThrottle` still on `CommonServices`,
+  // constructed unconditionally), this directive's own `@ts-expect-error` failed
+  // `wbs-core:typecheck` with `TS2578: Unused '@ts-expect-error' directive` (1 error), and the
+  // runtime assertion below failed with a real `LoginThrottle` instance instead of `undefined`
+  // (0 pass, 1 fail). Moving `loginThrottle` onto `AccountfulServices` and installing it only
+  // in the accountful branch restored both to green.
+  // @ts-expect-error An accountless composition deliberately has no throttle capability either.
+  expect(graph.loginThrottle).toBeUndefined();
 
   const accountRuntime = {
     ...runtime,
@@ -184,6 +192,7 @@ test('accountful composition exposes auth when its source and runtime both offer
   });
 
   expect((await graph.auth.register('account', 'password')).ok).toBe(true);
+  expect(graph.loginThrottle.canAttempt('account', '192.0.2.1')).toBe(true);
 });
 
 describe('composeServices', () => {

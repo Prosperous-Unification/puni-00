@@ -81,6 +81,41 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * '../../service/auth.service'` into the same file failed this suite with only
  * the `service/auth.service.ts` violation and no `http/endpoint.ts` entry
  * (0 pass, 1 fail).
+ *
+ * The tenth through thirteenth rows are the same rule re-scoped to
+ * Authentication's own new real file path: once `auth.service.ts` moved to
+ * `module/authentication/authentication.feature.ts`, the four existing rows
+ * above (targeting the compatibility shim `service/auth.service.ts`) no
+ * longer catch a direct import of the module's own real path, only an import
+ * that still goes through the shim. The fourteenth row is preparation 4's own
+ * half re-scoped to Authentication's own directory (it must not import the
+ * HTTP endpoint for a principal either).
+ *
+ * Proof (2026-09-23): importing `type { AuthenticatedUser } from
+ * '../module/authentication/authentication.feature'` into `use-cases/run-command-batch.ts`
+ * failed this suite with `"use-cases/run-command-batch.ts:
+ * '../module/authentication/authentication.feature' reaches
+ * module/authentication/authentication.feature.ts"` (0 pass, 1 fail) — reproduced
+ * with the four pre-existing `service/auth.service.ts` rows unchanged, proving the gap
+ * they leave.
+ * Proof (2026-09-23): independently importing `type { AuthenticatedUser } from
+ * '../authentication/authentication.feature'` into
+ * `module/bounded-replay-sweep/retention-timer.ts` failed this suite with
+ * `"module/bounded-replay-sweep/retention-timer.ts: '../authentication/authentication.feature'
+ * reaches module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-23): independently importing the same type into
+ * `module/realtime/gateway-broadcaster.ts` failed this suite with
+ * `"module/realtime/gateway-broadcaster.ts: '../authentication/authentication.feature' reaches
+ * module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-23): independently importing the same type into
+ * `module/plan-import/plan-import.feature.ts` failed this suite with
+ * `"module/plan-import/plan-import.feature.ts: '../authentication/authentication.feature'
+ * reaches module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-23): importing `type { Identity } from '../../http/endpoint'` into
+ * `module/authentication/authentication.feature.ts` itself failed this suite with both a
+ * module-specifier and an identifier violation — `"module/authentication/authentication.feature.ts:
+ * '../../http/endpoint' reaches http/endpoint.ts"` and `"…: Identity reaches http/endpoint.ts"`
+ * (0 pass, 1 fail).
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -112,6 +147,26 @@ const routes = [
   {
     reaches: 'http/endpoint.ts',
     from: (path: string) => path.startsWith('module/plan-import/'),
+  },
+  {
+    reaches: 'module/authentication/authentication.feature.ts',
+    from: (path: string) => path.startsWith('use-cases/'),
+  },
+  {
+    reaches: 'module/authentication/authentication.feature.ts',
+    from: (path: string) => path.startsWith('module/bounded-replay-sweep/'),
+  },
+  {
+    reaches: 'module/authentication/authentication.feature.ts',
+    from: (path: string) => path.startsWith('module/realtime/'),
+  },
+  {
+    reaches: 'module/authentication/authentication.feature.ts',
+    from: (path: string) => path.startsWith('module/plan-import/'),
+  },
+  {
+    reaches: 'http/endpoint.ts',
+    from: (path: string) => path.startsWith('module/authentication/'),
   },
 ] as const;
 

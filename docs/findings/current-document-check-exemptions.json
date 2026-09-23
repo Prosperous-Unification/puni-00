@@ -250,6 +250,11 @@
       "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md",
       "reason": "task packet whose verified facts and findings sections cite libs/core/src/service/import.service.ts and libs/core/src/service/prepare-import.ts to prove neither has a predecessor at the pilot's frozen sourceRevision, which is why this packet registers no wiki-pilot boundary",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e4-authentication.md",
+      "reason": "task packet whose verified facts and findings sections cite libs/core/src/service/auth.service.ts and libs/core/src/service/login-throttle.ts to prove both have a predecessor at the pilot's frozen sourceRevision and to bind the module's wiki-pilot boundary to the auth.service.ts predecessor alone",
+      "excuses": ["legacy-root"]
     }
   ]
 }
