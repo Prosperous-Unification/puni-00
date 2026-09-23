@@ -406,8 +406,7 @@
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-integrity.ts",
       "kind": "support",
-      "disposition": "saved-plan integrity policy; move to the saved plan module",
-      "rationale": "SavedPlanService verifies stored bodies through its Digest port, saved-plan routes map its version failure, and the SQLite adapter shares its byte measurement for the saved plan aggregate"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-quota.ts",
@@ -424,14 +423,12 @@
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
       "kind": "support",
-      "disposition": "private member of saved-plan.service.ts",
-      "rationale": "saved-plan.service.ts is its only production importer and uses its detached scheduling derivation; the file's capture helper asks SavedPlanCaptureStore, so it is not pure domain code"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan.service.ts",
-      "kind": "feature",
-      "capability": "wbs-domain",
-      "rationale": "saved-plan routes and the save-plan use case call it to coordinate SavedPlanCaptureStore, SavedPlanStore, Scheduler and Digest for the user-visible save, read, compare, rename and delete behaviour specified by the archived 2026-09-10-scheduler-runtime-port requirement group"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/smoke.service.ts",
@@ -505,9 +502,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/save-plan.ts",
-      "kind": "feature",
-      "capability": "wbs-domain",
-      "rationale": "savedPlanRoutes and the portable composition call it to coordinate ProjectService access, SavedPlanService persistence and Broadcaster publication for one save of the archived 2026-09-10-scheduler-runtime-port saved-plan requirement group"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     }
   ]
 }

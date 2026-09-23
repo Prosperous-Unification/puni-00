@@ -1033,3 +1033,33 @@ reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`
   `slice1-format-check-1.log`).
 - Preserved K3 debt: the module's `plans` and `capture` requirements are repository ports
   (`SavedPlanStore`, `SavedPlanCaptureStore`), tracked under task 7.4.
+
+### Saved plans, Slice 2 — 2026-09-23
+
+- The slice started from `base=1a51cd12a37c5026e5b558a151754ab22f203de4` on a clean tree with slice
+  1's `module/saved-plans/module.ts` present, one `new SavedPlanService({` in `compose.ts` and
+  `K=93` `kinds.json` entries. Before any edit, `wbs-be-01:typecheck` exited 0
+  (`slice2-be01-typecheck-baseline.log`) and the core suite passed `C=571` tests over `F=59` files
+  (`slice2-core-baseline.log`).
+- Red: `wbs-core:build:portable` exited 0 on the unchanged tree and
+  `grep -c "application.saved-plans" dist/libs/wbs/application/core/portable-composition.js`
+  exited 1 with no match (`count=0`): the composition root did not reach the module yet
+  (`slice2-portable-build-baseline.log`, `slice2-portable-bundle-red.txt`).
+- The alias test `composes one Saved plans instance behind both the plans and savedPlans names`
+  passed on the unchanged `compose.ts`, 9 pass, 0 fail (`slice2-alias-test-unchanged-root.log`),
+  because the aliases already shared one instance.
+- Giving `plans` its own `installSavedPlans({...}).savedPlans` in `composeServices` failed the
+  alias test with `expect(received).toBe(expected)` over two distinct `SavedPlanService` objects,
+  0 pass, 1 fail, 8 filtered out, while `wbs-core:typecheck` exited 0
+  (`slice2-row14-duplicate-plans.patch`, `slice2-row14-duplicate-plans.log`,
+  `slice2-row14-typecheck.log`). The saved bytes were copied back, proved with `cmp`, and the named
+  test passed again (`slice2-row14-restored.log`).
+- Green: `compose.ts` installs the module through `installSavedPlans`; `index.ts` exports the
+  module's contract and module; four `kinds.json` rows became shim rows. The rebuilt bundle now
+  contains the label (`count=1`, `slice2-portable-build.log`, `slice2-portable-bundle-green.txt`),
+  and `grep -cF "new SavedPlanService({"` over `compose.ts` exits 1 with no match.
+- Closing: `wbs-core` `test:unit`, lint and type-check exited 0 (`slice2-core-runmany.log`);
+  `compose.test.ts` passed 9 with 0 failures (`slice2-compose-test.log`); `wbs-be-01:typecheck`
+  exited 0 (`slice2-be01-typecheck.log`); the core suite passed `C + 1 = 572` tests over 59 files
+  (`slice2-core-closing.log`); `kinds.json` still holds `K=93` entries and the filesystem
+  substitute for `service-kinds.test.ts` printed `93 []`.

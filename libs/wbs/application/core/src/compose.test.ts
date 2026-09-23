@@ -229,6 +229,19 @@ describe('composeServices', () => {
     expect((await graph.directory.listTeams()).map((team) => team.name)).toEqual(['Platform']);
   });
 
+  /**
+   * `plans` and `savedPlans` are two names for one Saved plans feature identity, never two
+   * instances: the backend module map's "Alias exports must not instantiate duplicates".
+   */
+  test('composes one Saved plans instance behind both the plans and savedPlans names', () => {
+    const { graph } = fixture();
+
+    // Proof (2026-09-23): giving `plans` its own `installSavedPlans({...}).savedPlans` in
+    // `composeServices` left this assertion failing with two distinct `SavedPlanService`
+    // instances (0 pass, 1 fail), with `wbs-core:typecheck` at exit 0.
+    expect(graph.plans).toBe(graph.savedPlans);
+  });
+
   test('denies a foreign save and persists an owner save through independent history', async () => {
     const { graph } = fixture();
     const project = await graph.projects.create('Private', 'owner');
