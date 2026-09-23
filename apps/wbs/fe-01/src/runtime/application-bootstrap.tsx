@@ -234,6 +234,10 @@ export async function bootstrapApplication(
         });
       }
       showFatal(refused.fault);
+      // Proof: on 2026-09-23, also rendering the app tree here (Tree declared
+      // in this block's own scope) failed the extended generated-command
+      // property (slice 2) after 87 tests, seed 20260924, shrunk 4 times:
+      // "the app was drawn while the slot was fatal".
       return;
     }
     // The fence after the await: a retirement — including one a subscriber asked for
@@ -252,6 +256,11 @@ export async function bootstrapApplication(
     // the test that can then break it.
     // Proof: on 2026-09-22, removing this fence let the model draw the app while
     // the slot was `retiring` (1 failed, 11 passed).
+    // Proof: on 2026-09-23, against this file's own extended generated-command
+    // property (slice 2), the same removal ("if (false) return;") failed
+    // "only ever draws the page from the runtime the slot publishes" after 5
+    // tests, seed 20260924, shrunk 4 times: "the app was drawn while the slot
+    // was retiring".
     if (dependencies.slot.snapshot().status !== 'live') return;
     const Tree = dependencies.app;
     rootFor().render(
@@ -325,11 +334,20 @@ export async function bootstrapApplication(
    * `replace` (and never calls `acquire`) through the same terminal check
    * every other request meets, before {@link attempt}'s own `catch` shows the
    * fault this module already subscribed to.
+   * Proof: on 2026-09-23, replacing this body with a direct `acquire()` and
+   * render — bypassing `attempt()` and the slot entirely — failed the
+   * extended generated-command property (slice 2) after 3 tests, seed
+   * 20260924, shrunk 6 times: "the app was drawn while the slot was empty".
    */
   const onPageShow = (event: Event): void => {
     if (!isPersistedPageShow(event)) return;
     void attempt();
   };
+  // Proof: on 2026-09-23, removing this registration failed the extended
+  // generated-command property (slice 2) after 175 tests, seed 20260924,
+  // shrunk 0 times: "a runtime live before a pagehide trigger was still the
+  // one live at the end" — a `pagehide` this module never heard left the
+  // prior runtime published forever.
   dependencies.eventTarget.addEventListener('pagehide', onPageHide);
   dependencies.eventTarget.addEventListener('pageshow', onPageShow);
 

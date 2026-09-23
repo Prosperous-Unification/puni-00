@@ -764,3 +764,50 @@ under this attempt's `evidence/` directory, then was restored byte-for-byte with
 - The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
   targets and the host gate remain pending planner verification under the
   executor sandbox contract.
+
+## Packet 050.7e, slice 2 — generated page-lifecycle interleavings
+
+- Attempt `050-7-e-page-lifecycle.2.20260923T063548Z` started at
+  `3719f864`; its recorded starting inventory was empty.
+- Pre-edit owned runtime/preferences baseline: exit 0, 13 files and 110 tests
+  passed. The sandbox node subset passed 46 files and 674 tests. Strict
+  OpenSpec validation passed its exact predicate with one report, 114 items
+  passed and 0 failed.
+- `application-bootstrap.model.test.tsx` now generates `pagehide`, persisted
+  and non-persisted `pageshow`, and settling, rejecting, and never-settling
+  disposal outcomes over 300 pinned runs. Its four coverage counters were all
+  greater than zero; the focused property passed.
+- The model plus the production example file passed 18 tests. The owned
+  runtime/preferences path remained 13 files and 110 tests, and the sandbox
+  subset remained 46 files and 674 tests, both exactly matching this slice's
+  own baselines. The forced TypeScript build and uncached lint target exited
+  0; lint required no autofix round.
+
+### Negative-proof observations
+
+Every fault below typechecked with exit 0, was saved as a patch and failing log
+under this attempt's `evidence/` directory, then was restored byte-for-byte
+with `cmp` before its focused model test reran green.
+
+| Fault                                      | Observed failure                                                                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drop the post-`replace` live-status fence  | The property failed after 5 tests, seed `20260924`, shrunk 4 times: `the app was drawn while the slot was retiring`; counterexample ended with non-persisted `pageshow` behind listener retirement. |
+| Do not register the `pagehide` listener    | The property failed after 175 tests, seed `20260924`, with no shrink: `a runtime live before a pagehide trigger was still the one live at the end`.                                                 |
+| Let `pageshow` bypass the lifetime slot    | The property failed after 3 tests, seed `20260924`, shrunk 6 times: `the app was drawn while the slot was empty`.                                                                                   |
+| Also render the app from `attempt`'s catch | The property failed after 87 tests, seed `20260924`, shrunk 4 times: `the app was drawn while the slot was fatal`.                                                                                  |
+
+The four adjacent production `Proof:` comments record only these observed
+faults.
+
+### Slice verification
+
+- Strict OpenSpec validation after implementation: exit 0; one report, 114
+  items passed and 0 failed, unchanged from the slice baseline.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target, transforming 993 modules.
+- Prettier write over the three slice-owned files: exit 0; the two source/test
+  files were already formatted and this verification record was formatted.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets and the host gate remain pending planner verification under the
+  executor sandbox contract.
