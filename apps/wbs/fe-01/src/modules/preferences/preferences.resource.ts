@@ -1,4 +1,11 @@
-import type { BrowserStorage, Claim, IsRuntimeLive, Preferences, Remembered } from './contract';
+import {
+  type BrowserStorage,
+  type Claim,
+  type IsRuntimeLive,
+  type Preferences,
+  PreferenceStoreLifecycleError,
+  type Remembered,
+} from './contract';
 
 /**
  * What every member of a {@link Remembered} throws once `isLive()` answers
@@ -75,7 +82,9 @@ export function createPreferences(
   const ensureLive = (): void => {
     // Proof: on 2026-09-22, inverting this condition failed 27 of 44 resource,
     // module and runtime tests; consulting `isLive` without throwing failed 16.
-    if (!isLive()) throw new Error(WITHDRAWN);
+    // Proof: on 2026-09-23, replacing the typed refusal with a plain Error made
+    // 'a withdrawn refusal is a lifecycle refusal of kind withdrawn' fail on expected false to be true.
+    if (!isLive()) throw new PreferenceStoreLifecycleError(WITHDRAWN, 'withdrawn');
   };
 
   /** The three reads every shape shares, given one way of judging what is there. */

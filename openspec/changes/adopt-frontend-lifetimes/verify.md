@@ -871,3 +871,153 @@ observed faults.
   `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the opt-in Chromium case, and the
   host gate remain pending planner verification under the executor sandbox
   contract.
+
+## Packet 050.7f1, slice 1 — typed preference-store lifecycle refusals
+
+- Attempt `050-7-f1-theme-hook-model.1.20260923T192617Z` started at
+  `474be8df0826bdd36ce4003adb1034b880d3fa6a` with an empty working tree and
+  fast-check 4.9.0.
+- Step-0 focused baseline: exit 0, 4 files and 59 tests passed. The theme-only
+  baseline passed 1 file and 17 tests; the preferences baseline passed 6 files
+  and 39 tests; the sandbox node baseline passed 46 files and 674 tests.
+- Strict OpenSpec baseline: exit 0; the strict predicate accepted one report
+  with 114 items passed and 0 failed. After the classification requirement was
+  added first, the same strict check remained at 114 passed and 0 failed.
+- With the new class, predicate and classification tests present but both
+  production throws still plain `Error`s, the preferences red checkpoint exited
+  1: 2 files failed and 4 passed; exactly the 2 new tests failed while 39 passed,
+  both on `expected false to be true`. Typecheck on that red tree exited 0.
+- After both refusal sites used `PreferenceStoreLifecycleError`, the preferences
+  suite exited 0 with 6 files and 41 tests passed, and the sandbox node suite
+  exited 0 with 46 files and 675 tests passed. Typecheck and lint both exited 0.
+
+### Negative-proof observations
+
+Each fault was saved as a patch and failing log under this attempt's
+`evidence/` directory, restored byte-for-byte with `cmp`, and its named test
+rerun green before the adjacent production `Proof:` comment was added.
+
+| Fault                                                                      | Named test and observed failure                                                                                                                                                               | Evidence                                                                                                                                |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the withdrawn `PreferenceStoreLifecycleError` with a plain `Error` | `a withdrawn refusal is a lifecycle refusal of kind withdrawn` exited 1 on `AssertionError: expected false to be true`; 1 failed and 22 skipped, then 1 passed and 22 skipped after restore   | `withdrawn-lifecycle-classification.patch`, `withdrawn-lifecycle-classification.log`, `withdrawn-lifecycle-classification-restored.log` |
+| Replace the revoked `PreferenceStoreLifecycleError` with a plain `Error`   | `a revoked store refuses with a lifecycle refusal of kind revoked` exited 1 on `AssertionError: expected false to be true`; 1 failed and 3 skipped, then 1 passed and 3 skipped after restore | `revoked-lifecycle-classification.patch`, `revoked-lifecycle-classification.log`, `revoked-lifecycle-classification-restored.log`       |
+
+### Slice verification
+
+- Owned-file Prettier write and check exited 0. The repository-wide
+  `NX_DAEMON=false bunx nx format:check --all` exited 0.
+- The final preferences suite exited 0 with 6 files and 41 tests passed; the
+  final sandbox node suite exited 0 with 46 files and 675 tests passed.
+- Final typecheck and lint both exited 0.
+- Final strict OpenSpec validation exited 0; the exact predicate accepted one
+  report with 114 items passed and 0 failed, unchanged from step 0.
+
+### Pending planner verification
+
+- `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+  `wbs-fe-01:e2e`, `tool-devsync:test`, and the host gate were not run in the
+  executor sandbox and remain pending planner verification.
+
+## Packet 050.7f1, slice 2 — runtime-owned theme preferences and model
+
+- Attempt `050-7-f1-theme-hook-model.2.20260923T195454Z` started at
+  `61cb28144ccfdc4bb81566bca88e9bc29088d223` with an empty working tree and
+  fast-check 4.9.0.
+- Step-0 focused baseline: exit 0, 4 files and 59 tests passed. The theme-only
+  baseline passed 1 file and 17 tests; preferences passed 6 files and 41 tests;
+  the sandbox node baseline passed 46 files and 675 tests.
+- Strict OpenSpec baseline and the check after adding the delivery-degradation
+  requirement each exited 0 with one report, 114 items passed and 0 failed.
+- With the model and migrated call-site tests present but `theme.ts` unchanged,
+  the red typecheck exited 1 with 12 errors in the named 3 files. The red focused
+  run exited 1 with 2 files failed and 3 passed, and 4 tests failed while 56
+  passed. After the hook change, typecheck exited 0 and all 5 files and 60 tests
+  passed.
+- Lint exited 0 without an autofix round. Preferences remained at 6 files and
+  41 tests; the sandbox node suite remained at 46 files and 675 tests.
+
+### Negative-proof observations
+
+Every fault used seed 20260925 and 300 runs. It was saved as the named patch and
+log under this attempt's `evidence/` directory, restored byte-for-byte with
+`cmp`, and the model test reran green before the next fault.
+
+| Fault                                                  | Run, shrunk counterexample, and observed failure                                                                                                                     | Evidence                                                                                        |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Replace the theme write with a read                    | Run 14, shrunk 5 times to `chooseWhileAcquiring(A, system), choose(system)` (`AFAAAK:q`): stored bytes in A were `undefined` instead of `"system"`.                  | `s2-a-persistence-removed.patch`, `s2-a-persistence-removed.log`, `s2-a-restored-green.log`     |
+| Disable the superseded-chooser guard                   | Run 14, shrunk 3 times to `retainChooser, chooseWhileAcquiring(A, system), useRetainedChooser(system)` (`ACDI:K`): `persists` was false instead of true.             | `s2-b-superseded-guard.patch`, `s2-b-superseded-guard.log`, `s2-b-restored-green.log`           |
+| Swallow the chooser's ordinary failure                 | Run 42, shrunk once to `replace(denied, settles), choose(system)` (`AAACB:V`): expected the retained `write denied` error but received null.                         | `s2-c-chooser-rethrow.patch`, `s2-c-chooser-rethrow.log`, `s2-c-restored-green.log`             |
+| Remove the resync effect's lifecycle recovery          | Run 1, shrunk twice to `replaceThenRetireFromLayoutEffect(A)` (`BAABDB:q`): the withdrawn `PreferenceStoreLifecycleError` escaped.                                   | `s2-d-effect-catch.patch`, `s2-d-effect-catch.log`, `s2-d-restored-green.log`                   |
+| Remove the withdrawn-state reset                       | Run 1, shrunk 4 times to `replace(A, settles), retire` (`BAAEAK:q`): `persists` was true instead of false.                                                           | `s2-e-withdrawn-branch.patch`, `s2-e-withdrawn-branch.log`, `s2-e-restored-green.log`           |
+| Substitute an ordinary cleanup error for budget expiry | Run 9, shrunk once to `replace(A, never), retire` (`BCAB:K`): the disposal was not the slot's typed budget expiry, and teardown reported the cleanup corruption too. | `s2-f-expiry-classification.patch`, `s2-f-expiry-classification.log`, `s2-f-restored-green.log` |
+| Inject an unrelated teardown failure                   | Run 1, shrunk once to the empty command list (`BAAF:K`): teardown reported the unverified `unrelated teardown failure`.                                              | `s2-g-teardown-accounting.patch`, `s2-g-teardown-accounting.log`, `s2-g-restored-green.log`     |
+
+### Slice verification
+
+- Final focused suite: exit 0, 5 files and 60 tests passed. Final preferences
+  suite: exit 0, 6 files and 41 tests passed. Final sandbox node suite: exit 0,
+  46 files and 675 tests passed.
+- Final typecheck and lint exited 0; lint required no autofix round.
+- Owned-file Prettier write and check exited 0. Repository-wide
+  `NX_DAEMON=false bunx nx format:check --all` exited 0.
+- Final strict OpenSpec validation exited 0; the exact predicate accepted one
+  report with 114 items passed and 0 failed, unchanged from step 0.
+
+### Pending planner verification
+
+- `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+  `wbs-fe-01:e2e`, `tool-devsync:test`, and the host gate were not run in the
+  executor sandbox and remain pending planner verification.
+
+## Packet 050.7f1, slice 3 — named theme transitions and hand-over
+
+- Attempt `050-7-f1-theme-hook-model.3.20260923T201611Z` started at
+  `61473d5b873ea701ca9ddd570c6714065648101a` with an empty working-tree status and
+  fast-check 4.9.0.
+- Step-0 focused baseline (`theme.test.tsx`, `index-bootstrap.test.ts`, `app.test.tsx`,
+  `account-menu.test.tsx`): exit 0, 4 files and 59 tests passed. The theme suite alone
+  passed 1 file and 17 tests; preferences passed 6 files and 41 tests; the sandbox node
+  suite passed 46 files and 675 tests.
+- Strict OpenSpec baseline exited 0 with one report: 114 items, 114 passed, 0 failed.
+- With the ten named examples added, the theme suite exited 0 with 27 tests passed
+  (17 + 10). Each of the ten `-t` titles, read byte for byte from the packet, selected
+  exactly one test before any fault was injected (`s3-filter-check.log`).
+- Typecheck exited 0 and lint exited 0 without an autofix round.
+
+### Negative-proof observations
+
+Each fault was injected into `apps/wbs/fe-01/src/lib/theme.ts` alone, saved as
+`s3-proof-NN.patch` with its failing output as `s3-proof-NN.log` under this attempt's
+`evidence/` directory, restored from the saved passing bytes and verified with `cmp`,
+and its named test reran green (`s3-proof-NN.green.log`) before the next fault. Every
+failing run reported `Tests 1 failed | 26 skipped (27)` and exit 1.
+
+| #   | Fault                                                  | Observed failure                                                                                |
+| --- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| 1   | Lazy initialiser reads the store unguarded             | `TypeError: Cannot read properties of null (reading 'read')`                                    |
+| 2   | Resync effect's withdrawn reset deleted                | `AssertionError: expected 'dark' to be 'system'`                                                |
+| 3   | Resync effect's live branch sets no state              | `AssertionError: expected 'system' to be 'dark'`                                                |
+| 4   | Chooser's whole `try`/`catch` removed                  | `AssertionError: expected [Function] to not throw an error but 'PreferenceStoreLifecycleError…` |
+| 5   | Chooser's null guard drops `setChoice(next)`           | `AssertionError: expected 'system' to be 'light'`                                               |
+| 6   | Superseded-chooser guard disabled                      | `AssertionError: expected 'dark' to be 'light'`                                                 |
+| 7   | Resync effect's whole `try`/`catch` removed            | `AssertionError: expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to be null`  |
+| 8   | Only the chooser's non-lifecycle rethrow removed       | `AssertionError: expected null to be Error: write denied`                                       |
+| 9   | Only the resync effect's non-lifecycle rethrow removed | `AssertionError: expected null to be Error: read denied`                                        |
+| 10  | Resync effect reads without dropping                   | `AssertionError: expected '"midnight"' to be undefined`                                         |
+
+### Slice verification
+
+- Final focused suite: exit 0, 4 files and 69 tests passed (59 + 10). Final theme suite:
+  exit 0, 27 tests. Model test: exit 0, 1 test. Final preferences suite: exit 0, 6 files
+  and 41 tests. Final sandbox node suite: exit 0, 46 files and 675 tests.
+- Final typecheck and lint exited 0.
+- Owned-file Prettier write and check exited 0 with all five files unchanged.
+  Repository-wide `NX_DAEMON=false bunx nx format:check --all` exited 0.
+- Final strict OpenSpec validation exited 0 with one report: 114 items passed and 0
+  failed, unchanged from the step-0 baseline.
+
+### Pending planner verification
+
+- `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`,
+  `tool-devsync:test`, and the host gate were not run in the executor sandbox and remain
+  pending planner verification.

@@ -1,7 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DARK_CLASS, THEME_KEY, useTheme } from '@/lib/theme';
+import { browserStorage } from '@/modules/preferences/browser-storage.repository';
+import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
+import { ApplicationServicesProvider } from '@/runtime/application-services-context';
+import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 
 import { AccountMenu, type AccountMenuProps } from './account-menu';
 
@@ -288,9 +292,40 @@ function ThemeHarness() {
 describe('the theme control, wired to the hook that owns it', () => {
   const answers = ['System', 'Light', 'Dark'] as const;
 
-  beforeEach(() => {
+  /**
+   * A slot `live` over the production installer, its liveness predicate wired
+   * exactly as `acquireApplicationRuntime` wires the real one — not
+   * `installApplicationRuntime()` bare, whose default `isLive` is always `true`.
+   * Rebuilt fresh every test and retired in `afterEach` **after** an explicit
+   * React `cleanup()`: {@link ThemeHarness} calls `useTheme`, which reads
+   * `useApplicationServicesState()` (see `lib/theme.ts`), and this block's own
+   * "after a reload" case persists a choice across an unmount and a fresh mount.
+   */
+  let slot: LifetimeSlot<ApplicationServices>;
+
+  const renderHarness = () =>
+    render(
+      <ApplicationServicesProvider slot={slot}>
+        <ThemeHarness />
+      </ApplicationServicesProvider>,
+    );
+
+  beforeEach(async () => {
     localStorage.removeItem(THEME_KEY);
     document.documentElement.classList.remove(DARK_CLASS);
+    slot = createLifetimeSlot<ApplicationServices>(50);
+    await slot.replace(() =>
+      installApplicationRuntime({
+        openStore: browserStorage,
+        isLive: () => slot.snapshot().status === 'live',
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    // React cleanup first, so nothing renders against a slot already retiring.
+    cleanup();
+    await slot.retire();
   });
 
   const open = () => {
@@ -301,7 +336,7 @@ describe('the theme control, wired to the hook that owns it', () => {
     screen.getByRole('menuitemradio', { name }).getAttribute('aria-checked') ?? '';
 
   itDom('reports the answer just chosen, for every answer, and only that one', () => {
-    render(<ThemeHarness />);
+    renderHarness();
     open();
 
     for (const answer of answers) {
@@ -316,14 +351,14 @@ describe('the theme control, wired to the hook that owns it', () => {
 
   itDom('reports the answer that was chosen, and only that one, after a reload', () => {
     for (const answer of answers) {
-      const first = render(<ThemeHarness />);
+      const first = renderHarness();
       open();
       fireEvent.click(screen.getByRole('menuitemradio', { name: answer }));
       first.unmount();
 
       // A reload is a fresh mount: the menu must read the stored answer, not a
       // default, and report it.
-      const second = render(<ThemeHarness />);
+      const second = renderHarness();
       open();
       for (const offered of answers) {
         expect(checkedOf(offered), `${offered} after ${answer} was chosen and reloaded`).toBe(
