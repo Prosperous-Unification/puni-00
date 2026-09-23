@@ -52,7 +52,14 @@
 
 ## 3. The remaining process modules
 
-- [ ] 3.1 Bounded replay sweep, borrowing the timer `bootBe01` starts and stops.
+- [x] 3.1 Bounded replay sweep, borrowing the timer `bootBe01` starts and stops. Proof: the
+      module's own tests; negatives: the installer leaking its bag, the private
+      `retentionOptions` binding exported, and the label dropped. Landed 2026-09-23 as
+      `libs/wbs/application/core/src/module/bounded-replay-sweep/`, with
+      `use-cases/retention-sweep.ts`, `service/retention-timer.ts` and `service/retention-job.ts`
+      kept as compatibility re-export shims, and `docs/code-organization/kinds.json`'s three rows
+      for them rewritten in place (95 entries, unchanged) rather than added or removed, because
+      `tools/tool-devsync/src/service-kinds.ts`'s `SERVICE_ROOTS` does not scan `src/module`.
 - [ ] 3.2 Realtime, implementing the neutral event port.
 - [ ] 3.3 Saved plans, absorbing project and admission checks and the publication after save,
       rename and delete.
@@ -112,4 +119,14 @@
       bag under is explicitly **not** checked by this task: four review rounds against a
       machine-checked version of that specific claim each found a new compile- or runtime-valid
       bypass (040.6 packet D's "Deferred: label agreement"), so that check is a later task with its
-      own design, not part of 7.5. Each future module ticks 7.5 for its own directory.
+      own design, not part of 7.5. Each future module ticks 7.5 for its own directory. Landed
+      again 2026-09-23 for Bounded replay sweep as
+      `libs/wbs/application/core/src/module/bounded-replay-sweep/README.md`,
+      `docs/wiki-policy/modules.json`'s `module.application.bounded-replay-sweep` row and
+      `docs/wiki-policy/policy.json`'s `boundary.application.bounded-replay-sweep`, using a
+      `sourceSelector` bound to the pre-move `libs/core/src/use-cases/retention-sweep.ts` alone —
+      the file `kinds.json` classified `capability: bounded-replay-sweep` before the move.
+      `retention-timer.ts` and `retention-job.ts` have no separate baseline entry: 7.5's guarantee
+      names one predecessor per module directory, not one per file it holds, exactly as Plan
+      history's single `history.service.ts` predecessor did not separately name a
+      `contract.ts`/`module.ts`/`check.ts` predecessor either.

@@ -1,5 +1,7 @@
 import type { AuthenticatedUser, Logger } from '@wbs/contracts';
 
+import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
+import type { RetentionTimer } from './module/bounded-replay-sweep/retention-timer';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import type { Clock } from './ports/clock';
@@ -24,7 +26,6 @@ import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
 import { ReplayBuffer } from './service/replay-buffer';
 import { ReplayOrchestrator } from './service/replay-orchestrator';
-import { RetentionTimer } from './service/retention-timer';
 import { SavedPlanService } from './service/saved-plan.service';
 import { StepService } from './service/step.service';
 import { WorkItemService } from './service/work-item.service';
@@ -237,9 +238,8 @@ export function composeServices(
       buffer,
       ...(shared.replayMaxEvents === undefined ? {} : { maxEvents: shared.replayMaxEvents }),
     }),
-    retention: new RetentionTimer({
-      principal: { kind: 'internal' },
-      repo: source.stores.eventLog,
+    retention: installBoundedReplaySweep({
+      eventLog: source.stores.eventLog,
       maxPerSubscription: shared.replayMaxPerSubscription,
       planEvents: source.stores.planEvents,
       planEventRetentionDays: shared.planEventRetentionDays,
@@ -257,7 +257,7 @@ export function composeServices(
       onError: (error) => {
         shared.logger.error({ err: error }, 'retention sweep failed');
       },
-    }),
+    }).retention,
     loginThrottle: new LoginThrottle({
       now: () => runtime.clock.now(),
       maxConcurrent: shared.maxConcurrentLogins ?? 8,
