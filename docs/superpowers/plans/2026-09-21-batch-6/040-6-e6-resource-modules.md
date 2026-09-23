@@ -26,7 +26,7 @@ module, its `kinds.json` rows, its wiki row and its legacy re-pin (49, 267, `867
 already in the tree this packet starts from. Slice 1:
 
 ```sh
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-e6-resource-modules 1 <packet-containing commit sha> --batch batch-6 --slice-note 'reviewed base <sha>' --preserve evidence
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-e6-resource-modules 1 <packet-containing commit sha> --batch batch-6 --require-ancestor ef0ad26a47821a20a2f2098b6475aad18116a39e --slice-note 'reviewed base <sha>' --preserve evidence
 ```
 
 Slices 2 and 3 resume the clone the previous slice built:
@@ -132,8 +132,10 @@ one repository module that exports the adapted `ReservedSpawner`. Measured at `2
 2. Cutting that edge is exactly task 1.5 (map preparation 7): "Move the Optimization spawn and child
    interfaces into the Optimization contract". That contract is the Optimization module's
    `contract.ts` (task 3.6), which does not exist, and be-01 has no neutral port location.
-3. The types are not yet neutral either: `ReservedSpawnRequest` extends `SpawnRequest` from
-   `@wbs/store-sqlite/optimized-schedule-cache` and names `SolverSlotAdmission` from
+3. The types are not yet neutral either: `ReservedSpawnRequest` extends `SpawnRequest`, which
+   `optimization-coordinator.ts:40-41` imports from be-01's one-line re-export
+   `apps/wbs/be-01/src/repository/optimized-schedule-cache.ts:1` of
+   `@wbs/store-sqlite/optimized-schedule-cache`, and names `SolverSlotAdmission` from
    `repository/optimization-admission`, and `ReservedSolverChild` extends `SolverChildProcess` from
    `service/solver-child-lifecycle.ts`, Optimization's private support. A "type-only half" moved
    now would be a new port file carrying adapter-row types, moved again by 3.6.
@@ -227,7 +229,7 @@ exact listings of section 10, and restored with `cp` + `cmp` before the next. Ro
 | 28  | slice 3, fact, `pilotPaths` entry and final README added, prose pin unchanged                                   | none; the registration alone moves it                                                                          | the whole `pilot-policy.test.ts`                                                                                             | `refuses prose facts presented as applicable checks` fails: `Received: "applicable check has no executable authority in apps/wbs/be-01/src/module/solver-launcher/README.md: check.be-01.test (external-consumer)"`; `20 pass`, `1 fail`, `299 expect() calls` |
 | 29  | slice 3 green                                                                                                   | 10.16's pin moved                                                                                              | the whole `pilot-policy.test.ts`                                                                                             | `21 pass`, `0 fail`, `299 expect() calls` (baseline `21`/`0`/`298`: one more per-boundary assertion)                                                                                                                                                           |
 | 30  | slice 3, legacy pin unchanged, after registration                                                               | none                                                                                                           | `every legacy source occurrence and relevant text family is pinned`                                                          | `historical policy selector or baseline` `49` → `51`, `occurrences` `267` → `269`, digest `86721c9c…` → `113681cd7a2c98566f565cca8176456eb50fb453b6fb94ce5bf3f611a0d576bb`; `Expected - 3` / `Received + 3`; `0 pass`, `1 fail`                                |
-| 31  | **evidence**: the final README with `"applicableChecks": []` and a `checks` inapplicability reason, no new fact | none                                                                                                           | `pins exact pre-index tuples …`                                                                                              | `pilot-policy.test.ts:415` (`applicableChecks.length > 0`): `Expected: true`, `Received: false` — why slice 3 declares `check.be-01.test`                                                                                                                      |
+| 31  | **evidence**: the final README with `"applicableChecks": []` and a `checks` inapplicability reason, no new fact | none                                                                                                           | `pins exact pre-index tuples …`                                                                                              | `pilot-policy.test.ts:414` (`applicableChecks.length > 0`): `Expected: true`, `Received: false` — why slice 3 declares `check.be-01.test`                                                                                                                      |
 
 Each module assertion has its own mutation: rows 5 and 6 (and 18 and 19) are independent, the label
 fault leaving the private-binding test green; rows 8 and 9 (21 and 22) split the installer test's
@@ -412,8 +414,11 @@ done
 ```
 
 Expect `exit=0` in every log. Call the be-01 unit pass count `E` and file count `EF` (observed
-`519` over 49) and the two database files' pass count `D` and file count `DF` (observed `13` over 2;
-`services.db.test.ts` reads the real solver source module through the shim). Expect
+`519` over 49) and the two database files' pass count `D` and file count `DF` (observed `13` over 2 in
+the author's own worktree, **not** inside a sandbox; `services.db.test.ts` reads the real solver
+source module through the shim). If the pair cannot run in your sandbox, record its output, mark
+it "pending planner verification" with the author's observed `13` over 2, and continue without
+comparing `D` in step 10. Expect
 `main count=0 (grep exit 1)` and `dev/main count=0 (grep exit 1)` (row 15). This slice ends at
 `E + 7` over `EF + 1` and at `D` over `DF`.
 
@@ -526,9 +531,12 @@ committed, so the module's files are in `HEAD`.
    10.17's first diff (the numbers), rerun → `1 pass`, and then apply 10.17's second diff (the Proof
    comment). No other pinned literal in that file may move; if one does, stop.
 7. Apply 10.18 (`tasks.md`: tick 4.1, note 4.2 **unticked**, extend 7.5).
-8. Rerun step 0's run-many typecheck, `twilight-burokrat:lint:source`, `tool-devsync:lint` and the
-   whole `repo-namespacing-handoff.test.ts` (`bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`)
-   → exit 0 (the pilot suite already reran green in step 5); the OpenSpec block → `passed` `N`,
+8. Rerun step 0's run-many typecheck, `twilight-burokrat:lint:source` and `tool-devsync:lint` →
+   exit 0; rerun the legacy-pin test alone,
+   `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts -t "every legacy source occurrence"`
+   → `1 pass`. Do **not** run that file whole: its `production index checker resolves current
+Markdown links` test spawns `check-indexes working`, which writes Git objects, so the whole file
+   is planner-only (section 8). The pilot suite already reran green in step 5; the OpenSpec block → `passed` `N`,
    `failed` `0`.
 9. Append `### Solver launcher registration, Slice 3 — <date>` to `verify.md`: `base`, `M`, `B`,
    the frozen tuple, rows 25-30 with evidence basenames, `T`/`TF`/`P` and `Q` before and after, the
@@ -545,17 +553,18 @@ the six non-README files and `applicableChecks` `["check.be-01.test"]`, and
 
 ## 8. Planner-only checks
 
-| Check                                                                                                                                                                                                        | Why the planner's                                                                                 | Observed on the rehearsed tree                                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Moved-code identity: for each file of 10.2 and 10.9, copy the `$base` version of the source path to a scratch file, apply that file's section of the diff to it, and `cmp` it with the committed module file | Proves the moved bodies differ only in 10.2's import lines and 10.9's import line and one literal | the extraction script of section 15 does the same; all four equal                           |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, staged                                                                                 | Writes Git objects; `service-kinds.test.ts` needs the staged tree                                 | slices 1, 2 and 3: `366` tests over 25 files, exit 0                                        |
-| `(cd apps/wbs/be-01 && bun test)` (the whole `wbs-be-01:test` command, without coverage)                                                                                                                     | Opens SQLite databases and spawns processes as a whole target                                     | `1090 pass`, `1 skip` over 91 files at `2ae5cfde`; `1097 pass`, `1 skip` over 92 at slice 3 |
-| `apps/wiki/cli` `trusted-policy.test.ts`, `relocation-activation.test.ts` and `committed-target-facts.test.ts` together                                                                                      | They read `relationships.json`                                                                    | `88 pass`, `0 fail` at slice 3                                                              |
-| `check-indexes committed` on slices 1 and 3                                                                                                                                                                  | Index validation, not MOD-LAYOUT                                                                  | slice 3: 16 indexes, both new modules with six members each, no review debt                 |
-| `NX_DAEMON=false bunx nx run wbs-core:test:portable`                                                                                                                                                         | Playwright; no browser in the sandbox                                                             | **not run**; the portable bundle does not import Plan document                              |
-| `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `:test:package`                                                                                                                                     | Whole listener suite; package suite listens                                                       | **not run** (only the pilot, target-facts, trusted-policy and relocation files were run)    |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                   | Host-wide heavy lock                                                                              | **not run**                                                                                 |
-| Rows 8, 9, 21 and 22's typecheck on the mutated `check.ts`                                                                                                                                                   | Still required of the executor                                                                    | exit 0 all four times in the author's rehearsal                                             |
+| Check                                                                                                                                                                                                        | Why the planner's                                                                                                                         | Observed on the rehearsed tree                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Moved-code identity: for each file of 10.2 and 10.9, copy the `$base` version of the source path to a scratch file, apply that file's section of the diff to it, and `cmp` it with the committed module file | Proves the moved bodies differ only in 10.2's import lines and 10.9's import line and one literal                                         | the extraction script of section 15 does the same; all four equal                                               |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, staged                                                                                 | Writes Git objects; `service-kinds.test.ts` needs the staged tree                                                                         | slices 1, 2 and 3: `366` tests over 25 files, exit 0                                                            |
+| `(cd apps/wbs/be-01 && bun test)` (the whole `wbs-be-01:test` command, without coverage)                                                                                                                     | Opens SQLite databases and spawns processes as a whole target                                                                             | `1090 pass`, `1 skip` over 91 files at `2ae5cfde`; `1097 pass`, `1 skip` over 92 at slice 3                     |
+| `apps/wiki/cli` `trusted-policy.test.ts`, `relocation-activation.test.ts` and `committed-target-facts.test.ts` together                                                                                      | They read `relationships.json`                                                                                                            | `88 pass`, `0 fail` at slice 3                                                                                  |
+| `check-indexes committed` on slices 1 and 3                                                                                                                                                                  | Index validation, not MOD-LAYOUT                                                                                                          | slice 3: 16 indexes, both new modules with six members each, no review debt                                     |
+| `NX_DAEMON=false bunx nx run wbs-core:test:portable`                                                                                                                                                         | Playwright; no browser in the sandbox                                                                                                     | **not run**; the portable bundle does not import Plan document                                                  |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `:test:package`                                                                                                                                     | Whole listener suite; package suite listens                                                                                               | **not run** (only the pilot, target-facts, trusted-policy and relocation files were run)                        |
+| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`, the whole file                                                                                                                         | Its `production index checker resolves current Markdown links` test spawns `check-indexes working` (`git add --update`, `git write-tree`) | **pending planner verification**; the author observed `15 pass`, `0 fail` on the slice-3 tree outside a sandbox |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                   | Host-wide heavy lock                                                                                                                      | **not run**                                                                                                     |
+| Rows 8, 9, 21 and 22's typecheck on the mutated `check.ts`                                                                                                                                                   | Still required of the executor                                                                                                            | exit 0 all four times in the author's rehearsal                                                                 |
 
 This table supplements the batch-1 README's "Integration verification" matrix.
 
@@ -2096,7 +2105,9 @@ all 15 diffs applied in slice order; every slice tree equals its rehearsal commi
 The rehearsal commits are throwaway: slice 1 `e2102e14`, slice 2 `de09e84c`, slice 3 `dd7e7667`,
 on branch `rehearse/040-6-e6-resource-modules` above `2ae5cfde` (not pushed; kept only as the
 comparison target of the script above). None of them touches `verify.md`, which only the executor
-writes.
+writes. Their subjects are rehearsal labels, and slice 1's differs from section 7's (`… and install
+it through its installer`); the planner commits every slice with section 7's subject, and only the
+trees are compared.
 
 ## 16. Deferred: label agreement
 
