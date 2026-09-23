@@ -707,3 +707,167 @@ resource/runtime examples and once against the real-slot model.
 - The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
   targets and the host gate remain pending planner verification under the
   executor sandbox contract.
+
+## Packet 050.7e, slice 1 — page-lifecycle production wiring and examples
+
+- Attempt `050-7-e-page-lifecycle.1.20260923T055822Z` started at
+  `c9384a8cd21e2370126f1e9e8cdd3535b1d36ade`; its recorded starting inventory
+  was empty.
+- Pre-edit owned runtime/preferences baseline: exit 0, 13 files and 99 tests
+  passed. The sandbox node subset passed 46 files and 674 tests. Strict OpenSpec
+  validation passed its exact predicate with one report, 114 items passed and 0
+  failed.
+- Tests and caller compatibility fields landed before production code. Against
+  the unchanged bootstrap, `application-bootstrap.test.tsx` exited 1 with 11
+  failed and 6 passed; the first failure expected the slot to be `empty` after
+  `pagehide` but received `live`.
+- After production wiring, the four focused files passed 20 tests. The owned
+  runtime/preferences path passed 13 files and 110 tests, exactly 11 more than
+  the slice baseline. The sandbox subset remained 46 files and 674 tests. The
+  forced TypeScript build and uncached lint target exited 0.
+
+### Negative-proof observations
+
+Every fault below typechecked with exit 0, was saved as a patch and failing log
+under this attempt's `evidence/` directory, then was restored byte-for-byte with
+`cmp` before its named test was rerun green.
+
+| Fault                                                              | Observed failure                                                                                                       |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Drop root invalidation from `pagehide`                             | The named assertion received 0 unmounts instead of 1; additional root-invalidation cases failed too.                   |
+| Drop retirement initiation from `pagehide`                         | The named assertion received slot status `live` instead of `empty`; 11 tests failed and 6 passed.                      |
+| Treat every `pageshow` as persisted                                | `a non-persisted pageshow does not rebuild` failed; 1 failed and 16 passed.                                            |
+| Drop controlled supersession handling                              | `draws nothing at all when a newer request wins the slot` failed because the slot was `empty`; 1 failed and 16 passed. |
+| Drop the slot subscription                                         | `shows the fatal page when a retirement fails, without republishing anything` failed; 1 failed and 16 passed.          |
+| Drop console-report deduplication                                  | `says nothing raw about a refused start` received 2 reports instead of 1; 5 failed and 12 passed.                      |
+| Drop fatal-draw deduplication                                      | The first-runtime refusal rendered 2 trees instead of 1; 3 failed and 14 passed.                                       |
+| Keep `drawnFault` across root invalidation                         | The already-fatal hide/restore case rendered 2 trees instead of 3; 1 failed and 16 passed.                             |
+| Collapse reported and drawn fault state                            | The already-fatal hide/restore case reported the same fault twice; 1 failed and 16 passed.                             |
+| Mount a root on every draw                                         | The retirement-failure case mounted at `live` and `fatal` instead of only `live`; 1 failed and 16 passed.              |
+| Mount the root eagerly                                             | The first root was mounted while the slot was `empty` instead of `live`; 7 failed and 10 passed.                       |
+| Swallow an unexpected non-fatal retirement refusal                 | The retained refusal test observed 0 surfaced rejections instead of 1.                                                 |
+| Replace DI Bag close with a same-type rejection that skips cleanup | `the other owned disposer never ran` received false instead of true.                                                   |
+
+### Slice verification
+
+- Strict OpenSpec validation after implementation: exit 0; one report, 114
+  items passed and 0 failed, unchanged from the slice baseline.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0; Nx
+  successfully ran the uncached lint target without an autofix round.
+- Prettier write over the six slice-owned files: exit 0; five source/test files
+  were already formatted and this verification record was formatted.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` and its model test remain
+  unchanged.
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets and the host gate remain pending planner verification under the
+  executor sandbox contract.
+
+## Packet 050.7e, slice 2 — generated page-lifecycle interleavings
+
+- Attempt `050-7-e-page-lifecycle.2.20260923T063548Z` started at
+  `3719f864`; its recorded starting inventory was empty.
+- Pre-edit owned runtime/preferences baseline: exit 0, 13 files and 110 tests
+  passed. The sandbox node subset passed 46 files and 674 tests. Strict
+  OpenSpec validation passed its exact predicate with one report, 114 items
+  passed and 0 failed.
+- `application-bootstrap.model.test.tsx` now generates `pagehide`, persisted
+  and non-persisted `pageshow`, and settling, rejecting, and never-settling
+  disposal outcomes over 300 pinned runs. Its four coverage counters were all
+  greater than zero; the focused property passed.
+- The model plus the production example file passed 18 tests. The owned
+  runtime/preferences path remained 13 files and 110 tests, and the sandbox
+  subset remained 46 files and 674 tests, both exactly matching this slice's
+  own baselines. The forced TypeScript build and uncached lint target exited
+  0; lint required no autofix round.
+
+### Negative-proof observations
+
+Every fault below typechecked with exit 0, was saved as a patch and failing log
+under this attempt's `evidence/` directory, then was restored byte-for-byte
+with `cmp` before its focused model test reran green.
+
+| Fault                                      | Observed failure                                                                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drop the post-`replace` live-status fence  | The property failed after 5 tests, seed `20260924`, shrunk 4 times: `the app was drawn while the slot was retiring`; counterexample ended with non-persisted `pageshow` behind listener retirement. |
+| Do not register the `pagehide` listener    | The property failed after 175 tests, seed `20260924`, with no shrink: `a runtime live before a pagehide trigger was still the one live at the end`.                                                 |
+| Let `pageshow` bypass the lifetime slot    | The property failed after 3 tests, seed `20260924`, shrunk 6 times: `the app was drawn while the slot was empty`.                                                                                   |
+| Also render the app from `attempt`'s catch | The property failed after 87 tests, seed `20260924`, shrunk 4 times: `the app was drawn while the slot was fatal`.                                                                                  |
+
+The four adjacent production `Proof:` comments record only these observed
+faults.
+
+### Slice verification
+
+- Strict OpenSpec validation after implementation: exit 0; one report, 114
+  items passed and 0 failed, unchanged from the slice baseline.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target, transforming 993 modules.
+- Prettier write over the three slice-owned files: exit 0; the two source/test
+  files were already formatted and this verification record was formatted.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets and the host gate remain pending planner verification under the
+  executor sandbox contract.
+
+## Packet 050.7e, slice 3 — bounded Chromium application lifecycle and hand-over
+
+- Attempt `050-7-e-page-lifecycle.3.20260923T070723Z` started at
+  `ef83ebf5c3bd868b88db5c457d0cecaa023cfc89`; its recorded starting inventory
+  was empty.
+- The pre-edit sandbox node subset passed 46 files and 674 tests. Strict
+  OpenSpec validation passed its exact predicate with one report, 114 items
+  passed and 0 failed.
+- The three `chromium-regular` configuration cases landed before the config
+  change. Against the unchanged config, the focused run exited 1 with two
+  failures and one pass: the opt-in project was absent and the default project
+  did not exclude the bfcache spec. Vitest 5 also reported the file's other 11
+  cases as skipped by the filter.
+- The opt-in `chromium-regular` project now selects only the bfcache spec under
+  the regular Chromium channel, while the default project excludes that spec.
+  The browser probe drives the real application bootstrap and records both
+  acquisition count and service usability across a persisted restoration.
+- Task 5 remains unchecked: page hide and persisted restoration are closed by
+  this packet, while hot-reload disposal is handed to 050-7-e2 with the state-
+  machine requirements in the packet's sections 1 and 11.
+
+### Negative-proof observations
+
+Every fault below was saved as a patch and failing log under this attempt's
+`evidence/` directory, then restored byte-for-byte with `cmp` before its named
+test reran green.
+
+| Fault                                           | Observed failure                                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
+| Make the regular Chromium project unconditional | The default-gate case received 2 projects instead of the required 1. |
+| Remove the default project's bfcache exclusion  | The exclusion assertion received `false` instead of `true`.          |
+| Corrupt the regular project's test match        | The bfcache-spec match assertion received `false` instead of `true`. |
+| Remove the regular Chromium channel             | The channel assertion received `undefined` instead of `chromium`.    |
+
+The four adjacent configuration-test `Proof:` comments record only these
+observed faults.
+
+### Slice verification
+
+- Forced TypeScript build: exit 0 with no diagnostics.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0; Nx
+  successfully ran the uncached lint target without an autofix round.
+- The focused `chromium-regular` configuration block passed all 3 selected
+  tests; Vitest 5 reported the file's other 11 tests as skipped by the filter.
+- Strict OpenSpec validation after implementation: exit 0; one report, 114
+  items passed and 0 failed, unchanged from the slice baseline.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target.
+- The post-edit sandbox node subset passed 46 files and 674 tests, exactly
+  matching this slice's own baseline.
+- Prettier write over the six slice-owned files: exit 0; the four source/test
+  files and `tasks.md` were already formatted, and this verification record was
+  formatted. `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` and its model test remain
+  unchanged.
+- The whole `playwright-config.test.ts`, `tool-devsync:test`,
+  `wbs-fe-01:test:unit`, `wbs-fe-01:test`, the opt-in Chromium case, and the
+  host gate remain pending planner verification under the executor sandbox
+  contract.
