@@ -88,19 +88,19 @@ adds a test that watches that.
 
 Every line was read, or the command run, in a private worktree of `474be8df` on 2026-09-23.
 
-| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Evidence                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| The moved files' edges: `saved-plan.service.ts` imports four ports, the four domain-move files and the two private support files; `save-plan.ts` imports `AuthenticatedUser` from `@wbs/contracts`, `Broadcaster` from `ports/project-event.ts`, `ProjectService` (a resource, a permitted feature-to-resource edge) and the service; `saved-plan-schedule.ts` imports `NO_DEADLINES`/`slicesOf` from `service/work-item.service.ts` (resource). No file imports Authentication or `http/endpoint.ts`.                                                                     | `grep -n "from '"` over each file.                                |
-| `use-cases/save-plan.ts` has **no** test file of its own. Its callers are tested by `use-cases/admission.test.ts:12` and `compose.test.ts:19`, both through the relative path, and `testing/portable-composition.ts:10` bundles it. `saved-plan-integrity.ts` has `saved-plan-integrity.test.ts` (9 tests); `saved-plan-schedule.ts` has none in core (be-01's `saved-plan-schedule*.db.test.ts` import it through the be-01 shim).                                                                                                                                        | `ls`; `git grep -n "save-plan'"`.                                 |
-| Every be-01 saved-plan shim (`apps/wbs/be-01/src/service/saved-plan*.ts`) is `export * from '@wbs/core';` — the whole barrel, not a deep import — so no be-01 file names a moved path.                                                                                                                                                                                                                                                                                                                                                                                     | `head -1` of each.                                                |
-| Deep importers of the four old paths inside core: `service/saved-plan.service.ts` ← `http/saved-plan.routes.ts:16`, `index.ts:105`, `service/service-boundaries.test.ts:41`; `service/saved-plan-integrity.ts` ← `http/saved-plan.routes.ts:17`, `index.ts:108`; `service/saved-plan-schedule.ts` ← `index.ts:111`, `service/service-boundaries.test.ts:40`; `use-cases/save-plan.ts` ← `http/saved-plan.routes.ts:18`, `index.ts:119`, `compose.test.ts:19`, `use-cases/admission.test.ts:12`, `testing/portable-composition.ts:10`. So all four stay as real shim files. | `git grep` at `474be8df`.                                         |
-| `compose.ts:216` builds `SavedPlanService` once and `compose.ts:244-245` hands the same object out as `plans` and `savedPlans`, both on `CommonServices` (`compose.ts:140-141`). No other construction exists in core.                                                                                                                                                                                                                                                                                                                                                     | Read.                                                             |
-| **K3 debt exists and is disclosed, not claimed absent.** `SavedPlanServiceOptions.plans` is `SavedPlanStore` (`ports/saved-plan-store.ts`) and `.capture` is `SavedPlanCaptureStore` (`ports/saved-plan-capture-store.ts`), both repository ports the service calls directly. `contract.ts` (section 10.4) records it and points at task 7.4.                                                                                                                                                                                                                              | `saved-plan.service.ts:302-325`.                                  |
-| `kinds.json` has `K=95` entries at `474be8df`. The rows this packet touches: be-01 `saved-plan-retry.ts` (line 163) and core `saved-plan-retry.ts` (line 424), removed in slice 1; core `saved-plan-integrity.ts`, `saved-plan-schedule.ts`, `saved-plan.service.ts` and `use-cases/save-plan.ts`, rewritten to shim rows in slice 2. After slice 1, 93.                                                                                                                                                                                                                   | `python3` count; `grep -n`.                                       |
-| The frozen-revision predecessor exists: `git ls-tree 7851161bf96312750d07b933ca5d42b75ce575c7 -- libs/core/src/service/saved-plan.service.ts` prints `100644 blob f3a12fbc600b51ff3794e3593c4a6634960198d9`. `use-cases/save-plan.ts`, `saved-plan-integrity.ts` and `saved-plan-schedule.ts` also existed then (blobs `040f8b3e…`, `6170e328…`, `bbf298eb…`) but, following Realtime's and Authentication's precedent (one predecessor per module directory), only the feature file is named.                                                                             | `git ls-tree` at the frozen revision.                             |
-| The wiki pilot holds `M=10` modules and `B=10` boundaries. `module.domain.saved-plan` already exists but covers `libs/wbs/domain/domain/src/saved-plan` and binds `libs/domain/src/saved-plan`; the new `module.application.saved-plans` overlaps neither. Its sorted place is between `module.application.realtime` and `module.application.use-cases`.                                                                                                                                                                                                                   | `python3` over `docs/wiki-policy/modules.json` and `policy.json`. |
-| The legacy pin (`tools/tool-devsync/src/repo-namespacing-handoff.test.ts:612-823`) stands at `historical policy selector or baseline` 47, occurrences 265, digest `3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62`; slice 3's registration moves it (section 6, row 18).                                                                                                                                                                                                                                                                                 | Read; the test passes at `474be8df`.                              |
-| The sideways checker does not follow a shim's re-export on its module-specifier route, but its identifier route does: a named `AuthenticatedUser` import through `service/auth.service` is reported twice, once against the shim and once against `module/authentication/authentication.feature.ts`. A **bare** side-effect import reports only the specifier, so section 6 rows 9-11 use bare imports to prove each new row alone.                                                                                                                                        | Rehearsed; both forms' output kept in section 6.                  |
+| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Evidence                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| The moved files' edges: `saved-plan.service.ts` imports four ports, the four domain-move files and the two private support files; `save-plan.ts` imports `AuthenticatedUser` from `@wbs/contracts`, `Broadcaster` from `ports/project-event.ts`, `ProjectService` (a resource, a permitted feature-to-resource edge) and the service; `saved-plan-schedule.ts` imports `NO_DEADLINES`/`slicesOf` from `service/work-item.service.ts` (resource). No file imports Authentication or `http/endpoint.ts`.                                                                                               | `grep -n "from '"` over each file.                                |
+| `use-cases/save-plan.ts` has **no** test file of its own. Its callers are tested by `use-cases/admission.test.ts:12` and `compose.test.ts:19`, both through the relative path, and `libs/wbs/application/core/testing/portable-composition.ts:10` bundles it. `saved-plan-integrity.ts` has `saved-plan-integrity.test.ts` (9 tests); `saved-plan-schedule.ts` has none in core (be-01's `saved-plan-schedule*.db.test.ts` import it through the be-01 shim).                                                                                                                                        | `ls`; `git grep -n "save-plan'"`.                                 |
+| Every be-01 saved-plan shim (`apps/wbs/be-01/src/service/saved-plan*.ts`) is `export * from '@wbs/core';` — the whole barrel, not a deep import — so no be-01 file names a moved path.                                                                                                                                                                                                                                                                                                                                                                                                               | `head -1` of each.                                                |
+| Deep importers of the four old paths inside core: `service/saved-plan.service.ts` ← `http/saved-plan.routes.ts:16`, `index.ts:105`, `service/service-boundaries.test.ts:41`; `service/saved-plan-integrity.ts` ← `http/saved-plan.routes.ts:17`, `index.ts:108`; `service/saved-plan-schedule.ts` ← `index.ts:111`, `service/service-boundaries.test.ts:40`; `use-cases/save-plan.ts` ← `http/saved-plan.routes.ts:18`, `index.ts:119`, `compose.test.ts:19`, `use-cases/admission.test.ts:12`, `libs/wbs/application/core/testing/portable-composition.ts:10`. So all four stay as real shim files. | `git grep` at `474be8df`.                                         |
+| `compose.ts:216` builds `SavedPlanService` once and `compose.ts:244-245` hands the same object out as `plans` and `savedPlans`, both on `CommonServices` (`compose.ts:140-141`). No other construction exists in core.                                                                                                                                                                                                                                                                                                                                                                               | Read.                                                             |
+| **K3 debt exists and is disclosed, not claimed absent.** `SavedPlanServiceOptions.plans` is `SavedPlanStore` (`ports/saved-plan-store.ts`) and `.capture` is `SavedPlanCaptureStore` (`ports/saved-plan-capture-store.ts`), both repository ports the service calls directly. `contract.ts` (section 10.4) records it and points at task 7.4.                                                                                                                                                                                                                                                        | `saved-plan.service.ts:302-325`.                                  |
+| `kinds.json` has `K=95` entries at `474be8df`. The rows this packet touches: be-01 `saved-plan-retry.ts` (line 163) and core `saved-plan-retry.ts` (line 424), removed in slice 1; core `saved-plan-integrity.ts`, `saved-plan-schedule.ts`, `saved-plan.service.ts` and `use-cases/save-plan.ts`, rewritten to shim rows in slice 2. After slice 1, 93.                                                                                                                                                                                                                                             | `python3` count; `grep -n`.                                       |
+| The frozen-revision predecessor exists: `git ls-tree 7851161bf96312750d07b933ca5d42b75ce575c7 -- libs/core/src/service/saved-plan.service.ts` prints `100644 blob f3a12fbc600b51ff3794e3593c4a6634960198d9`. `use-cases/save-plan.ts`, `saved-plan-integrity.ts` and `saved-plan-schedule.ts` also existed then (blobs `040f8b3e…`, `6170e328…`, `bbf298eb…`) but, following Realtime's and Authentication's precedent (one predecessor per module directory), only the feature file is named.                                                                                                       | `git ls-tree` at the frozen revision.                             |
+| The wiki pilot holds `M=10` modules and `B=10` boundaries. `module.domain.saved-plan` already exists but covers `libs/wbs/domain/domain/src/saved-plan` and binds `libs/domain/src/saved-plan`; the new `module.application.saved-plans` overlaps neither. Its sorted place is between `module.application.realtime` and `module.application.use-cases`.                                                                                                                                                                                                                                             | `python3` over `docs/wiki-policy/modules.json` and `policy.json`. |
+| The legacy pin (`tools/tool-devsync/src/repo-namespacing-handoff.test.ts:612-823`) stands at `historical policy selector or baseline` 47, occurrences 265, digest `3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62`; slice 3's registration moves it (section 6, row 18).                                                                                                                                                                                                                                                                                                           | Read; the test passes at `474be8df`.                              |
+| The sideways checker does not follow a shim's re-export on its module-specifier route, but its identifier route does: a named `AuthenticatedUser` import through `service/auth.service` is reported twice, once against the shim and once against `module/authentication/authentication.feature.ts`. A **bare** side-effect import reports only the specifier, so section 6 rows 9-11 use bare imports to prove each new row alone.                                                                                                                                                                  | Rehearsed; both forms' output kept in section 6.                  |
 
 ## 4. Task 1.7 resolution — delete, not wire
 
@@ -128,7 +128,9 @@ allowed to succeed" as a fresh save, and the scenario at lines 190-194 describes
 finds. Both are permissions, not obligations to ship a retry helper, and both hold with the helper
 gone: `SavedPlanService.save` takes its read snapshot and `created_at` at its own top on every call,
 so any later save is a fresh one. `openspec/changes/saved-plans/design.md:130-133` likewise speaks of
-"a bounded retry the caller **may** make".
+"a bounded retry the caller **may** make". **Residual:** after the deletion, the scenario
+`a retry after the rival committed` (`spec.md:190-194`) is backed by no test; a caller's retry is a
+fresh `save`, so the scenario holds by construction and stays in the spec as the caller's permission.
 
 **Why not wire it.** Wiring would make a contended save wait up to five seconds in the save route
 before answering `snapshot_busy`: an observable latency and behaviour change, which the repository
@@ -140,7 +142,9 @@ records the retry as landed, with a negative proof in the deleted database test.
 "Withdrawn" note to that task (section 10.15) rather than leaving it claiming code that no longer
 exists. Task 4.5's other half, `busy_timeout` 0 and the typed refusal, is unchanged and still tested
 by `libs/wbs/adapters/store-sqlite/src/saved-plan-busy.db.test.ts` and
-`saved-plan-concurrency.db.test.ts`.
+`saved-plan-concurrency.db.test.ts`. Neither exercises a save that acquires after the rival
+committed, so the deleted database test was that scenario's only test; the "Withdrawn" note says so,
+and says that `saved-plans/tasks.md:228-230` and `design.md:130-133` still describe the bounded retry.
 
 **Authorised deletions (slice 1, filesystem `rm`, the planner stages them):**
 
@@ -462,7 +466,8 @@ committed, so the module's files are in `HEAD`.
    literal in that file may move; if one does, stop.
 5. Apply 10.15's two diffs (`adopt-di-composition/tasks.md`: tick 1.7, note 3.3 **unticked**, extend
    7.5; `saved-plans/tasks.md`: the 4.5 "Withdrawn" note).
-6. Rerun step 0's four `tool-devsync`/`twilight-burokrat` checks → exit 0; `wbs-core:typecheck` →
+6. Rerun step 0's run-many typecheck, `twilight-burokrat:lint:source`, `tool-devsync:lint` and the
+   legacy-pin test → exit 0 (the pilot suite already reran green in step 3); `wbs-core:typecheck` →
    exit 0; the OpenSpec block → `passed` `N`, `failed` `0`.
 7. Append `### Saved plans, Slice 3 — <date>` to `verify.md`: `base`, `M`, `B`, the frozen tuple,
    rows 15-18 with evidence basenames, `T`/`TF`/`P` before and after, the four checks, `N`. Then
@@ -471,9 +476,9 @@ committed, so the module's files are in `HEAD`.
 Planner commit: `docs(core): register Saved plans' sealed module in the wiki content-review pilot`.
 
 **Planner-only, after this commit.** `bun run apps/wiki/cli/src/cli.ts check-indexes committed <repository> <slice 3 commit>`
-is **index validation** (`checkIndexes`, `apps/wiki/cli/src/cli.ts:178`): it shows the index is
+is **index validation** (`checkIndexes`, imported at `apps/wiki/cli/src/cli.ts:19` and called at `:186`): it shows the index is
 discovered with its members. It is **not** the `MOD-LAYOUT` rule (`moduleLayoutObservations`,
-`apps/wiki/cli/src/rules/kinds.ts:136`), which it does not invoke. Rehearsed against the throwaway slice-3 commit `033d8a1e`: 14 indexes, one with `"moduleId": "module.application.saved-plans"`, all nine non-README files as `members`, the six declared consumers, and no `reviewDebt` entry naming it.
+`apps/wiki/cli/src/rules/kinds.ts:137`), which it does not invoke. Rehearsed against the throwaway slice-3 commit `39ae91f8`: 14 indexes, one with `"moduleId": "module.application.saved-plans"`, all nine non-README files as `members`, the six declared consumers, and no `reviewDebt` entry naming it.
 
 ## 8. Planner-only checks
 
@@ -485,6 +490,7 @@ discovered with its members. It is **not** the `MOD-LAYOUT` rule (`moduleLayoutO
 | `NX_DAEMON=false bunx nx run wbs-core:test:portable`                                                                                                                                                    | Playwright; no browser in the sandbox                                  | **not run**                                                                                           |
 | `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `:test:package --skip-nx-cache`                                                                                                                | Whole listener suite; package suite listens                            | **not run** (only `pilot-policy.test.ts` was run, section 6)                                          |
 | `bin/h2puni-gate.sh <sha>`                                                                                                                                                                              | Host-wide heavy lock                                                   | **not run**                                                                                           |
+| Rows 6 and 7's `wbs-core:typecheck` on the mutated `check.ts`                                                                                                                                           | Still required of the executor (slice 1 step 8)                        | exit 0 both times in the author's rehearsal; review round 1 did **not** replay these two runs         |
 | `check-indexes committed` (slice 3 note)                                                                                                                                                                | Index validation, not MOD-LAYOUT                                       | 14 indexes; `module.application.saved-plans` with 9 members and 6 consumers; no review debt naming it |
 
 This table supplements the batch-1 README's "Integration verification" matrix.
@@ -853,9 +859,9 @@ export * from '../module/saved-plans/saved-plan-schedule';
  * Compatibility re-export: the save-plan use case moved into the Saved plans module.
  *
  * Kept because `http/saved-plan.routes.ts`, `use-cases/admission.test.ts`,
- * `compose.test.ts` and `testing/portable-composition.ts` import this relative
- * path directly and `@wbs/core`'s barrel still deep-imports it. It goes when
- * every importer names the module.
+ * `compose.test.ts` and `libs/wbs/application/core/testing/portable-composition.ts`
+ * import this relative path directly and `@wbs/core`'s barrel still
+ * deep-imports it. It goes when every importer names the module.
  */
 export * from '../module/saved-plans/save-plan';
 ```
@@ -1031,7 +1037,7 @@ The applicable check is the `wbs-core:test` target declared in
 
 ## Consumers
 
-`libs/wbs/application/core/src/compose.ts` installs the module;
+`libs/wbs/application/core/src/compose.ts` will install the module (slice 2);
 `libs/wbs/application/core/src/index.ts`,
 `libs/wbs/application/core/src/service/saved-plan.service.ts`,
 `libs/wbs/application/core/src/service/saved-plan-integrity.ts`,
@@ -1624,7 +1630,7 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
 diff --git a/openspec/changes/saved-plans/tasks.md b/openspec/changes/saved-plans/tasks.md
 --- a/openspec/changes/saved-plans/tasks.md
 +++ b/openspec/changes/saved-plans/tasks.md
-@@ -266,6 +266,12 @@
+@@ -266,6 +266,17 @@
        `inputBytes).toContain('wi-3')`, whose received value listed `wi-1` and
        `wi-2` alone. So the two weaker assertions cannot stand in for it, which
        is exactly the claim.
@@ -1633,7 +1639,12 @@ diff --git a/openspec/changes/saved-plans/tasks.md b/openspec/changes/saved-plan
 +      test and be-01's re-export shim were deleted. The `busy_timeout` 0
 +      refusal above is unchanged, and a caller that retries sends a new save,
 +      which captures a fresh read snapshot by construction. The retry negative
-+      described above was deleted with its test.
++      described above was deleted with its test. The delta spec's scenario
++      `a retry after the rival committed` (`specs/wbs-domain/spec.md:190-194`)
++      is now backed by no test: a caller's retry is a fresh `save`, so it holds
++      by construction and stays in the spec as the caller's permission. The
++      first lines of this task and `design.md:130-133` still describe the
++      bounded retry loop.
  - [x] 4.6 Quota. Each of the three limits refuses **before** any row is written,
        naming which limit was hit; the count and total are read in the same
        transaction that would write. Two negatives, both watched: move the check
@@ -1781,12 +1792,12 @@ applied 02
 applied 01
 applied 03
 applied 04
-tree equals 1c8c28db
+tree equals 54bb3b45
 applied 05
 applied 06
 applied 07
 applied 08
-tree equals dcb2fc69
+tree equals da2dceb3
 applied 09
 applied 10
 applied 11
@@ -1794,11 +1805,11 @@ applied 12
 applied 13
 applied 14
 applied 15
-tree equals 033d8a1e
+tree equals 39ae91f8
 all 15 diffs applied in slice order; every slice tree equals its rehearsal commit
 ```
 
-The rehearsal commits were throwaway: slice 1 `1c8c28db`, slice 2 `dcb2fc69`, slice 3 `033d8a1e`, on branch `rehearse/040-6-e5-saved-plans` (not pushed; kept only as the comparison target of the script above).
+The rehearsal commits were throwaway: slice 1 `54bb3b45`, slice 2 `da2dceb3`, slice 3 `39ae91f8`, on branch `rehearse/040-6-e5-saved-plans-r2` (not pushed; kept only as the comparison target of the script above). They replace the first revision's `1c8c28db`, `dcb2fc69` and `033d8a1e` on branch `rehearse/040-6-e5-saved-plans`, which is kept unchanged; review round 1's fixes changed three committed texts (the `use-cases/save-plan.ts` shim comment, the slice-1 README's Consumers line and the saved-plans 4.5 note), so the comparison target had to change with them.
 
 ## 16. Deferred: label agreement
 
