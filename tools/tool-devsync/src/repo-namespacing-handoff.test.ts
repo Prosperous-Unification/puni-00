@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 45,
+      'historical policy selector or baseline': 47,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -812,8 +812,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `libs/core/src/use-cases/replay.ts` this module was extracted from; raised `historical policy
     // selector or baseline` from 43 to 45 and occurrences from 261 to 263, no unclassified entries
     // (2026-09-23).
-    digest: 'a3db8f9766fa58137d1067c35e0628fd9020100aac871e07c0137a28ac772cd4',
-    occurrences: 263,
+    // Proof: registering `module.application.authentication` added its
+    // `boundary.application.authentication`'s `sourceSelector` and one `baselineEntries` path, both
+    // naming the pre-move `libs/core/src/service/auth.service.ts` this module was extracted from;
+    // raised `historical policy selector or baseline` from 45 to 47 and occurrences from 263 to 265,
+    // no unclassified entries (2026-09-23).
+    digest: '3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62',
+    occurrences: 265,
     unclassified: [],
   });
 });

@@ -88,8 +88,24 @@
       returned `ImportService`, the private `importOptions` binding exported, and the label
       dropped. Wiki registration (task 7.5) is **not** landed for this module; see 7.5's own note
       below.
-- [ ] 3.5 Authentication, absorbing the login throttle and covering the password-only and OIDC
-      graphs; the accountless graph exports neither.
+- [x] 3.5 Authentication, absorbing the login throttle and covering the password-only and OIDC
+      graphs; the accountless graph exports neither. Landed 2026-09-23 as
+      `libs/wbs/application/core/src/module/authentication/`, with `service/auth.service.ts` and
+      `service/login-throttle.ts` kept as compatibility re-export shims, and
+      `docs/code-organization/kinds.json`'s two rows for them rewritten in place (95 entries,
+      unchanged). `loginThrottle` moved off `CommonServices` onto `AccountfulServices`, alongside
+      `auth`, so the accountless graph exports neither, watched by a new `@ts-expect-error`
+      negative in `compose.test.ts`. The module's own `AuthenticationRequirements['account']`
+      requires `users: UserStore & OidcIdentityStore` unconditionally — the map's own "verifier
+      without identity store is unrepresentable" requirement — watched by a compile-negative
+      fixture; `identities` is always derived from that combined store, never supplied separately.
+      `auth` and `loginThrottle` remain two current compatibility values rather than one
+      `Authentication` feature contract; the map's own single-contract target and the delivery-side
+      throttle-orchestration move (K2) are not this task's scope. Proof: negatives for the
+      installer leaking its bag, its resolver leaking through the returned `AuthService`, each of
+      the two private bindings (`authOptions`, `throttleOptions`) exported independently, and the
+      label dropped. Wiki registration (task 7.5) IS landed for this module; see 7.5's own note
+      below.
 - [ ] 3.6 Optimization, with its repository ports and event projections.
 
 ## 4. Plan document and the adapter-side modules
@@ -160,7 +176,18 @@
       bound to the pre-move `libs/core/src/use-cases/replay.ts` alone — the file `kinds.json`
       classified `capability: realtime` before the move. `gateway-broadcaster.ts`,
       `replay-buffer.ts` and `replay-orchestrator.ts` have no separate baseline entry, for the same
-      reason. **Not landed for Plan import (task 3.4).** Every existing pilot boundary under the
+      reason. Landed again 2026-09-23 for Authentication as
+      `libs/wbs/application/core/src/module/authentication/README.md`,
+      `docs/wiki-policy/modules.json`'s `module.application.authentication` row and
+      `docs/wiki-policy/policy.json`'s `boundary.application.authentication`, using a
+      `sourceSelector` bound to the pre-namespacing `libs/core/src/service/auth.service.ts`
+      alone — the file `kinds.json` classified `capability: authentication` before the move.
+      `login-throttle.ts` has no separate baseline entry, for the same reason as Realtime's own
+      satellite files above. This withdraws review round 1's own finding that a multi-file
+      module cannot register (040-6 packet E4, first revision): Realtime's own precedent above
+      already refutes it, and the second rehearsed experiment's own failure was a missing
+      `pilotPaths` overlay entry — packet D's own lesson — not a mechanism limit.
+      **Not landed for Plan import (task 3.4).** Every existing pilot boundary under the
       namespaced tree is registered through a `sourceSelector` bound to a pre-namespacing
       predecessor file that existed at the pilot's frozen `sourceRevision`. Both of Plan import's
       own files existed before namespacing — `libs/core/src/service/import.service.ts` introduced

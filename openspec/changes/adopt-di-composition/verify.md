@@ -945,3 +945,40 @@ type 'UserStore'` at the `authOptions` factory (`row7-combined-store-weakened.pa
 - The be-01 type-check exited 0 both before and after the edit
   (`slice2-be-typecheck-baseline.log`, `slice2-be-typecheck-green.log`). The closing `wbs-core`
   unit, lint and type-check gate also exited 0 (`slice2-core-test-lint-typecheck-green.log`).
+
+### Authentication, Slice 3 — 2026-09-23
+
+- The slice started from `base=a5ae36a3fd1a8c89ab1fca169a3586faad9f9a4c`, with `M=9` mapped
+  modules and `B=9` trusted boundaries. At frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7`, Authentication's selected predecessor was
+  `100644 blob 73c84b20a377349c4fd215cb90a4807ef3370267`
+  `libs/core/src/service/auth.service.ts` (`slice3-step0.log`).
+- Before registration, the whole pilot-policy file passed 21 tests with 0 failures and `P=296`
+  assertions (`slice3-pilot-baseline.log`). Adding only the mapping row failed the exact parity
+  assertion with `Expected: 9`, `Received: 10` (`row14-wiki-policy-parity.patch`,
+  `row14-wiki-policy-parity.log`). After adding the matching boundary while the README was still
+  outside `pilotPaths`, parity and the structural baseline comparison passed, then the discovered
+  index assertion failed with `Expected: true`, `Received: false` after 25 assertions
+  (`row15-wiki-policy-discovered-index.patch`, `row15-wiki-policy-discovered-index.log`). Each
+  fault was restored byte-for-byte with `cmp` and the focused test returned to 1 pass before the
+  registration was reapplied (`row14-restored-green-corrected.log`,
+  `row15-restored-green.log`). With the README and `pilotPaths` entry present, the whole file
+  passed 21 tests with 0 failures and `P + 1 = 297` assertions
+  (`slice3-pilot-registration-green.log`).
+- The unchanged legacy pin passed before registration (`slice3-legacy-pin-baseline.log`). The
+  registration then failed it with `historical policy selector or baseline` moving from 45 to 47,
+  occurrences from 263 to 265, and digest from
+  `a3db8f9766fa58137d1067c35e0628fd9020100aac871e07c0137a28ac772cd4` to
+  `3eca3cf1a2f8d1703b42edfd40be279a5a144034c000a812d7b70eb8b2cfef62`, with no unclassified
+  entries (`row17-registration-moves-legacy-pin.patch`, `row17-legacy-pin-red.log`). Restoring the
+  policy byte-for-byte returned the pin to 1 pass (`row17-restored-green.log`); reapplying the
+  registration and those exact pin values also passed (`row17-legacy-pin-green.log`).
+- `tool-devsync:typecheck`, `twilight-burokrat:typecheck`,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` all exited 0 before the edits and after
+  them (`slice3-baseline-typechecks.log`, `slice3-baseline-burokrat-lint.log`,
+  `slice3-baseline-devsync-lint.log`, `slice3-final-typechecks.log`,
+  `slice3-final-burokrat-lint.log`, `slice3-final-devsync-lint.log`). `wbs-core:typecheck` also
+  exited 0 after the registration (`slice3-core-typecheck.log`).
+- Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.2MGeen.json`,
+  `openspec-validation-slice3-final.j5lVF0.json`).

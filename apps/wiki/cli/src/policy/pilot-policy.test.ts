@@ -35,6 +35,7 @@ const pilotPaths = [
   'docs/wiki-policy/bootstrap-policy.json',
   'docs/wiki-policy/relationships.json',
   'docs/wiki-policy/relationships.bootstrap.json',
+  'libs/wbs/application/core/src/module/authentication/README.md',
   'libs/wbs/application/core/src/module/bounded-replay-sweep/README.md',
   'libs/wbs/application/core/src/module/plan-history/README.md',
   'libs/wbs/application/core/src/module/realtime/README.md',
