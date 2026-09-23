@@ -922,3 +922,26 @@ type 'UserStore'` at the `authOptions` factory (`row7-combined-store-weakened.pa
   both exited 0 (`slice1-core-lint-typecheck-closing.log`), and the repository-wide format check
   exited 0 (`slice1-format-check.log`). Strict OpenSpec validation reported 114 passed and 0
   failed (`openspec-validation-slice1-final.hz0Hon.json`).
+
+### Authentication, Slice 2 — 2026-09-23
+
+- The slice started from `base=76b49c19ee1009abdfdd3c4de39595bf5a95c13b`. Classification
+  baseline `K=95`; rewriting the two compatibility-shim rows in place kept the count at 95
+  (`slice2-kinds-count.log`).
+- The whole-core baseline was `C=570` passed, 0 failed and 1,843 assertions across `F=59` files
+  (`slice2-core-baseline.log`). The closing run remained 570 passed, 0 failed across 59 files,
+  with the two new assertions raising the assertion count to 1,845
+  (`slice2-core-closing.log`).
+- On the unchanged composition root, the accountless throttle negative made
+  `wbs-core:typecheck` fail with `TS2578: Unused '@ts-expect-error' directive`, one error
+  (`slice2-red-typecheck.log`); the focused runtime test received a real `LoginThrottle` instead
+  of `undefined`, with 0 passed and 1 failed (`slice2-red-accountless-runtime.log`). After moving
+  the throttle to the accountful graph, the composition file passed 8 tests with 0 failures and
+  28 assertions (`slice2-compose-green.log`).
+- The portable build exited 0 before and after the edit
+  (`slice2-portable-build-baseline.log`, `slice2-portable-build-green.log`), and the closing
+  bundle contained 1 occurrence of `application.authentication`
+  (`slice2-portable-grep.log`).
+- The be-01 type-check exited 0 both before and after the edit
+  (`slice2-be-typecheck-baseline.log`, `slice2-be-typecheck-green.log`). The closing `wbs-core`
+  unit, lint and type-check gate also exited 0 (`slice2-core-test-lint-typecheck-green.log`).
