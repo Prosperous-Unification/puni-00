@@ -1102,3 +1102,59 @@ reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`
   `slice3-burokrat-lint-source-after.log`, `slice3-devsync-lint-after.log`,
   `slice3-core-typecheck-after.log`); the legacy pin passed, 1 pass (`slice3-legacy-pin-after.log`);
   OpenSpec validation passed `N=114` of 114 with 0 failed (`openspec-validation.J7QPlz.json`).
+
+### Plan document, Slice 1 — 2026-09-23
+
+- The slice started from `base=170e84586ee45bad421b3358b9b65c742f1f1ef0` on a clean tree, with
+  `module/plan-document` absent, `module/saved-plans/module.ts` present, `service/plan-document.ts`
+  at 208 lines, one `new PlanDocumentService({ directory, markers: calendarMarkers, clock });` in
+  `http/project.routes.ts`, and `K=93` `kinds.json` entries.
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=572` over `F=59` files (`slice1-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=513` over `EF=48` files (`slice1-be01-unit-baseline.log`).
+- Bundle red: `bun build libs/wbs/application/core/src/http/project.routes.ts --target=bun` exited 0
+  and its bundle held no `application.plan-document` (grep exit 1, `count=0`;
+  `slice1-routes-bundle-red.log`).
+- Module red: the new `module/plan-document/module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice1-module-red.log`).
+- Green: after the `cp`/`mv` move, the import diff (`slice1-10.2-imports.patch`), the shim and the
+  four module files, `bun test ./libs/wbs/application/core/src/module/plan-document/` passed 13 over
+  2 files, 33 `expect()` calls (`slice1-module-green.log`).
+- Bundle green: after `projectRoutes` installs through `installPlanDocument`
+  (`slice1-10.5-install.patch`), the same build exited 0 and the grep printed `count=1`
+  (`slice1-routes-bundle-green.log`).
+- Sideways row (`slice1-10.6-sideways-row.patch`): `ports/sideways-type-boundaries.test.ts` passed,
+  1 pass (`slice1-sideways-green.log`); `wbs-core` lint and typecheck and `wbs-be-01:typecheck`
+  exited 0 (`slice1-lint-typecheck-step7.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next:
+  - Key tuple widened to `['planDocuments', 'planDocumentOptions']` (`row05-key-tuple.patch`): the
+    private-binding test received a function that did not throw, the graph-label test received bare
+    `planDocumentOptions`, and the missing-requirement message read
+    `Cannot resolve "planDocumentOptions"`; 2 pass, 3 fail (`row05-key-tuple.log`).
+  - Label argument dropped (`row06-label.patch`): only the two label tests failed; 3 pass, 2 fail
+    (`row06-label.log`).
+  - `planDocumentOptions` handed `clock: { now: () => 0 }` (`row07-clock.patch`): `exportedAt` read
+    `"1970-01-01T00:00:00.000Z"` instead of `"2026-09-24T09:00:00.000Z"`; 4 pass, 1 fail
+    (`row07-clock.log`).
+  - `check.ts` returning an `exposed` object with `bag` (`row08-extra-key.patch`): the received keys
+    added `"bag"`; 4 pass, 1 fail (`row08-extra-key.log`); `wbs-core:typecheck` exit 0 on the
+    mutated tree (`row08-typecheck.log`).
+  - `check.ts` attaching `resolve` to the returned service (`row09-resolver.patch`): `Expected: true`,
+    `Received: false`; 4 pass, 1 fail (`row09-resolver.log`); `wbs-core:typecheck` exit 0
+    (`row09-typecheck.log`).
+  - `import '../../service/calendar-marker.service';` prepended to
+    `module/plan-document/plan-document.resource.ts` (`row10-sideways.patch`): exactly one violation,
+    `"module/plan-document/plan-document.resource.ts: '../../service/calendar-marker.service' reaches service/calendar-marker.service.ts"`;
+    0 pass, 1 fail (`row10-sideways.log`). With the new row also deleted
+    (`row11-row-deleted.patch`) the suite passed, 1 pass (`row11-row-deleted.log`).
+- Proof comments added after the observations (`slice1-10.7-proofs.patch`); the module directory
+  and the sideways suite then passed 14 over 3 files (`slice1-after-proofs.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []` (`slice1-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 5 = 577` over `F + 1 = 60` files
+  (`slice1-core-closing.log`); the be-01 unit command passed `E = 513` over `EF = 48` files
+  (`slice1-be01-unit-closing.log`); `wbs-core` lint and typecheck and `wbs-be-01:typecheck` exited 0
+  (`slice1-lint-typecheck-closing.log`); the module directory holds seven files;
+  `nx format:check --all` exited 0 (`slice1-format-check.log`).
+- Recorded K2 debt: delivery (`http/project.routes.ts`) still installs the Plan document resource
+  over the Directory and Calendar marker resources it is handed; tracked under task 7.4.

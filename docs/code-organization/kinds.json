@@ -344,9 +344,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/plan-document.ts",
-      "kind": "resource",
-      "term": "plan document",
-      "rationale": "project and import routes call it for plan document export and classification rules over DirectoryStore, CalendarMarkerService and Clock-backed document metadata"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-document module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/prepare-import.ts",
