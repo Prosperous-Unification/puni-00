@@ -4,6 +4,8 @@ import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
 import type { RetentionTimer } from './module/bounded-replay-sweep/retention-timer';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
+import { installPlanImport } from './module/plan-import/check';
+import type { ImportService } from './module/plan-import/plan-import.feature';
 import { installRealtime } from './module/realtime/check';
 import type { GatewayBroadcaster } from './module/realtime/gateway-broadcaster';
 import type { ReplayBuffer } from './module/realtime/replay-buffer';
@@ -22,7 +24,6 @@ import { AuthService } from './service/auth.service';
 import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
-import { ImportService } from './service/import.service';
 import { LoginThrottle } from './service/login-throttle';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { PriorityBandService } from './service/priority-band.service';
@@ -219,13 +220,13 @@ export function composeServices(
     replayBuffer: buffer,
     uow: source.uow,
     batch,
-    imports: new ImportService({
+    imports: installPlanImport({
       clock: runtime.clock,
       scheduler: runtime.scheduler,
       uow: source.uow,
       announcements,
       batchServices: batch,
-    }),
+    }).imports,
     history: installPlanHistory({
       projectStore: source.stores.projects,
       planEventStore: source.stores.planEvents,
