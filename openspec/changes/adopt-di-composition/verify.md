@@ -756,3 +756,34 @@ libs/core/src/use-cases/retention-sweep.ts`. The pilot baseline passed 21 tests 
   (`slice-2-be-typecheck-baseline.log`, `slice-2-be-typecheck-green.log`). The focused be-01
   shim-chain checks were unchanged at 38 passed, 0 failed and 89 assertions across 4 files
   (`slice-2-be-focused-baseline.log`, `slice-2-be-focused-green.log`).
+
+### Realtime, Slice 3 — 2026-09-23
+
+- Wiki-policy baselines were `M=8` mapped modules and `B=8` boundaries. The frozen predecessor
+  tuple was `100644 blob d18bf8e74e82501358dd994e2226a87e068b9220
+libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 failures and `P=295`
+  assertions (`slice-3-pilot-baseline.log`); core type-check and the filtered legacy pin were also
+  green (`slice-3-core-typecheck-baseline.log`, `slice-3-legacy-pin-baseline.log`).
+- With the mapping row added before its boundary, the named pilot test failed at mapping/boundary
+  parity with `Expected: 8`, `Received: 9`; the whole file reported 15 passed, 6 failed and 260
+  assertions (`slice-3-mapping-count-red.log`). After adding the boundary but before adding the
+  README to `pilotPaths`, parity passed and the named test failed at discovered-index coverage
+  with `Expected: true`, `Received: false`; this run reported 15 passed, 6 failed and 264
+  assertions, one fewer collateral failure than the packet's rehearsal
+  (`slice-3-discovered-index-red.log`). Adding the path returned the whole file to 21 passed, 0
+  failed and `P+1=296` assertions (`slice-3-pilot-green.log`).
+- Registration moved the filtered legacy pin's `historical policy selector or baseline` category
+  from 43 to 45, occurrences from 261 to 263, and digest from
+  `fb0d422785019f2351c00082e4533b820b0aca3cce8f9789a348e6167099363e` to
+  `a3db8f9766fa58137d1067c35e0628fd9020100aac871e07c0137a28ac772cd4`
+  (`slice-3-legacy-pin-red.log`). The filtered test then passed 1 test with 0 failures and 1
+  assertion (`slice-3-legacy-pin-green.log`).
+- `tool-devsync:typecheck`, `tool-devsync:lint`, `twilight-burokrat:typecheck` and
+  `twilight-burokrat:lint:source` all exited 0 before editing
+  (`slice-3-tool-devsync-typecheck-baseline.log`, `slice-3-tool-devsync-lint-baseline.log`,
+  `slice-3-wiki-typecheck-baseline.log`, `slice-3-wiki-lint-baseline.log`) and after their owned
+  edits (`slice-3-tool-devsync-typecheck-green.log`, `slice-3-tool-devsync-lint-green.log`,
+  `slice-3-wiki-typecheck-green.log`, `slice-3-wiki-lint-green.log`). Final core type-check also
+  exited 0 (`slice-3-core-typecheck-final.log`).
+- Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
+  (`openspec-validation-baseline.K03o8G.json`, `openspec-validation-final.QQTy1A.json`).
