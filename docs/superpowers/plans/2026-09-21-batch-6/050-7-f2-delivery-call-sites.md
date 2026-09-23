@@ -6,7 +6,7 @@
 | Size class  | L — five slices, each one executor attempt                                                                                                                                                                                                                                                     |
 | Predecessor | [050.7f1](050-7-f1-theme-hook-model.md) — the theme hook's state machine, `PreferenceStoreLifecycleError`, `readRefusingBrowserStorage`/`writeRefusingBrowserStorage`, and the delivery-degradation requirement this change already carries                                                    |
 | Closes      | The scope section 3 of the [held 050.7f record](050-7-f-delivery-call-sites.md) left over: the settings modal, the project page, `gantt-detail` through `WbsTable`, and the module-scope `storedMermaidSectionMode` behind `lib/remembered.ts` — then deletes the module-load duplicate itself |
-| Revision    | First.                                                                                                                                                                                                                                                                                         |
+| Revision    | Second. Round 1 said READY AFTER FIXES; section 16 disposes of its five findings.                                                                                                                                                                                                              |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. One new requirement; task 3 gets a dated note and **stays unchecked** for the wiki index alone (section 13, assumption 1).                                                                                                     |
 
 ## 1. Goal, non-goals, and the cut
@@ -220,7 +220,8 @@ f1 chose for `Theme.persists`, and, like it, no consumer renders it yet (section
 
 Every number is a **fresh observation from this packet's own rehearsal**, on `bff2b0af` (main
 `0ad6f109` plus f1's three slices), on 2026-09-24. None is a stop condition: each slice records its own
-baseline in step 0 and compares relatively.
+baseline in step 0 and compares relatively. The dispatch base is later than the rehearsal base; the
+Dispatch block and section 9.1 say what that changes and what was re-checked on it.
 
 ### 4.1 The code as it stands
 
@@ -358,6 +359,8 @@ cat > "$TMPDIR/run-check.sh" <<'EOF'
 #!/usr/bin/env bash
 # Runs one check into $TMPDIR/evidence/<name>.log, appends its own exit status,
 # and prints the summary lines. Never fails itself: the status line is the result.
+# The summary is orientation only: `tsc --build` under Nx without a TTY prints no
+# "Found N errors" line, so a typecheck summary may show just its status.
 set -uo pipefail
 name=$1
 shift
@@ -516,8 +519,12 @@ twenty-one test files of section 4.2.
   apps/wbs/fe-01/src/runtime/application-services-context.test.tsx:17:3 - error TS2724: '"./application-services-context"' has no exported member named 'useApplicationServicesReader'. Did you mean 'useApplicationServicesState'?
   ```
 
-  and Vitest `status=1`, `Tests 4 failed | 12 passed (16)`, all four new examples on
-  `TypeError: useApplicationServicesReader is not a function`.
+  and Vitest `status=1`, `Tests 4 failed | 12 passed (16)`. Three of the new examples fail on
+  `TypeError: useApplicationServicesReader is not a function`. The fourth, `refuses to read below no
+provider, naming itself`, fails on
+  `AssertionError: expected '(0 , __vite_ssr_import_5__.useApplica…' to be 'useApplicationServicesReader must be …'`:
+  the file's existing `safely()` helper catches that same `TypeError` and returns its message as
+  `threw`, so the assertion sees the wrong message instead of a throw. Both shapes are the expected red.
 
 - [ ] 4. Apply sections 7.3 (the reader), 7.4 (the fixture, a new file) and 7.5 (the twenty-one
       adoptions, one multi-file patch).
@@ -878,9 +885,14 @@ absolute paths. Do not read, quote or restate an earlier entry.
 
 ### Dispatch
 
-One attempt per slice, from the reviewed packet, with no network. The base of slice 1 is whatever
-commit the planner reviews this packet against once PR #47 (packet f1) has landed — the rehearsal used
-`bff2b0af`. This block holds the only absolute paths in this document.
+One attempt per slice, from the reviewed packet, with no network. The base of slice 1 is main after
+PR #48 — `a77c41e5` or later, which carries f1, E5 and the e2a amendment — not the rehearsal's
+`bff2b0af`. `a77c41e5` rewrote `spec.md` (a new last requirement, "A document replacement starts
+retirement…"), `tasks.md` (task 5 ticked and reworded) and `verify.md` (the e2a entry); sections 7.1,
+7.6, 7.14 and 7.22 were re-checked against those versions on 2026-09-24 and apply cleanly, as do all
+twenty-two patches and all thirty-three fault patches (section 9.1). The `index` lines in the diffs are
+informational: `git apply` without `--index` or `--3way` ignores them. This block holds the only
+absolute paths in this document.
 
 ```sh
 # Slice 1, from the reviewed base.
@@ -5708,12 +5720,20 @@ line was rewritten to text the file does not contain, and both loop forms were r
 | `git apply --check "$p" && git apply "$p"`                               | printed `error: patch failed: apps/wbs/fe-01/src/components/wbs/project-settings-modal.tsx:9`, then `all 22 applied`, and **exited 0** — a false success |
 | `git apply --check "$p"` then `git apply "$p"` on separate lines (above) | printed the same `error:` lines, **no** success line, and **exited 1**                                                                                   |
 
-The applied tree was then compared file by file with the rehearsal clone's final commit: every path
-byte-identical apart from `verify.md` (the executor writes its entries) and the one `<observed-date>`
-in `tasks.md` (slice 5 step 3 replaces it). Every **intermediate** tree typechecks — rehearsed after
+On the rehearsal base `bff2b0af` the applied tree was compared file by file with the rehearsal clone's
+final commit: every path byte-identical apart from `verify.md` (the executor writes its entries) and
+the one `<observed-date>` in `tasks.md` (slice 5 step 3 replaces it). On the real dispatch base
+`a77c41e5` the same script, with `git archive a77c41e5`, also applies all twenty-two patches and checks
+all thirty-three fault patches (42 paths), and the strict OpenSpec block on the result reports
+`{"items":114,"passed":114,"failed":0}`; there `spec.md` and `tasks.md` differ from the rehearsal clone
+by exactly what `a77c41e5` itself changed in them, and every other one of the 42 paths is unchanged
+between the two bases. Every **intermediate** tree typechecks — rehearsed after
 each slice's last patch, `wbs-fe-01:typecheck` exit 0 five times — and exactly four trees do not: the
 red checkpoints of slices 1 to 4, each after that slice's contract and test patches and before its
 implementation (section 6 gives each one's diagnostics). Slice 5's red tree typechecks by design.
+A red is rebuilt only from the base plus that slice's prefix of patches, never by reverse-applying
+patches on a later tree: reverting 7.13 or 7.16 on the final tree fails collection with
+`Failed to resolve import "@/modules/preferences/composition"`, because slice 5 deleted it.
 
 The `Proof:` comments each slice adds afterwards land only in files no later patch touches
 (`application-services-context.tsx`; the modal and the page; `gantt-detail.ts`; `lib/remembered.ts`,
@@ -5818,9 +5838,12 @@ Each is false on the real starting tree, checked on 2026-09-24.
 9. At hand-over, the status shows any path outside the slice's own list. Stop.
 10. Anything asks for a `git` state change in the clone, a network call, a browser, or `--no-verify`.
 11. **Known, not this packet's:** `claims.db.test.ts` › `bounds terminal lock contention and retries
-until a held write commits` failing, or a single `Test timed out in 5000ms` in one of the twenty
-    adopted files during a serial run on a loaded host. Record it, rerun **that file alone once**, and
-    stop only if it fails again. f1's `theme.model.test.tsx` is not in any run this packet prescribes.
+until a held write commits` failing; a single `Test timed out in 5000ms` in one of the twenty
+    adopted files during a serial run on a loaded host; or a `DiBagCloseCancelledError`
+    (`DI_BAG_CLOSE_TIMEOUT`) raised by a test file's own `afterEach` retirement of a
+    `createLifetimeSlot<ApplicationServices>(50)` slot whose disposal settles — the modal, page and
+    `gantt-detail` example blocks use a 50 ms budget, the same load-sensitive class as f1's 5 ms
+    (section 4.3). Record it, rerun **that file alone once**, and stop only if it fails again. f1's `theme.model.test.tsx` is not in any run this packet prescribes.
 
 ## 11. Out of lane
 
@@ -5868,8 +5891,9 @@ until a held write commits` failing, or a single `Test timed out in 5000ms` in o
    tests were modelled on, one sits beside a test title f1's recorded proof filter names, and they are
    not this packet's files.
 6. **40 ms disposal budget, seed `20260924`, 300 runs, 12 commands** for the model test: the whole run
-   took about six seconds, every coverage counter was non-zero, and a budget five times smaller than
-   f1's flaked on this host. A future author who changes the commands, seed or version re-rehearses and
+   took about six seconds, every coverage counter was non-zero, and f1's 5 ms budget flaked on this
+   host. The example blocks' 50 ms slots are the same class of load sensitivity; stop condition 11
+   gives their one-rerun rule. A future author who changes the commands, seed or version re-rehearses and
    re-pins.
 7. **Serial runs for the multi-file suites** (`--no-file-parallelism --maxWorkers=1`), as the project's
    own `test` target runs them: parallel runs on a loaded host time out pointer tests that pass alone.
@@ -5936,3 +5960,16 @@ until a held write commits` failing, or a single `Test timed out in 5000ms` in o
 last commit the host gate runs on the shared build host with the committed hash, and its printed
 running-hash line and exit status are recorded. Anywhere else it is reported as not run, with the
 reason — never as passed. The Chromium runs of §9.4 are reported the same way until they have happened.
+
+## 16. Disposition of review round 1
+
+`puni-plan/reviews-batch-6/050-7-f2-delivery-call-sites.review1.md` — READY AFTER FIXES, no critical.
+All five are applied.
+
+| #           | Finding                                                                        | Disposition                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Important 1 | slice 1's fourth red example fails on an `AssertionError`, not the `TypeError` | **Applied.** Section 6, slice 1 step 3 names three examples on the `TypeError` and `refuses to read below no provider, naming itself` on the `AssertionError` the reviewer observed, with why (`safely()`); the count stays `4 failed \| 12 passed (16)`.                                                                                                                    |
+| Important 2 | the base has moved to `a77c41e5`                                               | **Applied.** Dispatch names main after PR #48 as the base, lists what `a77c41e5` changed in `spec.md`, `tasks.md` and `verify.md`, and says `index` lines are informational. All 22 patches and 33 fault patches were re-applied and checked against `a77c41e5` by this author, OpenSpec 114 · 114 · 0 on the result; section 9.1 says what is byte-identical on which base. |
+| Minor 1     | `Found N errors` never matches under Nx                                        | **Applied.** `run-check.sh` says its summary is orientation only; `expect-status.sh` reads the status line.                                                                                                                                                                                                                                                                  |
+| Minor 2     | the 50 ms example budgets are load-sensitive too                               | **Applied.** Stop condition 11 gives a `DiBagCloseCancelledError` from a test file's own `afterEach` retirement the same one-rerun rule; assumption 6 points at it.                                                                                                                                                                                                          |
+| Minor 3     | reds cannot be rebuilt by reverting on a later tree                            | **Applied.** Section 9.1 says reds are rebuilt from the base plus the slice's prefix of patches, and why reverting fails.                                                                                                                                                                                                                                                    |
