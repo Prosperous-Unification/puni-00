@@ -258,6 +258,7 @@ ports/missing.ts`; 0 passed and 1 failed (`missing-scanned-source.patch`,
 - Exactly 8 test importers now name `ports/project-event.ts`; ESLint sorted those edits and the
   focused boundary check then passed 1 test with 0 failures
   (`slice-5-importers-eslint-fix.log`, `slice-5-boundary-green.log`).
+
 - Replacing `service/working-plan.test.ts`'s port import with a named import from
   `./broadcast` reported `service/working-plan.test.ts: Broadcaster via
 service/broadcast.ts`; 0 passed and 1 failed, while `wbs-core:typecheck` exited 0
@@ -651,3 +652,19 @@ service/calendar-marker.service.ts` (`document-restored.patch`,
   the required relative delta, `C+6=549` passed and 0 failed across `F+1=56` files
   (`slice-1-core-closing.log`). The final `wbs-core` lint and typecheck targets both exited 0
   (`slice-1-closing-lint-typecheck.log`).
+
+### Bounded replay sweep, Slice 2 — 2026-09-23
+
+- Classification baseline `K=95`; rewriting the three retained compatibility-shim rows in place
+  kept the count at 95 (`slice-2-kinds-final.txt`).
+- Core baseline `C=549`: 549 passed, 0 failed across 56 files before composition-root wiring
+  (`slice-2-core-baseline.log`). The closing run remained 549 passed, 0 failed across 56 files
+  (`slice-2-core-final.log`).
+- Core and domain unit, lint and type-check targets all passed
+  (`slice-2-core-domain-nx.log`).
+- The portable build exited 0, and the bundle contained 1 occurrence of
+  `application.bounded-replay-sweep` (`slice-2-portable-build.log`,
+  `slice-2-portable-label-count.txt`).
+- The focused be-01 shim-chain checks passed 13 tests with 0 failures and 37 assertions
+  (`slice-2-be-focused-tests.log`); be-01 type-check exited 0
+  (`slice-2-be-typecheck.log`).
