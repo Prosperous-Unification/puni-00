@@ -95,6 +95,7 @@ describe('the page under Strict Mode', () => {
           slot,
           mount: (element, options) => createRoot(element, options),
           app: App,
+          eventTarget: new EventTarget(),
         });
       });
 

@@ -117,6 +117,7 @@ describe("the page's bootstrap, under generated interleavings", () => {
                   services: held.status === 'live' ? held.services : null,
                 });
               },
+              unmount: () => undefined,
             };
           };
 
@@ -128,6 +129,7 @@ describe("the page's bootstrap, under generated interleavings", () => {
                   slot,
                   mount,
                   app: FakeApp,
+                  eventTarget: new EventTarget(),
                 }).then(
                   () => {
                     bootstrapOutcomes.push('resolved');

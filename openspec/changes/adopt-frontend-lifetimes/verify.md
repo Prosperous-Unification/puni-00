@@ -707,3 +707,60 @@ resource/runtime examples and once against the real-slot model.
 - The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
   targets and the host gate remain pending planner verification under the
   executor sandbox contract.
+
+## Packet 050.7e, slice 1 — page-lifecycle production wiring and examples
+
+- Attempt `050-7-e-page-lifecycle.1.20260923T055822Z` started at
+  `c9384a8cd21e2370126f1e9e8cdd3535b1d36ade`; its recorded starting inventory
+  was empty.
+- Pre-edit owned runtime/preferences baseline: exit 0, 13 files and 99 tests
+  passed. The sandbox node subset passed 46 files and 674 tests. Strict OpenSpec
+  validation passed its exact predicate with one report, 114 items passed and 0
+  failed.
+- Tests and caller compatibility fields landed before production code. Against
+  the unchanged bootstrap, `application-bootstrap.test.tsx` exited 1 with 11
+  failed and 6 passed; the first failure expected the slot to be `empty` after
+  `pagehide` but received `live`.
+- After production wiring, the four focused files passed 20 tests. The owned
+  runtime/preferences path passed 13 files and 110 tests, exactly 11 more than
+  the slice baseline. The sandbox subset remained 46 files and 674 tests. The
+  forced TypeScript build and uncached lint target exited 0.
+
+### Negative-proof observations
+
+Every fault below typechecked with exit 0, was saved as a patch and failing log
+under this attempt's `evidence/` directory, then was restored byte-for-byte with
+`cmp` before its named test was rerun green.
+
+| Fault                                                              | Observed failure                                                                                                       |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Drop root invalidation from `pagehide`                             | The named assertion received 0 unmounts instead of 1; additional root-invalidation cases failed too.                   |
+| Drop retirement initiation from `pagehide`                         | The named assertion received slot status `live` instead of `empty`; 11 tests failed and 6 passed.                      |
+| Treat every `pageshow` as persisted                                | `a non-persisted pageshow does not rebuild` failed; 1 failed and 16 passed.                                            |
+| Drop controlled supersession handling                              | `draws nothing at all when a newer request wins the slot` failed because the slot was `empty`; 1 failed and 16 passed. |
+| Drop the slot subscription                                         | `shows the fatal page when a retirement fails, without republishing anything` failed; 1 failed and 16 passed.          |
+| Drop console-report deduplication                                  | `says nothing raw about a refused start` received 2 reports instead of 1; 5 failed and 12 passed.                      |
+| Drop fatal-draw deduplication                                      | The first-runtime refusal rendered 2 trees instead of 1; 3 failed and 14 passed.                                       |
+| Keep `drawnFault` across root invalidation                         | The already-fatal hide/restore case rendered 2 trees instead of 3; 1 failed and 16 passed.                             |
+| Collapse reported and drawn fault state                            | The already-fatal hide/restore case reported the same fault twice; 1 failed and 16 passed.                             |
+| Mount a root on every draw                                         | The retirement-failure case mounted at `live` and `fatal` instead of only `live`; 1 failed and 16 passed.              |
+| Mount the root eagerly                                             | The first root was mounted while the slot was `empty` instead of `live`; 7 failed and 10 passed.                       |
+| Swallow an unexpected non-fatal retirement refusal                 | The retained refusal test observed 0 surfaced rejections instead of 1.                                                 |
+| Replace DI Bag close with a same-type rejection that skips cleanup | `the other owned disposer never ran` received false instead of true.                                                   |
+
+### Slice verification
+
+- Strict OpenSpec validation after implementation: exit 0; one report, 114
+  items passed and 0 failed, unchanged from the slice baseline.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: exit 0; Nx successfully ran
+  the build target.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`: exit 0; Nx
+  successfully ran the uncached lint target without an autofix round.
+- Prettier write over the six slice-owned files: exit 0; five source/test files
+  were already formatted and this verification record was formatted.
+- `NX_DAEMON=false bunx nx format:check --all`: exit 0.
+- `apps/wbs/fe-01/src/runtime/lifetime-slot.ts` and its model test remain
+  unchanged.
+- The whole `tool-devsync:test`, `wbs-fe-01:test:unit`, and `wbs-fe-01:test`
+  targets and the host gate remain pending planner verification under the
+  executor sandbox contract.
