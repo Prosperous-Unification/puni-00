@@ -260,6 +260,11 @@
       "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e5-saved-plans.md",
       "reason": "task packet that deletes the unadopted saved-plan retry, seals Saved plans as a DI Bag module and registers it in the wiki pilot; its verified facts and prescribed task notes cite libs/core/src/service/saved-plan.service.ts as the module's frozen-revision predecessor",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e6-resource-modules.md",
+      "reason": "task packet that seals Plan document and the Solver launcher as DI Bag modules and registers the Solver launcher in the wiki pilot; its verified facts, prescribed boundary and task notes cite libs/core/src/service/plan-document.ts to prove it has no frozen-revision predecessor and apps/be-01/src/service/solver-launcher-process.ts as the Solver launcher's predecessor",
+      "excuses": ["legacy-root"]
     }
   ]
 }
