@@ -982,3 +982,54 @@ type 'UserStore'` at the `authOptions` factory (`row7-combined-store-weakened.pa
 - Strict OpenSpec validation stayed at `N=114` passed and 0 failed before and after this slice
   (`openspec-validation-baseline.2MGeen.json`,
   `openspec-validation-slice3-final.j5lVF0.json`).
+
+### Saved plans, Slice 1 — 2026-09-23
+
+- The slice started from `base=06dd588ff51d0e29b0ad24a30abf704e860839f5` on a clean tree with the
+  module directory absent, `saved-plan.service.ts` at 996 lines, `use-cases/save-plan.ts` at 60
+  lines and `K=95` `kinds.json` entries. Before any edit, `wbs-core` lint and type-check and
+  `wbs-be-01:typecheck` exited 0 (`slice1-core-gate-baseline.log`,
+  `slice1-be01-typecheck-baseline.log`); the core suite passed `C=570` tests over `F=59` files
+  (`slice1-core-baseline.log`) and the be-01 saved-plan files passed `E=124` tests over `EF=13`
+  files (`slice1-be01-saved-baseline.log`).
+- Red: with only `module/saved-plans/module.test.ts` present, the file failed with
+  `error: Cannot find module './check'`, 0 pass, 1 fail, 1 error (`slice1-red-module-test.log`).
+- Task 1.7 was resolved by deleting `saved-plan-retry.ts`, its unit test, be-01's shim and its
+  database test, with the barrel line, the `service-boundaries.test.ts` entry and both `kinds.json`
+  rows. After the move, shims, contract, module, check and README, the module directory passed 16
+  tests with 0 failures and 27 assertions across 2 files (`slice1-green-module-dir.log`);
+  `wbs-core` lint and type-check and `wbs-be-01:typecheck` exited 0 on the first run
+  (`slice1-core-gate-green.log`, `slice1-be01-typecheck-green.log`). The three sideways rows passed
+  (1 pass, `slice1-sideways-green.log`).
+- Widening `buildModule`'s key tuple to `['savedPlans', 'savedPlanOptions']` failed 3 of 7 tests:
+  `Received function did not throw`, labels `[ "savedPlans", "savedPlanOptions", … ]`, and a
+  message naming bare `Cannot resolve "savedPlanOptions"` (`row03-key-tuple.patch`,
+  `row03-key-tuple.fail.log`).
+- Dropping `{ label: SAVED_PLANS_LABEL }` failed only the two label tests (5 pass, 2 fail):
+  `Expected to contain: "application.saved-plans/savedPlanOptions"` (`row04-label.patch`,
+  `row04-label.fail.log`).
+- Deleting the quota spread failed `passes a supplied quota through to the installed feature`
+  with `Expected: "refused"`, `Received: "saved"` (6 pass, 1 fail; `row05-quota.patch`,
+  `row05-quota.fail.log`).
+- Returning `exposed` with `bag` failed the installer-surface test with the received keys adding
+  `"bag"` (6 pass, 1 fail), while `wbs-core:typecheck` exited 0 (`row06-bag-leak.patch`,
+  `row06-bag-leak.fail.log`, `row06-bag-leak.typecheck.log`). Attaching `resolve` to the returned
+  service failed the same test's second assertion with `Expected: true`, `Received: false` (6 pass,
+  1 fail), typecheck exit 0 (`row07-resolver.patch`, `row07-resolver.fail.log`,
+  `row07-resolver.typecheck.log`).
+- Bare imports prepended to `module/saved-plans/save-plan.ts` each failed the sideways suite
+  (0 pass, 1 fail) with exactly one violation: `'../../service/auth.service' reaches
+service/auth.service.ts` (`row09-auth-shim.*`), `'../authentication/authentication.feature'
+reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`) and
+  `'../../http/endpoint' reaches http/endpoint.ts` (`row11-endpoint.*`).
+- Every fault was restored by copying the saved bytes back, proved with `cmp`, and the named file
+  rerun green (`*.regreen.log`).
+- `service-kinds.test.ts` compares with `git ls-files` and is planner-only; its filesystem
+  substitute printed `93 []`.
+- Closing: the core suite passed `C + 1 = 571` tests over 59 files (`slice1-core-closing.log`); the
+  be-01 saved-plan files passed `E - 1 = 123` over 12 (`slice1-be01-saved-closing.log`);
+  `wbs-core` lint and type-check, `wbs-be-01:typecheck` and the repository format check exited 0
+  (`slice1-core-gate-closing.log`, `slice1-be01-typecheck-closing.log`,
+  `slice1-format-check-1.log`).
+- Preserved K3 debt: the module's `plans` and `capture` requirements are repository ports
+  (`SavedPlanStore`, `SavedPlanCaptureStore`), tracked under task 7.4.

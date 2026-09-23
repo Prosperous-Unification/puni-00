@@ -107,7 +107,6 @@ export * from './service/saved-plan-default-name';
 export * from './service/saved-plan-input';
 export * from './service/saved-plan-integrity';
 export * from './service/saved-plan-quota';
-export * from './service/saved-plan-retry';
 export * from './service/saved-plan-schedule';
 export * from './service/saved-plan-schedule-body';
 export * from './service/step.service';

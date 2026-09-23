@@ -160,11 +160,6 @@
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/saved-plan-retry.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/saved-plan-schedule-body.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
@@ -419,12 +414,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "SavedPlanService calls its pure body-size, plan-count and project-byte limit decisions over supplied saved-plan holdings with no store or clock access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/saved-plan-retry.ts",
-      "kind": "support",
-      "disposition": "unadopted caller retry; wire it into the save route or delete it with saved-plans task 4.5",
-      "rationale": "saved-plans design (Fail-fast, not queue) and its task 4.5 provide this bounded retry as something the caller of a refused save may make; commit 4ee1ab89 added it with its unit and database tests and no route ever called it, so only those tests, the core barrel and service-boundaries.test.ts name it. It is designed behaviour without a caller, not dead code"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule-body.ts",
