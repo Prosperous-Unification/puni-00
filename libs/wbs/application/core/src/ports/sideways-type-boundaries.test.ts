@@ -116,6 +116,29 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * module-specifier and an identifier violation — `"module/authentication/authentication.feature.ts:
  * '../../http/endpoint' reaches http/endpoint.ts"` and `"…: Identity reaches http/endpoint.ts"`
  * (0 pass, 1 fail).
+ *
+ * The fifteenth through seventeenth rows are the same three rules re-scoped
+ * to the Saved plans module's own directory once `save-plan.ts` moved out of
+ * `use-cases/` and stopped being covered by the first two rows'
+ * `path.startsWith('use-cases/')`: the module's own use case takes its
+ * principal type from `@wbs/contracts`, never from Authentication or the HTTP
+ * endpoint, and `saved-plans.feature.ts`, `saved-plan-integrity.ts` and
+ * `saved-plan-schedule.ts` never did either. The Authentication row is spelt
+ * twice, once for the compatibility shim and once for the module's real path,
+ * because the module-specifier route does not follow a shim's re-export.
+ *
+ * Proof (2026-09-23): prepending the bare import `import '../../service/auth.service';`
+ * to `module/saved-plans/save-plan.ts` failed this suite with exactly one violation,
+ * `"module/saved-plans/save-plan.ts: '../../service/auth.service' reaches
+ * service/auth.service.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-23): independently prepending
+ * `import '../authentication/authentication.feature';` to the same file failed this suite
+ * with exactly one violation, `"module/saved-plans/save-plan.ts:
+ * '../authentication/authentication.feature' reaches
+ * module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-23): independently prepending `import '../../http/endpoint';` to the same
+ * file failed this suite with exactly one violation, `"module/saved-plans/save-plan.ts:
+ * '../../http/endpoint' reaches http/endpoint.ts"` (0 pass, 1 fail).
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -167,6 +190,18 @@ const routes = [
   {
     reaches: 'http/endpoint.ts',
     from: (path: string) => path.startsWith('module/authentication/'),
+  },
+  {
+    reaches: 'service/auth.service.ts',
+    from: (path: string) => path.startsWith('module/saved-plans/'),
+  },
+  {
+    reaches: 'module/authentication/authentication.feature.ts',
+    from: (path: string) => path.startsWith('module/saved-plans/'),
+  },
+  {
+    reaches: 'http/endpoint.ts',
+    from: (path: string) => path.startsWith('module/saved-plans/'),
   },
 ] as const;
 

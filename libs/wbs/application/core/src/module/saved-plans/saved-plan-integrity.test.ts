@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { CANONICAL_PLAN_INPUT_SCHEMA_VERSION } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { Digest } from '../ports/runtime';
+import type { Digest } from '../../ports/runtime';
+import { SCHEDULE_BODY_SCHEMA_VERSION } from '../../service/saved-plan-schedule-body';
 import {
   assertKnownBodyVersion,
   bodySha256,
@@ -12,7 +13,6 @@ import {
   UnknownSavedPlanBodyVersionError,
   verifyBody,
 } from './saved-plan-integrity';
-import { SCHEDULE_BODY_SCHEMA_VERSION } from './saved-plan-schedule-body';
 
 const nodeDigest: Digest = {
   sha256: (bytes) => Promise.resolve(createHash('sha256').update(bytes, 'utf8').digest('hex')),

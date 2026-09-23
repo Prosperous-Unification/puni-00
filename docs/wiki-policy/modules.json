@@ -138,6 +138,36 @@
       }
     },
     {
+      "moduleId": "module.application.saved-plans",
+      "name": "Saved plans sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/saved-plans",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/saved-plans/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/saved-plan-integrity.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts"
+          },
+          { "kind": "path", "path": "libs/wbs/application/core/src/service/saved-plan.service.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/use-cases/save-plan.ts" }
+        ]
+      }
+    },
+    {
       "moduleId": "module.application.use-cases",
       "name": "Core application use cases pilot boundary",
       "memberships": [
