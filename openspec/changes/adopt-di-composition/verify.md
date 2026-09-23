@@ -861,3 +861,64 @@ libs/core/src/use-cases/replay.ts`. The pilot baseline passed 21 tests with 0 fa
 - Strict OpenSpec validation remained `N=114` passed and 0 failed before and after this slice
   (`openspec-validation-baseline.NVABYn.json`,
   `openspec-validation-slice3-final.1YEKZK.json`).
+
+### Authentication, Slice 1 — 2026-09-23
+
+- The slice started from `base=31cf2b4ef6ceba90932d22b09b95bad95209cb4a`. The whole-core baseline
+  was `C=561` passed, 0 failed across `F=58` files (`slice1-core-baseline.log`). Before
+  implementation, the new module test failed because `./check` did not exist: 0 passed, 1 failed
+  and 1 error (`slice1-module-red.log`). Its first green passed 11 tests with 0 failures and 16
+  assertions across 2 files (`slice1-module-green.log`).
+- Exporting `authOptions` alone made host resolution return the raw options and graph inspection
+  report bare `authOptions`: 7 passed and 2 failed, while the independent `throttleOptions`
+  privacy and missing-requirement tests stayed green (`row3-auth-options-exported.patch`,
+  `row3-auth-options-exported.log`). Independently exporting `throttleOptions` made host
+  resolution return its raw options, graph inspection report bare `throttleOptions`, and the
+  missing-requirement message lose the module label: 6 passed and 3 failed, while `authOptions`
+  privacy stayed green (`row3b-throttle-options-exported.patch`,
+  `row3b-throttle-options-exported.log`). Dropping the label independently made graph inspection
+  report both private bindings unlabelled and the missing-requirement message name bare
+  `throttleOptions`: 7 passed and 2 failed (`row4-label-dropped.patch`,
+  `row4-label-dropped.log`). Each passing `module.ts` was restored byte-for-byte with `cmp`, and
+  the module test returned to 9 passed and 0 failed (`row3-restored-green.log`,
+  `row3b-restored-green.log`, `row4-restored-green.log`).
+- Returning a structurally assignable object containing `bag` failed the installer-surface test's
+  first assertion because the received keys gained `bag`, with 8 passed and 1 failed
+  (`row5-installer-bag-leak.patch`, `row5-installer-bag-leak.log`). Keeping the key list correct
+  but attaching `resolve` to the returned `AuthService` failed the second assertion with
+  `Expected: true`, `Received: false`, also 8 passed and 1 failed
+  (`row6-installer-resolver-leak.patch`, `row6-installer-resolver-leak.log`). Each passing
+  `check.ts` was restored byte-for-byte with `cmp`, and the module test returned to 9 passed and 0
+  failed (`row5-restored-green.log`, `row6-restored-green.log`).
+- Removing `NonNullable<AuthServiceOptions['identities']>` from the combined-store requirement
+  made `wbs-core:typecheck` fail with `TS2578: Unused '@ts-expect-error' directive` at the
+  compile-negative fixture and collateral `TS2741: Property 'resolveOidcIdentity' is missing in
+type 'UserStore'` at the `authOptions` factory (`row7-combined-store-weakened.patch`,
+  `row7-combined-store-weakened.log`). Restoring `contract.ts` byte-for-byte with `cmp` returned
+  type-check to exit 0 (`row7-restored-green.log`).
+- Five independent imports failed the sideways-route assertion with 0 passed and 1 failed each:
+  `use-cases/run-command-batch.ts` reaching the Authentication implementation
+  (`row8-use-cases-authentication-route.patch`, `row8-use-cases-authentication-route.log`),
+  `module/bounded-replay-sweep/retention-timer.ts` reaching it
+  (`row9-bounded-replay-authentication-route.patch`,
+  `row9-bounded-replay-authentication-route.log`),
+  `module/realtime/gateway-broadcaster.ts` reaching it
+  (`row10-realtime-authentication-route.patch`, `row10-realtime-authentication-route.log`),
+  `module/plan-import/plan-import.feature.ts` reaching it
+  (`row11-plan-import-authentication-route.patch`,
+  `row11-plan-import-authentication-route.log`), and Authentication's own feature reaching
+  `http/endpoint.ts` by both module specifier and `Identity` identifier
+  (`row12-authentication-http-endpoint-route.patch`,
+  `row12-authentication-http-endpoint-route.log`). Each mutated source was restored
+  byte-for-byte with `cmp`, and the boundary suite returned to 1 passed and 0 failed after each
+  restoration (`row8-restored-green.log`, `row9-restored-green.log`,
+  `row10-restored-green.log`, `row11-restored-green.log`, `row12-restored-green.log`).
+- `AuthenticationRequirements` records preserved K3 debt tracked under task 7.4: `AuthService`
+  still calls the `users.create`, `users.findByUsername`, `users.findById` and
+  `identities.resolveOidcIdentity` repository ports directly. This extraction discloses that debt;
+  it does not claim to close it.
+- The closing whole-core run reached the required relative delta, `C + 9 = 570` passed, 0 failed
+  across `F + 1 = 59` files (`slice1-core-closing.log`). Closing `wbs-core` lint and type-check
+  both exited 0 (`slice1-core-lint-typecheck-closing.log`), and the repository-wide format check
+  exited 0 (`slice1-format-check.log`). Strict OpenSpec validation reported 114 passed and 0
+  failed (`openspec-validation-slice1-final.hz0Hon.json`).
