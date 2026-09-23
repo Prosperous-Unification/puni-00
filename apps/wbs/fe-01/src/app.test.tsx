@@ -2,6 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as Api from '@/lib/api';
+import { browserStorage } from '@/modules/preferences/browser-storage.repository';
+import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
+import { ApplicationServicesProvider } from '@/runtime/application-services-context';
+import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -16,13 +20,32 @@ vi.mock('@/lib/api', async (importOriginal) => ({
 
 const { App } = await import('./app');
 
+/**
+ * A slot `live` over the production installer, its liveness predicate wired
+ * exactly as `acquireApplicationRuntime` wires the real one, rebuilt fresh every
+ * test and retired in `afterEach` **after** React cleanup.
+ *
+ * `<App/>`'s own tree includes `ThemeProvider`, which reads
+ * `useApplicationServicesState()` (see `lib/theme.ts`), and the theme-control
+ * block below persists a choice across an unmount and a fresh mount — which
+ * needs a real, live store behind it.
+ */
+let servicesSlot: LifetimeSlot<ApplicationServices>;
+
+const renderApp = () =>
+  render(
+    <ApplicationServicesProvider slot={servicesSlot}>
+      <App />
+    </ApplicationServicesProvider>,
+  );
+
 const muteConsoleError = () =>
   // React writes a caught error to `console.error` whatever a boundary does.
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
 let logged: ReturnType<typeof muteConsoleError>;
 
-beforeEach(() => {
+beforeEach(async () => {
   me.mockResolvedValue({
     kind: 'refusal',
     representation: 'json',
@@ -32,10 +55,19 @@ beforeEach(() => {
   });
   logged = muteConsoleError();
   window.history.replaceState({}, '', '/');
+  servicesSlot = createLifetimeSlot<ApplicationServices>(50);
+  await servicesSlot.replace(() =>
+    installApplicationRuntime({
+      openStore: browserStorage,
+      isLive: () => servicesSlot.snapshot().status === 'live',
+    }),
+  );
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // React cleanup first, so nothing renders against a slot already retiring.
   cleanup();
+  await servicesSlot.retire();
   logged.mockRestore();
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -44,7 +76,7 @@ afterEach(() => {
 
 describe('the app root', () => {
   itDom('shows the sign-in link when there is no browser session', async () => {
-    render(<App />);
+    renderApp();
 
     // The boundary is transparent when nothing throws: the app it wraps is
     // what renders, and this is what says so.
@@ -63,7 +95,7 @@ describe('the app root', () => {
       headers: new Headers(),
     });
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'WBS tool v2' })).toBeDefined();
@@ -75,7 +107,7 @@ describe('the app root', () => {
   itDom('offers sign-in when the session check fails', async () => {
     me.mockRejectedValue(new Error('network down'));
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
@@ -97,7 +129,7 @@ describe('a signed-in address asked for while signed out', () => {
   itDom('draws the sign-in form and no directory', async () => {
     window.history.replaceState({}, '', '/directory');
 
-    render(<App />);
+    renderApp();
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
@@ -136,7 +168,7 @@ describe('a signed-in address asked for while signed out', () => {
       }),
     );
 
-    render(<App />);
+    renderApp();
 
     // The page that was asked for, not the project — and the address it was
     // asked at, unrewritten.
@@ -186,7 +218,7 @@ describe('the theme control through the app', () => {
 
   itDom('reports the answer just chosen, and only that one, without a reload', async () => {
     signedIn();
-    render(<App />);
+    renderApp();
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'kat' })).toBeDefined();
     });
@@ -205,7 +237,7 @@ describe('the theme control through the app', () => {
   itDom('reports the answer that was chosen, and only that one, after a reload', async () => {
     signedIn();
     for (const answer of ['System', 'Light', 'Dark']) {
-      const first = render(<App />);
+      const first = renderApp();
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'kat' })).toBeDefined();
       });
@@ -214,7 +246,7 @@ describe('the theme control through the app', () => {
       first.unmount();
 
       // A reload is a fresh mount: the control reads the stored answer, not a default.
-      const second = render(<App />);
+      const second = renderApp();
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'kat' })).toBeDefined();
       });

@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it, test } from 'vitest';
 
+import { isPreferenceStoreLifecycleError, PreferenceStoreLifecycleError } from './contract';
 import { fakeBrowserStorage } from './fake-browser-storage';
 import { createPreferences } from './preferences.resource';
 
@@ -403,5 +404,31 @@ describe('once the runtime that owns this store is no longer live', () => {
       ),
       { seed: 20260924, numRuns: 200 },
     );
+  });
+
+  /**
+   * The refusal is **classified**, not only worded: a delivery consumer has to
+   * tell a lifecycle refusal apart from an unmodelled storage failure without
+   * matching on message text, which is what `lib/theme.ts`'s own narrow catch
+   * does. Asserted on the caught value's own type and `kind`, deliberately not
+   * on its message — the message assertions elsewhere in this file already
+   * cover the wording and would keep passing for a plain `Error`.
+   */
+  test('a withdrawn refusal is a lifecycle refusal of kind withdrawn', () => {
+    const store = fakeBrowserStorage();
+    const withdrawn = createLiveness();
+    const held = createPreferences(store, withdrawn.isLive).unchecked('wbs.demo.id');
+    withdrawn.live = false;
+
+    let caught: unknown = null;
+    try {
+      held.write('p1');
+    } catch (refusal) {
+      caught = refusal;
+    }
+
+    expect(isPreferenceStoreLifecycleError(caught)).toBe(true);
+    expect(caught).toBeInstanceOf(PreferenceStoreLifecycleError);
+    expect(caught instanceof PreferenceStoreLifecycleError ? caught.kind : null).toBe('withdrawn');
   });
 });
