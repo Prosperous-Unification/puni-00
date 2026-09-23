@@ -36,8 +36,11 @@ Slices 2 and 3 resume the clone the previous slice built:
 /home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-e6-resource-modules 3 <the same sha> --batch batch-6 --resume --require-ancestor <slice 2 planner commit> --slice-note 'reviewed base <sha>' --preserve evidence
 ```
 
-No slice binds a port or needs the network (`bun build` and the pilot suite's local `git clone` run
-offline), so **no slice needs `--network`**. No slice reads an earlier attempt's evidence, only the
+The executor never runs `apps/wbs/be-01/src/app.routes.test.ts`: its `refuses framed GET and HEAD
+bodies on the production health route` test binds a port through `Bun.serve`, which a sandbox refuses
+with `EPERM: operation not permitted, listen` while the network is off. The be-01 unit command below
+excludes that file and the planner runs it (section 8). Nothing else binds a port or needs the network
+(`bun build` and the pilot suite's local `git clone` run offline), so **no slice needs `--network`**. No slice reads an earlier attempt's evidence, only the
 committed tree, so **no slice needs `--seed`**.
 
 ## 1. Goal and non-goals
@@ -291,7 +294,7 @@ log="$TMPDIR/evidence/slice1-core-baseline.log"
 if (cd libs/wbs/application/core && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test src) >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
 tail -5 "$log"
 log="$TMPDIR/evidence/slice1-be01-unit-baseline.log"
-if (cd apps/wbs/be-01 && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | sort)) >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
+if (cd apps/wbs/be-01 && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' ! -name 'app.routes.test.ts' | sort)) >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
 tail -5 "$log"
 log="$TMPDIR/evidence/slice1-routes-bundle-red.log"
 bundle="$TMPDIR/evidence/slice1-project-routes-red.js"
@@ -302,7 +305,7 @@ if count=$(grep -c "application.plan-document" "$bundle"); then echo "count=$cou
 
 The lint and typecheck run first on purpose (addendum 14). Expect `exit=0` in the first three logs.
 Call the core pass count `C` and file count `F` (observed `572` over 59); call the be-01 unit pass
-count `E` and file count `EF` (observed `519` over 49). Expect `exit=0` in the bundle log and
+count `E` and file count `EF` (observed `513` over 48; `app.routes.test.ts`'s six tests are the planner's). Expect `exit=0` in the bundle log and
 `count=0 (grep exit 1)` (row 3). This slice ends at `C + 5` over `F + 1` (`module.test.ts` adds
 five tests and one file; the moved `plan-document.resource.test.ts` keeps its eight) and at `E`
 over `EF`.
@@ -358,7 +361,7 @@ python3 -c "import json,os;e=json.load(open('docs/code-organization/kinds.json')
 
 11. Closing checks, each under the status wrapper: `(cd libs/wbs/application/core && bun test src)`
     → exit 0, `C + 5` passes over `F + 1` files (observed `577` over 60); the be-01 unit command of
-    step 0 → `E` over `EF` (observed `519` over 49); `wbs-core` lint and typecheck and
+    step 0 → `E` over `EF` (observed `513` over 48); `wbs-core` lint and typecheck and
     `wbs-be-01:typecheck` → exit 0; `test "$(ls libs/wbs/application/core/src/module/plan-document | wc -l)" -eq 7`;
     `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
 12. Append to `openspec/changes/adopt-di-composition/verify.md` a `### Plan document, Slice 1 — <date>`
@@ -398,7 +401,7 @@ mkdir -p "$TMPDIR/evidence"
 log="$TMPDIR/evidence/slice2-lint-typecheck-baseline.log"
 if NX_DAEMON=false bunx nx run-many -t lint,typecheck -p wbs-be-01 --skip-nx-cache >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
 log="$TMPDIR/evidence/slice2-be01-unit-baseline.log"
-if (cd apps/wbs/be-01 && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | sort)) >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
+if (cd apps/wbs/be-01 && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' ! -name 'app.routes.test.ts' | sort)) >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
 tail -5 "$log"
 log="$TMPDIR/evidence/slice2-be01-db-baseline.log"
 if (cd apps/wbs/be-01 && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bun test src/services.db.test.ts src/service/solver-child-lifecycle.db.test.ts) >"$log" 2>&1; then status=0; else status=$?; fi; printf 'exit=%s\n' "$status" >>"$log"
@@ -414,7 +417,7 @@ done
 ```
 
 Expect `exit=0` in every log. Call the be-01 unit pass count `E` and file count `EF` (observed
-`519` over 49) and the two database files' pass count `D` and file count `DF` (observed `13` over 2 in
+`513` over 48) and the two database files' pass count `D` and file count `DF` (observed `13` over 2 in
 the author's own worktree, **not** inside a sandbox; `services.db.test.ts` reads the real solver
 source module through the shim). If the pair cannot run in your sandbox, record its output, mark
 it "pending planner verification" with the author's observed `13` over 2, and continue without
@@ -459,7 +462,7 @@ deletion** of the old test path.
    moved file, so the moved file keeps differing from its source by the one literal alone.
 9. The step-10 substitute of slice 1 → `93 []`.
 10. Closing checks, each under the status wrapper: the be-01 unit command → `E + 7` over `EF + 1`
-    (observed `526` over 50); the database command → `D` over `DF` (observed `13` over 2); the
+    (observed `520` over 49); the database command → `D` over `DF` (observed `13` over 2); the
     entrypoint test → `2 pass`; `wbs-be-01` lint and typecheck → exit 0;
     `test "$(ls apps/wbs/be-01/src/module/solver-launcher | wc -l)" -eq 7`;
     `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
@@ -553,18 +556,19 @@ the six non-README files and `applicableChecks` `["check.be-01.test"]`, and
 
 ## 8. Planner-only checks
 
-| Check                                                                                                                                                                                                        | Why the planner's                                                                                                                         | Observed on the rehearsed tree                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Moved-code identity: for each file of 10.2 and 10.9, copy the `$base` version of the source path to a scratch file, apply that file's section of the diff to it, and `cmp` it with the committed module file | Proves the moved bodies differ only in 10.2's import lines and 10.9's import line and one literal                                         | the extraction script of section 15 does the same; all four equal                                               |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, staged                                                                                 | Writes Git objects; `service-kinds.test.ts` needs the staged tree                                                                         | slices 1, 2 and 3: `366` tests over 25 files, exit 0                                                            |
-| `(cd apps/wbs/be-01 && bun test)` (the whole `wbs-be-01:test` command, without coverage)                                                                                                                     | Opens SQLite databases and spawns processes as a whole target                                                                             | `1090 pass`, `1 skip` over 91 files at `2ae5cfde`; `1097 pass`, `1 skip` over 92 at slice 3                     |
-| `apps/wiki/cli` `trusted-policy.test.ts`, `relocation-activation.test.ts` and `committed-target-facts.test.ts` together                                                                                      | They read `relationships.json`                                                                                                            | `88 pass`, `0 fail` at slice 3                                                                                  |
-| `check-indexes committed` on slices 1 and 3                                                                                                                                                                  | Index validation, not MOD-LAYOUT                                                                                                          | slice 3: 16 indexes, both new modules with six members each, no review debt                                     |
-| `NX_DAEMON=false bunx nx run wbs-core:test:portable`                                                                                                                                                         | Playwright; no browser in the sandbox                                                                                                     | **not run**; the portable bundle does not import Plan document                                                  |
-| `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `:test:package`                                                                                                                                     | Whole listener suite; package suite listens                                                                                               | **not run** (only the pilot, target-facts, trusted-policy and relocation files were run)                        |
-| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`, the whole file                                                                                                                         | Its `production index checker resolves current Markdown links` test spawns `check-indexes working` (`git add --update`, `git write-tree`) | **pending planner verification**; the author observed `15 pass`, `0 fail` on the slice-3 tree outside a sandbox |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                   | Host-wide heavy lock                                                                                                                      | **not run**                                                                                                     |
-| Rows 8, 9, 21 and 22's typecheck on the mutated `check.ts`                                                                                                                                                   | Still required of the executor                                                                                                            | exit 0 all four times in the author's rehearsal                                                                 |
+| Check                                                                                                                                                                                                        | Why the planner's                                                                                                                                                                            | Observed on the rehearsed tree                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Moved-code identity: for each file of 10.2 and 10.9, copy the `$base` version of the source path to a scratch file, apply that file's section of the diff to it, and `cmp` it with the committed module file | Proves the moved bodies differ only in 10.2's import lines and 10.9's import line and one literal                                                                                            | the extraction script of section 15 does the same; all four equal                                               |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, staged                                                                                 | Writes Git objects; `service-kinds.test.ts` needs the staged tree                                                                                                                            | slices 1, 2 and 3: `366` tests over 25 files, exit 0                                                            |
+| `(cd apps/wbs/be-01 && bun test)` (the whole `wbs-be-01:test` command, without coverage)                                                                                                                     | Opens SQLite databases and spawns processes as a whole target                                                                                                                                | `1090 pass`, `1 skip` over 91 files at `2ae5cfde`; `1097 pass`, `1 skip` over 92 at slice 3                     |
+| `bun test ./apps/wbs/be-01/src/app.routes.test.ts`                                                                                                                                                           | its health-route framing test listens on a TCP port, which a sandbox refuses (`EPERM … listen`); `6 pass` outside the sandbox; the whole `wbs-be-01:test` row already covers it at slice end |
+| `apps/wiki/cli` `trusted-policy.test.ts`, `relocation-activation.test.ts` and `committed-target-facts.test.ts` together                                                                                      | They read `relationships.json`                                                                                                                                                               | `88 pass`, `0 fail` at slice 3                                                                                  |
+| `check-indexes committed` on slices 1 and 3                                                                                                                                                                  | Index validation, not MOD-LAYOUT                                                                                                                                                             | slice 3: 16 indexes, both new modules with six members each, no review debt                                     |
+| `NX_DAEMON=false bunx nx run wbs-core:test:portable`                                                                                                                                                         | Playwright; no browser in the sandbox                                                                                                                                                        | **not run**; the portable bundle does not import Plan document                                                  |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:test` and `:test:package`                                                                                                                                     | Whole listener suite; package suite listens                                                                                                                                                  | **not run** (only the pilot, target-facts, trusted-policy and relocation files were run)                        |
+| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`, the whole file                                                                                                                         | Its `production index checker resolves current Markdown links` test spawns `check-indexes working` (`git add --update`, `git write-tree`)                                                    | **pending planner verification**; the author observed `15 pass`, `0 fail` on the slice-3 tree outside a sandbox |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                   | Host-wide heavy lock                                                                                                                                                                         | **not run**                                                                                                     |
+| Rows 8, 9, 21 and 22's typecheck on the mutated `check.ts`                                                                                                                                                   | Still required of the executor                                                                                                                                                               | exit 0 all four times in the author's rehearsal                                                                 |
 
 This table supplements the batch-1 README's "Integration verification" matrix.
 
