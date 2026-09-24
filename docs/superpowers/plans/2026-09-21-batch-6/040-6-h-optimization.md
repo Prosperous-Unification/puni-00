@@ -21,10 +21,9 @@ baselines it compares against. Section 8 names the planner's checks.
 print an entry) and its `legacy-root` exemption entry, and must descend from packet G's slice-4
 planner commit. This packet was rehearsed on `1378c1dd`, whose E8 and G files are those packets'
 rehearsal trees; their real commits differ from the rehearsal trees in more than dates (G's `kinds.json` broadcast row,
-`plan-commands/contract.ts`, `tasks.md` 1.2 and 5.2 wording); none of those lines is context of an H
+`plan-commands/contract.ts`, `compose.test.ts`, `tasks.md` 1.2 and 5.2 wording); none of those lines is context of an H
 hunk, but the dated G lines in 10.23–10.25 are, so §15 is rerun against the real base before
-dispatch. **Before dispatch the planner reruns section 15's script against the real base** (with the
-real base in place of `1378c1dd`): three diffs here carry dated G lines as context — 10.23 and
+dispatch. **Before dispatch the planner reruns section 15's script against the real base** (the apply-only form: the same script with `same_as` replaced by `git add -A`, then `git diff --cached --stat <r3 slice-4 sha>` must list only files this packet does not touch; the tree-equality lines hold only on `1378c1dd`): three diffs here carry dated G lines as context — 10.23 and
 10.24 sit beside G's legacy-pin `Proof:` line and 10.25 beside G's `tasks.md` notes — and if G's
 executor observed a date other than 2026-09-24 those lines differ. A refusal there is re-cut by the planner, never repaired by the executor. Every count below
 was measured on `1378c1dd`; every comparison is relative to the slice's own step 0. Slice 1:
@@ -349,6 +348,8 @@ feature   prepend to s/solver-supervisor-spawner.ts: "import '../optimization/op
 | E1  | **evidence**, planner-observed          | none                                     | `optimization-spawn-handshake.proc.db.test.ts`, inside `codex sandbox` (workspace-write, network off) | `error: spawn-handshake condition did not arrive`, `0 pass`, `1 fail`; outside the sandbox `1 pass` — why it is planner-only                                                                                                                                                                                                                                                            |
 | E2  | **evidence**, planner-observed          | none                                     | `app.routes.test.ts` inside the same sandbox                                                          | `EPERM: operation not permitted, listen` — the same sandbox reproduces E6's reason; the six database files pass in it (`54` over 6)                                                                                                                                                                                                                                                     |
 
+Rows 10, 11, 39 and 40 give the counts of `module.test.ts` alone, the file slices 1 and 3 step 7 run; a run over the whole module directory reads `10 pass, 1 fail` (Optimization) and `8 pass, 1 fail` (Supervisor).
+
 Each module assertion has its own mutation: tuple and label are independent (the label fault leaves the
 private-binding test green); bag and resolver split the installer test's two assertions; edge, sink
 and port break one real provider edge each. Each boundary route clause has its own single-violation
@@ -410,7 +411,7 @@ A fault of section 6 is `python3 "$TMPDIR/fault.py" <file> <occurrence> '<exact 
 (write a newline inside the replacement as `\n`). An exact line or replacement that contains `'` is
 passed in double quotes (`"…"`), or with `\'` inside `$'…'`; for example row 10 is
 `python3 "$TMPDIR/fault.py" "$o/check.ts" 1 "  return { optimizer: bag.resolve('optimizer') };" $'  const exposed = { optimizer: bag.resolve(\'optimizer\'), bag };\n  return exposed;'`.
-Rows 11, 28, 39 and 40, and every other fault whose line holds a `'`, take the same form. A _prepend_ is
+Rows 11, 19, 28, 29, 39 and 40, and every other fault whose line holds a `'`, take the same form. A _prepend_ is
 `{ printf '%s\n' '<line>'; cat <file>; } >"$TMPDIR/prepended.ts"` followed by
 `cp "$TMPDIR/prepended.ts" <file>`. `erase.ts` is Bun's own TypeScript transpiler with every `import`
 and `export … from` statement removed from its output: two files whose erased bodies are equal run the
@@ -3660,6 +3661,13 @@ The same rehearsed tree also produced this erased-body comparison for slice 2 (r
 ---
 >     const inputHash = this.options.hashInput(ask.input);
 ```
+
+**Review disposition.** Round 1 (READY AFTER FIXES: three Important, four minor — fault quoting, the
+real-vs-rehearsal dispatch sentence, the Supervisor's K5 wording, and four accuracy notes) was fixed in
+`1294c41c`, with slices 3 and 4 re-cut as `rehearse/040-6-h-optimization-r3`. Round 2 (READY AFTER
+FIXES: one Important, four minor — the real-base replay made apply-only, rows 19 and 29 named in the
+quoting sentence, `compose.test.ts` added to G's differences, this paragraph, and the row-count note)
+changes this packet's text only; r3 stands.
 
 ## 16. Deferred: label agreement
 
