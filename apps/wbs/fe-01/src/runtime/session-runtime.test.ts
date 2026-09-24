@@ -8,7 +8,7 @@ import { fakeProjectApi } from '@/testing/fake-project-api';
 
 import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
 import { installProjectRuntime, type ProjectRuntimeDependencies } from './project-runtime';
-import { createSessionOwner, installSessionRuntime } from './session-runtime';
+import { createSessionOwner, installSessionRuntime, sessionFor } from './session-runtime';
 
 /** A project source over a fresh fake client, with no socket. */
 const projectSource = (): ProjectSource => ({
@@ -199,5 +199,16 @@ describe('the session runtime', () => {
     letGo();
     await Promise.all([first, second]);
     expect(owner.snapshot().status).toBe('empty');
+  });
+
+  it('hands a region drawn for one user nothing of another user’s session', async () => {
+    const owner = createSessionOwner({ clientFor: () => fakeDirectoryApi(), budgetMs: 1_000 });
+    await owner.open({ userId: 'u1', credential: '' });
+    const state = owner.snapshot();
+    if (state.status !== 'live') throw new Error(`u1 was not published: ${state.status}`);
+
+    expect(sessionFor(state, 'u1')).toBe(state.services);
+    expect(sessionFor(state, 'u2')).toBeNull();
+    expect(sessionFor({ status: 'retiring' }, 'u1')).toBeNull();
   });
 });

@@ -10,9 +10,8 @@ import type {
   PersonView,
   TeamView,
 } from '@/lib/wbs-api';
+import { DirectoryPageOverClient } from '@/testing/directory-page-over-client';
 import { personView } from '@/testing/views';
-
-import { DirectoryPage } from './directory-page';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -348,7 +347,7 @@ const TEAM_USAGE: DirectoryUsage = {
 
 const pageWith = (api: DirectoryApi) =>
   render(
-    <DirectoryPage token="t" api={api} nav={<span>nav slot</span>} account={<span>me</span>} />,
+    <DirectoryPageOverClient api={api} nav={<span>nav slot</span>} account={<span>me</span>} />,
   );
 
 /** Waits for the arrival read to have redrawn both panels. */
@@ -414,7 +413,7 @@ describe('the directory page', () => {
     const page = pageWith(fakeDirectory([KAT], [PLATFORM]));
     await drawn('Kat');
     page.rerender(
-      <DirectoryPage token="t" api={fakeDirectory([KAT], [PLATFORM])} nav={null} account={null} />,
+      <DirectoryPageOverClient api={fakeDirectory([KAT], [PLATFORM])} nav={null} account={null} />,
     );
 
     expect(subscribed).toHaveBeenCalledTimes(0);
@@ -718,7 +717,7 @@ describe('the directory page re-reads', () => {
     await drawn('Kat');
 
     page.rerender(
-      <DirectoryPage token="t" api={api} nav={<span>nav slot</span>} account={<span>me</span>} />,
+      <DirectoryPageOverClient api={api} nav={<span>nav slot</span>} account={<span>me</span>} />,
     );
     // Typing is a render per keystroke, and none of them is an arrival.
     fireEvent.change(screen.getByLabelText('Name of Kat'), { target: { value: 'Ka' } });
@@ -1121,7 +1120,7 @@ describe('the Tags section, and what it deliberately has not got', () => {
       [{ id: 't1', name: 'Platform' }],
     );
     api.putTags([{ id: 'g1', name: 'regulatory' }]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     const box = await screen.findByLabelText('Name of regulatory');
     const row = box.closest('li');
@@ -1146,7 +1145,7 @@ describe('the Tags section, and what it deliberately has not got', () => {
       [{ id: 't1', name: 'Platform' }],
     );
     api.putWorkItemTypes([{ id: 'w1', name: 'Bug' }]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     const box = await screen.findByLabelText('Name of Bug');
     const row = box.closest('li');
@@ -1178,7 +1177,7 @@ describe('the Tags section, and what it deliberately has not got', () => {
     // Proof: the sentence replaced by the Tags card's wording, watched failing on
     // the `Columns` mention being absent. Watched 2026-08-30.
     const api = fakeDirectory([], []);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     const empty = await screen.findByText(/No types yet/);
     expect(empty.textContent).toMatch(/Columns/);
@@ -1187,7 +1186,7 @@ describe('the Tags section, and what it deliberately has not got', () => {
 
   itDom('adds a tag, and says why the plan had no column until now', async () => {
     const api = fakeDirectory([], []);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     // The empty state names the consequence rather than just the emptiness: the
     // table's Tags column does not exist until a tag does, so a reader looking
@@ -1218,7 +1217,7 @@ describe('the Services section, and the removal that had to say which dimension 
       [{ id: 't1', name: 'Platform', serviceIds: [] }],
     );
     api.putServices([{ id: 's1', name: 'Payments' }]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     const box = await screen.findByLabelText('Name of Payments');
     const row = box.closest('li');
@@ -1231,7 +1230,7 @@ describe('the Services section, and the removal that had to say which dimension 
 
   itDom('adds a service, and says where the plan column comes from', async () => {
     const api = fakeDirectory([], []);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     expect(await screen.findByText(/No services yet/)).toBeTruthy();
 
@@ -1252,7 +1251,7 @@ describe('the Services section, and the removal that had to say which dimension 
     // `renameService` and not to the neighbour a line above it.
     const api = fakeDirectory([], []);
     api.putServices([{ id: 's1', name: 'Payements' }]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     const box = await screen.findByLabelText('Name of Payements');
     fireEvent.change(box, { target: { value: 'Payments' } });
@@ -1285,7 +1284,7 @@ describe('the Services section, and the removal that had to say which dimension 
       ],
       members: [],
     });
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of Payments')).toBeDefined();
     });
@@ -1318,7 +1317,7 @@ describe('the Services section, and the removal that had to say which dimension 
       ],
       members: [],
     });
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of regulatory')).toBeDefined();
     });
@@ -1344,7 +1343,7 @@ describe('the Services section, and the removal that had to say which dimension 
       ],
       members: [],
     });
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of Payments')).toBeDefined();
     });
@@ -1371,7 +1370,7 @@ describe('the ownership map, edited on the team row', () => {
       { id: 's1', name: 'Billing' },
       { id: 's2', name: 'Payments' },
     ]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     await waitFor(() => {
       expect(screen.getByLabelText('Platform no longer owns Billing')).toBeDefined();
@@ -1391,7 +1390,7 @@ describe('the ownership map, edited on the team row', () => {
       { id: 's1', name: 'Billing' },
       { id: 's2', name: 'Payments' },
     ]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Platform no longer owns Billing')).toBeDefined();
     });
@@ -1423,7 +1422,7 @@ describe('the ownership map, edited on the team row', () => {
     // Absent means "leave it alone", and this is where that is pinned.
     const api = fakeDirectory([], [{ id: 't1', name: 'Platfrom', serviceIds: ['s1'] }]);
     api.putServices([{ id: 's1', name: 'Billing' }]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
 
     const box = await screen.findByLabelText('Name of Platfrom');
     fireEvent.change(box, { target: { value: 'Platform' } });
@@ -1441,7 +1440,7 @@ describe('the ownership map, edited on the team row', () => {
     // realises the vocabulary is missing a word — and a create that did not
     // also claim it would leave the reader to find the new service and pick it.
     const api = fakeDirectory([], [{ id: 't1', name: 'Platform', serviceIds: [] }]);
-    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+    render(<DirectoryPageOverClient api={api} nav={null} account={null} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of Platform')).toBeDefined();
     });

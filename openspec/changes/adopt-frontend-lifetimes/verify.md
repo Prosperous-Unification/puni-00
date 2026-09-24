@@ -2152,3 +2152,50 @@ Runtime set 5 files, 37 tests; preferences 4 files, 39 tests; sandbox 56 files, 
 
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
 the host gate were not run in the executor sandbox.
+
+## Packet 050.7i, slice 2 — the directory drawn from the signed-in user's session, kept across a same-user update
+
+Attempt `050-7-i-session-runtime.2.20260924T185138Z`, observed 2026-09-24, in the executor sandbox.
+Starting hash `a295df56ff682ce4cca3a4a13dc3b0aa615bac6c` (the slice-1 planner commit), equal to the
+slice note's reviewed base; the starting status was empty (`status-before.txt`). Every test run had
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset. Evidence names are relative to the attempt's
+evidence directory.
+
+**Baselines** (`s2-baselines.out`), each `status=0`: preferences 4 files · 39 tests; sandbox node
+suite 56 · 708; session set, serial, 3 · 59; adopted set, serial, 20 · 1218; zoned (Auckland) 2 · 3.
+Strict OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+**Contract first.** The scenario "The same user keeps the session, the router and the address"
+applied; strict OpenSpec unchanged at 114 · 114 · 0 (`openspec-s2-contract.*.json`).
+
+**Red** (the test side applied, nothing else): `wbs-fe-01:typecheck` `status=1`,
+`Found 22 errors in 6 files.` — 17 × TS2741 in `directory-page.test.tsx` (`Property 'token' is
+missing in type '{ api: DirectoryApi; … }' but required in type 'DirectoryPageOverClientProps'`),
+2 × TS2322 at `directory-page-over-client.tsx:32:25`, 1 × TS2322 in `app-router.test.tsx`
+(`session` not yet a region prop), 1 × TS2339 in `app.test.tsx` (`Property 'SignedInApp' does not
+exist`), 1 × TS2724 in `session-runtime.test.ts` (no exported member `sessionFor`)
+(`s2-red-typecheck.log`). Vitest over `src/app.test.tsx` `status=1`, `Tests 3 failed | 9 passed
+(12)`: `keeps the router, the address and a draft …`, `shows the sanitized report …` and `gives the
+session back …`, all on `Element type is invalid: … got: undefined` (`s2-red-vitest.log`).
+
+**Green**, each `status=0` (`s2-green.out`): typecheck; session set 3 · 64 (+5); adopted set
+20 · 1218 (unchanged); zoned 2 · 3 (unchanged); sandbox 56 · 709 (+1). `composition.ts` is gone, and
+the builder `git grep` over delivery printed nothing (`s2-builders.txt` empty). `wbs-fe-01:lint`
+`status=0` (`s2-lint.log`).
+
+**Proofs.** Each filter matched exactly one test (`s2-proof-filters.txt`); each fault was injected,
+its named test failed, the file was restored and `cmp`-identical, and the test reran green
+(`s2-proofs.txt`, `<id>.patch`, `<id>.log`, `<id>.green.log`):
+
+| Id   | Fault                                                 | Observed                                                                   |
+| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| `g1` | `sessionFor` hands out whatever is live, for any user | `1 failed \| 7 skipped (8)`; `expected { userId: 'u1', …(3) } to be null`  |
+| `g2` | a fatal session draws the region anyway               | `1 failed \| 11 skipped (12)`; `Error: no fatal state yet`                 |
+| `g3` | the region's unmount never leaves the session         | `1 failed \| 11 skipped (12)`; `expected 'live' to be 'empty'`             |
+| `g4` | the owner is opened with an empty credential          | `1 failed \| 11 skipped (12)`; `expected [ '' ] to deeply equal [ 'tok' ]` |
+
+**After the comments** (`s2-final-*.log`), each `status=0`: session set 3 · 64, preferences 4 · 39,
+sandbox 56 · 709.
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which runs in the executor sandbox.

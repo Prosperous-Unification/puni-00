@@ -63,6 +63,26 @@ export interface SessionRuntime {
   readonly projects: ProjectOwner;
 }
 
+/**
+ * The runtime a region drawn for `userId` may use: the published one, when it is
+ * that user's, and nothing otherwise.
+ *
+ * Between the render that hands a region a new identity and the effect that asks
+ * the owner for it, the owner still publishes the previous user's runtime. A
+ * region that drew from it then would hand the previous user's directory and
+ * project owner to a page rendering for the next user — and a page's own effects
+ * run before its parent's, so it would act on them before anything was
+ * withdrawn.
+ */
+export function sessionFor(
+  state: LifetimeState<SessionRuntime>,
+  userId: string,
+): SessionRuntime | null {
+  // Proof: on 2026-09-24, dropping the user comparison (g1) failed `hands a region drawn for one
+  // user nothing of another user’s session`: expected { userId: 'u1', …(3) } to be null for u2.
+  return state.status === 'live' && state.services.userId === userId ? state.services : null;
+}
+
 /** What one session runtime is installed from. */
 export interface SessionRuntimeDependencies {
   readonly userId: string;

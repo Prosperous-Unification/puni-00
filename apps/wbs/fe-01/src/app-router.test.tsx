@@ -3,6 +3,9 @@ import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
+import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
+import { installProjectRuntime } from '@/runtime/project-runtime';
+import { installSessionRuntime, type SessionRuntime } from '@/runtime/session-runtime';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { refusingApi } from '@/testing/refusing-api';
 
@@ -66,10 +69,24 @@ function emptyProjects(): ProjectApi {
   });
 }
 
+/**
+ * A signed-in session's runtime over a fake directory, never withdrawn: these
+ * cases are about routing, and the session owner has its own suites.
+ */
+const signedIn = (): SessionRuntime =>
+  installSessionRuntime({
+    userId: 'u1',
+    directoryApi: fakeDirectoryApi(),
+    isCurrent: () => true,
+    installProject: installProjectRuntime,
+    budgetMs: 1_000,
+  }).services;
+
 /** The signed-in region entered at one address, the way a reload enters it. */
 const regionAt = (path: string) =>
   render(
     <AppRouter
+      session={signedIn()}
       token="t"
       presence={() => null}
       account={<span>account menu</span>}
