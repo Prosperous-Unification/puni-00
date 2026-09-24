@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 65,
+      'historical policy selector or baseline': 67,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -838,8 +838,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // naming the pre-namespacing `libs/core/src/service/work-item.service.ts` it was extracted
     // from; raised `historical policy selector or baseline` from 63 to 65 and occurrences from
     // 281 to 283, no unclassified entries (2026-09-24).
-    digest: '0d78b5794663e2bd708b6d307ba2643d33a414d717771b682392445958fe4e07',
-    occurrences: 283,
+    // Proof: registering Plan commands, the last feature module of the backend core, added
+    // `boundary.application.plan-commands`'s `sourceSelector` and one `baselineEntries` path, both
+    // naming the pre-namespacing `libs/core/src/service/plan-commands.ts` it was extracted from;
+    // raised `historical policy selector or baseline` from 65 to 67 and occurrences from 283 to
+    // 285, no unclassified entries (2026-09-24).
+    digest: '687c123b315024882f690de60d7a3ac6890f89200a880ebf21b2242b66987a54',
+    occurrences: 285,
     unclassified: [],
   });
 });

@@ -1721,3 +1721,191 @@ is pinned` failed with `historical policy selector or baseline` 63 to 65, `occur
   failed (`slice3-openspec-after.json`); `M=19`, `B=19`. The whole
   `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
   objects).
+
+### Plan commands, Slice 1 — 2026-09-24
+
+- The slice started from `base=a726b701b8619cacdeead282317a565c0b97ebae` on a clean tree, with
+  `module/plan-commands/` absent, E8's `module/work-item/check.ts` present,
+  `service/plan-commands.ts` at 393 lines, `use-cases/run-command-batch.ts` at 31,
+  `service/command-bindings.ts` at 545, one `AnnouncementCollector` class in
+  `service/broadcast.ts`, no `new PlanCommandRunner(` in `compose.ts`, and `K=93` `kinds.json`
+  entries (`slice1-step0.log`).
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`): core `bun test src` passed `C=619` over `F=67` files
+  (`slice1-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice1-be01-unit-baseline.log`); the
+  `compose.ts` bundle built with exit 0 and held `application.plan-commands count=0 (grep exit 1)`
+  (row 2, `slice1-compose-bundle-red.log`).
+- Row 1: the new `module/plan-commands/module.test.ts` failed with
+  `error: Cannot find module './check'`, 0 pass, 1 fail, 1 error (`slice1-row1-module-red.log`).
+- Row 3: after the `cp`, the `mv`, 10.2's import diff, 10.3's shims and 10.4's module files, the
+  module directory passed 41 tests, 0 fail, 159 `expect()` calls over 4 files
+  (`slice1-row3-module-green.log`).
+- Row 4: after 10.5 (`index.ts`, four `kinds.json` rows), the sideways suite passed, 1 pass, 0 fail
+  (`slice1-row4-sideways.log`).
+- Row 11, the gap: with the move made and no module rows, `import '../../service/auth.service';`
+  prepended to `module/plan-commands/run-command-batch.ts` left the sideways suite passing, 1 pass,
+  0 fail (`row11-gap-auth-shim`). After 10.6's three rows the unmutated suite passed, 1 pass
+  (row 15, `slice1-row15-sideways.log`); lint and typecheck of both projects exited 0
+  (`slice1-step6-lint-typecheck.log`).
+- Faults, each restored with `cp` and proved with `cmp` before the next; patch and log under the
+  same basename:
+  - Row 5, tuple widened to `['commands', 'planCommandOptions']` (`row5-tuple`): 3 pass, 3 fail —
+    `Received function did not throw`; `Expected to contain:
+"application.plan-commands/planCommandOptions"`; message
+    `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "planCommandOptions"`.
+  - Row 6, label dropped (`row6-label`): 4 pass, 2 fail — the two label tests; the private-binding
+    test stayed green.
+  - Row 7, drain: the returned object's `announcements,` replaced by
+    `announcements: { ...announcements, publish: () => Promise.resolve() },` (`row7-drain`):
+    `drains a committed batch into the broadcaster installPlanCommands wires` failed, expected
+    `[{ "event": { "type": "capacity_changed" }, "projectId": "project-1" }]`, received `[]`;
+    5 pass, 1 fail.
+  - Row 8, collector: the returned object's `batchServices,` replaced by
+    `batchServices: (scope) => batchServices(scope, announcements),` (`row8-collector`):
+    `hands every batch its own collector, never the direct broadcaster` failed with
+    `expect(received).not.toBe(expected)` at `expect(handed[0]).not.toBe(handed[1])`; 5 pass,
+    1 fail; `wbs-core:typecheck` exit 0 on the mutated tree (`row8-collector.typecheck.log`).
+  - Row 9, `bag` exposed (`row9-bag`): `exposes only the contract exports from its installer`
+    failed with received keys adding `"bag"` (`Expected  - 0`, `Received  + 1`); 5 pass, 1 fail;
+    `wbs-core:typecheck` exit 0 (`row9-bag.typecheck.log`).
+  - Row 10, `resolve` attached (`row10-resolver`): the same test failed at `Expected: true`,
+    `Received: false`; 5 pass, 1 fail; `wbs-core:typecheck` exit 0
+    (`row10-resolver.typecheck.log`).
+  - Row 12 (`row12-auth-shim`): the sideways suite failed with exactly
+    `"module/plan-commands/run-command-batch.ts: '../../service/auth.service' reaches service/auth.service.ts"`;
+    0 pass, 1 fail.
+  - Row 13 (`row13-auth-feature`): exactly
+    `"module/plan-commands/run-command-batch.ts: '../authentication/authentication.feature' reaches module/authentication/authentication.feature.ts"`;
+    0 pass, 1 fail.
+  - Row 14 (`row14-endpoint`): exactly
+    `"module/plan-commands/run-command-batch.ts: '../../http/endpoint' reaches http/endpoint.ts"`;
+    0 pass, 1 fail.
+- 10.7's Proof comments followed the restores. Filesystem substitute for the planner's
+  `service-kinds.test.ts`: `93 []` (`slice1-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 6 = 625` over `F + 1 = 68` (`slice1-closing-core.log`);
+  the be-01 unit set passed `E = 520` over `EF = 49` (`slice1-closing-be01-unit.log`); lint and
+  typecheck of both projects exited 0 (`slice1-closing-lint-typecheck.log`); be-01's
+  `clock.test.ts` passed 4 (`slice1-closing-clock.log`); `module/plan-commands/` holds eleven
+  files; `nx format:check --all` exited 0 (`slice1-closing-format.log`).
+- The announcement collector stays in `service/broadcast.ts` as an implementation of the neutral
+  `Broadcaster` port shared by the two admitting features, barred from either by K6: Plan import
+  builds one too (task 1.2); be-01's `mountedEndpoints` still constructs `PlanCommandRunner`
+  directly (tracked under 7.4).
+
+### Working plan, Slice 2 — 2026-09-24
+
+- The slice started from `base=364db8f539082b413eda640ee70ded83617ab90e` on a clean tree, with
+  slice 1's `module/plan-commands/check.ts` present, no `working-plan.resource.ts` in the module,
+  `service/working-plan.ts` at 629 lines, nine `service/working-plan*` files, and `K=93`
+  `kinds.json` entries.
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`): core `bun test src` passed `C=625` over `F=68` files
+  (`slice2-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice2-be01-unit-baseline.log`); the
+  `compose.ts` bundle built with exit 0 and held `application.plan-commands count=0 (grep exit 1)`
+  (`slice2-compose-bundle-red.log`).
+- Row 17: after the three test `mv`s and 10.8's import diff, before the sources moved, the three
+  moved tests failed with `error: Cannot find module './working-plan.resource'` (twice) and
+  `'./working-plan-directory'`; 0 pass, 3 fail (`slice2-row17-moved-tests-red.log`).
+- Row 18: after the `cp`, the five `mv`s, 10.9's shim and 10.10's import diff, the module directory
+  passed 61 tests, 0 fail, 240 `expect()` calls over 7 files (`slice2-row18-module-green.log`).
+- Row 19: after 10.11 (one `kinds.json` row rewritten to a shim, five removed; the README's Working
+  plan paragraph), the filesystem substitute for the planner's `service-kinds.test.ts` printed
+  `88 []` (`K - 5`, `slice2-kinds-substitute.log`); lint and typecheck of both projects exited 0
+  (`slice2-step4-lint-typecheck.log`).
+- Row 20, restored with `cp` and proved with `cmp` (`row20-working-plan`): `readonly stores:
+PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` replaced by
+  `readonly stores: PlanTransactionalStores & { readonly users?: unknown };` made
+  `wbs-core:typecheck` exit 1 with exactly
+  `module/plan-commands/working-plan.types.test.ts:11:1 - error TS2578: Unused '@ts-expect-error' directive.`
+  and `Found 1 error` — the moved compile witness is still type-checked. No Proof comment follows:
+  the witness's own Proof already names this fault, and the moved body may not change.
+- Closing: core `bun test src` passed `C = 625` over `F = 68` (`slice2-closing-core.log`); the
+  be-01 unit set passed `E = 520` over `EF = 49` (`slice2-closing-be01-unit.log`); lint and
+  typecheck of both projects exited 0 (`slice2-closing-lint-typecheck.log`);
+  `module/plan-commands/` holds twenty files and `service/` one `working-plan*` file
+  (`slice2-closing-listing.log`); `nx format:check --all` exited 0 (`slice2-closing-format.log`).
+- The five Working plan implementation files keep no former path; `service/working-plan.ts` stays
+  a shim for `@wbs/core`'s `createWorkingPlan` export, which one SQLite database test uses.
+
+### Plan commands installation, Slice 3 — 2026-09-24
+
+- The slice started from `base=7bb788887186b0fdfb18bde076c26dd4db705516` on a clean tree, with
+  slice 2's `module/plan-commands/working-plan.resource.ts` present, no `installPlanCommands` in
+  `compose.ts` (`0`) and one fixture runner in `compose.test.ts` (`1`) (`slice3-step0.log`).
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-baseline.log`): core `bun test src` passed `C=625` over `F=68` files
+  (`slice3-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice3-be01-unit-baseline.log`); the red
+  `compose.ts` bundle built with exit 0 and held `application.plan-commands count=0 (grep exit 1)`
+  (`slice3-compose-bundle-red.log`).
+- Row 21: after 10.12 (the fixture's runner becomes `graph.commands`; one new case),
+  `compose.test.ts` ran 13 pass, 4 fail, with
+  `TypeError: undefined is not an object (evaluating 'runner.run')` (three) and
+  `(evaluating 'graph.commands.runDirectory')` (`slice3-row21-compose-test-red.log`);
+  `wbs-core:typecheck` exited 1 with
+  `TS2339: Property 'commands' does not exist on type 'CommonServices'.` at `compose.test.ts:109`,
+  `:241`, `:244` and `:250` (`slice3-row21-typecheck-red.log`).
+- Row 23: after 10.13 (`compose.ts` installs Plan commands as `commands`; the README names the
+  installation), `compose.test.ts` passed 17, 0 fail (`slice3-row23-compose-test-green.log`).
+- Row 22: the green `compose.ts` bundle built with exit 0 and held
+  `application.plan-commands count=1` (`slice3-compose-bundle-green.log`). Lint and typecheck of
+  both projects exited 0 (`slice3-step4-lint-typecheck.log`).
+- Row 26, restored with `cp` and proved with `cmp` (`slice3-row26-memo-fault.patch`): one line
+  `let firstBatch: WritingServices | undefined;` before `export interface ServicesOverOptions {`
+  and Plan commands' `batchServices: batch,` replaced by
+  `batchServices: (scope, broadcast) => (firstBatch ??= batch(scope, broadcast)),` made
+  `bun test ./libs/wbs/application/core/src/compose.test.ts -t "installs Plan commands once"` fail
+  at the final `listTeams` assertion with `error: expect(received).toEqual(expected)`,
+  `-   "Second",`, `Expected  - 1`, `Received  + 0`; 0 pass, 16 filtered out, 1 fail
+  (`slice3-row26-memo-fault.log`); `wbs-core:typecheck` on the mutated tree exited 0
+  (`slice3-row26-memo-fault-typecheck.log`). After the restore the named test passed alone
+  (`slice3-row26-restored-green.log`); 10.14's Proof comment followed.
+- Closing: core `bun test src` passed `C + 1 = 626` over `F = 68` (`slice3-core-closing.log`); the
+  be-01 unit set passed `E = 520` over `EF = 49` (`slice3-be01-unit-closing.log`); lint and
+  typecheck of both projects exited 0 (`slice3-lint-typecheck-closing.log`);
+  `nx format:check --all` exited 0 (`slice3-format-check-closing.log`).
+- `composeServices` installs Plan commands once as `commands`; be-01's `mountedEndpoints` does not
+  read it yet and still constructs its own runner (tracked under 7.4).
+
+### Plan commands registration, Slice 4 — 2026-09-24
+
+- The slice started from `base=a934a5a6353a23d73fb748768dbb2315bfa6ba86` on a clean tree; the
+  last commit touching `compose.ts` was slice 3's `a934a5a6353a23d73fb748768dbb2315bfa6ba86`; the
+  pilot held `M=19` modules and `B=19` boundaries; the frozen tuple printed exactly
+  `100644 blob 720f5d37a03073e4445eeb40bf3b8d8bb0f6a03d	libs/core/src/service/plan-commands.ts`.
+- Baselines before any edit: `tool-devsync` and `twilight-burokrat` typecheck exited 0
+  (`slice4-typecheck-baseline.log`), `twilight-burokrat:lint:source` exited 0
+  (`slice4-burokrat-lint-source-baseline.log`), `tool-devsync:lint` exited 0
+  (`slice4-devsync-lint-baseline.log`); the whole `pilot-policy.test.ts` ran `T=21` tests,
+  `TF=0` failures, `P=306` `expect()` calls in 381 s (`slice4-pilot-baseline.log`); the legacy pin
+  passed alone (`slice4-legacy-pin-baseline.log`); OpenSpec validation passed `N=114`, failed 0
+  (`slice4-openspec-baseline.json`).
+- Row 27: after 10.15 (the `modules.json` row, 20 modules), the filtered
+  `pins exact pre-index tuples and passes observe lint from external trust` failed at
+  `pilot-policy.test.ts:384` with `Expected: 19`, `Received: 20`; 0 pass, 20 filtered out, 1 fail
+  (`slice4-row27-parity-red.log`).
+- Row 28: after 10.16 (the `policy.json` boundary, 20 boundaries), the same test failed at
+  `pilot-policy.test.ts:421` with `Expected: true`, `Received: false`; 0 pass, 1 fail
+  (`slice4-row28-discovered-index-red.log`).
+- Row 29: after 10.17's first block (the `pilotPaths` entry and the README's `module-index` block,
+  `check.core.test` sentence and "Wiki registration"), the same test passed: 1 pass, 0 fail
+  (`slice4-row29-registered-green.log`).
+- Row 30: the whole pilot file ran `T=21` tests, `TF=0` failures and `P + 1 = 307` `expect()`
+  calls (`slice4-row30-pilot-whole.log`).
+- Row 31: with the legacy pin unchanged,
+  `every legacy source occurrence and relevant text family is pinned` failed with
+  `historical policy selector or baseline` 65 → 67, `occurrences` 283 → 285 and digest
+  `0d78b579…` → `687c123b315024882f690de60d7a3ac6890f89200a880ebf21b2242b66987a54`,
+  `Expected - 3`, `Received + 3`, `unclassified` still `[]`; 0 pass, 1 fail
+  (`slice4-row31-legacy-pin-red.log`). No other pinned literal moved.
+- Row 32: after 10.17's numbers block the test passed, 1 pass (`slice4-row32-legacy-pin-green.log`);
+  10.18's Proof comment and 10.19's `tasks.md` records (1.2 and 5.2 reworded and ticked, 7.5
+  extended) followed.
+- Closing: `tool-devsync` and `twilight-burokrat` typecheck exited 0
+  (`slice4-typecheck-closing.log`), `twilight-burokrat:lint:source` exited 0
+  (`slice4-burokrat-lint-source-closing.log`), `tool-devsync:lint` exited 0
+  (`slice4-devsync-lint-closing.log`); the legacy pin passed alone, 1 pass
+  (`slice4-legacy-pin-closing.log`); OpenSpec validation passed `N=114`, failed 0
+  (`slice4-openspec-closing.json`).
