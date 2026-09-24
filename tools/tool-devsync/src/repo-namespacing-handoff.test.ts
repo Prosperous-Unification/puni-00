@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 67,
+      'historical policy selector or baseline': 71,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -843,8 +843,15 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // naming the pre-namespacing `libs/core/src/service/plan-commands.ts` it was extracted from;
     // raised `historical policy selector or baseline` from 65 to 67 and occurrences from 283 to
     // 285, no unclassified entries (2026-09-24).
-    digest: '687c123b315024882f690de60d7a3ac6890f89200a880ebf21b2242b66987a54',
-    occurrences: 285,
+    // Proof: registering Optimization and the Solver supervisor, the second and third backend
+    // modules, added `boundary.backend.optimization`'s and `boundary.backend.solver-supervisor`'s
+    // `sourceSelector` and one `baselineEntries` path each, naming the pre-namespacing
+    // `apps/be-01/src/service/optimization-coordinator.ts` and
+    // `apps/be-01/src/service/solver-supervisor-client.ts` they were extracted from; raised
+    // `historical policy selector or baseline` from 67 to 71 and occurrences from 285 to 289, no
+    // unclassified entries (2026-09-24).
+    digest: '8d9667b7d195746954849db31d5e6e106858109737d058581c5d33b4e7097d2e',
+    occurrences: 289,
     unclassified: [],
   });
 });

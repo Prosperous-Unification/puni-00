@@ -46,16 +46,35 @@
       `AuthenticatedUser` only; `http/endpoint.ts` re-exports both and keeps `Identity` built from them.
       `service/retention-timer.ts` moved with the use cases. Checked by
       `ports/sideways-type-boundaries.test.ts`.
-- [ ] 1.5 Move the Optimization spawn and child interfaces into the Optimization contract; keep the
+- [x] 1.5 Move the Optimization spawn and child interfaces into the Optimization contract; keep the
       Supervisor request/attempt mapper private beside the Supervisor client and amend its
-      classification to adapter-private support.
-- [ ] 1.6 Import `SolverObjectiveName` from `@wbs/domain` and replace the repository hash shim with
+      classification to adapter-private support. Landed 2026-09-24: `ReservedSpawnRequest`,
+      `ReservedSolverChild`, `ReservedSolverTerminal`, `ReservedSpawner` and the child port
+      `SolverChildProcess` are declared in `apps/wbs/be-01/src/module/optimization/contract.ts`
+      over the contract's own `OptimizationCacheKey` and `ReservedSolverAdmission`, so the port
+      names no `@wbs/store-sqlite` row type and nothing of the private child lifecycle. The mapper
+      moved into `apps/wbs/be-01/src/module/solver-supervisor/` as `solver-supervisor-spawner.ts`,
+      private support of the Supervisor repository module, and imports the port from that
+      contract; its `kinds.json` repository row is removed rather than rewritten, because no path
+      under `service/` remains to classify (88 to 87 entries). Checked by
+      `apps/wbs/be-01/src/module-boundaries.test.ts`: the contract reaching a repository file or the
+      lifecycle, and the Supervisor reaching the feature or the coordinator's compatibility path,
+      each watched failing.
+- [x] 1.6 Import `SolverObjectiveName` from `@wbs/domain` and replace the repository hash shim with
       an injected cache-key port backed by SQLite's existing SHA-256. First half landed 2026-09-22:
       `apps/wbs/be-01/src/service/optimization-coordinator.ts` and `…/optimized-plan-read.test.ts` take
       `SolverObjectiveName` from `@wbs/domain`, and the coordinator takes `ProjectEvent` from `@wbs/core`
       rather than through `service/broadcast.ts`. No rule prevents the repository-schema path returning:
       be-01 has no type-identity boundary check, and the Optimization module of 3.6 owns that rule. The
-      cache-key port is still owed.
+      cache-key port is still owed. Second half landed 2026-09-24: the coordinator hashes an input
+      through the injected cache-key port `hashInput`, typed `ScheduleInputHasher` in the Optimization
+      contract, which `apps/wbs/be-01/src/services.ts` backs with `@wbs/store-sqlite`'s
+      `scheduleInputHash`; the feature no longer imports the repository hash shim.
+      `apps/wbs/be-01/src/module-boundaries.test.ts` is the owed rule: any file of the Optimization
+      module reaching the repository schema or the repository hash helper, through be-01's shims or
+      `@wbs/store-sqlite` directly, fails it — watched on the tree before the port and on two injected
+      schema imports. It resolves module specifiers and identifiers; a member selected by string key
+      out of an allowed barrel is a stated residual.
 - [x] 1.7 Wire or delete `saved-plan-retry.ts` under the accepted saved-plans obligation. Deleted
       2026-09-23, with its unit test, be-01's re-export shim and its database test, its barrel
       export, its `service/service-boundaries.test.ts` entry and both `kinds.json` rows (95 to 93
@@ -146,7 +165,24 @@
       the two private bindings (`authOptions`, `throttleOptions`) exported independently, and the
       label dropped. Wiki registration (task 7.5) IS landed for this module; see 7.5's own note
       below.
-- [ ] 3.6 Optimization, with its repository ports and event projections.
+- [ ] 3.6 Optimization, with its repository ports and event projections. Sealed 2026-09-24 as
+      `apps/wbs/be-01/src/module/optimization/` (`module.backend.optimization`): the moved
+      `optimization.feature.ts`, its private `solver-child-lifecycle.ts` and
+      `optimized-schedule-reader.ts`, a module exporting only `optimizer`, and `buildServices`
+      installing it through `installOptimization`; the three former `service/` paths are
+      compatibility re-export shims and their `kinds.json` rows are rewritten in place. The three
+      outcome events are contract projections over the neutral `ProjectEvent`, and the feature no
+      longer re-exports `@wbs/store-sqlite`'s `storeOptimizedOutcomeAndRecord`. Proof: the module's
+      own tests; negatives for the installer leaking its bag, its resolver leaking through the
+      returned coordinator, the private `optimizationOptions` binding exported, the label dropped, and
+      the supplied contract version, error sink and cache-key port each replaced;
+      `apps/wbs/be-01/src/service/clock.test.ts` now scans every backend module directory, watched
+      failing. **Not ticked: the repository ports are not landed.** The feature still takes the
+      SQLite `db` and calls `@wbs/store-sqlite`'s queue, admission, drain, generation, cache and
+      outcome functions directly, and its lifecycle does the same for heartbeat and release — K3
+      debt recorded in the module's `contract.ts` and tracked under 7.4. Those calls sit inside the
+      spawn, cancel and restart interleavings the coordinator owns, so replacing them needs an
+      interleaving model-based test with sabotage proofs, in a change of its own.
 
 ## 4. Plan document and the adapter-side modules
 
@@ -162,7 +198,7 @@
       `PlanDocumentService`, the private `planDocumentOptions` binding exported, the label
       dropped, the supplied clock replaced, and the moved resource importing the Calendar marker
       service. Wiki registration (7.5) is not landed for this module; see 7.5's own note below.
-- [ ] 4.2 Local solver launcher as a standalone repository module; Supervisor as a repository
+- [x] 4.2 Local solver launcher as a standalone repository module; Supervisor as a repository
       module with the request/attempt mapper private to it. Local solver launcher landed
       2026-09-23 as `apps/wbs/be-01/src/module/solver-launcher/`, identified
       `module.backend.solver-launcher` rather than `local-solver-launcher` because
@@ -172,13 +208,23 @@
       row is rewritten in place (93 entries, unchanged). Proof: the module's own tests; negatives
       for the installer leaking its bag, its resolver leaking through the returned launcher, the
       private `launcherSeams` binding exported, the label dropped, the supplied probe bypassed,
-      and the moved file keeping its pre-move source-module depth. **Supervisor is not landed, so
-      not ticked:** `solver-supervisor-spawner.ts`, the mapper that would become its private
+      and the moved file keeping its pre-move source-module depth. **Supervisor was not landed
+      then:** `solver-supervisor-spawner.ts`, the mapper that would become its private
       support, imports `ReservedSpawner` and `ReservedSolverChild` from
       `optimization-coordinator.ts`, the Optimization feature, which a repository module may not
       do (K5). Task 1.5 moves those types into the Optimization contract, which does not exist
       before 3.6, and they still name `@wbs/store-sqlite`'s `SpawnRequest` and
-      `SolverSlotAdmission` and Optimization's private `SolverChildProcess`.
+      `SolverSlotAdmission` and Optimization's private `SolverChildProcess`. Supervisor landed
+      2026-09-24, after 1.5, as `apps/wbs/be-01/src/module/solver-supervisor/`
+      (`module.backend.solver-supervisor`): the moved `solver-supervisor.repository.ts`, its private
+      request/attempt mapper `solver-supervisor-spawner.ts`, a module exporting only the adapted
+      launcher port `spawner`, and `main.ts` installing it through `installSolverSupervisor`.
+      `service/solver-supervisor-client.ts` is a compatibility re-export shim for the two
+      diagnostic scripts, whose `connectSolverSupervisor` stays a TypeScript diagnostic and test
+      surface rather than a second DI service; its `kinds.json` row is rewritten in place. Proof:
+      the module's own tests; negatives for the installer leaking its bag, its resolver leaking
+      through the returned port, the private `supervisorOptions` binding exported, the label dropped
+      and the supplied worker request replaced; its K5 edge is 1.5's check.
 
 ## 5. The per-admission modules
 
@@ -326,6 +372,13 @@
       and `boundary.application.plan-commands`, bound to the pre-namespacing `plan-commands.ts`
       alone; `run-command-batch.ts`'s own predecessor stays in `boundary.application.use-cases`'s
       baseline, and the other moved files have no separate baseline entry.
+      Landed again 2026-09-24 for Optimization (task 3.6) and the Solver supervisor (task 4.2) as
+      `module.backend.optimization` and `module.backend.solver-supervisor`, with
+      `boundary.backend.optimization` and `boundary.backend.solver-supervisor` bound to the
+      pre-namespacing `apps/be-01/src/service/optimization-coordinator.ts` and
+      `apps/be-01/src/service/solver-supervisor-client.ts` alone. Both indexes name
+      `check.be-01.test`, and `pilot-policy.test.ts`'s prose-refusal pin now names the Optimization
+      index, the first offending index in path order.
       **Not landed for Plan document (task 4.1)**, for Plan import's reason below:
       `libs/core/src/service/plan-document.ts` was introduced at commit `8c34a33f` and renamed
       `R100` at `7c5dee9e`, both after the pilot's frozen `sourceRevision`.

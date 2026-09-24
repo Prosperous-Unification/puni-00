@@ -1144,6 +1144,44 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.backend.optimization",
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/be-01/src/module/optimization"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/be-01/src/service/optimization-coordinator.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "5a8c8f54f430cd67e29d12d3f35b4d77a2d9ae39",
+          "path": "apps/be-01/src/service/optimization-coordinator.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.backend.solver-supervisor",
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/be-01/src/module/solver-supervisor"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/be-01/src/service/solver-supervisor-client.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "31b66e999d627f2b2cd2709893c449dcfab8b3f8",
+          "path": "apps/be-01/src/service/solver-supervisor-client.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],
