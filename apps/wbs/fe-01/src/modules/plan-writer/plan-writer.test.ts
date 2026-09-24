@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
 
+import { createBusy } from './busy-store';
 import type { PlanWriteRefusal, PlanWriterHost } from './contract';
 import { createPlanWriter } from './plan-writer.feature';
 
@@ -44,13 +45,16 @@ function recordingHost(): {
     host: {
       readRefreshOwner: () => owner,
       isActiveReader: () => true,
-      noteCommandIssued: () => undefined,
       rereadResources: (resources) => {
         rereads.push(resources);
         return Promise.resolve();
       },
-      setBusy: (busy) => busyChanges.push(busy),
-      announceRefusal: (refusal) => refusals.push(refusal),
+      busy: {
+        raise: () => busyChanges.push(true),
+        lower: () => busyChanges.push(false),
+      },
+      commandsIssued: { publish: () => undefined },
+      refusals: { publish: (refusal) => refusals.push(refusal) },
     },
   };
 }
@@ -81,13 +85,13 @@ describe('the plan writer', () => {
     const writer = createPlanWriter({
       readRefreshOwner: () => owner,
       isActiveReader: () => true,
-      noteCommandIssued: () => undefined,
       rereadResources: (resources) => {
         rereads.push(resources);
         return Promise.resolve();
       },
-      setBusy: () => undefined,
-      announceRefusal: () => undefined,
+      busy: { raise: () => undefined, lower: () => undefined },
+      commandsIssued: { publish: () => undefined },
+      refusals: { publish: () => undefined },
     });
 
     const outcome = await writer.run(async (write) => {
@@ -100,5 +104,46 @@ describe('the plan writer', () => {
 
     expect(outcome).toBe('refused');
     expect(rereads).toEqual([]);
+  });
+
+  it('says a command was issued before it sends anything', async () => {
+    const recorded = recordingHost();
+    const said: string[] = [];
+    const writer = createPlanWriter({
+      ...recorded.host,
+      commandsIssued: { publish: () => said.push('command issued') },
+    });
+
+    await writer.run(async (write) => {
+      await write.perform(['tree'], () => {
+        said.push('request sent');
+        return Promise.resolve('renamed');
+      });
+    });
+
+    expect(said).toEqual(['command issued', 'request sent']);
+  });
+
+  it('leaves the project busy when its reader left before the answer arrived', async () => {
+    const recorded = recordingHost();
+    const busy = createBusy();
+    let reading = true;
+    const writer = createPlanWriter({
+      ...recorded.host,
+      isActiveReader: () => reading,
+      busy,
+    });
+
+    await writer.run(async (write) => {
+      await write.perform(['tree'], () => {
+        // Another API replaced this reader's while the request was in flight,
+        // and that reader raised busy for a gesture of its own.
+        reading = false;
+        return Promise.resolve('renamed');
+      });
+    });
+
+    expect(busy.snapshot()).toBe(true);
+    expect(recorded.rereads).toEqual([]);
   });
 });

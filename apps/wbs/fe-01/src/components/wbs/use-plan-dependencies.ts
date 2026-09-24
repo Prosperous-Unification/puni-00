@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { ProjectApi, StepView } from '@/lib/wbs-api';
+import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 
 import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
@@ -23,7 +24,7 @@ import { type TreeRow } from './wbs-rows';
 export function usePlanDependencies({
   flat,
   pushToast,
-  setBusy,
+  busy,
   api,
   refreshOrMarkStale,
   setDepPicker,
@@ -32,7 +33,7 @@ export function usePlanDependencies({
 }: {
   flat: TreeRow[];
   pushToast: (toast: Toast) => void;
-  setBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  busy: BusyWrites;
   api: ProjectApi;
   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
   setDepPicker: React.Dispatch<
@@ -121,7 +122,7 @@ export function usePlanDependencies({
       void (async () => {
         const owner = api;
         const isCurrent = () => activeApi.current === owner;
-        setBusy(true);
+        busy.raise();
         const refused: string[] = [];
         let ambiguous = false;
         try {
@@ -154,7 +155,7 @@ export function usePlanDependencies({
           // rename while it was still pending. Watched in `keeps an old
           // dependency-list refusal out of its busy API replacement`,
           // 2026-09-14.
-          if (isCurrent()) setBusy(false);
+          if (isCurrent()) busy.lower();
         }
         const problems = [
           notThere,
@@ -171,7 +172,7 @@ export function usePlanDependencies({
           pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [activeApi, api, flat, pushToast, refreshOrMarkStale, setBusy],
+    [activeApi, api, busy, flat, pushToast, refreshOrMarkStale],
   );
 
   /**

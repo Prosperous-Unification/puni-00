@@ -3,6 +3,7 @@ import type { PlanDocumentRequest } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
 import type {
   SavedPlanCompareReply,
   SavedPlanListEntryView,
@@ -938,6 +939,58 @@ describe('the header bar', () => {
 
     expect(asked.at(-1)?.users).toEqual([]);
   });
+
+  itDom(
+    'hands the presence slot who the project’s stream says is here, and its connection',
+    async () => {
+      let opened: SocketHandlers | null = null;
+      const streamDeps: ProjectStreamDeps = {
+        openSocket: (_url, handlers) => {
+          opened = handlers;
+          return { send: () => undefined, close: () => undefined };
+        },
+        schedule: () => 0,
+        cancel: () => undefined,
+        random: () => 0,
+      };
+      const asked: { users: readonly string[]; connected: boolean }[] = [];
+      render(
+        <ProjectPage
+          token="t"
+          api={fakeProjects(TWO)}
+          streamDeps={streamDeps}
+          presence={(roster) => {
+            asked.push(roster);
+            return null;
+          }}
+        />,
+      );
+      await selectProject('p2');
+      await waitFor(() => {
+        expect(opened).not.toBeNull();
+      });
+      const socket = (): SocketHandlers => {
+        if (opened === null) throw new Error('the page never opened a socket');
+        return opened;
+      };
+
+      act(() => {
+        socket().onOpen();
+        socket().onMessage(JSON.stringify({ type: 'presence', users: ['kat', 'lee'] }));
+      });
+      expect(asked.at(-1)).toEqual({ users: ['kat', 'lee'], connected: false });
+
+      act(() => {
+        socket().onMessage(JSON.stringify({ type: 'resume_ack', replayed: { 'project:p2': 0 } }));
+      });
+      expect(asked.at(-1)).toEqual({ users: ['kat', 'lee'], connected: true });
+
+      act(() => {
+        socket().onClose();
+      });
+      expect(asked.at(-1)).toEqual({ users: ['kat', 'lee'], connected: false });
+    },
+  );
 
   itDom('leaves the table out of the banner and in the page’s main', async () => {
     pageWith(fakeProjects(TWO));

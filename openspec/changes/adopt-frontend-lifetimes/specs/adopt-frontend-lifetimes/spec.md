@@ -331,3 +331,64 @@ the replacement".
   changes while the development server is serving the page
 - **THEN** the page is reloaded as a new document, and no second bootstrap runs
   inside the old one
+
+### Requirement: A project's plan state and announcements live outside React
+
+The plan feed and the plan writer SHALL be built from project-owned stores and
+ports - the delivered plan, the busy state, the presence of other readers, a
+channel for refusals and a channel for commands issued - and SHALL NOT be handed
+a React state setter, a React ref or a toast function. A store SHALL keep its
+snapshot the same object until one of its members changes, SHALL tell each
+listener once per change and only after the change is made, and SHALL NOT throw
+a lifecycle refusal. A channel SHALL deliver each event, in publication order, to
+the listeners subscribed when that event's delivery starts, SHALL NOT enter a
+listener while it is already running, SHALL NOT deliver to a listener after its
+unsubscribe has returned, and SHALL let a listener's failure reach the publisher
+after the other listeners have been delivered to. Delivery SHALL select from the
+stores and listen to the channels, and what a reader sees SHALL NOT change.
+
+#### Scenario: A listener that publishes, joins or leaves during a delivery
+
+- **WHEN** a listener publishes again, subscribes another listener, or
+  unsubscribes one whose turn in the current delivery has not come, from inside
+  that delivery
+- **THEN** the new event reaches every listener after the current one, the new
+  listener hears only later events, the removed listener hears nothing more, and
+  no listener is entered twice at once
+
+#### Scenario: Busy is told once per change
+
+- **WHEN** a gesture raises busy while it is already raised, or lowers it while
+  it is already lowered, or a listener raises and lowers it from inside its own
+  notification
+- **THEN** a listener is told exactly once for each change of the value, after
+  the change, and reads the value as it stands at that instant
+
+#### Scenario: A publication that says nothing new changes nothing
+
+- **WHEN** the plan feed publishes the same tree, directory and markers, an equal
+  step list in a new array and the same failure cause in a new wrapper, or the
+  stream reports the connection or the presence list it already reported
+- **THEN** the delivered plan or the presence keeps the same snapshot object and
+  no listener is told, and a publication that does change a member replaces the
+  snapshot once, keeps every other member as it was, and tells each listener once
+
+#### Scenario: The writer and the feed announce through the project's ports
+
+- **WHEN** a gesture starts, is refused, or the feed's first read is refused
+- **THEN** the table hears that a command was issued before any request is sent,
+  says each refusal once in the toast stack it was given, and a gesture whose
+  reader has left lowers no busy state and announces nothing
+
+#### Scenario: The table selects the delivered plan and settles what changed
+
+- **WHEN** a publication changes the delivered plan, including one that lands after
+  the table has rendered and before its effects have run
+- **THEN** the table draws the delivered values, and the hover card and the drafts
+  are settled against the rows and steps that changed, once per change
+
+#### Scenario: The header selects presence from a store
+
+- **WHEN** the project's stream reports who is here or whether it is connected
+- **THEN** the page's presence store holds it and the header's presence slot is
+  handed it, starting from nobody and disconnected
