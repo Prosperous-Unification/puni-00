@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { DiBag } from 'di-bag';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { DirectoryApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
@@ -8,7 +9,12 @@ import { fakeProjectApi } from '@/testing/fake-project-api';
 
 import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
 import { installProjectRuntime, type ProjectRuntimeDependencies } from './project-runtime';
-import { createSessionOwner, installSessionRuntime, sessionFor } from './session-runtime';
+import {
+  createSessionOwner,
+  installSessionRuntime,
+  type SessionExit,
+  sessionFor,
+} from './session-runtime';
 
 /** A project source over a fresh fake client, with no socket. */
 const projectSource = (): ProjectSource => ({
@@ -210,5 +216,121 @@ describe('the session runtime', () => {
     expect(sessionFor(state, 'u1')).toBe(state.services);
     expect(sessionFor(state, 'u2')).toBeNull();
     expect(sessionFor({ status: 'retiring' }, 'u1')).toBeNull();
+  });
+});
+
+describe('log out', () => {
+  it('settles signed out once the project and then the session have let go, and sends nothing', async () => {
+    const events: string[] = [];
+    const client = fakeDirectoryApi();
+    const owner = createSessionOwner({
+      clientFor: () => client,
+      install: (dependencies) => {
+        const installed = installSessionRuntime(dependencies);
+        return {
+          services: installed.services,
+          close: async (options) => {
+            await installed.close(options);
+            events.push('session given back');
+          },
+        };
+      },
+      installProject: (dependencies) => {
+        const installed = installProjectRuntime(dependencies);
+        return {
+          services: installed.services,
+          close: async (options) => {
+            await installed.close(options);
+            events.push(`project ${dependencies.projectId} given back`);
+          },
+        };
+      },
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: '' });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+    await opened.services.projects.open('p1', projectSource());
+    const sent = client.log.length;
+
+    await expect(owner.exit()).resolves.toBe('signed-out');
+
+    expect(events).toEqual(['project p1 given back', 'session given back']);
+    expect(client.log.length).toBe(sent);
+    expect(owner.snapshot().status).toBe('empty');
+  });
+
+  it('settles fatal at the budget when the project’s socket never closes, and stays fatal once it does', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    try {
+      let letGo: () => void = () => undefined;
+      const socket = DiBag.createBuilder()
+        .register({
+          socket: DiBag.withDisposal(
+            DiBag.fromSyncFactory((): string => 'open'),
+            () =>
+              new Promise<void>((resolve) => {
+                letGo = resolve;
+              }),
+          ),
+        })
+        .build();
+      socket.resolve('socket');
+      const owner = createSessionOwner({
+        clientFor: () => fakeDirectoryApi(),
+        installProject: (dependencies) => {
+          const installed = installProjectRuntime(dependencies);
+          return {
+            services: installed.services,
+            close: async (options) => {
+              await installed.close(options);
+              await socket.close(options);
+            },
+          };
+        },
+        budgetMs: 1_000,
+      });
+      await owner.open({ userId: 'u1', credential: '' });
+      const opened = owner.snapshot();
+      if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+      await opened.services.projects.open('p1', projectSource());
+
+      let settled: SessionExit | null = null;
+      void owner.exit().then((exit) => {
+        settled = exit;
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(settled).toBeNull();
+      await vi.advanceTimersByTimeAsync(2);
+
+      expect(settled).toBe('fatal');
+      const left = owner.snapshot();
+      expect(left.status === 'fatal' && left.terminal).toBe(true);
+      letGo();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(owner.snapshot()).toBe(left);
+      await expect(owner.exit()).resolves.toBe('fatal');
+      await owner.open({ userId: 'u2', credential: '' });
+      expect(owner.snapshot()).toBe(left);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('settles fatal after a sign-in that could not be built, and keeps the fatal state', async () => {
+    const owner = createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      install: () => {
+        throw new Error('the directory could not be built');
+      },
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: '' });
+    const refused = owner.snapshot();
+    expect(refused.status === 'fatal' && !refused.terminal).toBe(true);
+
+    await expect(owner.exit()).resolves.toBe('fatal');
+
+    expect(owner.snapshot()).toBe(refused);
   });
 });

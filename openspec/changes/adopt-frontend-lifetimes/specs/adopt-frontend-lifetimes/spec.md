@@ -326,6 +326,22 @@ state SHALL be shown instead.
 - **THEN** the signed-out state does not render, no retired service is
   republished, and the fatal state is shown
 
+#### Scenario: Log out whose project never lets go
+
+- **WHEN** Log out is activated and the selected project's disposal has not
+  settled when the retirement's bounded wait expires
+- **THEN** Log out settles within that wait, the signed-out state does not
+  render, the fatal state is shown, and the disposal's later completion
+  publishes nothing
+
+#### Scenario: Log out asked again, during a sign-in, or after one that failed
+
+- **WHEN** Log out is activated while a log out, a user switch or a sign-in is
+  still retiring or building, or after a sign-in that could not be built
+- **THEN** one retirement runs, every log out settles only once it has run, a
+  sign-in asked for after the log out is not undone by it, and after a sign-in
+  that could not be built the fatal state stays
+
 ### Requirement: A restored page rebuilds only after retirement succeeds
 
 A persisted page-hide SHALL begin retirement of the project, session and

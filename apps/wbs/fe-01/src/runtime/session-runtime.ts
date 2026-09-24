@@ -234,7 +234,33 @@ export interface SessionOwner extends Store<LifetimeState<SessionRuntime>> {
    * behind the first and settles after it, with the same outcome.
    */
   readonly leave: () => Promise<void>;
+  /**
+   * Log out: a **local exit**, which sends no request and revokes nothing, so a
+   * reload can still restore the identity from its cookie.
+   *
+   * It is {@link leave} and nothing more: the session and its project are
+   * withdrawn in the same instant, the project is retired and then the
+   * session, each under the retirement budget, and this settles only once that
+   * retirement has run — however many log outs, or the region's own departure,
+   * asked for it. What it settles with is what the region may do next; see
+   * {@link SessionExit}.
+   */
+  readonly exit: () => Promise<SessionExit>;
 }
+
+/**
+ * How one log out ended, as the region that asked for it acts on it.
+ *
+ * - `signed-out` — the session and its project were withdrawn and retired, in
+ *   that order, and nobody has been asked for since: the signed-out state may
+ *   render.
+ * - `fatal` — a retirement failed or outran its wait, or the owner was already
+ *   fatal: it publishes the sanitized fatal state, which the region draws
+ *   instead, and the withdrawn services are never published again.
+ * - `overtaken` — a sign-in asked for after this log out is the owner's now;
+ *   rendering the signed-out state would undo it.
+ */
+export type SessionExit = 'signed-out' | 'fatal' | 'overtaken';
 
 /** What an owner is built from; production passes none of it. */
 export interface SessionOwnerDependencies {
@@ -329,7 +355,7 @@ export function createSessionOwner({
       throw new Error('a session transition was refused by the slot itself', { cause: refusal });
     }
   };
-  return {
+  const owner: SessionOwner = {
     subscribe: slot.subscribe,
     snapshot: slot.snapshot,
     open: (identity) => {
@@ -360,5 +386,11 @@ export function createSessionOwner({
       latest = settle(slot.retire());
       return latest;
     },
+    exit: async () => {
+      await owner.leave();
+      if (slot.snapshot().status === 'fatal') return 'fatal';
+      return wanted === null ? 'signed-out' : 'overtaken';
+    },
   };
+  return owner;
 }
