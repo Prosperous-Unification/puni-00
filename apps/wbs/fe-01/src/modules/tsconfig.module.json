@@ -1,0 +1,43 @@
+{
+  // The isolated type check of one frontend module, run for every module
+  // directory by `typecheck:module` in `apps/wbs/fe-01/project.json`, which
+  // `typecheck` depends on. Each module's own `tsconfig.json` extends this and
+  // names in `files` only what its directory reaches beyond the shared list
+  // below.
+  //
+  // `composite` is what makes the check isolated rather than merely small: a
+  // composite program refuses, with TS6307, every file it reaches that its
+  // configuration does not list. So `include` is the whole outside world every
+  // module may type-check against — the two shared store primitives, the HTTP
+  // client and its refusal words under `lib/`, the refresh routes, and the
+  // domain and contracts libraries — and a module that reaches anything else,
+  // such as a sibling module's private file or a component, fails its own
+  // check. `emitDeclarationOnly` and `outDir` exist because a composite project
+  // may not disable declaration emit; the target passes `--noEmit`.
+  "extends": "../../tsconfig.spec.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "../../../../../dist/out-tsc/fe-01-modules"
+  },
+  "include": [
+    "${configDir}/**/*.ts",
+    "${configDir}/**/*.tsx",
+    "channel.ts",
+    "store.ts",
+    "../lib/http.ts",
+    "../lib/plan-refresh.ts",
+    "../lib/refusal.ts",
+    "../lib/wbs-api.ts",
+    "../../../../../libs/shared/domain/validation/src/**/*.ts",
+    "../../../../../libs/wbs/domain/contracts/src/**/*.ts",
+    "../../../../../libs/wbs/domain/domain/src/**/*.ts",
+    "../../../../../libs/wbs/domain/validation/src/index.ts"
+  ],
+  "exclude": [
+    "../../../../../libs/shared/domain/validation/src/**/*.test.ts",
+    "../../../../../libs/wbs/domain/contracts/src/**/*.test.ts",
+    "../../../../../libs/wbs/domain/domain/src/**/*.test.ts"
+  ]
+}

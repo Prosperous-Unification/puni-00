@@ -1,0 +1,33 @@
+{
+  "extends": "../tsconfig.module.json",
+  "files": [
+    // The project composition root builds each plan module, so it alone sees
+    // their factories and stores, not only their contracts.
+    "../calendar-markers/calendar-markers.feature.ts",
+    "../calendar-markers/calendar-markers.resource.ts",
+    "../calendar-markers/composition.ts",
+    "../calendar-markers/contract.ts",
+    "../plan-commands/contract.ts",
+    "../plan-commands/plan-commands.feature.ts",
+    "../plan-feed/composition.ts",
+    "../plan-feed/contract.ts",
+    "../plan-feed/delivered-plan-store.ts",
+    "../plan-feed/plan-feed.feature.ts",
+    "../plan-feed/plan-feed.resource.ts",
+    "../plan-feed/presence-store.ts",
+    "../plan-writer/busy-store.ts",
+    "../plan-writer/contract.ts",
+    // What those reach: the stream adapter, and the writer's local write with
+    // the delivery types it takes (see `../plan-writer/tsconfig.json`).
+    "../../lib/api.ts",
+    "../../lib/project-stream.ts",
+    "../../lib/local-write.ts",
+    "../../components/wbs/cell-navigation.ts",
+    "../../components/wbs/editable-grid.ts",
+    "../../components/wbs/live-editing.ts",
+    // Test support its suite records calls on.
+    "../../testing/fake-project-api.ts",
+    "../../testing/record-calls.ts",
+    "../../testing/refusing-api.ts"
+  ]
+}
