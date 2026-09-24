@@ -167,6 +167,29 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * reaches module/calendar-marker/calendar-marker.resource.ts"` (0 pass, 1 fail); with this
  * row deleted the same two lines left the suite passing (1 pass), and before the move they
  * were reported against `service/calendar-marker.service.ts`.
+ *
+ * The twentieth through twenty-second rows are the first three rules
+ * re-scoped to the Plan commands module's own directory once
+ * `run-command-batch.ts` moved out of `use-cases/` and stopped being covered
+ * by the first two rows' `path.startsWith('use-cases/')`: the module's own use
+ * case takes its principal type from `@wbs/contracts`, never from
+ * Authentication or the HTTP endpoint, and `plan-commands.feature.ts` never
+ * did either. The Authentication row is spelt twice, once for the
+ * compatibility shim and once for the module's real path, as for Saved plans.
+ *
+ * Proof (2026-09-24): with the move made and these three rows absent, prepending the bare
+ * import `import '../../service/auth.service';` to `module/plan-commands/run-command-batch.ts`
+ * left this suite passing (1 pass). With the rows, the same import failed it with exactly one
+ * violation, `"module/plan-commands/run-command-batch.ts: '../../service/auth.service' reaches
+ * service/auth.service.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-24): independently prepending
+ * `import '../authentication/authentication.feature';` to the same file failed this suite
+ * with exactly one violation, `"module/plan-commands/run-command-batch.ts:
+ * '../authentication/authentication.feature' reaches
+ * module/authentication/authentication.feature.ts"` (0 pass, 1 fail).
+ * Proof (2026-09-24): independently prepending `import '../../http/endpoint';` to the same
+ * file failed this suite with exactly one violation, `"module/plan-commands/run-command-batch.ts:
+ * '../../http/endpoint' reaches http/endpoint.ts"` (0 pass, 1 fail).
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -238,6 +261,18 @@ const routes = [
   {
     reaches: 'module/calendar-marker/calendar-marker.resource.ts',
     from: (path: string) => path.startsWith('module/plan-document/'),
+  },
+  {
+    reaches: 'service/auth.service.ts',
+    from: (path: string) => path.startsWith('module/plan-commands/'),
+  },
+  {
+    reaches: 'module/authentication/authentication.feature.ts',
+    from: (path: string) => path.startsWith('module/plan-commands/'),
+  },
+  {
+    reaches: 'http/endpoint.ts',
+    from: (path: string) => path.startsWith('module/plan-commands/'),
   },
 ] as const;
 
