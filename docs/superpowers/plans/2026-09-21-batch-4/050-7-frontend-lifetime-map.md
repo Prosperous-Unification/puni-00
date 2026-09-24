@@ -119,8 +119,11 @@ Existing K2 resolutions that should be retained:
 - `PlanFeed` wraps the plan refresh resource; delivery should subscribe/select through it rather than receive `PlanRefresh`.
 - `CalendarMarkers` is the feature facade for its exclusive private resource.
 - `PlanWriter` is already a feature interface.
+- `PlanCommands` is the delivery facade over the plan commands' private `PlanCommandRoutes`, and `ProjectServices` hands the table the feed, the marker gestures and the commands as factories of feature-services, over ports the project composition root cuts from one client (050.7h, OpenSpec task 9).
 
 Two gaps must be handled as extraction work, not bypassed by context: project catalog and saved plans currently have no feature facade, while React delivery directly coordinates their resource/API behavior. The broad `ProjectApi` also serves unfinished command extractions. Passing any of those through a new context would preserve the present K2 violation behind a provider.
+
+Update, observed <observed-date> (050.7h, OpenSpec task 9): the broad `ProjectApi` no longer serves the command extractions or any plan module. `ProjectPage` holds it for the project catalog and the archival import, which are the session's, and hands it to `projectServicesOver` (`apps/wbs/fe-01/src/modules/project/composition.ts`) only; the table, its hooks, its toolbar and its columns receive `ProjectServices` and `PlanCommands`. The command policy itself still lives in the table's hooks — the command services' extraction, each over a narrower port, remains a prerequisite of the final project surface.
 
 ## Replacement and cleanup policy
 

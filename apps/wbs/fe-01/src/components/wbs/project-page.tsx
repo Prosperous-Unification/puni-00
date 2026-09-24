@@ -19,6 +19,7 @@ import type { Recalled } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
 import { createPresence } from '@/modules/plan-feed/presence-store';
+import { projectServicesOver } from '@/modules/project/composition';
 import {
   type ApplicationServicesState,
   useApplicationServicesReader,
@@ -479,6 +480,14 @@ export function ProjectPage({
   streamDeps,
 }: ProjectPageProps) {
   const api = useMemo(() => apiOverride ?? httpProjectApi(token), [apiOverride, token]);
+  /**
+   * The table's services over that one client, composed once per client.
+   *
+   * The memo is load-bearing: the table treats a new composition as a new
+   * reader, so composing on every render would close and reopen its feed — and
+   * its socket — on every keystroke in the picker.
+   */
+  const projectServices = useMemo(() => projectServicesOver(api), [api]);
   /**
    * The shelf's wiring, memoised — and the memo is load-bearing rather than
    * tidy.
@@ -1229,7 +1238,7 @@ export function ProjectPage({
               // list rather than held twice: a rename lands in `projects` and the
               // next export says the new name.
               projectName={selectedProject?.name}
-              api={api}
+              projectServices={projectServices}
               planImport={planImport}
               // Proof: omitting this page-owned API left the remounted table's
               // toast list empty after a successful import. Observed 2026-09-14.

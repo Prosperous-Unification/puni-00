@@ -6,6 +6,7 @@ import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
 import type { PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 
 import { ProjectPage } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
@@ -59,7 +60,7 @@ describe('project optimization in the plan', () => {
   itDom('persists a project-wide schedule choice across a remount', async () => {
     const api = fakeProjectApi();
     const setSettings = vi.spyOn(api, 'setOptimizationSettings');
-    const first = render(<WbsTable projectId="p1" api={api} />);
+    const first = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await openOptimization();
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Optimize schedules' }));
@@ -89,7 +90,7 @@ describe('project optimization in the plan', () => {
     expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Fast');
 
     first.unmount();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await openOptimization();
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Time' })).toBeChecked();
@@ -104,7 +105,9 @@ describe('project optimization in the plan', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await openOptimization();
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).not.toBeChecked();
 
@@ -138,7 +141,9 @@ describe('project optimization in the plan', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Earlier project deadline by 2 days',
     );
@@ -195,7 +200,7 @@ describe('project optimization in the plan', () => {
           },
         } satisfies PlanOptimizationView,
       });
-      render(<WbsTable projectId="p1" api={api} />);
+      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
       await waitFor(() => {
         expect(screen.getByRole('status')).toHaveTextContent(
@@ -327,7 +332,9 @@ describe('project optimization in the plan', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     expect(await screen.findByRole('status')).toHaveTextContent('Optimizing…');
 
     // The solve finished and stored its certificate; the event is the only
@@ -535,7 +542,9 @@ describe('project optimization in the plan', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     expect(await screen.findByRole('status')).toHaveTextContent('Optimizing…');
 
     // The mount's own reads are not what this case is about.

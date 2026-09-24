@@ -16,7 +16,6 @@ import {
 } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { projectServicesOver } from '@/modules/project/composition';
 
 import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
@@ -615,7 +614,7 @@ export function useToday(): Date {
 export function WbsTable({
   projectId,
   projectName,
-  api,
+  projectServices,
   planImport,
   toastApi: toastApiOverride,
   subscribe,
@@ -623,15 +622,9 @@ export function WbsTable({
 }: WbsTableProps) {
   const today = useToday();
   /**
-   * The project's services over this table's client, composed once per client.
-   *
-   * Everything below receives these and never the client: the feed and the
-   * marker gestures are opened through it by the read hook, and every write
-   * goes through `commands`. Keyed on the client alone, so its identity is the
-   * client's, which is what the read hook's stale-owner guards compare.
+   * This project's commands, bound to it; a new project or new services bind
+   * anew. Everything below writes through these and never sees the client.
    */
-  const projectServices = useMemo(() => projectServicesOver(api), [api]);
-  /** This project's commands, bound to it; a new project or client binds anew. */
   const commands = useMemo(
     () => projectServices.planCommandsFor(projectId),
     [projectServices, projectId],

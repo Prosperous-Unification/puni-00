@@ -6,6 +6,7 @@ import type { ProjectApi } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
 
@@ -154,7 +155,9 @@ const rowFor = (number: string): HTMLElement => {
 async function threeRoots(api = fakeApi(), subscribe?: WbsTableProps['subscribe']) {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
-  render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+  render(
+    <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -607,7 +610,7 @@ describe('the chart under a plan being edited', () => {
   };
 
   itDom('redraws the open chart when a not-before edit moves the schedule', async () => {
-    render(<WbsTable projectId="p1" api={apiWithMovableFloor()} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiWithMovableFloor())} />);
     await waitFor(() => rowFor('010'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
@@ -635,7 +638,7 @@ describe('the chart under a plan being edited', () => {
     // fails on `expected 'Strip. 1 person. Held by its start-no-earlier-than
     // date' to contain 'Held by its start-no-earlier-than date — waiting on
     // client sign-off'`. Watched, 2026-08-18.
-    render(<WbsTable projectId="p1" api={apiWithMovableFloor()} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiWithMovableFloor())} />);
     await waitFor(() => rowFor('010'));
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
     const bar = () => document.querySelector('[data-gantt-bar]');
@@ -800,7 +803,7 @@ describe('holding the chart to the row the table is showing', () => {
     // Proof: the axis guard in `wbs-table.tsx` dropped — this failed on
     // `expected [ 'Error: the Gantt panel has no calendar axis to measure its
     // content top from' ] to deeply equal []`. Watched on h2puni, 2026-08-13.
-    render(<WbsTable projectId="p1" api={circularApi()} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(circularApi())} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     click('Gantt');

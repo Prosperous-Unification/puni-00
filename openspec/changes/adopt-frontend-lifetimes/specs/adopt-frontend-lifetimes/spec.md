@@ -422,3 +422,11 @@ route's own promise. What a reader sees SHALL NOT change.
 - **THEN** the write goes through the commands bound to the table's project and
   the plan is read through the feed the composition root opened, and the late
   answer lowers no busy state and announces nothing
+
+#### Scenario: The page composes the table's services once per client
+
+- **WHEN** the page renders the table again over the same client, or over a new
+  one
+- **THEN** the table keeps its services, its feed and its socket across the
+  same client, a new client replaces all three, and the table is never handed
+  the client itself
