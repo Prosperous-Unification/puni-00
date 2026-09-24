@@ -1368,3 +1368,80 @@ evidence files and the attempt's report.
 
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, which was not run.
+
+## Packet 050.7g, slice 1 — the channel and the busy store, each with its model test
+
+Attempt `050-7-g-project-prerequisites.1.20260924T031312Z`, starting hash
+`d71dd2d69b3aa26bced0334415bcade2f17b786c` (equal to the slice note), empty status, fast-check
+4.9.0 (`base.txt`, `status-before.txt`, `fast-check.txt`). Observed on 2026-09-24. Evidence names
+are basenames in that attempt's evidence directory.
+
+### Baselines (step 0)
+
+| Check                                                  | Status | Result                                  |
+| ------------------------------------------------------ | ------ | --------------------------------------- |
+| preferences suite (`base-preferences.log`)             | 0      | 4 files, 39 tests                       |
+| sandbox node suite (`base-sandbox.log`)                | 0      | 45 files, 674 tests                     |
+| strict OpenSpec (`openspec-base.KXURWt.json`)          | 0      | `{"items":114,"passed":114,"failed":0}` |
+| strict OpenSpec after section 7.1, the new requirement | 0      | `{"items":114,"passed":114,"failed":0}` |
+
+### Red checkpoint (after section 7.2, before section 7.3)
+
+`wbs-fe-01:typecheck` status 1 (`s1-red-typecheck.log`), `Found 3 errors in 2 files.`:
+
+```text
+apps/wbs/fe-01/src/modules/channel.model.test.ts:4:45 - error TS2307: Cannot find module './channel' or its corresponding type declarations.
+apps/wbs/fe-01/src/modules/channel.model.test.ts:136:48 - error TS7006: Parameter 'event' implicitly has an 'any' type.
+apps/wbs/fe-01/src/modules/plan-writer/busy-store.model.test.ts:4:39 - error TS2307: Cannot find module './busy-store' or its corresponding type declarations.
+```
+
+Vitest on the two model tests status 1 (`s1-red-vitest.log`): `Test Files 2 failed (2)`,
+`Tests no tests`, on `Failed to resolve import "./channel"` and
+`Failed to resolve import "./busy-store"`.
+
+### Green checkpoint (after section 7.3)
+
+| Check                                               | Status | Result                       |
+| --------------------------------------------------- | ------ | ---------------------------- |
+| `wbs-fe-01:typecheck` (`s1-green-typecheck.log`)    | 0      |                              |
+| the two model tests, serial (`s1-green-models.log`) | 0      | 2 files, 2 tests             |
+| `src/test-tiers.test.ts` (`s1-green-tiers.log`)     | 0      | 5 tests                      |
+| sandbox node suite (`s1-green-sandbox.log`)         | 0      | 47 files, 676 tests (+2, +2) |
+| `wbs-fe-01:lint` (`s1-lint.log`)                    | 0      |                              |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`s1-proof-filters.txt`). Every fault failed its model test
+with `Tests 1 failed (1)` and status 1, was restored and compared with `cmp`, and its named test then
+passed again (`<id>.patch`, `<id>.log`, `<id>.green.log`, `s1-proof-loop.txt`). Seed `20260924`,
+300 runs; the run numbers and counterexamples are identical to the packet's section 8.1.
+
+| Id   | Fault                                             | Run | Counterexample, shrunk                                                                       | Cause observed                                                                                                        |
+| ---- | ------------------------------------------------- | --- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `c1` | recipients are the live set, not a copy           | 5   | `subscribe(join),publishLater(1)`, `replayPath="BBf:F"`, shrunk 5 times                      | `teardown refused: AssertionError: who heard 1, in what order` (two deliveries where the model has one)               |
+| `c2` | an unsubscribed listener is still called          | 16  | `subscribe(dropNewest),publishLater(1),subscribe(record),settle`, `"AAAAABGBS:VF"`, shrunk 4 | `publish(1) threw with no failing listener: expected AssertionError: listener 1 heard 1 after …`                      |
+| `c3` | an inner publication is delivered at once, nested | 17  | `publishLater(1),subscribe(echo),settle`, `"CGC:F"`, shrunk 1 time                           | `listener 0 was entered re-entrantly: expected 2 to be 1`                                                             |
+| `c4` | failures are collected and never rethrown         | 5   | `subscribe(fail),publishLater(1)`, `"BBf:F"`, shrunk 5 times                                 | `publish(1) did not rethrow the one failure by identity: expected null to be Error: listener 0 refused 1`             |
+| `c5` | the first failure stops delivery                  | 5   | `subscribe(fail),subscribe(join),publishLater(1)`, `"BBe:F"`, shrunk 4 times                 | `who heard 1, in what order` (one delivery where the model has two)                                                   |
+| `c6` | several failures rethrow only the first           | 5   | `subscribe(fail),subscribe(fail),publishLater(1)`, `"BBi:F"`, shrunk 5 times                 | `publish(1) did not aggregate its failures: expected Error: listener 0 refused 1 to be an instance of AggregateError` |
+| `b1` | a raise or lower that changes nothing still tells | 1   | `lower`, `"AN:B"`, shrunk 0 times                                                            | `lower: changes heard by the listener that never leaves: expected 1 to be +0`                                         |
+| `b2` | listeners told before the value changes           | 1   | `raise`, `"DKA:F"`, shrunk 1 time                                                            | `raise: the last value the sentinel read: expected false to be true`                                                  |
+| `b3` | `lower` does nothing                              | 1   | `raise,lower`, `"EJE:F"`, shrunk 2 times                                                     | `lower: busy: expected true to be false`                                                                              |
+| `b4` | `raise` toggles                                   | 2   | `gesture,raise`, `"ACLB:K"`, shrunk 1 time                                                   | `raise: busy: expected false to be true`                                                                              |
+
+### After the Proof comments
+
+| Check                                               | Status | Result              |
+| --------------------------------------------------- | ------ | ------------------- |
+| the two model tests, serial (`s1-final-models.log`) | 0      | 2 files, 2 tests    |
+| preferences suite (`s1-final-preferences.log`)      | 0      | 4 files, 39 tests   |
+| sandbox node suite (`s1-final-sandbox.log`)         | 0      | 47 files, 676 tests |
+| `wbs-fe-01:lint` (`s1-lint-after-proofs.log`)       | 0      |                     |
+
+Owned-file Prettier `--write` then `--check` over the seven paths, and the strict OpenSpec block
+after this entry, are recorded in the attempt's report.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
+the host gate `bin/h2puni-gate.sh`, none of which the executor runs in its sandbox.
