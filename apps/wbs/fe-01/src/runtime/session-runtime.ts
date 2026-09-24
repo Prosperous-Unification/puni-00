@@ -143,6 +143,10 @@ function sessionProjects({
         // Proof: on 2026-09-24, passing the project's own reader alone (m8) failed the model test
         // `keys one runtime by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openProject(0,
         // p1),signInBroken(u2)`: s1.p1 was still current after its session was withdrawn.
+        // Proof: on 2026-09-24 the log-out model caught the same fault (x3) through a leave:
+        // `retires the project and then the session, …` (seed 20260924) failed at run 59,
+        // `signIn(u1),openProject(0, p1, settles),leave,drain`, because s1.p1's plan changed after
+        // s1 was withdrawn.
         isCurrent: () => isCurrent() && dependencies.isCurrent(),
       }),
     budgetMs,
@@ -206,6 +210,12 @@ export function installSessionRuntime({
           // `live`. Deleting the terminal-fatal throw below (d1) failed `fails the session’s
           // retirement when its project will not let go` on `expected false to be true`: the
           // session was left `empty`, not terminally `fatal`.
+          // Proof: on 2026-09-24 the log-out model caught `void projects.leave()` (x2) through a
+          // user switch: `retires the project and then the session, …` (seed 20260924) failed at
+          // run 50, `signIn(u1),openProject(0, p1, settles),signIn(u2),drain`: s1 was given back
+          // before its project s1.p1. The same fault (e1) failed `settles signed out once the
+          // project and then the session have let go, …`: the recorded order began with 'session
+          // given back' instead of 'project p1 given back'.
           await projects.leave();
           const left = projects.snapshot();
           if (left.status === 'fatal' && left.terminal) throw new SessionProjectRetirementError();
@@ -255,7 +265,33 @@ export interface SessionOwner extends Store<LifetimeState<SessionRuntime>> {
    * behind the first and settles after it, with the same outcome.
    */
   readonly leave: () => Promise<void>;
+  /**
+   * Log out: a **local exit**, which sends no request and revokes nothing, so a
+   * reload can still restore the identity from its cookie.
+   *
+   * It is {@link leave} and nothing more: the session and its project are
+   * withdrawn in the same instant, the project is retired and then the
+   * session, each under the retirement budget, and this settles only once that
+   * retirement has run — however many log outs, or the region's own departure,
+   * asked for it. What it settles with is what the region may do next; see
+   * {@link SessionExit}.
+   */
+  readonly exit: () => Promise<SessionExit>;
 }
+
+/**
+ * How one log out ended, as the region that asked for it acts on it.
+ *
+ * - `signed-out` — the session and its project were withdrawn and retired, in
+ *   that order, and nobody has been asked for since: the signed-out state may
+ *   render.
+ * - `fatal` — a retirement failed or outran its wait, or the owner was already
+ *   fatal: it publishes the sanitized fatal state, which the region draws
+ *   instead, and the withdrawn services are never published again.
+ * - `overtaken` — a sign-in asked for after this log out is the owner's now;
+ *   rendering the signed-out state would undo it.
+ */
+export type SessionExit = 'signed-out' | 'fatal' | 'overtaken';
 
 /** What an owner is built from; production passes none of it. */
 export interface SessionOwnerDependencies {
@@ -289,6 +325,11 @@ export function createSessionOwner({
   installProject = installProjectRuntime,
   budgetMs = RETIREMENT_BUDGET_MS,
 }: SessionOwnerDependencies = {}): SessionOwner {
+  // Proof: on 2026-09-24, unbounding both this wait and the one handed to the project (x4) failed
+  // `retires the project and then the session, …` (seed 20260924) at run 75,
+  // `signIn(u1),openProject(0, p1, hangs),leave,answer`: the leave had not settled by the teardown.
+  // The same fault (e2) failed `settles fatal at the budget when the project’s socket never closes,
+  // …` on `expected null to be 'fatal'`: nothing had settled once the budget had passed.
   const slot = createLifetimeSlot<SessionRuntime>(budgetMs);
   /** The identity the newest request asked for, or `null` after a leave. */
   let wanted: SessionIdentity | null = null;
@@ -365,7 +406,7 @@ export function createSessionOwner({
       throw new Error('a session transition was refused by the slot itself', { cause: refusal });
     }
   };
-  return {
+  const owner: SessionOwner = {
     subscribe: slot.subscribe,
     snapshot: slot.snapshot,
     open: (identity) => {
@@ -408,5 +449,25 @@ export function createSessionOwner({
       latest = settle(slot.retire());
       return latest;
     },
+    exit: async () => {
+      // Proof: on 2026-09-24, leaving the live project first and on its own (x1) failed `retires
+      // the project and then the session, …` (seed 20260924) at run 18,
+      // `reenterLogOut,signIn(u1),read(0)`: the withdrawn s1 sent five requests where none was
+      // allowed. Answering `signed-out` at once whenever the slot was not live (x5) failed it at
+      // run 3, `signIn(u1),leave,logOut`: logOut#1 settled signed-out before s1 was given back.
+      await owner.leave();
+      // Proof: on 2026-09-24, deleting this check (x6) failed `retires the project and then the
+      // session, …` (seed 20260924) at run 58, `signIn(u1),openProject(0, p1,
+      // rejects),logOut,drain`: logOut#1 settled signed-out before s1 was given back. The same
+      // deletion (e3) failed `settles fatal after a sign-in that could not be built, …` on
+      // `expected 'signed-out' to be 'fatal'`.
+      if (slot.snapshot().status === 'fatal') return 'fatal';
+      // Proof: on 2026-09-24, returning `signed-out` unconditionally (x7) failed `retires the
+      // project and then the session, …` (seed 20260924) at run 43,
+      // `signIn(u1),logOut,signInBroken(u1)`: logOut#1 settled signed-out although a sign-in was
+      // asked for while it retired.
+      return wanted === null ? 'signed-out' : 'overtaken';
+    },
   };
+  return owner;
 }
