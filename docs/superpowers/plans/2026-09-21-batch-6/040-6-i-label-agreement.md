@@ -1,12 +1,12 @@
 # 040.6 I — Label agreement and the closing ledger
 
-| Field      | Value                                                                                                                                                                                                                        |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Work item  | WBS 040.6, "Split the backend core's services into modules; each a sealed DI Bag module" — sixteenth and last packet                                                                                                         |
-| Size class | S, in two slices                                                                                                                                                                                                             |
-| Slices     | 1 adds `tools/tool-devsync/src/module-labels.test.ts`, the one check that every sealed module's label, identifier, README index, pilot row and boundary and `kinds.json` shim rows agree; 2 records it and the task-7 ledger |
-| Implements | `openspec/changes/adopt-di-composition/tasks.md` new task 7.6 (ticked), 7.2 and 7.4 (ticked by evidence and by the ledger), 7.1 and 7.3 (recorded open, each with a named follow-up), and one new spec scenario              |
-| Planned on | 2026-09-24; both slices rehearsed end to end and committed on a throwaway branch cut from `e8ef4758` (planning `473d00db` merged with packet G's real lane `e2ae2520`, then packet H's four r3 rehearsal commits)            |
+| Field      | Value                                                                                                                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item  | WBS 040.6, "Split the backend core's services into modules; each a sealed DI Bag module" — sixteenth and last packet                                                                                                                                                |
+| Size class | S, in two slices                                                                                                                                                                                                                                                    |
+| Slices     | 1 adds `tools/tool-devsync/src/module-labels.test.ts`, the one check that every sealed module's label, identifier, README index, pilot row and boundary and `kinds.json` shim rows agree; 2 records it and the task-7 ledger                                        |
+| Implements | `openspec/changes/adopt-di-composition/tasks.md` new task 7.6 (ticked), 7.2 and 7.4 (ticked by evidence and by the ledger), 7.1 and 7.3 (recorded open, each with a named follow-up), and one new spec scenario                                                     |
+| Planned on | 2026-09-24; both slices rehearsed end to end and committed on a throwaway branch (`rehearse/040-6-i-r2`, after the round-1 review) cut from `e8ef4758` (planning `473d00db` merged with packet G's real lane `e2ae2520`, then packet H's four r3 rehearsal commits) |
 
 **Dates.** Every `Proof:` comment and task note below carries the planner's rehearsal date,
 2026-09-24. Write the date you actually observe (`date -u +%F`) when you add them; if it differs,
@@ -114,10 +114,18 @@ exactly what drifted:
    2 without its weakness: the label is observed, not parsed. D's review-4 cases fall away by
    construction: an intersection-typed decoy beside the real module is a second exported value, and
    an exported key containing a slash carries a public key, so it is never read as private. A label
-   with a slash in it, or a nested module, puts something other than one identifier after the label
-   and fails too.
-2. **The README index**: exactly one `<!-- module-index {…} -->` line, whose `moduleId` is the
-   identifier.
+   with a slash in it, or a labelled outer module around a labelled inner one, puts something other
+   than one identifier after the label and fails too; an **unlabelled** outer module around an inner
+   one sealed under the right label does not (next paragraph but one). The label is observable only
+   through private bindings, so every module keeps at least one by convention; a module exporting
+   every binding is refused as sealing none.
+2. **The README index**: the README holds exactly one `<!--` at all, on a line spelled
+   `<!-- module-index {…} -->`, whose `moduleId` is the identifier. The wiki's own reader
+   (`apps/wiki/cli/src/indexes/read-indexes.ts`) takes any HTML comment containing `module-index`,
+   however spaced, across lines, and never inside a code fence; rather than reimplement that
+   grammar (its `mdast` packages are hoisted but declared by no manifest this project may import
+   from), the check admits only the one spelling both readers agree on and refuses any second or
+   respelled comment, fenced or not.
 3. **The pilot**: either a `modules.json` row with that `moduleId` and `indexPath`
    `<directory>/README.md` and a `policy.json` boundary `boundary.<label>` selecting exactly
    `<directory>`, or neither; the modules with neither must be exactly Plan document and Plan import
@@ -126,8 +134,11 @@ exactly what drifted:
    packet D said nothing did.
 4. **`kinds.json`**: every shim row whose disposition names `the <name> module` must name a sealed
    module of its own project (core rows `application`, be-01 rows `backend`), and every runtime value
-   the shim exports must be, by identity, a value some non-test file of that module exports. At least
-   one row must name a module, so a pattern that drifts from the rows cannot pass on nothing.
+   the shim exports must be, by identity, a value some non-test file of that module exports. Every
+   other disposition containing `re-export shim` must be one of the three library-forwarding forms
+   `kinds.json` uses today (`@wbs/core directly`, `@wbs/core/service/<file> directly`,
+   `@wbs/runtime-portable directly`), so a reworded row is refused, not skipped. At least one row
+   must name a module, so a pattern that drifts from the rows cannot pass on nothing.
 
 **Why runtime identity and not a TypeScript program** (addendum 18). The rule concerns a value the
 library computes, not the shape of an import, so the strongest identity available is the library's
@@ -136,10 +147,16 @@ stronger: a cast can lie about a literal type, and the runtime would not notice.
 
 **What it does not keep** (addendum 20), stated in the file's JSDoc and in `design.md`:
 
-- di-bag 0.4.0 exposes a label only as the prefix of private binding names. A module that drops its
-  label and spells `<label>/<key>` into a private registration key reads as labelled. That takes a
-  deliberately forged key, not a drift; closing it needs a label the library itself exposes, which
-  is the di-bag migration's (D's route 1).
+- di-bag 0.4.0 exposes a label only as the prefix of private binding names, so a module that drops
+  its label and either spells `<label>/<key>` into a private key or installs an inner module sealed
+  under that label reads as labelled (`dist/module.js`'s `labelOf` leaves an installed module's
+  already-prefixed names untouched when the outer module has no label). Both take a deliberate
+  construction, not a drift; closing them needs a label the library itself exposes, which is the
+  di-bag migration's (D's route 1).
+- Private registration keys are read as identifiers (`[A-Za-z_$][A-Za-z0-9_$]*`); a key outside that
+  form is refused as not under the label.
+- `sealedModules()` follows symbolic links (`stat`), so a linked module directory is read, not
+  skipped.
 - Primitive shim exports (`TOKEN_TTL_SECONDS` and the like) are compared by value, so a number could
   match another module's equal number. Every shim also exports a class or function, which cannot.
 - `check.ts` is not read: that it installs the value `module.ts` exports is each module's own tests'
@@ -153,7 +170,7 @@ lock or retry; the check is a read-only pass over files and one library call per
 classifies a file that already declares its kind by suffix` and `every backend service file with no
 kind suffix is classified exactly once`), green on this tree; 7.6 adds the third thing 7.2 implies,
 that a shim row names its real owner. Task 7.4's obligations are all already disclosed, module by
-module, in each `contract.ts`; the ledger collects them into one table with an owner per row. Tasks
+module, in each `contract.ts` (Authentication's and Saved plans' K2 lines in tasks 3.5 and 3.3); the ledger collects them into one table with an owner per row. Tasks
 7.1 and 7.3 are recorded open: shim retirement changes code, `kinds.json` and whatever pins count
 those files, and 18 per-module type-check targets are build configuration across two projects, each
 with its own negative. Both are named follow-ups (section 9), not this packet's growth.
@@ -165,7 +182,7 @@ with its own negative. Both are named follow-ups (section 9), not this packet's 
 
 | Path                                                                                                                                                | Slice | Action                                                                       |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------- |
-| `d`                                                                                                                                                 | 1     | create from the listing of 10.1; after rows 3-19 are observed, apply 10.2    |
+| `d`                                                                                                                                                 | 1     | create from the listing of 10.1; after rows 3-22 are observed, apply 10.2    |
 | `o/verify.md`                                                                                                                                       | 1, 2  | each slice appends its own observations                                      |
 | `o/tasks.md`, `o/design.md`, `o/proposal.md`, `o/specs/di-composition/spec.md`                                                                      | 2     | 10.3, 10.4, 10.5, 10.6                                                       |
 | `c/contract.ts`, `c/module.ts`, `c/README.md`, `docs/wiki-policy/modules.json`, `docs/wiki-policy/policy.json`, `docs/code-organization/kinds.json` | 1     | **fault targets only**: each is mutated, observed and restored byte for byte |
@@ -179,7 +196,7 @@ substring occurs exactly once), as a line _appended_, or as a JSON record _dropp
 `d`, `c` as in section 5; `M` is `docs/wiki-policy/modules.json`, `P` `docs/wiki-policy/policy.json`,
 `K` `docs/code-organization/kinds.json`.
 
-```text
+````text
 label         c/contract.ts: "'application.capacity';" -> "'application.capacities';"
 slash         c/contract.ts: "'application.capacity';" -> "'application.capacity/nested';"
 dropped       c/module.ts: "], { label: CAPACITY_LABEL });" -> "]);"
@@ -187,6 +204,8 @@ decoy         append to c/module.ts: "export const decoy = capacityModule;"
 private       d: "binding.keys.length === 0" -> "binding.keys.length < 0"
 index         c/README.md: '"moduleId":"module.application.capacity"' -> '"moduleId":"module.application.capacities"'
 twice         append to c/README.md: its own third line (the index block)
+fence         append to c/README.md: a ```md fence holding its own third line
+spaced        c/README.md: '<!-- module-index {' -> '<!--module-index {'
 row           M: '"moduleId": "module.application.capacity",' -> '"moduleId": "module.application.capacities",'
 foreign       M: '"indexPath": "libs/wbs/adapters/store-memory/src/README.md",'
                  -> '"indexPath": "libs/wbs/application/core/src/module/plan-document/README.md",'
@@ -196,10 +215,11 @@ selector      P: '"value": "libs/wbs/application/core/src/module/capacity"'
 unregistered  drop from M the module "module.application.capacity" and from P the boundary "boundary.application.capacity"
 absent        K: "the capacity module directly" -> "the capacities module directly"
 owner         K: "the capacity module directly" -> "the step module directly"
+reworded      K: "the capacity module directly" -> "the capacity module"
 pattern       d: " module directly$/;" -> " modules directly$/;"
 root          d: "'apps/wbs/be-01/src/module'" -> "'apps/wbs/be-01/src/modules'"
-scan          d: "entry.isDirectory()" -> "entry.isFile()"
-```
+scan          d: "isDirectory()) names.push(entry)" -> "isFile()) names.push(entry)"
+````
 
 The four `d` faults break the check's own guards (addendum 4: an unreadable or empty inventory must
 fail, not pass). `…` below stands for `libs/wbs/application/core/src`.
@@ -214,27 +234,31 @@ fail, not pass). `…` below stands for `libs/wbs/application/core/src`.
 | 6   | `c/module.ts`                  | decoy        | the same test                                                                   | `error: …/module/capacity/module.ts exports 2 values, expected 1`; `4 pass`, `1 fail`                                                                                                               |
 | 7   | `d`                            | private      | the same test                                                                   | eighteen lines `…: seals no private binding`, one per module; `4 pass`, `1 fail`                                                                                                                    |
 | 8   | `c/README.md`                  | index        | `indexes every module under the identifier its location implies`                | `+   "…/module/capacity: README names module.application.capacities",`; `4 pass`, `1 fail`                                                                                                          |
-| 9   | `c/README.md`                  | twice        | the same test                                                                   | `error: …/module/capacity/README.md holds 2 module-index blocks, expected 1`; `4 pass`, `1 fail`                                                                                                    |
-| 10  | `M`                            | row          | `registers every module in the pilot under that identifier, or is known not to` | exactly `"…/module/capacity: modules.json does not index it once as module.application.capacity"` and `"modules.json: module.application.capacities indexes …/module/capacity"`; `4 pass`, `1 fail` |
-| 11  | `M`                            | foreign      | the same test                                                                   | exactly `"modules.json: module.adapter.store-memory indexes …/module/plan-document"`; `4 pass`, `1 fail`                                                                                            |
-| 12  | `P`                            | boundary     | the same test                                                                   | exactly `"…/module/capacity: policy.json does not select it once as boundary.application.capacity"`; `4 pass`, `1 fail`                                                                             |
-| 13  | `P`                            | selector     | the same test                                                                   | the same line as row 12; `4 pass`, `1 fail`                                                                                                                                                         |
-| 14  | `M` and `P`                    | unregistered | the same test, its `UNREGISTERED` assertion                                     | `+   "module.application.capacity",` (`Expected - 0`, `Received + 1`); `4 pass`, `1 fail`                                                                                                           |
-| 15  | `K`                            | absent       | `names in kinds.json only the module that owns every export of the shim`        | exactly `"…/service/capacity.service.ts: names no sealed module capacities"`; `4 pass`, `1 fail`                                                                                                    |
-| 16  | `K`                            | owner        | the same test                                                                   | exactly `"…/service/capacity.service.ts: re-exports what …/module/step does not export"`; `4 pass`, `1 fail`                                                                                        |
-| 17  | `d`                            | pattern      | the same test, its row-count assertion                                          | `Expected: > 0`, `Received: 0`; `4 pass`, `1 fail`                                                                                                                                                  |
-| 18  | `d`                            | root         | every test in `d`                                                               | `ENOENT: no such file or directory, scandir '…/apps/wbs/be-01/src/modules'`; `0 pass`, `5 fail`                                                                                                     |
-| 19  | `d`                            | scan         | every test in `d`                                                               | `error: libs/wbs/application/core/src/module holds no module directory`; `0 pass`, `5 fail`                                                                                                         |
-| 20  | slice 1 end                    | none         | `d`; `tool-devsync` lint and typecheck; `service-kinds.test.ts`; the legacy pin | `5 pass`; exit 0 and 0; `17 pass`; `1 pass`                                                                                                                                                         |
-| 21  | slice 2 end                    | none         | OpenSpec block; `wc -w` of `proposal.md`; `d`                                   | `114` passed, `0` failed; `398`; `5 pass`                                                                                                                                                           |
+| 9   | `c/README.md`                  | twice        | the same test                                                                   | `error: …/module/capacity/README.md holds 2 HTML comments, expected 1`; `4 pass`, `1 fail`                                                                                                          |
+| 10  | `c/README.md`                  | fence        | the same test                                                                   | the same line as row 9; `4 pass`, `1 fail` (the wiki ignores a fenced copy; the check refuses it rather than read it)                                                                               |
+| 11  | `c/README.md`                  | spaced       | the same test                                                                   | `error: …/module/capacity/README.md's one HTML comment is not a module-index line`; `4 pass`, `1 fail` (the wiki would still read this block)                                                       |
+| 12  | `M`                            | row          | `registers every module in the pilot under that identifier, or is known not to` | exactly `"…/module/capacity: modules.json does not index it once as module.application.capacity"` and `"modules.json: module.application.capacities indexes …/module/capacity"`; `4 pass`, `1 fail` |
+| 13  | `M`                            | foreign      | the same test                                                                   | exactly `"modules.json: module.adapter.store-memory indexes …/module/plan-document"`; `4 pass`, `1 fail`                                                                                            |
+| 14  | `P`                            | boundary     | the same test                                                                   | exactly `"…/module/capacity: policy.json does not select it once as boundary.application.capacity"`; `4 pass`, `1 fail`                                                                             |
+| 15  | `P`                            | selector     | the same test                                                                   | the same line as row 14; `4 pass`, `1 fail`                                                                                                                                                         |
+| 16  | `M` and `P`                    | unregistered | the same test, its `UNREGISTERED` assertion                                     | `+   "module.application.capacity",` (`Expected - 0`, `Received + 1`); `4 pass`, `1 fail`                                                                                                           |
+| 17  | `K`                            | absent       | `names in kinds.json only the module that owns every export of the shim`        | exactly `"…/service/capacity.service.ts: names no sealed module capacities"`; `4 pass`, `1 fail`                                                                                                    |
+| 18  | `K`                            | owner        | the same test                                                                   | exactly `"…/service/capacity.service.ts: re-exports what …/module/step does not export"`; `4 pass`, `1 fail`                                                                                        |
+| 19  | `K`                            | reworded     | the same test                                                                   | exactly `"…/service/capacity.service.ts: re-export shim disposition matches no known form"`; `4 pass`, `1 fail`                                                                                     |
+| 20  | `d`                            | pattern      | the same test, its row-count assertion                                          | `Expected: > 0`, `Received: 0`; `4 pass`, `1 fail`                                                                                                                                                  |
+| 21  | `d`                            | root         | every test in `d`                                                               | `ENOENT: no such file or directory, scandir '…/apps/wbs/be-01/src/modules'`; `0 pass`, `5 fail`                                                                                                     |
+| 22  | `d`                            | scan         | every test in `d`                                                               | `error: libs/wbs/application/core/src/module holds no module directory`; `0 pass`, `5 fail`                                                                                                         |
+| 23  | slice 1 end                    | none         | `d`; `tool-devsync` lint and typecheck; `service-kinds.test.ts`; the legacy pin | `5 pass`; exit 0 and 0; `17 pass`; `1 pass`                                                                                                                                                         |
+| 24  | slice 2 end                    | none         | OpenSpec block; `wc -w` of `proposal.md`; `d`                                   | `114` passed, `0` failed; `398`; `5 pass`                                                                                                                                                           |
 
 Each assertion has its own mutation: rows 3 to 5 break the sealed label three ways, row 6 its
-cardinality and row 7 the private-binding filter; rows 8 and 9 the README's identifier and its
-block count; rows 10 to 14 each clause of the pilot test (forward row, reverse row, boundary id,
-boundary selector, the unregistered list); rows 15 to 17 each clause of the `kinds.json` test; rows
-18 and 19 the discovery guards. Rows 10 to 14 name the pilot's own files; the wiki pilot suite
-would also refuse most of those mutations, but slowly and from `HEAD`, and it never compares the
-label.
+cardinality and row 7 the private-binding filter; rows 8 to 11 the README's identifier, its comment
+count (a second block and a fenced copy) and its one permitted spelling; rows 12 to 16 each clause of
+the pilot test (forward row, reverse row, boundary id, boundary selector, the unregistered list);
+rows 17 to 20 each clause of the `kinds.json` test (unknown module, wrong owner, unknown form, row
+count); rows 21 and 22 the discovery guards. Rows 12 to 16 name the pilot's own files; the wiki
+pilot suite would also refuse most of those mutations, but slowly and from `HEAD`, and it never
+compares the label.
 
 ## 7. Slices
 
@@ -371,7 +395,7 @@ legacy pin reads `1 pass`. Run the OpenSpec validation standard block and call `
    base (for example a README of packet H's real lane that differs from its rehearsal): stop and
    report the lines; do not edit any module, README or JSON file.
 
-3. **The negatives, rows 3 to 19**, one `observe.sh` call each, in this order, from the repository
+3. **The negatives, rows 3 to 22**, one `observe.sh` call each, in this order, from the repository
    root, in one shell with `set -uo pipefail` and these variables set:
 
    ```sh
@@ -387,6 +411,8 @@ legacy pin reads `1 pass`. Run the OpenSpec validation standard block and call `
    $o private "$d" -- $s "$d" "binding.keys.length === 0" "binding.keys.length < 0"
    $o index "$c/README.md" -- $s "$c/README.md" '"moduleId":"module.application.capacity"' '"moduleId":"module.application.capacities"'
    $o twice "$c/README.md" -- bash -c "sed -n 3p \"$c/README.md\" | grep -q '^<!-- module-index ' && sed -n 3p \"$c/README.md\" >>\"$c/README.md\""
+   $o fence "$c/README.md" -- bash -c "sed -n 3p \"$c/README.md\" | grep -q '^<!-- module-index ' && { printf '%s\n' '\`\`\`md'; sed -n 3p \"$c/README.md\"; printf '%s\n' '\`\`\`'; } >>\"$c/README.md\""
+   $o spaced "$c/README.md" -- $s "$c/README.md" '<!-- module-index {' '<!--module-index {'
    $o row "$M" -- $s "$M" '"moduleId": "module.application.capacity",' '"moduleId": "module.application.capacities",'
    $o foreign "$M" -- $s "$M" '"indexPath": "libs/wbs/adapters/store-memory/src/README.md",' '"indexPath": "libs/wbs/application/core/src/module/plan-document/README.md",'
    $o boundary "$P" -- $s "$P" '"boundaryId": "boundary.application.capacity",' '"boundaryId": "boundary.application.capacities",'
@@ -394,9 +420,10 @@ legacy pin reads `1 pass`. Run the OpenSpec validation standard block and call `
    $o unregistered "$M" "$P" -- bash -c "python3 \"$TMPDIR/drop.py\" \"$M\" modules moduleId module.application.capacity && python3 \"$TMPDIR/drop.py\" \"$P\" boundaries boundaryId boundary.application.capacity"
    $o absent "$K" -- $s "$K" 'the capacity module directly' 'the capacities module directly'
    $o owner "$K" -- $s "$K" 'the capacity module directly' 'the step module directly'
+   $o reworded "$K" -- $s "$K" 'the capacity module directly' 'the capacity module'
    $o pattern "$d" -- $s "$d" ' module directly$/;' ' modules directly$/;'
    $o root "$d" -- $s "$d" "'apps/wbs/be-01/src/module'" "'apps/wbs/be-01/src/modules'"
-   $o scan "$d" -- $s "$d" "entry.isDirectory()" "entry.isFile()"
+   $o scan "$d" -- $s "$d" "isDirectory()) names.push(entry)" "isFile()) names.push(entry)"
    ```
 
    Compare each call's printed lines with its section 6 row before the next (running them one tool
@@ -405,10 +432,10 @@ legacy pin reads `1 pass`. Run the OpenSpec validation standard block and call `
    `git status --porcelain --untracked-files=all` lists only `?? tools/tool-devsync/src/module-labels.test.ts`,
    and the check reruns `5 pass`.
 
-4. **Proofs.** Only after rows 3 to 19 were each observed, apply 10.2 (the `Proof:` comments),
+4. **Proofs.** Only after rows 3 to 22 were each observed, apply 10.2 (the `Proof:` comments),
    changing only dates if yours differ. Rerun the check → `5 pass`, `0 fail`.
 
-5. **Slice-end checks (row 20).** Under the status wrapper: `tool-devsync:lint` and
+5. **Slice-end checks (row 23).** Under the status wrapper: `tool-devsync:lint` and
    `tool-devsync:typecheck` → exit 0; `bunx prettier --check tools/tool-devsync/src/module-labels.test.ts`
    → exit 0; `service-kinds.test.ts` → `S` pass, `0 fail`; the legacy pin → `1 pass` (the new file
    holds no pre-namespacing root, so no pinned number moves; if one does, stop). Do **not** run the
@@ -416,7 +443,7 @@ legacy pin reads `1 pass`. Run the OpenSpec validation standard block and call `
    only `simple-import-sort` or `prettier/prettier` diagnostics in `d`, preamble rule 17 applies.
 
 6. Append `### Label agreement, Slice 1 — <date>` to `verify.md`: `base`, the four baselines and `N`,
-   row 1, rows 2 to 19 each with its evidence basename and the decisive fragment you saw, row 20.
+   row 1, rows 2 to 22 each with its evidence basename and the decisive fragment you saw, row 23.
    Prettier on it, then `GSETTINGS_BACKEND=memory bunx nx format:check --all` → exit 0.
 
 7. Hand-over as section 12's slice-1 lists: `git diff --name-only "$base"` plus
@@ -460,15 +487,15 @@ Planner commit: `docs(openspec): record label agreement and the closing ledger o
 
 ## 8. Planner-only checks
 
-| Check                                                                                                                               | Why the planner's                                                                    | Observed on the rehearsed tree                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Section 15's script against the real base, apply-only, then the check once                                                          | The check reads H's real registration files                                          | see section 15                                                                                                                                   |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, staged        | Writes Git objects; `service-kinds.test.ts` and the legacy pin read `git ls-files`   | slice-1 rehearsal commit `371 pass`, `0 fail` over 26 files (37 s); slice-2 the same (34 s); base was `366` over 25                              |
-| The wiki pilot suite, `apps/wiki/cli` `src/policy/pilot-policy.test.ts` with the trusted `node_modules`, after the planner's commit | Reads `HEAD`; neither slice edits a file it reads, so it is a no-change confirmation | slice-2 rehearsal commit (before a one-word `tasks.md` amend the pilot does not read): `21 pass`, `0 fail`, `309 expect()` calls, exit 0 (304 s) |
-| `bun run apps/wiki/cli/src/cli.ts check-indexes committed <repository> <slice 2 commit>`                                            | Index validation over committed trees; no index changes here                         | exit 0; 26 indexes, `reviewDebt` empty, on the slice-2 rehearsal commit                                                                          |
-| `(cd apps/wbs/be-01 && bun test)` (the whole `wbs-be-01:test` command, without coverage)                                            | No be-01 file changes; run once to confirm                                           | `1110 pass`, `1 skip`, `0 fail` over 95 files (89 s), on the slice-2 rehearsal tree                                                              |
-| `NX_DAEMON=false bunx nx run twilight-burokrat:test`                                                                                | Whole listener suite                                                                 | **not run**                                                                                                                                      |
-| `bin/h2puni-gate.sh <sha>`                                                                                                          | Host-wide heavy lock                                                                 | **not run**                                                                                                                                      |
+| Check                                                                                                                               | Why the planner's                                                                    | Observed on the rehearsed tree                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Section 15's script against the real base, apply-only, then the check once                                                          | The check reads H's real registration files                                          | see section 15                                                                                                                                 |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, staged        | Writes Git objects; `service-kinds.test.ts` and the legacy pin read `git ls-files`   | r1: both slice commits `371 pass`, `0 fail` over 26 files; r2 slice-2 commit `371 pass`, `0 fail` over 26 files (37 s); base was `366` over 25 |
+| The wiki pilot suite, `apps/wiki/cli` `src/policy/pilot-policy.test.ts` with the trusted `node_modules`, after the planner's commit | Reads `HEAD`; neither slice edits a file it reads, so it is a no-change confirmation | r1 slice-2 commit: `21 pass`, `0 fail`, `309 expect()` calls, exit 0 (304 s); not rerun on r2, whose changes touch no file the pilot reads     |
+| `bun run apps/wiki/cli/src/cli.ts check-indexes committed <repository> <slice 2 commit>`                                            | Index validation over committed trees; no index changes here                         | exit 0; 26 indexes, `reviewDebt` empty, on the r1 slice-2 commit; not rerun on r2 (no index changed)                                           |
+| `(cd apps/wbs/be-01 && bun test)` (the whole `wbs-be-01:test` command, without coverage)                                            | No be-01 file changes; run once to confirm                                           | `1110 pass`, `1 skip`, `0 fail` over 95 files (89 s), on the r1 slice-2 tree; not rerun on r2 (no be-01 file changed)                          |
+| `NX_DAEMON=false bunx nx run twilight-burokrat:test`                                                                                | Whole listener suite                                                                 | **not run**                                                                                                                                    |
+| `bin/h2puni-gate.sh <sha>`                                                                                                          | Host-wide heavy lock                                                                 | **not run**                                                                                                                                    |
 
 Stage `tools/tool-devsync/src/module-labels.test.ts` before `tool-devsync:test`: an untracked file is
 still run by Bun, but the planner's commit is what the target's cache inputs and the legacy pin's
@@ -483,7 +510,8 @@ Each is a named follow-up this packet records rather than grows into.
 1. **Retire the compatibility shims (task 7.1).** Move the tests of moved code that still sit under
    `service/` next to their owners, point importers at the modules, then delete each shim whose
    importers are gone with its `kinds.json` row. Start with the eight be-01 forwarding shims section 3
-   found unimported, confirmed by `service-boundaries.test.ts`'s list and a staged `tool-devsync:test`.
+   found unimported, confirmed by `service-boundaries.test.ts`'s list, the be-01 `clock.test.ts`'s
+   `AGE_THEIR_OWN_ENTRIES` list (it names `retention-timer.ts`) and a staged `tool-devsync:test`.
    Removing the last shim row naming a module is fine: the check requires at least one such row in
    all, not one per module; when none is left, drop that assertion with the rows.
 2. **The isolated module type check (task 7.3).** A `tsconfig.json` per module directory and a
@@ -510,7 +538,7 @@ content; diffs apply with `git apply` from the repository root.
 ### 10.1 `d` (slice 1 step 2 — no `Proof:` comments)
 
 ```ts
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -546,6 +574,14 @@ const PROJECTS = [
 const SHIM_OWNER =
   /^re-export shim; delete when importers use (?:@wbs\/core or )?the ([a-z0-9-]+) module directly$/;
 
+/**
+ * The other shim dispositions `kinds.json` uses, which forward to a library rather than a module.
+ * A shim row matching neither this nor {@link SHIM_OWNER} is refused, so rewording a row cannot
+ * take it out of the check.
+ */
+const SHIM_FORWARD =
+  /^re-export shim; delete when importers use @wbs\/(?:core(?:\/service\/[a-z0-9.-]+)?|runtime-portable) directly$/;
+
 /** One sealed module directory and the identity its location implies. */
 interface SealedModule {
   readonly directory: string;
@@ -554,7 +590,8 @@ interface SealedModule {
 }
 
 /**
- * Every module directory under {@link MODULE_ROOTS}, sorted within each root.
+ * Every module directory under {@link MODULE_ROOTS}, sorted within each root. `stat` follows a
+ * symbolic link, so a linked module directory is read rather than skipped.
  *
  * @throws When a root is unreadable or holds no directory: a moved root would otherwise read as
  *   "no module disagrees".
@@ -562,11 +599,11 @@ interface SealedModule {
 async function sealedModules(): Promise<readonly SealedModule[]> {
   const modules: SealedModule[] = [];
   for (const { root, segment } of MODULE_ROOTS) {
-    const entries = await readdir(join(WORKSPACE, root), { withFileTypes: true });
-    const names = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
+    const names: string[] = [];
+    for (const entry of await readdir(join(WORKSPACE, root))) {
+      if ((await stat(join(WORKSPACE, root, entry))).isDirectory()) names.push(entry);
+    }
+    names.sort();
     if (names.length === 0) throw new Error(`${root} holds no module directory`);
     for (const name of names) {
       modules.push({
@@ -594,12 +631,14 @@ async function exportedValues(path: string): Promise<readonly unknown[]> {
  * exports, read from the running library rather than from any spelling in the source.
  *
  * Exported bindings keep their bare key and carry their public names in `keys`, so only a binding
- * with no key is read: an exported key that merely contains a slash cannot pass for a label.
+ * with no key is read: an exported key that merely contains a slash cannot pass for a label. The
+ * label is observable only this way, so every sealed module keeps at least one private binding by
+ * convention; one that exports every binding is refused as sealing none.
  *
- * Known limit: di-bag 0.4.0 exposes a label only as the prefix of these names, so a module that
- * drops its label and spells `<label>/<key>` into a private registration key reads as labelled.
- * Closing that needs a label the library exposes itself, which is the di-bag migration's (packet
- * D's "Deferred: label agreement", route 1).
+ * Known limit: di-bag 0.4.0 exposes a label only as the prefix of private binding names, so a
+ * module that drops its label and either spells `<label>/<key>` into a private key or installs an
+ * inner module sealed under that label reads as labelled. Closing that needs a label the library
+ * exposes itself, which is the di-bag migration's (packet D's route 1).
  *
  * @throws When `module.ts` exports anything but exactly one value, or when di-bag refuses it as a
  *   module.
@@ -621,19 +660,25 @@ async function privateBindingLabels(directory: string): Promise<readonly string[
 /**
  * The `moduleId` of the one `module-index` block in a module's README.
  *
- * @throws When the README is unreadable, holds no block or more than one, or the block is not JSON
- *   carrying a string `moduleId`.
+ * The wiki reads any HTML comment containing `module-index`, however spaced, across lines, and
+ * never inside a code fence. Rather than reimplement that grammar, the README may hold exactly one
+ * `<!--` at all, on a line in the one spelling written here, so the two readers cannot disagree.
+ *
+ * @throws When the README is unreadable, holds any other HTML comment or none, its one comment is
+ *   not that line, or the block is not JSON carrying a string `moduleId`.
  */
 async function indexedModuleId(directory: string): Promise<string> {
   const source = await readFile(join(WORKSPACE, directory, 'README.md'), 'utf8');
+  const comments = source.split('<!--').length - 1;
+  if (comments !== 1) {
+    throw new Error(`${directory}/README.md holds ${String(comments)} HTML comments, expected 1`);
+  }
   const blocks = source
     .split('\n')
     .map((line) => /^<!-- module-index (\{.*\}) -->$/.exec(line)?.[1])
     .filter((block) => block !== undefined);
   if (blocks.length !== 1) {
-    throw new Error(
-      `${directory}/README.md holds ${String(blocks.length)} module-index blocks, expected 1`,
-    );
+    throw new Error(`${directory}/README.md's one HTML comment is not a module-index line`);
   }
   const parsed: unknown = JSON.parse(blocks[0]);
   if (
@@ -691,10 +736,10 @@ test('seals every module under the label its location implies', async () => {
     const labels = await privateBindingLabels(directory);
     if (labels.length === 0) mismatches.push(`${directory}: seals no private binding`);
     for (const binding of labels) {
-      // One identifier after the label: a label with a slash in it, or a nested module, would
-      // otherwise put a different label in front of a key that looks right.
+      // One identifier after the label: a label with a slash in it, or a labelled outer module,
+      // would otherwise put a different label in front of a key that looks right.
       const key = binding.startsWith(`${label}/`) ? binding.slice(label.length + 1) : '';
-      if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) {
+      if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)) {
         mismatches.push(`${directory}: private binding "${binding}" is not under ${label}`);
       }
     }
@@ -758,8 +803,15 @@ test('names in kinds.json only the module that owns every export of the shim', a
   let named = 0;
   for (const entry of entries) {
     const path = textOf(entry, 'path');
-    const owner = SHIM_OWNER.exec(textOf(entry, 'disposition') ?? '')?.[1];
-    if (path === undefined || owner === undefined) continue;
+    const disposition = textOf(entry, 'disposition') ?? '';
+    const owner = SHIM_OWNER.exec(disposition)?.[1];
+    if (path === undefined) continue;
+    if (owner === undefined) {
+      if (disposition.includes('re-export shim') && !SHIM_FORWARD.test(disposition)) {
+        mismatches.push(`${path}: re-export shim disposition matches no known form`);
+      }
+      continue;
+    }
     named += 1;
     const project = PROJECTS.find(({ prefix }) => path.startsWith(prefix));
     const module = modules.find(
@@ -787,28 +839,27 @@ test('names in kinds.json only the module that owns every export of the shim', a
 });
 ```
 
-### 10.2 Slice 1's Proof comments (slice 1 step 4 — only after rows 3-19 were observed)
+### 10.2 Slice 1's Proof comments (slice 1 step 4 — only after rows 3-22 were observed)
 
 ```diff
 --- a/tools/tool-devsync/src/module-labels.test.ts
 +++ b/tools/tool-devsync/src/module-labels.test.ts
-@@ -50,11 +50,15 @@
- async function sealedModules(): Promise<readonly SealedModule[]> {
+@@ -60,10 +60,14 @@
    const modules: SealedModule[] = [];
    for (const { root, segment } of MODULE_ROOTS) {
+     const names: string[] = [];
 +    // Proof (2026-09-24): pointing the backend root at a missing `src/modules` failed all five
 +    // tests with `ENOENT: no such file or directory, scandir` (0 pass, 5 fail).
-     const entries = await readdir(join(WORKSPACE, root), { withFileTypes: true });
-     const names = entries
-       .filter((entry) => entry.isDirectory())
-       .map((entry) => entry.name)
-       .sort();
+     for (const entry of await readdir(join(WORKSPACE, root))) {
+       if ((await stat(join(WORKSPACE, root, entry))).isDirectory()) names.push(entry);
+     }
+     names.sort();
 +    // Proof (2026-09-24): keeping files instead of directories failed all five tests with
 +    // `libs/wbs/application/core/src/module holds no module directory` (0 pass, 5 fail).
      if (names.length === 0) throw new Error(`${root} holds no module directory`);
      for (const name of names) {
        modules.push({
-@@ -94,6 +98,9 @@
+@@ -105,6 +109,9 @@
   */
  async function privateBindingLabels(directory: string): Promise<readonly string[]> {
    const values = await exportedValues(`${directory}/module.ts`);
@@ -818,7 +869,7 @@ test('names in kinds.json only the module that owns every export of the shim', a
    if (values.length !== 1) {
      throw new Error(`${directory}/module.ts exports ${String(values.length)} values, expected 1`);
    }
-@@ -103,6 +110,9 @@
+@@ -114,6 +121,9 @@
      installModule: (module: unknown) => { build: () => { inspectGraph: () => GraphSnapshot } };
    };
    const graph = builder.installModule(values[0]).build().inspectGraph();
@@ -828,19 +879,30 @@ test('names in kinds.json only the module that owns every export of the shim', a
    return graph.bindings.filter((binding) => binding.keys.length === 0).map(({ label }) => label);
  }
 
-@@ -118,6 +128,9 @@
+@@ -130,6 +140,10 @@
+ async function indexedModuleId(directory: string): Promise<string> {
+   const source = await readFile(join(WORKSPACE, directory, 'README.md'), 'utf8');
+   const comments = source.split('<!--').length - 1;
++  // Proof (2026-09-24): repeating Capacity's index line at the end of its README, and appending
++  // it inside a Markdown code fence instead, each failed "indexes every module under the
++  // identifier its location implies" with `…/capacity/README.md holds 2 HTML comments, expected
++  // 1` (4 pass, 1 fail each).
+   if (comments !== 1) {
+     throw new Error(`${directory}/README.md holds ${String(comments)} HTML comments, expected 1`);
+   }
+@@ -137,6 +151,9 @@
      .split('\n')
      .map((line) => /^<!-- module-index (\{.*\}) -->$/.exec(line)?.[1])
      .filter((block) => block !== undefined);
-+  // Proof (2026-09-24): repeating Capacity's index line at the end of its README failed "indexes
-+  // every module under the identifier its location implies" with `…/capacity/README.md holds 2
-+  // module-index blocks, expected 1` (4 pass, 1 fail).
++  // Proof (2026-09-24): respelling Capacity's block `<!--module-index {`, which the wiki still
++  // reads, failed the same test with `…/capacity/README.md's one HTML comment is not a
++  // module-index line` (4 pass, 1 fail).
    if (blocks.length !== 1) {
-     throw new Error(
-       `${directory}/README.md holds ${String(blocks.length)} module-index blocks, expected 1`,
-@@ -182,6 +195,12 @@
-       // One identifier after the label: a label with a slash in it, or a nested module, would
-       // otherwise put a different label in front of a key that looks right.
+     throw new Error(`${directory}/README.md's one HTML comment is not a module-index line`);
+   }
+@@ -199,6 +216,12 @@
+       // One identifier after the label: a label with a slash in it, or a labelled outer module,
+       // would otherwise put a different label in front of a key that looks right.
        const key = binding.startsWith(`${label}/`) ? binding.slice(label.length + 1) : '';
 +      // Proof (2026-09-24): Capacity's contract label set to `application.capacities`, then to
 +      // `application.capacity/nested`, and its `buildModule` call without the label each failed
@@ -848,10 +910,10 @@ test('names in kinds.json only the module that owns every export of the shim', a
 +      // `application.capacities/capacityOptions`, `application.capacity/nested/capacityOptions`
 +      // and `capacityOptions` (4 pass, 1 fail each); with the first of them Capacity's own
 +      // module tests stayed green (5 pass), the drift no earlier check saw.
-       if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) {
+       if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)) {
          mismatches.push(`${directory}: private binding "${binding}" is not under ${label}`);
        }
-@@ -195,6 +214,8 @@
+@@ -212,6 +235,8 @@
    const mismatches: string[] = [];
    for (const { directory, moduleId } of await sealedModules()) {
      const indexed = await indexedModuleId(directory);
@@ -860,7 +922,7 @@ test('names in kinds.json only the module that owns every export of the shim', a
      if (indexed !== moduleId) mismatches.push(`${directory}: README names ${indexed}`);
    }
 
-@@ -216,9 +237,16 @@
+@@ -233,9 +258,16 @@
        unregistered.push(moduleId);
        continue;
      }
@@ -877,7 +939,7 @@ test('names in kinds.json only the module that owns every export of the shim', a
      if (
        boundary.length !== 1 ||
        JSON.stringify(boundary[0]['selector']) !==
-@@ -230,12 +258,17 @@
+@@ -247,12 +279,17 @@
    for (const row of rows) {
      const directory = moduleDirectoryOf(textOf(row, 'indexPath') ?? '');
      const owner = modules.find((candidate) => candidate.directory === directory);
@@ -895,17 +957,27 @@ test('names in kinds.json only the module that owns every export of the shim', a
    expect(unregistered).toEqual(UNREGISTERED);
  });
 
-@@ -253,6 +286,9 @@
+@@ -267,6 +304,10 @@
+     const owner = SHIM_OWNER.exec(disposition)?.[1];
+     if (path === undefined) continue;
+     if (owner === undefined) {
++      // Proof (2026-09-24): Capacity's shim row reworded to end `the capacity module` failed
++      // "names in kinds.json only the module that owns every export of the shim" with
++      // `…/service/capacity.service.ts: re-export shim disposition matches no known form`
++      // (4 pass, 1 fail).
+       if (disposition.includes('re-export shim') && !SHIM_FORWARD.test(disposition)) {
+         mismatches.push(`${path}: re-export shim disposition matches no known form`);
+       }
+@@ -277,6 +318,8 @@
      const module = modules.find(
        ({ moduleId }) => moduleId === `module.${String(project?.segment)}.${owner}`,
      );
-+    // Proof (2026-09-24): Capacity's shim row naming `the capacities module` failed "names in
-+    // kinds.json only the module that owns every export of the shim" with
-+    // `…/service/capacity.service.ts: names no sealed module capacities` (4 pass, 1 fail).
++    // Proof (2026-09-24): Capacity's shim row naming `the capacities module` failed the same test
++    // with `…/service/capacity.service.ts: names no sealed module capacities` (4 pass, 1 fail).
      if (module === undefined) {
        mismatches.push(`${path}: names no sealed module ${owner}`);
        continue;
-@@ -265,11 +301,16 @@
+@@ -289,11 +332,16 @@
        for (const value of await exportedValues(`${module.directory}/${file}`)) owned.add(value);
      }
      const shimmed = await exportedValues(path);
@@ -928,10 +1000,10 @@ test('names in kinds.json only the module that owns every export of the shim', a
 
 ```diff
 diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/adopt-di-composition/tasks.md
-index 376d8037b..41ce719e4 100644
+index 376d8037b..3b2d3647c 100644
 --- a/openspec/changes/adopt-di-composition/tasks.md
 +++ b/openspec/changes/adopt-di-composition/tasks.md
-@@ -289,14 +289,34 @@
+@@ -289,14 +289,35 @@
  ## 7. Ledger and closure
 
  - [ ] 7.1 Move each test with its owner and delete the re-export shims whose callers are gone.
@@ -946,7 +1018,8 @@ index 376d8037b..41ce719e4 100644
 +      (`assumed-assignee.ts`, `clean-name.ts`, `compensating.ts`, `dependency.ts`,
 +      `directory-usage.ts`, `history.service.ts`, `optimizer-trigger-broadcaster.ts`,
 +      `retention-timer.ts`). Deleting a shim is a code change with its own `kinds.json` rows and
-+      checks, not a ledger entry.
++      checks, not a ledger entry; besides `service-boundaries.test.ts`, the be-01 `clock.test.ts`
++      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`.
 +- [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
 +      suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
 +      2026-09-24 by evidence: both halves hold on this tree under
@@ -972,7 +1045,7 @@ index 376d8037b..41ce719e4 100644
  - [x] 7.5 Register each sealed module's directory as a wiki index: a `<!-- module-index -->` block
        naming every module file by path, and full membership in `docs/wiki-policy/modules.json`'s
        content-review pilot (a `modules.json` row matched one-to-one by a `policy.json` boundary).
-@@ -399,3 +419,14 @@
+@@ -399,3 +420,15 @@
        boundary needs either the pilot's `sourceRevision` moved forward or a documented exemption
        for a boundary with no predecessor, neither of which this packet decides; see
        `docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md`.
@@ -982,21 +1055,22 @@ index 376d8037b..41ce719e4 100644
 +      label from an installation of the one value `module.ts` exports, requires every private
 +      binding to be named `<label>/<identifier>`, compares shim exports to module exports by
 +      identity, and names Plan document and Plan import as the two unregistered modules, so a
-+      module that skips task 7.5 now fails. Proof: seventeen faults, each watched failing its named
++      module that skips task 7.5 now fails. Proof: twenty faults, each watched failing its named
 +      test — among them Capacity's contract label renamed, which Capacity's own module tests did
 +      not notice. Known limits, stated in the design's "Label agreement": a module that drops its
-+      label and spells `<label>/<key>` into a private key reads as labelled until di-bag exposes a
-+      label itself, and `apps/wbs/fe-01/src/modules` is outside this change.
++      label and either spells `<label>/<key>` into a private key or installs an inner module
++      sealed under that label reads as labelled until di-bag exposes a label itself, and
++      `apps/wbs/fe-01/src/modules` is outside this change.
 ```
 
 ### 10.4 `openspec/changes/adopt-di-composition/design.md` (slice 2 step 1)
 
 ```diff
 diff --git a/openspec/changes/adopt-di-composition/design.md b/openspec/changes/adopt-di-composition/design.md
-index 005c751a9..213fc85c4 100644
+index 005c751a9..0f1c4541f 100644
 --- a/openspec/changes/adopt-di-composition/design.md
 +++ b/openspec/changes/adopt-di-composition/design.md
-@@ -70,8 +70,54 @@ membership in the wiki's content-review pilot — both a `modules.json` row and
+@@ -70,8 +70,59 @@ membership in the wiki's content-review pilot — both a `modules.json` row and
  `policy.json` boundary, required together (`trust.ts:1224-1230` refuses a mapped module without
  exactly one matching boundary) — keeping a declared registration's mapping row, boundary and index
  mutually consistent, checked by the pilot's own production `lint()` call. That is narrower than
@@ -1017,22 +1091,27 @@ index 005c751a9..213fc85c4 100644
 +and requires everything that names the module to agree with it. The label is read from the running
 +library, never from source: `module.ts` must export exactly one value, which is installed into an
 +empty builder, and every private binding `inspectGraph()` reports — a binding with no public key —
-+must be named `<label>/<identifier>`. That defeats both of packet D's cut cases: a decoy export is a
++must be named `<label>/<identifier>`, so every module keeps at least one private binding by convention. That defeats both of packet D's cut cases: a decoy export is a
 +second exported value, and an exported key containing a slash is not a private binding. The README
-+index must carry the identifier; a `modules.json` row and a `policy.json` boundary must both name it
++must hold exactly one HTML comment, its index line, which must carry the identifier (the wiki reads
++any comment containing `module-index`, so any second or respelled comment is refused rather than
++parsed a second way); a `modules.json` row and a `policy.json` boundary must both name it
 +and its directory, or neither exists and the module is one of the two the check names as
 +unregistered (Plan document and Plan import, task 7.5); and every `kinds.json` shim row that names a
-+module must name one whose files export every value the shim re-exports, by identity.
++module must name one whose files export every value the shim re-exports, by identity, while any
++other shim row must use one of the three library-forwarding forms, so a reworded row is refused
++rather than skipped.
 +
-+Two limits are stated rather than chased. di-bag 0.4.0 exposes a label only as that name prefix, so
-+a module that drops its label and spells `<label>/<key>` into a private registration key reads as
-+labelled; a library-exposed label, the di-bag migration's, closes it. The frontend's
++Two limits are stated rather than chased. di-bag 0.4.0 exposes a label only as the prefix of
++private binding names, so a module that drops its label and either spells `<label>/<key>` into a
++private key or installs an inner module sealed under that label reads as labelled; a
++library-exposed label, the di-bag migration's, closes it. The frontend's
 +`apps/wbs/fe-01/src/modules` is outside this change and carries no index block yet.
 +
 +## Layering debt ledger
 +
 +Task 7.4, per module: the obligations sealing leaves open, each stated in that module's
-+`contract.ts`, and who closes them. "Feature owners" is the K2 closure this change declares outside
++`contract.ts` or, for Authentication and Saved plans, in tasks 3.5 and 3.3, and who closes them. "Feature owners" is the K2 closure this change declares outside
 +its claim; "resource-services" is a K3 follow-up needing a resource-service over the store named;
 +task 6.1 moves the application-ring support a resource still imports.
 +
@@ -1139,10 +1218,11 @@ modified. The planner may add a revised packet file to its own commits; the list
   today; renaming Capacity's label constant kept every existing check green (row 1), because each
   module's tests compare against the constant they import.
 - **Packet D's two cut cases do not arise at runtime.** Read from the library, a decoy is a second
-  exported value (row 6) and an exported slash key is not a private binding; only a forged private
-  key survives, and only with the label dropped (section 4).
+  exported value (row 6) and an exported slash key is not a private binding. What survives needs the
+  label dropped and a deliberate construction: a forged private key, or an unlabelled outer module
+  around an inner one sealed under the right label (section 4).
 - **Registration discovery comes free.** The pilot half of the check names the two modules task 7.5
-  could not register, so a future module that skips registration fails (row 14).
+  could not register, so a future module that skips registration fails (row 16).
 - **Task 7.1 is measurable now:** eight be-01 forwarding shims have no importer (section 3).
 - **Landed code of packets A-H:** no defect found.
 
@@ -1207,24 +1287,35 @@ Output:
 ```text
 diffs=5 listings=1
 applied 01
-tree equals 34c3a0fe5
+tree equals e3b230586
 applied 02
 applied 03
 applied 04
 applied 05
-tree equals 97b7c93bf
+tree equals 1bc126d2a
 all 5 diffs and the listing applied in slice order; every slice tree equals its rehearsal commit
 ```
 
-The rehearsal commits are throwaway: slice 1 `34c3a0fe5` and slice 2 `97b7c93bf` on
-`rehearse/040-6-i` above `e8ef4758` (slice 2 was amended once, to correct its fault count from
-fifteen to seventeen, before this script ran). None is pushed; neither touches `verify.md`, which
-only the executor writes. Their subjects are rehearsal labels; the planner commits every slice with
-section 7's subject, and only the trees are compared. Lefthook ran on both (`format`, `lint`,
-`tool-wiki`, `plaintext-secrets` green). In the same disposable worktree, with the 10.1 listing in
-place and before 10.2, section 7's helper block and step 3's block were extracted from this document
-and run verbatim: all seventeen calls ended `exit=1` with the section 6 fragments, no `STOP:` line,
-and `git status` afterwards listed only the new check file.
+The rehearsal commits are throwaway, on `rehearse/040-6-i-r2` above `e8ef4758`: slice 1 `e3b230586`
+and slice 2 `1bc126d2a` (slice 2 amended once, before this script ran, to rewrap one line of its
+7.6 note). Round 1's `rehearse/040-6-i` (`34c3a0fe5`, `97b7c93bf`) is kept but superseded. None is
+pushed; neither touches `verify.md`, which only the executor writes. Their subjects are rehearsal
+labels; the planner commits every slice with section 7's subject, and only the trees are compared.
+Lefthook ran on every rehearsal commit (`format`, `lint`, `tool-wiki`, `plaintext-secrets` green). On
+the r2 slice-1 tree before 10.2, section 7's helper block (extracted from this document) and step 3's
+block ran all twenty calls: each ended `exit=1` with its section 6 fragment, no `STOP:` line, and
+`git status` afterwards listed only the new check file.
+
+**Review disposition.** Round 1 (READY AFTER FIXES: three Important, five minor) is applied here.
+Important 1: the README reader now admits exactly one HTML comment, in the one spelling both readers
+agree on (rows 9 to 11; the wiki's `mdast` reader was not reused because its packages are declared
+by no manifest `tool-devsync` may import from). Important 2: every other `re-export shim`
+disposition must be one of the three library-forwarding forms (row 19). Important 3: the nested-module
+sentence is corrected in section 4, the listing's JSDoc, 10.3's 7.6 note and 10.4's limits paragraph.
+Minors: the ledger preface names tasks 3.5 and 3.3; the at-least-one-private-binding convention is
+stated in the JSDoc, section 4 and `design.md`; keys are read as `[A-Za-z_$][A-Za-z0-9_$]*`; section 9
+and 7.1's note name `clock.test.ts`'s `AGE_THEIR_OWN_ENTRIES`; `sealedModules()` follows symbolic
+links through `stat`.
 
 ## 16. Label agreement, landed
 
@@ -1238,10 +1329,10 @@ it is. Task 7.6 records it; 7.5's own wording, which excludes label agreement fr
 
 | #   | Point                                | Where this packet meets it                                                                                                                                                                  |
 | --- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Fixture reproduces the failure first | Row 1: on the unchanged tree a renamed label constant leaves Capacity's own tests green; rows 3-19 are each a real drift on real files the new check refuses                                |
+| 1   | Fixture reproduces the failure first | Row 1: on the unchanged tree a renamed label constant leaves Capacity's own tests green; rows 3-22 are each a real drift on real files the new check refuses                                |
 | 2   | Test code passes typecheck and lint  | `tool-devsync` lint and typecheck exit 0 on the rehearsed slice; lefthook's `lint` and `format` passed on both rehearsal commits                                                            |
 | 3   | Commit-safe hand-over counts         | §12, scoped to each slice's `$base`                                                                                                                                                         |
-| 4   | Commands can show failure            | §7 status wrapper; `observe.sh` records each run's exit and stops on a refused, empty or unrestored fault; rows 18 and 19 prove the check's own inventory guards                            |
+| 4   | Commands can show failure            | §7 status wrapper; `observe.sh` records each run's exit and stops on a refused, empty or unrestored fault; rows 21 and 22 prove the check's own inventory guards                            |
 | 5   | Tests reading `HEAD`                 | Neither slice edits a pilot input; the pilot suite is the planner's, after the commit (§8)                                                                                                  |
 | 6   | Sandbox facts                        | No port, process or network use; `tool-devsync:test` is planner-only; the executor runs only the focused files                                                                              |
 | 7   | Known race                           | §8                                                                                                                                                                                          |
