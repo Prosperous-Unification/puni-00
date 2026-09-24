@@ -127,6 +127,11 @@ Three rules, each with its own example test and fault (section 8.1):
 
 The type is derived, not restated: `PlanCommands` maps each project route through `BoundToProject`
 (the same function less its first parameter) and passes each work-item route's type through.
+`plan-commands.feature.ts` carries `// @capability wbs-table-modules`, following the one precedent
+(`calendar-markers.feature.ts` carries `// @capability plan-refresh`): `wbs-table-modules` is the
+existing capability under `openspec/specs/` whose requirement "Concept modules preserve table
+behavior" these commands serve. Keep it as written.
+
 Binding the project is the one thing the module decides; the table no longer names the project in a
 write, so a gesture cannot send to a project its commands were not built for.
 
@@ -611,16 +616,50 @@ composition.ts,composition.test.ts,README.md}`.
       `src/modules/plan-commands` and `src/modules/project`, expected 2 files, 7 tests — and step
       0c's preferences and sandbox commands (`s1-final-*`): preferences unchanged, sandbox as step 5.
 - [ ] 9. Append this slice's `verify.md` entry (shape below), then owned-file Prettier over the
-      sixteen paths, `--write` then `--check`, then rerun the strict OpenSpec block — **after** the
-      evidence edit, so the document it just changed is what was checked.
-- [ ] 10. Hand over:
+      sixteen paths, `--write` then `--check`, from this list, which step 10 reuses; then rerun the
+      strict OpenSpec block — **after** the evidence edit, so the document it just changed is what
+      was checked.
+
+  ```sh
+  set -euo pipefail
+  printf '%s\n' \
+    apps/wbs/fe-01/src/components/wbs/use-plan-read.ts \
+    apps/wbs/fe-01/src/lib/plan-refresh-stream.test.ts \
+    apps/wbs/fe-01/src/lib/plan-refresh.test.ts \
+    apps/wbs/fe-01/src/lib/plan-refresh.ts \
+    apps/wbs/fe-01/src/modules/plan-commands/README.md \
+    apps/wbs/fe-01/src/modules/plan-commands/contract.ts \
+    apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts \
+    apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts \
+    apps/wbs/fe-01/src/modules/plan-feed/composition.ts \
+    apps/wbs/fe-01/src/modules/project/README.md \
+    apps/wbs/fe-01/src/modules/project/composition.test.ts \
+    apps/wbs/fe-01/src/modules/project/composition.ts \
+    apps/wbs/fe-01/src/modules/project/contract.ts \
+    apps/wbs/fe-01/vitest.node-suites.ts \
+    openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md \
+    openspec/changes/adopt-frontend-lifetimes/verify.md \
+    > "$TMPDIR/owned.txt"
+  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 16
+  # shellcheck disable=SC2046 # fixed repository paths without spaces
+  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+  # shellcheck disable=SC2046
+  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+  ```
+
+  Expected: exit 0, and `All matched files use Prettier code style!` from the check.
+
+- [ ] 10. Hand over — the working tree's changed paths compared with the owned list:
 
   ```sh
   set -euo pipefail
   git status --porcelain --untracked-files=all | tee "$TMPDIR/evidence/status-after.txt"
+  cut -c4- "$TMPDIR/evidence/status-after.txt" | sort > "$TMPDIR/evidence/status-paths.txt"
+  sort "$TMPDIR/owned.txt" > "$TMPDIR/evidence/owned-sorted.txt"
+  diff "$TMPDIR/evidence/owned-sorted.txt" "$TMPDIR/evidence/status-paths.txt"
   ```
 
-  Expected: exactly the sixteen owned paths — ` M` for `spec.md`, `verify.md`,
+  Expected: the `diff` prints nothing and exits 0: exactly the sixteen owned paths — ` M` for `spec.md`, `verify.md`,
   `vitest.node-suites.ts`, `plan-refresh.ts`, `plan-refresh.test.ts`, `plan-refresh-stream.test.ts`,
   `plan-feed/composition.ts` and `use-plan-read.ts`, and `??` for the eight new files — and nothing
   else.
@@ -699,8 +738,38 @@ Owns (13 paths): `spec.md`, `verify.md`, and under `apps/wbs/fe-01/src/component
 - [ ] 8. Rerun `plan-read-and-write.test.tsx` alone (`s2-final-read`, expected its step-1 share of the
       adopted set, rehearsed 88 tests) and step 0c's preferences and sandbox commands (`s2-final-*`):
       unchanged from step 5.
-- [ ] 9. `verify.md` entry, owned-file Prettier over the thirteen paths, the strict OpenSpec block.
-- [ ] 10. Hand over. Expected exactly thirteen ` M` paths, the list above, and nothing else.
+- [ ] 9. `verify.md` entry, then owned-file Prettier over the thirteen paths from this list (step 10
+      reuses it), then the strict OpenSpec block:
+
+  ```sh
+  set -euo pipefail
+  printf '%s\n' \
+    apps/wbs/fe-01/src/components/wbs/plan-columns/actions.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-live.ts \
+    apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx \
+    apps/wbs/fe-01/src/components/wbs/use-estimate-drafts.ts \
+    apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts \
+    apps/wbs/fe-01/src/components/wbs/use-plan-fields.ts \
+    apps/wbs/fe-01/src/components/wbs/use-plan-read.ts \
+    apps/wbs/fe-01/src/components/wbs/use-plan-structure.ts \
+    apps/wbs/fe-01/src/components/wbs/use-reference-sets.ts \
+    apps/wbs/fe-01/src/components/wbs/wbs-table.tsx \
+    openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md \
+    openspec/changes/adopt-frontend-lifetimes/verify.md \
+    > "$TMPDIR/owned.txt"
+  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 13
+  # shellcheck disable=SC2046 # fixed repository paths without spaces
+  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+  # shellcheck disable=SC2046
+  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+  ```
+
+  Expected: exit 0, and `All matched files use Prettier code style!` from the check.
+
+- [ ] 10. Hand over, with slice 1 step 10's block unchanged (it reads this slice's `owned.txt`).
+      Expected: the `diff` prints nothing and exits 0 — exactly thirteen ` M` paths, the list above,
+      and nothing else.
 
 Planner commit subject:
 `refactor(frontend): hand the table's hooks the project's commands instead of the client`.
@@ -838,10 +907,54 @@ and the seventeen table suites — `components/ui/page-shortcuts.test.tsx` and, 
       first, then the comments at the named sites.
 - [ ] 8. Rerun the page pair (`s3-final-page`) and step 0c's preferences and sandbox commands
       (`s3-final-*`): unchanged from step 5.
-- [ ] 9. `verify.md` entry. Then owned-file Prettier over the twenty-nine paths, `nx format:check --all`
-      again (`s3-format-after`), and the strict OpenSpec block — all after the evidence edit. Never a
-      repository-wide format **write**.
-- [ ] 10. Hand over. Expected exactly twenty-eight ` M` paths and one `??`
+- [ ] 9. `verify.md` entry. Then owned-file Prettier over the twenty-nine paths from this list (step 10
+      reuses it), `nx format:check --all` again (`s3-format-after`), and the strict OpenSpec block —
+      all after the evidence edit. Never a repository-wide format **write**.
+
+  ```sh
+  set -euo pipefail
+  printf '%s\n' \
+    apps/wbs/fe-01/src/components/ui/page-shortcuts.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/optimization-integration.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-estimates.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-filter.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-keyboard.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-layout.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-row-dependencies.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-row-render-cost.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-structure.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-table.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/plan-toolbar.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/project-page.tsx \
+    apps/wbs/fe-01/src/components/wbs/use-plan-read.ts \
+    apps/wbs/fe-01/src/components/wbs/wbs-table.tsx \
+    apps/wbs/fe-01/src/modules/calendar-markers/README.md \
+    apps/wbs/fe-01/src/modules/calendar-markers/composition.ts \
+    apps/wbs/fe-01/src/modules/plan-feed/README.md \
+    apps/wbs/fe-01/src/modules/plan-writer/README.md \
+    apps/wbs/fe-01/src/testing/project-services-of.ts \
+    docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md \
+    openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md \
+    openspec/changes/adopt-frontend-lifetimes/tasks.md \
+    openspec/changes/adopt-frontend-lifetimes/verify.md \
+    > "$TMPDIR/owned.txt"
+  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 29
+  # shellcheck disable=SC2046 # fixed repository paths without spaces
+  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+  # shellcheck disable=SC2046
+  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+  ```
+
+  Expected: exit 0, and `All matched files use Prettier code style!` from the check.
+
+- [ ] 10. Hand over, with slice 1 step 10's block unchanged (it reads this slice's `owned.txt`).
+      Expected: the `diff` prints nothing and exits 0 — exactly twenty-eight ` M` paths and one `??`
       (`apps/wbs/fe-01/src/testing/project-services-of.ts`), the list above, and nothing else.
 
 Planner commit subject:
@@ -6635,6 +6748,12 @@ the `fill=1` run the script printed `2 comment lines kept`, the simulated lines 
 in place — the markers memo reads `isActiveReader`, the two kept lines, then `announceRefusal` — and
 the fault patches still check.
 
+**Replayed on the real packet g tree.** The round-1 reviewer reran this script with
+`base=03f81a6f` — packet g's real lane merged, its real `Proof:` comments at all twelve sites: all
+nine patches applied in order, the script printed `markers memo rewritten, 3 comment lines kept`, all
+thirteen fault patches checked clean, fifty paths; so the `fill=1` simulation's caveat (section 9.5)
+is discharged for that tree. The planner still reruns it on the dispatch base itself.
+
 **A failed check stops the run**: the same form is packet g's section 9.1, where the `&&` variant was
 rehearsed printing its success line after `error: patch failed` and exiting 0, and the two-line form
 exiting 1 before any success line.
@@ -6806,8 +6925,10 @@ Each is false on the real starting tree, checked on 2026-09-24.
 - **The command services** (the design's eight rows) each take a slice of `PlanCommandRoutes` as their
   own port and replace the matching `PlanCommands` members in the hooks; `PlanCommands` shrinks as
   they land.
-- **Task 13's architecture checks** can now state the rule as "no file under `components/` names
-  `ProjectApi` but the page and its import", which slice 3's `git grep` already measures.
+- **Task 13's architecture checks** can now state the rule by **symbol identity**: no module under
+  `components/` but the page and its import resolves a reference to the `ProjectApi` symbol, whatever
+  spelling reaches it (`Pick<ProjectApi, …>`, `ProjectApi[…]`, a namespace import). Slice 3's `git grep`
+  is a regex verification command for this packet, not that rule (batch-6 addendum point 18).
 
 ## 13. Assumptions recorded rather than asked
 
