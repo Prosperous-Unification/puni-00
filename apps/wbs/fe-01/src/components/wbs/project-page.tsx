@@ -14,9 +14,13 @@ import type { Roster } from '@/components/presence/presence-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream';
+import type { Recalled } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
-import { rememberedPreferences } from '@/modules/preferences/composition';
+import {
+  type ApplicationServicesState,
+  useApplicationServicesReader,
+} from '@/runtime/application-services-context';
 
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
@@ -80,18 +84,30 @@ export interface ProjectPageProps {
 }
 
 /**
- * Where this browser remembers which project was open.
+ * The project this browser was last in, over the runtime `services` names — or
+ * nothing, **not remembered**, when no runtime is live to ask.
  *
  * Reached through the preferences service like every other key, and **judged**
  * nowhere near it: its claim is tested against the project list this load just
  * fetched, not against a shape, so there is nothing to hand a guard built once
- * at module scope — `found.some(...)` is the whole validity rule and it is
- * different on every load. That is what the unchecked shape is for, and why the
- * empty string is held rather than refused: a held empty string still reaches
+ * — `found.some(...)` is the whole validity rule and it is different on every
+ * load. That is what the unchecked shape is for, and why the empty string is
+ * held rather than refused: a held empty string still reaches
  * `installProjects`, which drops the key, and a refusal would leave it in
  * storage for ever.
+ *
+ * `services` is read at the instant of the call — the page reads it through
+ * `useApplicationServicesReader` when a list load lands, which can be long after
+ * the render that started it — and with no runtime live nothing is read and
+ * nothing throws: the page simply restores no project. See {@link Recalled}.
  */
-const rememberedProject = rememberedPreferences.lastOpenedProject;
+export function recallLastProject(services: ApplicationServicesState): Recalled<string | null> {
+  // Proof: on 2026-09-24, answering `persists: true` here failed `restores nothing and remembers
+  // nothing when no runtime is live` on `expected { value: null, persists: true } to deeply equal
+  // { value: null, persists: false }`.
+  if (services.status !== 'live') return { value: null, persists: false };
+  return { value: services.remembered.lastOpenedProject.read(), persists: true };
+}
 
 /**
  * The name be-01 writes for a project nobody has named yet.
@@ -103,7 +119,8 @@ const rememberedProject = rememberedPreferences.lastOpenedProject;
 const PLACEHOLDER_PROJECT_NAME = 'New project';
 
 /**
- * Writes, or forgets, which project this browser was last in.
+ * Writes, or forgets, which project this browser was last in — into the runtime
+ * `services` names, and answers whether one was live to take it.
  *
  * Deliberately **not** through `lib/remembered.ts`, and this is the one store
  * that stays hand-written: its claim is judged against the project list this
@@ -114,9 +131,17 @@ const PLACEHOLDER_PROJECT_NAME = 'New project';
  * rather than left to be re-offered; what it does not share is the part
  * `remembered` exists to hold.
  */
-function rememberProject(id: string | null): void {
-  if (id === null) rememberedProject.forget();
-  else rememberedProject.write(id);
+export function rememberLastProject(
+  services: ApplicationServicesState,
+  id: string | null,
+): boolean {
+  // Proof: on 2026-09-24, answering `true` here failed `stops remembering once its runtime is
+  // withdrawn, and never throws` on `expected true to be false`.
+  if (services.status !== 'live') return false;
+  const store = services.remembered.lastOpenedProject;
+  if (id === null) store.forget();
+  else store.write(id);
+  return true;
 }
 
 /**
@@ -570,26 +595,41 @@ export function ProjectPage({
     if (search === null) setHoveredId(null);
   }, [search]);
 
-  const installProjects = useCallback((found: ProjectListEntry[]) => {
-    setProjects(found);
-    setSelected((current) => {
-      // The current selection and the remembered id are both claims, honoured
-      // only while the list still contains them — a project deleted elsewhere
-      // must not stay "selected" into a table asking for its tree. Then,
-      // selecting the only project saves a click on the common path; with
-      // several, the choice is the user's and nothing is guessed.
-      if (current !== null && found.some((project) => project.id === current)) return current;
-      const remembered = rememberedProject.read();
-      if (remembered !== null && found.some((project) => project.id === remembered)) {
-        return remembered;
-      }
-      // A remembered id the list no longer holds is a claim that has been
-      // disproved, so it is dropped rather than left to be re-tested — and
-      // re-offered as a choice — on every future load.
-      if (remembered !== null) rememberProject(null);
-      return found.length === 1 ? (found[0]?.id ?? null) : null;
-    });
-  }, []);
+  /**
+   * The page's runtime as it is when a callback runs — a list load or a create
+   * lands long after the render that started it, and a click can arrive before
+   * React has re-rendered for a slot that has already moved on.
+   */
+  const readServices = useApplicationServicesReader();
+
+  const installProjects = useCallback(
+    (found: ProjectListEntry[]) => {
+      setProjects(found);
+      setSelected((current) => {
+        // The current selection and the remembered id are both claims, honoured
+        // only while the list still contains them — a project deleted elsewhere
+        // must not stay "selected" into a table asking for its tree. Then,
+        // selecting the only project saves a click on the common path; with
+        // several, the choice is the user's and nothing is guessed.
+        if (current !== null && found.some((project) => project.id === current)) return current;
+        // Proof: on 2026-09-24, reading the runtime once at mount (`useMemo(readServices, …)`) instead
+        // failed `restores the replacement runtime’s own project when a list load lands after a
+        // replacement` on `PreferenceStoreLifecycleError: the preferences store was revoked with its
+        // runtime`.
+        const services = readServices();
+        const remembered = recallLastProject(services).value;
+        if (remembered !== null && found.some((project) => project.id === remembered)) {
+          return remembered;
+        }
+        // A remembered id the list no longer holds is a claim that has been
+        // disproved, so it is dropped rather than left to be re-tested — and
+        // re-offered as a choice — on every future load.
+        if (remembered !== null) rememberLastProject(services, null);
+        return found.length === 1 ? (found[0]?.id ?? null) : null;
+      });
+    },
+    [readServices],
+  );
 
   const fetchProjects = useCallback(() => api.listProjects(), [api]);
 
@@ -658,8 +698,11 @@ export function ProjectPage({
     void api
       .createProject(PLACEHOLDER_PROJECT_NAME)
       .then(async (project) => {
+        // Written before the selection moves: a store that refuses the write for
+        // a reason of its own propagates before the page has shown a choice it
+        // could not keep.
+        rememberLastProject(readServices(), project.id);
         setSelected(project.id);
-        rememberProject(project.id);
         await load();
         setRename({
           projectId: project.id,
@@ -752,8 +795,14 @@ export function ProjectPage({
    * Watched 2026-08-29.
    */
   const choose = (id: string) => {
+    // Proof: on 2026-09-24, writing into the runtime read at render instead of `readServices()` failed
+    // `writes a project chosen after a replacement into the replacement, from a page drawn before it`
+    // on `expected '' to be 'Paint the fence'`, with the revoked store's refusal reported. Moving this
+    // line below `setSelected` failed `lets a store’s own write failure through by identity, selecting
+    // nothing it could not keep` on `expected <button …(3)></button> to be null`. Wrapping it in a
+    // swallowing `try` failed the same test on `expected [] to have a length of 1 but got +0`.
+    rememberLastProject(readServices(), id);
     setSelected(id);
-    rememberProject(id);
     setSearch(null);
     pickerBox.current?.blur();
   };

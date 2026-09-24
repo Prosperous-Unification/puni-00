@@ -1083,3 +1083,288 @@ passed: 1 passed, 17 skipped (`new-test-after-proofs.log`).
   the jsdom tier's baseline plus 1 test, plus 0 files), `wbs-fe-01:test:unit`
   (expected unchanged), `tool-devsync:test` with the seven paths staged, and
   the host gate `bin/h2puni-gate.sh <sha>`.
+
+## Packet 050.7f2, slice 1 — the call-time reader, and the fixture in the twenty-one files
+
+Attempt `050-7-f2-delivery-call-sites.1.20260923T233913Z`, starting hash
+`1698ed98bb247062b89e7c156ef8fcada93c1fce`, empty status before any edit
+(`status-before.txt`), `fast-check=4.9.0`. Observed on 2026-09-23 (UTC), inside
+the executor sandbox; every log named below is in the attempt's evidence
+directory.
+
+### Baselines, before any edit
+
+| Check                                           | Result                                   | Log                    |
+| ----------------------------------------------- | ---------------------------------------- | ---------------------- |
+| preferences suite (`src/modules/preferences`)   | 6 files, 41 tests, `status=0`            | `base-preferences.log` |
+| sandbox node suite (the batch README's command) | 46 files, 675 tests, `status=0`          | `base-sandbox.log`     |
+| strict OpenSpec validation                      | `{"items":114,"passed":114,"failed":0}`  | `openspec-base.*.json` |
+| the twenty adopted default-tier files, serially | 20 files, 1204 tests, `status=0` (318 s) | `s1-base-adopted.log`  |
+| zoned config (`TZ=Pacific/Auckland`)            | 2 files, 3 tests, `status=0`             | `s1-base-zoned.log`    |
+| `application-services-context.test.tsx`         | 12 tests, `status=0`                     | `s1-base-context.log`  |
+
+### Contract, red and green
+
+- The new requirement applied first; strict OpenSpec validation stayed
+  `{"items":114,"passed":114,"failed":0}` (`openspec-s1-contract.*.json`).
+- Red, with the four reader examples applied and the context unchanged:
+  `wbs-fe-01:typecheck` `status=1` with one diagnostic,
+  `application-services-context.test.tsx:17:3 - error TS2724: '"./application-services-context"' has no exported member named 'useApplicationServicesReader'. Did you mean 'useApplicationServicesState'?`
+  (`s1-red-typecheck.log`); Vitest `status=1`, `Tests 4 failed | 12 passed (16)`
+  — three on `TypeError: useApplicationServicesReader is not a function`, and
+  `refuses to read below no provider, naming itself` on
+  `AssertionError: expected '(0 , __vite_ssr_import_5__.useApplica…' to be 'useApplicationServicesReader must be …'`
+  (`s1-red-vitest.log`).
+- Green, with the reader, the fixture and the twenty-one adoptions applied:
+  typecheck `status=0`; context 16 tests (12 + 4); adopted 20 files, 1204
+  tests (unchanged, 316 s); zoned 2 files, 3 tests (unchanged); lint
+  `status=0` (`s1-green-*.log`, `s1-lint.log`).
+
+### Negative-proof observations
+
+Each filter matched exactly one test first (`s1-proof-filters.log`). Every
+fault was injected from its fault patch, observed failing, restored from the
+saved bytes and compared with `cmp`, then rerun green (`r1`–`r3` `.patch`,
+`.log`, `.green.log`; `s1-proof-loop.log`).
+
+| Fault                                                  | Named test                                                                                 | Observed (`Tests 1 failed \| 15 skipped (16)` each)                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| r1: the reader answers the state its render saw        | `answers withdrawn the instant a retirement is accepted, while the render still says live` | `AssertionError: expected { Object (status, remembered) } to deeply equal { status: 'withdrawn' }` |
+| r2: the reader is a new function every render          | `keeps its identity across renders of the same provider`                                   | `AssertionError: expected [Function] to be [Function]`                                             |
+| r3: below no provider it falls back to the page's slot | `refuses to read below no provider, naming itself`                                         | `AssertionError: expected null to be 'useApplicationServicesReader must be …'`                     |
+
+After the three `Proof:` comments were added: context 16 tests, preferences 6
+files and 41 tests, sandbox node suite 46 files and 675 tests, all
+`status=0`, unchanged from the baselines (`s1-final-*.log`).
+
+### Slice verification
+
+- Owned-file Prettier, the repository-wide format check and the final strict
+  OpenSpec validation run after this entry was written; their results are in
+  `s1-prettier-check.log`, `s1-format-check.log` and `openspec-s1-final.*.json`.
+- Pending planner verification: `wbs-fe-01:test` (expected: UTC + 4 tests,
+  - 0 files; Auckland zoned unchanged), `wbs-fe-01:test:unit` (unchanged),
+    `wbs-fe-01:build`, `wbs-fe-01:e2e` (no production path changed in this
+    slice), `tool-devsync:test` with the twenty-six paths staged, and the host
+    gate `bin/h2puni-gate.sh <sha>`.
+
+## Packet 050.7f2, slice 2 — the settings modal and the project page, read at the moment of use
+
+Attempt `050-7-f2-delivery-call-sites.2.20260923T235846Z`, starting at
+`dea3c79391cb6a39e56a1dfb01ea22b0f3465a6f` with an empty status and `fast-check` 4.9.0 (`base.txt`,
+`status-before.txt`, `fast-check.txt`). Observed 2026-09-24, in the executor sandbox.
+
+Step 0 baselines: preferences suite 6 files, 41 tests, `status=0` (`base-preferences.log`); sandbox
+node suite 46 files, 675 tests, `status=0` (`base-sandbox.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`). Slice baselines, each `status=0`:
+`project-settings-modal.test.tsx` 15 tests, `project-page.test.tsx` 67, `app-router.test.tsx` 5
+(`s2-base-modal.log`, `s2-base-page.log`, `s2-base-router.log`).
+
+Contract first: the scenario "With no runtime live, the default is shown and reported as not
+remembered" applied before any test or code; strict OpenSpec `{"items":114,"passed":114,"failed":0}`
+(`openspec-s2-contract.*.json`).
+
+Red, with the two test files applied and the production code unchanged:
+
+- `wbs-fe-01:typecheck` `status=1`, `Found 5 errors in 2 files.` — `project-page.test.tsx:38:23` and
+  `:38:42` `TS2305` (`recallLastProject`, `rememberLastProject` not exported);
+  `project-settings-modal.test.tsx:427:79` and `:486:73` `TS2554: Expected 1 arguments, but got 2.`;
+  `:507:80` `TS2554: Expected 2 arguments, but got 3.` (`s2-red-typecheck.log`).
+- Vitest over the two files `status=1`, `Test Files 2 failed (2)`, `Tests 11 failed | 81 passed (92)`
+  (`s2-red-vitest.log`): the edited `reads an absent key as the first section` on
+  `expected 'teams' to deeply equal { value: 'teams', persists: true }`; modal `opens on the first
+section …` on `expected 'priorities' to be null`; `stops remembering …` on
+  `expected undefined to be false`; `reopens on a replacement runtime’s own remembered section` on
+  `toHaveAttribute("aria-selected", "true")`; `writes a section chosen after a replacement …` on
+  `expected undefined to be 'steps'`; `lets a store’s own write failure through …` on
+  `expected [] to have a length of 1 but got +0`; page `restores nothing …` on
+  `expected 'p2' to be null`; `stops remembering …` and `restores the replacement runtime’s own
+project …` on `expected '' to be 'Paint the fence'`; `writes a project chosen after a replacement …`
+  on `expected undefined to be 'p2'`; `lets a store’s own write failure through …` on
+  `expected [] to have a length of 1 but got +0`.
+
+Green, after `Recalled<T>`, the modal and the page: typecheck `status=0` (`s2-green-typecheck.log`);
+the two files 92 tests (82 + 10), `status=0` (`s2-green-vitest.log`); router 5, unchanged
+(`s2-green-router.log`); the twenty adopted files, serially, 20 files, 1214 tests, `status=0`
+(`s2-green-adopted.log`); `wbs-fe-01:lint` `status=0` (`s2-lint.log`).
+
+Proofs: all twelve filters matched exactly one test (`s2-filters.txt`). Each fault was injected from
+its patch, its named test run, the file restored from the saved copy and `cmp`-identical, and the
+test rerun green (`s2-faults.log`, `<id>.patch`, `<id>.log`, `<id>.green.log`). Modal faults each
+`Tests 1 failed | 19 skipped (20)`, page faults each `Tests 1 failed | 71 skipped (72)`, all `status=1`:
+
+| Id  | Fault                                            | Observed                                                                                                                                      |
+| --- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| m1  | no runtime, yet the read claims `persists: true` | `expected { value: 'teams', persists: true } to deeply equal { value: 'teams', persists: false }`                                             |
+| m2  | no runtime, yet the write answers `true`         | `expected true to be false`                                                                                                                   |
+| m3  | `show` uses the runtime read at render           | `toHaveAttribute("aria-selected", "true")`, with `PreferenceStoreLifecycleError: the preferences store was revoked with its runtime` reported |
+| m4  | `show` shows the section before writing it       | `toHaveAttribute("aria-selected", "true")` on Teams                                                                                           |
+| m5  | `show` swallows the write's failure              | `expected [] to have a length of 1 but got +0`                                                                                                |
+| m6  | opening shows the first section without reading  | `toHaveAttribute("aria-selected", "true")` on Priorities                                                                                      |
+| p1  | no runtime, yet the read claims `persists: true` | `expected { value: null, persists: true } to deeply equal { value: null, persists: false }`                                                   |
+| p2  | no runtime, yet the write answers `true`         | `expected true to be false`                                                                                                                   |
+| p3  | the list load reads the runtime once, at mount   | `PreferenceStoreLifecycleError: the preferences store was revoked with its runtime`                                                           |
+| p4  | `choose` uses the runtime read at render         | `expected '' to be 'Paint the fence'`, with the revoked refusal reported                                                                      |
+| p5  | `choose` selects before writing                  | `expected <button …(3)></button> to be null`                                                                                                  |
+| p6  | `choose` swallows the write's failure            | `expected [] to have a length of 1 but got +0`                                                                                                |
+
+The `Proof:` comments were written after all twelve were observed. Afterwards: the two files 92 tests
+`status=0` (`s2-final-vitest.log`); preferences 6 files, 41 tests and sandbox 46 files, 675 tests,
+both unchanged and `status=0` (`s2-final-preferences.log`, `s2-final-sandbox.log`).
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e` (`e2e/project-settings.spec.ts`, `e2e/project-picker.spec.ts`), `tool-devsync:test`
+and the host gate `bin/h2puni-gate.sh <sha>`, none of which the sandbox can run.
+
+## Packet 050.7f2, slice 3 — the detail switch, a continuous consumer
+
+Attempt `050-7-f2-delivery-call-sites.3.20260924T001504Z`, starting hash
+`e26c8ddddb31b17ce292622e15240086653a2ff6`, clean status, `fast-check` 4.9.0. Evidence basenames are
+relative to that attempt's evidence directory. Observed 2026-09-24.
+
+Baselines, all `status=0`: preferences suite 6 files, 41 tests (`base-preferences.log`); sandbox node
+suite 46 files, 675 tests (`base-sandbox.log`); `gantt-panel.test.tsx` 242 tests (`s3-base-gantt.log`);
+Auckland zoned 2 files, 3 tests (`s3-base-zoned.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+Red, with `gantt-detail.test.tsx` applied over the unchanged hook: typecheck `status=1`, `Found 9 errors
+in the same file`, nine `TS2339: Property 'persists' does not exist on type 'GanttDetail'.`
+(`s3-red-typecheck.log`); Vitest `status=1`, `Tests 7 failed (7)` (`s3-red-vitest.log`) — `expected
+undefined to be false` (twice), `expected true to be false`, `expected false to be true` (three times)
+and `expected null to be Error: write denied`, each on the test section 6 names.
+
+Green, after `gantt-detail.ts`, all `status=0`: typecheck clean (`s3-green-typecheck.log`); the new file
+7 tests (`s3-green-vitest.log`); `gantt-panel.test.tsx` 242 (`s3-green-gantt.log`); zoned 2 files, 3 tests
+(`s3-green-zoned.log`); the twenty adopted files serially, 20 files, 1214 tests (`s3-green-adopted.log`);
+lint `status=0` (`s3-lint.log`).
+
+Proofs, each filter first shown to select exactly one test (`s3-filters.txt`), each fault run as
+`Tests 1 failed | 6 skipped (7)`, `status=1`, restored with `cmp` and rerun green (`<id>.patch`,
+`<id>.log`, `<id>.green.log`):
+
+| Id  | Fault                                                | Observed                                                                       |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
+| g1  | `ask` with nothing live reports `persists: true`     | `expected true to be false`                                                    |
+| g2  | the resync effect's not-live branch no longer resets | `expected false to be true`                                                    |
+| g3  | the resync effect drops keys without adopting        | `expected false to be true`                                                    |
+| g4  | the superseded guard deleted                         | `expected false to be true`                                                    |
+| g5  | `ask` shows before writing                           | `expected true to be false`                                                    |
+| g6  | `ask` swallows the write's failure                   | `expected null to be Error: write denied`                                      |
+| g7  | the resync effect reads the render's runtime         | `expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to be null` |
+| g8  | a withdrawal counted as a supersession               | `expected true to be false`                                                    |
+
+After the `Proof:` comments, all `status=0`: preferences 6 files, 41 tests; sandbox 46 files, 675 tests
+(both unchanged); the new file 7 tests; typecheck and lint clean (`s3-final-*.log`).
+
+Pending planner verification: `wbs-fe-01:test` (expected UTC + 1 file, + 7 tests; zoned unchanged),
+`wbs-fe-01:test:unit` (unchanged), `wbs-fe-01:build`, `wbs-fe-01:e2e` (`e2e/gantt-detail.spec.ts`),
+`tool-devsync:test`, and the host gate, which was not run.
+
+## Packet 050.7f2, slice 4 — the layout handle, its model test, and the layout's typed results
+
+Attempt `050-7-f2-delivery-call-sites.4.20260924T002854Z`, starting hash
+`1e5b5535ce543249c94d25b54cf964d5ddfd7c46`, observed on 2026-09-24. The working tree was clean at the start, and
+`fast-check` was 4.9.0. Evidence names are relative to that attempt's evidence directory.
+
+### Baselines (step 0 and step 1)
+
+| Check                                                                      | Result                                  | Evidence                    |
+| -------------------------------------------------------------------------- | --------------------------------------- | --------------------------- |
+| preferences suite (`src/modules/preferences`)                              | 6 files, 41 tests, status 0             | `base-preferences.log`      |
+| sandbox node suite                                                         | 46 files, 675 tests, status 0           | `base-sandbox.log`          |
+| layout suites, serial (plan-layout, plan-filter, plan-toolbar, plan-table) | 4 files, 218 tests, status 0            | `s4-base-layout.log`        |
+| strict OpenSpec                                                            | `{"items":114,"passed":114,"failed":0}` | `openspec-base.9jLTfd.json` |
+
+### Contract and red checkpoint
+
+- Section 7.14, the layout-handle scenario, was applied first. The strict block then gave `{"items":114,"passed":114,"failed":0}`
+  (`openspec-s4-contract.AvHIzh.json`).
+- With section 7.15, the model test, applied and `lib/remembered.ts` unchanged, `wbs-fe-01:typecheck` exited with status 1
+  and `Found 2 errors in the same file` (`s4-red-typecheck.log`):
+  `remembered-layout.model.test.ts:5:27 - error TS2305: Module '"@/lib/remembered"' has no exported member 'RuntimeRemembered'.`
+  and `remembered-layout.model.test.ts:627:71 - error TS2554: Expected 2 arguments, but got 3.`
+- Vitest on the model test exited with status 1 and `Tests 1 failed (1)` (`s4-red-vitest.log`):
+  `Property failed after 2 tests`, seed `20260924`, counterexample
+  ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,accessWhileAcquiring(A, write(outline)) /*replayPath="ADB:F"*/]``,
+  shrunk 2 times, caused by `write(outline) while acquiring: what the handle answered: expected undefined to deeply equal false`.
+
+### Green checkpoint (after sections 7.16, 7.17 and 7.18)
+
+| Check                            | Result                                                  | Evidence                 |
+| -------------------------------- | ------------------------------------------------------- | ------------------------ |
+| `wbs-fe-01:typecheck`            | status 0                                                | `s4-green-typecheck.log` |
+| model test                       | 1 test passed, status 0                                 | `s4-green-vitest.log`    |
+| layout suites, serial            | 4 files, 218 tests (unchanged), status 0                | `s4-green-layout.log`    |
+| zoned (Pacific/Auckland)         | 2 files, 3 tests (unchanged), status 0                  | `s4-green-zoned.log`     |
+| the twenty adopted files, serial | 20 files, 1214 tests (unchanged from slice 3), status 0 | `s4-green-adopted.log`   |
+| `wbs-fe-01:lint`                 | status 0                                                | `s4-lint.log`            |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter first matched exactly one test (`s4-filters.log`). Each fault was injected from the packet's own patch, its test
+exited with status 1, the file was restored and `cmp`-identical, and the test reran green. The records are `<id>.patch`,
+`<id>.log` and `<id>.green.log`. The model faults ran under fast-check 4.9.0, seed `20260924`, `numRuns: 300`,
+`maxCommands: 12`, and each gave `Tests 1 failed (1)`. `⏎` marks the newline fast-check prints.
+
+| Id   | Fault                                                        | Run | Shrunk counterexample                                                                                                                                              | Observed                                                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------ | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ha` | the runtime resolved once, when the handle is built          | 8   | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,replace(A, settles),write(outline) /*replayPath="O:B"*/]``, shrunk 4 times                           | `write(outline): what the handle answered: expected false to deeply equal true`                                                                                                                          |
+| `hb` | the last live store kept for when nothing is live            | 13  | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,replace(A, settles),read,retire,read /*replayPath="CCABH:V"*/]``, shrunk 2 times                     | `read: what the handle answered: expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to deeply equal { value: null, persists: false }`                                                     |
+| `hc` | a read with nothing live claims `persists: true`             | 2   | ``[schedulerFor()`⏎`,read /*replayPath="CBA:F"*/]``, shrunk 1 time                                                                                                 | `read: what the handle answered: expected { value: null, persists: true } to deeply equal { value: null, persists: false }`                                                                              |
+| `hd` | `readAndDrop` replaced by `read`                             | 106 | ``[schedulerFor()`⏎-> [task${1}] promise::dispose B resolved`,tamper(B, 7),accessWhileAcquiring(B, write(outline)),read /*replayPath="AFCF:K"*/]``, shrunk 2 times | `stored bytes in B: expected '7' to be undefined`                                                                                                                                                        |
+| `he` | `write` swallows the store's own failure                     | 18  | ``[schedulerFor()`⏎-> [task${1}] promise::dispose denied resolved`,replace(denied, settles),write(outline) /*replayPath="BGB:F"*/]``, shrunk 1 time                | `write(outline): an ordinary storage failure did not propagate unchanged: expected false to be Error: write denied`                                                                                      |
+| `hh` | a write with nothing live answers `true`                     | 2   | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,accessWhileAcquiring(A, write(outline)) /*replayPath="ADB:F"*/]``, shrunk 2 times                    | `write(outline) while acquiring: what the handle answered: expected true to deeply equal false`                                                                                                          |
+| `hf` | the model test's bounded close replaced by an ordinary error | 2   | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,replace(A, never),replace(A, settles) /*replayPath="L:B"*/]``, shrunk 3 times                        | `the property failed and its teardown refused: …`, caused by `replace(A): the disposal did not expire the way the slot's budget expires; it failed some other way: Error: unexpected cleanup corruption` |
+| `hg` | the model test's teardown retirement rejects                 | 1   | ``[schedulerFor()`⏎`, /*replayPath=":"*/]``, shrunk 0 times                                                                                                        | `Error: teardown refused: Error: teardown retire refused during teardown with: Error: unrelated teardown failure`                                                                                        |
+| `fx` | the fixture publishes no runtime                             | —   | —                                                                                                                                                                  | `plan-layout.test.tsx` › `lays a remembered width out over the one it would have resolved`: `expected '68px' to be '240px'`, `Tests 1 failed \| 77 skipped (78)`                                         |
+
+### After the Proof comments
+
+The model test passed with 1 test and status 0 (`s4-final-model.log`). `plan-layout.test.tsx` passed with 78 tests and
+status 0 (`s4-final-plan-layout.log`). The preferences suite gave 6 files and 41 tests, and the sandbox node suite gave
+46 files and 675 tests, both unchanged from step 0 (`s4-final-preferences.log`, `s4-final-sandbox.log`).
+`wbs-fe-01:typecheck` and `wbs-fe-01:lint` both gave status 0 (`s4-final-typecheck.log`, `s4-final-lint.log`).
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e` (`e2e/layout.spec.ts`) and
+`tool-devsync:test` are still pending. The host gate was not run.
+
+## Packet 050.7f2, slice 5 — the duplicate deleted, task 3's note, and the closing checks
+
+Attempt `050-7-f2-delivery-call-sites.5.20260924T004635Z`, starting at
+`592030962ba973ea03aadf3d72fa4ca9dfc62399` with an empty status and `fast-check` 4.9.0
+(`base.txt`, `status-before.txt`, `fast-check.txt`). Observed 2026-09-24.
+
+Step 0 baselines: preferences suite 6 files, 41 tests, `status=0` (`base-preferences.log`); sandbox
+node suite 46 files, 675 tests, `status=0` (`base-sandbox.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+Red checkpoint, after `git apply --check` of section 7.19 passed and exactly its three files were
+removed: `wbs-fe-01:typecheck` `status=0` — nothing imports the deleted module
+(`s5-red-typecheck.log`); sandbox node suite `status=1`, `Test Files 1 failed | 44 passed (45)`,
+`Tests 3 failed | 671 passed (674)`, all three in `src/test-tiers.test.ts`: `lists every DOM-free
+suite in the fast tier, and only those`, `partitions the suite — every file is in exactly one tier`
+and `names files that exist` (`s5-red-sandbox.log`).
+
+Sections 7.20, 7.21 and 7.22 applied; task 3's note dated `observed 2026-09-24` from `date -u +%F`,
+no placeholder left, the box still unchecked.
+
+Green checkpoint, every check `status=0`: typecheck (`s5-green-typecheck.log`); lint (`s5-lint.log`);
+sandbox node suite 45 files, 674 tests — step 0 less one file and one test (`s5-green-sandbox.log`);
+preferences suite 4 files, 39 tests — step 0 less two files and two tests
+(`s5-green-preferences.log`); tier test 5 tests (`s5-green-tiers.log`).
+
+Proof `n1`: the filter `names files that exist` matched exactly one test (`n1-filter.txt`). Listing
+`src/modules/preferences/composition.test.ts` in `vitest.node-suites.ts` again (`n1.patch`) failed it,
+`status=1`, `Tests 1 failed | 4 skipped (5)`, on `src/modules/preferences/composition.test.ts:
+expected [Function] to not throw an error but 'Error: ENOENT: no such file or direct…' was thrown`
+(`n1.log`); the file was restored by copy, `cmp`-identical, and the rerun passed, `Tests 1 passed | 4
+skipped (5)` (`n1.green.log`). The `Proof:` comment was added afterwards and the tier test rerun,
+5 tests, `status=0` (`s5-tiers-after-comment.log`).
+
+The owned-file Prettier write and check, `nx format:check --all` (`s5-format.log`) and the strict
+OpenSpec block run after this entry is written, so that they check it; their results are in those
+evidence files and the attempt's report.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, which was not run.

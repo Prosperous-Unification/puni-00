@@ -20,12 +20,16 @@
       Partly moved by 050-7-f1: `lib/theme.ts` reads through
       `useApplicationServicesState()`, degrading visibly — never throwing — when
       withdrawn, per the delivery-degradation requirement this change now carries.
-      `gantt-detail.ts`, `project-page.tsx`, `project-settings-modal.tsx` and
-      `lib/remembered.ts` still read `modules/preferences/composition.ts`'s staged
-      duplicate, and the module's wiki index is still absent
-      (`apps/wbs/fe-01/src/modules/preferences/README.md`). This box stays
-      unchecked until all five call sites have moved, the duplicate is deleted and
-      the index exists.
+      The other four moved by 050-7-f2, observed 2026-09-24:
+      `project-settings-modal.tsx` and `project-page.tsx` resolve the runtime at the
+      instant of each access through `useApplicationServicesReader()`;
+      `gantt-detail.ts` follows `useApplicationServicesState()` as `useTheme` does;
+      and `lib/remembered.ts` resolves the runtime's `preferences` from the slot at
+      every call, so `remembered-layout.ts`'s module-scope `storedMermaidSectionMode`
+      holds no store. `modules/preferences/composition.ts` and its two tests are
+      deleted. This box stays unchecked for the one outcome still owed: the module's
+      wiki index (`apps/wbs/fe-01/src/modules/preferences/README.md` says it carries
+      no `module-index` block yet, and that adopting one is its own packet).
 - [x] 4. The application bootstrap owns the React root: it builds the runtime before
       `createRoot`, publishes `RememberedPreferences` — the feature facade only, never
       the `Preferences` resource — through one context, and renders the sanitized fatal

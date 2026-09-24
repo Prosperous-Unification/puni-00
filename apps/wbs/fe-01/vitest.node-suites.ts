@@ -68,7 +68,9 @@ export const NODE_SUITES: readonly string[] = [
   'src/modules/plan-feed/plan-feed.feature.test.ts',
   'src/modules/plan-feed/plan-feed.resource.test.ts',
   'src/modules/plan-writer/plan-writer.test.ts',
-  'src/modules/preferences/composition.test.ts',
+  // Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed
+  // `names files that exist` on `src/modules/preferences/composition.test.ts: expected
+  // [Function] to not throw an error but 'Error: ENOENT: no such file or direct…' was thrown`.
   'src/modules/preferences/module.test.ts',
   'src/modules/preferences/preferences.feature.test.ts',
   'src/modules/preferences/preferences.resource.test.ts',
