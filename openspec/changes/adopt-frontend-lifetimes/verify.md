@@ -1513,3 +1513,82 @@ Patches and failing output: `<id>.patch`, `<id>.log`, `<id>.green.log`.
 
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
 the host gate were not run in this attempt; each is pending planner verification.
+
+## Packet 050.7g, slice 3 — commands, refusals and busy through the project's ports
+
+Attempt `050-7-g-project-prerequisites.3.20260924T033155Z`, starting hash
+`c1fa2735b018c399b8304f5e5c10b0262101eef1` (`base.txt`); the working tree was clean
+(`status-before.txt` empty) and fast-check was 4.9.0 (`fast-check.txt`). Step 0b extracted 17
+patches and 43 fault patches.
+
+### Baselines (step 0 and step 1)
+
+| Check                                                        | Status | Result                                  | Log                    |
+| ------------------------------------------------------------ | ------ | --------------------------------------- | ---------------------- |
+| preferences suite                                            | 0      | 4 files, 39 tests                       | `base-preferences.log` |
+| sandbox node suite                                           | 0      | 49 files, 678 tests                     | `base-sandbox.log`     |
+| strict OpenSpec                                              | 0      | `{"items":114,"passed":114,"failed":0}` | `openspec-base.*.json` |
+| `plan-writer.test.ts`                                        | 0      | 1 file, 2 tests                         | `s3-base-writer.log`   |
+| adopted set, serial (`--no-file-parallelism --maxWorkers=1`) | 0      | 20 files, 1214 tests (332.94 s)         | `s3-base-adopted.log`  |
+
+After section 7.7 (the scenario "The writer and the feed announce through the project's ports"),
+strict OpenSpec exit 0, `{"items":114,"passed":114,"failed":0}` (`openspec-s3-contract.*.json`).
+
+### Red checkpoint (after section 7.8, before section 7.9)
+
+`wbs-fe-01:typecheck` status 1, `Found 6 errors in 2 files.` (`s3-red-typecheck.log`):
+
+```text
+apps/wbs/fe-01/src/components/wbs/use-channel-listener.test.tsx:7:36 - error TS2307: Cannot find module './use-channel-listener' or its corresponding type declarations.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:52:7 - error TS2353: Object literal may only specify known properties, and 'busy' does not exist in type 'PlanWriterHost'.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:57:29 - error TS7006: Parameter 'refusal' implicitly has an 'any' type.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:92:7 - error TS2353: Object literal may only specify known properties, and 'busy' does not exist in type 'PlanWriterHost'.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:114:7 - error TS2561: Object literal may only specify known properties, but 'commandsIssued' does not exist in type 'PlanWriterHost'. Did you mean to write 'noteCommandIssued'?
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:134:7 - error TS2353: Object literal may only specify known properties, and 'busy' does not exist in type 'PlanWriterHost'.
+```
+
+Vitest status 1, `Test Files 2 failed (2)`, `Tests 4 failed (4)` (`s3-red-vitest.log`): the four
+writer tests on `TypeError: noteCommandIssued is not a function`, and the listener file on
+`Failed to resolve import "./use-channel-listener"`.
+
+### Green checkpoint (after section 7.9)
+
+| Check                             | Status | Result                                      | Log                      |
+| --------------------------------- | ------ | ------------------------------------------- | ------------------------ |
+| `wbs-fe-01:typecheck`             | 0      |                                             | `s3-green-typecheck.log` |
+| writer and listener files, serial | 0      | 2 files, 9 tests (writer 2 + 2, listener 5) | `s3-green-focused.log`   |
+| adopted set, serial               | 0      | 20 files, 1214 tests — unchanged (344.99 s) | `s3-green-adopted.log`   |
+| sandbox node suite                | 0      | 49 files, 680 tests (step 0 + 0 files, + 2) | `s3-green-sandbox.log`   |
+| `wbs-fe-01:lint`                  | 0      |                                             | `s3-lint.log`            |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`s3-filters.log`). Each fault was injected from its section 8.3
+patch, its named test run, the file restored and compared with `cmp`, and the test rerun green
+(`<id>.patch`, `<id>.log`, `<id>.green.log`; loop summary `s3-faults.log`, status 0).
+
+| Id   | Fault                                             | Named test                                                                  | Observed                                                                                                                                |
+| ---- | ------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `l1` | the subscription in a passive `useEffect`         | `hears an event a child publishes from its own mount effect`                | `expected [] to deeply equal [ 'first read refused' ]`; `Tests 1 failed \| 4 skipped (5)`                                               |
+| `l2` | the latest listener's ref never written           | `calls the listener of the latest render and never a superseded one`        | `expected [ 'after the re-render' ] to deeply equal []`; `Tests 1 failed \| 4 skipped (5)`                                              |
+| `l3` | `[]` dependencies on the subscription             | `follows a channel replaced while it stays mounted, and leaves the old one` | `expected [ 'from the replaced channel' ] to deeply equal [ 'from the replacement' ]`; `Tests 1 failed \| 4 skipped (5)`                |
+| `l4` | the unsubscribe dropped                           | `hears nothing once it is unmounted, and a publication then throws nothing` | `expected [ 'after the unmount' ] to deeply equal []`; `Tests 1 failed \| 4 skipped (5)`                                                |
+| `l5` | the listener's failure swallowed                  | `lets a listener’s own failure reach the publisher by identity`             | `expected null to be Error: the toast stack is gone`; `Tests 1 failed \| 4 skipped (5)`                                                 |
+| `w1` | the command announced after the request is sent   | `says a command was issued before it sends anything`                        | `expected [ 'request sent', 'command issued' ] to deeply equal [ 'command issued', 'request sent' ]`; `Tests 1 failed \| 3 skipped (4)` |
+| `w2` | busy lowered without the `isActiveReader()` guard | `leaves the project busy when its reader left before the answer arrived`    | `expected false to be true`; `Tests 1 failed \| 3 skipped (4)`                                                                          |
+
+Each fault run was filtered to its named test, so no other test ran under a fault. The seven `Proof:`
+comments were then written, dated 2026-09-24, five in `use-channel-listener.ts` and two in
+`plan-writer.feature.ts` (`w2` below the existing lines there).
+
+### After the Proof comments
+
+Writer and listener files 2 files, 9 tests (`s3-final-focused.log`); preferences 4 files, 39 tests
+(`s3-final-preferences.log`); sandbox 49 files, 680 tests (`s3-final-sandbox.log`); all status 0.
+Lint, typecheck, format check and strict OpenSpec after the owned-file Prettier are recorded in the
+attempt report.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`
+and the host gate were not run in the executor sandbox.

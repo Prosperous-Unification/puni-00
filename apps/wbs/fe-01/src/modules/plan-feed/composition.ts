@@ -1,6 +1,7 @@
 import { createPlanRefresh } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { ProjectApi } from '@/lib/wbs-api';
+import type { Publisher } from '@/modules/channel';
 
 import type {
   PlanFeed,
@@ -19,7 +20,8 @@ export interface PlanFeedForReader {
     | undefined;
   readonly isActiveReader: () => boolean;
   readonly publish: (delivery: PlanFeedDelivery) => void;
-  readonly announceRefusal: (refusal: PlanFeedRefusal) => void;
+  /** Where a refusal of the first read is announced; the words are the listener's. */
+  readonly refusals: Publisher<PlanFeedRefusal>;
   readonly setConnected: (connected: boolean) => void;
 }
 
@@ -39,7 +41,7 @@ export function planFeedForReader({
   subscribe,
   isActiveReader,
   publish,
-  announceRefusal,
+  refusals,
   setConnected,
 }: PlanFeedForReader): PlanFeed {
   return createPlanFeed({
@@ -50,7 +52,7 @@ export function planFeedForReader({
         : (handlers, baseline) => subscribe(projectId, handlers, baseline),
     isActiveReader,
     publish,
-    announceRefusal,
+    announceRefusal: refusals.publish,
     setConnected,
   });
 }

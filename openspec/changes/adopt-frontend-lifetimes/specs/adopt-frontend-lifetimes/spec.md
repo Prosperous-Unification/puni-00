@@ -372,3 +372,10 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
 - **THEN** the delivered plan or the presence keeps the same snapshot object and
   no listener is told, and a publication that does change a member replaces the
   snapshot once, keeps every other member as it was, and tells each listener once
+
+#### Scenario: The writer and the feed announce through the project's ports
+
+- **WHEN** a gesture starts, is refused, or the feed's first read is refused
+- **THEN** the table hears that a command was issued before any request is sent,
+  says each refusal once in the toast stack it was given, and a gesture whose
+  reader has left lowers no busy state and announces nothing
