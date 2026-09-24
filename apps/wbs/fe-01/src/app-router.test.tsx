@@ -206,4 +206,44 @@ describe('the signed-in region, routed', () => {
     );
     expect(screen.getByRole('link', { name: 'Plan' }).getAttribute('aria-current')).toBeNull();
   });
+
+  /**
+   * The project page opens its project through the session's own owner, which
+   * is what lets the session's retirement retire the project first.
+   */
+  itDom(
+    'opens the selected project through the signed-in session’s own project owner',
+    async () => {
+      const session = signedIn();
+      const oneProject = emptyProjects();
+      oneProject.listProjects = () =>
+        Promise.resolve([
+          {
+            id: 'p1',
+            name: 'Rewire the shed',
+            restricted: false,
+            startDate: null,
+            lastOpenedAt: null,
+            ownerName: 'kat',
+            createdAt: 0,
+          },
+        ]);
+      oneProject.openProject = () => Promise.resolve();
+      render(
+        <AppRouter
+          session={session}
+          token="t"
+          presence={() => null}
+          account={<span>account menu</span>}
+          projectApi={oneProject}
+          history={createMemoryHistory({ initialEntries: ['/'] })}
+        />,
+      );
+
+      await waitFor(() => {
+        const opened = session.projects.snapshot();
+        expect(opened.status === 'live' ? opened.services.projectId : opened.status).toBe('p1');
+      });
+    },
+  );
 });

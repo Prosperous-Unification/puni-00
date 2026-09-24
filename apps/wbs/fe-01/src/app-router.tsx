@@ -57,9 +57,16 @@ const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: function ProjectRoute() {
-    const { token, presence, account, nav, projectApi } = projectRoute.useRouteContext();
+    const { session, token, presence, account, nav, projectApi } = projectRoute.useRouteContext();
     return (
-      <ProjectPage token={token} api={projectApi} presence={presence} account={account} nav={nav} />
+      <ProjectPage
+        projectOwner={session.projects}
+        token={token}
+        api={projectApi}
+        presence={presence}
+        account={account}
+        nav={nav}
+      />
     );
   },
 });

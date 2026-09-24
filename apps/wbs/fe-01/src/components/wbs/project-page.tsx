@@ -27,7 +27,7 @@ import {
   type ApplicationServicesState,
   useApplicationServicesReader,
 } from '@/runtime/application-services-context';
-import { createProjectOwner } from '@/runtime/project-runtime';
+import type { ProjectOwner } from '@/runtime/project-runtime';
 
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
@@ -46,6 +46,17 @@ import { WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
   token: string;
+  /**
+   * The owner of the selected project's runtime: the signed-in session's, from
+   * router context.
+   *
+   * The session's and not this page's, because the session's retirement has to
+   * retire the project first — a page's own owner would be given back whenever
+   * React happened to run its cleanup, and a session could let go while its
+   * project still held a socket. The page opens and leaves through it; the
+   * session refuses an open once it has been withdrawn.
+   */
+  projectOwner: ProjectOwner;
   /** Injected in tests; the app lets it default to the real one. */
   api?: ProjectApi;
   /**
@@ -485,6 +496,7 @@ function SavedPlanShelf({
 
 export function ProjectPage({
   token,
+  projectOwner,
   api: apiOverride,
   savedPlansDeps: savedPlansOverride,
   presence,
@@ -545,15 +557,11 @@ export function ProjectPage({
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
-   * The owner of the selected project's runtime — its feed, its writer, its
-   * marker gestures and its commands, opened once per selected project and
-   * given back when the selection moves or this page goes.
-   *
-   * A lazy initializer is safe because the owner holds nothing until it is
-   * asked to open: Strict Mode's discarded second one leaks nothing. The
-   * runtime itself is only ever built by the effect below, never in render.
+   * The selected project's runtime — its feed, its writer, its marker gestures
+   * and its commands — as the session's project owner publishes it: opened
+   * once per selected project by the effect below, never in render, and given
+   * back when the selection moves, this page goes, or the session is left.
    */
-  const [projectOwner] = useState(createProjectOwner);
   const projectState = useSyncExternalStore(projectOwner.subscribe, projectOwner.snapshot);
   /**
    * Who else is in the selected project, and whether the socket saying so is
