@@ -14,6 +14,7 @@ import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable'
 import {
   capturedOptimizationReaderOf,
   DrizzleEventLogStore,
+  scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
 
@@ -146,6 +147,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       inputOf: async (projectId) => await graph.workItems.scheduleInput(projectId),
       enabledOf: async (projectId) =>
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
+      hashInput: scheduleInputHash,
       spawn: optimizer.spawn,
       eventLog: new DrizzleEventLogStore(source.db, source.gate),
       pushRecorded: (subscription, recorded, event) =>

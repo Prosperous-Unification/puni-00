@@ -105,6 +105,7 @@ function restarted(
   let token = 0;
   return new OptimizationCoordinator({
     db,
+    hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
     budgetMs: BUDGET,

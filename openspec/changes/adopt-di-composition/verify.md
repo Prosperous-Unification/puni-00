@@ -1977,3 +1977,83 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   (`slice1-close-lint-typecheck.log`); `module/optimization/` holds nine files.
 - The feature still takes the SQLite `db` and calls the repository functions directly (K3,
   recorded in `contract.ts`, tracked under 3.6 and 7.4).
+
+### Optimization cache-key port, Slice 2 — 2026-09-24
+
+- The slice started from `base=ec5a282b3ac875dcfd10480d5c86a7cbe9b1cf13` on a clean tree, with
+  `module/optimization/check.ts` present and no `module-boundaries.test.ts`; the feature held three
+  `scheduleInputHash(` calls and `optimization-coordinator.db.test.ts` seven
+  `new OptimizationCoordinator({` constructions.
+- Baselines before any edit: `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`); the be-01 unit set passed `E=526` over `EF=50` files
+  (`slice2-be01-unit-baseline.log`); the six optimizer database files passed `D=54` over `DF=6`
+  (`slice2-be01-db-baseline.log`); `backend.optimization count=1` in both bundles and
+  `backend.solver-supervisor count=0 (grep exit 1)` in both (`slice2-main-bundle-red.log`,
+  `slice2-dev-main-bundle-red.log`).
+- Row 16: `module-boundaries.test.ts` on the unchanged feature failed with exactly
+  `"module/optimization/optimization.feature.ts: '../../repository/schedule-input-hash' reaches apps/wbs/be-01/src/repository/schedule-input-hash.ts"`
+  and
+  `"module/optimization/optimization.feature.ts: scheduleInputHash reaches libs/wbs/adapters/store-sqlite/src/schedule-input-hash.ts"`;
+  0 pass, 1 fail (`slice2-row16-boundary-red.log`).
+- Row 17: after 10.9 alone, `module/optimization/module.test.ts` ran 5 pass, 2 fail on
+  `-   "inputHash": "port-hash",` and `-   "currentInputHash": "port-hash",` against
+  `a2aad9dfa76c921e25b3204345d3216920dcf8787577905f5c9ac0637120ab11`
+  (`slice2-row17-module-red.log`); `wbs-be-01:typecheck` exited 1 with `TS2353` at
+  `module.test.ts:51:5` (`'hashInput' does not exist in type 'OptimizationCoordinatorOptions'`) and
+  `TS2339` at `:73:53` (`slice2-row17-typecheck-red.log`).
+- Row 18: after 10.10, the module directory and the boundary file ran 13 pass, 0 fail, 21
+  `expect()` calls over 3 files: the module directory 12 (18 calls) and the boundary file 1
+  (3 calls; the packet's rehearsal note said 4, the file holds three `expect`s)
+  (`slice2-row18-green.log`). `wbs-be-01` lint and typecheck then exited 0
+  (`slice2-step4-lint-typecheck.log`).
+- Row 19, port (`hashInput: () => 'module-hash'` in `module.ts`'s returned options):
+  `reads an idle plan under the identity installOptimization wires` and
+  `hashes a Retry through the cache-key port installOptimization wires` failed on
+  `+   "inputHash": "module-hash",` and `+   "currentInputHash": "module-hash",`; 5 pass, 2 fail
+  (`slice2-row19-port.patch`, `slice2-row19-port.log`).
+- Row 20, schema (prepended
+  `import type { SolverObjectiveName as StoredObjectiveName } from '../../repository/schema';`):
+  exactly `'../../repository/schema' reaches apps/wbs/be-01/src/repository/schema.ts` and
+  `SolverObjectiveName reaches libs/wbs/adapters/store-sqlite/src/schema.ts`; 0 pass, 1 fail
+  (`slice2-row20-schema.patch`, `slice2-row20-schema.log`).
+- Row 21, package (prepended `import '@wbs/store-sqlite/schema';`): exactly
+  `'@wbs/store-sqlite/schema' reaches libs/wbs/adapters/store-sqlite/src/schema.ts`; 0 pass, 1 fail
+  (`slice2-row21-package.patch`, `slice2-row21-package.log`).
+- Row 22, repo (prepended to `contract.ts` `import '../../repository/optimization-admission';`):
+  exactly
+  `"module/optimization/contract.ts: '../../repository/optimization-admission' reaches apps/wbs/be-01/src/repository/optimization-admission.ts"`;
+  0 pass, 1 fail (`slice2-row22-repo.patch`, `slice2-row22-repo.log`).
+- Row 23, adapter (`import '@wbs/store-sqlite/optimization-admission';`): exactly
+  `'@wbs/store-sqlite/optimization-admission' reaches libs/wbs/adapters/store-sqlite/src/optimization-admission.ts`;
+  0 pass, 1 fail (`slice2-row23-adapter.patch`, `slice2-row23-adapter.log`).
+- Row 24, private (`import './solver-child-lifecycle';`): exactly
+  `'./solver-child-lifecycle' reaches apps/wbs/be-01/src/module/optimization/solver-child-lifecycle.ts`;
+  0 pass, 1 fail (`slice2-row24-private.patch`, `slice2-row24-private.log`).
+- Row 25, absent (`configPath` at `tsconfig.absent.json`):
+  `error: Cannot read file '…/apps/wbs/be-01/tsconfig.absent.json'.`; 0 pass, 1 fail
+  (`slice2-row25-absent.patch`, `slice2-row25-absent.log`).
+- Row 26, invalid (`"module": "invalid"` in `tsconfig.lib.json`):
+  `error: refused tsconfig.lib.json: 6046`; 0 pass, 1 fail (`slice2-row26-invalid.patch`,
+  `slice2-row26-invalid.log`).
+- Row 27, paths (`paths: undefined` in the program options): the positive control failed with
+  `Expected to contain: "libs/wbs/domain/domain/src/stored-vocabularies.ts"`; 0 pass, 1 fail
+  (`slice2-row27-paths.patch`, `slice2-row27-paths.log`).
+- Row 28, missing (`.concat('module/missing.ts')` before the sort):
+  `error: the program holds no module/missing.ts`; 0 pass, 1 fail (`slice2-row28-missing.patch`,
+  `slice2-row28-missing.log`).
+- Row 29, scanned (filter on `.tsx`): the scanned-file control failed with
+  `Expected to contain: "module/optimization/contract.ts"`, `Received: []`; 0 pass, 1 fail
+  (`slice2-row29-scanned.patch`, `slice2-row29-scanned.log`).
+- Each fault was restored by copying the saved bytes back, proved with `cmp`, and the named test
+  rerun green (`slice2-row*-restored.log`) before the next.
+- Row 31: Bun's transpiler output with every `import` and `export … from` statement removed
+  differed from the `base` feature in exactly six lines, three pairs, each
+  `scheduleInputHash(` → `this.options.hashInput(`: `if (… (input) !== next.inputHash)`,
+  `const currentInputHash = …(ask.input);` and `const inputHash = …(ask.input);`
+  (`slice2-erased.diff`, `slice2-erased-before.js`, `slice2-erased-after.js`).
+- Closing: the be-01 unit set passed `E + 2 = 528` over `EF + 1 = 51` files
+  (`slice2-be01-unit-green.log`); the database files `54` over 6 (`slice2-be01-db-green.log`);
+  `wbs-be-01` lint and typecheck exited 0 (`slice2-lint-typecheck-green.log`); the format check
+  exited 0 (`slice2-format-check.log`).
+- `module-boundaries.test.ts` resolves module specifiers and identifiers; a member selected by
+  string key out of an allowed barrel is its stated residual.
