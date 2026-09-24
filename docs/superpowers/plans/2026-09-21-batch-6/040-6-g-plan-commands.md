@@ -352,11 +352,11 @@ python3 -c "import json;print(len(json.load(open('docs/code-organization/kinds.j
 ```
 
 Expect `base=…`, the three gate lines, `393`, `31`, `545`, `1`, `0`, then a number: call it `K`
-(observed `93`). (The `|| test $? -eq 1` follows one `grep` on `compose.ts`, which the `test -f` line just before it
-proved exists; `test -f` prints nothing.)
-Then run the shared baseline block with `n=1` (observed `C=619` over `F=67`, `E=520` over `EF=49`;
-row 2). This slice ends at `C + 6` over `F + 1` (one `module.test.ts` of six tests; the moved tests
-keep their 35) and at `E` over `EF`.
+(observed `93`). (The `|| test $? -eq 1` follows one `grep` on `compose.ts`, which the `test -f`
+line just before it proved exists; `test -f` prints nothing.) Then run the shared baseline block
+with `n=1` (observed `C=619` over `F=67`, `E=520` over `EF=49`; row 2). This slice ends at `C + 6`
+over `F + 1` (one `module.test.ts` of six tests; the moved tests keep their 35) and at `E` over
+`EF`.
 
 **Steps — tests first, then the implementation, in this one slice.**
 
@@ -1961,7 +1961,7 @@ diff --git a/tools/tool-devsync/src/repo-namespacing-handoff.test.ts b/tools/too
 diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/adopt-di-composition/tasks.md
 --- a/openspec/changes/adopt-di-composition/tasks.md
 +++ b/openspec/changes/adopt-di-composition/tasks.md
-@@ -5,13 +5,30 @@
+@@ -5,13 +5,33 @@
        compatibility export of the Project resource. Proof: `libs/wbs/domain/domain/src/project-ownership.test.ts`;
        negative: `announces nothing for a write it refused` in
        `libs/wbs/application/core/src/service/broadcast.test.ts` with the rule forced to `true`.
@@ -1972,8 +1972,11 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
 +      application event port; `AnnouncementCollector` and `HeldAnnouncement` stay in
 +      `service/broadcast.ts` as an implementation of the neutral `Broadcaster` port shared by the
 +      two admitting features, Plan commands and Plan import; barred from either feature by K6.
-+      Negative: landed as each resource module's omitted-requirement test with the broadcaster as
-+      its provider edge (tasks 5.1, 3.x); the port-unregistered form named here was never written.
++      Negative: the port-unregistered form is Plan commands' own
++      `names itself when a host omits a requirement` (`module/plan-commands/module.test.ts`, which
++      omits `announcements`); each resource module's broadcaster edge is its
++      `announces … through the broadcaster install<Name> wires` test with that edge replaced
++      (task 5.1); the resource-level port-unregistered form named here was never written.
        Port landed 2026-09-22 as `libs/wbs/application/core/src/ports/project-event.ts`, with
        `ports/event-port-boundaries.test.ts` as its checked rule. The collector stays in
 -      `service/broadcast.ts` and moves with 5.2: `import.service.ts:148` builds one too, so Plan
@@ -1997,7 +2000,7 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
  - [x] 1.3 Change Plan document's marker read to an owner-neutral read port and move
        `CalendarMarkerListOutcome` out of the Calendar marker service file. Landed 2026-09-22 as
        `libs/wbs/application/core/src/ports/calendar-marker-read.ts`, with `CalendarMarkerReader` as the
-@@ -184,7 +201,29 @@
+@@ -184,7 +204,29 @@
        five negatives, its provider edge being the broadcaster. `clock.test.ts`'s `coreWorkItems`
        now names the moved file, watched failing on the shim first. No `servicesOver` resource is
        constructed with `new` any more.
@@ -2028,7 +2031,7 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
 
  ## 6. Domain moves the map names
 
-@@ -278,6 +317,10 @@
+@@ -278,6 +320,10 @@
        `module.application.work-item` and `boundary.application.work-item`, bound to the
        pre-namespacing `work-item.service.ts` alone; the moved `work-item.resource.test.ts` has no
        separate baseline entry.
@@ -2212,18 +2215,19 @@ applied 13
 applied 14
 applied 15
 applied 16
-tree equals 468875d4
+tree equals 14020aee
 all 16 diffs applied in slice order; every slice tree equals its rehearsal commit
 ```
 
 The rehearsal commits are throwaway: slice 1 `6e8b1ce2`, slice 2 `8f6d70e0`, slice 3 `1a70ed1c`,
-slice 4 `468875d4`, on branch `rehearse/040-6-g-plan-commands-r3` above `50720e10` (not pushed; kept
+slice 4 `14020aee`, on branch `rehearse/040-6-g-plan-commands-r4` above `50720e10` (not pushed; kept
 only as the comparison target of the script above). None of them touches `verify.md`, which only
 the executor writes. Their subjects are rehearsal labels; the planner commits every slice with
-section 7's subject, and only the trees are compared. Lefthook ran on all four. `-r3` replaces
-`-r2` (kept, not deleted): it differs only in the collector wording of `contract.ts`, the
-`service/broadcast.ts` row of `kinds.json` and the 1.2/5.2 entries of `tasks.md`, applied after
-the first review.
+section 7's subject, and only the trees are compared. Lefthook ran on all four. `-r4` replaces
+`-r3` and `-r2` (both kept, not deleted). `-r3` differs from `-r2` only in the collector wording
+of `contract.ts`, the `service/broadcast.ts` row of `kinds.json` and the 1.2/5.2 entries of
+`tasks.md`, applied after the first review; `-r4` shares `-r3`'s first three commits and differs
+from it only in the 1.2 "Negative:" lines of `tasks.md`, applied after the second review.
 
 ## 16. Deferred: label agreement
 
