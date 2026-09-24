@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import { DAY_PX } from './gantt-panel';
 import type * as TableFrameModule from './table-frame';
@@ -24,6 +25,8 @@ const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =
 const hasDom = typeof document !== 'undefined';
 
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 /**
  * How many `<td>`/`<th>` renders the table has performed, counted through

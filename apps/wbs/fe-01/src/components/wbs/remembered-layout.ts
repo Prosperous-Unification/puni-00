@@ -1,6 +1,6 @@
 import { type ExpandedState } from '@tanstack/react-table';
 
-import { type Remembered, remembered } from '@/lib/remembered';
+import { type Recalled, remembered, type RuntimeRemembered } from '@/lib/remembered';
 import {
   expansionKey,
   ganttDayPxKey,
@@ -38,7 +38,7 @@ export {
 };
 
 /** One project's expansion, judged by {@link isExpansion} — see {@link remembered}. */
-export const storedExpansion = (projectId: string): Remembered<ExpandedState> =>
+export const storedExpansion = (projectId: string): RuntimeRemembered<ExpandedState> =>
   remembered(expansionKey(projectId), isExpansion);
 
 /**
@@ -77,12 +77,14 @@ export function isExpansion(value: unknown): value is ExpandedState {
  *   over: the alternative is a fourth state to keep in step with the other
  *   three.
  */
-export function rememberedExpansion(projectId: string): ExpandedState {
-  return storedExpansion(projectId).readAndDrop() ?? true;
+export function rememberedExpansion(projectId: string): Recalled<ExpandedState> {
+  const recalled = storedExpansion(projectId).readAndDrop();
+  return { value: recalled.value ?? true, persists: recalled.persists };
 }
 
-export function rememberExpansion(projectId: string, expanded: ExpandedState): void {
-  storedExpansion(projectId).write(expanded);
+/** Writes the expansion in force for `projectId`, answering whether a live runtime took it. */
+export function rememberExpansion(projectId: string, expanded: ExpandedState): boolean {
+  return storedExpansion(projectId).write(expanded);
 }
 
 /**
@@ -90,7 +92,9 @@ export function rememberExpansion(projectId: string, expanded: ExpandedState): v
  * table holds, because the two are different shapes and only one of them is
  * JSON. Per-entry sanitising is {@link rememberedWidthOverrides}'s.
  */
-export const storedWidthOverrides = (projectId: string): Remembered<Record<string, number>> =>
+export const storedWidthOverrides = (
+  projectId: string,
+): RuntimeRemembered<Record<string, number>> =>
   remembered(widthOverridesKey(projectId), isWidthOverrides);
 
 /**
@@ -101,7 +105,7 @@ export const storedWidthOverrides = (projectId: string): Remembered<Record<strin
  * not a height this app wrote, and `1e999` parses to an `Infinity` above every
  * ceiling.
  */
-export const storedGanttHeight = (projectId: string): Remembered<number> =>
+export const storedGanttHeight = (projectId: string): RuntimeRemembered<number> =>
   remembered(
     ganttHeightKey(projectId),
     (claimed): claimed is number =>
@@ -125,7 +129,7 @@ export const storedGanttHeight = (projectId: string): Remembered<number> =>
  * rememberedWidthOverrides}'s reason: the alternative is a chart nobody can
  * open until they clear storage by hand, over a preference about its height.
  */
-export function rememberedGanttHeight(projectId: string): number | null {
+export function rememberedGanttHeight(projectId: string): Recalled<number | null> {
   // Proof: the range dropped from `storedGanttHeight`'s guard, leaving
   // `typeof claimed === 'number'`. `refuses a height below the floor, and drops
   // the key` failed on `expected '10px' to be ''` and `refuses a height above
@@ -144,12 +148,12 @@ export function rememberedGanttHeight(projectId: string): number | null {
  * rememberWidthOverrides}'s reason: opening a project must not change what is
  * remembered about it.
  */
-export function rememberGanttHeight(projectId: string, heightPx: number): void {
-  storedGanttHeight(projectId).write(heightPx);
+export function rememberGanttHeight(projectId: string, heightPx: number): boolean {
+  return storedGanttHeight(projectId).write(heightPx);
 }
 
 /** One project's day scale, judged against the same `DAY_SCALES` the control offers. */
-export const storedGanttDayPx = (projectId: string): Remembered<DayPx> =>
+export const storedGanttDayPx = (projectId: string): RuntimeRemembered<DayPx> =>
   remembered(ganttDayPxKey(projectId), isDayPx);
 
 /**
@@ -167,7 +171,7 @@ export const storedGanttDayPx = (projectId: string): Remembered<DayPx> =>
  * {@link rememberedGanttHeight}'s reason: the alternative is a chart nobody can
  * open until they clear storage by hand, over a preference about its zoom.
  */
-export function rememberedGanttDayPx(projectId: string): DayPx | null {
+export function rememberedGanttDayPx(projectId: string): Recalled<DayPx | null> {
   return storedGanttDayPx(projectId).readAndDrop();
 }
 
@@ -178,13 +182,13 @@ export function rememberedGanttDayPx(projectId: string): DayPx | null {
  * {@link rememberGanttHeight}'s reason: opening a project must not change what
  * is remembered about it.
  */
-export function rememberGanttDayPx(projectId: string, dayPx: DayPx): void {
-  storedGanttDayPx(projectId).write(dayPx);
+export function rememberGanttDayPx(projectId: string, dayPx: DayPx): boolean {
+  return storedGanttDayPx(projectId).write(dayPx);
 }
 
 /** Forgets the remembered day scale for `projectId` — the third part of a {@link Layout reset}. */
-export function forgetGanttDayPx(projectId: string): void {
-  storedGanttDayPx(projectId).forget();
+export function forgetGanttDayPx(projectId: string): boolean {
+  return storedGanttDayPx(projectId).forget();
 }
 
 /**
@@ -194,7 +198,7 @@ export function forgetGanttDayPx(projectId: string): void {
  * `false` is a real stored answer that a `??` would eat — which is why the
  * caller keeps the `boolean | null` this answers with.
  */
-export const storedGanttLabels = (projectId: string): Remembered<boolean> =>
+export const storedGanttLabels = (projectId: string): RuntimeRemembered<boolean> =>
   remembered(
     ganttLabelsKey(projectId),
     (claimed): claimed is boolean => typeof claimed === 'boolean',
@@ -212,7 +216,7 @@ export const storedGanttLabels = (projectId: string): Remembered<boolean> =>
  * Deliberately not the "unknown is not OK" throw, for
  * {@link rememberedGanttHeight}'s reason.
  */
-export function rememberedGanttLabels(projectId: string): boolean | null {
+export function rememberedGanttLabels(projectId: string): Recalled<boolean | null> {
   return storedGanttLabels(projectId).readAndDrop();
 }
 
@@ -222,13 +226,13 @@ export function rememberedGanttLabels(projectId: string): boolean | null {
  * Called when the control is used and at no other time, for
  * {@link rememberGanttDayPx}'s reason.
  */
-export function rememberGanttLabels(projectId: string, labelsShown: boolean): void {
-  storedGanttLabels(projectId).write(labelsShown);
+export function rememberGanttLabels(projectId: string, labelsShown: boolean): boolean {
+  return storedGanttLabels(projectId).write(labelsShown);
 }
 
 /** Forgets the remembered name column for `projectId` — the fourth part of a {@link Layout reset}. */
-export function forgetGanttLabels(projectId: string): void {
-  storedGanttLabels(projectId).forget();
+export function forgetGanttLabels(projectId: string): boolean {
+  return storedGanttLabels(projectId).forget();
 }
 
 /**
@@ -243,7 +247,17 @@ export function forgetGanttLabels(projectId: string): void {
  * a status update wants them lane-coloured in every plan, and having to say so
  * again in the next one is the fault this remembers away.
  */
-/** The Mermaid lane, judged against the modes `sectionOf` has a branch for. */
+/**
+ * The Mermaid lane, judged against the modes `sectionOf` has a branch for.
+ *
+ * Built once, when this module loads — before the page has any runtime — and
+ * kept for the life of the page. That is safe only because {@link remembered}
+ * resolves the runtime at every call rather than at this line: the handle holds
+ * no store, so it follows each replacement and reaches nothing once the runtime
+ * is withdrawn. `docs/superpowers/plans/2026-09-21-batch-6/050-7-f2-delivery-call-sites.md`
+ * section 3 records the state machine, and `remembered-layout.model.test.ts` runs
+ * it against a reference model.
+ */
 export const storedMermaidSectionMode = remembered(MERMAID_SECTION_MODE_KEY, isSectionMode);
 
 /**
@@ -263,7 +277,7 @@ export const storedMermaidSectionMode = remembered(MERMAID_SECTION_MODE_KEY, isS
  * open until they clear storage by hand, over a preference about a `section`
  * line.
  */
-export function rememberedMermaidSectionMode(): SectionMode | null {
+export function rememberedMermaidSectionMode(): Recalled<SectionMode | null> {
   // Proof: `readAndDrop` replaced by `read`, which is what "read the claim,
   // drop nothing" comes to. `refuses a remembered lane this app does not offer,
   // and drops the key` failed on `expected '"assignees"' to be null` and
@@ -283,8 +297,8 @@ export function rememberedMermaidSectionMode(): SectionMode | null {
  * {@link rememberGanttLabels}'s reason: opening a plan must not write to what
  * is remembered about it.
  */
-export function rememberMermaidSectionMode(sectionMode: SectionMode): void {
-  storedMermaidSectionMode.write(sectionMode);
+export function rememberMermaidSectionMode(sectionMode: SectionMode): boolean {
+  return storedMermaidSectionMode.write(sectionMode);
 }
 
 /**
@@ -295,8 +309,8 @@ export function rememberMermaidSectionMode(sectionMode: SectionMode): void {
  * its default share as it stands then, exactly as the columns return to what
  * the frame layout resolves now.
  */
-export function forgetGanttHeight(projectId: string): void {
-  storedGanttHeight(projectId).forget();
+export function forgetGanttHeight(projectId: string): boolean {
+  return storedGanttHeight(projectId).forget();
 }
 
 /**
@@ -368,9 +382,10 @@ export function isWidthOverrides(value: unknown): value is Record<string, number
  * rememberedExpansion}'s reason: the alternative is a plan nobody can open
  * until they clear storage by hand, over a preference about a column.
  */
-export function rememberedWidthOverrides(projectId: string): Map<string, number> {
-  const claimed = storedWidthOverrides(projectId).readAndDrop();
-  if (claimed === null) return new Map();
+export function rememberedWidthOverrides(projectId: string): Recalled<Map<string, number>> {
+  const recalled = storedWidthOverrides(projectId).readAndDrop();
+  const claimed = recalled.value;
+  if (claimed === null) return { value: new Map(), persists: recalled.persists };
   const kept = new Map<string, number>();
   for (const [columnId, width] of Object.entries(claimed)) {
     if (!sizableColumn(columnId, STATE_AT_MOUNT)) continue;
@@ -385,7 +400,7 @@ export function rememberedWidthOverrides(projectId: string): Map<string, number>
     if (width < floorFor(columnId, STATE_AT_MOUNT) || width > WIDEST_COLUMN) continue;
     kept.set(columnId, width);
   }
-  return kept;
+  return { value: kept, persists: recalled.persists };
 }
 
 /**
@@ -399,8 +414,8 @@ export function rememberedWidthOverrides(projectId: string): Map<string, number>
 export function rememberWidthOverrides(
   projectId: string,
   overrides: ReadonlyMap<string, number>,
-): void {
-  storedWidthOverrides(projectId).write(Object.fromEntries(overrides));
+): boolean {
+  return storedWidthOverrides(projectId).write(Object.fromEntries(overrides));
 }
 
 /**
@@ -412,15 +427,15 @@ export function rememberWidthOverrides(
  * stored here is that promise broken: a column whose default has changed since
  * the drag would come back to the old one.
  */
-export function forgetWidthOverrides(projectId: string): void {
-  storedWidthOverrides(projectId).forget();
+export function forgetWidthOverrides(projectId: string): boolean {
+  return storedWidthOverrides(projectId).forget();
 }
 
 /** One project's hide-list, judged by {@link isStringArray}. */
-export const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =>
+export const storedHiddenColumns = (projectId: string): RuntimeRemembered<readonly string[]> =>
   remembered(hiddenColumnsKey(projectId), isStringArray);
 
-export const storedLinksResetShown = (projectId: string): Remembered<true> =>
+export const storedLinksResetShown = (projectId: string): RuntimeRemembered<true> =>
   remembered(linksResetShownKey(projectId), (value): value is true => value === true);
 
 /**
@@ -453,12 +468,14 @@ export const storedLinksResetShown = (projectId: string): Remembered<true> =>
  * component as a list; with only the `removeItem` deleted, on `expected '4' to
  * be null`. Watched, 2026-08-28.
  */
-export function rememberedHiddenColumns(projectId: string): readonly string[] {
+export function rememberedHiddenColumns(projectId: string): Recalled<readonly string[]> {
   const explicit = storedHiddenColumns(projectId).readAndDrop();
-  if (explicit !== null) return explicit;
-  return storedLinksResetShown(projectId).readAndDrop() === true
-    ? resetHiddenColumns(true)
-    : INITIAL_HIDDEN_COLUMNS;
+  if (explicit.value !== null) return { value: explicit.value, persists: explicit.persists };
+  const marker = storedLinksResetShown(projectId).readAndDrop();
+  return {
+    value: marker.value === true ? resetHiddenColumns(true) : INITIAL_HIDDEN_COLUMNS,
+    persists: explicit.persists && marker.persists,
+  };
 }
 
 /**
@@ -468,9 +485,10 @@ export function rememberedHiddenColumns(projectId: string): readonly string[] {
  * applies a saved view that carries a column set, and at no other time — see
  * {@link rememberedHiddenColumns} for why not on read.
  */
-export function rememberHiddenColumns(projectId: string, hidden: readonly string[]): void {
-  storedHiddenColumns(projectId).write(hidden);
+export function rememberHiddenColumns(projectId: string, hidden: readonly string[]): boolean {
+  const written = storedHiddenColumns(projectId).write(hidden);
   storedLinksResetShown(projectId).forget();
+  return written;
 }
 
 /**
@@ -481,15 +499,14 @@ export function rememberHiddenColumns(projectId: string, hidden: readonly string
  * is whatever {@link DEFAULT_HIDDEN_COLUMNS} says *now*, and a snapshot stored
  * here is that promise broken the day the default moves.
  */
-export function forgetHiddenColumns(projectId: string): void {
-  storedHiddenColumns(projectId).forget();
+export function forgetHiddenColumns(projectId: string): boolean {
+  return storedHiddenColumns(projectId).forget();
 }
 
 /** Remembers only the reset outcome that differs from the initial hidden-Links baseline. */
-export function rememberLinksResetTarget(projectId: string, hasAnyExternalRefs: boolean): void {
+export function rememberLinksResetTarget(projectId: string, hasAnyExternalRefs: boolean): boolean {
   const marker = storedLinksResetShown(projectId);
-  if (hasAnyExternalRefs) marker.write(true);
-  else marker.forget();
+  return hasAnyExternalRefs ? marker.write(true) : marker.forget();
 }
 
 /**
@@ -518,7 +535,7 @@ export interface SavedView {
  * by {@link isSavedView} in {@link rememberedSavedViews}, which keeps the ones
  * that are views rather than dropping the whole key over one bad entry.
  */
-export const storedSavedViews = (projectId: string): Remembered<readonly unknown[]> =>
+export const storedSavedViews = (projectId: string): RuntimeRemembered<readonly unknown[]> =>
   remembered(savedViewsKey(projectId), (claimed): claimed is unknown[] => Array.isArray(claimed));
 
 /** Whether a claimed value is a list of strings — a facet's chosen ids. */
@@ -640,12 +657,16 @@ export function isSavedView(value: unknown): value is SavedView {
  * facet with nothing left to match gets. Nothing here repairs or deletes the
  * view on the reader's behalf.
  */
-export function rememberedSavedViews(projectId: string): SavedView[] {
-  const claimed = storedSavedViews(projectId).readAndDrop();
-  if (claimed === null) return [];
-  return claimed
-    .filter(isSavedView)
-    .map((view) => ({ ...view, criteria: everyFacetOf(view.criteria) }));
+export function rememberedSavedViews(projectId: string): Recalled<SavedView[]> {
+  const recalled = storedSavedViews(projectId).readAndDrop();
+  const claimed = recalled.value;
+  if (claimed === null) return { value: [], persists: recalled.persists };
+  return {
+    value: claimed
+      .filter(isSavedView)
+      .map((view) => ({ ...view, criteria: everyFacetOf(view.criteria) })),
+    persists: recalled.persists,
+  };
 }
 
 /**
@@ -656,6 +677,6 @@ export function rememberedSavedViews(projectId: string): SavedView[] {
  * remembers about it, and the sanitized set from {@link rememberedSavedViews}
  * is never written back on a read.
  */
-export function rememberSavedViews(projectId: string, views: readonly SavedView[]): void {
-  storedSavedViews(projectId).write(views);
+export function rememberSavedViews(projectId: string, views: readonly SavedView[]): boolean {
+  return storedSavedViews(projectId).write(views);
 }

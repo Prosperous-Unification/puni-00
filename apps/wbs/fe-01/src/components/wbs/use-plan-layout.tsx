@@ -333,7 +333,9 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * would render the default first and collapse the tree a frame later, which
    * is the plan visibly rearranging itself under the reader on every load.
    */
-  const [expanded, setExpanded] = useState<ExpandedState>(() => rememberedExpansion(projectId));
+  const [expanded, setExpanded] = useState<ExpandedState>(
+    () => rememberedExpansion(projectId).value,
+  );
 
   /** Which project the expansion above belongs to, so a save cannot pair it with another. */
   const expansionProject = useRef(projectId);
@@ -352,7 +354,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (expansionProject.current !== projectId) {
       expansionProject.current = projectId;
-      setExpanded(rememberedExpansion(projectId));
+      setExpanded(rememberedExpansion(projectId).value);
       return;
     }
     // Proof: removed, `remembers a collapsed branch across a remount` failed
@@ -374,8 +376,8 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * reason: an effect would lay the table out at its defaults and move every
    * column one frame later.
    */
-  const [widthOverrides, setWidthOverrides] = useState<Map<string, number>>(() =>
-    rememberedWidthOverrides(projectId),
+  const [widthOverrides, setWidthOverrides] = useState<Map<string, number>>(
+    () => rememberedWidthOverrides(projectId).value,
   );
 
   /** Which project the widths above belong to, so a save cannot pair them with another. */
@@ -388,8 +390,8 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * Read straight into the initial state for {@link widthOverrides}'s reason:
    * an effect would open the chart at its default and move it a frame later.
    */
-  const [ganttHeightPx, setGanttHeightPx] = useState<number | null>(() =>
-    rememberedGanttHeight(projectId),
+  const [ganttHeightPx, setGanttHeightPx] = useState<number | null>(
+    () => rememberedGanttHeight(projectId).value,
   );
 
   /**
@@ -423,7 +425,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * {@link resetLayout}'s answer, and that is `DAY_PX` either way.
    */
   const [ganttDayPx, setGanttDayPx] = useState<DayPx>(
-    () => rememberedGanttDayPx(projectId) ?? DAY_PX,
+    () => rememberedGanttDayPx(projectId).value ?? DAY_PX,
   );
 
   /**
@@ -436,7 +438,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * either way.
    */
   const [ganttLabelsShown, setGanttLabelsShown] = useState<boolean>(
-    () => rememberedGanttLabels(projectId) ?? true,
+    () => rememberedGanttLabels(projectId).value ?? true,
   );
 
   /**
@@ -452,7 +454,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * there is nothing per project to swap in.
    */
   const [mermaidSectionMode, setMermaidSectionMode] = useState<SectionMode>(
-    () => rememberedMermaidSectionMode() ?? DEFAULT_SECTION_MODE,
+    () => rememberedMermaidSectionMode().value ?? DEFAULT_SECTION_MODE,
   );
   return {
     expanded,
@@ -511,11 +513,11 @@ export function usePlanLayoutSwap({
   useEffect(() => {
     if (widthProject.current === projectId) return;
     widthProject.current = projectId;
-    setWidthOverrides(rememberedWidthOverrides(projectId));
-    setStoredHiddenColumns(rememberedHiddenColumns(projectId));
-    setGanttHeightPx(rememberedGanttHeight(projectId));
-    setGanttDayPx(rememberedGanttDayPx(projectId) ?? DAY_PX);
-    setGanttLabelsShown(rememberedGanttLabels(projectId) ?? true);
+    setWidthOverrides(rememberedWidthOverrides(projectId).value);
+    setStoredHiddenColumns(rememberedHiddenColumns(projectId).value);
+    setGanttHeightPx(rememberedGanttHeight(projectId).value);
+    setGanttDayPx(rememberedGanttDayPx(projectId).value ?? DAY_PX);
+    setGanttLabelsShown(rememberedGanttLabels(projectId).value ?? true);
   }, [
     projectId,
     setGanttDayPx,
@@ -742,7 +744,7 @@ export function usePlanLayout({
       // render saw rather than a half-finished one. Re-read from storage
       // rather than remembered in a ref: the storage is the last committed
       // answer by construction.
-      setWidthOverrides(rememberedWidthOverrides(projectId));
+      setWidthOverrides(rememberedWidthOverrides(projectId).value);
     },
   };
 
@@ -761,7 +763,7 @@ export function usePlanLayout({
       // Re-read from storage rather than remembered in a ref, for
       // {@link resizeColumn}'s reason: the storage is the last committed
       // answer by construction.
-      setGanttHeightPx(rememberedGanttHeight(projectId));
+      setGanttHeightPx(rememberedGanttHeight(projectId).value);
     },
   };
 

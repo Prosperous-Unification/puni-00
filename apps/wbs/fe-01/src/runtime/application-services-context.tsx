@@ -1,4 +1,11 @@
-import { createContext, type ReactNode, useContext, useRef, useSyncExternalStore } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 
 import type { RememberedPreferences } from '@/modules/preferences/contract';
 
@@ -140,4 +147,43 @@ export function useApplicationServicesState(): ApplicationServicesState {
     }
     return cache.current.state;
   });
+}
+
+/**
+ * Reads the page's runtime at the instant the returned function is called, not
+ * at the render that produced it.
+ *
+ * For an event handler, an effect or an asynchronous continuation that uses a
+ * remembered answer. By the time one of those runs, the slot may already have
+ * withdrawn or replaced the runtime the last render saw: `lifetime-slot.ts`
+ * withdraws publication synchronously and notifies from a microtask, so
+ * {@link useApplicationServicesState} still returns the old value until React
+ * has re-rendered. A `remembered` captured from that value can still reach a
+ * replaced runtime's store until its disposal revokes it — the gap
+ * {@link ApplicationServicesState}'s own JSDoc leaves open. The function this
+ * returns holds no `remembered` at all: every call answers exactly what
+ * {@link applicationServicesStateFor} answers for the provider's slot right
+ * then, so a caller that reads it immediately before an access reaches the
+ * runtime that is live at that access, or learns that none is.
+ *
+ * The function keeps its identity for as long as the provider's slot does, so
+ * an effect may list it as a dependency without re-running on every render.
+ *
+ * @throws only when read below no {@link ApplicationServicesProvider}, for the
+ * reason {@link useApplicationServicesState} gives.
+ */
+export function useApplicationServicesReader(): () => ApplicationServicesState {
+  const slot = useContext(ApplicationServicesContext);
+  // Proof: on 2026-09-23, falling back to `applicationSlot` here instead of throwing failed
+  // 'refuses to read below no provider, naming itself' on `expected null to be
+  // 'useApplicationServicesReader must be …'` (1 failed, 15 skipped).
+  if (slot === null) {
+    throw new Error('useApplicationServicesReader must be read below ApplicationServicesProvider');
+  }
+  // Proof: on 2026-09-23, answering the state read at render here failed 'answers withdrawn
+  // the instant a retirement is accepted, while the render still says live' on `expected
+  // { Object (status, remembered) } to deeply equal { status: 'withdrawn' }` (1 failed, 15 skipped).
+  // Returning a new function every render failed 'keeps its identity across renders of the same
+  // provider' on `expected [Function] to be [Function]` (1 failed, 15 skipped).
+  return useCallback(() => applicationServicesStateFor(slot), [slot]);
 }

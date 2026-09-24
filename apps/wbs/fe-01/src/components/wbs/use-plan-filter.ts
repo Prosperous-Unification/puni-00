@@ -161,7 +161,9 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
    * Read straight into the initial state for {@link rememberedExpansion}'s
    * reason: an effect would open the panel with nothing in it for one frame.
    */
-  const [savedViews, setSavedViews] = useState<SavedView[]>(() => rememberedSavedViews(projectId));
+  const [savedViews, setSavedViews] = useState<SavedView[]>(
+    () => rememberedSavedViews(projectId).value,
+  );
 
   /** Which project the saved views above belong to, so a save cannot pair it with another. */
   const savedViewsProject = useRef(projectId);
@@ -177,7 +179,7 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (savedViewsProject.current === projectId) return;
     savedViewsProject.current = projectId;
-    setSavedViews(rememberedSavedViews(projectId));
+    setSavedViews(rememberedSavedViews(projectId).value);
   }, [projectId]);
   return { query, commitQuery, facets, setFacets, savedViews, setSavedViews };
 }

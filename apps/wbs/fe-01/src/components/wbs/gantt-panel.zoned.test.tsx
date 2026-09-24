@@ -1,11 +1,14 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { recordCalls } from '@/testing/record-calls';
 
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import { GanttPanel } from './gantt-panel';
+
+publishApplicationRuntimeForEachTest();
 
 /**
  * Slice 4.3a — **no instant is converted on the client**, watched from the

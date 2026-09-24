@@ -9,8 +9,12 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/ui/modal';
-import type { Remembered } from '@/lib/remembered';
-import { rememberedPreferences } from '@/modules/preferences/composition';
+import type { Recalled, Remembered } from '@/lib/remembered';
+import type { RememberedPreferences } from '@/modules/preferences/contract';
+import {
+  type ApplicationServicesState,
+  useApplicationServicesReader,
+} from '@/runtime/application-services-context';
 
 import { EstimatingPanel, type EstimatingPanelProps } from './estimating-panel';
 import { OptimizationSettingsPanel, type OptimizationSettingsProps } from './optimization-settings';
@@ -44,6 +48,11 @@ export function isSettingsSection(claimed: unknown): claimed is SettingsSection 
 /**
  * The section this browser last left open for `projectId`, or the first one.
  *
+ * Read from the runtime `services` names — which the modal reads at the instant
+ * it opens, through `useApplicationServicesReader`, never from a render it may
+ * have outlived. With no runtime live the first section is shown and
+ * `persists` says it is not remembered: nothing is read, and nothing throws.
+ *
  * The stored value is a claim, not a fact, read the way `rememberedHiddenColumns`
  * reads its key: anything that is not the id of a section this modal offers is
  * **dropped, key and all**, and the first section shown. Not the R5 throw — the
@@ -56,12 +65,40 @@ export function isSettingsSection(claimed: unknown): claimed is SettingsSection 
  * `expect(element).toHaveAttribute("aria-selected", "true")` — a stored `7`
  * selecting no tab at all, with nothing on the surface. Watched 2026-08-30.
  */
-export function rememberedSettingsSection(projectId: string): SettingsSection {
-  return storedSection(projectId).readAndDrop() ?? FIRST_SECTION;
+export function rememberedSettingsSection(
+  services: ApplicationServicesState,
+  projectId: string,
+): Recalled<SettingsSection> {
+  // Proof: on 2026-09-24, answering `persists: true` here failed `opens on the first section and
+  // remembers nothing when no runtime is live` on `expected { value: 'teams', persists: true } to
+  // deeply equal { value: 'teams', persists: false }`.
+  if (services.status !== 'live') return { value: FIRST_SECTION, persists: false };
+  return {
+    value: storedSection(services.remembered, projectId).readAndDrop() ?? FIRST_SECTION,
+    persists: true,
+  };
 }
 
-export function rememberSettingsSection(projectId: string, section: SettingsSection): void {
-  storedSection(projectId).write(section);
+/**
+ * Writes the open section for `projectId` into the runtime `services` names.
+ *
+ * Answers whether one was live to take it: `false` writes nothing anywhere, and
+ * the section is simply not remembered — see {@link Recalled}.
+ *
+ * @throws whatever a live store throws on write — a browser with site data
+ * blocked — unchanged; that is not a lifecycle outcome and nothing here
+ * recovers from it.
+ */
+export function rememberSettingsSection(
+  services: ApplicationServicesState,
+  projectId: string,
+  section: SettingsSection,
+): boolean {
+  // Proof: on 2026-09-24, answering `true` here failed `stops remembering once its runtime is
+  // withdrawn, and never throws` on `expected true to be false`.
+  if (services.status !== 'live') return false;
+  storedSection(services.remembered, projectId).write(section);
+  return true;
 }
 
 /**
@@ -73,8 +110,10 @@ export function rememberSettingsSection(projectId: string, section: SettingsSect
  * One project's open section, stored as **bare text**, which cannot become JSON
  * without losing the section existing readers already hold.
  */
-const storedSection = (projectId: string): Remembered<SettingsSection> =>
-  rememberedPreferences.projectSettingsSection(projectId, isSettingsSection);
+const storedSection = (
+  remembered: RememberedPreferences,
+  projectId: string,
+): Remembered<SettingsSection> => remembered.projectSettingsSection(projectId, isSettingsSection);
 
 /** What each section gets from the plan, less what the modal itself supplies. */
 type SectionOwn<P> = Omit<P, 'onDirtyChange' | 'onDone'>;
@@ -213,12 +252,30 @@ export function ProjectSettingsModal({
     [reporterFor],
   );
 
+  /**
+   * The page's runtime as it is when a handler runs, not as it was when this
+   * modal last rendered: the modal does not re-render when the slot moves, so a
+   * handler bound under one runtime can run under the next — and must reach that
+   * one, or none.
+   */
+  const readServices = useApplicationServicesReader();
+
   const show = useCallback(
     (section: SettingsSection): void => {
+      // Written before `setShown`, on purpose: a store that refuses the write for
+      // a reason of its own propagates before this modal has shown a section it
+      // could not keep.
+      // Proof: on 2026-09-24, writing into the runtime read at render instead of `readServices()` failed
+      // `writes a section chosen after a replacement into the replacement, from a modal opened before it`
+      // on `toHaveAttribute("aria-selected", "true")`, with the revoked store's
+      // `PreferenceStoreLifecycleError` reported. Moving this line below `setShown` failed `lets a store’s
+      // own write failure through by identity, showing no section it could not keep` on
+      // `toHaveAttribute("aria-selected", "true")` for Teams. Wrapping it in a swallowing `try` failed the
+      // same test on `expected [] to have a length of 1 but got +0`.
+      rememberSettingsSection(readServices(), projectId, section);
       setShown(section);
-      rememberSettingsSection(projectId, section);
     },
-    [projectId],
+    [projectId, readServices],
   );
 
   /**
@@ -268,7 +325,9 @@ export function ProjectSettingsModal({
       dirtyRef.current.clear();
       setDirtySections([]);
       setRefused(false);
-      setShown(rememberedSettingsSection(projectId));
+      // Proof: on 2026-09-24, showing `FIRST_SECTION` here instead of reading the runtime failed `reopens
+      // on a replacement runtime’s own remembered section` on `toHaveAttribute("aria-selected", "true")`.
+      setShown(rememberedSettingsSection(readServices(), projectId).value);
       setOpen(true);
       return;
     }

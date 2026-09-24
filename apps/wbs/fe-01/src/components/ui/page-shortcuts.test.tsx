@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { KeyboardCheatSheet } from '@/components/wbs/keyboard-cheat-sheet';
 import { WbsTable } from '@/components/wbs/wbs-table';
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { refusingApi } from '@/testing/refusing-api';
 import { personView, planRead, workItemView } from '@/testing/views';
 
@@ -13,6 +14,8 @@ import { Modal, ModalContent, ModalTitle } from './modal';
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 afterEach(cleanup);
 
