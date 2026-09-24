@@ -81,8 +81,20 @@
       survive. The catalog and the header token still reach `ProjectPage`: the
       catalog facade is the lifetime map's prerequisite, and refusing a token
       in delivery is task 13's.
-- [ ] 7. Log out is a coordinated local exit: no request, project then session
+- [x] 7. Log out is a coordinated local exit: no request, project then session
       retirement, and the fatal state when either fails.
+      Closed by 050-7-k, observed <observed-date-k>: the account menu's Log out is
+      `SessionOwner.exit` (`apps/wbs/fe-01/src/runtime/session-runtime.ts`),
+      which is the owner's one `leave()` — the session and its project withdrawn
+      in one instant, the project retired and then the session, each under the
+      retirement budget — and sends no request and revokes nothing, so a reload
+      restores the identity. `SignedInApp` in `app.tsx` hands the signed-out
+      state up only when both let go, and otherwise draws the sanitized fatal
+      state: a socket that refuses, or never closes within the budget. A project
+      that cannot be given back after its page has gone is drawn in the signed-in
+      region's place too. The failure is drawn, not logged; page hide's own
+      session retirement is still not observed by anybody, which no open task
+      owns.
 - [x] 8. The project prerequisites: plan snapshot, connection, roster and busy
       state move into project-owned stores, and the command register and refusal
       publication move behind narrow ports.

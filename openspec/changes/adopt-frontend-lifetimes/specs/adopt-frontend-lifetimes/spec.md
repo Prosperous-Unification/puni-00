@@ -307,6 +307,13 @@ directory management and its project owner.
 - **THEN** its runtime is opened through that session runtime's own project
   owner, and not through an owner of the page's own
 
+#### Scenario: A project given back after its page has gone fails visibly
+
+- **WHEN** the session's project is left by its page going - a route change or
+  Strict Mode's cleanup - and its disposal rejects or outruns its wait
+- **THEN** the signed-in region is replaced by the fatal state, which carries
+  only the sanitized report and its occurrence handle
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

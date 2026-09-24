@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
 
 import { AppRouter } from '@/app-router';
 import { AuthForm } from '@/components/auth/auth-form';
@@ -10,6 +10,7 @@ import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
+import type { ProjectOwner } from '@/runtime/project-runtime';
 import { createSessionOwner, sessionFor, type SessionOwner } from '@/runtime/session-runtime';
 
 /**
@@ -136,7 +137,7 @@ function AppContent() {
   return (
     <SignedInApp
       session={session}
-      onSignOut={() => {
+      onSignedOut={() => {
         setSession(null);
       }}
     />
@@ -147,7 +148,12 @@ function AppContent() {
 export interface SignedInAppProps {
   /** The identity the gate let in: from the startup check, or from a password login. */
   session: Session;
-  onSignOut: () => void;
+  /**
+   * Called once a log out has retired the session's project and then the
+   * session, and only then: the signed-out state it renders is the last thing a
+   * log out does, never the first.
+   */
+  onSignedOut: () => void;
   /** Injected in tests; the app lets it default to the real owner. */
   openOwner?: () => SessionOwner;
 }
@@ -168,10 +174,19 @@ export interface SignedInAppProps {
  * The router is drawn only while the owner publishes **this** user's runtime —
  * see {@link sessionFor} — and the sanitized fatal state when the runtime
  * could not be built or given back.
+ *
+ * **Log out is the owner's local exit** ({@link SessionOwner.exit}): the account
+ * menu's `Log out` withdraws the session and its project at once, so the region
+ * stops drawing them before anything is closed, sends no request, and hands the
+ * signed-out state up through `onSignedOut` only when the project and then the
+ * session have both let go. When either could not — a socket that refused or
+ * never closed within the retirement budget — the owner is `fatal` and this draws
+ * that instead; nothing retired is drawn again, and the page's Reload is the way
+ * on.
  */
 export function SignedInApp({
   session,
-  onSignOut,
+  onSignedOut,
   openOwner = createSessionOwner,
 }: SignedInAppProps): React.JSX.Element {
   const [sessionOwner] = useState(openOwner);
@@ -191,6 +206,11 @@ export function SignedInApp({
     return (
       <main className="bg-background text-muted-foreground min-h-full p-8 font-sans">Loading…</main>
     );
+  const signOut = (): void => {
+    void sessionOwner.exit().then((exit) => {
+      if (exit === 'signed-out') onSignedOut();
+    });
+  };
 
   return (
     /*
@@ -224,20 +244,48 @@ export function SignedInApp({
        * in continues to the page that was asked for: nothing rewrote it.
        * ADR 0004 has the alternatives.
        */}
-      <AppRouter
-        session={services}
-        token={session.token}
-        presence={
-          // The panel is presentational and the roster is the page's, because
-          // it arrives on the table's own socket — one connection per browser
-          // since 2026-09-02. What the session contributes is the username the
-          // panel marks as "you".
-          // Proof: renaming the shared login response username to displayName produced
-          // TS2339 here and at AccountMenu below in the actual FE app typecheck.
-          (roster) => <PresencePanel me={session.user.username} {...roster} />
-        }
-        account={<ThemedAccountMenu username={session.user.username} onSignOut={onSignOut} />}
-      />
+      <ProjectRetirementGate projects={services.projects}>
+        <AppRouter
+          session={services}
+          token={session.token}
+          presence={
+            // The panel is presentational and the roster is the page's, because
+            // it arrives on the table's own socket — one connection per browser
+            // since 2026-09-02. What the session contributes is the username the
+            // panel marks as "you".
+            // Proof: renaming the shared login response username to displayName produced
+            // TS2339 here and at AccountMenu below in the actual FE app typecheck.
+            (roster) => <PresencePanel me={session.user.username} {...roster} />
+          }
+          account={<ThemedAccountMenu username={session.user.username} onSignOut={signOut} />}
+        />
+      </ProjectRetirementGate>
     </div>
   );
+}
+
+/**
+ * The router of one live session, until the session's project could not be
+ * given back — and from then on the sanitized fatal state in its place.
+ *
+ * A project page draws its own project's fatal state while it is mounted. This
+ * is for the retirements nobody is left to draw: the project page going — a
+ * route change, Strict Mode's cleanup — gives the project back from its own
+ * effect cleanup, after the page is gone, and a socket that refuses or outruns
+ * the budget there would otherwise leave the owner terminally `fatal` with
+ * nothing on screen saying so. Only a **terminal** fault is drawn here: a
+ * project whose construction failed holds nothing, and the page that asked for
+ * it is still there to say so.
+ */
+function ProjectRetirementGate({
+  projects,
+  children,
+}: {
+  projects: ProjectOwner;
+  children: ReactNode;
+}): ReactNode {
+  const projectState = useSyncExternalStore(projects.subscribe, projects.snapshot);
+  if (projectState.status === 'fatal' && projectState.terminal)
+    return <LifetimeFault fault={projectState.fault} />;
+  return children;
 }
