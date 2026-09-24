@@ -63,10 +63,12 @@ export const NODE_SUITES: readonly string[] = [
   'src/lib/saved-plan-compare.test.ts',
   'src/modules/calendar-markers/calendar-markers.feature.test.ts',
   'src/modules/calendar-markers/calendar-markers.resource.test.ts',
+  'src/modules/channel.model.test.ts',
   'src/modules/directory-management/directory-management.feature.test.ts',
   'src/modules/directory/directory.resource.test.ts',
   'src/modules/plan-feed/plan-feed.feature.test.ts',
   'src/modules/plan-feed/plan-feed.resource.test.ts',
+  'src/modules/plan-writer/busy-store.model.test.ts',
   'src/modules/plan-writer/plan-writer.test.ts',
   // Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed
   // `names files that exist` on `src/modules/preferences/composition.test.ts: expected
