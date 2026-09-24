@@ -1,5 +1,7 @@
 # Plan feed
 
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-feed","memberships":[{"kind":"path","path":"composition.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"delivered-plan-store.model.test.ts"},{"kind":"path","path":"delivered-plan-store.ts"},{"kind":"path","path":"plan-feed.feature.test.ts"},{"kind":"path","path":"plan-feed.feature.ts"},{"kind":"path","path":"plan-feed.resource.test.ts"},{"kind":"path","path":"plan-feed.resource.ts"},{"kind":"path","path":"presence-store.model.test.ts"},{"kind":"path","path":"presence-store.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The anchor rule and the one-stream rule are documented on the resource, and the stores carry their own model tests; the ownership test between feature and resource is described under What the feature owns below."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/project-page.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/composition.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
 One project's reading of the plan: the refresh owner of this project and API lifetime, the live
 subscription it opens once an anchor exists, the sequence it acknowledges, and the decision about
 which part of an owner snapshot the reader has not been given yet.
@@ -84,3 +86,7 @@ The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the modul
 `plan-feed.resource.test.ts`, `plan-feed.feature.test.ts` and the two store model tests. The behaviour this extraction
 preserves is proved by the plan table's and the project page's own suites, which run in the `test`
 target of the same project.
+
+Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
+extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.
