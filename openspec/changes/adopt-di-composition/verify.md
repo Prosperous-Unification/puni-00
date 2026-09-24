@@ -1438,3 +1438,79 @@ is pinned` failed with `historical policy selector or baseline` 49 to 51, `occur
   each; `nx format:check --all` exited 0 (`slice2-format-check.log`).
 - Step still imports `service/assumed-assignee.ts` and `service/clean-name.ts` (task 6.1); delivery
   still accepts `StepService` (K2, task 7.4).
+
+### Project and Directory, Slice 3 — 2026-09-24
+
+- The slice started from `base=80740be3efb336657caaa06d26d38ad5070f9f6d` on a clean tree, with
+  slice 2's `module/step/module.ts` present, `module/project` and `module/directory` absent,
+  `service/project.service.ts` at 310 lines, `service/directory.service.ts` at 743, one
+  `projects: new ProjectService({` and one
+  `directory: new DirectoryService({ clock, directory: stores.directory, broadcast }),` in
+  `compose.ts`, and `K=93` `kinds.json` entries (`slice3-step0.log`).
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=601` over `F=64` files (`slice3-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice3-be01-unit-baseline.log`).
+- Bundle red (row 47): `bun build libs/wbs/application/core/src/compose.ts --target=bun` exited 0 and
+  its bundle held neither `application.project` nor `application.directory` (grep exit 1,
+  `count=0` each; `slice3-compose-bundle-red.log`, `slice3-baseline-block.out`).
+- Module reds (rows 45-46): each new `module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice3-row-red-project.log`,
+  `slice3-row-red-directory.log`).
+- Move: two `cp` copies, the import diff (`slice3-10.23-imports.patch`) and the two shims of 10.24.
+- Module greens (rows 48-49): with the four files of each module, each directory passed 5, 0 fail,
+  7 `expect()` calls (`slice3-row-green-project.log`, `slice3-row-green-directory.log`).
+- Bundle green (row 50): after `servicesOver` installs both (`slice3-10.27-install.patch`), the same
+  build exited 0 and printed `count=1` for each label (`slice3-compose-bundle-green.log`).
+- Per-scope cases (`slice3-10.28-per-scope-cases.patch`): `compose.test.ts` passed 15, 0 fail
+  (`slice3-compose-test-green.log`). `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-step6.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next, each followed by a green
+  rerun (`<row>.restored-green.log`):
+  - Row 51, Project key tuple widened to `['projects', 'projectOptions']`
+    (`row51-project-tuple.patch`): `Received function did not throw`;
+    `Expected to contain: "application.project/projectOptions"` with the graph reporting bare
+    `projectOptions`; the message read `Cannot resolve "projectOptions"`; 2 pass, 3 fail
+    (`row51-project-tuple.fail.log`).
+  - Row 52, Project label dropped (`row52-project-label.patch`): only the two label tests failed;
+    3 pass, 2 fail (`row52-project-label.fail.log`).
+  - Row 53, `optimizerAvailable,` deleted from the `projectOptions` factory's returned object
+    (`row53-project-optimizer.patch`): `+   "ok": false,` `+   "reason": "optimizer_unavailable",`
+    against the expected `"ok": true`; 4 pass, 1 fail (`row53-project-optimizer.fail.log`).
+  - Rows 54-55, Project bag and resolver (`row54-project-bag.patch`,
+    `row55-project-resolver.patch`): the received keys added `"bag"`, then `Expected: true`,
+    `Received: false`; 4 pass, 1 fail each; `wbs-core:typecheck` exit 0 each
+    (`row54-project-bag.typecheck.log`, `row55-project-resolver.typecheck.log`).
+  - Rows 56-57, Directory tuple and label (`row56-directory-tuple.patch`,
+    `row57-directory-label.patch`): 2 pass, 3 fail and 3 pass, 2 fail, with the same three and two
+    messages as rows 51 and 52 for `directoryOptions` and `application.directory/directoryOptions`
+    (`row56-directory-tuple.fail.log`, `row57-directory-label.fail.log`).
+  - Row 58, `directoryOptions` handing `{ ...clock, newId: () => 'unsupplied' }`
+    (`row58-directory-clock.patch`): `-   "id": "team-1",` / `+   "id": "unsupplied",`; 4 pass,
+    1 fail (`row58-directory-clock.fail.log`).
+  - Rows 59-60, Directory bag and resolver (`row59-directory-bag.patch`,
+    `row60-directory-resolver.patch`): the received keys added `"bag"`, then `Expected: true`,
+    `Received: false`; 4 pass, 1 fail each; typecheck exit 0 each
+    (`row59-directory-bag.typecheck.log`, `row60-directory-resolver.typecheck.log`).
+  - Row 61, `installProject` memoized in a module-level `reusedProject`
+    (`row61-compose-project-memo.patch`), run with `-t "installs Project per supplied scope"`:
+    `error: expect(received).toBeNull()`, `Received: {` (the first scope's project); 0 pass,
+    14 filtered out, 1 fail (`row61-compose-project-memo.fail.log`); typecheck exit 0
+    (`row61-compose-project-memo.typecheck.log`).
+  - Row 62, `installDirectory` memoized in `reusedDirectory`
+    (`row62-compose-directory-memo.patch`), run with `-t "installs Directory per supplied scope"`:
+    `+   "Operations",` in the second scope's team names; 0 pass, 14 filtered out, 1 fail
+    (`row62-compose-directory-memo.fail.log`); typecheck exit 0
+    (`row62-compose-directory-memo.typecheck.log`).
+- Proof comments added after the observations (`slice3-10.29-proofs.patch`); both module
+  directories and `compose.test.ts` then passed 25 over 3 files (`slice3-after-proofs-focused.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []`
+  (`slice3-kinds-substitute.log`); the test itself is the planner's.
+- Closing: core `bun test src` passed `C + 12 = 613` over `F + 2 = 66` files
+  (`slice3-core-closing.log`); the be-01 unit command passed `E = 520` over `EF = 49` files
+  (`slice3-be01-unit-closing.log`); `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-closing.log`); `module/project` and `module/directory` hold six files
+  each; `nx format:check --all` exited 0 (`slice3-format-check.log`).
+- Directory still imports `service/clean-name.ts` and `service/directory-usage.ts` (task 6.1);
+  delivery, Plan import, Plan commands and Saved plans still name the two resources directly (K2,
+  task 7.4).

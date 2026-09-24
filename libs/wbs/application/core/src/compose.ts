@@ -7,11 +7,13 @@ import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
 import type { RetentionTimer } from './module/bounded-replay-sweep/retention-timer';
 import { installCalendarMarker } from './module/calendar-marker/check';
 import { installCapacity } from './module/capacity/check';
+import { installDirectory } from './module/directory/check';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import { installPlanImport } from './module/plan-import/check';
 import type { ImportService } from './module/plan-import/plan-import.feature';
 import { installPriorityBand } from './module/priority-band/check';
+import { installProject } from './module/project/check';
 import { installRealtime } from './module/realtime/check';
 import type { GatewayBroadcaster } from './module/realtime/gateway-broadcaster';
 import type { ReplayBuffer } from './module/realtime/replay-buffer';
@@ -29,9 +31,7 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
-import { DirectoryService } from './service/directory.service';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
-import { ProjectService } from './service/project.service';
 import { WorkItemService } from './service/work-item.service';
 
 /** Runtime capabilities required by every service composition. */
@@ -86,12 +86,12 @@ export interface ServicesOverOptions {
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler } = shared;
   return {
-    projects: new ProjectService({
+    projects: installProject({
       clock,
       projects: stores.projects,
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
-    }),
+    }).projects,
     capacity: installCapacity({
       clock,
       projects: stores.projects,
@@ -116,7 +116,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       steps: stores.steps,
       broadcast,
     }).steps,
-    directory: new DirectoryService({ clock, directory: stores.directory, broadcast }),
+    directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
     workItems: new WorkItemService({
       clock,
       workItems: stores.workItems,

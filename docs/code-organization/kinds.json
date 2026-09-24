@@ -292,9 +292,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/directory.service.ts",
-      "kind": "resource",
-      "term": "directory",
-      "rationale": "directory and project routes, ImportService and PlanCommandRunner call it for directory vocabulary invariants over DirectoryStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the directory module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts",
@@ -357,9 +356,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/project.service.ts",
-      "kind": "resource",
-      "term": "project",
-      "rationale": "project, solution and saved-plan routes plus several resource services call it for project aggregate creation, access and settings rules over ProjectStore, with Clock, Broadcaster and optimizer-availability ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the project module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/replay-buffer.ts",

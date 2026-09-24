@@ -469,4 +469,26 @@ describe('servicesOver', () => {
       reason: 'not_found',
     });
   });
+
+  test("installs Project per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    const created = await first.projects.create('Alpha', OWNER);
+    // Proof (2026-09-24): memoizing one `installProject(...)` result in a module-level `let` and
+    // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
+    // with `-t`): the second scope read the first scope's `Alpha` project instead of null.
+    expect(await second.projects.read(created.project.id)).toBeNull();
+  });
+
+  test("installs Directory per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    expect(await first.directory.addTeam(OWNER, 'Operations')).toMatchObject({
+      name: 'Operations',
+    });
+    // Proof (2026-09-24): memoizing one `installDirectory(...)` result in a module-level `let` and
+    // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
+    // with `-t`): the second scope listed the first scope's `Operations` team.
+    expect((await second.directory.listTeams()).map((team) => team.name)).toEqual(['Platform']);
+  });
 });
