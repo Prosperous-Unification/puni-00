@@ -73,9 +73,21 @@
       module; the router instance and address survive a same-session update.
 - [ ] 7. Log out is a coordinated local exit: no request, project then session
       retirement, and the fatal state when either fails.
-- [ ] 8. The project prerequisites: plan snapshot, connection, roster and busy
+- [x] 8. The project prerequisites: plan snapshot, connection, roster and busy
       state move into project-owned stores, and the command register and refusal
       publication move behind narrow ports.
+      Closed by 050-7-g, observed 2026-09-24: the plan snapshot and the
+      connection are `modules/plan-feed/delivered-plan-store.ts`, the roster is
+      `presence-store.ts` beside it, and busy is
+      `modules/plan-writer/busy-store.ts`; a command issued and a refusal are
+      `modules/channel.ts` channels the table listens to. `PlanFeedForReader` and
+      `PlanWriterHost` take those stores and ports and no React setter, ref or
+      toast function, and the table and the page select from the stores. Each is
+      still built by the mount that owned the state it replaced — the table's for
+      the delivered plan, busy and the channels, the page's for presence, which is
+      therefore not reset by a project switch, exactly as before — until task 10's
+      project runtime builds them; the feed's owner reads and the broad
+      `ProjectApi` are tasks 9 and 10's.
 - [ ] 9. The broad project API moves behind the plan and command modules' private
       repository ports.
 - [ ] 10. The project runtime owns feed, writer, markers and saved plans for one

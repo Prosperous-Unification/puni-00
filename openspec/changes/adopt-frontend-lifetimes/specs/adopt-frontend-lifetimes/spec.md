@@ -386,3 +386,9 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
   the table has rendered and before its effects have run
 - **THEN** the table draws the delivered values, and the hover card and the drafts
   are settled against the rows and steps that changed, once per change
+
+#### Scenario: The header selects presence from a store
+
+- **WHEN** the project's stream reports who is here or whether it is connected
+- **THEN** the page's presence store holds it and the header's presence slot is
+  handed it, starting from nobody and disconnected

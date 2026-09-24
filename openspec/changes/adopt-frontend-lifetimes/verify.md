@@ -1637,3 +1637,55 @@ name "Reset layout"`; `1 failed | 77 skipped (78)`.
   sandbox 49 files 680 tests, typecheck and lint `status=0`.
 - Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
   `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none run in the executor sandbox.
+
+## Packet 050.7g, slice 5 — presence from a store, the ports' production-path proofs, and task 8
+
+Attempt `050-7-g-project-prerequisites.5.20260924T042313Z`, starting hash
+`31949887ed05b92a16c6b6d987b3502b4775d696`, observed 2026-09-24. Evidence basenames are relative
+to that attempt's evidence directory.
+
+**Step 0.** `base.txt` equal to the slice note's hash; `status-before.txt` empty; `fast-check=4.9.0`;
+17 patches and 43 fault patches extracted. Preferences suite 4 files, 39 tests, `status=0`
+(`base-preferences.log`); sandbox node suite 49 files, 680 tests, `status=0` (`base-sandbox.log`);
+strict OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+**Step 1.** Page and router pair 2 files, 77 tests, `status=0` (`s5-base-page.log`); the reporter
+printed no per-file line, so the page file alone was run for its own number: 72 tests, `status=0`
+(`s5-base-page-only.log`). Adopted set 20 files, 1214 tests, `status=0` (`s5-base-adopted.log`).
+
+**Contract.** Section 7.13 applied; strict OpenSpec `{"items":114,"passed":114,"failed":0}`, exit 0
+(`openspec-s5-contract.*.json`).
+
+**Characterisation, no red by design.** Section 7.14 applied to the unchanged page: typecheck
+`status=0` (`s5-before-typecheck.log`); `project-page.test.tsx` 73 passed (73), `status=0`
+(`s5-before-page.log`) — the page file's 72 plus the new example.
+
+**Implementation.** Sections 7.15, 7.16 and 7.17 applied; the task 8 note dated `2026-09-24` by
+`date -u +%F`, no placeholder left.
+
+**Green.** Typecheck `status=0` (`s5-green-typecheck.log`); page and router 2 files, 78 tests,
+`status=0` (`s5-green-page.log`); adopted set 20 files, 1215 tests, `status=0` (`s5-green-adopted.log`,
+step 1's 1214 plus the new example); sandbox 49 files, 680 tests, `status=0` (`s5-green-sandbox.log`);
+`nx format:check --all` `status=0` (`s5-format.log`); `wbs-fe-01:lint` `status=0` (`s5-lint.log`).
+
+**Proofs.** Every filter matched exactly one test (`s5-proof-filters.txt`). Each fault was injected
+from its patch, its named test run, the file restored and compared with `cmp`, and the test rerun
+green (`<id>.patch`, `<id>.log`, `<id>.green.log`; loop `status=0` in `s5-proof-loop.log`):
+
+| Id   | Test                                                                                | Observed                                                                                                                                           |
+| ---- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `t1` | `names an unavailable optimizer and offers no export before a plan is installed`    | `expected [ Array(1) ] to include 'Optimized scheduling is unavailable i…'`; `1 failed \| 87 skipped (88)`                                         |
+| `t2` | `Cmd+Enter on the last row makes one and lands in it`                               | `expected <textarea …(6)></textarea> to be <textarea …(6)></textarea>`; `1 failed \| 95 skipped (96)`                                              |
+| `t3` | `says a refused rename in a toast, and puts nothing above the table`                | `expected [] to deeply equal [ Array(1) ]`; `1 failed \| 87 skipped (88)`                                                                          |
+| `m1` | `rereads a marker refused because a peer already deleted it`                        | `the given combination of arguments (undefined and string) is invalid for this assertion`; `1 failed \| 22 skipped (23)`                           |
+| `q1` | `hands the presence slot who the project’s stream says is here, and its connection` | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`; `1 failed \| 72 skipped (73)`                        |
+| `q2` | `hands the presence slot who the project’s stream says is here, and its connection` | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `connected` `false`; `1 failed \| 72 skipped (73)` |
+
+Every green rerun `1 passed`. The six `Proof:` comments were written afterwards, four in
+`use-plan-read.ts` and two in `project-page.tsx`.
+
+**Final.** Page and router 78 tests, preferences 39, sandbox 49 files and 680 tests, each `status=0`
+(`s5-final-page.log`, `s5-final-preferences.log`, `s5-final-sandbox.log`).
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.

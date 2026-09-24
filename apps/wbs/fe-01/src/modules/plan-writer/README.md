@@ -15,7 +15,11 @@ handed, and it holds no transport of its own.
   failure is ambiguous, when the target has gone, or when be-01 could not read the request.
 - Whether the gesture still belongs to the reader on screen, at each of the three moments that
   question has a different answer.
-- Raising and clearing the shared busy state, and the outcome the caller acts on.
+- Raising and clearing the shared busy state, and the outcome the caller acts on. The state
+  itself is `busy-store.ts`, a plain store the table selects from; the writer is handed only its
+  `raise` and `lower`, and lowers only while its reader is still on screen.
+- Saying that a command was issued, and announcing a refusal, each through a `Publisher` of a
+  project channel (`modules/channel.ts`). The table listens; the writer never learns who does.
 
 ## What it does not own
 
@@ -25,12 +29,13 @@ work item 040.4.
 
 ## Relationships
 
-The exported types are in `contract.ts`; the service is `plan-writer.feature.ts`. There is no
+The exported types are in `contract.ts`; the service is `plan-writer.feature.ts`; the busy store is
+`busy-store.ts`. There is no
 `module.ts` yet: DI Bag is not installed, so the host builds the service with a plain factory
 call. Its one host today is `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`.
 
 ## Checks
 
 The applicable check is the `test:unit` target declared in `apps/wbs/fe-01/project.json`; the
-module's own suite is `plan-writer.test.ts`. The behaviour this extraction preserves is proved by
+module's own suites are `plan-writer.test.ts` and `busy-store.model.test.ts`. The behaviour this extraction preserves is proved by
 the plan table's own suites, which run in the `test` target of the same project.

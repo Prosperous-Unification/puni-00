@@ -502,16 +502,25 @@ export function usePlanRead({
   // Joined before the feed below starts reading, which is a passive effect of
   // this same commit: see `useChannelListener`.
   useChannelListener(refusals, (refusal) => {
+    // Proof: on 2026-09-24, returning here for every refusal that carries a sentence failed `says a
+    // refused rename in a toast, and puts nothing above the table` on `expected [] to deeply equal
+    // [ Array(1) ]`.
     pushToast({
       kind: 'error',
       // Proof: using the bare failure code here left the unavailable-plan
       // fixture with no named toast and an unhandled refusal-code branch.
+      // Proof: on 2026-09-24, the cause turned into its bare `String` here failed `names an
+      // unavailable optimizer and offers no export before a plan is installed` on `expected [ Array(1) ]
+      // to include 'Optimized scheduling is unavailable i…'`.
       text: 'sentence' in refusal ? refusal.sentence : refusalSentence(refusal.cause),
     });
   });
   // The table decides what a command issued means for the focus; the writer
   // only says that one was.
   useChannelListener(commandsIssued, () => {
+    // Proof: on 2026-09-24, this listener made to do nothing failed `Cmd+Enter on the last row makes
+    // one and lands in it` on `expected <textarea …(6)></textarea> to be <textarea …(6)></textarea>`:
+    // the focus stayed on the old row.
     focusIntent.current.commandIssued();
   });
 
@@ -682,6 +691,9 @@ export function usePlanRead({
         api,
         readRefreshOwner: () => feedRef.current?.owner ?? null,
         isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
+        // Proof: on 2026-09-24, `() => undefined` here failed `rereads a marker refused because a peer
+        // already deleted it` on `the given combination of arguments (undefined and string) is invalid
+        // for this assertion`: no toast was there to hold `no longer`.
         announceRefusal: refusals.publish,
       }),
     [activeProject, api, projectId, refusals],

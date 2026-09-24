@@ -15,6 +15,15 @@ contract in `apps/wbs/fe-01/src/modules/store.ts`, which is rule F2.
   reader owns it, which is what a screen asks for and the only thing delivery may import (rule
   K2).
 - `composition.ts` is where the refresh owner's factory and the feature meet. A screen calls it.
+- `delivered-plan-store.ts` is the **store** the feed publishes into: every publication folded
+  into the one snapshot a screen selects from, with the connection the stream last reported.
+- `presence-store.ts` is the **store** of who else has the project open and whether the socket
+  saying so is up. The page owns it today and the project's stream writes into it.
+
+Both stores are plain TypeScript over `modules/channel.ts`, keep their snapshot the same object
+until a member changes, tell each listener once per change, and never throw a lifecycle refusal.
+Their model tests, `delivered-plan-store.model.test.ts` and `presence-store.model.test.ts`, run
+them against reference models under scheduler-ordered deliveries and re-entrant listeners.
 
 ## What the resource owns
 
@@ -46,11 +55,13 @@ renders the header.
 ## How it is read
 
 Two ways, over one source of truth. The store contract — `subscribe` and `snapshot`, the refresh
-owner's own, whose snapshot object is rebuilt only when something in it changed — is what any
-future reader selects from. Beside it, the host is handed a **delivery**: what changed since the
-last publication, computed from that same snapshot and the generations already applied. Today's
-reader is twenty React states and two refs mutated in one pass, so it takes the delta; turning it
-into a selected snapshot is the lifetimes task of the rollout plan, not an extraction.
+owner's own, whose snapshot object is rebuilt only when something in it changed — is the feed's
+own. Beside it, each publication is a **delivery**: what changed since the last one, computed
+from that same snapshot and the generations already applied. The composition writes every
+delivery into the reader's delivered plan, and the table selects from that store with
+`useSyncExternalStore`; nothing the feed is built with is a React setter. What a delivery settles
+beyond the values on screen — the hover card, drafts for a step that went — the table does from
+the delivered plan's own notification.
 
 ## Relationships
 
@@ -59,11 +70,13 @@ through it yet, which is the rollout's lifetimes task, so `composition.ts` is a 
 `modules/directory-management/composition.ts` is. Its one caller today is
 `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, which also wires this feed to the plan writer
 module beside it: the writer compares the owner's identity and sends its rereads back through the
-hook.
+hook. The same hook builds the delivered plan once per table mount, and `project-page.tsx` builds
+the presence store once per page mount; the project runtime of OpenSpec task 10 builds both
+instead.
 
 ## Checks
 
 The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's suites are
-`plan-feed.resource.test.ts` and `plan-feed.feature.test.ts`. The behaviour this extraction
+`plan-feed.resource.test.ts`, `plan-feed.feature.test.ts` and the two store model tests. The behaviour this extraction
 preserves is proved by the plan table's and the project page's own suites, which run in the `test`
 target of the same project.
