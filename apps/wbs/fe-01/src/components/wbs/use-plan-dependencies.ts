@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { StepView } from '@/lib/wbs-api';
@@ -27,6 +27,7 @@ export function usePlanDependencies({
   pushToast,
   busy,
   commands,
+  isCurrent,
   refreshOrMarkStale,
   setDepPicker,
   run,
@@ -36,6 +37,15 @@ export function usePlanDependencies({
   pushToast: (toast: Toast) => void;
   busy: BusyWrites;
   commands: PlanCommands;
+  /**
+   * Whether the project runtime these commands belong to is still the one its
+   * owner publishes — the runtime's own `isCurrent`, closed over by each gesture
+   * and asked when its answers arrive. Not a ref to the commands the table last
+   * rendered with: that stays true for ever once the table is gone, and the
+   * toasts are the page's and outlive it, so a left project's refusal reached
+   * them over the next one.
+   */
+  isCurrent: () => boolean;
   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
@@ -43,9 +53,6 @@ export function usePlanDependencies({
   run: RunPlanWrite;
   steps: StepView[];
 }) {
-  const activeCommands = useRef(commands);
-  activeCommands.current = commands;
-
   /**
    * The callbacks the cells use, read through a ref rather than closed over.
    *
@@ -121,11 +128,6 @@ export function usePlanDependencies({
       // chips and the reasons have to survive. This loop therefore collects
       // every answer before choosing its aggregate recovery scope.
       void (async () => {
-        const owner = commands;
-        // Proof: on 2026-09-24, `() => true` here failed `keeps an old dependency-list refusal
-        // out of its busy API replacement` on `toHaveAttribute("aria-busy", "true")`: the old
-        // client's answer lowered the replacement's busy state.
-        const isCurrent = () => activeCommands.current === owner;
         busy.raise();
         const refused: string[] = [];
         let ambiguous = false;
@@ -177,7 +179,7 @@ export function usePlanDependencies({
           pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [activeCommands, busy, commands, flat, pushToast, refreshOrMarkStale],
+    [busy, commands, flat, isCurrent, pushToast, refreshOrMarkStale],
   );
 
   /**

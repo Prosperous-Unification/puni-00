@@ -590,10 +590,11 @@ export function ProjectPage({
    * Opens the selected project's runtime, and leaves it when the selection,
    * the client or the stream changes, or the page goes.
    *
-   * Every trigger reaches the one owner, so a switch, an unmount and Strict
-   * Mode's re-entry each withdraw the old runtime before anything else happens
-   * and retire it once; the next is published only after that retirement
-   * succeeded, and a retirement that fails leaves the owner fatal.
+   * Every trigger reaches the one owner, so a switch and an unmount each
+   * withdraw the old runtime before anything else happens and retire it once;
+   * the next is published only after that retirement succeeded, and a
+   * retirement that fails leaves the owner fatal. Strict Mode's re-entry finds
+   * nothing selected — the page mounts with no selection — and opens nothing.
    */
   useEffect(() => {
     if (selected === null) return;
@@ -1289,18 +1290,15 @@ export function ProjectPage({
             {error}
           </p>
         )}
-        {/* Drawn only while the owner publishes a runtime, and keyed by that
-        runtime's own project: in the render that moves the selection the owner
-        still publishes the previous project's, until the effect below withdraws
-        it, so the table stays the previous project's until then. */}
+        {/* Drawn only while the owner publishes a runtime. In the render that
+        moves the selection the owner still publishes the previous project's,
+        until the page's effect withdraws it; from that withdrawal nothing is
+        drawn here until the next runtime is live, so every runtime is drawn in a
+        table of its own — its rows and transient editor state with it — and no
+        key is needed to say so. */}
         {projectState.status === 'live' && (
           <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
             <WbsTable
-              // Each project owns its rows and transient editor state. The owner
-              // usually publishes nothing between two projects' runtimes, which
-              // remounts the table by itself; the key is what keeps that true when
-              // the next runtime is drawn with no render in between.
-              key={projectState.services.projectId}
               project={projectState.services}
               // The name the export's header and filename carry. Read from the
               // list rather than held twice: a rename lands in `projects` and the

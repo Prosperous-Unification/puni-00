@@ -10,6 +10,7 @@ import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
+import type { ProjectApi } from '@/lib/wbs-api';
 import type { ProjectOwner } from '@/runtime/project-runtime';
 import { createSessionOwner, sessionFor, type SessionOwner } from '@/runtime/session-runtime';
 
@@ -156,6 +157,12 @@ export interface SignedInAppProps {
   onSignedOut: () => void;
   /** Injected in tests; the app lets it default to the real owner. */
   openOwner?: () => SessionOwner;
+  /**
+   * The project page's client, injected in tests so a route can be driven over
+   * a project the test holds; the app passes none, and the page builds the real
+   * one from the session's credential.
+   */
+  projectApi?: ProjectApi;
 }
 
 /**
@@ -188,6 +195,7 @@ export function SignedInApp({
   session,
   onSignedOut,
   openOwner = createSessionOwner,
+  projectApi,
 }: SignedInAppProps): React.JSX.Element {
   const [sessionOwner] = useState(openOwner);
   const sessionState = useSyncExternalStore(sessionOwner.subscribe, sessionOwner.snapshot);
@@ -248,6 +256,7 @@ export function SignedInApp({
         <AppRouter
           session={services}
           token={session.token}
+          projectApi={projectApi}
           presence={
             // The panel is presentational and the roster is the page's, because
             // it arrives on the table's own socket — one connection per browser
