@@ -16,7 +16,7 @@ function held<T>() {
 
 async function setup() {
   const api = fakeProjectApi();
-  const owner = createPlanRefresh({ projectId: 'p1', api });
+  const owner = createPlanRefresh({ projectId: 'p1', routes: api });
   expect((await owner.initialize()).status).toBe('installed');
   return { api, owner };
 }
@@ -60,7 +60,7 @@ describe('plan refresh obligations', () => {
       markers += 1;
       return Promise.resolve([]);
     };
-    const owner = createPlanRefresh({ projectId: 'p1', api });
+    const owner = createPlanRefresh({ projectId: 'p1', routes: api });
     const ready = owner.initialize();
     expect(markers).toBe(0);
     anchor.resolve(before);

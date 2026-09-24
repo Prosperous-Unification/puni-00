@@ -6,6 +6,7 @@ import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
@@ -121,7 +122,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -1083,7 +1084,9 @@ describe('picking dependencies from a list', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     const input = await screen.findByLabelText('Add a dependency to 020');
 
     // Highlight Paint by hand: Down to Strip, Down again to Paint.
@@ -1161,7 +1164,9 @@ describe('the picker marks what be-01 would refuse', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await screen.findByLabelText('Add a dependency to 010.1');
     return {
       api,
@@ -1436,13 +1441,18 @@ describe('dependencies in the table — cross-review findings', () => {
   };
 
   itDom('shows the schedule be-01 sent, not one it worked out itself', async () => {
-    render(<WbsTable projectId="p1" api={apiReturning(null)} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiReturning(null))} />);
 
     expect(await cells()).toEqual({ start: '11', finish: '18', float: '2' });
   });
 
   itDom('names a critical row rather than printing its zero', async () => {
-    render(<WbsTable projectId="p1" api={apiReturning(null, { float: 0, critical: true })} />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(apiReturning(null, { float: 0, critical: true }))}
+      />,
+    );
 
     // One word, which is what the 56px column can hold now that the word is a
     // tag rather than a figure — and what `plan-export.ts` has always printed.
@@ -1450,7 +1460,7 @@ describe('dependencies in the table — cross-review findings', () => {
   });
 
   itDom('explains a slack figure in its hover title', async () => {
-    render(<WbsTable projectId="p1" api={apiReturning(null)} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiReturning(null))} />);
 
     await cells();
     const row = screen
@@ -1462,7 +1472,12 @@ describe('dependencies in the table — cross-review findings', () => {
   });
 
   itDom('explains what critical means in the hover title', async () => {
-    render(<WbsTable projectId="p1" api={apiReturning(null, { float: 0, critical: true })} />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(apiReturning(null, { float: 0, critical: true }))}
+      />,
+    );
 
     await cells();
     const row = screen
@@ -1477,7 +1492,7 @@ describe('dependencies in the table — cross-review findings', () => {
     // agy, medium. A cycle sends every row the same zeroed schedule, and
     // printing those reads as "everything happens on day zero" — a confident
     // wrong answer, next to a banner saying no dates could be worked out.
-    render(<WbsTable projectId="p1" api={apiReturning('cycle')} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiReturning('cycle'))} />);
 
     expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
     expect(screen.getByRole('alert').textContent).toContain('run in a circle');
@@ -1763,7 +1778,7 @@ describe('hovering a dependency lights the rows it names', () => {
 
   itDom('a collapsed dependency has no row to light, and the card still names it', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');

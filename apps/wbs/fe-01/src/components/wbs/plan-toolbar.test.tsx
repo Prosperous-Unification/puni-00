@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 
 import type * as TableFrameModule from './table-frame';
 import { WbsTable } from './wbs-table';
@@ -111,7 +112,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -151,7 +152,7 @@ describe('the plan toolbar’s controls', () => {
     // the menu, this failed on `expected [ 'Freeze #', 'Unfreeze all' ] to
     // deeply equal [ 'Freeze #' ]`. Watched, 2026-08-29.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('button', { name: 'Add work item' });
 
     expect(toolbarControlNames().filter((name) => /freeze/i.test(name))).toEqual(['Freeze #']);
@@ -183,7 +184,7 @@ describe('the plan toolbar’s controls', () => {
       asked.push('unfreeze-all');
       return Promise.resolve();
     };
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('button', { name: 'Add work item' });
 
     takeFreezeAction('Freeze numbering');
@@ -265,7 +266,7 @@ describe('the plan toolbar’s controls', () => {
         scheduleError: 'calendar_range' as const,
         slices: [],
       }));
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     const arrange = await screen.findByRole('button', { name: 'Arrange by schedule' });
 
@@ -322,7 +323,7 @@ describe('the plan toolbar’s controls', () => {
     // with nothing typed`. Two more in `plan-cards.test.tsx`. Watched,
     // 2026-08-29.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     const collapse = await screen.findByRole('button', { name: 'Collapse all' });
     const expand = screen.getByRole('button', { name: 'Expand all' });
 
@@ -349,7 +350,7 @@ describe('the plan toolbar’s controls', () => {
     // Proof: `⌨` put back as the button's child beside the icon, this failed on
     // `expected '⌨' to be ''`. Watched, 2026-08-29.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     const control = await screen.findByRole('button', { name: 'Keyboard shortcuts' });
 
     expect(control.textContent).toBe('');
@@ -434,7 +435,13 @@ describe('sharing the plan', () => {
   /** One named, estimated row, so an export has something to disagree about. */
   const onePlannedRow = async (): Promise<ReturnType<typeof fakeApi>> => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Strip, sand & paint');
@@ -454,7 +461,13 @@ describe('sharing the plan', () => {
     // `<details>` hide its children, so what is asserted is where they live:
     // inside the menu, in this order, and nowhere else on the toolbar.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     expect(await screen.findByRole('button', { name: 'Copy as Markdown' })).toBeInTheDocument();
     const menu = document.querySelector<HTMLElement>('[data-toolbar] details[data-export]');
     if (menu === null) throw new Error('no Export menu on the toolbar');
@@ -483,7 +496,7 @@ describe('sharing the plan', () => {
     render(
       <WbsTable
         projectId="p1"
-        api={api}
+        projectServices={projectServicesOf(api)}
         projectName="Rewire the shed"
         planImport={{ busy: true, chooseFile: vi.fn() }}
       />,
@@ -524,7 +537,13 @@ describe('sharing the plan', () => {
       ],
     } as unknown as Awaited<ReturnType<typeof model.exportPlan>>;
     const api = { ...model, exportPlan: () => Promise.resolve(exported) };
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     await screen.findByLabelText('Name of 010');
 
     click('Collapse all');
@@ -575,7 +594,13 @@ describe('sharing the plan', () => {
       ...model,
       exportPlan: () => Promise.reject(new Error('network unavailable exact')),
     };
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     await screen.findByRole('button', { name: 'Download JSON' });
 
     click('Download JSON');
@@ -592,7 +617,13 @@ describe('sharing the plan', () => {
     // already proved; the name stays on the control for a reader who cannot see
     // the glyph and for the tests that click it by name.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     const undo = await screen.findByRole('button', { name: 'Undo' });
     const redo = screen.getByRole('button', { name: 'Redo' });
     expect(undo.textContent).toBe('↶');
@@ -726,7 +757,13 @@ describe('sharing the plan', () => {
       name: 'Deadline row',
     });
     await api.patchWorkItem(row.id, { deadline: '2026-09-30' });
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     await screen.findByLabelText('Name of 010');
 
     click('Download CSV');
@@ -805,7 +842,13 @@ describe('sharing the plan', () => {
 
     itDom('offers the three lanes inside the Export menu, and opens on outline', async () => {
       const api = fakeApi();
-      render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+      render(
+        <WbsTable
+          projectId="p1"
+          projectServices={projectServicesOf(api)}
+          projectName="Rewire the shed"
+        />,
+      );
       // Proof: reading synchronously while the initial tree was still loading
       // failed here with `Unable to find a label with the text of: Mermaid lanes`.
       // Export becomes available only after the successful tree read it exports.
@@ -972,7 +1015,7 @@ describe('the project’s settings behind one control', () => {
    */
   itDom('one control opens every project setting, and no separate control remains', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
 

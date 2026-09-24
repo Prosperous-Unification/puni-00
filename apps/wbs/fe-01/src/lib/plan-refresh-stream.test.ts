@@ -83,7 +83,7 @@ function scenario(initialSeq = -1) {
       return Response.json({ [collection]: [] });
     }),
   );
-  const owner = createPlanRefresh({ projectId: 'p1', api: httpProjectApi('session') });
+  const owner = createPlanRefresh({ projectId: 'p1', routes: httpProjectApi('session') });
   const sockets: Socket[] = [];
   const timers: (() => void)[] = [];
   const pending: Promise<unknown>[] = [];

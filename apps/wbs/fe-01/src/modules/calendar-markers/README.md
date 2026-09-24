@@ -12,7 +12,8 @@ TypeScript and import no React, which is rule F1 of the code organization design
 - `calendar-markers.feature.ts` is the **feature**-service: the markers a reader may put on the
   chart for as long as it owns the chart, which is what a screen asks for and the only thing
   delivery may import (rule K2).
-- `composition.ts` is where the HTTP client and the feature meet. A screen calls it.
+- `composition.ts` is where the feature meets its routes, `CalendarMarkerRoutes`, this module's
+  private repository port. The project composition root calls it; a screen does not.
 
 ## What the resource owns
 
@@ -44,9 +45,11 @@ feed's `markers` resource comes out, and every answer a person sees arrives thro
 
 There is no `module.ts`: DI Bag 0.4.0 is installed but nothing in this application is composed
 through it yet, which is the rollout's lifetimes task, so `composition.ts` is a function, as
-`modules/plan-feed/composition.ts` is. Its one caller today is
-`apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, which hands it the refresh owner the plan
-feed beside it holds; the four chart gestures reach it through `wbs-table.tsx`.
+`modules/plan-feed/composition.ts` is. Its one caller is the project composition root,
+`modules/project/composition.ts`, which hands it the page's one client as its routes. The plan read
+hook, `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, builds the gestures through the
+project's services and hands them the refresh owner the plan feed beside it holds; the four chart
+gestures reach it through `wbs-table.tsx`.
 
 ## Checks
 

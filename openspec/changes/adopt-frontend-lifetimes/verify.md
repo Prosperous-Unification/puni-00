@@ -1689,3 +1689,177 @@ Every green rerun `1 passed`. The six `Proof:` comments were written afterwards,
 
 **Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
+
+## Packet 050.7h, slice 1 — the plan feed's and the plan commands' own ports, and the project composition root
+
+Attempt `050-7-h-project-api-ports.1.20260924T062624Z`, starting hash
+`c07055de0f91463ad58c34432f0430196ef5d205` (equal to the slice note's reviewed base), clean status
+before any edit (`status-before.txt` empty). Run on 2026-09-24 inside the executor sandbox, every
+Vitest run with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset, every multi-file run serial.
+
+Step 0b extracted 9 patches, a 27-line `markers-memo.ts` and 13 fault patches.
+
+Baselines, before any edit:
+
+| Check                                                                       | Result                                  | Evidence                    |
+| --------------------------------------------------------------------------- | --------------------------------------- | --------------------------- |
+| preferences suite                                                           | 4 files, 39 tests, 0                    | `base-preferences.log`      |
+| sandbox node suite                                                          | 49 files, 680 tests, 0                  | `base-sandbox.log`          |
+| strict OpenSpec                                                             | `{"items":114,"passed":114,"failed":0}` | `openspec-base.DIEOzg.json` |
+| feed-and-markers set (`plan-feed`, `calendar-markers`, both refresh suites) | 8 files, 58 tests, 0                    | `s1-base-feed.log`          |
+| `plan-read-and-write.test.tsx`                                              | 1 file, 88 tests, 0                     | `s1-base-read.log`          |
+
+After the new requirement (section 7.1): strict OpenSpec exit 0,
+`{"items":114,"passed":114,"failed":0}` (`openspec-s1-contract.rkNxcR.json`).
+
+Red checkpoint, after the tests and the named fixture edit (section 7.2) and before the code:
+
+- `wbs-fe-01:typecheck` `status=1`, `Found 47 errors in 4 files.` — `plan-commands.feature.test.ts`
+  2 × TS2307, 6 × TS7006, 34 × TS7019; `project/composition.test.ts` 1 × TS2307, 1 × TS7006;
+  `plan-refresh.test.ts` 2 × TS2353 (lines 19 and 63); `plan-refresh-stream.test.ts` 1 × TS2353
+  (line 86), each `'routes' does not exist in type '{ projectId: string; api: ProjectApi; }'`
+  (`s1-red-typecheck.log`).
+- Vitest `status=1`, `Test Files 3 failed (3)`, `Tests 14 failed (14)`: `Failed to resolve import
+"./contract"`, `Failed to resolve import "./composition"`, and all fourteen tests of
+  `plan-refresh.test.ts` on `expected 'failed' to be 'installed'` (`s1-red-vitest.log`).
+
+Green checkpoint, after section 7.3:
+
+| Check                                   | Result                 | Evidence                 |
+| --------------------------------------- | ---------------------- | ------------------------ |
+| `wbs-fe-01:typecheck`                   | exit 0                 | `s1-green-typecheck.log` |
+| feed set plus the two new module suites | 10 files, 65 tests, 0  | `s1-green-feed.log`      |
+| `plan-read-and-write.test.tsx`          | 1 file, 88 tests, 0    | `s1-green-read.log`      |
+| `src/test-tiers.test.ts`                | 1 file, 5 tests, 0     | `s1-green-tiers.log`     |
+| sandbox node suite                      | 51 files, 687 tests, 0 | `s1-green-sandbox.log`   |
+| `wbs-fe-01:lint`                        | exit 0                 | `s1-lint.log`            |
+
+Every proof filter matched exactly one test (`s1-filters.txt`). Each fault was injected from its
+patch, its named test run, the file restored and compared with `cmp`, and the test rerun green
+(`<id>.patch`, `<id>.log`, `<id>.green.log`):
+
+| Id   | Fault                                                                 | Observed                                                                                                                         |
+| ---- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `p1` | `freezeProject` sent to the `unfreezeProject` route                   | `Tests 1 failed \| 2 skipped (3)`; strict-equal diff `- "freezeProject"` / `+ "unfreezeProject"`                                 |
+| `p2` | a work-item route handed the project in place of the work item        | `Tests 1 failed \| 2 skipped (3)`; strict-equal diff `- "w1"` / `+ "p1"`                                                         |
+| `p3` | the route bound when the commands are built                           | `Tests 1 failed \| 2 skipped (3)`; `expected [ 'patch:w1' ] to deeply equal [ 'freeze:p1', 'patch:w1' ]`                         |
+| `p4` | the route's promise wrapped in another                                | `Tests 1 failed \| 2 skipped (3)`; `exportPlan: expected Promise{…} to be Promise{…}`                                            |
+| `p5` | `setStatus` passes its optional `factStart` even when it was left out | `Tests 1 failed \| 2 skipped (3)`; strict-equal diff `+ undefined,`                                                              |
+| `k1` | the first project's commands handed out for every project             | `Tests 1 failed \| 3 skipped (4)`; `expected [ 'p1', 'p1' ] to deeply equal [ 'p1', 'p2' ]`                                      |
+| `k2` | the ports cut as a copy of the client taken when composed             | `Tests 1 failed \| 3 skipped (4)`; `expected [] to deeply equal [ 'tree:p1', 'arrange:p1' ]`                                     |
+| `k3` | the feed read through a second client                                 | `Tests 1 failed \| 3 skipped (4)`; `expected null not to be null`                                                                |
+| `k4` | the marker gestures written through a second client                   | `Tests 1 failed \| 3 skipped (4)`; `Error: refused: WbsRequestError: Failed to parse URL from /api/projects/p1/calendar-markers` |
+
+The `Proof:` comments were written after all nine were observed. Afterwards: the two new module
+suites 2 files, 7 tests, exit 0 (`s1-final-modules.log`); preferences 4 files, 39 tests, exit 0
+(`s1-final-preferences.log`); sandbox node suite 51 files, 687 tests, exit 0
+(`s1-final-sandbox.log`); `wbs-fe-01:lint` and `wbs-fe-01:typecheck` exit 0 (`s1-final-lint.log`,
+`s1-final-typecheck.log`). Owned-file Prettier and the strict OpenSpec block were run after this
+entry was written.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
+
+## Packet 050.7h, slice 2 — the table's hooks, toolbar and columns write through the project's commands
+
+Attempt `050-7-h-project-api-ports.2.20260924T063902Z`, starting at
+`36c499d48c761f74e902032612be957123952b8d` (slice 1's planner commit), with an empty status
+(`base.txt`, `status-before.txt`). Every test command ran with `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset.
+
+Baselines, before any edit: preferences 4 files, 39 tests (`base-preferences.log`); sandbox node
+suite 51 files, 687 tests (`base-sandbox.log`); the twenty adopted files, serial, 20 files, 1215
+tests (`s2-base-adopted.log`); zoned (Auckland) 2 files, 3 tests (`s2-base-zoned.log`); strict
+OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`). Every one `status=0`.
+
+The scenario "The table's gestures write through the project's commands" was applied first; the
+strict block then read `{"items":114,"passed":114,"failed":0}`, exit 0
+(`openspec-s2-contract.*.json`).
+
+No red checkpoint, by design: this slice adds and edits no test. The table still takes the client and
+composes over it, so the adopted set is the oracle, unchanged.
+
+Section 7.5's diff applied cleanly (`git apply --check`, then `git apply`). The markers memo script
+printed exactly `markers memo rewritten, 3 comment lines kept`, exit 0 (`s2-markers-memo.txt`): three
+`//` lines, the `Proof:` comment packet g's slice 5 wrote above `announceRefusal`, were kept unchanged.
+The packet's rehearsal base had 0 lines there.
+
+Green: `wbs-fe-01:typecheck` `status=0` (`s2-green-typecheck.log`); adopted 20 files, 1215 tests,
+unchanged (`s2-green-adopted.log`); zoned 2 files, 3 tests (`s2-green-zoned.log`); sandbox 51 files,
+687 tests, unchanged (`s2-green-sandbox.log`). `wbs-fe-01:lint` `status=0` (`s2-lint.log`).
+
+Proof `d1`: the filter matched exactly one test. With `isCurrent` in `dependOn` replaced by
+`() => true` (`d1.patch`), `plan-read-and-write.test.tsx` › `keeps an old dependency-list refusal out
+of its busy API replacement` failed, `Tests 1 failed | 87 skipped (88)`, `status=1`, on
+`expect(element).toHaveAttribute("aria-busy", "true")`: the old client's answer lowered the
+replacement's busy state (`d1.log`). Restored, compared with `cmp`, rerun green `1 passed | 87 skipped
+(88)` (`d1.green.log`). The `Proof:` comment was written above that line after the observation.
+
+Final: `plan-read-and-write.test.tsx` alone 88 tests (`s2-final-read.log`); preferences 4 files, 39
+tests (`s2-final-preferences.log`); sandbox 51 files, 687 tests (`s2-final-sandbox.log`); each
+`status=0`. Owned-file Prettier and the strict OpenSpec block were run after this entry was written.
+
+Accepted residual: four stale-client guards in `use-plan-read.ts` changed operand from the client
+to the composition without a production-path negative: the feed's `isActiveReader`,
+`refreshResourcesOrMarkStale`'s guard, the markers' `isActiveReader` and `stepStack`'s `isCurrent`.
+No existing test reaches the window between a commit that installs new services and the passive
+effect that retires the old feed. Task 11 ("a stale completion changes nothing") owns the test that
+opens it.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
+
+## Packet 050.7h, slice 3 — the table takes the project's services, the page composes them, and task 9 closes
+
+Attempt `050-7-h-project-api-ports.3.20260924T065909Z`, starting hash
+`88624cffae825ce4455b6d6755fa3985ba979966` (slice 2's planner commit); the starting status was
+empty (`status-before.txt`). All observations 2026-09-24, in the executor sandbox, every Vitest run
+with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
+
+Baselines before any edit, each `status=0`: preferences 4 files, 39 tests; sandbox node suite 51
+files, 687 tests; adopted set, serial, 20 files, 1215 tests; zoned (Auckland) 2 files, 3 tests; the
+page and the router 2 files, 78 tests; strict OpenSpec `{"items":114,"passed":114,"failed":0}`
+(`base-*.log`, `s3-base-*.log`, `openspec-base.*.json`).
+
+Contract first: the scenario "The page composes the table's services once per client" applied, then
+the strict block exit 0, `{"items":114,"passed":114,"failed":0}`.
+
+Red, after the new `src/testing/project-services-of.ts` and the named fixture edit in the seventeen
+table suites (`api={X}` → `projectServices={projectServicesOf(X)}`, one import each, no `expect`
+line changed — `git diff -U0 -- '*.test.tsx' | grep -E '^[-+].*expect\('` printed nothing):
+`wbs-fe-01:typecheck` `status=1`, `Found 256 errors in 17 files.`, all 256 `TS2322` — 1
+page-shortcuts, 3 gantt-panel, 7 optimization-integration, 56 plan-cards, 31 plan-cells, 4
+plan-chart-seam, 9 plan-dependencies, 6 plan-estimates, 15 plan-filter, 3 plan-keyboard, 23
+plan-layout, 44 plan-read-and-write, 1 plan-row-dependencies, 5 plan-row-render-cost, 8
+plan-structure, 25 plan-table, 15 plan-toolbar — the first at `page-shortcuts.test.tsx:155:34`;
+`plan-row-dependencies.test.tsx` `status=1`, `Tests 5 failed (5)`, all five on
+`Unable to find a label with the text of: Name of 010` (`s3-red-typecheck.log`, `s3-red-vitest.log`).
+
+Green, after `WbsTableProps.projectServices`, the table's and the page's edits, the READMEs, the
+markers composition's JSDoc, the lifetime map's K2 note and task 9 (both notes dated by
+`date -u +%F`, `2026-09-24`): typecheck `status=0`; `nx format:check --all` `status=0`; adopted set
+20 files, 1215 tests (unchanged); zoned 2·3 (unchanged); page and router 2·78 (unchanged); sandbox
+51·687 (unchanged); `wbs-fe-01:lint` `status=0` (`s3-green-*.log`, `s3-format.log`, `s3-lint.log`).
+The client-holder `git grep` listed exactly `components/wbs/project-page.tsx` and
+`components/wbs/use-plan-import.ts` (`s3-client-holders.txt`).
+
+Proofs: each filter matched exactly one test (`s3-filters.txt`); each fault injected, observed
+failing, restored and `cmp`-identical, then green (`s3-proofs.txt`, `<id>.patch`, `<id>.log`,
+`<id>.green.log`):
+
+- `t1`, the table's commands keyed on `[projectServices]` alone: `plan-table.test.tsx` › `keeps an
+add burst and its refetch inside the project where it started`, `Tests 1 failed | 46 skipped
+(47)`, `expected [ 'p1', 'p1' ] to deeply equal [ 'p1', 'p2' ]`.
+- `t2`, the writer's `isActiveReader` comparing the project only: `plan-read-and-write.test.tsx` ›
+  `does not spend an old API success against its busy replacement`, `Tests 1 failed | 87 skipped
+(88)`, `expected 'false' to be 'true'`.
+- `q1`, the page composing on every render: `project-page.test.tsx` › `recovers a persistent
+resume_ack without replacing the registered socket`, `Tests 1 failed | 72 skipped (73)`,
+  `expected 3 to be 2`.
+
+After the comments: page and router 2·78, preferences 4·39, sandbox 51·687, lint `status=0`
+(`s3-final-*.log`). Owned-file Prettier, `nx format:check --all` and the strict block run after this
+entry is written.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.

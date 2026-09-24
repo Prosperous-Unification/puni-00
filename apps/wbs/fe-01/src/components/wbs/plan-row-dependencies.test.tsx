@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 
 import { shortIsoDate } from './short-date';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
@@ -53,7 +54,9 @@ async function twoRowsAndAPeer() {
     notify = handlers.onChange;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
-  render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+  render(
+    <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+  );
   click('Add work item');
   await screen.findByLabelText('Name of 010');
   click('Add work item');
