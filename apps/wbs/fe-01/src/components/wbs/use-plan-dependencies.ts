@@ -2,7 +2,8 @@ import type * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import type { ProjectApi, StepView } from '@/lib/wbs-api';
+import type { StepView } from '@/lib/wbs-api';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 
 import { pickerEntries } from './dep-picker';
@@ -25,7 +26,7 @@ export function usePlanDependencies({
   flat,
   pushToast,
   busy,
-  api,
+  commands,
   refreshOrMarkStale,
   setDepPicker,
   run,
@@ -34,7 +35,7 @@ export function usePlanDependencies({
   flat: TreeRow[];
   pushToast: (toast: Toast) => void;
   busy: BusyWrites;
-  api: ProjectApi;
+  commands: PlanCommands;
   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
@@ -42,8 +43,8 @@ export function usePlanDependencies({
   run: RunPlanWrite;
   steps: StepView[];
 }) {
-  const activeApi = useRef(api);
-  activeApi.current = api;
+  const activeCommands = useRef(commands);
+  activeCommands.current = commands;
 
   /**
    * The callbacks the cells use, read through a ref rather than closed over.
@@ -120,15 +121,15 @@ export function usePlanDependencies({
       // chips and the reasons have to survive. This loop therefore collects
       // every answer before choosing its aggregate recovery scope.
       void (async () => {
-        const owner = api;
-        const isCurrent = () => activeApi.current === owner;
+        const owner = commands;
+        const isCurrent = () => activeCommands.current === owner;
         busy.raise();
         const refused: string[] = [];
         let ambiguous = false;
         try {
           for (const predecessor of found) {
             try {
-              await api.addDependency(successorId, predecessor.id);
+              await commands.addDependency(successorId, predecessor.id);
             } catch (thrown: unknown) {
               // Collected rather than rethrown, so one refusal does not abandon
               // the numbers after it. The reason is be-01's own word — `cycle`,
@@ -166,13 +167,14 @@ export function usePlanDependencies({
         // Proof: split into one push per line, `reports every refused
         // dependency in one toast, not one each` failed with two. Watched,
         // 2026-08-06.
-        // The refusal belongs to the API that answered it, not merely the
-        // project id a replacement API may also serve.
+        // The refusal belongs to the commands that sent it — this client and
+        // this project — not merely the project id a replacement client may
+        // also serve.
         if (isCurrent() && problems.length > 0)
           pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [activeApi, api, busy, flat, pushToast, refreshOrMarkStale],
+    [activeCommands, busy, commands, flat, pushToast, refreshOrMarkStale],
   );
 
   /**
@@ -203,10 +205,10 @@ export function usePlanDependencies({
         current === null ? null : { ...current, typed: '', highlightId: null },
       );
       return run((write) =>
-        write.perform(['tree'], () => api.addDependency(successorId, predecessorId)),
+        write.perform(['tree'], () => commands.addDependency(successorId, predecessorId)),
       );
     },
-    [api, run, setDepPicker],
+    [commands, run, setDepPicker],
   );
 
   /** Moves the picker highlight by `delta` over `entryIds`, clamped. */

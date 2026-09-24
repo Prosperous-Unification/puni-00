@@ -23,10 +23,9 @@ import {
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
-import { calendarMarkersForReader } from '@/modules/calendar-markers/composition';
 import type { CalendarMarkerRefusal } from '@/modules/calendar-markers/contract';
 import { type Channel, createChannel } from '@/modules/channel';
-import { planFeedForReader } from '@/modules/plan-feed/composition';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { PlanFeed, PlanFeedRefusal } from '@/modules/plan-feed/contract';
 import {
   createDeliveredPlan,
@@ -36,6 +35,7 @@ import {
 import { type BusyWrites, createBusy } from '@/modules/plan-writer/busy-store';
 import type { PlanWriteRefusal } from '@/modules/plan-writer/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
+import type { ProjectServices } from '@/modules/project/contract';
 
 import { type CellCards } from './cell-card-store';
 import type { FocusIntent } from './live-editing';
@@ -466,7 +466,8 @@ export function usePlanRead({
   setDrafts,
   projectId,
   activeProject,
-  api,
+  projectServices,
+  commands,
   plan,
   treeReadProject,
   rowPlacements,
@@ -481,7 +482,14 @@ export function usePlanRead({
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   projectId: string;
   activeProject: React.RefObject<string>;
-  api: ProjectApi;
+  /**
+   * The project's services over the table's client. Its identity is the
+   * client's, and it is what every guard below compares where it compared the
+   * client before.
+   */
+  projectServices: ProjectServices;
+  /** This project's commands, bound to it. */
+  commands: PlanCommands;
   plan: DeliveredPlanStore;
   treeReadProject: React.RefObject<string | null>;
   rowPlacements: React.RefObject<ReadonlyMap<string, string>>;
@@ -496,8 +504,8 @@ export function usePlanRead({
   commandsIssued: Channel<undefined>;
 }) {
   const feedRef = useRef<PlanFeed | null>(null);
-  const activeApi = useRef(api);
-  activeApi.current = api;
+  const activeServices = useRef(projectServices);
+  activeServices.current = projectServices;
 
   // Joined before the feed below starts reading, which is a passive effect of
   // this same commit: see `useChannelListener`.
@@ -635,11 +643,11 @@ export function usePlanRead({
    * finds no owner rather than a disposed one.
    */
   useEffect(() => {
-    const feed = planFeedForReader({
+    const feed = projectServices.planFeedFor({
       projectId,
-      routes: api,
       subscribe,
-      isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
+      isActiveReader: () =>
+        activeProject.current === projectId && activeServices.current === projectServices,
       plan,
       refusals,
     });
@@ -648,7 +656,7 @@ export function usePlanRead({
       if (feedRef.current === feed) feedRef.current = null;
       feed.close();
     };
-  }, [activeProject, api, plan, projectId, refusals, subscribe]);
+  }, [activeProject, plan, projectId, projectServices, refusals, subscribe]);
 
   /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
   const refreshResourcesOrMarkStale = useCallback(
@@ -657,10 +665,15 @@ export function usePlanRead({
       // The reader this callback was built for, and not whoever is on screen
       // now: a reread issued from a project or an API this reader has left must
       // not be spent against the feed that replaced it.
-      if (feed === null || activeProject.current !== projectId || activeApi.current !== api) return;
+      if (
+        feed === null ||
+        activeProject.current !== projectId ||
+        activeServices.current !== projectServices
+      )
+        return;
       await feed.rereadResources(resources);
     },
-    [activeProject, api, projectId],
+    [activeProject, projectId, projectServices],
   );
 
   /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
@@ -686,17 +699,17 @@ export function usePlanRead({
    */
   const markers = useMemo(
     () =>
-      calendarMarkersForReader({
+      projectServices.calendarMarkersFor({
         projectId,
-        api,
         readRefreshOwner: () => feedRef.current?.owner ?? null,
-        isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
+        isActiveReader: () =>
+          activeProject.current === projectId && activeServices.current === projectServices,
         // Proof: on 2026-09-24, `() => undefined` here failed `rereads a marker refused because a peer
         // already deleted it` on `the given combination of arguments (undefined and string) is invalid
         // for this assertion`: no toast was there to hold `no longer`.
         announceRefusal: refusals.publish,
       }),
-    [activeProject, api, projectId, refusals],
+    [activeProject, projectId, projectServices, refusals],
   );
 
   /**
@@ -709,7 +722,8 @@ export function usePlanRead({
     () =>
       createPlanWriter({
         readRefreshOwner: () => feedRef.current?.owner ?? null,
-        isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
+        isActiveReader: () =>
+          activeProject.current === projectId && activeServices.current === projectServices,
         rereadResources: refreshResourcesOrMarkStale,
         busy: busyWrites,
         commandsIssued,
@@ -717,10 +731,10 @@ export function usePlanRead({
       }),
     [
       activeProject,
-      api,
       busyWrites,
       commandsIssued,
       projectId,
+      projectServices,
       refreshResourcesOrMarkStale,
       refusals,
     ],
@@ -746,12 +760,12 @@ export function usePlanRead({
         owner !== null &&
         feedRef.current?.owner === owner &&
         activeProject.current === projectId &&
-        activeApi.current === api;
+        activeServices.current === projectServices;
       busyWrites.raise();
       try {
         let outcome;
         try {
-          outcome = direction === 'undo' ? await api.undo(projectId) : await api.redo(projectId);
+          outcome = direction === 'undo' ? await commands.undo() : await commands.redo();
         } catch (thrown: unknown) {
           if (!isCurrent()) return;
           // The same register as `run`: be-01's two *modeled* refusals are read
@@ -786,7 +800,15 @@ export function usePlanRead({
         if (isCurrent()) busyWrites.lower();
       }
     },
-    [activeProject, api, busyWrites, projectId, pushToast, refreshOrMarkStale],
+    [
+      activeProject,
+      busyWrites,
+      commands,
+      projectId,
+      projectServices,
+      pushToast,
+      refreshOrMarkStale,
+    ],
   );
   return { refreshOrMarkStale, run: writer.run, stepStack, markers };
 }

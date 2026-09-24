@@ -413,3 +413,12 @@ route's own promise. What a reader sees SHALL NOT change.
 - **THEN** the write reaches that route with the project bound first and the
   other arguments exactly as given, the caller receives the route's own promise,
   and a replaced route is the one called
+
+#### Scenario: The table's gestures write through the project's commands
+
+- **WHEN** a gesture in the table, its toolbar, a settings panel or a column
+  writes to the plan, or the answer to a typed dependency list arrives after the
+  table was handed another client
+- **THEN** the write goes through the commands bound to the table's project and
+  the plan is read through the feed the composition root opened, and the late
+  answer lowers no busy state and announces nothing
