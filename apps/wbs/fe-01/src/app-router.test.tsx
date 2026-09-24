@@ -3,6 +3,9 @@ import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
+import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
+import { installProjectRuntime } from '@/runtime/project-runtime';
+import { installSessionRuntime, type SessionRuntime } from '@/runtime/session-runtime';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { refusingApi } from '@/testing/refusing-api';
 
@@ -66,10 +69,24 @@ function emptyProjects(): ProjectApi {
   });
 }
 
+/**
+ * A signed-in session's runtime over a fake directory, never withdrawn: these
+ * cases are about routing, and the session owner has its own suites.
+ */
+const signedIn = (): SessionRuntime =>
+  installSessionRuntime({
+    userId: 'u1',
+    directoryApi: fakeDirectoryApi(),
+    isCurrent: () => true,
+    installProject: installProjectRuntime,
+    budgetMs: 1_000,
+  }).services;
+
 /** The signed-in region entered at one address, the way a reload enters it. */
 const regionAt = (path: string) =>
   render(
     <AppRouter
+      session={signedIn()}
       token="t"
       presence={() => null}
       account={<span>account menu</span>}
@@ -189,4 +206,44 @@ describe('the signed-in region, routed', () => {
     );
     expect(screen.getByRole('link', { name: 'Plan' }).getAttribute('aria-current')).toBeNull();
   });
+
+  /**
+   * The project page opens its project through the session's own owner, which
+   * is what lets the session's retirement retire the project first.
+   */
+  itDom(
+    'opens the selected project through the signed-in session’s own project owner',
+    async () => {
+      const session = signedIn();
+      const oneProject = emptyProjects();
+      oneProject.listProjects = () =>
+        Promise.resolve([
+          {
+            id: 'p1',
+            name: 'Rewire the shed',
+            restricted: false,
+            startDate: null,
+            lastOpenedAt: null,
+            ownerName: 'kat',
+            createdAt: 0,
+          },
+        ]);
+      oneProject.openProject = () => Promise.resolve();
+      render(
+        <AppRouter
+          session={session}
+          token="t"
+          presence={() => null}
+          account={<span>account menu</span>}
+          projectApi={oneProject}
+          history={createMemoryHistory({ initialEntries: ['/'] })}
+        />,
+      );
+
+      await waitFor(() => {
+        const opened = session.projects.snapshot();
+        expect(opened.status === 'live' ? opened.services.projectId : opened.status).toBe('p1');
+      });
+    },
+  );
 });

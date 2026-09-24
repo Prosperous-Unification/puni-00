@@ -16,8 +16,21 @@ const NOTHING_YET: DirectorySnapshot = {
 /** The fields the store contract's stability rule is judged over, by identity. */
 const FIELDS = ['people', 'teams', 'tags', 'services', 'workItemTypes', 'busy', 'problem'] as const;
 
-/** Builds the directory over one client. Nothing is read until `read` is called. */
-export function createDirectory(client: DirectoryApi): DirectoryResource {
+/**
+ * Builds the directory over one client. Nothing is read until `read` is called.
+ *
+ * `isActiveReader` is the owner's answer to "is the reader this directory was
+ * built for still the one on screen", asked synchronously at the moment
+ * anything happens. Once it says no, the directory is **withdrawn**: a read or a
+ * write asked of it sends nothing, and an answer that lands afterwards — a late
+ * read, a write's refetch, a refusal — changes nothing a reader could see. The
+ * session runtime wires it to its own currency; a directory no lifetime owns is
+ * handed one that always says yes.
+ */
+export function createDirectory(
+  client: DirectoryApi,
+  isActiveReader: () => boolean,
+): DirectoryResource {
   // A `let` and not a parameter read directly, so `replaceClient` can point every
   // closure below at a different client without rebuilding any of them — which is
   // what keeps the snapshot across a replacement.
@@ -33,6 +46,10 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
    * a React render would fail the cached-snapshot check outright.
    */
   const show = (next: Partial<DirectorySnapshot>): void => {
+    // Proof: on 2026-09-24, deleting this guard (m3) failed the model test `keys one runtime by
+    // user, …` (seed 20260924) at run 2, `signIn(u2, ''),read(0),signIn(u1, ''),reenter(u1)`: s1's
+    // directory changed after it was withdrawn.
+    if (!isActiveReader()) return;
     const merged: DirectorySnapshot = { ...shown, ...next };
     // Proof: deleting this early return made `a refusal that says nothing new
     // replaces no snapshot and wakes nobody` fail its object-identity assertion.
@@ -86,6 +103,10 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
   };
 
   const read = async (): Promise<void> => {
+    // Proof: on 2026-09-24, deleting this guard (m4) failed the model test `keys one runtime by
+    // user, …` (seed 20260924) at run 1, `signIn(u1, ''),signOut,read(0)`: withdrawn s1 sent a
+    // request, `expected 5 to be +0`.
+    if (!isActiveReader()) return;
     const generation = latestRead + 1;
     latestRead = generation;
     const [foundPeople, foundTeams, foundTags, foundServices, foundWorkItemTypes] =
@@ -117,6 +138,10 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
   };
 
   const runWrite = (change: () => Promise<void>): Promise<void> => {
+    // Proof: on 2026-09-24, deleting this guard (m5) failed the model test `keys one runtime by
+    // user, …` (seed 20260924) at run 1, `signIn(u1, ''),signIn(u2, ''),gesture(0)`: withdrawn s1
+    // sent a request, `expected 1 to be +0`.
+    if (!isActiveReader()) return Promise.resolve();
     const ran = (async () => {
       show({ busy: true, problem: null });
       try {

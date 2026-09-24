@@ -6,10 +6,10 @@ import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
 import type { PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
-import { ProjectPage } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
 import { type SubscriptionHandlers } from './wbs-table';
 
@@ -710,7 +710,12 @@ describe('project optimization in the plan', () => {
       const socket = fakeSocket();
 
       render(
-        <ProjectPage token="t" api={api} savedPlansDeps={SHELF_OFF} streamDeps={socket.deps} />,
+        <ProjectPageOverOwner
+          token="t"
+          api={api}
+          savedPlansDeps={SHELF_OFF}
+          streamDeps={socket.deps}
+        />,
       );
       await waitFor(() => {
         expect(indicatorWords()).toContain('Priority-first: Optimizing…');
