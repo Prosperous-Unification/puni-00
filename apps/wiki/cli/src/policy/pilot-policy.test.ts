@@ -40,6 +40,7 @@ const pilotPaths = [
   'libs/wbs/application/core/src/module/calendar-marker/README.md',
   'libs/wbs/application/core/src/module/capacity/README.md',
   'libs/wbs/application/core/src/module/directory/README.md',
+  'libs/wbs/application/core/src/module/plan-commands/README.md',
   'libs/wbs/application/core/src/module/plan-history/README.md',
   'libs/wbs/application/core/src/module/priority-band/README.md',
   'libs/wbs/application/core/src/module/project/README.md',
