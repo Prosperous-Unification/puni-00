@@ -66,8 +66,10 @@ export const NODE_SUITES: readonly string[] = [
   'src/modules/channel.model.test.ts',
   'src/modules/directory-management/directory-management.feature.test.ts',
   'src/modules/directory/directory.resource.test.ts',
+  'src/modules/plan-feed/delivered-plan-store.model.test.ts',
   'src/modules/plan-feed/plan-feed.feature.test.ts',
   'src/modules/plan-feed/plan-feed.resource.test.ts',
+  'src/modules/plan-feed/presence-store.model.test.ts',
   'src/modules/plan-writer/busy-store.model.test.ts',
   'src/modules/plan-writer/plan-writer.test.ts',
   // Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed
