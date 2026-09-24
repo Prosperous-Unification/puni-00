@@ -1514,3 +1514,66 @@ is pinned` failed with `historical policy selector or baseline` 49 to 51, `occur
 - Directory still imports `service/clean-name.ts` and `service/directory-usage.ts` (task 6.1);
   delivery, Plan import, Plan commands and Saved plans still name the two resources directly (K2,
   task 7.4).
+
+### Resource module registration, Slice 4 — 2026-09-24
+
+- The slice started from `base=31de48bb14ddc5e646e6bc3eec79c9aba31fef81` on a clean tree, with
+  `module/directory/module.ts` last changed by `31de48bb14ddc5e646e6bc3eec79c9aba31fef81`, `M=12`
+  pilot modules and `B=12` boundaries. The frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7` lists, each `100644 blob`:
+  `1e36dc086592483df3c5facd52dc756c00a46b08` `libs/core/src/service/calendar-marker.service.ts`,
+  `ae86655ecd969b4016c1b9b96fb5eb60dec35a96` `libs/core/src/service/capacity.service.ts`,
+  `8deae4ad476af259c2ecc4b90345557dca80eab3` `libs/core/src/service/directory.service.ts`,
+  `b9c1342e6c7f0e112a0538c19eb4ad47359386cc` `libs/core/src/service/priority-band.service.ts`,
+  `1b40cb91901c693b8a9e9970b938e7327954988b` `libs/core/src/service/project.service.ts` and
+  `1e53de89b1d4f1b1ebf901696bdf36dbfc6d1944` `libs/core/src/service/step.service.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0
+  (`slice4-typecheck-baseline.log`, `slice4-burokrat-lint-source-baseline.log`,
+  `slice4-devsync-lint-baseline.log`); `pilot-policy.test.ts` passed `T=21` tests with `TF=0`
+  failures and `P=299` `expect()` calls (`slice4-pilot-baseline.log`); the legacy pin passed,
+  1 pass (`slice4-legacy-pin-baseline.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`openspec-validation.slice4-baseline.hRVz3X.json`).
+- Registration, each step run with `-t "pins exact pre-index tuples"` (the test
+  `pins exact pre-index tuples and passes observe lint from external trust`), each patch and log
+  under the same basename:
+  - Rows 63-65, Calendar marker: row alone (`slice4-calendar-marker-1-row-red`) failed at
+    `pilot-policy.test.ts:377`, `Expected: 12`, `Received: 13`, 24 `expect()` calls; with the
+    boundary (`slice4-calendar-marker-2-boundary-red`) at `:414`, `Expected: true`,
+    `Received: false`, 28 calls; with the index (`slice4-calendar-marker-3-index-green`) 1 pass,
+    34 calls.
+  - Rows 66-68, Capacity: `:378` `Expected: 13` / `Received: 14`, 25 calls
+    (`slice4-capacity-1-row-red`); `:415` `Expected: true` / `Received: false`, 29 calls
+    (`slice4-capacity-2-boundary-red`); 1 pass, 35 calls (`slice4-capacity-3-index-green`).
+  - Rows 69-71, Directory: `:379` `Expected: 14` / `Received: 15`, 26 calls
+    (`slice4-directory-1-row-red`); `:416` `Expected: true` / `Received: false`, 30 calls
+    (`slice4-directory-2-boundary-red`); 1 pass, 36 calls (`slice4-directory-3-index-green`).
+  - Rows 72-74, Priority band: `:380` `Expected: 15` / `Received: 16`, 27 calls
+    (`slice4-priority-band-1-row-red`); `:417` `Expected: true` / `Received: false`, 31 calls
+    (`slice4-priority-band-2-boundary-red`); 1 pass, 37 calls
+    (`slice4-priority-band-3-index-green`).
+  - Rows 75-77, Project: `:381` `Expected: 16` / `Received: 17`, 28 calls
+    (`slice4-project-1-row-red`); `:418` `Expected: true` / `Received: false`, 32 calls
+    (`slice4-project-2-boundary-red`); 1 pass, 38 calls (`slice4-project-3-index-green`).
+  - Rows 78-80, Step: `:382` `Expected: 17` / `Received: 18`, 29 calls
+    (`slice4-step-1-row-red`); `:419` `Expected: true` / `Received: false`, 33 calls
+    (`slice4-step-2-boundary-red`); 1 pass, 39 calls (`slice4-step-3-index-green`).
+  - Every red was 0 pass, 20 filtered out, 1 fail; every green 1 pass, 20 filtered out, 0 fail.
+- Green (row 81): the whole pilot file passed `T=21` tests, `TF=0` failures and `P + 6 = 305`
+  `expect()` calls (`slice4-pilot-whole-green.log`); the prose-refusal pin did not move.
+- Legacy pin red, pin unchanged (row 82): `every legacy source occurrence and relevant text family
+is pinned` failed with `historical policy selector or baseline` 51 to 63, `occurrences` 269 to
+  281 and the digest `113681cd…` to
+  `5864733ccd1d50e0a81c9c0f71b3bb20a46565ed4200f417ed0b9b1d56f9a5e2`, `Expected  - 3` /
+  `Received  + 3`; 0 pass, 14 filtered out, 1 fail (`slice4-legacy-pin-red.log`). After the
+  re-pin (`slice4-legacy-repin.patch`) it passed, 1 pass (row 83, `slice4-legacy-pin-green.log`);
+  its Proof comment followed (`slice4-legacy-proof.patch`). No other pinned literal moved.
+- Task records (`slice4-tasks.patch`): 5.1 noted and left unticked (Work item remains, packet E8),
+  7.5 extended.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice4-typecheck-after.log`,
+  `slice4-burokrat-lint-source-after.log`, `slice4-devsync-lint-after.log`); the legacy pin
+  passed, 1 pass (`slice4-legacy-pin-after.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`openspec-validation.slice4-after.kBRY5m.json`); `M=18`, `B=18`. The whole
+  `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
+  objects).
