@@ -27,14 +27,21 @@ drafts, the boxes being typed into, the open confirmation and the chip focus —
 
 ## Relationships
 
-The exported types are in `contract.ts`; the service is `directory-management.feature.ts`;
-`composition.ts` is the one site that sees this module, the resource module and the HTTP client at
-once; `view/use-directory-management.ts` is the React adapter its one host reads it through. That
-host is `apps/wbs/fe-01/src/components/directory/directory-page.tsx`. There is no `module.ts` yet:
-DI Bag is not installed.
+The exported types are in `contract.ts`; the service is `directory-management.feature.ts`.
+`module.ts` is the sealed DI Bag module: it exports `directoryManagement`, keeps the `directory`
+resource private under the `frontend.directory-management` label, and requires `directoryApi` and
+`isActiveReader` from its host. That host is the session runtime,
+`apps/wbs/fe-01/src/runtime/session-runtime.ts`, which installs it once per signed-in user over the
+client cut from that user's credential and withdraws it with the session. Delivery receives
+`DirectoryManagement` through router context; `view/use-directory-management.ts` is the React
+adapter its one page, `apps/wbs/fe-01/src/components/directory/directory-page.tsx`, reads it through.
+The page's suite draws the page over a client of its own with
+`apps/wbs/fe-01/src/testing/directory-page-over-client.tsx`.
+
+This module carries no `module-index` block yet; adding one is OpenSpec task 12's.
 
 ## Checks
 
-The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's own suite is
-`directory-management.feature.test.ts`. The behaviour this extraction preserves is proved by
+The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's own suites are
+`directory-management.feature.test.ts` and `module.test.ts`. The behaviour this extraction preserves is proved by
 `apps/wbs/fe-01/src/components/directory/directory-page.test.tsx`, in the `test` target.

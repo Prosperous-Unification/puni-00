@@ -103,3 +103,32 @@ export interface DirectoryManagement extends Store<DirectorySnapshot> {
    */
   readonly confirmRemoval: (kind: DirectoryKind, id: string, whenGone: () => void) => void;
 }
+
+/**
+ * What a host must register to install this module: the client of the session
+ * the directory belongs to, and that session's own answer to whether its reader
+ * is still on screen.
+ *
+ * Requirements rather than private bindings, so that a host which forgets one
+ * is told which module asked — see {@link DIRECTORY_MANAGEMENT_LABEL}. There is
+ * no default for either: the client carries the session's credential, and a
+ * directory that cannot be withdrawn is one a signed-out reader could still
+ * read and write through.
+ */
+export interface DirectoryManagementRequirements {
+  readonly directoryApi: DirectoryApi;
+  readonly isActiveReader: () => boolean;
+}
+
+/**
+ * The DI Bag label this module's private bindings are named under.
+ *
+ * `frontend` is the runtime segment, not a ring: a module under an app is named
+ * by where it runs, so the wiki module identifier is
+ * {@link DIRECTORY_MANAGEMENT_MODULE_ID} and the label drops the `module.`
+ * prefix.
+ */
+export const DIRECTORY_MANAGEMENT_LABEL = 'frontend.directory-management';
+
+/** The wiki module identifier, which the module index will declare. */
+export const DIRECTORY_MANAGEMENT_MODULE_ID = 'module.frontend.directory-management';
