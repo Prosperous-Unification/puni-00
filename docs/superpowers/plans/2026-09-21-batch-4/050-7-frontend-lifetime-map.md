@@ -102,6 +102,8 @@ Hazards:
 - a project provider around only `WbsTable` strands the roster and saved-plan shelf outside their owner;
 - awaiting an unbounded close before installing the replacement can leave the selected page permanently blank on a stuck disposer. The packet needs an explicit, tested transition policy using DI Bag's bounded-wait semantics, without claiming that a timed-out cleanup stopped.
 
+Update, observed <observed-date-j> (050.7j, OpenSpec task 10, not yet closed): the project owner is `ProjectPage`'s, built over one lifetime slot by `createProjectOwner` in `apps/wbs/fe-01/src/runtime/project-runtime.ts`, above the header and the table. Its effect opens a DI Bag project runtime per selected project — delivered plan, busy, presence, both channels, feed, marker gestures, writer and commands — withdraws it synchronously on a switch, an unmount or Strict Mode's re-entry, and retires it once; a failed retirement shows the sanitized fatal state in place of the page's main. The table receives `ProjectRuntime` and opens nothing. Presence now resets on a switch. Saved plans are not yet in the runtime: the shelf keeps its own keyed watch, and the saved-plans prerequisite above stands.
+
 ## Narrow context and K2 resolution
 
 Contexts contain readonly service interfaces, never construction inputs or infrastructure.

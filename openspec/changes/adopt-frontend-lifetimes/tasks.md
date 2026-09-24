@@ -103,6 +103,16 @@
       feed's owner reads, stay task 10's.
 - [ ] 10. The project runtime owns feed, writer, markers and saved plans for one
       selected project, replacing the per-effect ownership under `WbsTable`.
+      Moved by 050-7-j, observed <observed-date-j>: one DI Bag project runtime
+      (`apps/wbs/fe-01/src/runtime/project-runtime.ts`) owns the selected
+      project's delivered plan, busy, presence, refusal and command-issued
+      channels, feed, marker gestures, writer and commands, and one project owner
+      in `ProjectPage` opens it per selected project, withdraws it the instant the
+      selection moves or the page goes, and retires it once; the table receives
+      `ProjectRuntime` and opens and closes nothing. Presence is now reset by a
+      project switch. This box stays unchecked for the one outcome still owed:
+      saved plans, whose shelf keeps its own keyed watch and has no feature facade
+      yet — the lifetime map's saved-plans prerequisite.
 - [ ] 11. Project switch, route unmount and Strict Mode re-entry each replace all
       project ownership; a stale completion changes nothing.
 - [ ] 12. Each module has its own isolated type check and its graph check, and every

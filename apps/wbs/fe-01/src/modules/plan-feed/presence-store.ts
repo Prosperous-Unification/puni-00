@@ -26,8 +26,8 @@ export interface Presence {
  * every presence frame is a new list, and a frame is a change.
  *
  * Plain TypeScript with no lifetime of its own (rule F1): nothing closes it and
- * no call on it throws a lifecycle refusal. One store per selected project; the
- * page holds it today and the project runtime of OpenSpec task 10 takes it over.
+ * no call on it throws a lifecycle refusal. One store per selected project,
+ * held by that project's runtime (`runtime/project-runtime.ts`).
  */
 export interface PresenceStore extends Store<Presence> {
   readonly reportUsers: (users: readonly string[]) => void;
