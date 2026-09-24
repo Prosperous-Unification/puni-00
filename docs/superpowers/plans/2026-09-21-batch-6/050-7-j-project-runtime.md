@@ -6,7 +6,7 @@
 | Size class  | M — three slices, each one executor attempt                                                                                                                                                                                                                                                                         |
 | Predecessor | [050.7h](050-7-h-project-api-ports.md) — `ProjectServices`, `PlanCommands` and the project composition root, and its section 12, "Hand-over to the next packet"                                                                                                                                                     |
 | Advances    | OpenSpec task **10** of `adopt-frontend-lifetimes` — **not ticked**: every service it names but saved plans moves into the project runtime, and the box stays unchecked with a dated note naming saved plans as the outcome still owed (section 3.8). Item 4 of the lifetime map's "Required implementation order". |
-| Revision    | First.                                                                                                                                                                                                                                                                                                              |
+| Revision    | Second. Round 1 said READY AFTER FIXES; section 16 disposes of its findings.                                                                                                                                                                                                                                        |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. One new requirement with three scenarios, one per slice; packet g's presence scenario amended in slice 3; task 10 annotated, not ticked.                                                                                                            |
 
 ## 1. Goal, non-goals, and the cut
@@ -44,7 +44,7 @@ commit (one page test's synchronous query becomes a `waitFor`, section 3.7).
 1. **The runtime and its owner**, plain TypeScript with node-tier tests and no React:
    `runtime/project-runtime.ts` (`installProjectRuntime`, `createProjectOwner`), `ProjectRuntime` in
    the project contract, the owner's model test and six examples. Delivery changes by one type
-   import. This slice carries the state machine and its eight model faults.
+   import. This slice carries the state machine and its ten model faults.
 2. **Delivery**: the table takes `project: ProjectRuntime`; the page opens and leaves the runtime
    through `createProjectOwner`; the seventeen table suites draw through a test fixture,
    `WbsTableOverClient`, by a script (256 sites); four named test edits; two new page examples.
@@ -91,7 +91,10 @@ the budget (the owner becomes terminally fatal).
 
 **Events** the model generates: `open(p1|p2)`, `leave`, one scheduled answer, all answers (`drain`),
 a stream frame to any runtime ever built (`change`, `connect`, `disconnect`, `presence`), a captured
-`reread` and a captured marker `add` from any runtime ever built. Each runtime gets its own fake
+`reread` and a captured marker `add` from any runtime ever built; `reenter(p1|p2)` — an `open` issued
+from **inside the owner's own next notification**, as a component re-rendered by the owner's store
+would issue it — and `openBroken(p1|p2)`, an `open` whose installer opens the feed and then raises
+**`PartialAcquisitionError`** because its commands cannot be built. Each runtime gets its own fake
 client and stream, so every request, frame and close is attributed to the runtime that made it; each
 runtime's close waits on one scheduled step before the real close runs, which is what opens the
 interval between withdrawal and disposal in which late work can still arrive.
@@ -110,15 +113,28 @@ back out of the owner:
   runtime sends no request.
 - **P5 — once.** When everything has settled, every runtime but the live one had its feed closed
   exactly once and its stream, if it opened one, unsubscribed exactly once; the live one neither;
-  no runtime opened two streams.
+  no runtime opened two streams; an unbuildable runtime's feed was given back once per time its
+  installer ran.
 - **P6 — the latest wins.** When everything has settled the owner is `live` with the last project
-  opened, or `empty` after a `leave`. (No disposal fails in the model; failure is the slot's own
-  model's and two examples', section 3.3.)
+  opened; `fatal`, **not** terminal, when the last request could not be built; `empty` after a
+  `leave` — or, in a run where some request could not be built, `empty` or non-terminal `fatal`,
+  because a retirement asked of a slot a failed construction left `fatal` holds nothing and changes
+  nothing, and which request built last is the scheduler's choice.
+- **P7 — every transition settles.** No `open` or `leave` rejects: every refusal in the model comes
+  from the owner's own runtimes or from supersession, and the owner classifies both as modelled
+  outcomes (section 3.3). A rejection reaches the teardown and fails the property.
+
+What the owner's model does **not** generate, and where it is covered instead: a disposal that
+rejects or outruns its budget (the model's close is the real one behind one scheduled step and never
+fails), and a request issued from inside the **installer** itself. Both are
+`lifetime-slot.model.test.ts`'s (`disposal: 'rejects' | 'never'` under a 1 ms budget, `reentry:
+'factory'`), and the owner's handling of a failed retirement is the example `o2`'s.
 
 Interleavings counted over the pinned run and asserted non-zero: an answer landing after its runtime
 was withdrawn; a frame to a withdrawn runtime; a reread and a marker gesture by a withdrawn runtime;
 a `leave` with nothing current; reopening the project already asked for; a switch while live; a
-stream opened.
+stream opened; an `open` issued from inside a notification; an unbuildable installer run; a `leave`
+in a run with an unbuildable request.
 
 ### 3.2 The runtime — `installProjectRuntime`
 
@@ -145,12 +161,25 @@ eleven keys (fault `k1`). No bag, client, port, refresh owner or stream is reach
 ### 3.3 The owner — `createProjectOwner`
 
 `open(projectId, source)` is `slot.replace(() => install(...))`, `leave()` is `slot.retire()`. What
-the owner adds to the slot is **identity**: each runtime is handed
-`isCurrent = () => slot.snapshot() is live with this very runtime`, so a runtime replaced by another
-project's is not current although the slot is live again (fault `m1`). Both methods **settle** as
-modelled outcomes: superseded is controlled cancellation (fault `o1`), a refusal the slot already
-turned `fatal` is shown, not thrown (fault `o2`); anything else is rethrown with its cause. The page
-therefore `void`s them. `install` and the budget are injectable for tests; production passes neither.
+the owner adds to the slot is **identity** and **classification**.
+
+- Identity: each runtime is handed `isCurrent = () => slot.snapshot() is live with this very
+runtime`, so a runtime replaced by another project's is not current although the slot is live
+  again (faults `m1`, `m9`).
+- Classification, **by the refusal itself**: the owner wraps its installer and each runtime's close
+  and records, by identity, every failure that leaves one of its own runtimes — a construction that
+  throws (a `PartialAcquisitionError` is rewrapped so its release is recorded too), a release that
+  rejects, a retirement that rejects. The slot publishes `fatal` for each of these before it
+  rethrows it, so `settle` resolves for a recorded refusal (faults `o2`, `o3`, `m10`) and for
+  `TransitionSupersededError` (fault `o1`), and rethrows anything else with its cause: a fault of the
+  slot itself. It no longer reads `slot.snapshot()` after the rejection, which a request issued in
+  between may already have moved from `fatal` to `constructing` (round-1 review, Important 2). The
+  earlier snapshot-reading form was rehearsed against the model with `reenter` and `openBroken` and
+  **passed** — the ordering accident the review traced holds under every generated interleaving —
+  so the change is recorded as removing a dependence on ordering, not as fixing an observed failure.
+
+The page therefore `void`s both methods. `install` and the budget are injectable for tests;
+production passes neither.
 
 The slot's own guarantees — synchronous withdrawal, one transition at a time, superseded requests
 build nothing, a failed or expired retirement is terminal, a failed construction releases what it
@@ -217,6 +246,17 @@ anchors`, and g's `hands the presence slot who the project’s stream says is he
 
 - **Task 10 is not done**: saved plans are not in the runtime. The box stays unchecked with a dated
   note; the owner task is task 10 itself, behind the lifetime map's saved-plans facade prerequisite.
+- **One feed, one owner.** `createPlanReading` calls `openOwner()` exactly once per feed
+  (`modules/plan-feed/plan-feed.resource.ts`, `const owner = openOwner();`), and a runtime has one
+  feed, so a feed never renews its refresh owner and "the same reader renewing its coordinator" no
+  longer exists: a new stream source is a new runtime. That is what makes the retitled test in
+  section 3.7 honest, and it is the fact `plan-writer.feature.ts`'s stale note and task 11's
+  follow-up should cite.
+- **The undo stack's guard is simplified, not carried.** It was `owner !== null &&
+feedRef.current?.owner === owner && activeProject.current === projectId &&
+activeServices.current === projectServices`; it is `project.isCurrent`. The captured-owner half is
+  dropped because it is equivalent under one owner per feed, and `readRefreshOwner` answers `null`
+  once the runtime is withdrawn.
 - **Carried, not proved.** The writer's `isActiveReader: isCurrent` inside the runtime: removing it
   was rehearsed against `does not spend an old API success against its busy replacement` and the
   test **passed** — busy stores are per runtime now, so an old gesture lowering its own runtime's busy
@@ -238,8 +278,16 @@ undefined` for `announceRefusal`) goes with the memo; the check is the runtime's
   `isCurrent()` suppressed the valid toast after a same-reader subscription renewal" no longer
   describes an observable case (the renewal is a new runtime now); that file is out of lane and the
   note is left for task 11.
-- **No lifecycle-failure reporter.** A project fatal state is drawn, not logged; the application
-  bootstrap's console report covers only the application's own slot.
+- **No lifecycle-failure reporter, and one fatal nobody sees.** On a switch a project fatal state is
+  drawn, not logged. On **route unmount** and on **Strict Mode's cleanup** the page's effect cleanup
+  calls `void projectOwner.leave()`; if that retirement fails, `settle` resolves (it is a modelled
+  refusal), the page that would draw the fatal state is gone, and nothing logs it — the failure is
+  invisible, which rule R5 does not accept. **No code change here, by choice:** the application
+  bootstrap's console report (`showFatal` in `application-bootstrap.tsx`) is local to that function
+  and reports the application slot's own fault; exporting a seam from it is a change to the
+  application lifetime, not one line. Named residual, owned by task 7 (Log out) and task 11: route
+  the project owner's terminal fault to the application's lifecycle report, or make the session's
+  retirement join and report the project's (section 12).
 - **`LifetimeFault`'s wording** ("Nothing here can put it back — reload") is exact for a failed
   retirement, which is terminal; for a failed construction, which is not terminal and which no
   production graph can produce today, picking another project would build again. Recorded, not
@@ -274,9 +322,9 @@ relatively.
 
 ### 4.2 The measured blast radius
 
-`git diff --stat a687bf38 <slice 3 rehearsal>`: **34 files, 1936 insertions, 583 deletions**; with
-`verify.md`, which only the executor writes, the slices own 35 paths. Slice 1 owns 8 (3 new),
-slice 2 owns 25 (1 new), slice 3 owns 10.
+`git diff --stat a687bf38 <slice 3 rehearsal>`: **34 files, 2078 insertions, 583 deletions**; with
+`verify.md`, which only the executor writes, the slices touch 35 distinct paths. Slice 1 owns 8 (3
+new), slice 2 owns 26 (1 new, and `project-runtime.ts` for one `Proof:` comment), slice 3 owns 10.
 
 | Tree            | Adopted set (20 files, serial) | Page and router | Sandbox node suite |
 | --------------- | ------------------------------ | --------------- | ------------------ |
@@ -431,7 +479,7 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 19
+test "$count" -eq 22
 # The twenty default-tier files that render the table or the page (packet f2's
 # adopted set), relative to apps/wbs/fe-01, for the serial "adopted" runs.
 printf '%s\n' src/app-router.test.tsx src/components/ui/page-shortcuts.test.tsx \
@@ -460,7 +508,7 @@ test "$(wc -l < "$TMPDIR/suites.txt")" -eq 17
 ````
 
 Expected: `patches=9`, `suites-over-client.ts lines=42`, `table-regions.ts lines=87`,
-`mutations=19`, exit 0. **Applying section 7.N** below always means exactly this, never a hand edit:
+`mutations=22`, exit 0. **Applying section 7.N** below always means exactly this, never a hand edit:
 
 ```sh
 set -euo pipefail
@@ -592,8 +640,8 @@ import "./project-runtime"`.
   An autofixable import-order or Prettier finding is fixed with `bunx eslint --fix <file>`, not
   reported as a stop (preamble rule 17).
 
-- [ ] 7. The fourteen proofs of section 8.1 (`m1`–`m8` on the model, `k1`, `k2`, `r1`, `r2`, `o1`,
-      `o2` on the examples), with section 8's procedure: every fault observed first, then the
+- [ ] 7. The seventeen proofs of section 8.1 (`m1`–`m10` on the model, `k1`, `k2`, `r1`, `r2`,
+      `o1`, `o2`, `o3` on the examples), with section 8's procedure: every fault observed first, then the
       `Proof:` comments at the sites the table names.
 - [ ] 8. Rerun the runtime pair (`s1-final-runtime`, step 5's command, 2 files, 7 tests) and step 0c's
       preferences and sandbox commands (`s1-final-*`): preferences unchanged, sandbox as step 5.
@@ -639,10 +687,10 @@ Planner commit subject: `feat(frontend): own the selected project's plan service
 
 ### Slice 2 — the table draws from the runtime, and the page owns it
 
-Owns (25 paths): `spec.md`, `verify.md`, and under `apps/wbs/fe-01/src/`:
+Owns (26 paths): `spec.md`, `verify.md`, and under `apps/wbs/fe-01/src/`:
 `modules/project/contract.ts`, `components/wbs/{use-plan-read.ts,wbs-table.tsx,project-page.tsx,
-project-page.test.tsx}`, `testing/wbs-table-over-client.tsx` (new), and the seventeen suites of
-`$TMPDIR/suites.txt`.
+project-page.test.tsx}`, `runtime/project-runtime.ts` (only the `w1` `Proof:` comment of step 7),
+`testing/wbs-table-over-client.tsx` (new), and the seventeen suites of `$TMPDIR/suites.txt`.
 
 - [ ] 1. Step 0, then the adopted set, the zoned suite and the page pair:
 
@@ -772,7 +820,7 @@ undefined (reading 'planCommandsFor')` — the table, handed a runtime, still as
 - [ ] 7. The one proof of section 8.2 (`w1`); the comment afterwards, in `project-runtime.ts`.
 - [ ] 8. Rerun the page pair (`s2-final-page`) and step 0c's preferences and sandbox commands
       (`s2-final-*`): unchanged from step 5.
-- [ ] 9. `verify.md` entry, then owned-file Prettier over the twenty-five paths from this list (step
+- [ ] 9. `verify.md` entry, then owned-file Prettier over the twenty-six paths from this list (step
       10 reuses it), then the strict OpenSpec block:
 
   ```sh
@@ -785,11 +833,12 @@ undefined (reading 'planCommandsFor')` — the table, handed a runtime, still as
       apps/wbs/fe-01/src/components/wbs/use-plan-read.ts \
       apps/wbs/fe-01/src/components/wbs/wbs-table.tsx \
       apps/wbs/fe-01/src/modules/project/contract.ts \
+      apps/wbs/fe-01/src/runtime/project-runtime.ts \
       apps/wbs/fe-01/src/testing/wbs-table-over-client.tsx \
       openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md \
       openspec/changes/adopt-frontend-lifetimes/verify.md
   } > "$TMPDIR/owned.txt"
-  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 25
+  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 26
   # shellcheck disable=SC2046 # fixed repository paths without spaces
   GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
   # shellcheck disable=SC2046
@@ -799,8 +848,8 @@ undefined (reading 'planCommandsFor')` — the table, handed a runtime, still as
   Expected: exit 0, and `All matched files use Prettier code style!` from the check.
 
 - [ ] 10. Hand over, with slice 1 step 10's block unchanged. Expected: the `diff` prints nothing and
-      exits 0 — twenty-four ` M` paths and one `??`
-      (`apps/wbs/fe-01/src/testing/wbs-table-over-client.tsx`).
+      exits 0 — twenty-five ` M` paths (`project-runtime.ts` among them, for its `w1` comment) and
+      one `??` (`apps/wbs/fe-01/src/testing/wbs-table-over-client.tsx`).
 
 Planner commit subject:
 `refactor(frontend): draw the table from the selected project's runtime, owned by the page`.
@@ -1035,15 +1084,18 @@ index d0c5be430..42a7834e0 100644
 The model test executes section 3.1: P1 and P2 after every `open` and `leave`, P1 and P3 after every
 other command, P4 inside `reread` and `mark`, P5 and P6 at teardown. Its counters of commands run
 and of the interleavings reached are asserted non-zero after the pinned run (`seed: 20260924`,
-`numRuns: 300`, fast-check 4.9.0).
+`numRuns: 300`, fast-check 4.9.0). Two commands exist for the classes the batch addendum's lesson
+16 names: `reenter(p)` asks the owner to open a project from inside the owner's own next
+notification, as a component re-rendered by its store would, and `openBroken(p)` opens a project
+whose installer raises `PartialAcquisitionError` after its feed has opened.
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.model.test.ts b/apps/wbs/fe-01/src/runtime/project-runtime.model.test.ts
 new file mode 100644
-index 000000000..ca42739c1
+index 000000000..7e3001333
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.model.test.ts
-@@ -0,0 +1,491 @@
+@@ -0,0 +1,598 @@
 +import fc from 'fast-check';
 +import { describe, expect, it } from 'vitest';
 +
@@ -1070,6 +1122,10 @@ index 000000000..ca42739c1
 +interface Built {
 +  readonly name: string;
 +  readonly projectId: string;
++  /** Whether its source's commands refuse to be built, after its feed has opened. */
++  readonly broken: boolean;
++  /** How many times the owner ran its installer. */
++  installs: number;
 +  /** The source this runtime was installed from, by identity. */
 +  services: ProjectServices | null;
 +  runtime: ProjectRuntime | null;
@@ -1108,6 +1164,8 @@ index 000000000..ca42739c1
 +  'frame',
 +  'reread',
 +  'mark',
++  'openBroken',
++  'reenter',
 +];
 +const reached = {
 +  answerLandedAfterWithdrawal: 0,
@@ -1118,11 +1176,20 @@ index 000000000..ca42739c1
 +  reopenedTheSameProject: 0,
 +  switchedWhileLive: 0,
 +  streamOpened: 0,
++  reenteredFromListener: 0,
++  brokenInstalled: 0,
++  leftAfterBroken: 0,
 +};
 +
-+/** The reference: what the page last asked for. Nothing here is read back from the owner. */
++/**
++ * The reference: what the page last asked for, and whether that request's
++ * runtime cannot be built. Nothing here is read back from the owner.
++ */
 +interface OwnerModel {
 +  wanted: string | null;
++  broken: boolean;
++  /** Whether any request in this run could not be built. */
++  anyBroken: boolean;
 +}
 +
 +interface OwnerWorld {
@@ -1135,12 +1202,14 @@ index 000000000..ca42739c1
 +}
 +
 +/** A fresh client for one runtime: every read answers when the scheduler says. */
-+function sourceFor(world: OwnerWorld, projectId: string): ProjectSource {
++function sourceFor(world: OwnerWorld, projectId: string, broken = false): ProjectSource {
 +  world.next += 1;
 +  const base = fakeProjectApi();
 +  const record: Built = {
 +    name: `r${String(world.next)}`,
 +    projectId,
++    broken,
++    installs: 0,
 +    services: null,
 +    runtime: null,
 +    calls: 0,
@@ -1179,6 +1248,10 @@ index 000000000..ca42739c1
 +  const composed = projectServicesOver(client);
 +  const services: ProjectServices = {
 +    ...composed,
++    planCommandsFor: (id) => {
++      if (broken) throw new Error(`${record.name}'s commands could not be built`);
++      return composed.planCommandsFor(id);
++    },
 +    planFeedFor: (reader) => {
 +      const feed = composed.planFeedFor(reader);
 +      return {
@@ -1261,6 +1334,7 @@ index 000000000..ca42739c1
 +    freezeTheCurrent(world);
 +    world.inflight.push(world.owner.open(this.projectId, sourceFor(world, this.projectId)));
 +    model.wanted = this.projectId;
++    model.broken = false;
 +    assertOwnership(world, `open(${this.projectId})`);
 +    expect(
 +      world.built.filter((record) => record.runtime?.isCurrent() === true),
@@ -1282,7 +1356,9 @@ index 000000000..ca42739c1
 +    if (world.owner.snapshot().status !== 'live') reached.leftWhileNothingCurrent += 1;
 +    freezeTheCurrent(world);
 +    world.inflight.push(world.owner.leave());
++    if (model.anyBroken) reached.leftAfterBroken += 1;
 +    model.wanted = null;
++    model.broken = false;
 +    expect(
 +      world.built.filter((record) => record.runtime?.isCurrent() === true),
 +      'leave: a runtime is still current after withdrawal',
@@ -1291,6 +1367,64 @@ index 000000000..ca42739c1
 +  }
 +  toString(): string {
 +    return 'leave';
++  }
++}
++
++/**
++ * Opens a project whose runtime cannot be built: its feed opens, then its
++ * commands throw, and the installer raises a partial acquisition.
++ */
++class OpenBroken implements OwnerCommand {
++  constructor(readonly projectId: string) {}
++  check(): boolean {
++    return true;
++  }
++  async run(model: OwnerModel, world: OwnerWorld): Promise<void> {
++    note('openBroken');
++    freezeTheCurrent(world);
++    world.inflight.push(world.owner.open(this.projectId, sourceFor(world, this.projectId, true)));
++    model.wanted = this.projectId;
++    model.broken = true;
++    model.anyBroken = true;
++    assertOwnership(world, `openBroken(${this.projectId})`);
++    await Promise.resolve();
++  }
++  toString(): string {
++    return `openBroken(${this.projectId})`;
++  }
++}
++
++/**
++ * A reader that asks for another project from inside the owner's own
++ * notification — as a component re-rendered by the owner's store would — the
++ * next time the owner says anything.
++ */
++class ReenterFromListener implements OwnerCommand {
++  constructor(readonly projectId: string) {}
++  check(): boolean {
++    return true;
++  }
++  async run(model: OwnerModel, world: OwnerWorld): Promise<void> {
++    note('reenter');
++    let asked = false;
++    const stop = world.owner.subscribe(() => {
++      if (asked) return;
++      asked = true;
++      stop();
++      reached.reenteredFromListener += 1;
++      freezeTheCurrent(world);
++      world.inflight.push(world.owner.open(this.projectId, sourceFor(world, this.projectId)));
++      model.wanted = this.projectId;
++      model.broken = false;
++      expect(
++        world.built.filter((record) => record.runtime?.isCurrent() === true),
++        `reenter(${this.projectId}): a runtime is still current after withdrawal`,
++      ).toEqual([]);
++    });
++    await Promise.resolve();
++  }
++  toString(): string {
++    return `reenter(${this.projectId})`;
 +  }
 +}
 +
@@ -1425,6 +1559,8 @@ index 000000000..ca42739c1
 +      .map(([index, kind]) => new Frame(index, kind)),
 +    fc.nat(6).map((index) => new Reread(index)),
 +    fc.nat(6).map((index) => new Mark(index)),
++    fc.constantFrom('p1', 'p2').map((projectId) => new OpenBroken(projectId)),
++    fc.constantFrom('p1', 'p2').map((projectId) => new ReenterFromListener(projectId)),
 +  ],
 +  { maxCommands: 24, size: 'max' },
 +);
@@ -1441,12 +1577,14 @@ index 000000000..ca42739c1
 +
 +    await fc.assert(
 +      fc.asyncProperty(fc.scheduler(), commandsArb, async (scheduler, commands) => {
-+        const model: OwnerModel = { wanted: null };
++        const model: OwnerModel = { wanted: null, broken: false, anyBroken: false };
 +        const world: OwnerWorld = {
 +          owner: createProjectOwner({
 +            install: (dependencies) => {
 +              const record = world.bySource.get(dependencies.services);
 +              if (record === undefined) throw new Error('a runtime was installed from no source');
++              record.installs += 1;
++              if (record.broken) reached.brokenInstalled += 1;
 +              const installed = installProjectRuntime(dependencies);
 +              record.runtime = installed.services;
 +              record.initial = heldBy(installed.services);
@@ -1487,8 +1625,21 @@ index 000000000..ca42739c1
 +          }
 +          assertOwnership(world, 'teardown');
 +          const state = world.owner.snapshot();
-+          if (model.wanted === null) {
++          if (model.wanted === null && model.anyBroken) {
++            // A retirement asked of a slot that a failed construction left fatal
++            // holds nothing and changes nothing; which request was the last to
++            // build is the scheduler's choice. Either way nothing is held.
++            expect(
++              state.status === 'empty' || (state.status === 'fatal' && !state.terminal),
++              `teardown: left after an unbuildable project, but the owner is ${state.status}`,
++            ).toBe(true);
++          } else if (model.wanted === null) {
 +            expect(state.status, 'teardown: left, but something is still held').toBe('empty');
++          } else if (model.broken) {
++            expect(
++              state.status === 'fatal' && !state.terminal,
++              `teardown: the last project asked for cannot be built, but the owner is ${state.status}`,
++            ).toBe(true);
 +          } else {
 +            expect(
 +              state.status === 'live' ? state.services.projectId : state.status,
@@ -1497,6 +1648,14 @@ index 000000000..ca42739c1
 +          }
 +          const live = state.status === 'live' ? state.services : null;
 +          for (const record of world.built) {
++            if (record.broken) {
++              // Built as far as its feed, then given back by the transaction, once.
++              expect(
++                record.feedCloses,
++                `teardown: unbuildable ${record.name}'s feed closed ${String(record.feedCloses)} times after ${String(record.installs)} installs`,
++              ).toBe(record.installs);
++              continue;
++            }
 +            if (record.runtime === null) continue;
 +            const isLive = record.runtime === live;
 +            expect(
@@ -1876,10 +2035,10 @@ index ad7500c6d..ae8742cfc 100644
 +}
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
 new file mode 100644
-index 000000000..5010eef10
+index 000000000..cb3386b41
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -0,0 +1,298 @@
+@@ -0,0 +1,333 @@
 +import { DiBag } from 'di-bag';
 +
 +import type { RefreshResource } from '@/lib/plan-refresh';
@@ -1903,6 +2062,7 @@ index 000000000..5010eef10
 +import {
 +  createLifetimeSlot,
 +  type LifetimeState,
++  PartialAcquisitionError,
 +  type RetirableRuntime,
 +  RETIREMENT_BUDGET_MS,
 +  TransitionSupersededError,
@@ -2100,9 +2260,10 @@ index 000000000..5010eef10
 +   * this project once that runtime's retirement has succeeded.
 +   *
 +   * Resolves when this request has published, was overtaken by a newer one, or
-+   * was refused — the last leaves the owner `fatal`, which is what the page
-+   * shows. It rejects only if the slot refused without becoming fatal, which
-+   * its own contract makes impossible.
++   * was refused because one of this owner's own runtimes could not be built or
++   * given back — the slot has then published `fatal`, which is what the page
++   * shows. It rejects only with a refusal that came from neither: a fault of
++   * the slot itself, rethrown with its cause.
 +   */
 +  readonly open: (projectId: string, source: ProjectSource) => Promise<void>;
 +  /** Withdraws and retires whatever runtime is current; settles as {@link open} does. */
@@ -2140,24 +2301,57 @@ index 000000000..5010eef10
 +}: ProjectOwnerDependencies = {}): ProjectOwner {
 +  const slot = createLifetimeSlot<ProjectRuntime>(budgetMs);
 +  /**
-+   * Settles one transition as a modelled outcome.
++   * Every failure that left one of this owner's runtimes: a construction that
++   * threw, a partial acquisition's release or a retirement that rejected. The
++   * slot turns each of these into its `fatal` state before rethrowing it, so a
++   * refusal found here is a modelled outcome whatever the slot's state has
++   * moved on to since. Compared by identity, never by message.
++   */
++  const refusedByRuntime = new Set<unknown>();
++  /** The same close, with its refusal recorded before the slot sees it. */
++  const recorded =
++    (close: (options: { timeoutMs: number }) => Promise<void>) =>
++    async (options: { timeoutMs: number }): Promise<void> => {
++      try {
++        await close(options);
++      } catch (refusal: unknown) {
++        refusedByRuntime.add(refusal);
++        throw refusal;
++      }
++    };
++  /**
++   * Settles one transition as a modelled outcome, classified by the refusal
++   * itself and not by the slot's state afterwards, which a later request may
++   * already have moved on.
 +   *
-+   * Superseded is controlled cancellation; a refusal has already been turned
-+   * into the slot's `fatal` state, sanitized, and that state is what anybody
-+   * is shown — the refusal itself is never read here. Anything else is not a
-+   * modelled outcome and is rethrown with its cause.
++   * Superseded is controlled cancellation; a refusal from this owner's own
++   * runtime has been published as `fatal`, sanitized, and that state is what
++   * anybody is shown. Anything else is a fault of the slot and is rethrown
++   * with its cause.
 +   */
 +  const settle = async (transition: Promise<unknown>): Promise<void> => {
 +    try {
 +      await transition;
 +    } catch (refusal: unknown) {
 +      if (refusal instanceof TransitionSupersededError) return;
-+      const state = slot.snapshot();
-+      if (state.status === 'fatal') return;
-+      throw new Error(`a project transition was refused and the slot is ${state.status}`, {
-+        cause: refusal,
-+      });
++      if (refusedByRuntime.has(refusal)) return;
++      throw new Error('a project transition was refused by the slot itself', { cause: refusal });
 +    }
++  };
++  /** Installs one runtime, recording every failure that can leave it. */
++  const installRecorded = (dependencies: ProjectRuntimeDependencies) => {
++    let runtime: RetirableRuntime<ProjectRuntime>;
++    try {
++      runtime = install(dependencies);
++    } catch (failure: unknown) {
++      const refusal =
++        failure instanceof PartialAcquisitionError
++          ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
++          : failure;
++      refusedByRuntime.add(refusal);
++      throw refusal;
++    }
++    return { services: runtime.services, close: recorded(runtime.close) };
 +  };
 +  return {
 +    subscribe: slot.subscribe,
@@ -2170,7 +2364,7 @@ index 000000000..5010eef10
 +            const state = slot.snapshot();
 +            return state.status === 'live' && state.services === built;
 +          };
-+          const runtime = install({ projectId, ...source, isCurrent });
++          const runtime = installRecorded({ projectId, ...source, isCurrent });
 +          built = runtime.services;
 +          return runtime;
 +        }),
@@ -3418,9 +3612,10 @@ never before the observation. Each slice runs **all** of its faults first and wr
 afterwards, so every fault patch below still applies.
 
 **Where the comments may go.** A comment is written only into a file no later slice's patch touches.
-`project-runtime.ts` is final after slice 1: slice 1 writes its fourteen comments there and slice 2
-adds `w1`'s, whose context lies in the markers factory, away from every slice-1 site (section 9.1
-checks `w1` against a copy with all slice-1 sites filled). `project-page.tsx` is patched in slices 2
+`project-runtime.ts` is final after slice 1: slice 1 writes its comments there (eleven sites for
+seventeen faults) and slice 2 adds `w1`'s, whose context lies in the markers factory, away from
+every slice-1 site (section 9.1 checks `w1` against a copy with all eleven slice-1 sites filled);
+that is why slice 2 owns `project-runtime.ts`. `project-page.tsx` is patched in slices 2
 and 3, so all four of its faults are slice 3's.
 
 **Each slice's faults are records of four lines** — id, file (from the repository root), suite (from
@@ -3445,7 +3640,7 @@ test $(( $(wc -l < "$TMPDIR/proofs.txt") % 4 )) -eq 0
 wc -l < "$TMPDIR/proofs.txt"
 ````
 
-Expected: 56 lines for slice 1, 4 for slice 2 and 16 for slice 3.
+Expected: 68 lines for slice 1, 4 for slice 2 and 16 for slice 3.
 
 **First, prove every filter selects exactly one test**, before injecting anything:
 
@@ -3505,8 +3700,8 @@ above the line the table names, for example:
 // current, and nothing of a withdrawn one reaches anybody` after 1 run: r1 and r2 both current.
 ```
 
-Faults that share a site share one comment block, one sentence each (`m4` and `m5`; `m7` and `r2`;
-`m8` and `r1`; `k1` and `k2`). None of this packet's sites carries an existing `Proof:` comment.
+Faults that share a site share one comment block, one sentence each (`m1` and `m9`; `m4` and `m5`;
+`m7` and `r2`; `m8` and `r1`; `k1` and `k2`; `m10` and `o3`). None of this packet's sites carries an existing `Proof:` comment.
 
 **For the model faults**, the run number, the shrunk command sequence and the innermost cause the
 table quotes are the evidence; they are seed-pinned and were identical in two rehearsal runs. A
@@ -3550,6 +3745,14 @@ m8
 apps/wbs/fe-01/src/runtime/project-runtime.ts
 src/runtime/project-runtime.model.test.ts
 keeps one runtime current, and nothing of a withdrawn one reaches anybody
+m9
+apps/wbs/fe-01/src/runtime/project-runtime.ts
+src/runtime/project-runtime.model.test.ts
+keeps one runtime current, and nothing of a withdrawn one reaches anybody
+m10
+apps/wbs/fe-01/src/runtime/project-runtime.ts
+src/runtime/project-runtime.model.test.ts
+keeps one runtime current, and nothing of a withdrawn one reaches anybody
 k1
 apps/wbs/fe-01/src/runtime/project-runtime.ts
 src/runtime/project-runtime.test.ts
@@ -3574,49 +3777,64 @@ o2
 apps/wbs/fe-01/src/runtime/project-runtime.ts
 src/runtime/project-runtime.test.ts
 shows a retirement that fails as the fatal state, and refuses the next project
+o3
+apps/wbs/fe-01/src/runtime/project-runtime.ts
+src/runtime/project-runtime.test.ts
+gives back the feed a half-built runtime had already opened
 ```
 
 Every model fault fails the model test, `Tests 1 failed (1)`, exit 1. Run, the shrunk command
 sequence (after the scheduler's own record, which fast-check prints first) and the innermost cause,
-as rehearsed twice:
+as rehearsed twice on the r2 commits (the two new commands changed the generator, so every run
+number differs from round 1's):
 
-| Id   | Fault                                                                         | Run | Shrunk sequence, times                          | Innermost cause                                                                                               | Comment above                                                 |
-| ---- | ----------------------------------------------------------------------------- | --- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `m1` | a stale reader survives a switch: `isCurrent` compares the slot's status only | 1   | `open(p1),open(p1),reread(0)`, 6                | `teardown: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2` | `return state.status === 'live' && state.services === built;` |
-| `m2` | a late answer lands after retirement: the feed's reader test always yes       | 25  | `open(p1),drain,open(p1),frame(0, change)`, 4   | `teardown: r1's delivered plan changed after it was withdrawn: expected false to be true`                     | the feed factory's `isActiveReader: isCurrent,`               |
-| `m3` | a withdrawn reader's reread reads                                             | 17  | `open(p1),answer,leave,reread(0)`, 6            | `reread: withdrawn r1 sent a request: expected 1 to be +0`                                                    | `if (!isCurrent()) return;` in `reread`                       |
-| `m4` | double retirement: the feed closed twice, by hand beside its disposal         | 1   | `open(p1),open(p1)`, 5                          | `teardown: r1's feed closed 2 times, live=false: expected 2 to be 1`                                          | `feed.close();` in the feed's disposer                        |
-| `m5` | a subscription leaks past retirement: the disposer closes nothing             | 1   | `open(p1),open(p1)`, 5                          | `teardown: r1's feed closed 0 times, live=false: expected +0 to be 1`                                         | `feed.close();` in the feed's disposer (with `m4`)            |
-| `m6` | a withdrawn reader's marker gesture writes: the owner handed out regardless   | 3   | `open(p1),leave,mark(0)`, 6                     | `mark: withdrawn r1 sent a request: expected 1 to be +0`                                                      | `isCurrent() ? feed.owner : null,`                            |
-| `m7` | a withdrawn project's connection still reaches its presence                   | 25  | `open(p1),drain,leave,frame(0, connect)`, 5     | `frame(r1, connect): r1's presence changed after it was withdrawn: expected false to be true`                 | `if (isCurrent()) presence.reportConnection(connected);`      |
-| `m8` | a withdrawn project's roster still reaches its presence                       | 9   | `open(p1),drain,open(p1),frame(0, presence)`, 6 | `frame(r1, presence): r1's presence changed after it was withdrawn: expected false to be true`                | `if (isCurrent()) presence.reportUsers(users);`               |
+| Id    | Fault                                                                                      | Run | Shrunk sequence, times                                            | Innermost cause                                                                                                     | Comment above                                                             |
+| ----- | ------------------------------------------------------------------------------------------ | --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `m1`  | a stale reader survives a switch: `isCurrent` compares the slot's status only              | 2   | `reenter(p1),open(p1),drain`, 2                                   | `drain: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2`          | `return state.status === 'live' && state.services === built;`             |
+| `m2`  | a late answer lands after retirement: the feed's reader test always yes                    | 2   | `open(p1),drain,leave,frame(0, change)`, 7                        | `teardown: r1's delivered plan changed after it was withdrawn: expected false to be true`                           | the feed factory's `isActiveReader: isCurrent,`                           |
+| `m3`  | a withdrawn reader's reread reads                                                          | 6   | `reenter(p1),openBroken(p1),drain,open(p1),reread(0)`, 5          | `reread: withdrawn r2 sent a request: expected 1 to be +0`                                                          | `if (!isCurrent()) return;` in `reread`                                   |
+| `m4`  | double retirement: the feed closed twice, by hand beside its disposal                      | 2   | `open(p1),leave,reenter(p1)`, 5                                   | `teardown: r1's feed closed 2 times, live=false: expected 2 to be 1`                                                | `feed.close();` in the feed's disposer                                    |
+| `m5`  | a subscription leaks past retirement: the disposer closes nothing                          | 2   | `open(p1),leave,reenter(p1)`, 5                                   | `teardown: r1's feed closed 0 times, live=false: expected +0 to be 1`                                               | `feed.close();` in the feed's disposer (with `m4`)                        |
+| `m6`  | a withdrawn reader's marker gesture writes: the owner handed out regardless                | 2   | `reenter(p1),open(p1),mark(0)`, 2                                 | `mark: withdrawn r1 sent a request: expected 1 to be +0`                                                            | `isCurrent() ? feed.owner : null,`                                        |
+| `m7`  | a withdrawn project's connection still reaches its presence                                | 3   | `reenter(p1),openBroken(p1),drain,open(p1),frame(0, connect)`, 7  | `frame(r2, connect): r2's presence changed after it was withdrawn: expected false to be true`                       | `if (isCurrent()) presence.reportConnection(connected);`                  |
+| `m8`  | a withdrawn project's roster still reaches its presence                                    | 6   | `reenter(p1),openBroken(p1),drain,open(p1),frame(0, presence)`, 5 | `frame(r2, presence): r2's presence changed after it was withdrawn: expected false to be true`                      | `if (isCurrent()) presence.reportUsers(users);`                           |
+| `m9`  | `isCurrent` compares the project, not the runtime: the re-entrant reopen of one project    | 2   | `reenter(p1),open(p1),drain`, 1                                   | `drain: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2`          | `return state.status === 'live' && state.services === built;` (with `m1`) |
+| `m10` | a partial acquisition's refusal not recorded: the owner rethrows its own runtime's failure | 3   | `openBroken(p1),reread(0)`, 6                                     | `teardown refused: Error: a project transition was refused by the slot itself`, caused by `PartialAcquisitionError` | `refusedByRuntime.add(refusal);` in `installRecorded`                     |
+
+`m9`'s counterexample runs through `reenter`: the notification that publishes `r1` asks for `p1`
+again from inside it, and the sabotaged `isCurrent` answers yes for both runtimes of that project.
+It is **not** re-entry-specific — the same sabotage fails on two plain `open(p1)` — and the shrinker
+kept the re-entrant path because the generator reached it first; no `isCurrent` fault was found that
+only re-entry exposes, because P2 checks withdrawal synchronously after every `open`, re-entrant or
+not. `m10` is re-entry-free and is the partial-acquisition class's teeth.
 
 The examples, each `Tests 1 failed \| 5 skipped (6)`, exit 1:
 
-| Id   | Fault                                                      | Suite › test                                                                                                 | Observed                                                                                                                                                               | Comment above                                                        |
-| ---- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `k1` | the feed published beside the feature surfaces             | `project-runtime.test.ts` › `publishes the project’s feature and store surfaces, and nothing else`           | `expected [ 'busy', 'commands', …(10) ] to deeply equal [ 'busy', 'commands', …(9) ]`                                                                                  | `return acquireTransactionally(bag, () => ({`                        |
-| `k2` | the transaction's close gives nothing back                 | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `expected +0 to be 1` — the half-built runtime's feed never closed                                                                                                     | `return acquireTransactionally(bag, () => ({` (with `k1`)            |
-| `r1` | the stream's roster not told to the presence               | `project-runtime.test.ts` › `tells the project’s presence who its stream says is here, and whether it is up` | `expected { users: [], connected: true } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                                                                            | `if (isCurrent()) presence.reportUsers(users);` (with `m8`)          |
-| `r2` | the stream's connection not told to the presence           | same                                                                                                         | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — `connected` stayed `false`                                            | `if (isCurrent()) presence.reportConnection(connected);` (with `m7`) |
-| `o1` | a superseded open rejects instead of settling              | `project-runtime.test.ts` › `settles a request a newer one overtook, and builds nothing for it`              | `promise rejected "Error: a project transition was refused a…" instead of resolving`, caused by `TransitionSupersededError: lifetime transition 1 was superseded by 2` | `if (refusal instanceof TransitionSupersededError) return;`          |
-| `o2` | a refusal the slot made fatal is rethrown instead of shown | `project-runtime.test.ts` › `shows a retirement that fails as the fatal state, and refuses the next project` | `promise rejected "Error: a project transition was refused a…" instead of resolving`, caused by `DI_BAG_CLEANUP_FAILED`                                                | `if (state.status === 'fatal') return;`                              |
+| Id   | Fault                                                                           | Suite › test                                                                                                 | Observed                                                                                                                                                                          | Comment above                                                        |
+| ---- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `k1` | the feed published beside the feature surfaces                                  | `project-runtime.test.ts` › `publishes the project’s feature and store surfaces, and nothing else`           | `expected [ 'busy', 'commands', …(10) ] to deeply equal [ 'busy', 'commands', …(9) ]`                                                                                             | `return acquireTransactionally(bag, () => ({`                        |
+| `k2` | the transaction's close gives nothing back                                      | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `expected +0 to be 1` — the half-built runtime's feed never closed                                                                                                                | `return acquireTransactionally(bag, () => ({` (with `k1`)            |
+| `r1` | the stream's roster not told to the presence                                    | `project-runtime.test.ts` › `tells the project’s presence who its stream says is here, and whether it is up` | `expected { users: [], connected: true } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                                                                                       | `if (isCurrent()) presence.reportUsers(users);` (with `m8`)          |
+| `r2` | the stream's connection not told to the presence                                | same                                                                                                         | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — `connected` stayed `false`                                                       | `if (isCurrent()) presence.reportConnection(connected);` (with `m7`) |
+| `o1` | a superseded open rejects instead of settling                                   | `project-runtime.test.ts` › `settles a request a newer one overtook, and builds nothing for it`              | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `TransitionSupersededError: lifetime transition 1 was superseded by 2`            | `if (refusal instanceof TransitionSupersededError) return;`          |
+| `o2` | a refused retirement not recorded: the owner rethrows its own runtime's failure | `project-runtime.test.ts` › `shows a retirement that fails as the fatal state, and refuses the next project` | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `a project transition was refused by the slot itself` and `DI_BAG_CLEANUP_FAILED` | `refusedByRuntime.add(refusal);` in `recorded`'s catch               |
+| `o3` | a partial acquisition's refusal not recorded (the `m10` fault)                  | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `Error: a project transition was refused by the slot itself`, caused by `PartialAcquisitionError`                                                                                 | `refusedByRuntime.add(refusal);` in `installRecorded` (with `m10`)   |
 
 #### Proof m1 — a stale reader survives a switch: `isCurrent` compares the slot's status only
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..a5833b4 100644
+index cb3386b..5f299a3 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -286,7 +286,7 @@ export function createProjectOwner({
+@@ -321,7 +321,7 @@ export function createProjectOwner({
            let built: ProjectRuntime | null = null;
            const isCurrent = (): boolean => {
              const state = slot.snapshot();
 -            return state.status === 'live' && state.services === built;
 +            return state.status === 'live';
            };
-           const runtime = install({ projectId, ...source, isCurrent });
+           const runtime = installRecorded({ projectId, ...source, isCurrent });
            built = runtime.services;
 ```
 
@@ -3624,10 +3842,10 @@ index 5010eef..a5833b4 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..149005c 100644
+index cb3386b..0514b0b 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -123,7 +123,7 @@ export function installProjectRuntime({
+@@ -124,7 +124,7 @@ export function installProjectRuntime({
              services.planFeedFor({
                projectId,
                subscribe: streamInto(presence),
@@ -3642,10 +3860,10 @@ index 5010eef..149005c 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..81734ba 100644
+index cb3386b..e4539d5 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -142,7 +142,6 @@ export function installProjectRuntime({
+@@ -143,7 +143,6 @@ export function installProjectRuntime({
        reread: DiBag.fromSyncFactory(
          ({ feed }: { feed: PlanFeed }) =>
            async (resources: readonly RefreshResource[]): Promise<void> => {
@@ -3659,10 +3877,10 @@ index 5010eef..81734ba 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..b522ab3 100644
+index cb3386b..266af7d 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -130,6 +130,7 @@ export function installProjectRuntime({
+@@ -131,6 +131,7 @@ export function installProjectRuntime({
          ),
          (feed) => {
            feed.close();
@@ -3676,10 +3894,10 @@ index 5010eef..b522ab3 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..dc54eda 100644
+index cb3386b..6bc5ea1 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -129,7 +129,7 @@ export function installProjectRuntime({
+@@ -130,7 +130,7 @@ export function installProjectRuntime({
              }),
          ),
          (feed) => {
@@ -3694,10 +3912,10 @@ index 5010eef..dc54eda 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..2bca1d1 100644
+index cb3386b..801c57c 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -137,7 +137,7 @@ export function installProjectRuntime({
+@@ -138,7 +138,7 @@ export function installProjectRuntime({
        readRefreshOwner: DiBag.fromSyncFactory(
          ({ feed }: { feed: PlanFeed }) =>
            () =>
@@ -3712,10 +3930,10 @@ index 5010eef..2bca1d1 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..930c0e8 100644
+index cb3386b..9ed0f3e 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -91,7 +91,7 @@ export function installProjectRuntime({
+@@ -92,7 +92,7 @@ export function installProjectRuntime({
              {
                onChange: handlers.onChange,
                onConnectionChange: (connected) => {
@@ -3730,10 +3948,10 @@ index 5010eef..930c0e8 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..3affe58 100644
+index cb3386b..ff23dee 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -95,7 +95,7 @@ export function installProjectRuntime({
+@@ -96,7 +96,7 @@ export function installProjectRuntime({
                  handlers.onConnectionChange(connected);
                },
                onPresence: (users) => {
@@ -3744,14 +3962,49 @@ index 5010eef..3affe58 100644
              baseline,
 ```
 
+#### Proof m9 — `isCurrent` compares the project, not the runtime
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+index cb3386b..fca37f8 100644
+--- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+@@ -321,7 +321,7 @@ export function createProjectOwner({
+           let built: ProjectRuntime | null = null;
+           const isCurrent = (): boolean => {
+             const state = slot.snapshot();
+-            return state.status === 'live' && state.services === built;
++            return state.status === 'live' && state.services.projectId === projectId;
+           };
+           const runtime = installRecorded({ projectId, ...source, isCurrent });
+           built = runtime.services;
+```
+
+#### Proof m10 — a partial acquisition's refusal not recorded, seen by the model
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+index cb3386b..6c73e7c 100644
+--- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+@@ -307,7 +307,6 @@ export function createProjectOwner({
+         failure instanceof PartialAcquisitionError
+           ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
+           : failure;
+-      refusedByRuntime.add(refusal);
+       throw refusal;
+     }
+     return { services: runtime.services, close: recorded(runtime.close) };
+```
+
 #### Proof k1 — the feed published beside the feature surfaces
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..462c2da 100644
+index cb3386b..1be5e29 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -201,6 +201,7 @@ export function installProjectRuntime({
+@@ -202,6 +202,7 @@ export function installProjectRuntime({
      markers: bag.resolve('markers'),
      writer: bag.resolve('writer'),
      commands: bag.resolve('commands'),
@@ -3765,10 +4018,10 @@ index 5010eef..462c2da 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..933acaa 100644
+index cb3386b..f9317f3 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -189,7 +189,7 @@ export function installProjectRuntime({
+@@ -190,7 +190,7 @@ export function installProjectRuntime({
        commands: DiBag.fromSyncFactory((): PlanCommands => services.planCommandsFor(projectId)),
      })
      .build();
@@ -3783,10 +4036,10 @@ index 5010eef..933acaa 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..f51f379 100644
+index cb3386b..777094d 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -95,7 +95,7 @@ export function installProjectRuntime({
+@@ -96,7 +96,7 @@ export function installProjectRuntime({
                  handlers.onConnectionChange(connected);
                },
                onPresence: (users) => {
@@ -3801,10 +4054,10 @@ index 5010eef..f51f379 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..1afe9bf 100644
+index cb3386b..af24607 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -91,7 +91,7 @@ export function installProjectRuntime({
+@@ -92,7 +92,7 @@ export function installProjectRuntime({
              {
                onChange: handlers.onChange,
                onConnectionChange: (connected) => {
@@ -3819,34 +4072,51 @@ index 5010eef..1afe9bf 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..83e1995 100644
+index cb3386b..b909b93 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -269,7 +269,6 @@ export function createProjectOwner({
+@@ -292,7 +292,6 @@ export function createProjectOwner({
      try {
        await transition;
      } catch (refusal: unknown) {
 -      if (refusal instanceof TransitionSupersededError) return;
-       const state = slot.snapshot();
-       if (state.status === 'fatal') return;
-       throw new Error(`a project transition was refused and the slot is ${state.status}`, {
+       if (refusedByRuntime.has(refusal)) return;
+       throw new Error('a project transition was refused by the slot itself', { cause: refusal });
+     }
 ```
 
-#### Proof o2 — a refusal the slot already made fatal is rethrown instead of shown
+#### Proof o2 — a refused retirement not recorded, so the owner rethrows its own runtime's failure
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..5dd3ea8 100644
+index cb3386b..f76bf9e 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -271,7 +271,6 @@ export function createProjectOwner({
-     } catch (refusal: unknown) {
-       if (refusal instanceof TransitionSupersededError) return;
-       const state = slot.snapshot();
--      if (state.status === 'fatal') return;
-       throw new Error(`a project transition was refused and the slot is ${state.status}`, {
-         cause: refusal,
-       });
+@@ -274,7 +274,6 @@ export function createProjectOwner({
+       try {
+         await close(options);
+       } catch (refusal: unknown) {
+-        refusedByRuntime.add(refusal);
+         throw refusal;
+       }
+     };
+```
+
+#### Proof o3 — a partial acquisition's refusal not recorded, seen by the half-built example
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+index cb3386b..6c73e7c 100644
+--- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+@@ -307,7 +307,6 @@ export function createProjectOwner({
+         failure instanceof PartialAcquisitionError
+           ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
+           : failure;
+-      refusedByRuntime.add(refusal);
+       throw refusal;
+     }
+     return { services: runtime.services, close: recorded(runtime.close) };
 ```
 
 ### 8.2 Slice 2 — the runtime's marker wiring, through the real table
@@ -3868,10 +4138,10 @@ This is packet g's `m1` moved: the same fault, the same test, at the site the ch
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-index 5010eef..34ddd5b 100644
+index cb3386b..2dc06f2 100644
 --- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
-@@ -160,7 +160,7 @@ export function installProjectRuntime({
+@@ -161,7 +161,7 @@ export function installProjectRuntime({
              projectId,
              readRefreshOwner,
              isActiveReader: isCurrent,
@@ -3903,12 +4173,12 @@ src/components/wbs/project-page.test.tsx
 hands the presence slot who the project’s stream says is here, and its connection
 ```
 
-| Id   | Fault                                             | Suite › test                                                                                                    | Observed (`1 failed \| 75 skipped (76)` each)                                                                       | Comment above                                      |
-| ---- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `q1` | a fatal project draws the page's main anyway      | `project-page.test.tsx` › `shows the sanitized report when a project will not let go, and never draws the next` | `expected null not to be null` — no `[data-lifetime-fault]`                                                         | `if (projectState.status === 'fatal') {`           |
-| `q2` | the owner's effect never leaves the project       | `project-page.test.tsx` › `closes the selected project’s stream once the page goes`                             | `expected +0 to be 1` — the socket was never closed                                                                 | the owner effect's `return () => {`                |
-| `x1` | the stream's roster never reaches the runtime     | `project-page.test.tsx` › `hands the presence slot who the project’s stream says is here, and its connection`   | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                        | `onPresence: handlers.onPresence,`                 |
-| `x2` | the stream's connection never reaches the runtime | same                                                                                                            | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — still disconnected | `onConnectionChange: handlers.onConnectionChange,` |
+| Id   | Fault                                             | Suite › test                                                                                                    | Observed (`1 failed \| 75 skipped (76)` each)                                                                       | Comment above                                                                             |
+| ---- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `q1` | a fatal project draws the page's main anyway      | `project-page.test.tsx` › `shows the sanitized report when a project will not let go, and never draws the next` | `expected null not to be null` — no `[data-lifetime-fault]`                                                         | `if (projectState.status === 'fatal') {`                                                  |
+| `q2` | the owner's effect never leaves the project       | `project-page.test.tsx` › `closes the selected project’s stream once the page goes`                             | `expected +0 to be 1` — the socket was never closed                                                                 | the owner effect's `return () => {`, the line directly above `void projectOwner.leave();` |
+| `x1` | the stream's roster never reaches the runtime     | `project-page.test.tsx` › `hands the presence slot who the project’s stream says is here, and its connection`   | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                        | `onPresence: handlers.onPresence,`                                                        |
+| `x2` | the stream's connection never reaches the runtime | same                                                                                                            | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — still disconnected | `onConnectionChange: handlers.onConnectionChange,`                                        |
 
 `x1` and `x2` are packet g's two page proofs moved to the lines that now carry the stream to the
 runtime; the page's reset itself is proved by slice 3's red, not by a fault (section 3.8).
@@ -3999,7 +4269,7 @@ two-line `// Proof:` comment above each of those sites, anchored on the line pac
 names: `t1` in `wbs-table.tsx` (`[projectServices, projectId],`), `t2` in `use-plan-read.ts` (the
 writer memo's `isActiveReader: () =>`, the third of three) and `q1` in `project-page.tsx` (`const
 projectServices = useMemo(() => projectServicesOver(api), [api]);`) — three sites, six lines; then,
-after every patch, it fills this packet's own ten slice-1 comment sites in `project-runtime.ts`
+after every patch, it fills this packet's own eleven slice-1 comment sites in `project-runtime.ts`
 and checks that slice 2's `w1` still applies. The scratch tree gets a `node_modules` link so the
 suites script's Prettier pass resolves; `.gitignore` excludes it.
 
@@ -4007,7 +4277,7 @@ suites script's Prettier pass resolves; `.gitignore` excludes it.
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-j-project-runtime.md
 base=a687bf3892e1cd06500564d671325817c997e505
-final=fcb492027fbb9557899bb341524126fa37db4a0c
+final=49fae67ff339048e263a6d6a6a3814321e01d007
 test -f "$packet"
 test -d node_modules
 modules=$(pwd)/node_modules
@@ -4060,7 +4330,7 @@ for fill in 0 1; do
   ' "$packet"
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
-  test "$count" -eq 19
+  test "$count" -eq 22
   # A real repository holding exactly the base tree, so --check has something to check against.
   git archive "$base" | tar -x -C "$work/tree"
   fe="$work/tree/apps/wbs/fe-01"
@@ -4105,7 +4375,7 @@ for fill in 0 1; do
   for m in "$work"/mutations/*.diff; do
     git -C "$work/tree" apply --check "$m"
   done
-  echo "fill=$fill all 19 fault patches check against the result"
+  echo "fill=$fill all 22 fault patches check against the result"
   git -C "$work/tree" status --porcelain --untracked-files=all | wc -l
   if [ "$fill" -eq 0 ]; then
     mkdir "$work/final"
@@ -4123,14 +4393,16 @@ for fill in 0 1; do
       "if (isCurrent()) presence.reportConnection(connected);" \
       "if (isCurrent()) presence.reportUsers(users);" \
       "return acquireTransactionally(bag, () => ({" \
-      "if (refusal instanceof TransitionSupersededError) return;" \
-      "if (state.status === 'fatal') return;"; do
+      "if (refusal instanceof TransitionSupersededError) return;"; do
       fill_above "$runtime" "$anchor"
     done
     fill_above "$runtime" "isActiveReader: isCurrent," 1
-    test "$(grep -c 'Proof: simulated' "$runtime")" -eq 10
+    # The two recorded refusals: `recorded`'s catch, then `installRecorded`'s.
+    fill_above "$runtime" "refusedByRuntime.add(refusal);" 1
+    fill_above "$runtime" "refusedByRuntime.add(refusal);" 2
+    test "$(grep -c 'Proof: simulated' "$runtime")" -eq 11
     git -C "$work/tree" apply --check "$work/mutations/w1.diff"
-    echo "fill=1 w1 checks with all ten slice-1 sites filled"
+    echo "fill=1 w1 checks with all eleven slice-1 sites filled"
   fi
 done
 ````
@@ -4139,25 +4411,25 @@ Observed on 2026-09-24, after the final Prettier `--check` of this document:
 
 ```text
 fill=0 extracted=9
-fill=0 fault-patches=19
+fill=0 fault-patches=22
 suites=17 sites=256
 read hook: 108 lines replaced by 19
 table: 18 lines replaced by 14
 fill=0 all 9 applied, the suites script after 04 and the regions script after 05
-fill=0 all 19 fault patches check against the result
+fill=0 all 22 fault patches check against the result
 34
-fill=0 tree identical to fcb492027fbb9557899bb341524126fa37db4a0c
+fill=0 tree identical to 49fae67ff339048e263a6d6a6a3814321e01d007
 fill=1 extracted=9
-fill=1 fault-patches=19
+fill=1 fault-patches=22
 fill=1 filled-sites=3
 suites=17 sites=256
 read hook: 110 lines replaced by 19
 table: 20 lines replaced by 14
 fill=1 all 9 applied, the suites script after 04 and the regions script after 05
-fill=1 all 19 fault patches check against the result
+fill=1 all 22 fault patches check against the result
 34
 fill=1 simulated comments left=1
-fill=1 w1 checks with all ten slice-1 sites filled
+fill=1 w1 checks with all eleven slice-1 sites filled
 ```
 
 `git apply --check` prints nothing on success, which is why the script's own `echo` lines are the
@@ -4168,6 +4440,14 @@ commit (`diff -r` printed nothing), which holds the two `<observed-date-j>` plac
 step 4 replaces. In the `fill=1` run the regions script replaced 110 and 20 lines — the base's 108
 and 18 plus the two simulated comment lines in each region — the simulated `t2` and `t1` lines went
 with their regions, `q1`'s survived in place, and every fault patch still checks.
+
+**Replayed on the real packet h tree.** The round-1 reviewer ran this script's round-1 form on
+`7a76f2f33` (packet h's lane merged, its real `Proof:` comments in place): all nine diffs applied in
+order, the suites script printed `suites=17 sites=256`, the regions script printed `read hook: 111
+lines replaced by 19` and `table: 21 lines replaced by 14` — h's real comments are three lines where
+this script simulates two, and the anchors absorb either — and every fault patch checked. Round 2
+changes only slice 1's two runtime files, which h does not touch. The planner still reruns it on the
+dispatch base itself.
 
 **A failed check stops the run**: the same two-line form as packets g and h, where the `&&` variant
 was rehearsed printing its success line after `error: patch failed` and exiting 0.
@@ -4202,8 +4482,10 @@ new requirement and its scenarios live in a document that already counted as one
 
 All on 2026-09-24, by this packet's author, on a rehearsal branch cut at `a687bf38` where each slice
 was committed **with the hooks on** (lefthook passed for all three commits), not inside an executor
-sandbox: `0142dc1a` (slice 1), `dc8b5706` (slice 2) and `fcb49202` (slice 3), on the throwaway
-branch `rehearse/050-7-j`. Each red was rebuilt from the previous slice's commit plus that slice's
+sandbox: `fad97db2` (slice 1), `d43101b9` (slice 2) and `49fae67f` (slice 3), on the throwaway
+branch `rehearse/050-7-j-r2` — round 1's slices re-cut with the review's slice-1 changes; slices 2
+and 3 differ from round 1's (`dc8b5706`, `fcb49202`, kept on `rehearse/050-7-j`) only by the two
+slice-1 files they carry forward. Each red was rebuilt from the previous slice's commit plus that slice's
 contract and test side only; each fault was injected into the final commit, whose bytes in every
 faulted file equal the owning slice's.
 
@@ -4219,13 +4501,13 @@ faulted file equal the owning slice's.
 | red typecheck                           | —               | exit 1, 13 errors in 2 files | exit 1, 4 errors in 2 files  | none: a runtime red           |
 | red Vitest                              | —               | 2 files failed, no tests     | `Tests 5 failed (5)`, 1 file | `1 failed \| 75 skipped (76)` |
 | typecheck on the slice's commit         | 0               | 0                            | 0                            | 0                             |
-| faults observed failing, file restored  | —               | 14 of 14                     | 1 of 1                       | 4 of 4                        |
+| faults observed failing, file restored  | —               | 17 of 17                     | 1 of 1                       | 4 of 4                        |
 | strict OpenSpec                         | 114 · 114 · 0   | 114 · 114 · 0                | 114 · 114 · 0                | 114 · 114 · 0                 |
 
 (`51·687` is 51 files, 687 tests.) Every proof filter was run on the final tree first and matched
-exactly one test — nineteen faults over ten distinct titles — and the nineteen were then run
+exactly one test — twenty-two faults over ten distinct titles — and the twenty-two were then run
 through section 8's own loop, each `status=1` with its table's `Tests` line, each restore
-`cmp`-identical, each green rerun `status=0`. The eight model faults were run twice, with identical
+`cmp`-identical, each green rerun `status=0`. The ten model faults were run twice, with identical
 run numbers and shrunk sequences.
 
 **What was tried and found unprovable** (section 3.8): the writer's `isActiveReader` inside the
@@ -4237,22 +4519,22 @@ last runtime's presence while none is live against slice 3's new example — `1 
 claimed.
 
 On the final commit: `wbs-fe-01:lint` exit 0; `nx format:check --all` exit 0; `wbs-fe-01:typecheck`
-exit 0; slice 2's builder `git grep` empty. `wbs-fe-01:build` exit 0 (`✓ built in 891ms`); `tool-devsync:test` 366 pass, 0 fail on the committed rehearsal branch; `wbs-fe-01:test:unit` 55 files, 717 tests and `wbs-fe-01:test` UTC 142 files, 3064 tests, zoned 2 · 3 — against the base's 53·710 and 140·3054, each exit 0 (section 9.4).
+exit 0; slice 2's builder `git grep` empty. Round 1's planner-only runs, on `fcb49202`: `wbs-fe-01:build` exit 0 (`✓ built in 891ms`); `tool-devsync:test` 366 pass, 0 fail; `wbs-fe-01:test:unit` 55 files, 717 tests and `wbs-fe-01:test` UTC 142 files, 3064 tests, zoned 2 · 3 — against the base's 53·710 and 140·3054, each exit 0 (section 9.4). Round 2 reran, on `49fae67f`: typecheck and lint exit 0, the adopted set 20·1218, the sandbox node suite 53·694; the whole targets, build and devsync were not rerun for round 2, which changes two slice-1 runtime files and adds no test file.
 
 ### 9.4 Planner-only, with the expected relative delta
 
 The sandbox cannot run these: three tests in two files spawn `bun` from Node, there is no browser, a
 build writes outside the attempt's lane, and devsync writes Git objects.
 
-| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                  | Planner's own rehearsal                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 2 files, + 7 tests**; slices 2 and 3 unchanged                                                                      | base 53 files, 710 tests; final commit 55 files, 717 tests; exit 0 both                                       |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 2 files, + 7 tests**, slice 2 **+ 2 tests**, slice 3 **+ 1 test**. Auckland zoned unchanged                    | base UTC 140 files, 3054 tests, zoned 2 · 3; final commit UTC 142 files, 3064 tests, zoned 2 · 3; exit 0 both |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                         | exit 0 on the final commit, `✓ built in 891ms`                                                                |
-| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module index block, no pre-namespacing path in any owned document                              | 366 pass, 0 fail, exit 0 on the final commit, the slices committed                                            |
-| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slices 2 and 3 — every spec that opens a project, since the table now appears once its runtime is live | **Pending planner verification.** Not run in this rehearsal.                                                  |
-| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands    | **Pending planner verification.** Not run, not waived.                                                        |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                                 | **Not run**; reported as pending, never as passed.                                                            |
+| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                  | Planner's own rehearsal                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 2 files, + 7 tests**; slices 2 and 3 unchanged                                                                      | base 53 files, 710 tests; round 1 final 55 files, 717 tests; exit 0 both (not rerun for round 2)                                       |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 2 files, + 7 tests**, slice 2 **+ 2 tests**, slice 3 **+ 1 test**. Auckland zoned unchanged                    | base UTC 140 files, 3054 tests, zoned 2 · 3; round 1 final UTC 142 files, 3064 tests, zoned 2 · 3; exit 0 both (not rerun for round 2) |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                         | exit 0 on round 1's final commit, `✓ built in 891ms` (not rerun for round 2)                                                           |
+| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module index block, no pre-namespacing path in any owned document                              | 366 pass, 0 fail, exit 0 on round 1's final commit, the slices committed; the packet commit's own devsync, round 2, in §15's commit    |
+| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slices 2 and 3 — every spec that opens a project, since the table now appears once its runtime is live | **Pending planner verification.** Not run in this rehearsal.                                                                           |
+| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands    | **Pending planner verification.** Not run, not waived.                                                                                 |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                                 | **Not run**; reported as pending, never as passed.                                                                                     |
 
 `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` is not decoration: `CLAUDECODE=1` changes Bun's test
 output and fails thirteen unrelated tests in this repository.
@@ -4263,8 +4545,15 @@ output and fails thirteen unrelated tests in this repository.
 - The table suites draw through a fixture that installs the runtime synchronously and does not gate
   on retirement; only `project-page.test.tsx`, `app-router.test.tsx` and the model test exercise the
   real owner.
-- The model's disposal is the real one behind one scheduled step; it never fails and never times
-  out. Failure and expiry are the slot's own model's, and two examples'.
+- What the owner's model covers of lesson 16: a request re-entered from inside the owner's own
+  notification (`reenter`) and a partial acquisition (`openBroken`), each with a sabotage red at a
+  recorded run (`m9`, `m10`). What stays the slot model's alone: a disposal that rejects or outruns
+  its budget (the owner's model closes through the real close behind one scheduled step and never
+  fails), and a request issued from inside the installer. The owner's handling of a failed
+  retirement is proved by the example `o2` only. No `isCurrent` fault was found that only
+  re-entry exposes (§8.1, `m9`), and the snapshot-reading `settle` the review flagged survived the
+  model (§3.3).
+- The route-unmount and Strict Mode retirement failure is invisible: named residual (§3.8, §12).
 - Four guards are carried, not proved (section 3.8): the writer's `isActiveReader` in the runtime,
   the undo stack's `isCurrent`, the table's `key`, and the header's "nobody" while no runtime is
   live.
@@ -4277,7 +4566,7 @@ Each is false on the real starting tree, checked on 2026-09-24.
 
 1. Step 0a's status is not empty, or `base` differs from the slice note's SHA. Stop: the clone is not
    the tree this packet was reviewed against.
-2. Step 0b extracts other than 9 patches, scripts of other than 42 and 87 lines, or other than 19
+2. Step 0b extracts other than 9 patches, scripts of other than 42 and 87 lines, or other than 22
    fault patches. Stop: this document is not the one reviewed.
 3. A patch fails `git apply --check`, the suites script prints any last line but `suites=17
 sites=256` or exits non-zero, or the regions script prints anything but its two lines or exits
@@ -4321,12 +4610,18 @@ retries until a held write commits` failing; a single `Test timed out in 5000ms`
   keeps its own `subscribeToProject` watch keyed by the selected project. A feature facade over its
   list, save, compare and watch, registered in `installProjectRuntime` beside the feed, with its
   watch given back by the runtime's close, is what ticks task 10. `ProjectRuntime` is the seam.
+- **The fatal nobody sees (task 7 and task 11).** A project retirement that fails during route
+  unmount or Strict Mode's cleanup resolves `leave()` as a modelled refusal, and no page is left to
+  draw it and nothing logs it (§3.8). Route the project owner's terminal fault to the application's
+  lifecycle report — a seam out of `application-bootstrap.tsx`'s `showFatal` — or have the session's
+  retirement join the project's and report it, as the Log out requirement already wants for
+  project-then-session retirement.
 - **Task 11** inherits: the owner (`createProjectOwner`) and the page's effect, which already route
   switch, unmount and Strict Mode re-entry through one withdrawal; its tests should drive the page
   through the router for route unmount, wrap the page in `<StrictMode>`, and open the window between
   a commit and its passive effect so the undo stack's `isCurrent` and the table's `key` become
   provable (section 3.8). `plan-writer.feature.ts`'s note about a same-reader renewal wants
-  rewording then.
+  rewording then, citing that `createPlanReading` opens its refresh owner exactly once per feed.
 - **Task 7 (Log out)** can retire the project through the same owner before the session: the page's
   effect cleanup is the project half.
 - **Task 13** can state "no delivery builds a project service" by symbol — `ProjectServices`'s
@@ -4355,57 +4650,72 @@ retries until a held write commits` failing; a single `Test timed out in 5000ms`
 
 ### 14.1 The non-negotiables of the commissioning brief
 
-| Requirement                                                                                                                                                             | Where this packet meets it                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| a project runtime as a lifecycle with an owner, retirement and replacement on switch                                                                                    | §3.1–3.3: `createProjectOwner` over one slot; §3.4 the page's effect                                      |
-| a written state machine (states, events, invariants)                                                                                                                    | §3.1                                                                                                      |
-| `fc.asyncModelRun` model test; sabotages (stale reader after switch, late answer after retirement, double retirement, subscription leak) each failing at a recorded run | §8.1 `m1` (run 1), `m2` (25), `m4` (1), `m5` (1), plus `m3`, `m6`, `m7`, `m8`; rehearsed twice, identical |
-| "Unknown is not OK"; production-path negatives with `Proof:` comments dated by the executor                                                                             | §8: nineteen faults, each observed; §3.8 and §9.3 name what was tried and could not be proved             |
-| no `any`, unchecked cast or `!` outside tests; names carry the domain; no product names in identifiers                                                                  | none in the production diffs; `createProjectOwner`, `installProjectRuntime`, `isCurrent`, `NOBODY_HERE`   |
-| module-identifier grammar                                                                                                                                               | N/A: no module identifier is added (§13.4)                                                                |
-| presence decided, in the packet and the delta spec                                                                                                                      | §3.6; slice 3's scenario and the amended g scenario                                                       |
-| task 10 honest                                                                                                                                                          | not ticked; dated note naming saved plans (§7.11)                                                         |
-| rehearsal commits, one per slice, hooks on; reds observed on the previous slice plus the test side; faults run, restored, `cmp`                                         | §9.3                                                                                                      |
-| exact planner commit subjects and shell-ready `owned.txt` blocks                                                                                                        | §6 each slice's step 9 and subject line                                                                   |
-| relative counts; planner-only checks marked                                                                                                                             | §6 every expectation is step 0 ± the slice's own; §9.4                                                    |
-| §9.1-style extraction proving each tree                                                                                                                                 | §9.1, `fill=0` identical to the final rehearsal commit; `fill=1` over h's sites                           |
-| `legacy-root` exemption if a pre-namespacing path is cited                                                                                                              | none cited: every path is `apps/wbs/fe-01/…` or relative to it; devsync on the packet commit (§15)        |
-| no absolute path outside Dispatch; `--driver claude` and `--require-ancestor <H3>` on every dispatch line                                                               | §6 Dispatch                                                                                               |
+| Requirement                                                                                                                                                             | Where this packet meets it                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| a project runtime as a lifecycle with an owner, retirement and replacement on switch                                                                                    | §3.1–3.3: `createProjectOwner` over one slot; §3.4 the page's effect                                                           |
+| a written state machine (states, events, invariants)                                                                                                                    | §3.1                                                                                                                           |
+| `fc.asyncModelRun` model test; sabotages (stale reader after switch, late answer after retirement, double retirement, subscription leak) each failing at a recorded run | §8.1 `m1` (run 2), `m2` (2), `m4` (2), `m5` (2), plus `m3`, `m6`–`m10`; rehearsed twice, identical; rehearsed twice, identical |
+| "Unknown is not OK"; production-path negatives with `Proof:` comments dated by the executor                                                                             | §8: twenty-two faults, each observed; §3.8 and §9.3 name what was tried and could not be proved                                |
+| no `any`, unchecked cast or `!` outside tests; names carry the domain; no product names in identifiers                                                                  | none in the production diffs; `createProjectOwner`, `installProjectRuntime`, `isCurrent`, `NOBODY_HERE`                        |
+| module-identifier grammar                                                                                                                                               | N/A: no module identifier is added (§13.4)                                                                                     |
+| presence decided, in the packet and the delta spec                                                                                                                      | §3.6; slice 3's scenario and the amended g scenario                                                                            |
+| task 10 honest                                                                                                                                                          | not ticked; dated note naming saved plans (§7.11)                                                                              |
+| rehearsal commits, one per slice, hooks on; reds observed on the previous slice plus the test side; faults run, restored, `cmp`                                         | §9.3                                                                                                                           |
+| exact planner commit subjects and shell-ready `owned.txt` blocks                                                                                                        | §6 each slice's step 9 and subject line                                                                                        |
+| relative counts; planner-only checks marked                                                                                                                             | §6 every expectation is step 0 ± the slice's own; §9.4                                                                         |
+| §9.1-style extraction proving each tree                                                                                                                                 | §9.1, `fill=0` identical to the final rehearsal commit; `fill=1` over h's sites                                                |
+| `legacy-root` exemption if a pre-namespacing path is cited                                                                                                              | none cited: every path is `apps/wbs/fe-01/…` or relative to it; devsync on the packet commit (§15)                             |
+| no absolute path outside Dispatch; `--driver claude` and `--require-ancestor <H3>` on every dispatch line                                                               | §6 Dispatch                                                                                                                    |
 
 ### 14.2 The batch-6 addendum's twenty points
 
-| Point                       | Assessment                                                                                                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Reproduced red           | Met for all three slices: compiler and runtime reds (slices 1, 2) and a runtime red (slice 3), each rebuilt from the previous slice plus its test side, diagnostics pasted (§6).    |
-| 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on (§9.3).                                                                         |
-| 3. Path counts              | Met: each hand-over lists the slice's exact paths (8, 25, 10); the planner's own commit adds only this document.                                                                    |
-| 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it; both scripts refuse on any unrecognised input.                                                           |
-| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                      |
-| 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (§9.4).                                                                                     |
-| 7. Known race               | Met: named, one rerun, no repair authority (§10.11).                                                                                                                                |
-| 8. Names                    | Met: no product name in an identifier; no module id added.                                                                                                                          |
-| 9. Packet form and evidence | Met: three slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed messages; the unprovable named, not skipped. |
-| 10. Pins                    | Met: no pin touched.                                                                                                                                                                |
-| 11. Pipeline exit handling  | Met: the fault `diff` form after one command; the filter count, the placeholder check and the builder check read single commands or captured output.                                |
-| 12. Planner chaining        | Met: the extraction stops at the first failed check (§9.1).                                                                                                                         |
-| 13. Module index            | N/A with reason: no `fe-01` module carries a `module-index` block, and no module directory is added (`runtime/` and `testing/` are not modules).                                    |
-| 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                         |
-| 15. Interleaving property   | Met: the owner and its runtimes under `fc.scheduler`-ordered answers, frames, gestures and disposals (§3.1, §7.2).                                                                  |
-| 16. Model-based remedy      | Met: `fc.asyncModelRun` against a reference model with eight sabotages at recorded runs (§8.1).                                                                                     |
-| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                  |
-| 18. Symbol-based checks     | N/A: no code-shape checker is introduced; slice 2's `git grep` is a verification command, and task 13 owns the symbol-based rule (§12).                                             |
-| 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                           |
-| 20. Honest limits           | Met: §3.8 and §9.5 — task 10 not ticked, four carried guards, the fixture's difference, the unfailing model disposal, the fill limits.                                              |
+| Point                       | Assessment                                                                                                                                                                                                                                                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Reproduced red           | Met for all three slices: compiler and runtime reds (slices 1, 2) and a runtime red (slice 3), each rebuilt from the previous slice plus its test side, diagnostics pasted (§6).                                                                                                                                                      |
+| 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on (§9.3).                                                                                                                                                                                                                           |
+| 3. Path counts              | Met: each hand-over lists the slice's exact paths (8, 25, 10); the planner's own commit adds only this document.                                                                                                                                                                                                                      |
+| 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it; both scripts refuse on any unrecognised input.                                                                                                                                                                                                             |
+| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                                                                                                                                                                        |
+| 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (§9.4).                                                                                                                                                                                                                                       |
+| 7. Known race               | Met: named, one rerun, no repair authority (§10.11).                                                                                                                                                                                                                                                                                  |
+| 8. Names                    | Met: no product name in an identifier; no module id added.                                                                                                                                                                                                                                                                            |
+| 9. Packet form and evidence | Met: three slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed messages; the unprovable named, not skipped.                                                                                                                                                   |
+| 10. Pins                    | Met: no pin touched.                                                                                                                                                                                                                                                                                                                  |
+| 11. Pipeline exit handling  | Met: the fault `diff` form after one command; the filter count, the placeholder check and the builder check read single commands or captured output.                                                                                                                                                                                  |
+| 12. Planner chaining        | Met: the extraction stops at the first failed check (§9.1).                                                                                                                                                                                                                                                                           |
+| 13. Module index            | N/A with reason: no file is added to a module directory (`runtime/` and `testing/` are not modules), and the one `fe-01` module that carries a `module-index` block, `preferences`, is untouched.                                                                                                                                     |
+| 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                                                                                                                                                                           |
+| 15. Interleaving property   | Met: the owner and its runtimes under `fc.scheduler`-ordered answers, frames, gestures and disposals (§3.1, §7.2).                                                                                                                                                                                                                    |
+| 16. Model-based remedy      | Met, with its limit stated: `fc.asyncModelRun` against a reference model with re-entrant requests from inside the owner's notification and partial acquisitions among its commands, ten sabotages red at recorded runs (§8.1); a disposal that rejects or times out, and installer re-entry, are the slot model's alone (§3.1, §9.5). |
+| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                                                                                                                                                                    |
+| 18. Symbol-based checks     | N/A: no code-shape checker is introduced; slice 2's `git grep` is a verification command, and task 13 owns the symbol-based rule (§12).                                                                                                                                                                                               |
+| 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                                                                                                                                                                             |
+| 20. Honest limits           | Met: §3.8 and §9.5 — task 10 not ticked, four carried guards, the fixture's difference, what the owner's model does and does not generate, the invisible unmount-time fatal, the fill limits.                                                                                                                                         |
 
 ## 15. Ready to commit
 
-| Slice | Paths                                                                                                                                                                                                                                                                                                                                                 | Subject                                                                                     |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 1     | `spec.md`, `verify.md`, `apps/wbs/fe-01/vitest.node-suites.ts`, `apps/wbs/fe-01/src/{modules/project/contract.ts,components/wbs/use-plan-read.ts}` — **5 modified**; `apps/wbs/fe-01/src/runtime/{project-runtime.ts,project-runtime.model.test.ts,project-runtime.test.ts}` — **3 new**                                                              | `feat(frontend): own the selected project's plan services in one project runtime`           |
-| 2     | `spec.md`, `verify.md`, `apps/wbs/fe-01/src/modules/project/contract.ts`, `apps/wbs/fe-01/src/components/wbs/{use-plan-read.ts,wbs-table.tsx,project-page.tsx,project-page.test.tsx}`, the seventeen suites of §6 step 0b — **24 modified**; `apps/wbs/fe-01/src/testing/wbs-table-over-client.tsx` — **1 new**                                       | `refactor(frontend): draw the table from the selected project's runtime, owned by the page` |
-| 3     | `spec.md`, `verify.md`, `tasks.md`, `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,project-page.test.tsx}`, `apps/wbs/fe-01/src/modules/{plan-feed,calendar-markers,project}/README.md`, `apps/wbs/fe-01/src/modules/plan-feed/presence-store.ts` — **10 modified** | `refactor(frontend): hand the header the selected project's presence, reset on a switch`    |
+| Slice | Paths                                                                                                                                                                                                                                                                                                                                                                               | Subject                                                                                     |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1     | `spec.md`, `verify.md`, `apps/wbs/fe-01/vitest.node-suites.ts`, `apps/wbs/fe-01/src/{modules/project/contract.ts,components/wbs/use-plan-read.ts}` — **5 modified**; `apps/wbs/fe-01/src/runtime/{project-runtime.ts,project-runtime.model.test.ts,project-runtime.test.ts}` — **3 new**                                                                                            | `feat(frontend): own the selected project's plan services in one project runtime`           |
+| 2     | `spec.md`, `verify.md`, `apps/wbs/fe-01/src/modules/project/contract.ts`, `apps/wbs/fe-01/src/components/wbs/{use-plan-read.ts,wbs-table.tsx,project-page.tsx,project-page.test.tsx}`, `apps/wbs/fe-01/src/runtime/project-runtime.ts` (the `w1` comment), the seventeen suites of §6 step 0b — **25 modified**; `apps/wbs/fe-01/src/testing/wbs-table-over-client.tsx` — **1 new** | `refactor(frontend): draw the table from the selected project's runtime, owned by the page` |
+| 3     | `spec.md`, `verify.md`, `tasks.md`, `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,project-page.test.tsx}`, `apps/wbs/fe-01/src/modules/{plan-feed,calendar-markers,project}/README.md`, `apps/wbs/fe-01/src/modules/plan-feed/presence-store.ts` — **10 modified**                               | `refactor(frontend): hand the header the selected project's presence, reset on a switch`    |
 
 (`spec.md`, `verify.md` and `tasks.md` are under `openspec/changes/adopt-frontend-lifetimes/`.) After the
 last commit the host gate runs on the shared build host with the committed hash, and its printed
 running-hash line and exit status are recorded. Anywhere else it is reported as not run, with the
 reason — never as passed. The Chromium runs of §9.4 are reported the same way until they have happened.
+
+## 16. Round 1, disposed
+
+| Finding                                                             | Disposal                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical 1 — slice 2's owned list omits `project-runtime.ts`        | Fixed: slice 2 owns 26 paths; step 9's list holds it (`-eq 26`); step 10 expects twenty-five ` M` and one `??`; §4.2 and §15 follow.                                                                                                                                                                                                                                          |
+| Important 1 — the owner's model has no re-entry, partial or timeout | The stronger option: `reenter(p)` (an `open` from inside the owner's own notification) and `openBroken(p)` (a `PartialAcquisitionError` after the feed opened) join the model, with `m9` and `m10` red at recorded runs; §3.1, §9.5 and §14.2 row 16 say what stays the slot model's (a failing or expiring disposal, installer re-entry).                                    |
+| Important 2 — `settle` classifies by a later snapshot               | Fixed: the owner records, by identity, every refusal its own runtimes raise (construction, partial release, retirement) and `settle` classifies by the refusal; "impossible" is gone from `open`'s JSDoc. New negatives `o2` (moved to the retirement record) and `o3`/`m10` (the construction record). The old form survived the extended model and that is recorded (§3.3). |
+| Important 3 — a failed retirement on unmount is invisible           | Named residual, no code change (§3.8, §12): the bootstrap's report is local to `bootstrapApplication`, and a seam out of it is task 7/11's.                                                                                                                                                                                                                                   |
+| Important 4 — dispatch waits for h's merge                          | Unchanged: Dispatch already says the base is main after h's lane merged, and §9.1 is rerun on that merge.                                                                                                                                                                                                                                                                     |
+| Minor 1 — `q2`'s anchor                                             | Fixed: the line directly above `void projectOwner.leave();`.                                                                                                                                                                                                                                                                                                                  |
+| Minor 2 — why the renewal case is gone                              | Recorded in §3.8: `createPlanReading` opens its refresh owner once per feed; §12 carries it to task 11.                                                                                                                                                                                                                                                                       |
+| Minor 3 — the undo stack's simplified guard                         | Named in §3.8.                                                                                                                                                                                                                                                                                                                                                                |
+| Minor 4 — §14.2 row 13                                              | Fixed: `preferences/README.md` carries a `module-index` block and is untouched.                                                                                                                                                                                                                                                                                               |
+| Minor 5 — the awaited unsubscribes                                  | No change, as the review says.                                                                                                                                                                                                                                                                                                                                                |
