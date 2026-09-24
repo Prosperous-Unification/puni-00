@@ -2241,3 +2241,134 @@ sandbox 56 · 709.
 
 **Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which runs in the executor sandbox.
+
+## Packet 050.7k, slice 1 — the session owner's local exit, with the log-out model
+
+Attempt `050-7-k-log-out.1.20260924T201657Z`, observed on 2026-09-24, starting at
+`05ace33650702cbff41867c3c52a383d93a0da4d` with a clean status (`base.txt`,
+`status-before.txt`). Test runs under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; every
+multi-file run serial.
+
+### Baselines (step 0)
+
+| Check                          | Files·tests | Status |
+| ------------------------------ | ----------- | ------ |
+| preferences                    | 4·39        | 0      |
+| sandbox node suite             | 56·709      | 0      |
+| session set, serial            | 3·65        | 0      |
+| zoned (Pacific/Auckland)       | 2·3         | 0      |
+| strict OpenSpec (items·passed) | 114·114     | 0      |
+
+### Contract first (section 7.1)
+
+Strict OpenSpec after the two scenarios: `{"items":114,"passed":114,"failed":0}`, exit 0.
+
+### Red checkpoint (after section 7.2, before section 7.3)
+
+- `wbs-fe-01:typecheck`: `status=1`, `Found 9 errors in 2 files.` — TS2305 (`no exported member
+'SessionExit'`) at `session-exit.model.test.ts:17:8` and `session-runtime.test.ts:15:8`; TS2339
+  (`Property 'exit' does not exist on type 'SessionOwner'`) at `session-exit.model.test.ts:344:31`
+  and `session-runtime.test.ts:256:24`, `299:18`, `312:26`, `332:24`; TS7006 at
+  `session-exit.model.test.ts:348:6` and `session-runtime.test.ts:299:31` (`s1-red-typecheck.log`).
+- Vitest, the two files: `status=1`, `Test Files 2 failed (2)`, `Tests 4 failed | 8 passed (12)`;
+  the model on `TypeError: world.owner.exit is not a function`, the three new examples on
+  `TypeError: owner.exit is not a function` (`s1-red-vitest.log`).
+
+### Green checkpoint (after section 7.3)
+
+| Check                         | Result                        | Status |
+| ----------------------------- | ----------------------------- | ------ |
+| `wbs-fe-01:typecheck`         | clean                         | 0      |
+| runtime set (3 files), serial | 3·13                          | 0      |
+| `src/test-tiers.test.ts`      | 1·5                           | 0      |
+| sandbox node suite            | 57·713 (step 0 + 1 file, + 4) | 0      |
+| `wbs-fe-01:lint`              | clean                         | 0      |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`filters.txt`). Each fault was applied with
+`git apply --unidiff-zero`, its named test run, the file restored and compared with `cmp`, and the
+test rerun green (`<id>.patch`, `<id>.log`, `<id>.green.log`, `faults.txt`). The model runs with
+seed 20260924.
+
+| Id   | Named test                                                   | Observed                                                                                                                                                 |
+| ---- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `x1` | model `retires the project and then the session, …`          | `Tests 1 failed (1)`; run 18, shrunk 10 times to `reenterLogOut,signIn(u1),read(0)`; `read: withdrawn s1 sent a request: expected 5 to be +0`            |
+| `x2` | model                                                        | run 50, shrunk 6 times to `signIn(u1),openProject(0, p1, settles),signIn(u2),drain`; `s1 was given back before its project s1.p1.settles`                |
+| `x3` | model                                                        | run 59, shrunk 9 times to `signIn(u1),openProject(0, p1, settles),leave,drain`; `drain: s1.p1.settles's plan changed after its session s1 was withdrawn` |
+| `x4` | model                                                        | run 75, shrunk 6 times to `signIn(u1),openProject(0, p1, hangs),leave,answer`; `teardown: leave never settled: expected false to be true`                |
+| `x5` | model                                                        | run 3, shrunk 7 times to `signIn(u1),leave,logOut`; `logOut#1 settled signed-out before s1 was given back`                                               |
+| `x6` | model                                                        | run 58, shrunk 5 times to `signIn(u1),openProject(0, p1, rejects),logOut,drain`; `logOut#1 settled signed-out before s1 was given back`                  |
+| `x7` | model                                                        | run 43, shrunk 4 times to `signIn(u1),logOut,signInBroken(u1)`; `logOut#1 settled signed-out though a sign-in was asked for while it retired`            |
+| `e1` | `settles signed out once the project and then the session …` | `Tests 1 failed \| 10 skipped (11)`; `expected [ 'session given back', …(1) ] to deeply equal [ 'project p1 given back', …(1) ]`                         |
+| `e2` | `settles fatal at the budget when the project’s socket …`    | `Tests 1 failed \| 10 skipped (11)`; `expected null to be 'fatal'`                                                                                       |
+| `e3` | `settles fatal after a sign-in that could not be built, …`   | `Tests 1 failed \| 10 skipped (11)`; `expected 'signed-out' to be 'fatal'`                                                                               |
+
+### After the Proof comments
+
+`session-runtime.ts` gained six comment blocks and lost nothing but `return {`; the twelve earlier
+`Proof:` blocks are unchanged. Reruns: runtime set 3·13, preferences 4·39, sandbox 57·713, session
+set 3·65, zoned 2·3, `wbs-fe-01:typecheck` and `wbs-fe-01:lint` clean, each status 0
+(`s1-final-*.log`).
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`
+and the host gate were not run in the executor sandbox.
+
+## Packet 050.7k, slice 2 — log out through the region, the region's project fault, and task 7
+
+Attempt `050-7-k-log-out.2.20260924T203018Z`, observed 2026-09-24, starting at
+`f76c5f423b56b168b4b69df422256c0361263917` (slice 1's planner commit; packet
+base `05ace3365` an ancestor), with an empty `git status`. Every Vitest run
+below ran with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; every
+multi-file run was serial.
+
+Step 0 baselines (`base-*.log`): preferences 4 files · 39 tests, sandbox node
+suite 57 · 713, session set 3 · 65, Auckland zoned 2 · 3, all `status=0`;
+strict OpenSpec `{"items":114,"passed":114,"failed":0}`. Step 0b extracted 6
+patches and 13 fault patches.
+
+- Contract: section 7.4 applied; strict OpenSpec exit 0,
+  `{"items":114,"passed":114,"failed":0}`.
+- Red (`s2-red-typecheck.log`, `s2-red-vitest.log`), after section 7.5 alone:
+  typecheck `status=1`, `Found 2 errors in the same file, starting at:
+apps/wbs/fe-01/src/app.test.tsx:325` — TS2322 at `:325:40` and `:518:11`,
+  `… is not assignable to type 'IntrinsicAttributes & SignedInAppProps'.`;
+  Vitest `status=1`, `Tests 4 failed | 13 passed (17)`, `Errors 3 errors`:
+  `signs out once …` on `AssertionError: expected [] to include 'signed out'`,
+  the two fatal-page examples and the region example on
+  `Error: no fatal state yet`, three unhandled
+  `TypeError: onSignOut is not a function`; `returns to the sign-in form
+through the app, …` passed.
+- Section 7.6 applied; both notes dated by `date -u +%F` to 2026-09-24, no
+  `<observed-date-k>` left; task 7 reads `[x]`.
+- Green (`s2-green-*.log`, `s2-format.log`): `wbs-fe-01:typecheck`
+  `status=0`; `nx format:check --all` `status=0`; session set 3 · 70 (five
+  tests more than step 0); zoned 2 · 3; sandbox 57 · 713 (unchanged).
+- Lint (`s2-lint.log`): `wbs-fe-01:lint` `status=0`.
+- Proofs, each filter matched exactly one test; each fault restored and
+  `cmp`-identical, its named test rerun green (`<id>.patch`, `<id>.log`,
+  `<id>.green.log`):
+  - `a1` — the menu handed `onSignedOut` itself: `signs out once the project
+and then the session have let go, and sends nothing` failed,
+    `1 failed | 16 skipped (17)`, `AssertionError: expected [ 'signed out' ]
+to deeply equal [ 'project given back', …(2) ]`.
+  - `a2` — signed out whatever the exit settled: `shows the fatal state
+instead of signing out when the project will not let go` failed,
+    `1 failed | 16 skipped (17)`, `AssertionError: expected [ 'signed out' ]
+to not include 'signed out'`.
+  - `p1` — the gate's terminal-fault branch removed: `draws the fatal state in
+the region’s place when its project cannot be given back outside a log
+out` failed, `1 failed | 16 skipped (17)`, `Error: no fatal state yet`, the
+    directory still in the DOM.
+- After the `Proof:` comments (`s2-final-*.log`): typecheck and lint
+  `status=0`; session set 3 · 70; preferences 4 · 39; sandbox 57 · 713.
+- Owned-file Prettier, `nx format:check --all` (`s2-format-after.log`) and the
+  strict OpenSpec block ran after this entry was written; their results are in
+  the attempt's report and evidence.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
+`wbs-fe-01:build`, `wbs-fe-01:e2e` (the login specs and every spec that clicks
+Log out, then unfiltered on the integration commit), `tool-devsync:test`, and
+the host gate, none of which the executor sandbox can run.

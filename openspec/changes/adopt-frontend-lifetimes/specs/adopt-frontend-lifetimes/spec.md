@@ -307,6 +307,13 @@ directory management and its project owner.
 - **THEN** its runtime is opened through that session runtime's own project
   owner, and not through an owner of the page's own
 
+#### Scenario: A project given back after its page has gone fails visibly
+
+- **WHEN** the session's project is left by its page going - a route change or
+  Strict Mode's cleanup - and its disposal rejects or outruns its wait
+- **THEN** the signed-in region is replaced by the fatal state, which carries
+  only the sanitized report and its occurrence handle
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the
@@ -325,6 +332,22 @@ state SHALL be shown instead.
 - **WHEN** a project or session disposer rejects during Log out
 - **THEN** the signed-out state does not render, no retired service is
   republished, and the fatal state is shown
+
+#### Scenario: Log out whose project never lets go
+
+- **WHEN** Log out is activated and the selected project's disposal has not
+  settled when the retirement's bounded wait expires
+- **THEN** Log out settles within that wait, the signed-out state does not
+  render, the fatal state is shown, and the disposal's later completion
+  publishes nothing
+
+#### Scenario: Log out asked again, during a sign-in, or after one that failed
+
+- **WHEN** Log out is activated while a log out, a user switch or a sign-in is
+  still retiring or building, or after a sign-in that could not be built
+- **THEN** one retirement runs, every log out settles only once it has run, a
+  sign-in asked for after the log out is not undone by it, and after a sign-in
+  that could not be built the fatal state stays
 
 ### Requirement: A restored page rebuilds only after retirement succeeds
 
