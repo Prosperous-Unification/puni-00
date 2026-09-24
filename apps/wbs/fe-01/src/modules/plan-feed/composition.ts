@@ -1,13 +1,10 @@
 import { createPlanRefresh } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { ProjectApi } from '@/lib/wbs-api';
+import type { Publisher } from '@/modules/channel';
 
-import type {
-  PlanFeed,
-  PlanFeedDelivery,
-  PlanFeedRefusal,
-  PlanFeedStreamHandlers,
-} from './contract';
+import type { PlanFeed, PlanFeedRefusal, PlanFeedStreamHandlers } from './contract';
+import type { DeliveredPlanWrites } from './delivered-plan-store';
 import { createPlanFeed } from './plan-feed.feature';
 
 /** What a screen hands the composition site: its identity and where its answers go. */
@@ -18,9 +15,10 @@ export interface PlanFeedForReader {
     | ((projectId: string, handlers: PlanFeedStreamHandlers, baseline: number) => ProjectStream)
     | undefined;
   readonly isActiveReader: () => boolean;
-  readonly publish: (delivery: PlanFeedDelivery) => void;
-  readonly announceRefusal: (refusal: PlanFeedRefusal) => void;
-  readonly setConnected: (connected: boolean) => void;
+  /** The reader's delivered plan: every publication and connection report is written here. */
+  readonly plan: DeliveredPlanWrites;
+  /** Where a refusal of the first read is announced; the words are the listener's. */
+  readonly refusals: Publisher<PlanFeedRefusal>;
 }
 
 /**
@@ -38,9 +36,8 @@ export function planFeedForReader({
   api,
   subscribe,
   isActiveReader,
-  publish,
-  announceRefusal,
-  setConnected,
+  plan,
+  refusals,
 }: PlanFeedForReader): PlanFeed {
   return createPlanFeed({
     openOwner: () => createPlanRefresh({ projectId, api }),
@@ -49,8 +46,8 @@ export function planFeedForReader({
         ? null
         : (handlers, baseline) => subscribe(projectId, handlers, baseline),
     isActiveReader,
-    publish,
-    announceRefusal,
-    setConnected,
+    publish: plan.deliver,
+    announceRefusal: refusals.publish,
+    setConnected: plan.reportConnection,
   });
 }
