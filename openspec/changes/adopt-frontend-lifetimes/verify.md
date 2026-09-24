@@ -1328,3 +1328,43 @@ status 0 (`s4-final-plan-layout.log`). The preferences suite gave 6 files and 41
 
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e` (`e2e/layout.spec.ts`) and
 `tool-devsync:test` are still pending. The host gate was not run.
+
+## Packet 050.7f2, slice 5 — the duplicate deleted, task 3's note, and the closing checks
+
+Attempt `050-7-f2-delivery-call-sites.5.20260924T004635Z`, starting at
+`592030962ba973ea03aadf3d72fa4ca9dfc62399` with an empty status and `fast-check` 4.9.0
+(`base.txt`, `status-before.txt`, `fast-check.txt`). Observed 2026-09-24.
+
+Step 0 baselines: preferences suite 6 files, 41 tests, `status=0` (`base-preferences.log`); sandbox
+node suite 46 files, 675 tests, `status=0` (`base-sandbox.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+Red checkpoint, after `git apply --check` of section 7.19 passed and exactly its three files were
+removed: `wbs-fe-01:typecheck` `status=0` — nothing imports the deleted module
+(`s5-red-typecheck.log`); sandbox node suite `status=1`, `Test Files 1 failed | 44 passed (45)`,
+`Tests 3 failed | 671 passed (674)`, all three in `src/test-tiers.test.ts`: `lists every DOM-free
+suite in the fast tier, and only those`, `partitions the suite — every file is in exactly one tier`
+and `names files that exist` (`s5-red-sandbox.log`).
+
+Sections 7.20, 7.21 and 7.22 applied; task 3's note dated `observed 2026-09-24` from `date -u +%F`,
+no placeholder left, the box still unchecked.
+
+Green checkpoint, every check `status=0`: typecheck (`s5-green-typecheck.log`); lint (`s5-lint.log`);
+sandbox node suite 45 files, 674 tests — step 0 less one file and one test (`s5-green-sandbox.log`);
+preferences suite 4 files, 39 tests — step 0 less two files and two tests
+(`s5-green-preferences.log`); tier test 5 tests (`s5-green-tiers.log`).
+
+Proof `n1`: the filter `names files that exist` matched exactly one test (`n1-filter.txt`). Listing
+`src/modules/preferences/composition.test.ts` in `vitest.node-suites.ts` again (`n1.patch`) failed it,
+`status=1`, `Tests 1 failed | 4 skipped (5)`, on `src/modules/preferences/composition.test.ts:
+expected [Function] to not throw an error but 'Error: ENOENT: no such file or direct…' was thrown`
+(`n1.log`); the file was restored by copy, `cmp`-identical, and the rerun passed, `Tests 1 passed | 4
+skipped (5)` (`n1.green.log`). The `Proof:` comment was added afterwards and the tier test rerun,
+5 tests, `status=0` (`s5-tiers-after-comment.log`).
+
+The owned-file Prettier write and check, `nx format:check --all` (`s5-format.log`) and the strict
+OpenSpec block run after this entry is written, so that they check it; their results are in those
+evidence files and the attempt's report.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, which was not run.

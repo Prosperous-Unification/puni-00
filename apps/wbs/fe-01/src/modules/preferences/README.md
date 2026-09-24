@@ -43,11 +43,12 @@ The exported types are in `contract.ts`; the repository adapter is
 resource is `preferences.resource.ts`; the named answers are `preferences.feature.ts`.
 `module.ts` is the sealed DI Bag module — exports `preferences` and `remembered`, keeps
 `preferencesStore` private under the `frontend.preferences` label, and requires `browserStore`
-from its host, which is `apps/wbs/fe-01/src/runtime/application-runtime.ts`. `composition.ts`
-still builds the module-load instances delivery imports; that duplicate is staged debt and
-`composition-agreement.test.ts` proves it divides no state. `apps/wbs/fe-01/src/lib/remembered.ts`
-keeps the generic factory for the layout module, which builds a store per project id, and is the
-reason `preferences` is a public export at all.
+from its host, which is `apps/wbs/fe-01/src/runtime/application-runtime.ts`. That runtime is the
+only instance: delivery reads `remembered` through `useApplicationServicesState` or, at the instant
+of an event, `useApplicationServicesReader`, and there is no module-load duplicate any more.
+`apps/wbs/fe-01/src/lib/remembered.ts` keeps the generic factory for the layout module, which
+builds a store per project id, resolves the runtime's `preferences` from its lifetime slot at every
+call, and is the reason `preferences` is a public export at all.
 
 This module carries **no** `module-index` block yet, and adding one is its own packet: the
 `docs/wiki-policy` registration and the index that names these files land together, for the reason
@@ -56,8 +57,7 @@ This module carries **no** `module-index` block yet, and adding one is its own p
 ## Checks
 
 The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`, for
-`preferences.resource.test.ts`, `preferences.feature.test.ts`, `composition.test.ts` and
-`module.test.ts`. The adapter's own suite, `browser-storage.repository.test.ts`, and
-`composition-agreement.test.ts` name browser globals and therefore run in the `test` target
-instead. The behaviour this extraction preserves is proved by the theme,
+`preferences.resource.test.ts`, `preferences.feature.test.ts` and `module.test.ts`. The adapter's
+own suite, `browser-storage.repository.test.ts`, names browser globals and therefore runs in the
+`test` target instead. The behaviour this extraction preserves is proved by the theme,
 layout, chart, settings and project page suites in that same target.

@@ -199,6 +199,13 @@ export interface PreferencesRequirements {
  * fixed named answer. The map's claim that the generic factory is "not a reason
  * to expose the resource" is half right: it is not a reason to put it in a React
  * context, and it is still the reason the module exports it.
+ *
+ * Since the module-load duplicate was deleted, `lib/remembered.ts` reaches this
+ * export only through the page's own runtime, read from its lifetime slot at the
+ * instant of each access — never through a React context, and never through an
+ * instance of its own. Whether the resource then moves behind a feature of its
+ * own or stays as accepted debt with that one caller named is OpenSpec task 12
+ * of `adopt-frontend-lifetimes`.
  */
 export interface PreferencesExports {
   readonly preferences: Preferences;
