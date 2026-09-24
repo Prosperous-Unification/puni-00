@@ -1,13 +1,13 @@
 # 050.7 m — every project ownership replaced, and a stale completion changes nothing
 
-|             |                                                                                                                                                                                                                                                                                                                                                            |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **seventeenth packet**, the last of 050.7's task packets                                                                                                                                                                                                        |
-| Size class  | S — two slices, each one executor attempt                                                                                                                                                                                                                                                                                                                  |
-| Predecessor | 050.7k (`050-7-k-log-out.md`) and 050.7i, 050.7j, 050.7h — each one's section 12, "Hand-over to the next packet", and section 3.8, which hand task 11 the residuals section 3.1 lists; 050.7l (tasks 12 and 13) is authored in parallel on the same base and lands first                                                                                   |
-| Advances    | OpenSpec task **11** of `adopt-frontend-lifetimes` — **ticked** in slice 2, every sentence met (section 3.5). Every residual the earlier packets handed task 11 is proved, deleted as unreachable, or named with an owner (section 3.1)                                                                                                                    |
-| Revision    | First.                                                                                                                                                                                                                                                                                                                                                     |
-| Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. One requirement with six scenarios, added in slice 2 before packet j's "One project runtime owns the selected project's plan services"; task 11 ticked with a dated note; one dated update to the lifetime map, after its exact lifecycle tests. Slice 1 changes no behaviour and no spec. |
+|             |                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **seventeenth packet**, the last of 050.7's task packets                                                                                                                                                                                                                                                                                                      |
+| Size class  | S — two slices, each one executor attempt                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Predecessor | 050.7k (`050-7-k-log-out.md`) and 050.7i, 050.7j, 050.7h — each one's section 12, "Hand-over to the next packet", and section 3.8, which hand task 11 the residuals section 3.1 lists; 050.7l (tasks 12 and 13) is authored in parallel on the same base and lands first                                                                                                                                                                                 |
+| Advances    | OpenSpec task **11** of `adopt-frontend-lifetimes` — **ticked** in slice 2, every sentence met (section 3.5). Every residual the earlier packets handed task 11 is proved, deleted as unreachable, or named with an owner (section 3.1)                                                                                                                                                                                                                  |
+| Revision    | Second: round 1 applied (section 16) — slice 1's red made real-base-proof, packet h's busy scenario reworded, the dependency list's stale toast found and fixed, page hide given its owner.                                                                                                                                                                                                                                                              |
+| Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Slice 2: one requirement with six scenarios, added before packet j's "One project runtime owns the selected project's plan services"; packet h's scenario "The writer and the feed announce through the project's ports" reworded for the busy state slice 1 lowers; task 11 ticked with a dated note; task 14 appended, unchecked, for page hide; one dated update to the lifetime map. |
 
 ## 1. Goal, non-goals, and the cut
 
@@ -20,9 +20,14 @@ unmount nobody drove through the router, and three records to reword. This packe
 them a negative that fails when the guard is removed, with a `Proof:` comment — or, where the guard
 turns out to be unreachable in production, **deletes it and says why** (R5: no decorative check).
 
-**What a reader sees change: nothing.** No behaviour changes. Two checks and one React key go because
-nothing can reach them; one test seam (`SignedInApp`'s `projectApi`, the bargain `openOwner` already
-makes) is added so the route can be driven over a project the test holds.
+**What a reader sees change: one stale toast fewer.** A typed dependency list refused after the reader
+moved to another project used to say its refusal over the next project — its guard was a ref to the
+commands the table last rendered with, which stays true once that table is gone, while the toasts are
+the page's and outlive it. It now asks its runtime's `isCurrent` (section 3.1, row 15). Nothing else a
+reader can see changes: two checks and one React key go because nothing can reach them — a gesture
+whose reader has left now lowers its own runtime's busy state, which nobody draws — and one test seam
+(`SignedInApp`'s `projectApi`, the bargain `openOwner` already makes) is added so the route can be
+driven over a project the test holds.
 
 **Non-goals.**
 
@@ -30,13 +35,15 @@ makes) is added so the route can be driven over a project the test holds.
   commissioning list. It is **not** closed here, and that is a decision, not an omission (section 3.4):
   task 11's sentence names switch, route unmount and Strict Mode, and joining the session's retirement
   into the application's is a change to the application lifetime (task 5's, closed by amendment) with
-  its own concurrency, which the batch addendum's point 16 says needs its own model. Named in
-  section 12 with the shape it needs.
+  its own concurrency, which the batch addendum's point 16 says needs its own model. Its owner is WBS
+  item `4334fc49-e143-4671-af58-28cfd5f35423` ("050.7 follow-up: on page hide the application's
+  retirement awaits the session's and fails when it fails"), which slice 2 records as task 14 of the
+  change, unchecked; section 12 has the shape it needs.
 - **Saved plans** (task 10's last outcome): the shelf keeps its own keyed watch. Lifetime-map test 8's
   "saved-plan watch closes once" stays task 10's.
 - **A model-based test.** No concurrency logic is added or changed: slice 1 removes a predicate that
-  answered nothing its sibling did not, slice 2 removes a key and a guard nothing reaches and adds a
-  test seam. The owners' models (`project-runtime.model.test.ts`, `session-runtime.model.test.ts`,
+  answered nothing its sibling did not, slice 2 removes a key and a guard nothing reaches, gives the
+  dependency list's existing guard the runtime's predicate in place of a ref, and adds a test seam. The owners' models (`project-runtime.model.test.ts`, `session-runtime.model.test.ts`,
   `session-exit.model.test.ts`, `lifetime-slot.model.test.ts`) are not extended: no residual on the
   list is an interleaving they do not already generate (section 3.4).
 - No dependency, `project.json`, `bun.lock`, tsconfig, module README or pin change;
@@ -49,50 +56,52 @@ makes) is added so the route can be driven over a project the test holds.
    the instant the project runtime is withdrawn — answers everything it did; the writer's stale
    "same-reader renewal" notes go with it; `createProjectOwner`'s JSDoc says whose owner it is now.
    Three negatives prove the identity checks that remain.
-2. **Delivery and the records** — five page cases in a new `project-replacement.test.tsx` (a switch
-   mid-undo, the interval while the old project lets go, Strict Mode at the project page), three
-   region cases in `app.test.tsx` through the real router (a route change, a route change that cannot
-   give the project back, Strict Mode at the session), the table's key and the undo stack's busy
-   guard deleted, the `projectApi` seam, the spec's requirement, task 11 ticked, the lifetime map's
-   dated update. Eight negatives.
+2. **Delivery and the records** — six page cases in a new `project-replacement.test.tsx` (a switch
+   mid-undo and mid-dependency-list, the interval while the old project lets go, Strict Mode at the
+   project page), three region cases in `app.test.tsx` through the real router (a route change, a
+   route change that cannot give the project back, Strict Mode at the session), the table's key and
+   the undo stack's busy guard deleted, the dependency list's guard repaired, the `projectApi` seam,
+   the spec's requirement and packet h's reworded scenario, task 11 ticked, task 14 appended, the
+   lifetime map's dated update. Ten negatives.
 
 ## 2. Read first
 
-| File                                                                                   | Why                                                                                                             |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`, `LLM_README.md`                                                           | Rules R1–R5 and the routing index.                                                                              |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                  | "Execution contract", "Standard blocks every packet uses" — the strict OpenSpec block and the fault form.       |
-| `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`             | "Project owner", "Exact lifecycle tests for the implementation packet" 8 to 11.                                 |
-| `docs/superpowers/plans/2026-09-21-batch-6/050-7-{h,i,j,k}-*.md`, sections 3.8 and 12  | The residuals section 3.1 disposes of, in the words each packet handed them on.                                 |
-| `apps/wbs/fe-01/src/runtime/project-runtime.ts`                                        | `installProjectRuntime`'s four guards; `readRefreshOwner` is `isCurrent() ? feed.owner : null`.                 |
-| `apps/wbs/fe-01/src/modules/{plan-writer,calendar-markers}/*.ts`                       | The two hosts' `isActiveReader`, and the identity comparisons that stay.                                        |
-| `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,use-plan-read.ts}`, `src/app.tsx` | The page's effect and its `live` gate, the undo stack (`stepStack`), `SignedInApp` and `ProjectRetirementGate`. |
+| File                                                                                                            | Why                                                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`, `LLM_README.md`                                                                                    | Rules R1–R5 and the routing index.                                                                                                                                              |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                                           | "Execution contract", "Standard blocks every packet uses" — the strict OpenSpec block and the fault form.                                                                       |
+| `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`                                      | "Project owner", "Exact lifecycle tests for the implementation packet" 8 to 11.                                                                                                 |
+| `docs/superpowers/plans/2026-09-21-batch-6/050-7-{h,i,j,k}-*.md`, sections 3.8 and 12                           | The residuals section 3.1 disposes of, in the words each packet handed them on. Packets i and k are on the dispatch base; the authoring base carries only their rehearsed code. |
+| `apps/wbs/fe-01/src/runtime/project-runtime.ts`                                                                 | `installProjectRuntime`'s four guards; `readRefreshOwner` is `isCurrent() ? feed.owner : null`.                                                                                 |
+| `apps/wbs/fe-01/src/modules/{plan-writer,calendar-markers}/*.ts`                                                | The two hosts' `isActiveReader`, and the identity comparisons that stay.                                                                                                        |
+| `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,use-plan-read.ts,use-plan-dependencies.ts}`, `src/app.tsx` | The page's effect and its `live` gate, the undo stack (`stepStack`), the dependency list (`dependOn`), `SignedInApp` and `ProjectRetirementGate`.                               |
 
 ## 3. Design
 
 ### 3.1 The residual ledger
 
-Every residual the earlier packets handed task 11, in their own words, and what this packet does with
-it. "Proved" means a fault that removes the check fails a named test on a production path, observed in
+Every residual the earlier packets handed task 11, in their own words — row 15 is the one round 1's
+review found this ledger had missed — and what this packet does with it. "Proved" means a fault that removes the check fails a named test on a production path, observed in
 this packet's rehearsal (section 8); "deleted" means the check was shown to decide nothing and is
 removed, with the reason in section 3.2 and the observation in section 9.3.
 
-| #   | Residual, as handed on                                                                                   | From           | Disposition                                                                                                                                                                                                                            |
-| --- | -------------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | the feed's `isActiveReader` services comparison (`use-plan-read.ts`, operand changed without a negative) | h §3.8         | **Already proved**: packet j moved it into the runtime (`isActiveReader: isCurrent` in the feed's factory), fault `m2` of `project-runtime.model.test.ts`. Nothing to add.                                                             |
-| 2   | `refreshResourcesOrMarkStale`'s comparison                                                               | h §3.8         | **Already proved**: now the runtime's `reread` guard, packet j's `m3`.                                                                                                                                                                 |
-| 3   | the marker gestures' `isActiveReader` comparison                                                         | h §3.8         | **Deleted** (slice 1): the runtime's `readRefreshOwner` already answers `null` once withdrawn, so `readRefreshOwner() === owner` implies it. The identity check that stays is proved again (`c1`).                                     |
-| 4   | the undo stack's `isCurrent` (`stepStack`)                                                               | h §3.8, j §3.8 | **Proved** (slice 2, `s1`, `s2`): the page's toasts outlive the table, so an undo answered after a switch would say its sentence over the next project. Its third use, `if (isCurrent()) busyWrites.lower()`, is **deleted**: see 3.2. |
-| 5   | the writer's `isActiveReader: isCurrent` inside the runtime, "carried, not proved"                       | j §3.8         | **Deleted** (slice 1), for row 3's reason. The writer's two identity checks, both changed lines, are proved (`w1`, `w2`).                                                                                                              |
-| 6   | the table's `key`, whose old `Proof:` became false                                                       | j §3.8         | **Deleted** (slice 2): the page draws no table between two runtimes, so every runtime already mounts a table of its own. What makes that true — the `live` gate — is proved (`t1`).                                                    |
-| 7   | the header showing "nobody" during the switch gap — the reset proved, not the gap                        | j §3.8         | **Proved** (slice 2, `h1`), with the old project's retirement held open and its stream still talking.                                                                                                                                  |
-| 8   | Strict Mode re-entry never exercised by a test                                                           | j §3.8, i §12  | **Exercised** at both owners under a real `<StrictMode>`: the project page (an oracle, `m1`) and the signed-in region (`n1`). Finding recorded in 3.2: the page's own re-entry opens nothing.                                          |
-| 9   | route unmount, not driven through the router                                                             | j §12, k §3.5  | **Proved** through the real router (slice 2, `r1`): the directory link gives the project back once and keeps the session; a close that refuses there draws the region's fatal state (`g1`).                                            |
-| 10  | the direct `session.projects.leave()` region example                                                     | k §12          | **Kept**, beside its route-driven twin: its `p1` proof names it, and a leave from any caller is still the gate's to draw. The twin carries `g1` at the same site.                                                                      |
-| 11  | `plan-writer.feature.ts`'s stale "same-reader renewal" note                                              | i, j §3.8      | **Reworded** (slice 1): removed with the predicate it justified; the comment that replaces it says one owner per feed, never renewed.                                                                                                  |
-| 12  | `createProjectOwner`'s JSDoc ("one page's", "safe in a lazy state initializer")                          | i §3.8         | **Reworded** (slice 1): the owner is one per session, handed to the page, retired before the session.                                                                                                                                  |
-| 13  | page hide's own session retirement, and the unmount-time one, observed by nobody                         | i, k §12       | **Left, with an owner** (section 12): an application-lifetime change, not task 11's sentence. The other unmount-time retirements are observed: section 3.4.                                                                            |
-| 14  | `ProjectPage`'s own terminal branch, shadowed under `SignedInApp`                                        | k §12          | **Left as it is**: it is not a guard but the page's own drawing when it is used without the region, which its suites do; packet j's `&& false` proof there still fails through them.                                                   |
+| #   | Residual, as handed on                                                                                                                                                                                                      | From           | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | the feed's `isActiveReader` services comparison (`use-plan-read.ts`, operand changed without a negative)                                                                                                                    | h §3.8         | **Already proved**: packet j moved it into the runtime (`isActiveReader: isCurrent` in the feed's factory), fault `m2` of `project-runtime.model.test.ts`. Nothing to add.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 2   | `refreshResourcesOrMarkStale`'s comparison                                                                                                                                                                                  | h §3.8         | **Already proved**: now the runtime's `reread` guard, packet j's `m3`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 3   | the marker gestures' `isActiveReader` comparison                                                                                                                                                                            | h §3.8         | **Deleted** (slice 1): the runtime's `readRefreshOwner` already answers `null` once withdrawn, so `readRefreshOwner() === owner` implies it. The identity check that stays is proved again (`c1`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 4   | the undo stack's `isCurrent` (`stepStack`)                                                                                                                                                                                  | h §3.8, j §3.8 | **Proved** (slice 2, `s1`, `s2`): the page's toasts outlive the table, so an undo answered after a switch would say its sentence over the next project. Its third use, `if (isCurrent()) busyWrites.lower()`, is **deleted**: see 3.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 5   | the writer's `isActiveReader: isCurrent` inside the runtime, "carried, not proved"                                                                                                                                          | j §3.8         | **Deleted** (slice 1), for row 3's reason. The writer's two identity checks, both changed lines, are proved (`w1`, `w2`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 6   | the table's `key`, whose old `Proof:` became false                                                                                                                                                                          | j §3.8         | **Deleted** (slice 2): the page draws no table between two runtimes, so every runtime already mounts a table of its own. What makes that true — the `live` gate — is proved (`t1`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 7   | the header showing "nobody" during the switch gap — the reset proved, not the gap                                                                                                                                           | j §3.8         | **Proved** (slice 2, `h1`), with the old project's retirement held open and its stream still talking.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 8   | Strict Mode re-entry never exercised by a test                                                                                                                                                                              | j §3.8, i §12  | **Exercised** at both owners under a real `<StrictMode>`: the project page (an oracle, `m1`) and the signed-in region (`n1`). Finding recorded in 3.2: the page's own re-entry opens nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 9   | route unmount, not driven through the router                                                                                                                                                                                | j §12, k §3.5  | **Proved** through the real router (slice 2, `r1`): the directory link gives the project back once and keeps the session; a close that refuses there draws the region's fatal state (`g1`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 10  | the direct `session.projects.leave()` region example                                                                                                                                                                        | k §12          | **Kept**, beside its route-driven twin: its `p1` proof names it, and a leave from any caller is still the gate's to draw. The twin carries `g1` at the same site.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 11  | `plan-writer.feature.ts`'s stale "same-reader renewal" note                                                                                                                                                                 | i, j §3.8      | **Reworded** (slice 1): removed with the predicate it justified; the comment that replaces it says one owner per feed, never renewed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 12  | `createProjectOwner`'s JSDoc ("one page's", "safe in a lazy state initializer")                                                                                                                                             | i §3.8         | **Reworded** (slice 1): the owner is one per session, handed to the page, retired before the session.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 13  | page hide's own session retirement, and the unmount-time one, observed by nobody                                                                                                                                            | i, k §12       | **Left, with an owner**: WBS item `4334fc49-e143-4671-af58-28cfd5f35423`, recorded by slice 2 as task 14 of the change, unchecked (section 12). An application-lifetime change, not task 11's sentence. The other unmount-time retirements are observed: section 3.4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 14  | `ProjectPage`'s own terminal branch, shadowed under `SignedInApp`                                                                                                                                                           | k §12          | **Left as it is**: it is not a guard but the page's own drawing when it is used without the region, which its suites do; packet j's `&& false` proof there still fails through them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 15  | the dependency list's `activeCommands.current === owner` guard over its reread, its busy and its toast (`use-plan-dependencies.ts`), "where the reader is still current lives until the runtime's withdrawal replaces them" | h §12          | **Found broken, repaired and proved** (slice 2, `d1`, `d2`). The ref is written on each render of the table that owns it, so once that table is gone it stays equal to the commands a gesture captured, for ever: a list refused after a switch put `These were refused: …` over the next project — observed red on the unchanged tree. The hook now takes its runtime's `isCurrent`, closed over by each gesture. Its busy and reread uses share that one predicate; they are row 4's class (a withdrawn runtime's busy is not drawn, its reread is refused by the runtime), and their only other negative, `plan-read-and-write.test.tsx` › `keeps an old dependency-list refusal out of its busy API replacement`, runs through the fixture's rerender of one table over a second runtime — kept, because the one predicate is proved on a production path at the toast, and the command services' extraction (h §12) rewrites this hook. |
 
 ### 3.2 The three deletions, and why nothing reaches them
 
@@ -135,8 +144,10 @@ fault `t1` does and two cases catch.
 when nothing is selected, so Strict Mode's mount-time setup-cleanup-setup opens nothing and leaves
 nothing. The lifetime map's own mutation — "create the runtime in `useMemo`" — was rehearsed as opening
 the project from a memo in render: under Strict Mode it still built **one** runtime per pick, because
-the second request supersedes the first before it is built. The page's Strict Mode case is therefore an
-**oracle**, and its negative is the page's cleanup (`m1`); the Strict Mode re-entry that replaces
+the second request supersedes the first before it is built. That property is the slot's, proved where
+it lives: packet j's `o1` (`project-runtime.test.ts` › `settles a request a newer one overtook, and
+builds nothing for it`) and `lifetime-slot.model.test.ts`'s superseded-request faults. The page's
+Strict Mode case is therefore an **oracle**, and its negative is the page's cleanup (`m1`); the Strict Mode re-entry that replaces
 ownership is the signed-in region's, where the first session request is left before it is built — the
 case records `session left` before the one `session built` — and a region that opened only once (`n1`)
 never draws the page.
@@ -150,6 +161,7 @@ needs it, a close that waits or refuses), the real page, the real router and the
 | ----------------------------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | says nothing in the next project when an undo asked of the last one succeeds                          | `project-replacement.test.tsx` | no toast over `p2` for `p1`'s answer; `p2`'s Undo still enabled                                                         | `s1`              |
 | says nothing in the next project when an undo asked of the last one is refused                        | `project-replacement.test.tsx` | the same for a refusal                                                                                                  | `s2`              |
+| says nothing in the next project when a dependency list asked of the last one is refused              | `project-replacement.test.tsx` | no `These were refused: …` over `p2` for `p1`'s list — **red on the unchanged tree**                                    | `d1`, `d2`        |
 | draws no table and hands the header nobody while the last project lets go                             | `project-replacement.test.tsx` | with `p1`'s retirement held and its stream still talking: no table, nobody, disconnected; then `p2`; socket closed once | `h1`, `t1` (also) |
 | draws the next project in a table of its own                                                          | `project-replacement.test.tsx` | a new `<table>` element, the old one detached                                                                           | `t1`              |
 | opens one runtime per pick under Strict Mode, and gives each back once                                | `project-replacement.test.tsx` | built `[p1, p2]`, given back `[p1]`, then `[p1, p2]` when the page goes; sockets 2 opened, 2 closed                     | `m1`              |
@@ -157,9 +169,10 @@ needs it, a close that waits or refuses), the real page, the real router and the
 | draws the fatal state in the region’s place when a route change cannot give the project back          | `app.test.tsx`                 | sanitized fatal page, no directory, no nav, session still `live`, nothing given back                                    | `g1`              |
 | leaves the session Strict Mode first opened, and opens the project in the one it opens again          | `app.test.tsx`                 | `session left`, one `session built`, the project built in it                                                            | `n1`              |
 
-Five of the eight pass on the unchanged tree — they are oracles of guards that were already there,
-and their teeth are the faults. The three region cases need the `projectApi` seam and are the slice's
-red (section 6).
+Five of the nine pass on the unchanged tree — they are oracles of guards that were already there,
+and their teeth are the faults. The dependency-list case is red on the unchanged tree because the
+guard it tests was broken; the three region cases need the `projectApi` seam; those four are the
+slice's red (section 6).
 
 ### 3.4 Decisions
 
@@ -169,7 +182,9 @@ red (section 6).
   it fails — means an application runtime member a signed-in region can reach, a change to
   `application-bootstrap.tsx`'s retirement, and a new interleaving (the session's retirement against
   the application's and a persisted `pageshow`), which addendum point 16 says gets its own model. None
-  of that is project ownership, and task 5 closed page hide by amendment. The other unmount-time
+  of that is project ownership, and task 5 closed page hide by amendment. Its owner is WBS item
+  `4334fc49-e143-4671-af58-28cfd5f35423`, and slice 2 appends it to the change as task 14, unchecked,
+  so the change names whose job it is when it is archived. The other unmount-time
   retirements **are** observed: Strict Mode's cleanup leaves a session whose failure makes the owner
   terminally `fatal`, and the re-mount's `open` is then refused, so the region draws it; log out is
   packet k's exit; the application's own fatal page and the fault boundary each replace the region with
@@ -192,10 +207,12 @@ red (section 6).
   P1–P7), and delivery holds nothing across the switch — the gap draws nothing (`t1`, `h1`) and the next
   project gets a new table. "Route unmount": through the router (`r1`), and visibly when it fails
   (`g1`). "Strict Mode re-entry": at the region (`n1`), and at the page, where it opens nothing (oracle,
-  `m1`). "A stale completion changes nothing": an undo's success and refusal (`s1`, `s2`), a frame in the
-  gap (`h1`), and the late read, frame, reread and marker of packet j's model. Ticked in slice 2.
+  `m1`). "A stale completion changes nothing": an undo's success and refusal (`s1`, `s2`), a dependency
+  list's refusal (`d1`, `d2` — the one that did change something, until slice 2), a frame in the gap
+  (`h1`), and the late read, frame, reread and marker of packet j's model. Ticked in slice 2.
 - **Saved plans are not in it**: the shelf's watch is keyed by the selected project and closes by its
-  own effect; lifetime-map test 8's saved-plan half stays task 10's.
+  own effect; lifetime-map test 8's saved-plan half stays task 10's, and task 11's note says so.
+- **Page hide is not in it**: task 14, WBS `4334fc49-e143-4671-af58-28cfd5f35423`.
 - **Not proved, by construction**: a render of two runtimes back to back (section 3.2). The deletion
   rests on it, and the `t1` cases are what would fail if the page ever drew a runtime it no longer
   publishes.
@@ -203,8 +220,8 @@ red (section 6).
 
 ## 4. Verified facts
 
-Every number is a fresh observation from this packet's own rehearsal on 2026-09-24 and 2026-09-25, on
-the authoring base `59cfe22a4` — packet k's rehearsal tip, which is batch-6 integration `52876ae12`
+Every number is a fresh observation from this packet's own rehearsals on 2026-09-24 and 2026-09-25 —
+the second, `rehearse/050-7-m-r2`, cut after round 1's review — on the authoring base `59cfe22a4` — packet k's rehearsal tip, which is batch-6 integration `52876ae12`
 (main with packets h, G, H, I and j's real lane) plus packet i's and packet k's rehearsed diffs — and on
 two rehearsal commits over it. That base is **never dispatched**: the dispatch base is planning after
 packet i's, packet k's and packet l's real lanes have landed, which differs from it by their executors'
@@ -213,29 +230,31 @@ notes (section 9.1 simulates what it can name and checks the rest against the re
 
 ### 4.1 The code as it stands
 
-| Fact                                                                                                                                    | Where                                     |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `readRefreshOwner` is `() => (isCurrent() ? feed.owner : null)`; the writer and the markers are also handed `isActiveReader: isCurrent` | `runtime/project-runtime.ts`              |
-| one refresh owner per feed: `const owner = openOwner();`, once                                                                          | `modules/plan-feed/plan-feed.resource.ts` |
-| `busy` is one store per runtime, and `usePlanReadState` hands the table `project.busy`                                                  | `project-runtime.ts`, `use-plan-read.ts`  |
-| the page hands the table its own toast API — `toastApi={toastApi}` — so toasts outlive each table                                       | `components/wbs/project-page.tsx`         |
-| the table is drawn only while `projectState.status === 'live'`, keyed by `projectState.services.projectId`                              | `project-page.tsx`                        |
-| `selected` starts `null`; the owner effect returns early while nothing is selected                                                      | `project-page.tsx`                        |
-| `SignedInApp` opens in one effect and leaves in an unmount-only effect; `AppRouter` takes `projectApi?` and `SignedInApp` passes none   | `app.tsx`, `app-router.tsx`               |
-| `ProjectRetirementGate` draws a **terminal** project fault in the region's place                                                        | `app.tsx`                                 |
-| React 19.2.8, Vitest 5.0.0, `@tanstack/react-router` 1.170.24                                                                           | `node_modules/*/package.json`             |
+| Fact                                                                                                                                           | Where                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `readRefreshOwner` is `() => (isCurrent() ? feed.owner : null)`; the writer and the markers are also handed `isActiveReader: isCurrent`        | `runtime/project-runtime.ts`              |
+| one refresh owner per feed: `const owner = openOwner();`, once                                                                                 | `modules/plan-feed/plan-feed.resource.ts` |
+| `busy` is one store per runtime, and `usePlanReadState` hands the table `project.busy`                                                         | `project-runtime.ts`, `use-plan-read.ts`  |
+| the page hands the table its own toast API — `toastApi={toastApi}` — so toasts outlive each table                                              | `components/wbs/project-page.tsx`         |
+| the table is drawn only while `projectState.status === 'live'`, keyed by `projectState.services.projectId`                                     | `project-page.tsx`                        |
+| `selected` starts `null`; the owner effect returns early while nothing is selected                                                             | `project-page.tsx`                        |
+| `SignedInApp` opens in one effect and leaves in an unmount-only effect; `AppRouter` takes `projectApi?` and `SignedInApp` passes none          | `app.tsx`, `app-router.tsx`               |
+| the dependency list guards its reread, busy and toast with `activeCommands.current === owner`, a ref written on each render of its table       | `components/wbs/use-plan-dependencies.ts` |
+| on the dispatch base packet l's `wbs-fe-01:typecheck` depends on `typecheck:module`, which compiles each module directory alone and runs first | `apps/wbs/fe-01/project.json` (packet l)  |
+| `ProjectRetirementGate` draws a **terminal** project fault in the region's place                                                               | `app.tsx`                                 |
+| React 19.2.8, Vitest 5.0.0, `@tanstack/react-router` 1.170.24                                                                                  | `node_modules/*/package.json`             |
 
 ### 4.2 The measured blast radius
 
-`git diff --stat 59cfe22a4 7b753cf54`: **17 files changed, 732 insertions(+), 111 deletions(-)**
-(slice 1: 9 files, 95+/94−; slice 2: 8 files, 637+/17−). With `verify.md`, which only the executor
-writes, slice 1 owns 10 paths and slice 2 owns 9 (1 new).
+`git diff --stat 59cfe22a4 580d8431e`: **19 files changed, 793 insertions(+), 122 deletions(-)**
+(slice 1: 9 files, 95+/94−; slice 2: 10 files, 698+/28−, task 14's two lines included). With
+`verify.md`, which only the executor writes, slice 1 owns 10 paths and slice 2 owns 11 (1 new).
 
 | Tree             | Sandbox node suite | Module set (7 files, serial) | Session set (3 files, serial) | New page file | Adopted set (20 files) | Zoned |
 | ---------------- | ------------------ | ---------------------------- | ----------------------------- | ------------- | ---------------------- | ----- |
 | base `59cfe22a4` | 57·713             | 7·30                         | 3·70                          | —             | 20·1219                | 2·3   |
 | after slice 1    | 57·714             | 7·31                         | —                             | —             | 20·1219                | —     |
-| after slice 2    | 57·714             | —                            | 3·73                          | 1·5           | 20·1219                | 2·3   |
+| after slice 2    | 57·714             | 7·31                         | 3·73                          | 1·6           | 20·1219                | 2·3   |
 
 The **module set** is `src/modules/plan-writer`, `src/modules/calendar-markers`, `src/modules/project`,
 `src/runtime/project-runtime.test.ts` and `src/runtime/project-runtime.model.test.ts`; the **session
@@ -267,13 +286,15 @@ Paths under `apps/wbs/fe-01/` unless they start with `openspec/` or `docs/`.
 | `src/modules/plan-writer/busy-store.ts`                                            | 1     | modify        | JSDoc only                                                                                          |
 | `src/modules/project/composition.test.ts`                                          | 1     | modify        | `isActiveReader` gone from the markers' host                                                        |
 | `src/runtime/project-runtime.ts`                                                   | 1     | modify        | two wirings gone; `installProjectRuntime`'s and `createProjectOwner`'s JSDoc                        |
-| `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` | 2     | modify        | one requirement, six scenarios                                                                      |
-| `src/components/wbs/project-replacement.test.tsx`                                  | 2     | **create**    | five page cases                                                                                     |
+| `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` | 2     | modify        | one requirement, six scenarios; packet h's busy sentence reworded                                   |
+| `src/components/wbs/project-replacement.test.tsx`                                  | 2     | **create**    | six page cases                                                                                      |
 | `src/app.test.tsx`                                                                 | 2     | modify        | one `StrictMode` import, three region cases in a new `describe`                                     |
 | `src/app.tsx`                                                                      | 2     | modify        | `SignedInApp`'s `projectApi` seam, passed to `AppRouter`                                            |
 | `src/components/wbs/project-page.tsx`                                              | 2     | modify        | the key and its comment gone; two comments                                                          |
 | `src/components/wbs/use-plan-read.ts`                                              | 2     | modify        | the undo stack's busy guard gone; its comment                                                       |
-| `openspec/changes/adopt-frontend-lifetimes/tasks.md`                               | 2     | modify        | task 11 ticked, with a dated note                                                                   |
+| `src/components/wbs/use-plan-dependencies.ts`                                      | 2     | modify        | `isCurrent` in place of the `activeCommands` ref; its JSDoc                                         |
+| `src/components/wbs/wbs-table.tsx`                                                 | 2     | modify        | one line: hands the dependency list `project.isCurrent`                                             |
+| `openspec/changes/adopt-frontend-lifetimes/tasks.md`                               | 2     | modify        | task 11 ticked, with a dated note (a diff); task 14 appended at the end (a script, step 4)          |
 | `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`         | 2     | modify        | one dated update before "Planning constraints and open implementation facts"                        |
 | `openspec/changes/adopt-frontend-lifetimes/verify.md`                              | 1, 2  | modify        | one fresh entry per slice, appended                                                                 |
 
@@ -286,13 +307,16 @@ Nothing else. Not `lifetime-slot.ts`, `session-runtime.ts`, `application-*`, `ap
   `spec.md` (a requirement appended at the end of the file), `tasks.md` (task 3 ticked with a note, and
   notes after tasks 12 and 13), the lifetime map (a dated update after packet h's, in "Narrow context
   and K2 resolution") and `verify.md`. This packet's spec requirement is inserted **before** packet j's
-  requirement, mid-file; its task hunk changes task 11 only, whose trailing context is task 12's first
-  three lines, which packet l's rehearsal leaves as they are; its map update goes after the exact
-  lifecycle tests, before "## Planning constraints". Packet l also adds a `tsconfig.json` and a README
+  requirement, mid-file, and its reword is packet h's scenario, mid-file; its task hunk changes task 11
+  only, whose trailing context is task 12's first three lines, which packet l leaves as they are; task
+  14 goes **after** packet l's note on task 13, at the end of the file, which is why it is appended by
+  a script and not a diff (a hunk with no trailing context must match at the end of the file, and
+  packet l's note is what ends it); its map update goes after the exact lifecycle tests, before
+  "## Planning constraints". Packet l also adds a `tsconfig.json` and a README
   `module-index` block to `modules/plan-writer` and `modules/calendar-markers`; this packet edits only
   the `.ts` files beside them, and adds no module file. Packet l's `plan-writer` README speaks of "the
-  three ownership moments … documented on the writer"; after slice 1 the writer documents two, which
-  the planner may want packet l's wording to follow (out of this packet's lane).
+  three ownership moments … documented on the writer"; after slice 1 the writer documents two. That
+  wording is packet l's lane to fix, not this packet's.
 - **Packet i and packet k** comment `app.tsx` — i at `g2` (`if (sessionState.status === 'fatal') …`),
   `g3` (`void sessionOwner.leave();`), `g4` (`void sessionOwner.open(…)`); k at `a1` (the `account=`
   attribute), `a2` (`if (exit === 'signed-out') onSignedOut();`), `p1` (the gate's
@@ -396,7 +420,7 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 11
+test "$count" -eq 13
 # The module set, packet i's session set and packet f2's adopted set, relative to apps/wbs/fe-01.
 printf '%s\n' src/modules/plan-writer src/modules/calendar-markers src/modules/project \
   src/runtime/project-runtime.test.ts src/runtime/project-runtime.model.test.ts > "$TMPDIR/modules.txt"
@@ -417,7 +441,7 @@ test "$(wc -l < "$TMPDIR/session.txt")" -eq 3
 test "$(wc -l < "$TMPDIR/adopted.txt")" -eq 20
 ````
 
-Expected: `patches=6`, `mutations=11`, exit 0. **Applying section 7.N** below always means exactly
+Expected: `patches=6`, `mutations=13`, exit 0. **Applying section 7.N** below always means exactly
 this, never a hand edit:
 
 ```sh
@@ -522,17 +546,28 @@ Owns (10 paths): `verify.md`, and under `apps/wbs/fe-01/src/`:
   bash "$TMPDIR/run-check.sh" s1-red-vitest env TZ=UTC bunx vitest run --no-file-parallelism \
     --maxWorkers=1 src/modules/plan-writer/plan-writer.test.ts \
     src/modules/calendar-markers/calendar-markers.feature.test.ts src/modules/project/composition.test.ts
-  bash "$TMPDIR/expect-status.sh" s1-red-typecheck 1
+  log="$TMPDIR/evidence/s1-red-typecheck.log"
+  test -f "$log"
+  # Non-zero, not pinned: on the dispatch base packet l's typecheck:module fails first.
+  test "$(tail -n 1 "$log")" != "status=0"
+  # Five lines carrying the code; `error TS` would miss tsc's coloured output.
+  test "$(grep -c 'TS2741' "$log")" -eq 5
   bash "$TMPDIR/expect-status.sh" s1-red-vitest 1
   ```
 
-  Expected, and rehearsed exactly: typecheck `status=1`, `Found 5 errors in 3 files.`, every one a
-  TS2741, `Property 'isActiveReader' is missing in type '…' but required in type
-'CalendarMarkersHost'` (two, `calendar-markers.feature.test.ts:80` and `:175`), `… 'PlanWriterHost'`
-  (two, `plan-writer.test.ts:45` and `:84`) and `… 'CalendarMarkersReader'` (one,
-  `composition.test.ts:68`); Vitest `status=1`, `Tests 9 failed | 7 passed (16)`, every failure
-  `TypeError: isActiveReader is not a function` — the hosts no longer pass it and the modules still
-  call it.
+  Expected: typecheck `status` non-zero — observed **130** on a real-shaped base, where packet l's
+  `typecheck:module` fails first and Nx does not run `wbs-fe-01:typecheck` (`Tasks not run because
+their dependencies failed or --nx-bail=true`, `Failed tasks: - wbs-fe-01:typecheck:module`), and `1`
+  on the authoring base, which has no `typecheck:module`; the code is Nx's, observed, not contracted,
+  so it is not pinned. Either way five TS2741 diagnostics in three files, `Property 'isActiveReader' is
+missing in type '…' but required in type 'CalendarMarkersHost'` (two), `… 'PlanWriterHost'` (two)
+  and `… 'CalendarMarkersReader'` (one), reported on the dispatch base per module as `Found 2 errors in
+the same file, starting at: apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.test.ts:80`,
+  `Found 2 errors in the same file, starting at: apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:45`
+  and `Found 1 error in apps/wbs/fe-01/src/modules/project/composition.test.ts:68` (on the authoring
+  base as one `Found 5 errors in 3 files.`). Vitest `status=1`, `Tests 9 failed | 7 passed (16)`, every
+  failure `TypeError: isActiveReader is not a function` — the hosts no longer pass it and the modules
+  still call it.
 
 - [ ] 4. Apply section 7.2, the production side.
 - [ ] 5. **Green checkpoint.**
@@ -620,16 +655,19 @@ Planner commit subject:
 
 ### Slice 2 — a project given back whole, through the page, the router and Strict Mode
 
-Owns (9 paths): `spec.md`, `verify.md`, `tasks.md` (all under
+Owns (11 paths): `spec.md`, `verify.md`, `tasks.md` (all under
 `openspec/changes/adopt-frontend-lifetimes/`),
 `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, and under
 `apps/wbs/fe-01/src/`: `app.tsx`, `app.test.tsx`, `components/wbs/project-page.tsx`,
-`components/wbs/use-plan-read.ts` and one new file, `components/wbs/project-replacement.test.tsx`.
+`components/wbs/use-plan-read.ts`, `components/wbs/use-plan-dependencies.ts`,
+`components/wbs/wbs-table.tsx` and one new file, `components/wbs/project-replacement.test.tsx`.
 
 - [ ] 1. Step 0. Expected: session set rehearsed 3·70, sandbox 57·714, zoned 2·3.
 - [ ] 2. **The contract first (R4).** Apply section 7.3 (the requirement "Every trigger gives a
-      project back whole, and a late answer changes nothing") and rerun the strict block. Expected:
-      exit 0, `passed` equal to step 0's number (rehearsed 114 → 114).
+      project back whole, and a late answer changes nothing", and packet h's scenario "The writer and
+      the feed announce through the project's ports" reworded for the busy state slice 1 lowers) and
+      rerun the strict block. Expected: exit 0, `passed` equal to step 0's number (rehearsed 114 →
+      114).
 - [ ] 3. Apply section 7.4: the new page file and the region cases. **Red checkpoint:**
 
   ```sh
@@ -644,18 +682,31 @@ Owns (9 paths): `spec.md`, `verify.md`, `tasks.md` (all under
 
   Expected, and rehearsed exactly: typecheck `status=1`, `Found 1 error in
 apps/wbs/fe-01/src/app.test.tsx:744` — TS2322, `… is not assignable to type 'IntrinsicAttributes &
-SignedInAppProps'.` (`projectApi` is not a prop yet); Vitest `status=1`, `Tests 3 failed | 22 passed
-(25)`: the three region cases on `AssertionError: expected null not to be null` — without the seam
-  the page lists projects through its own client, whose stubbed answer is empty, so `p1` is never on
-  offer. **The five page cases pass on this tree**: they are oracles of guards already there, and
+SignedInAppProps'.` (`projectApi` is not a prop yet; the same on a real-shaped base, where
+  `typecheck:module` passes first); Vitest `status=1`, `Tests 4 failed | 22 passed (26)`: the three
+  region cases on `AssertionError: expected null not to be null` — without the seam the page lists
+  projects through its own client, whose stubbed answer is empty, so `p1` is never on offer — and
+  `says nothing in the next project when a dependency list asked of the last one is refused` on
+  `AssertionError: expected [ Array(1) ] to deeply equal []`: the left project's refusal, over `p2`.
+  **The other five page cases pass on this tree**: they are oracles of guards already there, and
   section 8.2's faults are their red.
 
-- [ ] 4. Apply section 7.5 (`app.tsx`, `project-page.tsx`, `use-plan-read.ts`) and section 7.6
-      (`tasks.md`, the lifetime map), then date the two notes by observation, never by copying a date
-      from this packet:
+- [ ] 4. Apply section 7.5 (`app.tsx`, `project-page.tsx`, `use-plan-dependencies.ts`,
+      `use-plan-read.ts`, `wbs-table.tsx`) and section 7.6 (`tasks.md`, the lifetime map), append task
+      14 to the end of `tasks.md` — after packet l's note on task 13 — then date the two notes by
+      observation, never by copying a date from this packet:
 
   ```sh
   set -euo pipefail
+  tasks=openspec/changes/adopt-frontend-lifetimes/tasks.md
+  test -f "$tasks"
+  test "$(tail -c 1 "$tasks" | od -An -c | tr -d ' ')" = '\n'
+  if grep -n '^- \[.\] 14\. ' "$tasks"; then echo "task 14 already there" >&2; exit 1; else rc=$?; test "$rc" -eq 1; fi
+  printf '%s\n' \
+    "- [ ] 14. On page hide the application's retirement awaits the session's and fails when" \
+    "      it fails (WBS 4334fc49-e143-4671-af58-28cfd5f35423); see 050-7-m section 12." \
+    >> "$tasks"
+  test "$(grep -c '^- \[ \] 14\. ' "$tasks")" -eq 1
   observed=$(date -u +%F)
   for note in openspec/changes/adopt-frontend-lifetimes/tasks.md \
     docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md; do
@@ -668,7 +719,7 @@ SignedInAppProps'.` (`projectApi` is not a prop yet); Vitest `status=1`, `Tests 
   ```
 
   Expected: at least one line printed per file (other packets' notes may carry the same date), exit 0;
-  task 11's box is `[x]`.
+  task 11's box is `[x]`, and task 14, unchecked, is the file's last entry.
 
 - [ ] 5. **Green checkpoint:**
 
@@ -693,16 +744,16 @@ SignedInAppProps'.` (`projectApi` is not a prop yet); Vitest `status=1`, `Tests 
   done
   ```
 
-  Expected `status=0` everywhere: the session run = step 0's session set **plus 1 file and 8 tests**
-  (rehearsed 3·70 → 4·78: three region cases, and the new file's five); zoned and sandbox unchanged —
+  Expected `status=0` everywhere: the session run = step 0's session set **plus 1 file and 9 tests**
+  (rehearsed 3·70 → 4·79: three region cases, and the new file's six); zoned and sandbox unchanged —
   both new suites are jsdom suites; the adopted set unchanged (20·1219), which with the key and the
   busy guard gone is the production-path evidence that neither was reached.
 
 - [ ] 6. Durable lint (`s2-lint`), expected `status=0`.
-- [ ] 7. The eight proofs of section 8.2 (`s1`, `s2`, `h1`, `t1`, `m1`, `r1`, `g1`, `n1`).
+- [ ] 7. The ten proofs of section 8.2 (`s1`, `s2`, `d1`, `d2`, `h1`, `t1`, `m1`, `r1`, `g1`, `n1`).
 - [ ] 8. Rerun the step-5 session command (`s2-final-session`) and step 0c's sandbox command
       (`s2-final-sandbox`): unchanged from step 5.
-- [ ] 9. `verify.md` entry. Then owned-file Prettier over the nine paths from this list (step 10
+- [ ] 9. `verify.md` entry. Then owned-file Prettier over the eleven paths from this list (step 10
       reuses it), `nx format:check --all` again (`s2-format-after`), and the strict OpenSpec block —
       all after the evidence edit. Never a repository-wide format **write**.
 
@@ -713,13 +764,15 @@ SignedInAppProps'.` (`projectApi` is not a prop yet); Vitest `status=1`, `Tests 
     apps/wbs/fe-01/src/app.tsx \
     apps/wbs/fe-01/src/components/wbs/project-page.tsx \
     apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx \
+    apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts \
     apps/wbs/fe-01/src/components/wbs/use-plan-read.ts \
+    apps/wbs/fe-01/src/components/wbs/wbs-table.tsx \
     docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md \
     openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md \
     openspec/changes/adopt-frontend-lifetimes/tasks.md \
     openspec/changes/adopt-frontend-lifetimes/verify.md \
     > "$TMPDIR/owned.txt"
-  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 9
+  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 11
   # shellcheck disable=SC2046 # fixed repository paths without spaces
   GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
   # shellcheck disable=SC2046
@@ -729,7 +782,7 @@ SignedInAppProps'.` (`projectApi` is not a prop yet); Vitest `status=1`, `Tests 
   Expected: exit 0, and `All matched files use Prettier code style!` from the check.
 
 - [ ] 10. Hand over, with slice 1 step 10's block unchanged. Expected: the `diff` prints nothing and
-      exits 0 — eight ` M` paths and one `??`, `project-replacement.test.tsx`.
+      exits 0 — ten ` M` paths and one `??`, `project-replacement.test.tsx`.
 
 Planner commit subject:
 `refactor(frontend): give a project back whole on a switch, a route change and Strict Mode, and close task 11`.
@@ -1231,14 +1284,28 @@ index a2d9cbdce..2ef93f92e 100644
    install = installProjectRuntime,
 ```
 
-### 7.3 `spec.md` — slice 2, the requirement
+### 7.3 `spec.md` — slice 2, the requirement, and packet h's busy sentence
+
+The first hunk rewords packet h's scenario "The writer and the feed announce through the project's
+ports": after slice 1 a gesture whose reader has left lowers its own runtime's busy state, which nobody
+draws, where the scenario said it lowered none. The second is the requirement.
 
 ```diff
 diff --git a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
-index a19b2244f..f4ee5ca0e 100644
+index a19b2244f..97d08a593 100644
 --- a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
 +++ b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
-@@ -500,6 +500,65 @@ route's own promise. What a reader sees SHALL NOT change.
+@@ -447,7 +447,8 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
+ - **WHEN** a gesture starts, is refused, or the feed's first read is refused
+ - **THEN** the table hears that a command was issued before any request is sent,
+   says each refusal once in the toast stack it was given, and a gesture whose
+-  reader has left lowers no busy state and announces nothing
++  reader has left announces nothing and lowers only its own runtime's busy
++  state, which nobody draws once it is withdrawn
+
+ #### Scenario: The table selects the delivered plan and settles what changed
+
+@@ -500,6 +501,65 @@ route's own promise. What a reader sees SHALL NOT change.
    same client, a new client replaces all three, and the table is never handed
    the client itself
 
@@ -1258,10 +1325,10 @@ index a19b2244f..f4ee5ca0e 100644
 +re-entry into the signed-in region SHALL leave the session it first asked for,
 +and the page SHALL open its project in the one runtime asked for afterwards.
 +
-+#### Scenario: An undo answered after its project was left
++#### Scenario: An undo or a dependency list answered after its project was left
 +
-+- **WHEN** an undo is asked of one project, another project is selected, and
-+  the undo's answer — a success or a refusal — then arrives
++- **WHEN** an undo or a typed dependency list is asked of one project, another
++  project is selected, and the answer — a success or a refusal — then arrives
 +- **THEN** the page shows no toast for it, and the next project's undo stays
 +  available
 +
@@ -1514,10 +1581,10 @@ index cd4996f01..da1a0b3a9 100644
 +});
 diff --git a/apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx b/apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx
 new file mode 100644
-index 000000000..d95021dcd
+index 000000000..aa91b10aa
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx
-@@ -0,0 +1,348 @@
+@@ -0,0 +1,387 @@
 +import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 +import { StrictMode } from 'react';
 +import { beforeEach, describe, expect, it } from 'vitest';
@@ -1737,6 +1804,45 @@ index 000000000..d95021dcd
 +    },
 +  );
 +
++  itDom(
++    'says nothing in the next project when a dependency list asked of the last one is refused',
++    async () => {
++      const { api } = twoProjects();
++      for (const name of ['First', 'Second', 'Successor']) {
++        await api.createWorkItem('p1', { parentId: null, afterId: null, name });
++      }
++      // Every entry of the list is refused, the first only once the case says so.
++      const refusals: ((cause: Error) => void)[] = [];
++      api.addDependency = () =>
++        refusals.length === 0
++          ? new Promise<void>((_resolve, refuse) => {
++              refusals.push(refuse);
++            })
++          : Promise.reject(new Error('cycle'));
++      const { owner } = recordingOwner();
++      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
++      await selectProject('p1');
++      await tableDrawn();
++      const list = await screen.findByLabelText('Add a dependency to 030');
++      fireEvent.change(list, { target: { value: '010, 020' } });
++      fireEvent.keyDown(list, { key: 'Enter' });
++      await waitFor(() => {
++        expect(refusals).toHaveLength(1);
++      });
++      await selectProject('p2');
++      await waitFor(() => {
++        expect(liveProject(owner)).toBe('p2');
++      });
++      await tableDrawn();
++
++      firstOf(refusals, 'dependency')(new Error('cycle'));
++      await settle();
++      await settle();
++
++      expect(toastTexts()).toEqual([]);
++    },
++  );
++
 +  /**
 +   * The interval between the withdrawal and the next runtime's publication,
 +   * held open: the old project's retirement waits for the case. Nothing of
@@ -1868,7 +1974,7 @@ index 000000000..d95021dcd
 +});
 ```
 
-### 7.5 `app.tsx`, `project-page.tsx`, `use-plan-read.ts` — slice 2, the production side
+### 7.5 `app.tsx`, `project-page.tsx`, `use-plan-dependencies.ts`, `use-plan-read.ts`, `wbs-table.tsx` — slice 2, the production side
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/app.tsx b/apps/wbs/fe-01/src/app.tsx
@@ -1957,6 +2063,72 @@ index ece582ef7..61b2d885e 100644
                project={projectState.services}
                // The name the export's header and filename carry. Read from the
                // list rather than held twice: a rename lands in `projects` and the
+diff --git a/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts b/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+index 21ff78911..446077f76 100644
+--- a/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
++++ b/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+@@ -1,5 +1,5 @@
+ import type * as React from 'react';
+-import { useCallback, useEffect, useMemo, useRef } from 'react';
++import { useCallback, useEffect, useMemo } from 'react';
+
+ import type { RunPlanWrite } from '@/lib/local-write';
+ import type { StepView } from '@/lib/wbs-api';
+@@ -27,6 +27,7 @@ export function usePlanDependencies({
+   pushToast,
+   busy,
+   commands,
++  isCurrent,
+   refreshOrMarkStale,
+   setDepPicker,
+   run,
+@@ -36,6 +37,15 @@ export function usePlanDependencies({
+   pushToast: (toast: Toast) => void;
+   busy: BusyWrites;
+   commands: PlanCommands;
++  /**
++   * Whether the project runtime these commands belong to is still the one its
++   * owner publishes — the runtime's own `isCurrent`, closed over by each gesture
++   * and asked when its answers arrive. Not a ref to the commands the table last
++   * rendered with: that stays true for ever once the table is gone, and the
++   * toasts are the page's and outlive it, so a left project's refusal reached
++   * them over the next one.
++   */
++  isCurrent: () => boolean;
+   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
+   setDepPicker: React.Dispatch<
+     React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
+@@ -43,9 +53,6 @@ export function usePlanDependencies({
+   run: RunPlanWrite;
+   steps: StepView[];
+ }) {
+-  const activeCommands = useRef(commands);
+-  activeCommands.current = commands;
+-
+   /**
+    * The callbacks the cells use, read through a ref rather than closed over.
+    *
+@@ -121,11 +128,6 @@ export function usePlanDependencies({
+       // chips and the reasons have to survive. This loop therefore collects
+       // every answer before choosing its aggregate recovery scope.
+       void (async () => {
+-        const owner = commands;
+-        // Proof: on 2026-09-24, `() => true` here failed `keeps an old dependency-list refusal
+-        // out of its busy API replacement` on `toHaveAttribute("aria-busy", "true")`: the old
+-        // client's answer lowered the replacement's busy state.
+-        const isCurrent = () => activeCommands.current === owner;
+         busy.raise();
+         const refused: string[] = [];
+         let ambiguous = false;
+@@ -177,7 +179,7 @@ export function usePlanDependencies({
+           pushToast({ kind: 'error', text: problems.join(' ') });
+       })();
+     },
+-    [activeCommands, busy, commands, flat, pushToast, refreshOrMarkStale],
++    [busy, commands, flat, isCurrent, pushToast, refreshOrMarkStale],
+   );
+
+   /**
 diff --git a/apps/wbs/fe-01/src/components/wbs/use-plan-read.ts b/apps/wbs/fe-01/src/components/wbs/use-plan-read.ts
 index 8005b0ba9..18a9dfbb7 100644
 --- a/apps/wbs/fe-01/src/components/wbs/use-plan-read.ts
@@ -1984,29 +2156,44 @@ index 8005b0ba9..18a9dfbb7 100644
        }
      },
      [busyWrites, commands, project, pushToast, refreshOrMarkStale],
+diff --git a/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx b/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+index 99174f94c..10d17c9a4 100644
+--- a/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+@@ -1181,6 +1181,7 @@ export function WbsTable({
+       pushToast,
+       busy: busyWrites,
+       commands,
++      isCurrent: project.isCurrent,
+       refreshOrMarkStale,
+       setDepPicker,
+       run,
 ```
 
 ### 7.6 `tasks.md` and the lifetime map — slice 2, the records
 
+Task 14 is not in this diff: slice 2 step 4 appends it after whatever ends `tasks.md`, which on the
+dispatch base is packet l's note on task 13 (section 5).
+
 ```diff
 diff --git a/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md b/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
-index 87f9872b0..e679c9bf8 100644
+index 87f9872b0..8aef58463 100644
 --- a/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
 +++ b/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
 @@ -167,6 +167,8 @@ These are focused production-wiring tests. Each safety assertion needs its R5 mu
 
  Focused test homes supported by current boundaries are `main.test.tsx`/`index-bootstrap.test.ts` for application ownership, `app.test.tsx` and `app-router.test.tsx` for session identity/router behavior, `project-page.test.tsx` for selection and route ownership, `directory-page.test.tsx` for directory continuity, and `plan-read-and-write.test.tsx` plus module tests for feed/write/command stale-owner behavior. Do not replace the existing tests: they are the before/after behavioral oracle.
 
-+Update, observed <observed-date-m> (050.7m, OpenSpec task 11): exact lifecycle tests 8 to 11 are met as follows. Test 8's switch, without the saved-plan watch, which is not yet the runtime's (task 10): `apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx` holds a left project's retirement open and finds no table drawn and the header handed nobody, then the next project in a new table and the old socket closed once — so the table needs, and has, no key. Test 9 through the router: `app.test.tsx` follows the directory link from an open project and back; the project is given back once, the session runtime is the same object throughout, and a new project runtime opens on return; a close that refuses there draws the fatal state in the region's place. Test 10: the project page mounts with nothing selected, so Strict Mode's re-entry into it opens nothing — opening from a render instead was rehearsed and still built one runtime per pick, the second request superseding the first before it was built — and its Strict Mode case proves one runtime per pick, each given back once; the re-entry that replaces ownership is the signed-in region's, whose first session request is left before it is built. Test 11: an undo answered after a switch, succeeding or refused, puts no toast into the page, whose toasts outlive the table; a late read, frame, reread and marker are the project runtime's model's. The writer's and the marker gestures' `isActiveReader` was removed rather than proved: the refresh owner's identity, `null` once the runtime is withdrawn, answers everything it did, and replacing it with `() => true` changed no outcome in any suite.
++Update, observed <observed-date-m> (050.7m, OpenSpec task 11): exact lifecycle tests 8 to 11 are met as follows. Test 8's switch, without the saved-plan watch, which is not yet the runtime's (task 10): `apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx` holds a left project's retirement open and finds no table drawn and the header handed nobody, then the next project in a new table and the old socket closed once — so the table needs, and has, no key. Test 9 through the router: `app.test.tsx` follows the directory link from an open project and back; the project is given back once, the session runtime is the same object throughout, and a new project runtime opens on return; a close that refuses there draws the fatal state in the region's place. Test 10: the project page mounts with nothing selected, so Strict Mode's re-entry into it opens nothing — opening from a render instead was rehearsed and still built one runtime per pick, the second request superseding the first before it was built — and its Strict Mode case proves one runtime per pick, each given back once; the re-entry that replaces ownership is the signed-in region's, whose first session request is left before it is built. Test 11: an undo answered after a switch, succeeding or refused, and a typed dependency list refused after it, put no toast into the page, whose toasts outlive the table — the dependency list's guard was a ref to the commands the table last rendered with, which stays true once the table is gone, and let the refusal through until it asked the runtime's `isCurrent`; a late read, frame, reread and marker are the project runtime's model's. The writer's and the marker gestures' `isActiveReader` was removed rather than proved: the refresh owner's identity, `null` once the runtime is withdrawn, answers everything it did, and replacing it with `() => true` changed no outcome in any suite.
 +
  ## Planning constraints and open implementation facts
 
  - Runtime identifiers are intentionally absent pending the user's grammar choice.
 diff --git a/openspec/changes/adopt-frontend-lifetimes/tasks.md b/openspec/changes/adopt-frontend-lifetimes/tasks.md
-index 9512b89c9..f9a3a55ce 100644
+index 9512b89c9..0b2a00074 100644
 --- a/openspec/changes/adopt-frontend-lifetimes/tasks.md
 +++ b/openspec/changes/adopt-frontend-lifetimes/tasks.md
-@@ -135,8 +135,21 @@
+@@ -135,8 +135,26 @@
        project switch. This box stays unchecked for the one outcome still owed:
        saved plans, whose shelf keeps its own keyed watch and has no feature facade
        yet — the lifetime map's saved-plans prerequisite.
@@ -2016,16 +2203,21 @@ index 9512b89c9..f9a3a55ce 100644
 +      Closed by 050-7-m, observed <observed-date-m>: a switch withdraws the old
 +      runtime in the page's own effect, and the page draws no table and hands the
 +      header nobody until the next is live, so every runtime is drawn in a table of
-+      its own and the table carries no key; an undo answered in a project the reader
-+      has left says nothing into the page's toasts, which outlive the table
-+      (`components/wbs/project-replacement.test.tsx`). Following the directory link
-+      gives the project back once through the page's cleanup and keeps the session;
-+      a project that cannot be given back there is drawn as the fatal state in the
-+      region's place; Strict Mode's re-entry into the region leaves the session it
-+      first asked for, and into the page opens nothing, the page mounting with
-+      nothing selected (`app.test.tsx`). The writer's and the marker gestures'
-+      second reader predicate is gone: the refresh owner's identity, `null` from
-+      the withdrawal on, answers everything it did.
++      its own and the table carries no key. An undo or a dependency list answered in
++      a project the reader has left says nothing into the page's toasts, which
++      outlive the table; the dependency list now asks its runtime's `isCurrent`
++      rather than a ref to the commands a gone table last rendered with, which let a
++      left project's refusal through (`components/wbs/project-replacement.test.tsx`).
++      Following the directory link gives the project back once through the page's
++      cleanup and keeps the session; a project that cannot be given back there is
++      drawn as the fatal state in the region's place; Strict Mode's re-entry into the
++      region leaves the session it first asked for, and into the page opens nothing,
++      the page mounting with nothing selected (`app.test.tsx`). The writer's and the
++      marker gestures' second reader predicate is gone: the refresh owner's identity,
++      `null` from the withdrawal on, answers everything it did. The saved-plan
++      shelf's watch is not the runtime's yet and stays task 10's. Page hide's own
++      session retirement, which the application's retirement does not yet await, is
++      task 14's.
  - [ ] 12. Each module has its own isolated type check and its graph check, and every
        module directory carries a validated wiki index and a `contract.ts`. The
        preferences module's public `preferences` resource — kept only for
@@ -2041,7 +2233,8 @@ test rerun green, before the next fault. The executor repeats each one and write
 of its faults first and writes its comments afterwards, so every fault patch below still applies.
 
 **Where the comments may go.** Slice 1's go into `plan-writer.feature.ts` and
-`calendar-markers.feature.ts`; slice 2's into `use-plan-read.ts`, `project-page.tsx` and `app.tsx`.
+`calendar-markers.feature.ts`; slice 2's into `use-plan-read.ts`, `use-plan-dependencies.ts`, `wbs-table.tsx`, `project-page.tsx`
+and `app.tsx`.
 Three of slice 2's sites already carry another packet's comment block — `m1` and `r1` at the page's
 `return () => {` (packet j's cleanup proof), `g1` at the gate's
 `if (projectState.status === 'fatal' && projectState.terminal)` (packet k's `p1`), `n1` at
@@ -2077,7 +2270,7 @@ test $(( $(wc -l < "$TMPDIR/proofs.txt") % 4 )) -eq 0
 wc -l < "$TMPDIR/proofs.txt"
 ````
 
-Expected: 12 lines for slice 1 and 32 for slice 2.
+Expected: 12 lines for slice 1 and 40 for slice 2.
 
 **First, prove every filter selects exactly one test**, before injecting anything:
 
@@ -2215,6 +2408,14 @@ s2
 apps/wbs/fe-01/src/components/wbs/use-plan-read.ts
 src/components/wbs/project-replacement.test.tsx
 says nothing in the next project when an undo asked of the last one is refused
+d1
+apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+src/components/wbs/project-replacement.test.tsx
+says nothing in the next project when a dependency list asked of the last one is refused
+d2
+apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+src/components/wbs/project-replacement.test.tsx
+says nothing in the next project when a dependency list asked of the last one is refused
 h1
 apps/wbs/fe-01/src/components/wbs/project-page.tsx
 src/components/wbs/project-replacement.test.tsx
@@ -2243,18 +2444,23 @@ leaves the session Strict Mode first opened, and opens the project in the one it
 
 Each exit 1:
 
-| Id   | Fault                                                                                | Suite › test                                                                                                             | Observed                                                                                                                                     | Comment above                                                                                              |
-| ---- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `s1` | the undo stack's check before a success removed                                      | `project-replacement.test.tsx` › `says nothing in the next project when an undo asked of the last one succeeds`          | `1 failed \| 4 skipped (5)`; `expected [ 'Undid: rename “Strip”' ] to deeply equal []`                                                       | the `if (!isCurrent()) return;` directly above `if (outcome.ok) {`                                         |
-| `s2` | the undo stack's check before a refusal removed                                      | `project-replacement.test.tsx` › `says nothing in the next project when an undo asked of the last one is refused`        | `1 failed \| 4 skipped (5)`; `expected [ Array(1) ] to deeply equal []` — the refusal's sentence over `p2`                                   | the `if (!isCurrent()) return;` directly below `} catch (thrown: unknown) {`                               |
-| `h1` | the header handed the last live runtime's presence through the gap                   | `project-replacement.test.tsx` › `draws no table and hands the header nobody while the last project lets go`             | `1 failed \| 4 skipped (5)`; `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [], connected: false }`                    | `const presenceStore =`                                                                                    |
-| `t1` | the table drawn from the last live runtime through the gap                           | `project-replacement.test.tsx` › `draws the next project in a table of its own`                                          | `1 failed \| 4 skipped (5)`; `expected <table data-grid="true" …(2)>…(3)</table> not to be <table data-grid="true" …(2)>…(3)</table>`        | `{projectState.status === 'live' && (` — a JSX comment                                                     |
-| `m1` | the page's effect cleanup gone (`return undefined`)                                  | `project-replacement.test.tsx` › `opens one runtime per pick under Strict Mode, and gives each back once`                | `1 failed \| 4 skipped (5)`; `expected 'live' to be 'empty'` — `p2` never given back when the page went                                      | `return () => {` in the owner effect (below packet j's block)                                              |
-| `r1` | `m1`'s patch, through the router                                                     | `app.test.tsx` › `gives the project back once when its route goes, keeps the session, and opens a new runtime on return` | `1 failed \| 19 skipped (20)`; `expected [ 'session built', 'project p1 built' ] to include 'project p1 given back'`                         | the same block as `m1`                                                                                     |
-| `g1` | the region's gate removed (packet k's `p1` patch)                                    | `app.test.tsx` › `draws the fatal state in the region’s place when a route change cannot give the project back`          | `1 failed \| 19 skipped (20)`; `Error: no fatal state yet`                                                                                   | `if (projectState.status === 'fatal' && projectState.terminal)` (below packet k's block)                   |
-| `n1` | the region opening its session only once per mount, the classic Strict Mode shortcut | `app.test.tsx` › `leaves the session Strict Mode first opened, and opens the project in the one it opens again`          | `1 failed \| 19 skipped (20)`; `TestingLibraryElementError: Unable to find a label with the text of: Project` — the region stayed "Loading…" | `void sessionOwner.open({ userId: session.user.id, credential: session.token });` (below packet i's block) |
+| Id   | Fault                                                                                | Suite › test                                                                                                                | Observed                                                                                                                                     | Comment above                                                                                              |
+| ---- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `s1` | the undo stack's check before a success removed                                      | `project-replacement.test.tsx` › `says nothing in the next project when an undo asked of the last one succeeds`             | `1 failed \| 5 skipped (6)`; `expected [ 'Undid: rename “Strip”' ] to deeply equal []`                                                       | the `if (!isCurrent()) return;` directly above `if (outcome.ok) {`                                         |
+| `s2` | the undo stack's check before a refusal removed                                      | `project-replacement.test.tsx` › `says nothing in the next project when an undo asked of the last one is refused`           | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []` — the refusal's sentence over `p2`                                   | the `if (!isCurrent()) return;` directly below `} catch (thrown: unknown) {`                               |
+| `d1` | the dependency list's toast guard removed                                            | `project-replacement.test.tsx` › `says nothing in the next project when a dependency list asked of the last one is refused` | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []` — `These were refused: …` over `p2`                                  | `if (isCurrent() && problems.length > 0)` in `dependOn`                                                    |
+| `d2` | the table handing the dependency list a predicate that always answers yes            | `project-replacement.test.tsx` › `says nothing in the next project when a dependency list asked of the last one is refused` | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                                      | `isCurrent: project.isCurrent,` in `usePlanDependencies({ … })`                                            |
+| `h1` | the header handed the last live runtime's presence through the gap                   | `project-replacement.test.tsx` › `draws no table and hands the header nobody while the last project lets go`                | `1 failed \| 5 skipped (6)`; `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [], connected: false }`                    | `const presenceStore =`                                                                                    |
+| `t1` | the table drawn from the last live runtime through the gap                           | `project-replacement.test.tsx` › `draws the next project in a table of its own`                                             | `1 failed \| 5 skipped (6)`; `expected <table data-grid="true" …(2)>…(3)</table> not to be <table data-grid="true" …(2)>…(3)</table>`        | `{projectState.status === 'live' && (` — a JSX comment                                                     |
+| `m1` | the page's effect cleanup gone (`return undefined`)                                  | `project-replacement.test.tsx` › `opens one runtime per pick under Strict Mode, and gives each back once`                   | `1 failed \| 5 skipped (6)`; `expected 'live' to be 'empty'` — `p2` never given back when the page went                                      | `return () => {` in the owner effect (below packet j's block)                                              |
+| `r1` | `m1`'s patch, through the router                                                     | `app.test.tsx` › `gives the project back once when its route goes, keeps the session, and opens a new runtime on return`    | `1 failed \| 19 skipped (20)`; `expected [ 'session built', 'project p1 built' ] to include 'project p1 given back'`                         | the same block as `m1`                                                                                     |
+| `g1` | the region's gate removed (packet k's `p1` patch)                                    | `app.test.tsx` › `draws the fatal state in the region’s place when a route change cannot give the project back`             | `1 failed \| 19 skipped (20)`; `Error: no fatal state yet`                                                                                   | `if (projectState.status === 'fatal' && projectState.terminal)` (below packet k's block)                   |
+| `n1` | the region opening its session only once per mount, the classic Strict Mode shortcut | `app.test.tsx` › `leaves the session Strict Mode first opened, and opens the project in the one it opens again`             | `1 failed \| 19 skipped (20)`; `TestingLibraryElementError: Unable to find a label with the text of: Project` — the region stayed "Loading…" | `void sessionOwner.open({ userId: session.user.id, credential: session.token });` (below packet i's block) |
 
-Also observed, not a stop: `t1` fails the gap case too (`expected <table data-grid="true" …(2)>…(3)</table>
+Also observed, not a stop: `d1` and `d2` each fail `plan-read-and-write.test.tsx` › `keeps an old
+dependency-list refusal out of its busy API replacement` too (`expected [ Array(1) ] to deeply equal
+[]`), the fixture's twin; its old `Proof:` line named the `activeCommands` line this slice replaces and
+goes with it. `t1` fails the gap case too (`expected <table data-grid="true" …(2)>…(3)</table>
 to be null`); `m1` fails `project-page.test.tsx` › `closes the selected project’s stream once the page
 goes` too (packet j's proof of the same line). `n1` passes every non-Strict-Mode case of the file:
 without Strict Mode's second mount the one open is the only one. `m1` is **not** a Strict Mode fault —
@@ -2283,6 +2489,28 @@ diff --git a/apps/wbs/fe-01/src/components/wbs/use-plan-read.ts b/apps/wbs/fe-01
 -        } catch (thrown: unknown) {
 -          if (!isCurrent()) return;
 +        } catch (thrown: unknown) {
+```
+
+#### Proof d1 — the dependency list's toast guard removed
+
+```diff
+diff --git a/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts b/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+--- a/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
++++ b/apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+@@ -178,1 +178,1 @@
+-        if (isCurrent() && problems.length > 0)
++        if (problems.length > 0)
+```
+
+#### Proof d2 — the table handing the dependency list a predicate that always answers yes
+
+```diff
+diff --git a/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx b/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+--- a/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+@@ -1184,1 +1184,1 @@
+-      isCurrent: project.isCurrent,
++      isCurrent: () => true,
 ```
 
 #### Proof h1 — the header handed the last live runtime's presence through the gap
@@ -2397,7 +2625,7 @@ executor output simulated, **and on the real dispatch base**. The script has thr
   and 13 in `tasks.md`, a dated paragraph after packet h's in the lifetime map.
 - `fill=real` — the base named by `REAL_BASE`: planning after packets i, k and l, plus this plan branch's
   commits cherry-picked (section 6, Dispatch). Nothing is filled. The result must change exactly the
-  seventeen owned paths; the five test files must equal the rehearsal's final bytes; the nine production
+  nineteen owned paths; the five test files must equal the rehearsal's final bytes; the eleven production
   files must equal them once every `//` comment and every blank line are stripped and every run of
   whitespace is squeezed to one space, on both sides — whitespace added where there was none, or
   removed, fails the mode, inside a string literal too; a run's length does not; and the three records,
@@ -2414,7 +2642,7 @@ No script, no Prettier and no `node_modules` are needed: every change is a diff.
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-m-project-replacement.md
 base=59cfe22a42c5471fa1f3aa714a722faabce9e8d5
-final=7b753cf54f2d2e7f60557b5c9a5502c815f08995
+final=580d8431e1e399b695f48dde5a77de727315ec2f
 real_base=${REAL_BASE:-}
 test -f "$packet"
 # Inserts a two-line comment above the Nth line (default 1) whose trimmed text is exactly $2.
@@ -2449,6 +2677,18 @@ insert_after() {
     $0 == a { while ((getline l < lines) > 0) print l }
   ' "$file" > "$file.filled"
   mv "$file.filled" "$file"
+}
+# Slice 2 step 4's append of task 14, after whatever ends tasks.md.
+append_task14() {
+  tasks="$work/tree/openspec/changes/adopt-frontend-lifetimes/tasks.md"
+  test -f "$tasks"
+  test "$(tail -c 1 "$tasks" | od -An -c | tr -d ' ')" = '\n'
+  if grep -n '^- \[.\] 14\. ' "$tasks"; then echo "task 14 already there" >&2; exit 1; else rc=$?; test "$rc" -eq 1; fi
+  printf '%s\n' \
+    "- [ ] 14. On page hide the application's retirement awaits the session's and fails when" \
+    "      it fails (WBS 4334fc49-e143-4671-af58-28cfd5f35423); see 050-7-m section 12." \
+    >> "$tasks"
+  test "$(grep -c '^- \[ \] 14\. ' "$tasks")" -eq 1
 }
 # Checks every fault patch named on the command line against the tree.
 check_faults() {
@@ -2493,7 +2733,7 @@ for fill in 0 1 real; do
   ' "$packet"
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
-  test "$count" -eq 11
+  test "$count" -eq 13
   git archive "$from" | tar -x -C "$work/tree"
   fe="$work/tree/apps/wbs/fe-01"
   if [ "$fill" = 1 ]; then
@@ -2546,8 +2786,9 @@ for fill in 0 1 real; do
     git -C "$work/tree" apply --check "$work/patches/$n.diff"
     git -C "$work/tree" apply "$work/patches/$n.diff"
   done
-  check_faults s1 s2 h1 t1 m1 r1 g1 n1
-  echo "fill=$fill slice 2 applied, its 8 fault patches check"
+  append_task14
+  check_faults s1 s2 d1 d2 h1 t1 m1 r1 g1 n1
+  echo "fill=$fill slice 2 applied, task 14 appended, its 10 fault patches check"
   git -C "$work/tree" status --porcelain --untracked-files=all | wc -l
   mkdir "$work/final"
   git archive "$final" | tar -x -C "$work/final"
@@ -2565,19 +2806,20 @@ for fill in 0 1 real; do
     code="$m/calendar-markers/contract.ts $m/calendar-markers/calendar-markers.feature.ts
       $m/plan-writer/contract.ts $m/plan-writer/plan-writer.feature.ts $m/plan-writer/busy-store.ts
       apps/wbs/fe-01/src/runtime/project-runtime.ts apps/wbs/fe-01/src/app.tsx
-      apps/wbs/fe-01/src/components/wbs/project-page.tsx apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"
+      apps/wbs/fe-01/src/components/wbs/project-page.tsx apps/wbs/fe-01/src/components/wbs/use-plan-read.ts
+      apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts apps/wbs/fe-01/src/components/wbs/wbs-table.tsx"
     records="openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
       openspec/changes/adopt-frontend-lifetimes/tasks.md
       docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md"
     # shellcheck disable=SC2086 # three fixed lists of paths without spaces
     printf '%s\n' $tests $code $records | sort > "$work/owned.txt"
-    test "$(wc -l < "$work/owned.txt")" -eq 17
+    test "$(wc -l < "$work/owned.txt")" -eq 19
     diff "$work/owned.txt" "$work/changed.txt"
-    echo "fill=real changed exactly the seventeen owned paths"
+    echo "fill=real changed exactly the nineteen owned paths"
     for f in $tests; do cmp "$work/tree/$f" "$work/final/$f"; done
     echo "fill=real five test files equal the rehearsal's"
     for f in $code; do test "$(code_of "$work/tree/$f")" = "$(code_of "$work/final/$f")"; done
-    echo "fill=real nine production files equal the rehearsal's but for comments"
+    echo "fill=real eleven production files equal the rehearsal's but for comments"
     for f in $records; do
       git show "$base:$f" > "$work/authored.md"
       git show "$real_base:$f" > "$work/real.md"
@@ -2592,55 +2834,64 @@ done
 ````
 
 Observed on 2026-09-25, after the final Prettier `--check` of this document, with the packet read from
-this working tree and `REAL_BASE=647e2e003` — **a proxy**, packet l's rehearsal tip (`ff4c6f6d3`,
-`0c6819634`, `647e2e003` on the authoring base, branch `rehearse/050-7-l`), the only one of the three
-lanes this packet waits for whose edits to the shared records exist yet. It proves the l overlap
-against packet l's own words; packets i's and k's real lanes are proved only by `fill=1`'s simulation
-until the planner reruns the mode on the reviewed planning base:
+this working tree and `REAL_BASE=1a2558d31` — **a stand-in** for the dispatch base, built the way round 1's
+review built its own: packet k's landed lane `54e428685` (which carries packets i's and k's executor
+`Proof:` comments in `app.tsx` and their dated notes), packet l's current packet (`b43e8a3b8`,
+`5750f395f`) cherry-picked, packet l's eleven section-7 diffs applied by its own extraction with its
+`<observed-date-l>` notes dated, and this packet's own file. It is not the reviewed planning base; the
+planner reruns the mode there before the first dispatch:
 
 ```text
 fill=0 extracted=6
-fill=0 fault-patches=11
+fill=0 fault-patches=13
 fill=0 slice 1 applied, its 3 fault patches check
-fill=0 slice 2 applied, its 8 fault patches check
-17
-fill=0 tree identical to 7b753cf54f2d2e7f60557b5c9a5502c815f08995
+fill=0 slice 2 applied, task 14 appended, its 10 fault patches check
+19
+fill=0 tree identical to 580d8431e1e399b695f48dde5a77de727315ec2f
 fill=1 extracted=6
-fill=1 fault-patches=11
+fill=1 fault-patches=13
 fill=1 filled-sites=6, packets i and k dated, packet l's three records simulated
 fill=1 slice 1 applied, its 3 fault patches check
-fill=1 slice 2 applied, its 8 fault patches check
-17
+fill=1 slice 2 applied, task 14 appended, its 10 fault patches check
+19
 fill=1 simulated comments left: 6
 fill=real extracted=6
-fill=real fault-patches=11
+fill=real fault-patches=13
 fill=real slice 1 applied, its 3 fault patches check
-fill=real slice 2 applied, its 8 fault patches check
-17
-fill=real changed exactly the seventeen owned paths
+fill=real slice 2 applied, task 14 appended, its 10 fault patches check
+19
+fill=real changed exactly the nineteen owned paths
 fill=real five test files equal the rehearsal's
-fill=real nine production files equal the rehearsal's but for comments
+fill=real eleven production files equal the rehearsal's but for comments
 fill=real three records carry exactly this packet's delta
 ```
 
 `git apply --check` prints nothing on success, which is why the script's own `echo` lines are the
 evidence and why every count is asserted rather than printed. The number printed after slice 2 is the
-paths changed against the base: seventeen — every owned path of the two slices but `verify.md`, which
+paths changed against the base: nineteen — every owned path of the two slices but `verify.md`, which
 the executor writes. The `fill=0` tree is byte-identical to the rehearsal's final commit (`diff -r`
-printed nothing), which holds the two `<observed-date-m>` placeholders slice 2 step 4 replaces. Prettier
-strips the single space of a blank context line inside the fenced diffs; `git apply` reads such a line
-as the blank context line it was, which `fill=0`'s identity proves.
+printed nothing), which holds the two `<observed-date-m>` placeholders slice 2 step 4 replaces, and task
+14 as its last lines. On the stand-in, task 14 lands after packet l's note on task 13, and every hunk
+applies with offsets only. Prettier strips the single space of a blank context line inside the fenced
+diffs; `git apply` reads such a line as the blank context line it was, which `fill=0`'s identity proves.
 
 **A failed check stops the run**: the same script with `REAL_BASE` set to this packet's own slice-1
-rehearsal commit, a base the diffs cannot fit, exited 1 at the first `git apply --check` (`error: patch
-failed: apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:44`).
+rehearsal commit `870f1df7e`, a base the diffs cannot fit, exited 1 at the first `git apply --check`
+(`error: patch failed: apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.test.ts:35`).
 
-**Beyond the script, on the same proxy**: the six diffs applied to a detached checkout of `647e2e003`
-gave `wbs-fe-01:typecheck` exit 0 — which there runs packet l's `typecheck:module`, compiling
-`calendar-markers` and `plan-writer` alone — `wbs-fe-01:lint` exit 0, packet l's
-`src/delivery-boundaries.test.ts` 1·1 passing (no route added to or gone from its list of routes owed),
-the strict OpenSpec block 114 · 114 · 0 with packet l's requirement beside this one, the sandbox suite
-57·714, and the session set, the new page file, the module set and the runtime pair 11·109.
+**Beyond the script, on the same stand-in** — which section 9.1 cannot see, because it applies diffs and
+does not typecheck:
+
+- slice 1's red (`01.diff` alone): `wbs-fe-01:typecheck` `status=130`, `Failed tasks: -
+wbs-fe-01:typecheck:module`, the three per-module `Found … error` lines of section 6, five TS2741 —
+  the form step 3 now asserts;
+- slice 2's red (`01`–`04`): `typecheck:module` passes, then `Found 1 error in
+apps/wbs/fe-01/src/app.test.tsx:744`, `status=1`;
+- all six diffs and task 14: `wbs-fe-01:typecheck` 0 (with `typecheck:module` over every module
+  directory), `wbs-fe-01:lint` 0, `nx format:check --all` 0, strict OpenSpec 114 · 114 · 0 with packet
+  l's requirement beside this one, packet l's `src/delivery-boundaries.test.ts` 1·1 (no route added to
+  or gone from its list of routes owed), the session set with the new page file 4·79, the module set
+  7·31, the sandbox suite 57·714.
 
 Every **intermediate** tree typechecks: `wbs-fe-01:typecheck` exit 0 on both rehearsal commits, each
 committed with the hooks on. Exactly two trees do not: the red checkpoints, each the previous slice's
@@ -2667,30 +2918,32 @@ Rehearsed on the base and after slice 2's contract step: `{"items":114,"passed":
 
 ### 9.3 Commands actually run, and what each reported
 
-All on 2026-09-24 and 2026-09-25, by this packet's author, on the throwaway branch `rehearse/050-7-m`
-cut at the authoring base `59cfe22a`, each slice committed **with the hooks on** (lefthook's wiki,
-secrets, format and lint checks passed for both): `ae5a1585` (slice 1) and `7b753cf5` (slice 2). Each
-red was rebuilt from the previous slice's commit plus that slice's test side only; each fault was
-injected into the final tree, whose slice-1 files are slice 1's.
+All on 2026-09-24 and 2026-09-25, by this packet's author. The first rehearsal, `rehearse/050-7-m`
+(`ae5a1585`, `7b753cf5`), is kept; after round 1 the rehearsal was re-cut as `rehearse/050-7-m-r2` from
+the authoring base `59cfe22a`, each slice committed **with the hooks on** (lefthook's wiki, secrets,
+format and lint checks passed for both): `870f1df7` (slice 1, byte-identical to the first) and
+`580d8431` (slice 2, the first's plus the spec reword, the task notes and task 14, and the dependency
+list's repair and case). Each red was rebuilt from the previous slice's commit plus that slice's test
+side only; each fault was injected into the final tree, whose slice-1 files are slice 1's.
 
-| Check                                  | Base `59cfe22a`                               | Slice 1                                       | Slice 2                                              |
-| -------------------------------------- | --------------------------------------------- | --------------------------------------------- | ---------------------------------------------------- |
-| sandbox node suite (files·tests)       | 57·713                                        | 57·714                                        | 57·714                                               |
-| module set, serial                     | 7·30                                          | 7·31                                          | —                                                    |
-| session set, serial                    | 3·70                                          | —                                             | 3·73, and the new page file 1·5 (run together: 4·78) |
-| adopted set, serial                    | 20·1219                                       | 20·1219 (one load timeout, rerun alone: 1·23) | 20·1219                                              |
-| zoned (Auckland)                       | 2·3                                           | —                                             | 2·3                                                  |
-| deletion evidence (`s1-u12`)           | 23·1244, both wirings `() => true`, all green | —                                             | —                                                    |
-| red typecheck                          | —                                             | exit 1, 5 errors in 3 files, all TS2741       | exit 1, 1 error, TS2322 at `app.test.tsx:744`        |
-| red Vitest                             | —                                             | `9 failed \| 7 passed (16)`                   | `3 failed \| 22 passed (25)`                         |
-| typecheck and lint on the slice's tree | 0                                             | 0, 0                                          | 0, 0; `nx format:check --all` 0                      |
-| faults observed failing, file restored | —                                             | 3 of 3                                        | 8 of 8                                               |
-| strict OpenSpec                        | 114 · 114 · 0                                 | 114 · 114 · 0                                 | 114 · 114 · 0                                        |
+| Check                                  | Base `59cfe22a`                               | Slice 1                                                                                                         | Slice 2                                                    |
+| -------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| sandbox node suite (files·tests)       | 57·713                                        | 57·714                                                                                                          | 57·714                                                     |
+| module set, serial                     | 7·30                                          | 7·31                                                                                                            | 7·31                                                       |
+| session set, serial                    | 3·70                                          | —                                                                                                               | 3·73, and the new page file 1·6 (run together: 4·79)       |
+| adopted set, serial                    | 20·1219                                       | 20·1219 (one load timeout in the first rehearsal, rerun alone: 1·23)                                            | 20·1219                                                    |
+| zoned (Auckland)                       | 2·3                                           | —                                                                                                               | 2·3                                                        |
+| deletion evidence (`s1-u12`)           | 23·1244, both wirings `() => true`, all green | —                                                                                                               | —                                                          |
+| red typecheck                          | —                                             | non-zero: 1 here, `Found 5 errors in 3 files.`; 130 on the stand-in, `typecheck:module` first; five TS2741 both | exit 1, 1 error, TS2322 at `app.test.tsx:744` (both bases) |
+| red Vitest                             | —                                             | `9 failed \| 7 passed (16)`                                                                                     | `4 failed \| 22 passed (26)`                               |
+| typecheck and lint on the slice's tree | 0                                             | 0, 0                                                                                                            | 0, 0; `nx format:check --all` 0                            |
+| faults observed failing, file restored | —                                             | 3 of 3                                                                                                          | 10 of 10                                                   |
+| strict OpenSpec                        | 114 · 114 · 0                                 | 114 · 114 · 0                                                                                                   | 114 · 114 · 0                                              |
 
-Every proof filter matched exactly one test. The eleven faults were run twice — once by hand while the
-cases were written and once by section 8's own loop over the records extracted from this document, on
-the final commit — with the same observed lines; each restore was `cmp`-identical and each green rerun
-passed.
+Every proof filter matched exactly one test. The thirteen faults were run by section 8's own loop over
+the records extracted from this document, on `rehearse/050-7-m-r2`'s final commit, with the observed
+lines the tables give; the eleven that the first rehearsal had were run twice there too, with the same
+lines. Each restore was `cmp`-identical and each green rerun passed.
 
 **What was tried and found unprovable, and why** (section 3.2): the two `isActiveReader` wirings
 replaced by `() => true` left every production-path suite green (`s1-u12`), so the predicate was
@@ -2704,6 +2957,13 @@ Mode case expected `session built, session given back, session built`; it observ
 built`: the first request is overtaken by Strict Mode's leave before the slot builds it. The case now
 records the leave and asserts the one build.
 
+**What round 1 turned up**: the dependency-list case, written to disprove row 15's guard, failed on the
+unchanged tree the first time it reached the toast (`expected [ Array(1) ] to deeply equal []`): its
+first draft deferred every `addDependency` and so never reached the toast; with the first entry held and
+the rest refused, the left project's `These were refused: …` appeared over `p2`. The fixture's twin
+(`keeps an old dependency-list refusal out of its busy API replacement`) passes both before and after
+the repair: the fixture rerenders the same table, whose ref is then rewritten.
+
 **Also observed**: `m1` fails `project-page.test.tsx` › `closes the selected project’s stream once the
 page goes` too (`Tests 1 failed | 75 skipped (76)`), packet j's proof of the same line.
 
@@ -2715,7 +2975,7 @@ build writes outside the attempt's lane, and devsync writes Git objects.
 | Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                | Planner's own rehearsal                                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 1 test**; slice 2 unchanged                                                                                       | **Not run.** Pending planner verification.                   |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 1 test**, slice 2 **+ 1 file, + 8 tests**. Auckland zoned unchanged                                          | **Not run.** Pending planner verification.                   |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 1 test**, slice 2 **+ 1 file, + 9 tests**. Auckland zoned unchanged                                          | **Not run.** Pending planner verification.                   |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                       | **Not run.** Pending planner verification.                   |
 | `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module file, no pre-namespacing path in any owned document                                   | run by `planner-commit.sh` on this packet's own commit only  |
 | `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slice 2 — every spec that picks a project, switches projects or follows the Directory and Plan links | **Pending planner verification.** Not run in this rehearsal. |
@@ -2734,10 +2994,14 @@ output and fails thirteen unrelated tests in this repository.
   ever draws a runtime it no longer publishes.
 - The page's Strict Mode case is an oracle: no Strict-Mode-only fault exists at the page, and `m1` would
   fail without Strict Mode too. The Strict Mode fault with teeth is the region's (`n1`).
-- Page hide's own session retirement stays unobserved (section 12).
+- Page hide's own session retirement stays unobserved until task 14 (WBS `4334fc49`, section 12).
+- `run-check.sh`'s summary line greps `error TS` and `Found [0-9]+ error`, which tsc's coloured output
+  can split; the `status=` line it also prints is the result, and slice 1's red counts `TS2741` in the
+  log directly.
 - The authoring base carries packets i's and k's **rehearsed** diffs and none of packet l's; section 9.1's
-  `fill=real` on the real base is what proves the rest — rehearsed here against packet l's rehearsal tip
-  only (section 9.3), and rerun by the planner on the reviewed planning base.
+  `fill=real` on the real base is what proves the rest — rehearsed here against a stand-in (section 9.1),
+  and rerun by the planner on the reviewed planning base, with slice 1's red once there too (section 9.1
+  applies diffs; it does not typecheck).
 
 ## 10. Stop conditions
 
@@ -2745,7 +3009,7 @@ Each is false on the rehearsal tree, checked on 2026-09-25.
 
 1. Step 0a's status is not empty, or `base` differs from the slice note's SHA. Stop: the clone is not
    the tree this packet was reviewed against.
-2. Step 0b extracts other than 6 patches or other than 11 fault patches. Stop: this document is not the
+2. Step 0b extracts other than 6 patches or other than 13 fault patches. Stop: this document is not the
    one reviewed.
 3. A patch fails `git apply --check`. Stop and report the exact error; never hand-edit a file into
    shape.
@@ -2753,7 +3017,9 @@ Each is false on the rehearsal tree, checked on 2026-09-25.
 5. Slice 1's deletion evidence (`s1-u12`) shows a failing test other than condition 11's. Stop: the
    predicate is reachable and must not be deleted.
 6. A red checkpoint shows **no** failure, or different diagnostics than section 6 names. Either means
-   the tests did not land as written.
+   the tests did not land as written. Slice 1's typecheck status is asserted non-zero, not equal to a
+   code: on the dispatch base packet l's `typecheck:module` fails first and Nx exits 130; the five
+   TS2741 diagnostics are what is checked.
 7. A green run differs from its step-0 number by anything but the slice's own additions, or the adopted
    set's count moves. Stop.
 8. A proof filter matches zero tests, or more than one. Stop.
@@ -2787,8 +3053,10 @@ After this packet 050.7 owes, and no task of it is this packet's:
 - **Tasks 12's and 13's remainders**, as packet l's notes name them (the six unsealed modules' graph
   checks; the routes still owed to the catalog facade and the shelf).
 - **Task 3** is packet l's to close (the preferences module's wiki index).
-- **Page hide's own session retirement — named residual, no open task owns it; recorded for the
-  planner to assign as an application-lifetime change.** On `pagehide` the bootstrap's
+- **Page hide's own session retirement — owned by WBS item `4334fc49-e143-4671-af58-28cfd5f35423`**
+  ("050.7 follow-up: on page hide the application's retirement awaits the session's and fails when it
+  fails", opened 2026-09-25), recorded in the change as task 14, unchecked, by slice 2. An
+  application-lifetime change. On `pagehide` the bootstrap's
   `invalidateRoot()` unmounts the tree, `SignedInApp`'s cleanup starts `sessionOwner.leave()`, and the
   application slot's `retire()` starts beside it without waiting; on a persisted `pagehide` a
   restoration can rebuild while the old session's project is still closing, and a session retirement
@@ -2809,7 +3077,7 @@ After this packet 050.7 owes, and no task of it is this packet's:
    Each deletion carries its rehearsed evidence — the production-path suites green with the check
    neutralised — and the checks that stay beside it are re-proved.
 2. **Page hide stays out** (section 3.4): task 11's sentence does not name it, and closing it is an
-   application-lifetime change with its own model.
+   application-lifetime change with its own model; its owner is WBS item `4334fc49`, task 14.
 3. **The page's Strict Mode case is an oracle** (section 3.2): the brief asks that Strict Mode re-entry
    be _exercised_ at both owners, and it is; at the page, no fault specific to Strict Mode exists, and
    the packet says so instead of inventing one.
@@ -2821,6 +3089,10 @@ After this packet 050.7 owes, and no task of it is this packet's:
    The alternative — lower only while the owner's identity holds — would be the same decorative check in
    another spelling.
 7. **Serial runs for the multi-file suites**, as the project's own `test` target runs them.
+8. **The dependency list's busy and reread uses keep their guard** (row 15): they share the one
+   predicate the toast use proves, their other negative runs through the fixture, and the command
+   services' extraction rewrites the hook; deleting them here would be a second change to a hook this
+   packet only had to repair.
 
 ## 14. The brief, point by point
 
@@ -2828,8 +3100,8 @@ After this packet 050.7 owes, and no task of it is this packet's:
 
 | Requirement                                                                                                                                                                                                             | Where this packet meets it                                                                                                                                        |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| task 11 plus every residual handed to it (h's four guards; j's four carried guards and Strict Mode; i's page hide, the renewal note, `createProjectOwner`'s JSDoc; k's route-driven tests and the direct-leave example) | section 3.1's fourteen rows, each proved, deleted or left with an owner                                                                                           |
-| teeth: every guard a production-path negative with a `Proof:` comment, or deleted as unreachable with the reason                                                                                                        | eleven faults (section 8); three deletions with their evidence (section 3.2, slice 1 step 2, section 9.3)                                                         |
+| task 11 plus every residual handed to it (h's four guards; j's four carried guards and Strict Mode; i's page hide, the renewal note, `createProjectOwner`'s JSDoc; k's route-driven tests and the direct-leave example) | section 3.1's fifteen rows, each proved, deleted, repaired or left with an owner                                                                                  |
+| teeth: every guard a production-path negative with a `Proof:` comment, or deleted as unreachable with the reason                                                                                                        | thirteen faults (section 8); three deletions with their evidence (section 3.2, slice 1 step 2, section 9.3); one broken guard found and repaired (row 15)         |
 | Strict Mode re-entry exercised by a real `<StrictMode>` test at the project and the session owners                                                                                                                      | `opens one runtime per pick under Strict Mode, …` (the project page) and `leaves the session Strict Mode first opened, …` (the region)                            |
 | route unmount driven through the router, not a direct call                                                                                                                                                              | the Directory and Plan links in `app.test.tsx` (`r1`, `g1`)                                                                                                       |
 | a model-based test only for new concurrency logic                                                                                                                                                                       | none added: no concurrency logic changes (section 1, 3.4)                                                                                                         |
@@ -2843,38 +3115,54 @@ After this packet 050.7 owes, and no task of it is this packet's:
 
 ### 14.2 The batch-6 addendum's twenty points
 
-| Point                       | Assessment                                                                                                                                                                                                                                   |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Reproduced red           | Met: slice 1's compiler and runtime reds, slice 2's for the seam, each rebuilt from the previous slice plus its test side, diagnostics pasted; the five page oracles' reds are their faults, each observed on the unchanged guard's removal. |
-| 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, both committed with lefthook on (section 9.3).                                                                                                                                  |
-| 3. Path counts              | Met: each hand-over lists the slice's exact paths (10, 9); the planner's own commit adds only this document.                                                                                                                                 |
-| 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it.                                                                                                                                                                   |
-| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                                                                               |
-| 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (section 9.4).                                                                                                                                       |
-| 7. Known race               | Met: named, one rerun, no repair authority (section 10.11).                                                                                                                                                                                  |
-| 8. Names                    | Met: no product name in an identifier; no module identifier added.                                                                                                                                                                           |
-| 9. Packet form and evidence | Met: two slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed messages; the unprovable named, not skipped.                                                            |
-| 10. Pins                    | Met: no pin touched.                                                                                                                                                                                                                         |
-| 11. Pipeline exit handling  | Met: every `\|\| test $? -eq 1` follows one command; `delta_of` writes its `diff` before reading it.                                                                                                                                         |
-| 12. Planner chaining        | Met: the extraction stops at the first failed check (section 9.1).                                                                                                                                                                           |
-| 13. Module index            | N/A with reason: no file is added to a module directory; the new suite is under `components/wbs`.                                                                                                                                            |
-| 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                                                                                  |
-| 15. Interleaving property   | N/A with reason: no owner, queue or retirement logic is written or changed; the owners' existing properties stand (section 3.4).                                                                                                             |
-| 16. Model-based remedy      | N/A: no review round has found a race here; page hide, which would need one, is handed on with that requirement (section 12).                                                                                                                |
-| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                                                                           |
-| 18. Symbol-based checks     | N/A: no code-shape checker is introduced.                                                                                                                                                                                                    |
-| 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                                                                                    |
-| 20. Honest limits           | Met: sections 3.5 and 9.5 — the observed-not-proved gap render, the page's oracle, page hide, the proxy real base.                                                                                                                           |
+| Point                       | Assessment                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Reproduced red           | Met: slice 1's compiler and runtime reds — on the authoring base and on a real-shaped base, where the typecheck status differs (1, 130) and is asserted non-zero — and slice 2's for the seam and the dependency list, each rebuilt from the previous slice plus its test side, diagnostics pasted; the five page oracles' reds are their faults. |
+| 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, both committed with lefthook on (section 9.3).                                                                                                                                                                                                                                       |
+| 3. Path counts              | Met: each hand-over lists the slice's exact paths (10, 11); the planner's own commit adds only this document.                                                                                                                                                                                                                                     |
+| 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it.                                                                                                                                                                                                                                                                        |
+| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                                                                                                                                                                                    |
+| 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (section 9.4).                                                                                                                                                                                                                                            |
+| 7. Known race               | Met: named, one rerun, no repair authority (section 10.11).                                                                                                                                                                                                                                                                                       |
+| 8. Names                    | Met: no product name in an identifier; no module identifier added.                                                                                                                                                                                                                                                                                |
+| 9. Packet form and evidence | Met: two slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed messages; the unprovable named, not skipped.                                                                                                                                                                 |
+| 10. Pins                    | Met: no pin touched.                                                                                                                                                                                                                                                                                                                              |
+| 11. Pipeline exit handling  | Met: every `\|\| test $? -eq 1` follows one command; `delta_of` writes its `diff` before reading it.                                                                                                                                                                                                                                              |
+| 12. Planner chaining        | Met: the extraction stops at the first failed check (section 9.1).                                                                                                                                                                                                                                                                                |
+| 13. Module index            | N/A with reason: no file is added to a module directory; the new suite is under `components/wbs`.                                                                                                                                                                                                                                                 |
+| 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                                                                                                                                                                                       |
+| 15. Interleaving property   | N/A with reason: no owner, queue or retirement logic is written or changed; the owners' existing properties stand (section 3.4).                                                                                                                                                                                                                  |
+| 16. Model-based remedy      | N/A: no review round has found a race here; page hide, which would need one, is handed on with that requirement (section 12).                                                                                                                                                                                                                     |
+| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                                                                                                                                                                                |
+| 18. Symbol-based checks     | N/A: no code-shape checker is introduced.                                                                                                                                                                                                                                                                                                         |
+| 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                                                                                                                                                                                         |
+| 20. Honest limits           | Met: sections 3.5 and 9.5 — the observed-not-proved gap render, the page's oracle, page hide with its owner, the stand-in real base.                                                                                                                                                                                                              |
 
 ## 15. Ready to commit
 
 | Slice | Paths                                                                                                                                                                                                                                                                                                                                                                               | Subject                                                                                                        |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 1     | `verify.md`, `apps/wbs/fe-01/src/modules/calendar-markers/{contract.ts,calendar-markers.feature.ts,calendar-markers.feature.test.ts}`, `apps/wbs/fe-01/src/modules/plan-writer/{contract.ts,plan-writer.feature.ts,plan-writer.test.ts,busy-store.ts}`, `apps/wbs/fe-01/src/modules/project/composition.test.ts`, `apps/wbs/fe-01/src/runtime/project-runtime.ts` — **10 modified** | `refactor(frontend): drop the reader predicate the refresh owner's identity already answers`                   |
-| 2     | `spec.md`, `verify.md`, `tasks.md`, `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, `apps/wbs/fe-01/src/{app.tsx,app.test.tsx}`, `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,use-plan-read.ts}` — **8 modified**; `apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx` — **1 new**                                                 | `refactor(frontend): give a project back whole on a switch, a route change and Strict Mode, and close task 11` |
+| 2     | `spec.md`, `verify.md`, `tasks.md`, `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, `apps/wbs/fe-01/src/{app.tsx,app.test.tsx}`, `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,use-plan-dependencies.ts,use-plan-read.ts,wbs-table.tsx}` — **10 modified**; `apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx` — **1 new**         | `refactor(frontend): give a project back whole on a switch, a route change and Strict Mode, and close task 11` |
 
 (`spec.md`, `verify.md` and `tasks.md` are under `openspec/changes/adopt-frontend-lifetimes/`.) After
 the last commit the host gate runs on the shared build host with the committed hash, and its printed
 running-hash line and exit status are recorded. Anywhere else it is reported as not run, with the
 reason — never as passed. The Chromium runs of section 9.4 are reported the same way until they have
 happened.
+
+## 16. Round 1, disposed
+
+| Finding                                                                         | Disposal                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical 1 — slice 1's red typecheck cannot be `status=1` on the real base      | Fixed as prescribed: the status is asserted non-zero (`test "$(tail -n 1 …)" != "status=0"`) and the five TS2741 lines are counted; the expectation names 130 as observed, not pinned, with the three per-module `Found … error` lines; section 9.3's red row and stop condition 6 follow. Re-rehearsed on a real-shaped base: `status=130`, five TS2741 (section 9.3).                                       |
+| Important 1 — packet h's scenario says a left gesture lowers no busy state      | Fixed: 7.3's first hunk rewords it ("announces nothing and lowers only its own runtime's busy state, which nobody draws once it is withdrawn"); "slice 1 changes no behaviour and no spec" is gone from section 1 and the schema row. Strict block 114 · 114 · 0 after it.                                                                                                                                    |
+| Important 2 — the dependency list's `activeCommands` guard is not in the ledger | Added as row 15, and it was **broken**, not merely unproved: the ref stays equal to a gesture's commands once its table is gone, and a list refused after a switch toasted over the next project (red on the unchanged tree). Repaired — the hook takes its runtime's `isCurrent` — and proved on a production path (`d1`, `d2`); its busy and reread uses keep the one predicate (section 13, assumption 8). |
+| Important 3 — page hide has no owner                                            | WBS item `4334fc49-e143-4671-af58-28cfd5f35423`; slice 2 step 4 appends task 14 (unchecked) naming it; sections 1, 3.1 row 13, 3.4, 3.5 and 12 cite it. Appended by a script because it follows packet l's note, at the end of the file (section 5).                                                                                                                                                          |
+| Important 4 — the task-11 note omits what stays open                            | Fixed: the note ends with the saved-plan shelf (task 10) and page hide (task 14).                                                                                                                                                                                                                                                                                                                             |
+| Minor 1 — stale proxy SHA                                                       | Section 9.1's observed run is now against a stand-in built from packet k's lane and packet l's current packet and diffs, named there.                                                                                                                                                                                                                                                                         |
+| Minor 2 — the failed-check example quotes the wrong line                        | Re-observed and quoted as printed (section 9.1).                                                                                                                                                                                                                                                                                                                                                              |
+| Minor 3 — cite where the page-level Strict Mode property is proved              | Section 3.2 cites packet j's `o1` and `lifetime-slot.model.test.ts`.                                                                                                                                                                                                                                                                                                                                          |
+| Minor 4 — `run-check.sh`'s summary misses coloured tsc output                   | Recorded in section 9.5; slice 1's red counts `TS2741`, not `error TS`.                                                                                                                                                                                                                                                                                                                                       |
+| Minor 5 — packet l's README "three ownership moments"                           | Section 5 says it is packet l's lane to fix.                                                                                                                                                                                                                                                                                                                                                                  |
+| Minor 6 — packets i and k are absent from the authoring base                    | Section 2 says so.                                                                                                                                                                                                                                                                                                                                                                                            |
