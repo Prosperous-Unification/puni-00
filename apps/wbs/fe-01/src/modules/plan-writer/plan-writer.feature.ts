@@ -11,15 +11,15 @@ import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PlanWriter, PlanWriterHost } from './contract';
 
 /**
- * Builds the writer for one reader: one project, one API, one busy state.
+ * Builds the writer for one reader: one project runtime's refresh owner, its
+ * reread and its busy state.
  *
- * A plain factory and not a DI Bag module, because DI Bag is not installed in
- * this application yet. The module directory is shaped so that adding one later
- * moves no policy.
+ * A plain factory rather than a DI Bag module of its own: the project runtime
+ * registers it as one binding (`installProjectRuntime` in
+ * `runtime/project-runtime.ts`), so the module moves no policy into a graph.
  */
 export function createPlanWriter({
   readRefreshOwner,
-  isActiveReader,
   rereadResources,
   busy,
   commandsIssued,
@@ -63,7 +63,8 @@ export function createPlanWriter({
       // Proof: guarding only projectId leaked one refusal toast into the new API
       // owner in `does not toast an old API mutation refusal into its replacement`.
       const owner = readRefreshOwner();
-      const isCurrent = () => owner !== null && readRefreshOwner() === owner && isActiveReader();
+      /** Still this reader's gesture: the owner it began under is the one still answered. */
+      const isCurrent = () => owner !== null && readRefreshOwner() === owner;
       // Read here, synchronously, because this is the moment the gesture
       // happened. The intent compares it against where the focus is when the
       // refetch lands, and everything between the two is the window in which
@@ -118,30 +119,17 @@ export function createPlanWriter({
         // Watched, 2026-09-20.
         if (!isCurrent()) return 'refused';
         if (completed.length > 0) await rereadResources(completed);
-        // A covering read may renew the coordinator for the same reader, so
-        // its identity cannot decide this outcome. A live owner and the
-        // project/API pair can:
-        // Proof: removing this pair check let an old Arrange success toast
-        // into the API that replaced it while its tree read was held; replacing
-        // it with `isCurrent()` suppressed the valid toast after a same-reader
-        // subscription renewal. Watched in the two covering-read Arrange cases,
-        // 2026-09-13.
-        // Proof: omitting the null-owner check issued a second create with
-        // afterId `w1` in `abandons queued adds when unmounted during their covering read`.
-        if (readRefreshOwner() === null || !isActiveReader()) return 'refused';
+        // Asked again after the covering read, which the reader may have left
+        // while it was reading. One owner per feed, never renewed, so its
+        // identity decides this outcome as it decided the one above.
+        if (!isCurrent()) return 'refused';
         return 'landed';
       } finally {
-        // A covering read may renew the coordinator while retaining the same
-        // logical reader. That reader owns this busy state; a different API or
-        // project does not.
-        // Proof: requiring captured coordinator identity left the renewed
-        // reader busy forever. Dropping the API half let the departed owner
-        // clear its replacement's pending rename. Watched in the renewal and
-        // busy-replacement cases, 2026-09-14.
-        // Proof: on 2026-09-24, lowering without the `isActiveReader()` guard
-        // failed `leaves the project busy when its reader left before the answer
-        // arrived` on `expected false to be true`.
-        if (isActiveReader()) busy.lower();
+        // Lowered however the gesture ended, and with nothing asked of the
+        // reader: busy is this project runtime's own, so a gesture whose reader
+        // has left lowers only a busy state nobody draws any more, and never
+        // the next project's.
+        busy.lower();
       }
     },
   };
