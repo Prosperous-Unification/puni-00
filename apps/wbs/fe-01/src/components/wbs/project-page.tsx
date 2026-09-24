@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
@@ -17,6 +18,7 @@ import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream
 import type { Recalled } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
+import { createPresence } from '@/modules/plan-feed/presence-store';
 import {
   type ApplicationServicesState,
   useApplicationServicesReader,
@@ -500,11 +502,16 @@ export function ProjectPage({
    * opens the stream (it is the thing that has to refetch), so the roster
    * arrives through the factory below rather than from a socket of the header's
    * own.
+   *
+   * A plain store the stream writes into and the header selects from, so the
+   * factory is handed no React setter. One per page mount, exactly as the state
+   * it replaces was — it is **not** reset when the selection changes, and that
+   * is kept deliberately: which lifetime resets it is the project runtime's
+   * decision (OpenSpec tasks 10 and 11), not this packet's. A lazy initializer
+   * is safe because the store holds no resource.
    */
-  const [roster, setRoster] = useState<Roster>({
-    users: [],
-    connected: false,
-  });
+  const [projectPresence] = useState(createPresence);
+  const roster: Roster = useSyncExternalStore(projectPresence.subscribe, projectPresence.snapshot);
   const subscribe = useMemo(
     () => (projectId: string, handlers: SubscriptionHandlers, baseline: number) =>
       subscribeToProject(
@@ -518,16 +525,14 @@ export function ProjectPage({
           hasBaseline: true,
           onChange: handlers.onChange,
           onConnectionChange: (connected) => {
-            setRoster((current) => ({ ...current, connected }));
+            projectPresence.reportConnection(connected);
             handlers.onConnectionChange(connected);
           },
-          onPresence: (users) => {
-            setRoster((current) => ({ ...current, users }));
-          },
+          onPresence: projectPresence.reportUsers,
         },
         streamDeps,
       ),
-    [streamDeps],
+    [projectPresence, streamDeps],
   );
 
   /**
