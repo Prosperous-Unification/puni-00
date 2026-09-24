@@ -20,10 +20,10 @@ import type { PlanWriter, PlanWriterHost } from './contract';
 export function createPlanWriter({
   readRefreshOwner,
   isActiveReader,
-  noteCommandIssued,
   rereadResources,
-  setBusy,
-  announceRefusal,
+  busy,
+  commandsIssued,
+  refusals,
 }: PlanWriterHost): PlanWriter {
   return {
     /**
@@ -68,8 +68,11 @@ export function createPlanWriter({
       // happened. The intent compares it against where the focus is when the
       // refetch lands, and everything between the two is the window in which
       // the reader may have gone somewhere else.
-      noteCommandIssued();
-      setBusy(true);
+      // Proof: on 2026-09-24, publishing after the action instead failed `says a
+      // command was issued before it sends anything` on `expected [ 'request
+      // sent', 'command issued' ] to deeply equal [ 'command issued', 'request sent' ]`.
+      commandsIssued.publish(undefined);
+      busy.raise();
       const write = createLocalWrite();
       try {
         try {
@@ -85,7 +88,7 @@ export function createPlanWriter({
           // to include 'That change could not be completed: …'`. The reread
           // below dropped, the same test failed on `expected [ '010', '020',
           // '030' ] to deeply equal [ '010', '020' ]`.
-          announceRefusal({ sentence: refusalSentence(thrown) });
+          refusals.publish({ sentence: refusalSentence(thrown) });
           // Two refusals say the screen is behind rather than that the request
           // was wrong: {@link GONE}, and a body be-01 could not read. The
           // second is the sentence's own claim — {@link INVALID_REFUSAL} says
@@ -135,7 +138,10 @@ export function createPlanWriter({
         // reader busy forever. Dropping the API half let the departed owner
         // clear its replacement's pending rename. Watched in the renewal and
         // busy-replacement cases, 2026-09-14.
-        if (isActiveReader()) setBusy(false);
+        // Proof: on 2026-09-24, lowering without the `isActiveReader()` guard
+        // failed `leaves the project busy when its reader left before the answer
+        // arrived` on `expected false to be true`.
+        if (isActiveReader()) busy.lower();
       }
     },
   };
