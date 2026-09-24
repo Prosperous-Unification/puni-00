@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 63,
+      'historical policy selector or baseline': 65,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -833,8 +833,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `libs/core/src/service/<name>.service.ts` each module was extracted from; raised
     // `historical policy selector or baseline` from 51 to 63 and occurrences from 269 to 281, no
     // unclassified entries (2026-09-24).
-    digest: '5864733ccd1d50e0a81c9c0f71b3bb20a46565ed4200f417ed0b9b1d56f9a5e2',
-    occurrences: 281,
+    // Proof: registering Work item, the seventh per-admission resource module, added
+    // `boundary.application.work-item`'s `sourceSelector` and one `baselineEntries` path, both
+    // naming the pre-namespacing `libs/core/src/service/work-item.service.ts` it was extracted
+    // from; raised `historical policy selector or baseline` from 63 to 65 and occurrences from
+    // 281 to 283, no unclassified entries (2026-09-24).
+    digest: '0d78b5794663e2bd708b6d307ba2643d33a414d717771b682392445958fe4e07',
+    occurrences: 283,
     unclassified: [],
   });
 });

@@ -437,9 +437,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/work-item.service.ts",
-      "kind": "resource",
-      "term": "work item",
-      "rationale": "project and work-item routes, ImportService and PlanCommandRunner call it for the work item aggregate's tree, estimate, assignment, dependency, scheduling and revision rules over its admitted stores and ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the work-item module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/working-plan-directory.ts",

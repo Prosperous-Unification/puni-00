@@ -1577,3 +1577,147 @@ is pinned` failed with `historical policy selector or baseline` 51 to 63, `occur
   failed (`openspec-validation.slice4-after.kBRY5m.json`); `M=18`, `B=18`. The whole
   `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
   objects).
+
+### Work item, Slice 1 — 2026-09-24
+
+- The slice started from `base=57f8c265c0790f986c0f9d49f8a85d6b2ff051f4` on a clean tree, with
+  `module/work-item/` absent, E7's modules present, `service/work-item.service.ts` at 4598 lines,
+  `service/work-item.service.test.ts` at 2321, one `workItems: new WorkItemService({` in
+  `compose.ts`, one `service/work-item.service.ts` pin in be-01's `clock.test.ts`, and `K=93`
+  `kinds.json` entries.
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`): core `bun test src` passed `C=613` over `F=66` files
+  (`slice1-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice1-be01-unit-baseline.log`); the
+  `compose.ts` bundle built with exit 0 and held `application.work-item count=0 (grep exit 1)`
+  (row 2, `slice1-compose-bundle-red.log`).
+- Row 1: the new `module/work-item/module.test.ts` failed with
+  `error: Cannot find module './check'`, 0 pass, 1 fail, 1 error (`slice1-row1-module-red.log`).
+- Row 3: after the `cp`, the `mv`, 10.2's import diff and 10.3's shim, `clock.test.ts` failed
+  `is reading real service sources, not an empty list` with
+  `Expected to contain: "export class WorkItemService"` and the shim's text received; 3 pass,
+  1 fail (`slice1-row3-clock-red.log`).
+- Row 4: with `contract.ts`, `module.ts`, `check.ts` and `README.md` in place, the module directory
+  passed 103 tests, 0 fail, 225 `expect()` calls over 2 files (`slice1-row4-module-green.log`).
+- Row 5: after 10.5 (`index.ts`, the `kinds.json` row rewritten to `support`, the moved clock pin),
+  `clock.test.ts` passed 4, 0 fail (`slice1-row5-clock-green.log`); lint and typecheck of both
+  projects exited 0 (`slice1-lint-typecheck-step5.log`).
+- Faults, each restored with `cp` and proved with `cmp` before the next; patch and log under the
+  same basename:
+  - Row 6, tuple widened to `['workItems', 'workItemOptions']` (`slice1-row6-tuple`): 2 pass,
+    3 fail — `Received function did not throw`; `Expected to contain:
+"application.work-item/workItemOptions"`; message
+    `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "workItemOptions"`.
+  - Row 7, label dropped (`slice1-row7-label`): 3 pass, 2 fail — the two label tests; the
+    private-binding test stayed green.
+  - Row 8, edge: the returned object's `broadcast,` after `journal: journalStore,` replaced by
+    `broadcast: { ...broadcast, publish: () => Promise.resolve() },` (`slice1-row8-edge`):
+    `announces a created work item through the broadcaster installWorkItem wires` failed,
+    expected `[["Scope"]]`, received `[]`; 4 pass, 1 fail.
+  - Row 9, `bag` exposed (`slice1-row9-bag`): `exposes only the contract exports from its
+installer` failed with received keys adding `"bag"` (`Expected  - 0`, `Received  + 1`); 4 pass,
+    1 fail; `wbs-core:typecheck` exit 0 on the mutated tree (`slice1-row9-bag-typecheck.log`).
+  - Row 10, `resolve` attached (`slice1-row10-resolver`): the same test failed at
+    `Expected: true`, `Received: false`; 4 pass, 1 fail; `wbs-core:typecheck` exit 0
+    (`slice1-row10-resolver-typecheck.log`).
+  - Row 11, `  now?: () => number;` after the moved `WorkItemServiceOptions`' `  clock: Clock;`
+    (`slice1-row11-clock-now`): `is the only clock a service that stamps a write reads` received
+    `["libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]`; 3 pass, 1 fail.
+- After the restores the module directory and `clock.test.ts` passed 107, 0 fail
+  (`slice1-after-faults-green.log`); 10.6's Proof comments followed, and the same run passed 107
+  again (`slice1-after-proofs-green.log`).
+- Step-8 filesystem substitute for the planner's `service-kinds.test.ts`: `93 []`
+  (`slice1-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 5 = 618` over `F + 1 = 67` (`slice1-core-closing.log`);
+  the be-01 unit set passed `E = 520` over `EF = 49` (`slice1-be01-unit-closing.log`); lint and
+  typecheck of both projects exited 0 (`slice1-lint-typecheck-closing.log`); `module/work-item/`
+  holds seven files.
+- 46 code files still name `service/work-item.service.ts` and resolve through the shim; delivery,
+  Plan commands, Plan import and Saved plans still name `WorkItemService` or its values directly
+  (K2), tracked under 7.4.
+
+### Work item installation, Slice 2 — 2026-09-24
+
+- The slice started from `base=d37d9b63b6aadffe2e9b45359f229f980d902759` on a clean tree, with
+  `module/work-item/check.ts` present, one `workItems: new WorkItemService({` and one
+  `WorkItemService` value import in `compose.ts`, six `test("installs` cases in `compose.test.ts`,
+  and `K=93` `kinds.json` entries.
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`): core `bun test src` passed `C=618` over `F=67` files
+  (`slice2-core-baseline.log`); the be-01 unit set passed `E=520` over `EF=49`
+  (`slice2-be01-unit-baseline.log`); `compose.test.ts` passed 15, 0 fail
+  (`slice2-step1-compose-before.log`).
+- Bundle counts: before 10.7 the `compose.ts` bundle built with exit 0 and held
+  `application.work-item count=0 (grep exit 1)` (`slice2-compose-bundle-red.log`); after 10.7 it
+  held `count=1` (row 12, `slice2-compose-bundle-green.log`).
+- Row 13: after 10.8, `compose.test.ts` passed 16, 0 fail (`slice2-row13-compose-green.log`); lint
+  and typecheck of both projects exited 0 (`slice2-step4-lint-typecheck.log`).
+- Faults, each restored with `cp` and proved with `cmp`, then `compose.test.ts` rerun at 16 pass;
+  patch and log under the same basename:
+  - Row 14, one `installWorkItem(...)` result memoized in a module-level `let reusedWorkItem` in
+    `compose.ts` (`row14-per-scope`): run with
+    `-t "installs Work item per supplied scope"`, the case failed with `-   "workItems": [],` and
+    `+       "name": "Scope",` in the received tree; 0 pass, 15 filtered out, 1 fail;
+    `wbs-core:typecheck` exit 0 on the mutated tree (`row14-per-scope.typecheck.log`).
+  - Row 15, the `workItemOptions` factory's returned `scheduler,` replaced by
+    `scheduler: { ...scheduler },` in `module/work-item/module.ts` (`row15-runtime`): run with
+    `-t "shares runtime identities"`, it failed at `compose.test.ts:366`
+    (`expect(seen.scheduler).toBe(runtime.scheduler)`) with `error: expect(received).toBe(expected)`
+    and `Received: serializes to the same string`; 0 pass, 15 filtered out, 1 fail;
+    `wbs-core:typecheck` exit 0 (`row15-runtime.typecheck.log`).
+  - Row 16 (optional, run so the Proof comment states only what was seen): the same scheduler copy
+    with the replaced `toEqual` over `graphs.map(runtimeOf)` temporarily restored
+    (`row16-toEqual-false-green`): 1 pass, 15 filtered out, 0 fail — the false green 10.8 closes.
+- 10.9's two Proof comments followed; `compose.test.ts` passed 16, 0 fail
+  (`slice2-after-proofs-compose.log`).
+- Step-7 filesystem substitute for the planner's `service-kinds.test.ts`: `93 []`
+  (`slice2-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 1 = 619` over `F = 67` (`slice2-core-closing.log`); the
+  be-01 unit set passed `E = 520` over `EF = 49` (`slice2-be01-unit-closing.log`); lint and
+  typecheck of both projects exited 0 (`slice2-lint-typecheck-closing.log`);
+  `grep -cF "new WorkItemService(" compose.ts` printed `0` with exit 1.
+- `shares runtime identities while creating a fresh scope, collector and graph per batch` now
+  asserts the installed Work item's clock, scheduler and broadcaster by identity (`toBe`), watched
+  failing on a structurally equal scheduler copy; no `servicesOver` resource is constructed with
+  `new`.
+
+### Work item registration, Slice 3 — 2026-09-24
+
+- The slice started from `base=365e37dddbbd87fe065df6c694e5b8158354cbfd` on a clean tree, with
+  `compose.ts` last changed by `365e37dddbbd87fe065df6c694e5b8158354cbfd`, `M=18` pilot modules and
+  `B=18` boundaries. The frozen revision `7851161bf96312750d07b933ca5d42b75ce575c7` lists
+  `100644 blob 29ab341f9befec90944900d13f9c9c823d06de95` `libs/core/src/service/work-item.service.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0
+  (`slice3-typecheck-baseline.log`, `slice3-burokrat-lint-source-baseline.log`,
+  `slice3-devsync-lint-baseline.log`); `pilot-policy.test.ts` passed `T=21` tests with `TF=0`
+  failures and `P=305` `expect()` calls (`slice3-pilot-baseline.log`); the legacy pin passed,
+  1 pass (`slice3-legacy-pin-baseline.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`slice3-openspec-baseline.json`).
+- Registration, each step run with `-t "pins exact pre-index tuples"`, each patch and log under the
+  same basename:
+  - Row 18, the `modules.json` row alone (`slice3-work-item-1-row-red`): failed at
+    `pilot-policy.test.ts:383`, `Expected: 18`, `Received: 19`; 0 pass, 20 filtered out, 1 fail,
+    30 `expect()` calls.
+  - Row 19, with the `policy.json` boundary (`slice3-work-item-2-boundary-red`): failed at
+    `pilot-policy.test.ts:420`, `Expected: true`, `Received: false`; 0 pass, 20 filtered out,
+    1 fail, 34 calls.
+  - Row 20, with the `pilotPaths` entry and the README index (`slice3-work-item-3-index-green`):
+    1 pass, 20 filtered out, 0 fail, 40 calls.
+- Green (row 21): the whole pilot file passed `T=21` tests, `TF=0` failures and `P + 1 = 306`
+  `expect()` calls (`slice3-pilot-whole-green.log`); the prose-refusal pin did not move.
+- Legacy pin red, pin unchanged (row 22): `every legacy source occurrence and relevant text family
+is pinned` failed with `historical policy selector or baseline` 63 to 65, `occurrences` 281 to
+  283 and the digest `5864733c…` to
+  `0d78b5794663e2bd708b6d307ba2643d33a414d717771b682392445958fe4e07`, `Expected  - 3` /
+  `Received  + 3`; 0 pass, 14 filtered out, 1 fail (`slice3-legacy-pin-red.log`). After the
+  re-pin (`slice3-legacy-repin.patch`) it passed, 1 pass (row 23, `slice3-legacy-pin-green.log`);
+  its Proof comment followed (`slice3-legacy-proof.patch`). No other pinned literal moved.
+- Task records (`slice3-tasks.patch`): 5.1 ticked with its dated note, 7.5 extended.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice3-typecheck-after.log`,
+  `slice3-burokrat-lint-source-after.log`, `slice3-devsync-lint-after.log`); the legacy pin
+  passed, 1 pass (`slice3-legacy-pin-after.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`slice3-openspec-after.json`); `M=19`, `B=19`. The whole
+  `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
+  objects).

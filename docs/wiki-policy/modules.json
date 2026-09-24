@@ -382,6 +382,36 @@
       }
     },
     {
+      "moduleId": "module.application.work-item",
+      "name": "Work item sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/work-item",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/work-item/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/work-item.service.ts"
+          }
+        ]
+      }
+    },
+    {
       "moduleId": "module.archive.bounded-replay-sweep",
       "name": "Frozen bounded replay sweep pilot boundary",
       "memberships": [
