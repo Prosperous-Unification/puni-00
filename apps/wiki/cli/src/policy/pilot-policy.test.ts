@@ -45,6 +45,7 @@ const pilotPaths = [
   'libs/wbs/adapters/store-memory/src/README.md',
   'openspec/changes/archive/2026-09-08-bounded-replay-sweep/README.md',
   'tools/tool-dagger/src/lib/README.md',
+  'apps/wbs/be-01/src/module/solver-launcher/README.md',
   'apps/wiki/cli/README.md',
 ] as const;
 const scratch: string[] = [];
@@ -571,10 +572,12 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(invocation.exitCode, observed).toBe(1);
     // Proof: replacing every executable check with external-consumer prose was refused at
     // `apps/wiki/cli/README.md: check.wiki-cli.test (external-consumer)`. The refusal names the
-    // first offending index in path order, which moved from `docs/findings/README.md` to this
-    // one when tool-wiki became `apps/wiki/cli` (2026-09-16).
+    // first offending index in path order, which moved from `docs/findings/README.md` to that
+    // one when tool-wiki became `apps/wiki/cli` (2026-09-16), and from there to the Solver
+    // launcher's index when the first backend module registered `check.be-01.test`
+    // (2026-09-23).
     expect(observed).toContain(
-      'applicable check has no executable authority in apps/wiki/cli/README.md: check.wiki-cli.test (external-consumer)',
+      'applicable check has no executable authority in apps/wbs/be-01/src/module/solver-launcher/README.md: check.be-01.test (external-consumer)',
     );
   }, 120_000);
 

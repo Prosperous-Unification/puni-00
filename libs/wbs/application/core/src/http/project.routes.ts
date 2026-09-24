@@ -10,12 +10,12 @@ import {
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import { installPlanDocument } from '../module/plan-document/check';
 import type { Clock } from '../ports/clock';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
 import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { DirectoryService } from '../service/directory.service';
-import { PlanDocumentService } from '../service/plan-document';
 import { canEdit, type ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
@@ -117,7 +117,7 @@ export function projectRoutes(
   clock: Pick<Clock, 'now'>,
   optimizer?: OptimizationRetry,
 ) {
-  const planDocuments = new PlanDocumentService({ directory, markers: calendarMarkers, clock });
+  const { planDocuments } = installPlanDocument({ directory, markers: calendarMarkers, clock });
   return [
     bind(
       createProject,
