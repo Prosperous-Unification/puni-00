@@ -24,6 +24,10 @@ import { createProjectOwner, installProjectRuntime, type ProjectOwner } from './
 interface Built {
   readonly name: string;
   readonly projectId: string;
+  /** Whether its source's commands refuse to be built, after its feed has opened. */
+  readonly broken: boolean;
+  /** How many times the owner ran its installer. */
+  installs: number;
   /** The source this runtime was installed from, by identity. */
   services: ProjectServices | null;
   runtime: ProjectRuntime | null;
@@ -62,6 +66,8 @@ const COMMAND_KINDS: readonly string[] = [
   'frame',
   'reread',
   'mark',
+  'openBroken',
+  'reenter',
 ];
 const reached = {
   answerLandedAfterWithdrawal: 0,
@@ -72,11 +78,20 @@ const reached = {
   reopenedTheSameProject: 0,
   switchedWhileLive: 0,
   streamOpened: 0,
+  reenteredFromListener: 0,
+  brokenInstalled: 0,
+  leftAfterBroken: 0,
 };
 
-/** The reference: what the page last asked for. Nothing here is read back from the owner. */
+/**
+ * The reference: what the page last asked for, and whether that request's
+ * runtime cannot be built. Nothing here is read back from the owner.
+ */
 interface OwnerModel {
   wanted: string | null;
+  broken: boolean;
+  /** Whether any request in this run could not be built. */
+  anyBroken: boolean;
 }
 
 interface OwnerWorld {
@@ -89,12 +104,14 @@ interface OwnerWorld {
 }
 
 /** A fresh client for one runtime: every read answers when the scheduler says. */
-function sourceFor(world: OwnerWorld, projectId: string): ProjectSource {
+function sourceFor(world: OwnerWorld, projectId: string, broken = false): ProjectSource {
   world.next += 1;
   const base = fakeProjectApi();
   const record: Built = {
     name: `r${String(world.next)}`,
     projectId,
+    broken,
+    installs: 0,
     services: null,
     runtime: null,
     calls: 0,
@@ -133,6 +150,10 @@ function sourceFor(world: OwnerWorld, projectId: string): ProjectSource {
   const composed = projectServicesOver(client);
   const services: ProjectServices = {
     ...composed,
+    planCommandsFor: (id) => {
+      if (broken) throw new Error(`${record.name}'s commands could not be built`);
+      return composed.planCommandsFor(id);
+    },
     planFeedFor: (reader) => {
       const feed = composed.planFeedFor(reader);
       return {
@@ -215,6 +236,7 @@ class Open implements OwnerCommand {
     freezeTheCurrent(world);
     world.inflight.push(world.owner.open(this.projectId, sourceFor(world, this.projectId)));
     model.wanted = this.projectId;
+    model.broken = false;
     assertOwnership(world, `open(${this.projectId})`);
     expect(
       world.built.filter((record) => record.runtime?.isCurrent() === true),
@@ -236,7 +258,9 @@ class Leave implements OwnerCommand {
     if (world.owner.snapshot().status !== 'live') reached.leftWhileNothingCurrent += 1;
     freezeTheCurrent(world);
     world.inflight.push(world.owner.leave());
+    if (model.anyBroken) reached.leftAfterBroken += 1;
     model.wanted = null;
+    model.broken = false;
     expect(
       world.built.filter((record) => record.runtime?.isCurrent() === true),
       'leave: a runtime is still current after withdrawal',
@@ -245,6 +269,64 @@ class Leave implements OwnerCommand {
   }
   toString(): string {
     return 'leave';
+  }
+}
+
+/**
+ * Opens a project whose runtime cannot be built: its feed opens, then its
+ * commands throw, and the installer raises a partial acquisition.
+ */
+class OpenBroken implements OwnerCommand {
+  constructor(readonly projectId: string) {}
+  check(): boolean {
+    return true;
+  }
+  async run(model: OwnerModel, world: OwnerWorld): Promise<void> {
+    note('openBroken');
+    freezeTheCurrent(world);
+    world.inflight.push(world.owner.open(this.projectId, sourceFor(world, this.projectId, true)));
+    model.wanted = this.projectId;
+    model.broken = true;
+    model.anyBroken = true;
+    assertOwnership(world, `openBroken(${this.projectId})`);
+    await Promise.resolve();
+  }
+  toString(): string {
+    return `openBroken(${this.projectId})`;
+  }
+}
+
+/**
+ * A reader that asks for another project from inside the owner's own
+ * notification — as a component re-rendered by the owner's store would — the
+ * next time the owner says anything.
+ */
+class ReenterFromListener implements OwnerCommand {
+  constructor(readonly projectId: string) {}
+  check(): boolean {
+    return true;
+  }
+  async run(model: OwnerModel, world: OwnerWorld): Promise<void> {
+    note('reenter');
+    let asked = false;
+    const stop = world.owner.subscribe(() => {
+      if (asked) return;
+      asked = true;
+      stop();
+      reached.reenteredFromListener += 1;
+      freezeTheCurrent(world);
+      world.inflight.push(world.owner.open(this.projectId, sourceFor(world, this.projectId)));
+      model.wanted = this.projectId;
+      model.broken = false;
+      expect(
+        world.built.filter((record) => record.runtime?.isCurrent() === true),
+        `reenter(${this.projectId}): a runtime is still current after withdrawal`,
+      ).toEqual([]);
+    });
+    await Promise.resolve();
+  }
+  toString(): string {
+    return `reenter(${this.projectId})`;
   }
 }
 
@@ -379,6 +461,8 @@ const commandsArb = fc.commands<OwnerModel, OwnerWorld, false>(
       .map(([index, kind]) => new Frame(index, kind)),
     fc.nat(6).map((index) => new Reread(index)),
     fc.nat(6).map((index) => new Mark(index)),
+    fc.constantFrom('p1', 'p2').map((projectId) => new OpenBroken(projectId)),
+    fc.constantFrom('p1', 'p2').map((projectId) => new ReenterFromListener(projectId)),
   ],
   { maxCommands: 24, size: 'max' },
 );
@@ -395,12 +479,14 @@ describe('the project owner, against a reference model', () => {
 
     await fc.assert(
       fc.asyncProperty(fc.scheduler(), commandsArb, async (scheduler, commands) => {
-        const model: OwnerModel = { wanted: null };
+        const model: OwnerModel = { wanted: null, broken: false, anyBroken: false };
         const world: OwnerWorld = {
           owner: createProjectOwner({
             install: (dependencies) => {
               const record = world.bySource.get(dependencies.services);
               if (record === undefined) throw new Error('a runtime was installed from no source');
+              record.installs += 1;
+              if (record.broken) reached.brokenInstalled += 1;
               const installed = installProjectRuntime(dependencies);
               record.runtime = installed.services;
               record.initial = heldBy(installed.services);
@@ -441,8 +527,21 @@ describe('the project owner, against a reference model', () => {
           }
           assertOwnership(world, 'teardown');
           const state = world.owner.snapshot();
-          if (model.wanted === null) {
+          if (model.wanted === null && model.anyBroken) {
+            // A retirement asked of a slot that a failed construction left fatal
+            // holds nothing and changes nothing; which request was the last to
+            // build is the scheduler's choice. Either way nothing is held.
+            expect(
+              state.status === 'empty' || (state.status === 'fatal' && !state.terminal),
+              `teardown: left after an unbuildable project, but the owner is ${state.status}`,
+            ).toBe(true);
+          } else if (model.wanted === null) {
             expect(state.status, 'teardown: left, but something is still held').toBe('empty');
+          } else if (model.broken) {
+            expect(
+              state.status === 'fatal' && !state.terminal,
+              `teardown: the last project asked for cannot be built, but the owner is ${state.status}`,
+            ).toBe(true);
           } else {
             expect(
               state.status === 'live' ? state.services.projectId : state.status,
@@ -451,6 +550,14 @@ describe('the project owner, against a reference model', () => {
           }
           const live = state.status === 'live' ? state.services : null;
           for (const record of world.built) {
+            if (record.broken) {
+              // Built as far as its feed, then given back by the transaction, once.
+              expect(
+                record.feedCloses,
+                `teardown: unbuildable ${record.name}'s feed closed ${String(record.feedCloses)} times after ${String(record.installs)} installs`,
+              ).toBe(record.installs);
+              continue;
+            }
             if (record.runtime === null) continue;
             const isLive = record.runtime === live;
             expect(

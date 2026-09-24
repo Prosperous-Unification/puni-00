@@ -168,4 +168,34 @@ describe('the project runtime', () => {
     expect(owner.snapshot()).toBe(left);
     expect(next.seen.installs).toBe(0);
   });
+
+  it('is terminal, and still settles, when a half-built runtime cannot be released', async () => {
+    const { source } = recordedSource();
+    const next = recordedSource();
+    const owner = createProjectOwner({ budgetMs: 1_000 });
+
+    await expect(
+      owner.open('p1', {
+        ...source,
+        services: {
+          ...source.services,
+          planFeedFor: (reader) => ({
+            ...source.services.planFeedFor(reader),
+            close: () => {
+              throw new Error('the feed would not close');
+            },
+          }),
+          planCommandsFor: () => {
+            throw new Error('the commands could not be built');
+          },
+        },
+      }),
+    ).resolves.toBeUndefined();
+    const stuck = owner.snapshot();
+    expect(stuck.status === 'fatal' && stuck.terminal).toBe(true);
+
+    await expect(owner.open('p2', next.source)).resolves.toBeUndefined();
+    expect(owner.snapshot()).toBe(stuck);
+    expect(next.seen.installs).toBe(0);
+  });
 });

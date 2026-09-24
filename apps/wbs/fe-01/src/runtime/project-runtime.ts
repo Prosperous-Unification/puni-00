@@ -21,6 +21,7 @@ import { acquireTransactionally } from './application-runtime';
 import {
   createLifetimeSlot,
   type LifetimeState,
+  PartialAcquisitionError,
   type RetirableRuntime,
   RETIREMENT_BUDGET_MS,
   TransitionSupersededError,
@@ -218,9 +219,10 @@ export interface ProjectOwner extends Store<LifetimeState<ProjectRuntime>> {
    * this project once that runtime's retirement has succeeded.
    *
    * Resolves when this request has published, was overtaken by a newer one, or
-   * was refused — the last leaves the owner `fatal`, which is what the page
-   * shows. It rejects only if the slot refused without becoming fatal, which
-   * its own contract makes impossible.
+   * was refused because one of this owner's own runtimes could not be built or
+   * given back — the slot has then published `fatal`, which is what the page
+   * shows. It rejects only with a refusal that came from neither: a fault of
+   * the slot itself, rethrown with its cause.
    */
   readonly open: (projectId: string, source: ProjectSource) => Promise<void>;
   /** Withdraws and retires whatever runtime is current; settles as {@link open} does. */
@@ -258,24 +260,57 @@ export function createProjectOwner({
 }: ProjectOwnerDependencies = {}): ProjectOwner {
   const slot = createLifetimeSlot<ProjectRuntime>(budgetMs);
   /**
-   * Settles one transition as a modelled outcome.
+   * Every failure that left one of this owner's runtimes: a construction that
+   * threw, a partial acquisition's release or a retirement that rejected. The
+   * slot turns each of these into its `fatal` state before rethrowing it, so a
+   * refusal found here is a modelled outcome whatever the slot's state has
+   * moved on to since. Compared by identity, never by message.
+   */
+  const refusedByRuntime = new Set<unknown>();
+  /** The same close, with its refusal recorded before the slot sees it. */
+  const recorded =
+    (close: (options: { timeoutMs: number }) => Promise<void>) =>
+    async (options: { timeoutMs: number }): Promise<void> => {
+      try {
+        await close(options);
+      } catch (refusal: unknown) {
+        refusedByRuntime.add(refusal);
+        throw refusal;
+      }
+    };
+  /**
+   * Settles one transition as a modelled outcome, classified by the refusal
+   * itself and not by the slot's state afterwards, which a later request may
+   * already have moved on.
    *
-   * Superseded is controlled cancellation; a refusal has already been turned
-   * into the slot's `fatal` state, sanitized, and that state is what anybody
-   * is shown — the refusal itself is never read here. Anything else is not a
-   * modelled outcome and is rethrown with its cause.
+   * Superseded is controlled cancellation; a refusal from this owner's own
+   * runtime has been published as `fatal`, sanitized, and that state is what
+   * anybody is shown. Anything else is a fault of the slot and is rethrown
+   * with its cause.
    */
   const settle = async (transition: Promise<unknown>): Promise<void> => {
     try {
       await transition;
     } catch (refusal: unknown) {
       if (refusal instanceof TransitionSupersededError) return;
-      const state = slot.snapshot();
-      if (state.status === 'fatal') return;
-      throw new Error(`a project transition was refused and the slot is ${state.status}`, {
-        cause: refusal,
-      });
+      if (refusedByRuntime.has(refusal)) return;
+      throw new Error('a project transition was refused by the slot itself', { cause: refusal });
     }
+  };
+  /** Installs one runtime, recording every failure that can leave it. */
+  const installRecorded = (dependencies: ProjectRuntimeDependencies) => {
+    let runtime: RetirableRuntime<ProjectRuntime>;
+    try {
+      runtime = install(dependencies);
+    } catch (failure: unknown) {
+      const refusal =
+        failure instanceof PartialAcquisitionError
+          ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
+          : failure;
+      refusedByRuntime.add(refusal);
+      throw refusal;
+    }
+    return { services: runtime.services, close: recorded(runtime.close) };
   };
   return {
     subscribe: slot.subscribe,
@@ -288,7 +323,7 @@ export function createProjectOwner({
             const state = slot.snapshot();
             return state.status === 'live' && state.services === built;
           };
-          const runtime = install({ projectId, ...source, isCurrent });
+          const runtime = installRecorded({ projectId, ...source, isCurrent });
           built = runtime.services;
           return runtime;
         }),
