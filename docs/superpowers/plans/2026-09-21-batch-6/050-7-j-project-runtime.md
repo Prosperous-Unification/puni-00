@@ -6,7 +6,7 @@
 | Size class  | M — three slices, each one executor attempt                                                                                                                                                                                                                                                                         |
 | Predecessor | [050.7h](050-7-h-project-api-ports.md) — `ProjectServices`, `PlanCommands` and the project composition root, and its section 12, "Hand-over to the next packet"                                                                                                                                                     |
 | Advances    | OpenSpec task **10** of `adopt-frontend-lifetimes` — **not ticked**: every service it names but saved plans moves into the project runtime, and the box stays unchecked with a dated note naming saved plans as the outcome still owed (section 3.8). Item 4 of the lifetime map's "Required implementation order". |
-| Revision    | Second. Round 1 said READY AFTER FIXES; section 16 disposes of its findings.                                                                                                                                                                                                                                        |
+| Revision    | Third. Rounds 1 and 2 said READY AFTER FIXES; sections 16 and 17 dispose of their findings.                                                                                                                                                                                                                         |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. One new requirement with three scenarios, one per slice; packet g's presence scenario amended in slice 3; task 10 annotated, not ticked.                                                                                                            |
 
 ## 1. Goal, non-goals, and the cut
@@ -43,7 +43,7 @@ commit (one page test's synchronous query becomes a `waitFor`, section 3.7).
 
 1. **The runtime and its owner**, plain TypeScript with node-tier tests and no React:
    `runtime/project-runtime.ts` (`installProjectRuntime`, `createProjectOwner`), `ProjectRuntime` in
-   the project contract, the owner's model test and six examples. Delivery changes by one type
+   the project contract, the owner's model test and seven examples. Delivery changes by one type
    import. This slice carries the state machine and its ten model faults.
 2. **Delivery**: the table takes `project: ProjectRuntime`; the page opens and leaves the runtime
    through `createProjectOwner`; the seventeen table suites draw through a test fixture,
@@ -170,7 +170,8 @@ runtime`, so a runtime replaced by another project's is not current although the
   and records, by identity, every failure that leaves one of its own runtimes — a construction that
   throws (a `PartialAcquisitionError` is rewrapped so its release is recorded too), a release that
   rejects, a retirement that rejects. The slot publishes `fatal` for each of these before it
-  rethrows it, so `settle` resolves for a recorded refusal (faults `o2`, `o3`, `m10`) and for
+  rethrows it, so `settle` resolves for a recorded refusal (faults `o2` for a retirement, `o3` and
+  `m10` for a construction, `o4` for a partial acquisition's release) and for
   `TransitionSupersededError` (fault `o1`), and rethrows anything else with its cause: a fault of the
   slot itself. It no longer reads `slot.snapshot()` after the rejection, which a request issued in
   between may already have moved from `fatal` to `constructing` (round-1 review, Important 2). The
@@ -329,9 +330,9 @@ new), slice 2 owns 26 (1 new, and `project-runtime.ts` for one `Proof:` comment)
 | Tree            | Adopted set (20 files, serial) | Page and router | Sandbox node suite |
 | --------------- | ------------------------------ | --------------- | ------------------ |
 | base `a687bf38` | 20·1215                        | 2·78            | 51·687             |
-| after slice 1   | 20·1215                        | 2·78            | 53·694             |
-| after slice 2   | 20·1217                        | 2·80            | 53·694             |
-| after slice 3   | 20·1218                        | 2·81            | 53·694             |
+| after slice 1   | 20·1215                        | 2·78            | 53·695             |
+| after slice 2   | 20·1217                        | 2·80            | 53·695             |
+| after slice 3   | 20·1218                        | 2·81            | 53·695             |
 
 ### 4.3 Planner observations on the base, not stop conditions
 
@@ -479,7 +480,7 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 22
+test "$count" -eq 23
 # The twenty default-tier files that render the table or the page (packet f2's
 # adopted set), relative to apps/wbs/fe-01, for the serial "adopted" runs.
 printf '%s\n' src/app-router.test.tsx src/components/ui/page-shortcuts.test.tsx \
@@ -508,7 +509,7 @@ test "$(wc -l < "$TMPDIR/suites.txt")" -eq 17
 ````
 
 Expected: `patches=9`, `suites-over-client.ts lines=42`, `table-regions.ts lines=87`,
-`mutations=22`, exit 0. **Applying section 7.N** below always means exactly this, never a hand edit:
+`mutations=23`, exit 0. **Applying section 7.N** below always means exactly this, never a hand edit:
 
 ```sh
 set -euo pipefail
@@ -625,9 +626,9 @@ import "./project-runtime"`.
   done
   ```
 
-  Expected `status=0` everywhere: runtime 2 files, 7 tests (one model test, six examples);
-  read-and-write unchanged from step 1 (88); tiers 5 tests; sandbox = step 0 **+ 2 files, + 7 tests**
-  (rehearsed 51·687 → 53·694).
+  Expected `status=0` everywhere: runtime 2 files, 8 tests (one model test, seven examples);
+  read-and-write unchanged from step 1 (88); tiers 5 tests; sandbox = step 0 **+ 2 files, + 8 tests**
+  (rehearsed 51·687 → 53·695).
 
 - [ ] 6. Durable lint, from the repository root:
 
@@ -640,10 +641,10 @@ import "./project-runtime"`.
   An autofixable import-order or Prettier finding is fixed with `bunx eslint --fix <file>`, not
   reported as a stop (preamble rule 17).
 
-- [ ] 7. The seventeen proofs of section 8.1 (`m1`–`m10` on the model, `k1`, `k2`, `r1`, `r2`,
-      `o1`, `o2`, `o3` on the examples), with section 8's procedure: every fault observed first, then the
+- [ ] 7. The eighteen proofs of section 8.1 (`m1`–`m10` on the model, `k1`, `k2`, `r1`, `r2`,
+      `o1`–`o4` on the examples), with section 8's procedure: every fault observed first, then the
       `Proof:` comments at the sites the table names.
-- [ ] 8. Rerun the runtime pair (`s1-final-runtime`, step 5's command, 2 files, 7 tests) and step 0c's
+- [ ] 8. Rerun the runtime pair (`s1-final-runtime`, step 5's command, 2 files, 8 tests) and step 0c's
       preferences and sandbox commands (`s1-final-*`): preferences unchanged, sandbox as step 5.
 - [ ] 9. Append this slice's `verify.md` entry (shape below), then owned-file Prettier over the eight
       paths, `--write` then `--check`, from this list, which step 10 reuses; then rerun the strict
@@ -801,7 +802,7 @@ undefined (reading 'planCommandsFor')` — the table, handed a runtime, still as
 
   Expected `status=0` everywhere: adopted = step 1 **+ 2 tests** (rehearsed 1215 → 1217: the two
   new page examples; the four edited tests pass as edited); zoned unchanged; page pair = step 1
-  **+ 2** (78 → 80); sandbox unchanged from step 0 (53·694).
+  **+ 2** (78 → 80); sandbox unchanged from step 0 (53·695).
 
   And the table no longer builds a project service:
 
@@ -941,7 +942,7 @@ and under `apps/wbs/fe-01/src/`: `components/wbs/{project-page.tsx,project-page.
   ```
 
   Expected `status=0` everywhere: adopted = step 1 **+ 1** (rehearsed 1217 → 1218: the new
-  example); zoned unchanged; page pair = step 1 **+ 1** (80 → 81); sandbox unchanged (53·694).
+  example); zoned unchanged; page pair = step 1 **+ 1** (80 → 81); sandbox unchanged (53·695).
 
 - [ ] 6. Durable lint (`s3-lint`), expected `status=0`.
 - [ ] 7. The four proofs of section 8.3 (`q1`, `q2`, `x1`, `x2`, all in `project-page.tsx`); every
@@ -1696,10 +1697,10 @@ index 000000000..7e3001333
 +});
 diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.test.ts b/apps/wbs/fe-01/src/runtime/project-runtime.test.ts
 new file mode 100644
-index 000000000..7a8a76c77
+index 000000000..df58a38d7
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/runtime/project-runtime.test.ts
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,201 @@
 +import { describe, expect, it, vi } from 'vitest';
 +
 +import { projectServicesOver } from '@/modules/project/composition';
@@ -1868,6 +1869,36 @@ index 000000000..7a8a76c77
 +
 +    await expect(owner.open('p2', next.source)).resolves.toBeUndefined();
 +    expect(owner.snapshot()).toBe(left);
++    expect(next.seen.installs).toBe(0);
++  });
++
++  it('is terminal, and still settles, when a half-built runtime cannot be released', async () => {
++    const { source } = recordedSource();
++    const next = recordedSource();
++    const owner = createProjectOwner({ budgetMs: 1_000 });
++
++    await expect(
++      owner.open('p1', {
++        ...source,
++        services: {
++          ...source.services,
++          planFeedFor: (reader) => ({
++            ...source.services.planFeedFor(reader),
++            close: () => {
++              throw new Error('the feed would not close');
++            },
++          }),
++          planCommandsFor: () => {
++            throw new Error('the commands could not be built');
++          },
++        },
++      }),
++    ).resolves.toBeUndefined();
++    const stuck = owner.snapshot();
++    expect(stuck.status === 'fatal' && stuck.terminal).toBe(true);
++
++    await expect(owner.open('p2', next.source)).resolves.toBeUndefined();
++    expect(owner.snapshot()).toBe(stuck);
 +    expect(next.seen.installs).toBe(0);
 +  });
 +});
@@ -3612,9 +3643,9 @@ never before the observation. Each slice runs **all** of its faults first and wr
 afterwards, so every fault patch below still applies.
 
 **Where the comments may go.** A comment is written only into a file no later slice's patch touches.
-`project-runtime.ts` is final after slice 1: slice 1 writes its comments there (eleven sites for
-seventeen faults) and slice 2 adds `w1`'s, whose context lies in the markers factory, away from
-every slice-1 site (section 9.1 checks `w1` against a copy with all eleven slice-1 sites filled);
+`project-runtime.ts` is final after slice 1: slice 1 writes its comments there (twelve sites for
+eighteen faults) and slice 2 adds `w1`'s, whose context lies in the markers factory, away from
+every slice-1 site (section 9.1 checks `w1` against a copy with all twelve slice-1 sites filled);
 that is why slice 2 owns `project-runtime.ts`. `project-page.tsx` is patched in slices 2
 and 3, so all four of its faults are slice 3's.
 
@@ -3640,7 +3671,7 @@ test $(( $(wc -l < "$TMPDIR/proofs.txt") % 4 )) -eq 0
 wc -l < "$TMPDIR/proofs.txt"
 ````
 
-Expected: 68 lines for slice 1, 4 for slice 2 and 16 for slice 3.
+Expected: 72 lines for slice 1, 4 for slice 2 and 16 for slice 3.
 
 **First, prove every filter selects exactly one test**, before injecting anything:
 
@@ -3781,6 +3812,10 @@ o3
 apps/wbs/fe-01/src/runtime/project-runtime.ts
 src/runtime/project-runtime.test.ts
 gives back the feed a half-built runtime had already opened
+o4
+apps/wbs/fe-01/src/runtime/project-runtime.ts
+src/runtime/project-runtime.test.ts
+is terminal, and still settles, when a half-built runtime cannot be released
 ```
 
 Every model fault fails the model test, `Tests 1 failed (1)`, exit 1. Run, the shrunk command
@@ -3808,17 +3843,18 @@ kept the re-entrant path because the generator reached it first; no `isCurrent` 
 only re-entry exposes, because P2 checks withdrawal synchronously after every `open`, re-entrant or
 not. `m10` is re-entry-free and is the partial-acquisition class's teeth.
 
-The examples, each `Tests 1 failed \| 5 skipped (6)`, exit 1:
+The examples, each `Tests 1 failed \| 6 skipped (7)`, exit 1:
 
-| Id   | Fault                                                                           | Suite › test                                                                                                 | Observed                                                                                                                                                                          | Comment above                                                        |
-| ---- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `k1` | the feed published beside the feature surfaces                                  | `project-runtime.test.ts` › `publishes the project’s feature and store surfaces, and nothing else`           | `expected [ 'busy', 'commands', …(10) ] to deeply equal [ 'busy', 'commands', …(9) ]`                                                                                             | `return acquireTransactionally(bag, () => ({`                        |
-| `k2` | the transaction's close gives nothing back                                      | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `expected +0 to be 1` — the half-built runtime's feed never closed                                                                                                                | `return acquireTransactionally(bag, () => ({` (with `k1`)            |
-| `r1` | the stream's roster not told to the presence                                    | `project-runtime.test.ts` › `tells the project’s presence who its stream says is here, and whether it is up` | `expected { users: [], connected: true } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                                                                                       | `if (isCurrent()) presence.reportUsers(users);` (with `m8`)          |
-| `r2` | the stream's connection not told to the presence                                | same                                                                                                         | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — `connected` stayed `false`                                                       | `if (isCurrent()) presence.reportConnection(connected);` (with `m7`) |
-| `o1` | a superseded open rejects instead of settling                                   | `project-runtime.test.ts` › `settles a request a newer one overtook, and builds nothing for it`              | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `TransitionSupersededError: lifetime transition 1 was superseded by 2`            | `if (refusal instanceof TransitionSupersededError) return;`          |
-| `o2` | a refused retirement not recorded: the owner rethrows its own runtime's failure | `project-runtime.test.ts` › `shows a retirement that fails as the fatal state, and refuses the next project` | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `a project transition was refused by the slot itself` and `DI_BAG_CLEANUP_FAILED` | `refusedByRuntime.add(refusal);` in `recorded`'s catch               |
-| `o3` | a partial acquisition's refusal not recorded (the `m10` fault)                  | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `Error: a project transition was refused by the slot itself`, caused by `PartialAcquisitionError`                                                                                 | `refusedByRuntime.add(refusal);` in `installRecorded` (with `m10`)   |
+| Id   | Fault                                                                           | Suite › test                                                                                                 | Observed                                                                                                                                                                                                                 | Comment above                                                             |
+| ---- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `k1` | the feed published beside the feature surfaces                                  | `project-runtime.test.ts` › `publishes the project’s feature and store surfaces, and nothing else`           | `expected [ 'busy', 'commands', …(10) ] to deeply equal [ 'busy', 'commands', …(9) ]`                                                                                                                                    | `return acquireTransactionally(bag, () => ({`                             |
+| `k2` | the transaction's close gives nothing back                                      | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `expected +0 to be 1` — the half-built runtime's feed never closed                                                                                                                                                       | `return acquireTransactionally(bag, () => ({` (with `k1`)                 |
+| `r1` | the stream's roster not told to the presence                                    | `project-runtime.test.ts` › `tells the project’s presence who its stream says is here, and whether it is up` | `expected { users: [], connected: true } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                                                                                                                              | `if (isCurrent()) presence.reportUsers(users);` (with `m8`)               |
+| `r2` | the stream's connection not told to the presence                                | same                                                                                                         | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — `connected` stayed `false`                                                                                              | `if (isCurrent()) presence.reportConnection(connected);` (with `m7`)      |
+| `o1` | a superseded open rejects instead of settling                                   | `project-runtime.test.ts` › `settles a request a newer one overtook, and builds nothing for it`              | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `TransitionSupersededError: lifetime transition 1 was superseded by 2`                                                   | `if (refusal instanceof TransitionSupersededError) return;`               |
+| `o2` | a refused retirement not recorded: the owner rethrows its own runtime's failure | `project-runtime.test.ts` › `shows a retirement that fails as the fatal state, and refuses the next project` | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `a project transition was refused by the slot itself` and `DI_BAG_CLEANUP_FAILED`                                        | `refusedByRuntime.add(refusal);` in `recorded`'s catch                    |
+| `o3` | a partial acquisition's refusal not recorded (the `m10` fault)                  | `project-runtime.test.ts` › `gives back the feed a half-built runtime had already opened`                    | `Error: a project transition was refused by the slot itself`, caused by `PartialAcquisitionError`                                                                                                                        | `refusedByRuntime.add(refusal);` in `installRecorded` (with `m10`)        |
+| `o4` | a partial acquisition's release refusal not recorded: the rewrap dropped        | `project-runtime.test.ts` › `is terminal, and still settles, when a half-built runtime cannot be released`   | `promise rejected "Error: a project transition was refused b…" instead of resolving`, caused by `a project transition was refused by the slot itself` and `DI_BAG_CLEANUP_FAILED` — the half-built feed's disposer threw | `? new PartialAcquisitionError(failure.cause, recorded(failure.release))` |
 
 #### Proof m1 — a stale reader survives a switch: `isCurrent` compares the slot's status only
 
@@ -4119,6 +4155,24 @@ index cb3386b..6c73e7c 100644
      return { services: runtime.services, close: recorded(runtime.close) };
 ```
 
+#### Proof o4 — a partial acquisition's release refusal not recorded: the rewrap dropped
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/project-runtime.ts b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+index cb3386b..8111af6 100644
+--- a/apps/wbs/fe-01/src/runtime/project-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/project-runtime.ts
+@@ -305,7 +305,7 @@ export function createProjectOwner({
+     } catch (failure: unknown) {
+       const refusal =
+         failure instanceof PartialAcquisitionError
+-          ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
++          ? failure
+           : failure;
+       refusedByRuntime.add(refusal);
+       throw refusal;
+```
+
 ### 8.2 Slice 2 — the runtime's marker wiring, through the real table
 
 ```text
@@ -4269,7 +4323,7 @@ two-line `// Proof:` comment above each of those sites, anchored on the line pac
 names: `t1` in `wbs-table.tsx` (`[projectServices, projectId],`), `t2` in `use-plan-read.ts` (the
 writer memo's `isActiveReader: () =>`, the third of three) and `q1` in `project-page.tsx` (`const
 projectServices = useMemo(() => projectServicesOver(api), [api]);`) — three sites, six lines; then,
-after every patch, it fills this packet's own eleven slice-1 comment sites in `project-runtime.ts`
+after every patch, it fills this packet's own twelve slice-1 comment sites in `project-runtime.ts`
 and checks that slice 2's `w1` still applies. The scratch tree gets a `node_modules` link so the
 suites script's Prettier pass resolves; `.gitignore` excludes it.
 
@@ -4277,7 +4331,7 @@ suites script's Prettier pass resolves; `.gitignore` excludes it.
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-j-project-runtime.md
 base=a687bf3892e1cd06500564d671325817c997e505
-final=49fae67ff339048e263a6d6a6a3814321e01d007
+final=62bcab3305893f1c9cff8a0fbda2ae86de640060
 test -f "$packet"
 test -d node_modules
 modules=$(pwd)/node_modules
@@ -4330,7 +4384,7 @@ for fill in 0 1; do
   ' "$packet"
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
-  test "$count" -eq 22
+  test "$count" -eq 23
   # A real repository holding exactly the base tree, so --check has something to check against.
   git archive "$base" | tar -x -C "$work/tree"
   fe="$work/tree/apps/wbs/fe-01"
@@ -4375,7 +4429,7 @@ for fill in 0 1; do
   for m in "$work"/mutations/*.diff; do
     git -C "$work/tree" apply --check "$m"
   done
-  echo "fill=$fill all 22 fault patches check against the result"
+  echo "fill=$fill all 23 fault patches check against the result"
   git -C "$work/tree" status --porcelain --untracked-files=all | wc -l
   if [ "$fill" -eq 0 ]; then
     mkdir "$work/final"
@@ -4400,9 +4454,11 @@ for fill in 0 1; do
     # The two recorded refusals: `recorded`'s catch, then `installRecorded`'s.
     fill_above "$runtime" "refusedByRuntime.add(refusal);" 1
     fill_above "$runtime" "refusedByRuntime.add(refusal);" 2
-    test "$(grep -c 'Proof: simulated' "$runtime")" -eq 11
+    # The partial acquisition's rewrap, `o4`'s own site.
+    fill_above "$runtime" "? new PartialAcquisitionError(failure.cause, recorded(failure.release))"
+    test "$(grep -c 'Proof: simulated' "$runtime")" -eq 12
     git -C "$work/tree" apply --check "$work/mutations/w1.diff"
-    echo "fill=1 w1 checks with all eleven slice-1 sites filled"
+    echo "fill=1 w1 checks with all twelve slice-1 sites filled"
   fi
 done
 ````
@@ -4411,25 +4467,25 @@ Observed on 2026-09-24, after the final Prettier `--check` of this document:
 
 ```text
 fill=0 extracted=9
-fill=0 fault-patches=22
+fill=0 fault-patches=23
 suites=17 sites=256
 read hook: 108 lines replaced by 19
 table: 18 lines replaced by 14
 fill=0 all 9 applied, the suites script after 04 and the regions script after 05
-fill=0 all 22 fault patches check against the result
+fill=0 all 23 fault patches check against the result
 34
-fill=0 tree identical to 49fae67ff339048e263a6d6a6a3814321e01d007
+fill=0 tree identical to 62bcab3305893f1c9cff8a0fbda2ae86de640060
 fill=1 extracted=9
-fill=1 fault-patches=22
+fill=1 fault-patches=23
 fill=1 filled-sites=3
 suites=17 sites=256
 read hook: 110 lines replaced by 19
 table: 20 lines replaced by 14
 fill=1 all 9 applied, the suites script after 04 and the regions script after 05
-fill=1 all 22 fault patches check against the result
+fill=1 all 23 fault patches check against the result
 34
 fill=1 simulated comments left=1
-fill=1 w1 checks with all eleven slice-1 sites filled
+fill=1 w1 checks with all twelve slice-1 sites filled
 ```
 
 `git apply --check` prints nothing on success, which is why the script's own `echo` lines are the
@@ -4445,9 +4501,11 @@ with their regions, `q1`'s survived in place, and every fault patch still checks
 `7a76f2f33` (packet h's lane merged, its real `Proof:` comments in place): all nine diffs applied in
 order, the suites script printed `suites=17 sites=256`, the regions script printed `read hook: 111
 lines replaced by 19` and `table: 21 lines replaced by 14` — h's real comments are three lines where
-this script simulates two, and the anchors absorb either — and every fault patch checked. Round 2
-changes only slice 1's two runtime files, which h does not touch. The planner still reruns it on the
-dispatch base itself.
+this script simulates two, and the anchors absorb either — and every fault patch checked. The round-2
+reviewer replayed round 2's form on the dispatch base itself, `4f40a1ed7` (main after packet h's
+PR 55, its tree identical to `7a76f2f33`): the same `111`/`21` region counts, all twenty-two fault
+patches checked, 34 paths. Round 3 changes only one slice-1 test file, which h does not touch. The
+planner still reruns it on the dispatch base before the first dispatch.
 
 **A failed check stops the run**: the same two-line form as packets g and h, where the `&&` variant
 was rehearsed printing its success line after `error: patch failed` and exiting 0.
@@ -4482,32 +4540,33 @@ new requirement and its scenarios live in a document that already counted as one
 
 All on 2026-09-24, by this packet's author, on a rehearsal branch cut at `a687bf38` where each slice
 was committed **with the hooks on** (lefthook passed for all three commits), not inside an executor
-sandbox: `fad97db2` (slice 1), `d43101b9` (slice 2) and `49fae67f` (slice 3), on the throwaway
-branch `rehearse/050-7-j-r2` — round 1's slices re-cut with the review's slice-1 changes; slices 2
-and 3 differ from round 1's (`dc8b5706`, `fcb49202`, kept on `rehearse/050-7-j`) only by the two
-slice-1 files they carry forward. Each red was rebuilt from the previous slice's commit plus that slice's
+sandbox: `a70dab9e` (slice 1), `16a105ff` (slice 2) and `62bcab33` (slice 3), on the throwaway
+branch `rehearse/050-7-j-r3` — round 2's slices (`fad97db2`, `d43101b9`, `49fae67f`, kept on
+`rehearse/050-7-j-r2`) with round 2's review's seventh example added to slice 1; round 1's
+(`0142dc1a`, `dc8b5706`, `fcb49202`) stay on `rehearse/050-7-j`. Each later slice differs from its
+round-2 twin only by the one test file slice 1 carries forward. Each red was rebuilt from the previous slice's commit plus that slice's
 contract and test side only; each fault was injected into the final commit, whose bytes in every
 faulted file equal the owning slice's.
 
 | Check                                   | Base `a687bf38` | Slice 1                      | Slice 2                      | Slice 3                       |
 | --------------------------------------- | --------------- | ---------------------------- | ---------------------------- | ----------------------------- |
-| sandbox node suite (files·tests)        | 51·687          | 53·694                       | 53·694                       | 53·694                        |
+| sandbox node suite (files·tests)        | 51·687          | 53·695                       | 53·695                       | 53·695                        |
 | preferences suite                       | 4·39            | 4·39                         | 4·39                         | 4·39                          |
 | zoned (Auckland)                        | 2·3             | 2·3                          | 2·3                          | 2·3                           |
-| runtime pair (slice 1's `s1-*-runtime`) | —               | 2·7                          | 2·7                          | 2·7                           |
+| runtime pair (slice 1's `s1-*-runtime`) | —               | 2·8                          | 2·8                          | 2·8                           |
 | read-and-write suite                    | 88              | 88                           | 88                           | 88                            |
 | page and router                         | 2·78            | 2·78                         | 2·80                         | 2·81                          |
 | adopted set, serial                     | 20·1215         | 20·1215                      | 20·1217                      | 20·1218                       |
 | red typecheck                           | —               | exit 1, 13 errors in 2 files | exit 1, 4 errors in 2 files  | none: a runtime red           |
 | red Vitest                              | —               | 2 files failed, no tests     | `Tests 5 failed (5)`, 1 file | `1 failed \| 75 skipped (76)` |
 | typecheck on the slice's commit         | 0               | 0                            | 0                            | 0                             |
-| faults observed failing, file restored  | —               | 17 of 17                     | 1 of 1                       | 4 of 4                        |
+| faults observed failing, file restored  | —               | 18 of 18                     | 1 of 1                       | 4 of 4                        |
 | strict OpenSpec                         | 114 · 114 · 0   | 114 · 114 · 0                | 114 · 114 · 0                | 114 · 114 · 0                 |
 
 (`51·687` is 51 files, 687 tests.) Every proof filter was run on the final tree first and matched
-exactly one test — twenty-two faults over ten distinct titles — and the twenty-two were then run
+exactly one test — twenty-three faults over eleven distinct titles — and the twenty-three were then run
 through section 8's own loop, each `status=1` with its table's `Tests` line, each restore
-`cmp`-identical, each green rerun `status=0`. The ten model faults were run twice, with identical
+`cmp`-identical, each green rerun `status=0`. The ten model faults were run three times (r2 twice, r3 once), with identical
 run numbers and shrunk sequences.
 
 **What was tried and found unprovable** (section 3.8): the writer's `isActiveReader` inside the
@@ -4519,22 +4578,22 @@ last runtime's presence while none is live against slice 3's new example — `1 
 claimed.
 
 On the final commit: `wbs-fe-01:lint` exit 0; `nx format:check --all` exit 0; `wbs-fe-01:typecheck`
-exit 0; slice 2's builder `git grep` empty. Round 1's planner-only runs, on `fcb49202`: `wbs-fe-01:build` exit 0 (`✓ built in 891ms`); `tool-devsync:test` 366 pass, 0 fail; `wbs-fe-01:test:unit` 55 files, 717 tests and `wbs-fe-01:test` UTC 142 files, 3064 tests, zoned 2 · 3 — against the base's 53·710 and 140·3054, each exit 0 (section 9.4). Round 2 reran, on `49fae67f`: typecheck and lint exit 0, the adopted set 20·1218, the sandbox node suite 53·694; the whole targets, build and devsync were not rerun for round 2, which changes two slice-1 runtime files and adds no test file.
+exit 0; slice 2's builder `git grep` empty. Round 1's planner-only runs, on `fcb49202`: `wbs-fe-01:build` exit 0 (`✓ built in 891ms`); `tool-devsync:test` 366 pass, 0 fail; `wbs-fe-01:test:unit` 55 files, 717 tests and `wbs-fe-01:test` UTC 142 files, 3064 tests, zoned 2 · 3 — against the base's 53·710 and 140·3054, each exit 0 (section 9.4). Round 2 reran, on `49fae67f`: typecheck and lint exit 0, the adopted set 20·1218. Round 3 reran, on `62bcab33`: typecheck and lint exit 0, the sandbox node suite 53·695, the runtime pair 2·8. The whole targets, build and devsync were not rerun for rounds 2 and 3, which change slice 1's runtime files and add one example to an existing node-tier suite; each whole target is expected one test above round 1's.
 
 ### 9.4 Planner-only, with the expected relative delta
 
 The sandbox cannot run these: three tests in two files spawn `bun` from Node, there is no browser, a
 build writes outside the attempt's lane, and devsync writes Git objects.
 
-| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                  | Planner's own rehearsal                                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 2 files, + 7 tests**; slices 2 and 3 unchanged                                                                      | base 53 files, 710 tests; round 1 final 55 files, 717 tests; exit 0 both (not rerun for round 2)                                       |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 2 files, + 7 tests**, slice 2 **+ 2 tests**, slice 3 **+ 1 test**. Auckland zoned unchanged                    | base UTC 140 files, 3054 tests, zoned 2 · 3; round 1 final UTC 142 files, 3064 tests, zoned 2 · 3; exit 0 both (not rerun for round 2) |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                         | exit 0 on round 1's final commit, `✓ built in 891ms` (not rerun for round 2)                                                           |
-| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module index block, no pre-namespacing path in any owned document                              | 366 pass, 0 fail, exit 0 on round 1's final commit, the slices committed; the packet commit's own devsync, round 2, in §15's commit    |
-| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slices 2 and 3 — every spec that opens a project, since the table now appears once its runtime is live | **Pending planner verification.** Not run in this rehearsal.                                                                           |
-| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands    | **Pending planner verification.** Not run, not waived.                                                                                 |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                                 | **Not run**; reported as pending, never as passed.                                                                                     |
+| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                  | Planner's own rehearsal                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 2 files, + 8 tests**; slices 2 and 3 unchanged                                                                      | base 53 files, 710 tests; round 1 final 55 files, 717 tests; exit 0 both (round 3 expects 718; not rerun)                                            |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 2 files, + 8 tests**, slice 2 **+ 2 tests**, slice 3 **+ 1 test**. Auckland zoned unchanged                    | base UTC 140 files, 3054 tests, zoned 2 · 3; round 1 final UTC 142 files, 3064 tests, zoned 2 · 3; exit 0 both (round 3 expects 3065 UTC; not rerun) |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                         | exit 0 on round 1's final commit, `✓ built in 891ms` (not rerun for round 2)                                                                         |
+| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module index block, no pre-namespacing path in any owned document                              | 366 pass, 0 fail, exit 0 on round 1's final commit, the slices committed; the packet commit's own devsync, round 2, in §15's commit                  |
+| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slices 2 and 3 — every spec that opens a project, since the table now appears once its runtime is live | **Pending planner verification.** Not run in this rehearsal.                                                                                         |
+| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands    | **Pending planner verification.** Not run, not waived.                                                                                               |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                                 | **Not run**; reported as pending, never as passed.                                                                                                   |
 
 `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` is not decoration: `CLAUDECODE=1` changes Bun's test
 output and fails thirteen unrelated tests in this repository.
@@ -4566,7 +4625,7 @@ Each is false on the real starting tree, checked on 2026-09-24.
 
 1. Step 0a's status is not empty, or `base` differs from the slice note's SHA. Stop: the clone is not
    the tree this packet was reviewed against.
-2. Step 0b extracts other than 9 patches, scripts of other than 42 and 87 lines, or other than 22
+2. Step 0b extracts other than 9 patches, scripts of other than 42 and 87 lines, or other than 23
    fault patches. Stop: this document is not the one reviewed.
 3. A patch fails `git apply --check`, the suites script prints any last line but `suites=17
 sites=256` or exits non-zero, or the regions script prints anything but its two lines or exits
@@ -4650,22 +4709,22 @@ retries until a held write commits` failing; a single `Test timed out in 5000ms`
 
 ### 14.1 The non-negotiables of the commissioning brief
 
-| Requirement                                                                                                                                                             | Where this packet meets it                                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| a project runtime as a lifecycle with an owner, retirement and replacement on switch                                                                                    | §3.1–3.3: `createProjectOwner` over one slot; §3.4 the page's effect                                                           |
-| a written state machine (states, events, invariants)                                                                                                                    | §3.1                                                                                                                           |
-| `fc.asyncModelRun` model test; sabotages (stale reader after switch, late answer after retirement, double retirement, subscription leak) each failing at a recorded run | §8.1 `m1` (run 2), `m2` (2), `m4` (2), `m5` (2), plus `m3`, `m6`–`m10`; rehearsed twice, identical; rehearsed twice, identical |
-| "Unknown is not OK"; production-path negatives with `Proof:` comments dated by the executor                                                                             | §8: twenty-two faults, each observed; §3.8 and §9.3 name what was tried and could not be proved                                |
-| no `any`, unchecked cast or `!` outside tests; names carry the domain; no product names in identifiers                                                                  | none in the production diffs; `createProjectOwner`, `installProjectRuntime`, `isCurrent`, `NOBODY_HERE`                        |
-| module-identifier grammar                                                                                                                                               | N/A: no module identifier is added (§13.4)                                                                                     |
-| presence decided, in the packet and the delta spec                                                                                                                      | §3.6; slice 3's scenario and the amended g scenario                                                                            |
-| task 10 honest                                                                                                                                                          | not ticked; dated note naming saved plans (§7.11)                                                                              |
-| rehearsal commits, one per slice, hooks on; reds observed on the previous slice plus the test side; faults run, restored, `cmp`                                         | §9.3                                                                                                                           |
-| exact planner commit subjects and shell-ready `owned.txt` blocks                                                                                                        | §6 each slice's step 9 and subject line                                                                                        |
-| relative counts; planner-only checks marked                                                                                                                             | §6 every expectation is step 0 ± the slice's own; §9.4                                                                         |
-| §9.1-style extraction proving each tree                                                                                                                                 | §9.1, `fill=0` identical to the final rehearsal commit; `fill=1` over h's sites                                                |
-| `legacy-root` exemption if a pre-namespacing path is cited                                                                                                              | none cited: every path is `apps/wbs/fe-01/…` or relative to it; devsync on the packet commit (§15)                             |
-| no absolute path outside Dispatch; `--driver claude` and `--require-ancestor <H3>` on every dispatch line                                                               | §6 Dispatch                                                                                                                    |
+| Requirement                                                                                                                                                             | Where this packet meets it                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| a project runtime as a lifecycle with an owner, retirement and replacement on switch                                                                                    | §3.1–3.3: `createProjectOwner` over one slot; §3.4 the page's effect                                    |
+| a written state machine (states, events, invariants)                                                                                                                    | §3.1                                                                                                    |
+| `fc.asyncModelRun` model test; sabotages (stale reader after switch, late answer after retirement, double retirement, subscription leak) each failing at a recorded run | §8.1 `m1` (run 2), `m2` (2), `m4` (2), `m5` (2), plus `m3`, `m6`–`m10`; rehearsed twice, identical      |
+| "Unknown is not OK"; production-path negatives with `Proof:` comments dated by the executor                                                                             | §8: twenty-three faults, each observed; §3.8 and §9.3 name what was tried and could not be proved       |
+| no `any`, unchecked cast or `!` outside tests; names carry the domain; no product names in identifiers                                                                  | none in the production diffs; `createProjectOwner`, `installProjectRuntime`, `isCurrent`, `NOBODY_HERE` |
+| module-identifier grammar                                                                                                                                               | N/A: no module identifier is added (§13.4)                                                              |
+| presence decided, in the packet and the delta spec                                                                                                                      | §3.6; slice 3's scenario and the amended g scenario                                                     |
+| task 10 honest                                                                                                                                                          | not ticked; dated note naming saved plans (§7.11)                                                       |
+| rehearsal commits, one per slice, hooks on; reds observed on the previous slice plus the test side; faults run, restored, `cmp`                                         | §9.3                                                                                                    |
+| exact planner commit subjects and shell-ready `owned.txt` blocks                                                                                                        | §6 each slice's step 9 and subject line                                                                 |
+| relative counts; planner-only checks marked                                                                                                                             | §6 every expectation is step 0 ± the slice's own; §9.4                                                  |
+| §9.1-style extraction proving each tree                                                                                                                                 | §9.1, `fill=0` identical to the final rehearsal commit; `fill=1` over h's sites                         |
+| `legacy-root` exemption if a pre-namespacing path is cited                                                                                                              | none cited: every path is `apps/wbs/fe-01/…` or relative to it; devsync on the packet commit (§15)      |
+| no absolute path outside Dispatch; `--driver claude` and `--require-ancestor <H3>` on every dispatch line                                                               | §6 Dispatch                                                                                             |
 
 ### 14.2 The batch-6 addendum's twenty points
 
@@ -4673,7 +4732,7 @@ retries until a held write commits` failing; a single `Test timed out in 5000ms`
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Reproduced red           | Met for all three slices: compiler and runtime reds (slices 1, 2) and a runtime red (slice 3), each rebuilt from the previous slice plus its test side, diagnostics pasted (§6).                                                                                                                                                      |
 | 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on (§9.3).                                                                                                                                                                                                                           |
-| 3. Path counts              | Met: each hand-over lists the slice's exact paths (8, 25, 10); the planner's own commit adds only this document.                                                                                                                                                                                                                      |
+| 3. Path counts              | Met: each hand-over lists the slice's exact paths (8, 26, 10); the planner's own commit adds only this document.                                                                                                                                                                                                                      |
 | 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it; both scripts refuse on any unrecognised input.                                                                                                                                                                                                             |
 | 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                                                                                                                                                                        |
 | 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (§9.4).                                                                                                                                                                                                                                       |
@@ -4719,3 +4778,12 @@ reason — never as passed. The Chromium runs of §9.4 are reported the same way
 | Minor 3 — the undo stack's simplified guard                         | Named in §3.8.                                                                                                                                                                                                                                                                                                                                                                |
 | Minor 4 — §14.2 row 13                                              | Fixed: `preferences/README.md` carries a `module-index` block and is untouched.                                                                                                                                                                                                                                                                                               |
 | Minor 5 — the awaited unsubscribes                                  | No change, as the review says.                                                                                                                                                                                                                                                                                                                                                |
+
+## 17. Round 2, disposed
+
+| Finding                                                        | Disposal                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Important 1 — the partial acquisition's rewrap has no negative | Fixed: a seventh example, `is terminal, and still settles, when a half-built runtime cannot be released` (the feed's close throws and the commands cannot be built), and fault `o4` — the rewrap replaced by `? failure` — observed red, with its own comment site above the rewrap, filled by §9.1 (twelve sites). Counts rippled: runtime pair 2·8, sandbox +8 tests, the examples' `(7)`, 72 record lines, 23 fault patches. |
+| Minor 1 — §14.2 row 3                                          | Fixed: `(8, 26, 10)`.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Minor 2 — §14.1's duplicated phrase                            | Fixed.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Minor 3 — `m9` is `m1`'s twin                                  | No change, as the review allows; §8.1 already says so.                                                                                                                                                                                                                                                                                                                                                                          |
