@@ -153,6 +153,20 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * violation, `"module/plan-document/plan-document.resource.ts:
  * '../../service/calendar-marker.service' reaches service/calendar-marker.service.ts"`
  * (0 pass, 1 fail); with this row deleted the same import left the suite passing (1 pass).
+ *
+ * The nineteenth row follows the Calendar marker resource into its own module:
+ * once `service/calendar-marker.service.ts` became a compatibility re-export of
+ * `module/calendar-marker/calendar-marker.resource.ts`, a `CalendarMarkerService`
+ * named through the `@wbs/core` barrel resolves to the moved file without
+ * passing through the shim, so the fifth and eighteenth rows stopped seeing it.
+ *
+ * Proof (2026-09-24): prepending `import type { CalendarMarkerService } from '../../index';`
+ * and `export type BarrelMarkers = CalendarMarkerService;` to
+ * `module/plan-document/plan-document.resource.ts` failed this suite with exactly one
+ * violation, `"module/plan-document/plan-document.resource.ts: CalendarMarkerService
+ * reaches module/calendar-marker/calendar-marker.resource.ts"` (0 pass, 1 fail); with this
+ * row deleted the same two lines left the suite passing (1 pass), and before the move they
+ * were reported against `service/calendar-marker.service.ts`.
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -219,6 +233,10 @@ const routes = [
   },
   {
     reaches: 'service/calendar-marker.service.ts',
+    from: (path: string) => path.startsWith('module/plan-document/'),
+  },
+  {
+    reaches: 'module/calendar-marker/calendar-marker.resource.ts',
     from: (path: string) => path.startsWith('module/plan-document/'),
   },
 ] as const;

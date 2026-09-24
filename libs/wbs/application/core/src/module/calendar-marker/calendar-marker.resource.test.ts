@@ -3,13 +3,13 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { testCalendarMarkerService } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 
-import type { CalendarMarker } from '../index';
-import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import type { CalendarMarker } from '../../index';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../../testing/broadcast-fixture';
 import type {
   CalendarMarkerOutcome,
   CalendarMarkerRefusal,
   CalendarMarkerService,
-} from './calendar-marker.service';
+} from './calendar-marker.resource';
 
 const PROJECT = 'proj-1';
 const OWNER = 'owner';

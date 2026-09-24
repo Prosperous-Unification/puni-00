@@ -1269,3 +1269,311 @@ is pinned` failed with `historical policy selector or baseline` 49 to 51, `occur
   `step8-lint-devsync.log`); the legacy pin passed, 1 pass (`step8-legacy-pin.log`); OpenSpec
   validation passed `N=114` of 114 with 0 failed (`openspec-validation.pA9RJm.json`); `M=12`,
   `B=12`, 8 relationship facts.
+
+### Calendar marker and Capacity, Slice 1 — 2026-09-24
+
+- The slice started from `base=8c8674c78b494f2c7e7895956c9c85c9bb62cb3b` on a clean tree, with
+  `module/calendar-marker` and `module/capacity` absent, E6's `module/plan-document/module.ts` and
+  `apps/wbs/be-01/src/module/solver-launcher/module.ts` present, `service/calendar-marker.service.ts`
+  at 193 lines, `service/capacity.service.ts` at 96, one `new CalendarMarkerService({` and one
+  `new CapacityService({` in `compose.ts`, and `K=93` `kinds.json` entries.
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=577` over `F=60` files (`slice1-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice1-be01-unit-baseline.log`).
+- Bundle red (row 3): `bun build libs/wbs/application/core/src/compose.ts --target=bun` exited 0 and
+  its bundle held neither `application.calendar-marker` nor `application.capacity` (grep exit 1,
+  `count=0` each; `slice1-compose-bundle-red.log`, `slice1-baseline-block.out`).
+- Module reds (rows 1-2): each new `module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error
+  (`slice1-row-red-calendar-marker.log`, `slice1-row-red-capacity.log`).
+- Move red (row 4): after the `cp`/`mv` move, the import diff (`slice1-10.3-imports.patch`) and the
+  two shims, `apps/wbs/be-01/src/service/clock.test.ts` failed
+  `is reading real service sources, not an empty list` on
+  `Expected to contain: "export class CapacityService"`; 3 pass, 1 fail (`slice1-row4-clock-red.log`).
+- Module greens (rows 5-6): with the four files of each module,
+  `bun test ./libs/wbs/application/core/src/module/calendar-marker/` passed 22 over 2 files, 40
+  `expect()` calls (`slice1-green-calendar-marker.log`), and the Capacity directory passed 5, 7
+  `expect()` calls (`slice1-green-capacity.log`).
+- Bundle green (row 8): after `servicesOver` installs both (`slice1-10.7-install.patch`), the same
+  build exited 0 and printed `count=1` for each label (`slice1-compose-bundle-green.log`,
+  `slice1-compose-bundle-green-counts.txt`).
+- Per-scope cases (`slice1-10.8-per-scope-cases.patch`): `compose.test.ts` passed 11, 0 fail
+  (`slice1-compose-test-green.log`). Sideways row (`slice1-10.9-sideways-row.patch`): the suite
+  passed, 1 pass (`slice1-sideways-green.log`). Clock scan (`slice1-10.10-clock-scan.patch`,
+  row 7): `clock.test.ts` passed 4, 0 fail (`slice1-row7-clock-green.log`). `wbs-core` and
+  `wbs-be-01` lint and typecheck exited 0 (`slice1-lint-typecheck-step7.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next, each followed by a green
+  rerun (`<row>-restored.log`):
+  - Row 9, Calendar marker key tuple widened to `['calendarMarkers', 'calendarMarkerOptions']`
+    (`row09-cm-tuple.patch`): `Received function did not throw`;
+    `Expected to contain: "application.calendar-marker/calendarMarkerOptions"`; the message read
+    `Cannot resolve "calendarMarkerOptions"`; 2 pass, 3 fail (`row09-cm-tuple-failing.log`).
+  - Row 10, Calendar marker label dropped (`row10-cm-label.patch`): only the two label tests
+    failed; 3 pass, 2 fail (`row10-cm-label-failing.log`).
+  - Row 11, `broadcast,` deleted from the `calendarMarkerOptions` factory's return
+    (`row11-cm-broadcast.patch`): the published events expected one `calendar_markers_changed` and
+    received `[]`; 4 pass, 1 fail (`row11-cm-broadcast-failing.log`).
+  - Row 12, Calendar marker `check.ts` returning an `exposed` object with `bag`
+    (`row12-cm-bag.patch`): the received keys added `"bag"`; 4 pass, 1 fail
+    (`row12-cm-bag-failing.log`); `wbs-core:typecheck` exit 0 (`row12-cm-bag-typecheck.log`).
+  - Row 13, Calendar marker `check.ts` attaching `resolve` (`row13-cm-resolver.patch`):
+    `Expected: true`, `Received: false`; 4 pass, 1 fail (`row13-cm-resolver-failing.log`);
+    typecheck exit 0 (`row13-cm-resolver-typecheck.log`).
+  - Rows 14-15, Capacity tuple and label (`row14-cap-tuple.patch`, `row15-cap-label.patch`): 2 pass,
+    3 fail and 3 pass, 2 fail, with the same three and two messages as rows 9 and 10
+    (`row14-cap-tuple-failing.log`, `row15-cap-label-failing.log`).
+  - Row 16, `capacityOptions` handing `{ ...broadcast, publish: () => Promise.resolve() }`
+    (`row16-cap-broadcast.patch`): expected one `capacity_changed`, received `[]`; 4 pass, 1 fail
+    (`row16-cap-broadcast-failing.log`).
+  - Rows 17-18, Capacity bag and resolver (`row17-cap-bag.patch`, `row18-cap-resolver.patch`): the
+    received keys added `"bag"`, then `Expected: true`, `Received: false`; 4 pass, 1 fail each;
+    typecheck exit 0 each (`row17-cap-bag-typecheck.log`, `row18-cap-resolver-typecheck.log`).
+  - Row 19, `installCalendarMarker` memoized in a module-level `reusedCalendarMarker`
+    (`row19-cm-per-scope.patch`), run with `-t "installs Calendar marker per supplied scope"`:
+    `-   "value": [],` / `+   "value": [` holding the first scope's `"name": "Launch"` marker;
+    0 pass, 10 filtered out, 1 fail (`row19-cm-per-scope-failing.log`); typecheck exit 0
+    (`row19-cm-per-scope-typecheck.log`). A first injection omitted the closing parenthesis and did
+    not parse (`row19-cm-per-scope.attempt1-syntax.patch`); it was restored, `cmp`-proved and
+    redone.
+  - Row 20, `installCapacity` memoized in `reusedCapacity` (`row20-cap-per-scope.patch`), run with
+    `-t "installs Capacity per supplied scope"`: `- []` /
+    `+ [ { "serviceTeamId": "team-1", "size": 3 } ]`; 0 pass, 10 filtered out, 1 fail
+    (`row20-cap-per-scope-failing.log`); typecheck exit 0 (`row20-cap-per-scope-typecheck.log`).
+  - Row 21, `import type { CalendarMarkerService } from '../../index';` and
+    `export type BarrelMarkers = CalendarMarkerService;` prepended to E6's
+    `module/plan-document/plan-document.resource.ts` (`row21-sideways-barrel.patch`): exactly one
+    violation,
+    `"module/plan-document/plan-document.resource.ts: CalendarMarkerService reaches module/calendar-marker/calendar-marker.resource.ts"`;
+    `Expected - 1`, `Received + 3`; 0 pass, 1 fail (`row21-sideways-barrel-failing.log`). The file
+    was restored by `cp`, `cmp` equal, and `git diff` shows it unchanged.
+  - Row 24, `now?: () => number;` added to the moved `CapacityServiceOptions`
+    (`row24-clock-capacity-now.patch`): `is the only clock a service that stamps a write reads`
+    received `["libs/wbs/application/core/src/module/capacity/capacity.resource.ts"]`; 3 pass,
+    1 fail (`row24-clock-capacity-now-failing.log`).
+  - Row 25, `serviceFolders` returning `[...FOLDERS]` (`row25-clock-folders.patch`): the
+    `coreCapacity` assertion received `undefined`; 3 pass, 1 fail
+    (`row25-clock-folders-failing.log`).
+- Proof comments added after the observations (`slice1-10.11-proofs.patch`); both module
+  directories, `compose.test.ts`, the sideways suite and `clock.test.ts` then passed 43 over 6 files
+  (`slice1-after-proofs-focused.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []`
+  (`slice1-kinds-substitute.txt`); the test itself is the planner's.
+- Closing: core `bun test src` passed `C + 12 = 589` over `F + 2 = 62` files
+  (`slice1-core-closing.log`); the be-01 unit command passed `E = 520` over `EF = 49` files
+  (`slice1-be01-unit-closing.log`); `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-closing.log`); `module/calendar-marker` holds seven files and
+  `module/capacity` six; `nx format:check --all` exited 0 (`slice1-format-check.log`).
+- Delivery still accepts `CalendarMarkerService` and reaches `CapacityService` through the composed
+  graph (K2), tracked under 7.4.
+
+### Priority band and Step, Slice 2 — 2026-09-24
+
+- The slice started from `base=3ad366e41cb709c5131876229cb0caad551ba2e9` on a clean tree, with
+  slice 1's `module/capacity/module.ts` present, `module/priority-band` and `module/step` absent,
+  `service/priority-band.service.ts` at 82 lines, `service/step.service.ts` at 244, one
+  `priorityBands: new PriorityBandService({` and one `steps: new StepService({` in `compose.ts`, and
+  `K=93` `kinds.json` entries (`slice2-step0.log`).
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=589` over `F=62` files (`slice2-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice2-be01-unit-baseline.log`).
+- Bundle red (row 28): `bun build libs/wbs/application/core/src/compose.ts --target=bun` exited 0 and
+  its bundle held neither `application.priority-band` nor `application.step` (grep exit 1,
+  `count=0` each; `slice2-compose-bundle-red.log`, `slice2-baseline-block.out`).
+- Module reds (rows 26-27): each new `module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error
+  (`slice2-row-red-priority-band.log`, `slice2-row-red-step.log`).
+- Move: two `cp` copies, the import diff (`slice2-10.14-imports.patch`) and the two shims of 10.15.
+- Module greens (rows 29-30): with the four files of each module, each directory passed 5, 0 fail,
+  7 `expect()` calls (`slice2-green-priority-band.log`, `slice2-green-step.log`).
+- Bundle green (row 31): after `servicesOver` installs both (`slice2-10.18-install.patch`), the same
+  build exited 0 and printed `count=1` for each label (`slice2-compose-bundle-green.log`,
+  `slice2-compose-bundle-green-counts.txt`).
+- Per-scope cases (`slice2-10.19-per-scope-cases.patch`): `compose.test.ts` passed 13, 0 fail
+  (`slice2-compose-test-green.log`). `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-step6.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next, each followed by a green
+  rerun (`<row>-restored.log`):
+  - Row 32, Priority band key tuple widened to `['priorityBands', 'priorityBandOptions']`
+    (`row32-pb-tuple.patch`): `Received function did not throw`;
+    `Expected to contain: "application.priority-band/priorityBandOptions"`; the message read
+    `Cannot resolve "priorityBandOptions"`; 2 pass, 3 fail (`row32-pb-tuple-failing.log`).
+  - Row 33, Priority band label dropped (`row33-pb-label.patch`): only the two label tests failed;
+    3 pass, 2 fail (`row33-pb-label-failing.log`).
+  - Row 34, `priorityBandOptions` handing `{ ...broadcast, publish: () => Promise.resolve() }`
+    (`row34-pb-broadcast.patch`): expected one `priority_bands_changed`, received `[]`; 4 pass,
+    1 fail (`row34-pb-broadcast-failing.log`).
+  - Rows 35-36, Priority band bag and resolver (`row35-pb-bag.patch`, `row36-pb-resolver.patch`):
+    the received keys added `"bag"`, then `Expected: true`, `Received: false`; 4 pass, 1 fail each;
+    `wbs-core:typecheck` exit 0 each (`row35-pb-bag-typecheck.log`,
+    `row36-pb-resolver-typecheck.log`).
+  - Rows 37-38, Step tuple and label (`row37-step-tuple.patch`, `row38-step-label.patch`): 2 pass,
+    3 fail and 3 pass, 2 fail, with the same three and two messages as rows 32 and 33 for
+    `stepOptions` and `application.step/stepOptions` (`row37-step-tuple-failing.log`,
+    `row38-step-label-failing.log`).
+  - Row 39, `stepOptions` handing `{ ...broadcast, publish: () => Promise.resolve() }`
+    (`row39-step-broadcast.patch`): expected one `step_added`, received `[]`; 4 pass, 1 fail
+    (`row39-step-broadcast-failing.log`).
+  - Rows 40-41, Step bag and resolver (`row40-step-bag.patch`, `row41-step-resolver.patch`): the
+    received keys added `"bag"`, then `Expected: true`, `Received: false`; 4 pass, 1 fail each;
+    typecheck exit 0 each (`row40-step-bag-typecheck.log`, `row41-step-resolver-typecheck.log`).
+  - Row 42, `installPriorityBand` memoized in a module-level `reusedPriorityBand`
+    (`row42-pb-per-scope.patch`), run with `-t "installs Priority band per supplied scope"`:
+    `-     "label": "Critical",` / `+     "label": "Critical now",` (all five rungs); 0 pass,
+    12 filtered out, 1 fail (`row42-pb-per-scope-failing.log`); typecheck exit 0
+    (`row42-pb-per-scope-typecheck.log`).
+  - Row 43, `installStep` memoized in `reusedStep` (`row43-step-per-scope.patch`), run with
+    `-t "installs Step per supplied scope"`: `-   "ok": false,` `-   "reason": "not_found",` /
+    `+   "ok": true,` `+   "value": {` holding `"name": "Renamed"`; 0 pass, 12 filtered out, 1 fail
+    (`row43-step-per-scope-failing.log`); typecheck exit 0 (`row43-step-per-scope-typecheck.log`).
+- Proof comments added after the observations (`slice2-10.20-proofs.patch`); both module
+  directories and `compose.test.ts` then passed 23 over 3 files (`slice2-after-proofs-focused.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []`
+  (`slice2-kinds-substitute.txt`); the test itself is the planner's.
+- Closing: core `bun test src` passed `C + 12 = 601` over `F + 2 = 64` files
+  (`slice2-core-closing.log`); the be-01 unit command passed `E = 520` over `EF = 49` files
+  (`slice2-be01-unit-closing.log`); `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-closing.log`); `module/priority-band` and `module/step` hold six files
+  each; `nx format:check --all` exited 0 (`slice2-format-check.log`).
+- Step still imports `service/assumed-assignee.ts` and `service/clean-name.ts` (task 6.1); delivery
+  still accepts `StepService` (K2, task 7.4).
+
+### Project and Directory, Slice 3 — 2026-09-24
+
+- The slice started from `base=80740be3efb336657caaa06d26d38ad5070f9f6d` on a clean tree, with
+  slice 2's `module/step/module.ts` present, `module/project` and `module/directory` absent,
+  `service/project.service.ts` at 310 lines, `service/directory.service.ts` at 743, one
+  `projects: new ProjectService({` and one
+  `directory: new DirectoryService({ clock, directory: stores.directory, broadcast }),` in
+  `compose.ts`, and `K=93` `kinds.json` entries (`slice3-step0.log`).
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=601` over `F=64` files (`slice3-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice3-be01-unit-baseline.log`).
+- Bundle red (row 47): `bun build libs/wbs/application/core/src/compose.ts --target=bun` exited 0 and
+  its bundle held neither `application.project` nor `application.directory` (grep exit 1,
+  `count=0` each; `slice3-compose-bundle-red.log`, `slice3-baseline-block.out`).
+- Module reds (rows 45-46): each new `module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice3-row-red-project.log`,
+  `slice3-row-red-directory.log`).
+- Move: two `cp` copies, the import diff (`slice3-10.23-imports.patch`) and the two shims of 10.24.
+- Module greens (rows 48-49): with the four files of each module, each directory passed 5, 0 fail,
+  7 `expect()` calls (`slice3-row-green-project.log`, `slice3-row-green-directory.log`).
+- Bundle green (row 50): after `servicesOver` installs both (`slice3-10.27-install.patch`), the same
+  build exited 0 and printed `count=1` for each label (`slice3-compose-bundle-green.log`).
+- Per-scope cases (`slice3-10.28-per-scope-cases.patch`): `compose.test.ts` passed 15, 0 fail
+  (`slice3-compose-test-green.log`). `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-step6.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next, each followed by a green
+  rerun (`<row>.restored-green.log`):
+  - Row 51, Project key tuple widened to `['projects', 'projectOptions']`
+    (`row51-project-tuple.patch`): `Received function did not throw`;
+    `Expected to contain: "application.project/projectOptions"` with the graph reporting bare
+    `projectOptions`; the message read `Cannot resolve "projectOptions"`; 2 pass, 3 fail
+    (`row51-project-tuple.fail.log`).
+  - Row 52, Project label dropped (`row52-project-label.patch`): only the two label tests failed;
+    3 pass, 2 fail (`row52-project-label.fail.log`).
+  - Row 53, `optimizerAvailable,` deleted from the `projectOptions` factory's returned object
+    (`row53-project-optimizer.patch`): `+   "ok": false,` `+   "reason": "optimizer_unavailable",`
+    against the expected `"ok": true`; 4 pass, 1 fail (`row53-project-optimizer.fail.log`).
+  - Rows 54-55, Project bag and resolver (`row54-project-bag.patch`,
+    `row55-project-resolver.patch`): the received keys added `"bag"`, then `Expected: true`,
+    `Received: false`; 4 pass, 1 fail each; `wbs-core:typecheck` exit 0 each
+    (`row54-project-bag.typecheck.log`, `row55-project-resolver.typecheck.log`).
+  - Rows 56-57, Directory tuple and label (`row56-directory-tuple.patch`,
+    `row57-directory-label.patch`): 2 pass, 3 fail and 3 pass, 2 fail, with the same three and two
+    messages as rows 51 and 52 for `directoryOptions` and `application.directory/directoryOptions`
+    (`row56-directory-tuple.fail.log`, `row57-directory-label.fail.log`).
+  - Row 58, `directoryOptions` handing `{ ...clock, newId: () => 'unsupplied' }`
+    (`row58-directory-clock.patch`): `-   "id": "team-1",` / `+   "id": "unsupplied",`; 4 pass,
+    1 fail (`row58-directory-clock.fail.log`).
+  - Rows 59-60, Directory bag and resolver (`row59-directory-bag.patch`,
+    `row60-directory-resolver.patch`): the received keys added `"bag"`, then `Expected: true`,
+    `Received: false`; 4 pass, 1 fail each; typecheck exit 0 each
+    (`row59-directory-bag.typecheck.log`, `row60-directory-resolver.typecheck.log`).
+  - Row 61, `installProject` memoized in a module-level `reusedProject`
+    (`row61-compose-project-memo.patch`), run with `-t "installs Project per supplied scope"`:
+    `error: expect(received).toBeNull()`, `Received: {` (the first scope's project); 0 pass,
+    14 filtered out, 1 fail (`row61-compose-project-memo.fail.log`); typecheck exit 0
+    (`row61-compose-project-memo.typecheck.log`).
+  - Row 62, `installDirectory` memoized in `reusedDirectory`
+    (`row62-compose-directory-memo.patch`), run with `-t "installs Directory per supplied scope"`:
+    `+   "Operations",` in the second scope's team names; 0 pass, 14 filtered out, 1 fail
+    (`row62-compose-directory-memo.fail.log`); typecheck exit 0
+    (`row62-compose-directory-memo.typecheck.log`).
+- Proof comments added after the observations (`slice3-10.29-proofs.patch`); both module
+  directories and `compose.test.ts` then passed 25 over 3 files (`slice3-after-proofs-focused.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []`
+  (`slice3-kinds-substitute.log`); the test itself is the planner's.
+- Closing: core `bun test src` passed `C + 12 = 613` over `F + 2 = 66` files
+  (`slice3-core-closing.log`); the be-01 unit command passed `E = 520` over `EF = 49` files
+  (`slice3-be01-unit-closing.log`); `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-closing.log`); `module/project` and `module/directory` hold six files
+  each; `nx format:check --all` exited 0 (`slice3-format-check.log`).
+- Directory still imports `service/clean-name.ts` and `service/directory-usage.ts` (task 6.1);
+  delivery, Plan import, Plan commands and Saved plans still name the two resources directly (K2,
+  task 7.4).
+
+### Resource module registration, Slice 4 — 2026-09-24
+
+- The slice started from `base=31de48bb14ddc5e646e6bc3eec79c9aba31fef81` on a clean tree, with
+  `module/directory/module.ts` last changed by `31de48bb14ddc5e646e6bc3eec79c9aba31fef81`, `M=12`
+  pilot modules and `B=12` boundaries. The frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7` lists, each `100644 blob`:
+  `1e36dc086592483df3c5facd52dc756c00a46b08` `libs/core/src/service/calendar-marker.service.ts`,
+  `ae86655ecd969b4016c1b9b96fb5eb60dec35a96` `libs/core/src/service/capacity.service.ts`,
+  `8deae4ad476af259c2ecc4b90345557dca80eab3` `libs/core/src/service/directory.service.ts`,
+  `b9c1342e6c7f0e112a0538c19eb4ad47359386cc` `libs/core/src/service/priority-band.service.ts`,
+  `1b40cb91901c693b8a9e9970b938e7327954988b` `libs/core/src/service/project.service.ts` and
+  `1e53de89b1d4f1b1ebf901696bdf36dbfc6d1944` `libs/core/src/service/step.service.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0
+  (`slice4-typecheck-baseline.log`, `slice4-burokrat-lint-source-baseline.log`,
+  `slice4-devsync-lint-baseline.log`); `pilot-policy.test.ts` passed `T=21` tests with `TF=0`
+  failures and `P=299` `expect()` calls (`slice4-pilot-baseline.log`); the legacy pin passed,
+  1 pass (`slice4-legacy-pin-baseline.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`openspec-validation.slice4-baseline.hRVz3X.json`).
+- Registration, each step run with `-t "pins exact pre-index tuples"` (the test
+  `pins exact pre-index tuples and passes observe lint from external trust`), each patch and log
+  under the same basename:
+  - Rows 63-65, Calendar marker: row alone (`slice4-calendar-marker-1-row-red`) failed at
+    `pilot-policy.test.ts:377`, `Expected: 12`, `Received: 13`, 24 `expect()` calls; with the
+    boundary (`slice4-calendar-marker-2-boundary-red`) at `:414`, `Expected: true`,
+    `Received: false`, 28 calls; with the index (`slice4-calendar-marker-3-index-green`) 1 pass,
+    34 calls.
+  - Rows 66-68, Capacity: `:378` `Expected: 13` / `Received: 14`, 25 calls
+    (`slice4-capacity-1-row-red`); `:415` `Expected: true` / `Received: false`, 29 calls
+    (`slice4-capacity-2-boundary-red`); 1 pass, 35 calls (`slice4-capacity-3-index-green`).
+  - Rows 69-71, Directory: `:379` `Expected: 14` / `Received: 15`, 26 calls
+    (`slice4-directory-1-row-red`); `:416` `Expected: true` / `Received: false`, 30 calls
+    (`slice4-directory-2-boundary-red`); 1 pass, 36 calls (`slice4-directory-3-index-green`).
+  - Rows 72-74, Priority band: `:380` `Expected: 15` / `Received: 16`, 27 calls
+    (`slice4-priority-band-1-row-red`); `:417` `Expected: true` / `Received: false`, 31 calls
+    (`slice4-priority-band-2-boundary-red`); 1 pass, 37 calls
+    (`slice4-priority-band-3-index-green`).
+  - Rows 75-77, Project: `:381` `Expected: 16` / `Received: 17`, 28 calls
+    (`slice4-project-1-row-red`); `:418` `Expected: true` / `Received: false`, 32 calls
+    (`slice4-project-2-boundary-red`); 1 pass, 38 calls (`slice4-project-3-index-green`).
+  - Rows 78-80, Step: `:382` `Expected: 17` / `Received: 18`, 29 calls
+    (`slice4-step-1-row-red`); `:419` `Expected: true` / `Received: false`, 33 calls
+    (`slice4-step-2-boundary-red`); 1 pass, 39 calls (`slice4-step-3-index-green`).
+  - Every red was 0 pass, 20 filtered out, 1 fail; every green 1 pass, 20 filtered out, 0 fail.
+- Green (row 81): the whole pilot file passed `T=21` tests, `TF=0` failures and `P + 6 = 305`
+  `expect()` calls (`slice4-pilot-whole-green.log`); the prose-refusal pin did not move.
+- Legacy pin red, pin unchanged (row 82): `every legacy source occurrence and relevant text family
+is pinned` failed with `historical policy selector or baseline` 51 to 63, `occurrences` 269 to
+  281 and the digest `113681cd…` to
+  `5864733ccd1d50e0a81c9c0f71b3bb20a46565ed4200f417ed0b9b1d56f9a5e2`, `Expected  - 3` /
+  `Received  + 3`; 0 pass, 14 filtered out, 1 fail (`slice4-legacy-pin-red.log`). After the
+  re-pin (`slice4-legacy-repin.patch`) it passed, 1 pass (row 83, `slice4-legacy-pin-green.log`);
+  its Proof comment followed (`slice4-legacy-proof.patch`). No other pinned literal moved.
+- Task records (`slice4-tasks.patch`): 5.1 noted and left unticked (Work item remains, packet E8),
+  7.5 extended.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice4-typecheck-after.log`,
+  `slice4-burokrat-lint-source-after.log`, `slice4-devsync-lint-after.log`); the legacy pin
+  passed, 1 pass (`slice4-legacy-pin-after.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`openspec-validation.slice4-after.kBRY5m.json`); `M=18`, `B=18`. The whole
+  `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
+  objects).
