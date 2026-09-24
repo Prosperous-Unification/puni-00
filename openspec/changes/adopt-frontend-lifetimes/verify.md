@@ -1215,3 +1215,46 @@ both unchanged and `status=0` (`s2-final-preferences.log`, `s2-final-sandbox.log
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e` (`e2e/project-settings.spec.ts`, `e2e/project-picker.spec.ts`), `tool-devsync:test`
 and the host gate `bin/h2puni-gate.sh <sha>`, none of which the sandbox can run.
+
+## Packet 050.7f2, slice 3 — the detail switch, a continuous consumer
+
+Attempt `050-7-f2-delivery-call-sites.3.20260924T001504Z`, starting hash
+`e26c8ddddb31b17ce292622e15240086653a2ff6`, clean status, `fast-check` 4.9.0. Evidence basenames are
+relative to that attempt's evidence directory. Observed 2026-09-24.
+
+Baselines, all `status=0`: preferences suite 6 files, 41 tests (`base-preferences.log`); sandbox node
+suite 46 files, 675 tests (`base-sandbox.log`); `gantt-panel.test.tsx` 242 tests (`s3-base-gantt.log`);
+Auckland zoned 2 files, 3 tests (`s3-base-zoned.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+Red, with `gantt-detail.test.tsx` applied over the unchanged hook: typecheck `status=1`, `Found 9 errors
+in the same file`, nine `TS2339: Property 'persists' does not exist on type 'GanttDetail'.`
+(`s3-red-typecheck.log`); Vitest `status=1`, `Tests 7 failed (7)` (`s3-red-vitest.log`) — `expected
+undefined to be false` (twice), `expected true to be false`, `expected false to be true` (three times)
+and `expected null to be Error: write denied`, each on the test section 6 names.
+
+Green, after `gantt-detail.ts`, all `status=0`: typecheck clean (`s3-green-typecheck.log`); the new file
+7 tests (`s3-green-vitest.log`); `gantt-panel.test.tsx` 242 (`s3-green-gantt.log`); zoned 2 files, 3 tests
+(`s3-green-zoned.log`); the twenty adopted files serially, 20 files, 1214 tests (`s3-green-adopted.log`);
+lint `status=0` (`s3-lint.log`).
+
+Proofs, each filter first shown to select exactly one test (`s3-filters.txt`), each fault run as
+`Tests 1 failed | 6 skipped (7)`, `status=1`, restored with `cmp` and rerun green (`<id>.patch`,
+`<id>.log`, `<id>.green.log`):
+
+| Id  | Fault                                                | Observed                                                                       |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
+| g1  | `ask` with nothing live reports `persists: true`     | `expected true to be false`                                                    |
+| g2  | the resync effect's not-live branch no longer resets | `expected false to be true`                                                    |
+| g3  | the resync effect drops keys without adopting        | `expected false to be true`                                                    |
+| g4  | the superseded guard deleted                         | `expected false to be true`                                                    |
+| g5  | `ask` shows before writing                           | `expected true to be false`                                                    |
+| g6  | `ask` swallows the write's failure                   | `expected null to be Error: write denied`                                      |
+| g7  | the resync effect reads the render's runtime         | `expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to be null` |
+| g8  | a withdrawal counted as a supersession               | `expected true to be false`                                                    |
+
+After the `Proof:` comments, all `status=0`: preferences 6 files, 41 tests; sandbox 46 files, 675 tests
+(both unchanged); the new file 7 tests; typecheck and lint clean (`s3-final-*.log`).
+
+Pending planner verification: `wbs-fe-01:test` (expected UTC + 1 file, + 7 tests; zoned unchanged),
+`wbs-fe-01:test:unit` (unchanged), `wbs-fe-01:build`, `wbs-fe-01:e2e` (`e2e/gantt-detail.spec.ts`),
+`tool-devsync:test`, and the host gate, which was not run.
