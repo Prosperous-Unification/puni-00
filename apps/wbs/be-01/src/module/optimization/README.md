@@ -3,8 +3,8 @@
 The optimized-schedule feature as a sealed DI Bag module under `apps/wbs/be-01`: `module.ts` seals
 the graph, `check.ts` is the only place that builds a bag, and `contract.ts` states what a host must
 supply and the neutral port types Optimization shares with its launchers — the reserved spawn
-request, the solver child and the spawner — and the three outcome events it publishes, projected
-from the neutral `ProjectEvent`.
+request, the solver child and the spawner — the cache-key port it hashes an input through, and the
+three outcome events it publishes, projected from the neutral `ProjectEvent`.
 
 `optimization.feature.ts` (the moved `service/optimization-coordinator.ts`) admits, queues, launches,
 heartbeats and records solver attempts for the plan read and for Retry. `solver-child-lifecycle.ts`

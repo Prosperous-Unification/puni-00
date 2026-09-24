@@ -37,7 +37,6 @@ import {
   readOptimizedPair,
   readOptimizedPairAndSpawn,
 } from '../../repository/optimized-schedule-cache';
-import { scheduleInputHash } from '../../repository/schedule-input-hash';
 import {
   evaluateSolverOutcome,
   type SolverProcessOutcome,
@@ -48,6 +47,7 @@ import type {
   ReservedSolverChild,
   ReservedSpawner,
   ReservedSpawnRequest,
+  ScheduleInputHasher,
 } from './contract';
 import {
   type OptimizationVariantState,
@@ -75,6 +75,8 @@ export interface OptimizationCoordinatorOptions {
   readonly inputOf: (projectId: string) => Promise<ScheduleInput | null>;
   /** Whether an edit-triggered read may spend solver capacity for this project. */
   readonly enabledOf: (projectId: string) => Promise<boolean>;
+  /** The cache-key port: the composition root supplies SQLite's SHA-256 of the canonical input. */
+  readonly hashInput: ScheduleInputHasher;
   /**
    * The launcher boundary, called only after SQLite returned this attempt's
    * counted `starting` row. Slice 6.2b binds that row to the launcher PID.
@@ -393,7 +395,7 @@ export class OptimizationCoordinator {
         releaseSolverSlot(this.options.db, slot);
         continue;
       }
-      if (scheduleInputHash(input) !== next.inputHash) {
+      if (this.options.hashInput(input) !== next.inputHash) {
         releaseSolverSlot(this.options.db, slot);
         const enabled = await this.options.enabledOf(next.entry.projectId);
         if (!enabled) continue;
@@ -453,7 +455,7 @@ export class OptimizationCoordinator {
     readonly inputHash: string;
     readonly input: ScheduleInput;
   }): OptimizationRetryResult => {
-    const currentInputHash = scheduleInputHash(ask.input);
+    const currentInputHash = this.options.hashInput(ask.input);
     if (ask.inputHash !== currentInputHash) {
       return { kind: 'stale-input-hash', currentInputHash };
     }
@@ -572,7 +574,7 @@ export class OptimizationCoordinator {
    * to the service cannot lose the coordinator instance as `this`.
    */
   readonly readPlan: OptimizedScheduleReader = (ask) => {
-    const inputHash = scheduleInputHash(ask.input);
+    const inputHash = this.options.hashInput(ask.input);
     const key = {
       projectId: ask.projectId,
       inputHash,

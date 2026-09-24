@@ -159,6 +159,7 @@ function coordinator(
   let token = 0;
   return new OptimizationCoordinator({
     db,
+    hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
     budgetMs: BUDGET,
@@ -204,6 +205,7 @@ describe('OptimizationCoordinator read', () => {
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -252,6 +254,7 @@ describe('OptimizationCoordinator read', () => {
     let enabled = true;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -609,6 +612,7 @@ describe('OptimizationCoordinator read', () => {
     let inputReads = 0;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -676,6 +680,7 @@ describe('OptimizationCoordinator read', () => {
     const calls: ReservedSpawnRequest[] = [];
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -1541,6 +1546,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     let contention: unknown;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -1641,6 +1647,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     let token = 0;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,

@@ -228,6 +228,7 @@ describe('cross-coordinator cancellation', () => {
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
       db: blue,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,

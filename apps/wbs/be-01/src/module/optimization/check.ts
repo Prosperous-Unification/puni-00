@@ -26,6 +26,7 @@ export function installOptimization(requirements: OptimizationRequirements): Opt
       attemptToken: DiBag.fromSyncFactory(() => requirements.attemptToken),
       inputOf: DiBag.fromSyncFactory(() => requirements.inputOf),
       enabledOf: DiBag.fromSyncFactory(() => requirements.enabledOf),
+      hashInput: DiBag.fromSyncFactory(() => requirements.hashInput),
       spawn: DiBag.fromSyncFactory(() => requirements.spawn),
       runChild: DiBag.fromSyncFactory(() => requirements.runChild),
       onChildError: DiBag.fromSyncFactory(() => requirements.onChildError),

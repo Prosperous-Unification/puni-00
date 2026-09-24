@@ -48,6 +48,7 @@ function requirements(): OptimizationRequirements {
     attemptToken: () => 'attempt-1',
     inputOf: () => Promise.resolve(INPUT),
     enabledOf: () => Promise.resolve(true),
+    hashInput: () => 'port-hash',
     spawn: () => Promise.reject(new Error('the module test launches no solver')),
     onChildError: (error) => {
       throw error;
@@ -69,6 +70,7 @@ const hostRequirements = () => {
     attemptToken: DiBag.fromSyncFactory(() => supplied.attemptToken),
     inputOf: DiBag.fromSyncFactory(() => supplied.inputOf),
     enabledOf: DiBag.fromSyncFactory(() => supplied.enabledOf),
+    hashInput: DiBag.fromSyncFactory(() => supplied.hashInput),
     spawn: DiBag.fromSyncFactory(() => supplied.spawn),
     runChild: DiBag.fromSyncFactory(() => supplied.runChild),
     eventLog: DiBag.fromSyncFactory(() => supplied.eventLog),
@@ -110,12 +112,31 @@ describe('the Optimization module', () => {
 
     expect(read).toMatchObject({
       projectId: PROJECT,
+      inputHash: 'port-hash',
       contractVersion: CONTRACT,
       budgetMs: BUDGET_MS,
       generation: null,
       variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
       schedules: { pri: null, time: null },
     });
+  });
+
+  /**
+   * The cache-key port is the only hash the coordinator reads: a Retry whose
+   * hash differs from the port's answer is refused as stale, with the port's
+   * own value, before any repository call.
+   */
+  it('hashes a Retry through the cache-key port installOptimization wires', () => {
+    const { optimizer } = installOptimization(requirements());
+
+    const refused = optimizer.retry({
+      projectId: PROJECT,
+      objective: 'pri',
+      inputHash: 'stale-hash',
+      input: INPUT,
+    });
+
+    expect(refused).toEqual({ kind: 'stale-input-hash', currentInputHash: 'port-hash' });
   });
 
   it('reports a failed edit read to the error sink installOptimization wires', async () => {

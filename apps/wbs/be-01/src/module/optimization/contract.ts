@@ -81,6 +81,15 @@ export interface ReservedSolverChild extends SolverChildProcess {
  */
 export type ReservedSpawner = (request: ReservedSpawnRequest) => Promise<ReservedSolverChild>;
 
+/**
+ * The cache-key port: the storage key of one exact scheduler input.
+ *
+ * The domain owns the canonical bytes and SQLite's adapter owns the SHA-256
+ * over them (`@wbs/store-sqlite/schedule-input-hash`); the composition root
+ * supplies that function, so the feature names no repository helper.
+ */
+export type ScheduleInputHasher = (input: ScheduleInput) => string;
+
 /** A stored `ok` result's project event, projected from the neutral `ProjectEvent`. */
 export type ScheduleOptimizedEvent = Extract<ProjectEvent, { type: 'schedule_optimized' }>;
 /** A stored failure's project event, projected from the neutral `ProjectEvent`. */
@@ -102,8 +111,9 @@ export type OptimizationOutcomeEvent =
  *
  * Exactly {@link OptimizationCoordinatorOptions}, unchanged by the move but
  * for the spawn, child and outcome-event types it now takes from this
- * contract. `bootBe01` starts and stops the one coordinator a process holds;
- * the module registers no disposer.
+ * contract and the cache-key port `hashInput` task 1.6 added. `bootBe01`
+ * starts and stops the one coordinator a process holds; the module registers
+ * no disposer.
  *
  * **K3 debt disclosed.** The backend module map gives Optimization queue,
  * generation, cache, slot and outcome repository ports. This extraction does

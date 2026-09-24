@@ -9,6 +9,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverSlot } from '../repository/schema';
 import {
   OptimizationCoordinator,
@@ -150,6 +151,7 @@ describe('the two-coordinator spawn handshake', () => {
     const coordinator = (db: typeof blue, owner: string): OptimizationCoordinator =>
       new OptimizationCoordinator({
         db,
+        hashInput: scheduleInputHash,
         contractVersion: CONTRACT,
         solverVersion: '0.1.0',
         budgetMs: BUDGET_MS,
