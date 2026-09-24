@@ -33,6 +33,9 @@ import { ApplicationServicesProvider } from '@/runtime/application-services-cont
  */
 export function publishApplicationRuntimeForEachTest(): void {
   beforeEach(async () => {
+    // Proof: on 2026-09-24, publishing no runtime here failed `plan-layout.test.tsx`'s
+    // `lays a remembered width out over the one it would have resolved` on
+    // `expected '68px' to be '240px'`: nothing falls back to a module-load store.
     await applicationSlot.replace(acquireApplicationRuntime);
   });
   afterEach(async () => {

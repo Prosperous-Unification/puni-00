@@ -45,8 +45,8 @@ export function useColumnSet({ projectId, steps }: { projectId: string; steps: S
    * The hide-list as this browser remembers it for this project, whole — see
    * {@link rememberedHiddenColumns} for why it is not judged on read.
    */
-  const [storedHiddenColumns, setStoredHiddenColumns] = useState<readonly string[]>(() =>
-    rememberedHiddenColumns(projectId),
+  const [storedHiddenColumns, setStoredHiddenColumns] = useState<readonly string[]>(
+    () => rememberedHiddenColumns(projectId).value,
   );
 
   /**

@@ -252,6 +252,15 @@ no access at all, as the requirement on degrading visibly already states.
   written in any store, nothing throws, and the returned value says the answer
   is not being remembered
 
+#### Scenario: A layout handle built before any runtime follows every runtime
+
+- **WHEN** a layout preference handle built when the page's modules loaded, before
+  any runtime existed, is used after runtimes have been published, withdrawn,
+  replaced, or left terminally failed
+- **THEN** each access reaches only the runtime live at that instant, drops a
+  refused value only from that runtime's store, and while none is live answers
+  that nothing is remembered without touching any store
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

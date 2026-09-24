@@ -1258,3 +1258,73 @@ After the `Proof:` comments, all `status=0`: preferences 6 files, 41 tests; sand
 Pending planner verification: `wbs-fe-01:test` (expected UTC + 1 file, + 7 tests; zoned unchanged),
 `wbs-fe-01:test:unit` (unchanged), `wbs-fe-01:build`, `wbs-fe-01:e2e` (`e2e/gantt-detail.spec.ts`),
 `tool-devsync:test`, and the host gate, which was not run.
+
+## Packet 050.7f2, slice 4 — the layout handle, its model test, and the layout's typed results
+
+Attempt `050-7-f2-delivery-call-sites.4.20260924T002854Z`, starting hash
+`1e5b5535ce543249c94d25b54cf964d5ddfd7c46`, observed on 2026-09-24. The working tree was clean at the start, and
+`fast-check` was 4.9.0. Evidence names are relative to that attempt's evidence directory.
+
+### Baselines (step 0 and step 1)
+
+| Check                                                                      | Result                                  | Evidence                    |
+| -------------------------------------------------------------------------- | --------------------------------------- | --------------------------- |
+| preferences suite (`src/modules/preferences`)                              | 6 files, 41 tests, status 0             | `base-preferences.log`      |
+| sandbox node suite                                                         | 46 files, 675 tests, status 0           | `base-sandbox.log`          |
+| layout suites, serial (plan-layout, plan-filter, plan-toolbar, plan-table) | 4 files, 218 tests, status 0            | `s4-base-layout.log`        |
+| strict OpenSpec                                                            | `{"items":114,"passed":114,"failed":0}` | `openspec-base.9jLTfd.json` |
+
+### Contract and red checkpoint
+
+- Section 7.14, the layout-handle scenario, was applied first. The strict block then gave `{"items":114,"passed":114,"failed":0}`
+  (`openspec-s4-contract.AvHIzh.json`).
+- With section 7.15, the model test, applied and `lib/remembered.ts` unchanged, `wbs-fe-01:typecheck` exited with status 1
+  and `Found 2 errors in the same file` (`s4-red-typecheck.log`):
+  `remembered-layout.model.test.ts:5:27 - error TS2305: Module '"@/lib/remembered"' has no exported member 'RuntimeRemembered'.`
+  and `remembered-layout.model.test.ts:627:71 - error TS2554: Expected 2 arguments, but got 3.`
+- Vitest on the model test exited with status 1 and `Tests 1 failed (1)` (`s4-red-vitest.log`):
+  `Property failed after 2 tests`, seed `20260924`, counterexample
+  ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,accessWhileAcquiring(A, write(outline)) /*replayPath="ADB:F"*/]``,
+  shrunk 2 times, caused by `write(outline) while acquiring: what the handle answered: expected undefined to deeply equal false`.
+
+### Green checkpoint (after sections 7.16, 7.17 and 7.18)
+
+| Check                            | Result                                                  | Evidence                 |
+| -------------------------------- | ------------------------------------------------------- | ------------------------ |
+| `wbs-fe-01:typecheck`            | status 0                                                | `s4-green-typecheck.log` |
+| model test                       | 1 test passed, status 0                                 | `s4-green-vitest.log`    |
+| layout suites, serial            | 4 files, 218 tests (unchanged), status 0                | `s4-green-layout.log`    |
+| zoned (Pacific/Auckland)         | 2 files, 3 tests (unchanged), status 0                  | `s4-green-zoned.log`     |
+| the twenty adopted files, serial | 20 files, 1214 tests (unchanged from slice 3), status 0 | `s4-green-adopted.log`   |
+| `wbs-fe-01:lint`                 | status 0                                                | `s4-lint.log`            |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter first matched exactly one test (`s4-filters.log`). Each fault was injected from the packet's own patch, its test
+exited with status 1, the file was restored and `cmp`-identical, and the test reran green. The records are `<id>.patch`,
+`<id>.log` and `<id>.green.log`. The model faults ran under fast-check 4.9.0, seed `20260924`, `numRuns: 300`,
+`maxCommands: 12`, and each gave `Tests 1 failed (1)`. `⏎` marks the newline fast-check prints.
+
+| Id   | Fault                                                        | Run | Shrunk counterexample                                                                                                                                              | Observed                                                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------ | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ha` | the runtime resolved once, when the handle is built          | 8   | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,replace(A, settles),write(outline) /*replayPath="O:B"*/]``, shrunk 4 times                           | `write(outline): what the handle answered: expected false to deeply equal true`                                                                                                                          |
+| `hb` | the last live store kept for when nothing is live            | 13  | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,replace(A, settles),read,retire,read /*replayPath="CCABH:V"*/]``, shrunk 2 times                     | `read: what the handle answered: expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to deeply equal { value: null, persists: false }`                                                     |
+| `hc` | a read with nothing live claims `persists: true`             | 2   | ``[schedulerFor()`⏎`,read /*replayPath="CBA:F"*/]``, shrunk 1 time                                                                                                 | `read: what the handle answered: expected { value: null, persists: true } to deeply equal { value: null, persists: false }`                                                                              |
+| `hd` | `readAndDrop` replaced by `read`                             | 106 | ``[schedulerFor()`⏎-> [task${1}] promise::dispose B resolved`,tamper(B, 7),accessWhileAcquiring(B, write(outline)),read /*replayPath="AFCF:K"*/]``, shrunk 2 times | `stored bytes in B: expected '7' to be undefined`                                                                                                                                                        |
+| `he` | `write` swallows the store's own failure                     | 18  | ``[schedulerFor()`⏎-> [task${1}] promise::dispose denied resolved`,replace(denied, settles),write(outline) /*replayPath="BGB:F"*/]``, shrunk 1 time                | `write(outline): an ordinary storage failure did not propagate unchanged: expected false to be Error: write denied`                                                                                      |
+| `hh` | a write with nothing live answers `true`                     | 2   | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,accessWhileAcquiring(A, write(outline)) /*replayPath="ADB:F"*/]``, shrunk 2 times                    | `write(outline) while acquiring: what the handle answered: expected true to deeply equal false`                                                                                                          |
+| `hf` | the model test's bounded close replaced by an ordinary error | 2   | ``[schedulerFor()`⏎-> [task${1}] promise::dispose A resolved`,replace(A, never),replace(A, settles) /*replayPath="L:B"*/]``, shrunk 3 times                        | `the property failed and its teardown refused: …`, caused by `replace(A): the disposal did not expire the way the slot's budget expires; it failed some other way: Error: unexpected cleanup corruption` |
+| `hg` | the model test's teardown retirement rejects                 | 1   | ``[schedulerFor()`⏎`, /*replayPath=":"*/]``, shrunk 0 times                                                                                                        | `Error: teardown refused: Error: teardown retire refused during teardown with: Error: unrelated teardown failure`                                                                                        |
+| `fx` | the fixture publishes no runtime                             | —   | —                                                                                                                                                                  | `plan-layout.test.tsx` › `lays a remembered width out over the one it would have resolved`: `expected '68px' to be '240px'`, `Tests 1 failed \| 77 skipped (78)`                                         |
+
+### After the Proof comments
+
+The model test passed with 1 test and status 0 (`s4-final-model.log`). `plan-layout.test.tsx` passed with 78 tests and
+status 0 (`s4-final-plan-layout.log`). The preferences suite gave 6 files and 41 tests, and the sandbox node suite gave
+46 files and 675 tests, both unchanged from step 0 (`s4-final-preferences.log`, `s4-final-sandbox.log`).
+`wbs-fe-01:typecheck` and `wbs-fe-01:lint` both gave status 0 (`s4-final-typecheck.log`, `s4-final-lint.log`).
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e` (`e2e/layout.spec.ts`) and
+`tool-devsync:test` are still pending. The host gate was not run.
