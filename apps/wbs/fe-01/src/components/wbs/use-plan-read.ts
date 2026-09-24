@@ -22,19 +22,17 @@ import {
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
-import type { CalendarMarkerRefusal } from '@/modules/calendar-markers/contract';
 import { type Channel, createChannel } from '@/modules/channel';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
-import type { PlanFeed, PlanFeedRefusal } from '@/modules/plan-feed/contract';
+import type { PlanFeed } from '@/modules/plan-feed/contract';
 import {
   createDeliveredPlan,
   type DeliveredPlan,
   type DeliveredPlanStore,
 } from '@/modules/plan-feed/delivered-plan-store';
 import { type BusyWrites, createBusy } from '@/modules/plan-writer/busy-store';
-import type { PlanWriteRefusal } from '@/modules/plan-writer/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
-import type { ProjectServices } from '@/modules/project/contract';
+import type { PlanRefusal, ProjectServices } from '@/modules/project/contract';
 
 import { type CellCards } from './cell-card-store';
 import type { FocusIntent } from './live-editing';
@@ -191,16 +189,6 @@ export const NO_CHART_READ: ChartRead = {
   estimateRounding: 'ceil',
   generation: 0,
 };
-
-/**
- * A refusal one of this project's services announces: the feed's and the
- * markers' as a cause, the writer's as the sentence it already chose.
- *
- * The words for a cause are built by the table's listener and nowhere else, for
- * the reason `PlanFeedDelivery` gives: a service that imported the refusal
- * vocabulary would be importing upward out of `components/`.
- */
-export type PlanRefusal = PlanFeedRefusal | CalendarMarkerRefusal | PlanWriteRefusal;
 
 /**
  * The project-owned stores and ports this table's services write through.

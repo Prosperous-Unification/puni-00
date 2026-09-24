@@ -430,3 +430,29 @@ route's own promise. What a reader sees SHALL NOT change.
 - **THEN** the table keeps its services, its feed and its socket across the
   same client, a new client replaces all three, and the table is never handed
   the client itself
+
+### Requirement: One project runtime owns the selected project's plan services
+
+fe-01 SHALL build the plan services of one selected project - its delivered plan,
+its busy state, its refusal and command-issued channels, its plan feed, its
+calendar markers, its plan writer and its plan commands - as one DI Bag project
+runtime, outside React, through one project owner that holds at most one current
+runtime. The owner SHALL withdraw the current runtime synchronously when another
+project is opened or the project is left, before its disposal starts, and every
+guard inside the runtime SHALL answer from that withdrawal: a withdrawn runtime
+SHALL hand nothing on from a late answer or a stream frame, SHALL send nothing
+for a reread or a calendar-marker gesture asked of it, and SHALL NOT answer that
+it is current again. Its feed SHALL be given back exactly once, closing its
+stream, however many triggers retire it. The runtime SHALL publish only feature
+and store surfaces.
+
+#### Scenario: A late answer, a frame, a reread and a marker after a switch
+
+- **WHEN** a project is opened or left while another project's runtime is
+  current, and that runtime's reads then answer, its stream reports, or a reader
+  still holding it asks for a reread or adds a calendar marker, before or after
+  its disposal
+- **THEN** no runtime but the one the owner publishes answers that it is
+  current, the withdrawn runtime's delivered plan stays exactly as it was when it
+  was withdrawn, no request is sent on its behalf, and once its retirement has
+  run its feed has been closed once and its stream unsubscribed once
