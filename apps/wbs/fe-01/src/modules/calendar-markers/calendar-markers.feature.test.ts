@@ -35,7 +35,7 @@ interface Reader {
   readonly owner: PlanRefresh;
   /** Puts a different owner in place, as a new project's effect does. */
   replaceOwner: (next: PlanRefresh | null) => void;
-  /** Takes the screen away without replacing the owner, as a render does. */
+  /** Withdraws the reader, as its owner does: from then on it answers no owner at all. */
   leave: () => void;
 }
 
@@ -66,7 +66,6 @@ function readerOver(routes: Partial<CalendarMarkerRoutes> = {}): Reader {
   const refusals: unknown[] = [];
   const owner = fakeOwner(asked);
   let installed: PlanRefresh | null = owner;
-  let active = true;
   const api: CalendarMarkerRoutes = { ...recordingRoutes(asked), ...routes };
   return {
     asked,
@@ -76,13 +75,12 @@ function readerOver(routes: Partial<CalendarMarkerRoutes> = {}): Reader {
       installed = next;
     },
     leave: () => {
-      active = false;
+      installed = null;
     },
     host: {
       projectId: 'p1',
       api,
       readRefreshOwner: () => installed,
-      isActiveReader: () => active,
       announceRefusal: ({ cause }) => {
         refusals.push(cause);
       },
@@ -184,7 +182,6 @@ describe('the calendar markers a reader may put on the chart', () => {
         },
       },
       readRefreshOwner: () => installed,
-      isActiveReader: () => true,
       announceRefusal: () => undefined,
     });
 

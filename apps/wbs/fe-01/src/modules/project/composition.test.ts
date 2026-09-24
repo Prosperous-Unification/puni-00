@@ -68,7 +68,6 @@ describe('the project composition root', () => {
     const markers = services.calendarMarkersFor({
       projectId: 'p1',
       readRefreshOwner: () => feed.owner,
-      isActiveReader: () => true,
       announceRefusal: (refusal) => {
         throw new Error(`refused: ${String(refusal.cause)}`);
       },
