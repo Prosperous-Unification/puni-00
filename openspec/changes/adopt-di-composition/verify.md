@@ -1577,3 +1577,61 @@ is pinned` failed with `historical policy selector or baseline` 51 to 63, `occur
   failed (`openspec-validation.slice4-after.kBRY5m.json`); `M=18`, `B=18`. The whole
   `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
   objects).
+
+### Work item, Slice 1 — 2026-09-24
+
+- The slice started from `base=57f8c265c0790f986c0f9d49f8a85d6b2ff051f4` on a clean tree, with
+  `module/work-item/` absent, E7's modules present, `service/work-item.service.ts` at 4598 lines,
+  `service/work-item.service.test.ts` at 2321, one `workItems: new WorkItemService({` in
+  `compose.ts`, one `service/work-item.service.ts` pin in be-01's `clock.test.ts`, and `K=93`
+  `kinds.json` entries.
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`): core `bun test src` passed `C=613` over `F=66` files
+  (`slice1-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice1-be01-unit-baseline.log`); the
+  `compose.ts` bundle built with exit 0 and held `application.work-item count=0 (grep exit 1)`
+  (row 2, `slice1-compose-bundle-red.log`).
+- Row 1: the new `module/work-item/module.test.ts` failed with
+  `error: Cannot find module './check'`, 0 pass, 1 fail, 1 error (`slice1-row1-module-red.log`).
+- Row 3: after the `cp`, the `mv`, 10.2's import diff and 10.3's shim, `clock.test.ts` failed
+  `is reading real service sources, not an empty list` with
+  `Expected to contain: "export class WorkItemService"` and the shim's text received; 3 pass,
+  1 fail (`slice1-row3-clock-red.log`).
+- Row 4: with `contract.ts`, `module.ts`, `check.ts` and `README.md` in place, the module directory
+  passed 103 tests, 0 fail, 225 `expect()` calls over 2 files (`slice1-row4-module-green.log`).
+- Row 5: after 10.5 (`index.ts`, the `kinds.json` row rewritten to `support`, the moved clock pin),
+  `clock.test.ts` passed 4, 0 fail (`slice1-row5-clock-green.log`); lint and typecheck of both
+  projects exited 0 (`slice1-lint-typecheck-step5.log`).
+- Faults, each restored with `cp` and proved with `cmp` before the next; patch and log under the
+  same basename:
+  - Row 6, tuple widened to `['workItems', 'workItemOptions']` (`slice1-row6-tuple`): 2 pass,
+    3 fail — `Received function did not throw`; `Expected to contain:
+"application.work-item/workItemOptions"`; message
+    `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "workItemOptions"`.
+  - Row 7, label dropped (`slice1-row7-label`): 3 pass, 2 fail — the two label tests; the
+    private-binding test stayed green.
+  - Row 8, edge: the returned object's `broadcast,` after `journal: journalStore,` replaced by
+    `broadcast: { ...broadcast, publish: () => Promise.resolve() },` (`slice1-row8-edge`):
+    `announces a created work item through the broadcaster installWorkItem wires` failed,
+    expected `[["Scope"]]`, received `[]`; 4 pass, 1 fail.
+  - Row 9, `bag` exposed (`slice1-row9-bag`): `exposes only the contract exports from its
+installer` failed with received keys adding `"bag"` (`Expected  - 0`, `Received  + 1`); 4 pass,
+    1 fail; `wbs-core:typecheck` exit 0 on the mutated tree (`slice1-row9-bag-typecheck.log`).
+  - Row 10, `resolve` attached (`slice1-row10-resolver`): the same test failed at
+    `Expected: true`, `Received: false`; 4 pass, 1 fail; `wbs-core:typecheck` exit 0
+    (`slice1-row10-resolver-typecheck.log`).
+  - Row 11, `  now?: () => number;` after the moved `WorkItemServiceOptions`' `  clock: Clock;`
+    (`slice1-row11-clock-now`): `is the only clock a service that stamps a write reads` received
+    `["libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]`; 3 pass, 1 fail.
+- After the restores the module directory and `clock.test.ts` passed 107, 0 fail
+  (`slice1-after-faults-green.log`); 10.6's Proof comments followed, and the same run passed 107
+  again (`slice1-after-proofs-green.log`).
+- Step-8 filesystem substitute for the planner's `service-kinds.test.ts`: `93 []`
+  (`slice1-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 5 = 618` over `F + 1 = 67` (`slice1-core-closing.log`);
+  the be-01 unit set passed `E = 520` over `EF = 49` (`slice1-be01-unit-closing.log`); lint and
+  typecheck of both projects exited 0 (`slice1-lint-typecheck-closing.log`); `module/work-item/`
+  holds seven files.
+- 46 code files still name `service/work-item.service.ts` and resolve through the shim; delivery,
+  Plan commands, Plan import and Saved plans still name `WorkItemService` or its values directly
+  (K2), tracked under 7.4.
