@@ -1909,3 +1909,71 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   (`slice4-devsync-lint-closing.log`); the legacy pin passed alone, 1 pass
   (`slice4-legacy-pin-closing.log`); OpenSpec validation passed `N=114`, failed 0
   (`slice4-openspec-closing.json`).
+
+### Optimization, Slice 1 — 2026-09-24
+
+- The slice started from `base=1916df5cb7838a82a80e46ec5830b9737da03382` on a clean tree, with
+  `module/optimization` absent and packet G's `plan-commands/check.ts` present; the coordinator had
+  737 lines, the lifecycle 106, `services.ts` one `new OptimizationCoordinator({` construction, and
+  `kinds.json` held `K=88` entries.
+- Baselines before any edit: `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice1-be01-unit-baseline.log`); the six
+  optimizer database files passed `D=54` over `DF=6` (`slice1-be01-db-baseline.log`).
+- Row 1: `module/optimization/module.test.ts` alone, before any module file existed, failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice1-row1-red.log`).
+- Row 2: the bundles of `main.ts` and `dev/main.ts` built (exit 0) and held
+  `backend.optimization` and `backend.solver-supervisor` `count=0 (grep exit 1)` in both
+  (`slice1-main-bundle-red.log`, `slice1-dev-main-bundle-red.log`).
+- Row 3: after the moves, 10.2, the shims and the four module files, the module directory ran
+  11 pass, 0 fail, 17 `expect()` calls over 2 files (`slice1-row3-green.log`).
+- Row 4: before 10.6, adding `now?: () => number;` to the moved `OptimizationCoordinatorOptions`
+  left `clock.test.ts` at 4 pass, 0 fail — the gap the move opened (`row4-clock-gap.patch`,
+  `row4-clock-gap.log`); after 10.6 the unmutated file ran 4 pass
+  (`slice1-clock-after-10.6.log`).
+- Row 5: after 10.5, `backend.optimization count=1` in both bundles and
+  `backend.solver-supervisor` still `count=0 (grep exit 1)` (`slice1-row5-bundles.out`).
+- Row 6, tuple (`['optimizer', 'optimizationOptions']`): the private-binding, graph-label and
+  missing-requirement tests failed with `Received function did not throw`,
+  `Expected to contain: "backend.optimization/optimizationOptions"` and a message naming
+  `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "optimizationOptions"`; 3 pass, 3 fail
+  (`row6-tuple.patch`, `row6-tuple.log`).
+- Row 7, label (`{ label: OPTIMIZATION_LABEL }` dropped): only
+  `labels its private bindings with the module name` and
+  `names itself when a host omits a requirement` failed; 4 pass, 2 fail (`row7-label.patch`,
+  `row7-label.log`).
+- Row 8, edge (`contractVersion: solverVersion`):
+  `reads an idle plan under the identity installOptimization wires` failed on
+  `-   "contractVersion": "7+0.1.0",` / `+   "contractVersion": "0.1.0",`; 5 pass, 1 fail
+  (`row8-edge.patch`, `row8-edge.log`).
+- Row 9, sink (`onChildError: () => undefined`):
+  `reports a failed edit read to the error sink installOptimization wires` expected
+  `[ [Error: enabled read refused] ]` and received `[]`; 5 pass, 1 fail (`row9-sink.patch`,
+  `row9-sink.log`).
+- Row 10, bag (an `exposed` object carrying `bag`):
+  `exposes only the contract exports from its installer` failed on `+   "bag",`
+  (`Expected - 0`, `Received + 1`); 5 pass, 1 fail; `wbs-be-01:typecheck` on the mutated tree
+  exited 0 (`row10-bag.patch`, `row10-bag.log`, `row10-bag-typecheck.log`).
+- Row 11, resolver (`resolve` attached to the returned coordinator): the same test failed its
+  second assertion, `Expected: true`, `Received: false`; 5 pass, 1 fail; typecheck exited 0
+  (`row11-resolver.patch`, `row11-resolver.log`, `row11-resolver-typecheck.log`).
+- Row 12, clock again after 10.6: `is the only clock a service that stamps a write reads` failed
+  on `+   "apps/wbs/be-01/src/module/optimization/optimization.feature.ts",`; 3 pass, 1 fail
+  (`row12-clock.patch`, `row12-clock.log`).
+- Row 13, scan (`serviceFolders` returning `[...FOLDERS, ...modulesIn(MODULES)]`):
+  `is reading real service sources, not an empty list` failed at
+  `expect(received).toBeDefined()` with `Received: undefined`; 3 pass, 1 fail (`row13-scan.patch`,
+  `row13-scan.log`).
+- Each fault was restored by copying the saved bytes back and proved with `cmp` before the next.
+- Row 15: Bun's transpiler output with every `import` and `export … from` statement removed was
+  byte-identical for the moved coordinator and lifecycle against their `base` sources:
+  `optimization-coordinator body identical`, `solver-child-lifecycle body identical`
+  (`slice1-erased.out`, `slice1-erased-before-*.js`, `slice1-erased-after-*.js`).
+- Kinds substitute: `88 []` (`slice1-kinds.out`).
+- Closing: the be-01 unit set passed `E + 6 = 526` over `EF + 1 = 50` files
+  (`slice1-close-unit.log`); the database files `54` over 6 (`slice1-close-db.log`);
+  `clock.test.ts` 4 pass (`slice1-close-clock.log`); `production-entrypoint.test.ts` 2 pass
+  (`slice1-close-entrypoint.log`); `wbs-be-01` lint and typecheck exited 0
+  (`slice1-close-lint-typecheck.log`); `module/optimization/` holds nine files.
+- The feature still takes the SQLite `db` and calls the repository functions directly (K3,
+  recorded in `contract.ts`, tracked under 3.6 and 7.4).
