@@ -2123,3 +2123,47 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   files; the format check exited 0 (`slice3-format-check.log`).
 - The mapper keeps no former path; its `kinds.json` repository row is removed, the module README
   names it private support.
+
+### Optimization and Solver supervisor registration, Slice 4 — 2026-09-24
+
+- `base` `f6abafe6bdaedfa1923ac58facf35a4f12cb88ea` (slice 3's planner commit); clean tree; the
+  last commit touching `module/solver-supervisor/module.ts` is `base` itself. `M = 20` modules and
+  `B = 20` boundaries (`slice4-step0.log`).
+- Frozen tuples at `7851161bf96312750d07b933ca5d42b75ce575c7`:
+  `100644 blob 5a8c8f54f430cd67e29d12d3f35b4d77a2d9ae39 apps/be-01/src/service/optimization-coordinator.ts`
+  and
+  `100644 blob 31b66e999d627f2b2cd2709893c449dcfab8b3f8 apps/be-01/src/service/solver-supervisor-client.ts`.
+- Before any edit: `tool-devsync` and `twilight-burokrat` typecheck, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice4-baseline-typecheck.log`,
+  `slice4-baseline-burokrat-lint-source.log`, `slice4-baseline-devsync-lint.log`); the legacy pin
+  1 pass (`slice4-baseline-legacy-pin.log`); the whole pilot file `T = 21` tests, `TF = 0`
+  failures, `P = 307` `expect()` calls in 319.68 s (`slice4-pilot-baseline.log`); OpenSpec
+  `N = 114` passed, 0 failed (`openspec-validation.baseline.sFWVcT.json`).
+- Row 44, `modules.json` rows alone: `pins exact pre-index tuples and passes observe lint from
+external trust` failed at `pilot-policy.test.ts:385` on `Expected: 20`, `Received: 22`; 0 pass,
+  1 fail (`slice4-row44-parity-red.log`).
+- Row 45, rows and boundaries: the same test failed at `pilot-policy.test.ts:422` on
+  `Expected: true`, `Received: false`; 0 pass, 1 fail (`slice4-row45-discovered-index-red.log`).
+- Row 46, `pilotPaths` and both README indexes added: the same test 1 pass, 0 fail
+  (`slice4-row46-filtered-green.log`).
+- Row 47, the whole pilot file with the prose pin unchanged: exactly
+  `refuses prose facts presented as applicable checks` failed with
+  `Received: "applicable check has no executable authority in apps/wbs/be-01/src/module/optimization/README.md: check.be-01.test (external-consumer)\n"`;
+  20 pass, 1 fail, 309 `expect()` calls (`slice4-row47-prose-pin-red.log`).
+- Row 48, after 10.22's pin moved: the whole pilot file 21 pass, 0 fail, 309 `expect()` calls
+  (`T`, `TF`, `P + 2`) in 281.70 s (`slice4-row48-pilot-green.log`).
+- Row 49, the legacy pin unchanged: `every legacy source occurrence and relevant text family is
+pinned` failed on `historical policy selector or baseline` 67 → 71, `occurrences` 285 → 289 and
+  `digest` `687c123b…` →
+  `8d9667b7d195746954849db31d5e6e106858109737d058581c5d33b4e7097d2e`; `Expected - 3` /
+  `Received + 3`; 0 pass, 1 fail (`slice4-row49-legacy-pin-red.log`). No other pinned literal moved.
+- Row 50, after 10.23: the same test 1 pass (`slice4-row50-legacy-pin-green.log`); 10.24's Proof
+  comment was added after it.
+- After 10.25: the typecheck, `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0
+  again, and the legacy pin passed 1 alone (`slice4-final-typecheck.log`,
+  `slice4-final-burokrat-lint-source.log`, `slice4-final-devsync-lint.log`,
+  `slice4-final-legacy-pin.log`); OpenSpec `N = 114` passed, 0 failed
+  (`openspec-validation.final.kYciN5.json`).
+- Not run by the executor: the whole `repo-namespacing-handoff.test.ts` and `tool-devsync:test`
+  (they write Git objects), `check-indexes committed`, the other `apps/wiki/cli` policy suites and
+  the host gate; all are the planner's.
