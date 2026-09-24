@@ -363,3 +363,12 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
   notification
 - **THEN** a listener is told exactly once for each change of the value, after
   the change, and reads the value as it stands at that instant
+
+#### Scenario: A publication that says nothing new changes nothing
+
+- **WHEN** the plan feed publishes the same tree, directory and markers, an equal
+  step list in a new array and the same failure cause in a new wrapper, or the
+  stream reports the connection or the presence list it already reported
+- **THEN** the delivered plan or the presence keeps the same snapshot object and
+  no listener is told, and a publication that does change a member replaces the
+  snapshot once, keeps every other member as it was, and tells each listener once

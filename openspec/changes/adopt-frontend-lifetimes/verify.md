@@ -1445,3 +1445,71 @@ after this entry, are recorded in the attempt's report.
 
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
 the host gate `bin/h2puni-gate.sh`, none of which the executor runs in its sandbox.
+
+## Packet 050.7g, slice 2 — the delivered plan and presence stores, each with its model test
+
+Attempt `050-7-g-project-prerequisites.2.20260924T032154Z`, starting hash
+`8edb8a55025997da7bbc4761f60402292fc9a494`, observed 2026-09-24. Evidence basenames are relative to
+that attempt's evidence directory.
+
+### Step 0
+
+- `base.txt`: `HEAD` equal to the slice note's hash; `status-before.txt` empty; `fast-check=4.9.0`.
+- Step 0b: `patches=17`, `mutations=43`, twenty adopted paths.
+- Preferences suite (`base-preferences.log`): 4 files, 39 tests, `status=0`.
+- Sandbox node suite (`base-sandbox.log`): 47 files, 676 tests, `status=0`.
+- Strict OpenSpec (`openspec-base.*.json`): `{"items":114,"passed":114,"failed":0}`, exit 0.
+
+### Contract (section 7.4)
+
+The scenario "A publication that says nothing new changes nothing" applied; strict OpenSpec
+(`openspec-s2-contract.*.json`) `{"items":114,"passed":114,"failed":0}`, exit 0, `passed` unchanged.
+
+### Red checkpoint (after section 7.5, before section 7.6)
+
+- `s2-red-typecheck.log`: `status=1`, `Found 2 errors in 2 files.` —
+  `delivered-plan-store.model.test.ts:13:8 - error TS2307: Cannot find module './delivered-plan-store'`
+  and `presence-store.model.test.ts:4:67 - error TS2307: Cannot find module './presence-store'`.
+- `s2-red-vitest.log`: `status=1`, `Test Files 2 failed (2)`, `Tests no tests`, on
+  `Failed to resolve import "./delivered-plan-store"` and `Failed to resolve import "./presence-store"`.
+
+### Green checkpoint (after section 7.6)
+
+- `s2-green-typecheck.log`: `status=0`.
+- `s2-green-models.log`: `Test Files 2 passed (2)`, `Tests 2 passed (2)`, `status=0`.
+- `s2-green-tiers.log`: 1 file, 5 tests, `status=0`.
+- `s2-green-sandbox.log`: 49 files, 678 tests, `status=0` — step 0 plus 2 files and 2 tests.
+- `s2-lint.log`: `wbs-fe-01:lint` `status=0`.
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`s2-filters.txt`). Every fault ran through section 8's loop
+(`s2-fault-loop.txt`, exit 0): the named test failed with `Tests 1 failed (1)` and `status=1`, the
+file was restored and `cmp`-identical, and the green rerun passed. Seed `20260924`, 300 runs,
+fast-check 4.9.0; every run number, shrunk counterexample and cause below equals the packet's table.
+
+| Id   | Fault                                                          | Run | Shrunk | Replay path  | Observed cause                                                                              |
+| ---- | -------------------------------------------------------------- | --- | ------ | ------------ | ------------------------------------------------------------------------------------------- |
+| `d1` | an equal step list replaces the held one (`sameSteps` dropped) | 1   | 0      | `AN:B`       | `redeliver: a new snapshot exactly when something changed: expected true to be false`       |
+| `d2` | a null tree clears the held tree                               | 1   | 13     | `IFp:F`      | `deliverNow: a new snapshot exactly when something changed: expected true to be false`      |
+| `d3` | listeners told before the snapshot is replaced                 | 1   | 14     | `GHq:F`      | `listener 0: markers: expected [] to be []`                                                 |
+| `d4` | the tree failure compared by its wrapper                       | 5   | 10     | `MCx:F`      | `redeliver: a new snapshot exactly when something changed: expected true to be false`       |
+| `d5` | the delivered step array kept instead of a copy                | 1   | 6      | `CLL:F`      | `deliverLater #0: steps are not the store’s own: expected true to be false`                 |
+| `r1` | a frame with the list already held is a change                 | 1   | 3      | `NAAABCF:VB` | `users(["lee"]): a new snapshot exactly when something changed: expected true to be false`  |
+| `r2` | a frame arriving while disconnected is dropped                 | 1   | 2      | `CLD:F`      | `later users([]): a new snapshot exactly when something changed: expected false to be true` |
+| `r3` | listeners told before the snapshot is replaced                 | 1   | 2      | `CLF:F`      | `listener 0: users: expected [] to be []`                                                   |
+| `r4` | a connection change also clears the list                       | 1   | 1      | `DKA:F`      | `connection(true): users: expected [] to be []`                                             |
+
+Patches and failing output: `<id>.patch`, `<id>.log`, `<id>.green.log`.
+
+### After the Proof comments
+
+- `s2-final-models.log`: 2 files, 2 tests, `status=0`.
+- `s2-final-preferences.log`: 4 files, 39 tests, `status=0`.
+- `s2-final-sandbox.log`: 49 files, 678 tests, `status=0`.
+- `s2-final-typecheck.log` and `s2-lint-after.log`: `status=0`.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
+the host gate were not run in this attempt; each is pending planner verification.
