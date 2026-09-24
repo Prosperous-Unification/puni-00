@@ -352,9 +352,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/priority-band.service.ts",
-      "kind": "resource",
-      "term": "priority band",
-      "rationale": "composeServices and PlanCommandRunner use it for the priority band aggregate's edit rules over PriorityBandStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the priority-band module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/project.service.ts",
@@ -435,9 +434,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/step.service.ts",
-      "kind": "resource",
-      "term": "step",
-      "rationale": "step routes and PlanCommandRunner call it for step aggregate add, rename, usage and removal rules over StepStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the step module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/work-item.service.ts",

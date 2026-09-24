@@ -1,4 +1,5 @@
 import { noopLogger } from '@wbs/contracts';
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { openMemorySource } from '@wbs/store-memory';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, test } from 'bun:test';
@@ -442,5 +443,30 @@ describe('servicesOver', () => {
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope listed the first scope's `{ serviceTeamId: "team-1", size: 3 }`.
     expect(await second.capacity.listFor(PROJECT)).toEqual([]);
+  });
+
+  test("installs Priority band per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    const ladder = DEFAULT_PRIORITY_BANDS.map((band) => ({ ...band, label: `${band.label} now` }));
+    expect(await first.priorityBands.set(PROJECT, OWNER, ladder)).toMatchObject({ ok: true });
+    // Proof (2026-09-24): memoizing one `installPriorityBand(...)` result in a module-level `let`
+    // and handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run
+    // alone with `-t`): the second scope read the first scope's `Critical now` ladder.
+    expect(await second.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
+  });
+
+  test("installs Step per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    const added = await first.steps.add(PROJECT, OWNER, 'Review');
+    if (!added.ok) throw new Error(`the first scope refused the step: ${added.reason}`);
+    // Proof (2026-09-24): memoizing one `installStep(...)` result in a module-level `let` and
+    // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
+    // with `-t`): the second scope renamed the first scope's step and answered `ok: true`.
+    expect(await second.steps.rename(PROJECT, added.value.id, OWNER, 'Renamed')).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
   });
 });

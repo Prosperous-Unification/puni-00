@@ -11,12 +11,14 @@ import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import { installPlanImport } from './module/plan-import/check';
 import type { ImportService } from './module/plan-import/plan-import.feature';
+import { installPriorityBand } from './module/priority-band/check';
 import { installRealtime } from './module/realtime/check';
 import type { GatewayBroadcaster } from './module/realtime/gateway-broadcaster';
 import type { ReplayBuffer } from './module/realtime/replay-buffer';
 import type { ReplayOrchestrator } from './module/realtime/replay-orchestrator';
 import { installSavedPlans } from './module/saved-plans/check';
 import type { SavedPlanService } from './module/saved-plans/saved-plans.feature';
+import { installStep } from './module/step/check';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
@@ -29,9 +31,7 @@ import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import { DirectoryService } from './service/directory.service';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
-import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
-import { StepService } from './service/step.service';
 import { WorkItemService } from './service/work-item.service';
 
 /** Runtime capabilities required by every service composition. */
@@ -104,18 +104,18 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       markers: stores.calendarMarkers,
       broadcast,
     }).calendarMarkers,
-    priorityBands: new PriorityBandService({
+    priorityBands: installPriorityBand({
       clock,
       projects: stores.projects,
       bands: stores.priorityBands,
       broadcast,
-    }),
-    steps: new StepService({
+    }).priorityBands,
+    steps: installStep({
       clock,
       projects: stores.projects,
       steps: stores.steps,
       broadcast,
-    }),
+    }).steps,
     directory: new DirectoryService({ clock, directory: stores.directory, broadcast }),
     workItems: new WorkItemService({
       clock,

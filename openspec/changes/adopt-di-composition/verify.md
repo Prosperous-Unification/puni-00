@@ -1366,3 +1366,75 @@ is pinned` failed with `historical policy selector or baseline` 49 to 51, `occur
   `module/capacity` six; `nx format:check --all` exited 0 (`slice1-format-check.log`).
 - Delivery still accepts `CalendarMarkerService` and reaches `CapacityService` through the composed
   graph (K2), tracked under 7.4.
+
+### Priority band and Step, Slice 2 — 2026-09-24
+
+- The slice started from `base=3ad366e41cb709c5131876229cb0caad551ba2e9` on a clean tree, with
+  slice 1's `module/capacity/module.ts` present, `module/priority-band` and `module/step` absent,
+  `service/priority-band.service.ts` at 82 lines, `service/step.service.ts` at 244, one
+  `priorityBands: new PriorityBandService({` and one `steps: new StepService({` in `compose.ts`, and
+  `K=93` `kinds.json` entries (`slice2-step0.log`).
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=589` over `F=62` files (`slice2-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice2-be01-unit-baseline.log`).
+- Bundle red (row 28): `bun build libs/wbs/application/core/src/compose.ts --target=bun` exited 0 and
+  its bundle held neither `application.priority-band` nor `application.step` (grep exit 1,
+  `count=0` each; `slice2-compose-bundle-red.log`, `slice2-baseline-block.out`).
+- Module reds (rows 26-27): each new `module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error
+  (`slice2-row-red-priority-band.log`, `slice2-row-red-step.log`).
+- Move: two `cp` copies, the import diff (`slice2-10.14-imports.patch`) and the two shims of 10.15.
+- Module greens (rows 29-30): with the four files of each module, each directory passed 5, 0 fail,
+  7 `expect()` calls (`slice2-green-priority-band.log`, `slice2-green-step.log`).
+- Bundle green (row 31): after `servicesOver` installs both (`slice2-10.18-install.patch`), the same
+  build exited 0 and printed `count=1` for each label (`slice2-compose-bundle-green.log`,
+  `slice2-compose-bundle-green-counts.txt`).
+- Per-scope cases (`slice2-10.19-per-scope-cases.patch`): `compose.test.ts` passed 13, 0 fail
+  (`slice2-compose-test-green.log`). `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-step6.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next, each followed by a green
+  rerun (`<row>-restored.log`):
+  - Row 32, Priority band key tuple widened to `['priorityBands', 'priorityBandOptions']`
+    (`row32-pb-tuple.patch`): `Received function did not throw`;
+    `Expected to contain: "application.priority-band/priorityBandOptions"`; the message read
+    `Cannot resolve "priorityBandOptions"`; 2 pass, 3 fail (`row32-pb-tuple-failing.log`).
+  - Row 33, Priority band label dropped (`row33-pb-label.patch`): only the two label tests failed;
+    3 pass, 2 fail (`row33-pb-label-failing.log`).
+  - Row 34, `priorityBandOptions` handing `{ ...broadcast, publish: () => Promise.resolve() }`
+    (`row34-pb-broadcast.patch`): expected one `priority_bands_changed`, received `[]`; 4 pass,
+    1 fail (`row34-pb-broadcast-failing.log`).
+  - Rows 35-36, Priority band bag and resolver (`row35-pb-bag.patch`, `row36-pb-resolver.patch`):
+    the received keys added `"bag"`, then `Expected: true`, `Received: false`; 4 pass, 1 fail each;
+    `wbs-core:typecheck` exit 0 each (`row35-pb-bag-typecheck.log`,
+    `row36-pb-resolver-typecheck.log`).
+  - Rows 37-38, Step tuple and label (`row37-step-tuple.patch`, `row38-step-label.patch`): 2 pass,
+    3 fail and 3 pass, 2 fail, with the same three and two messages as rows 32 and 33 for
+    `stepOptions` and `application.step/stepOptions` (`row37-step-tuple-failing.log`,
+    `row38-step-label-failing.log`).
+  - Row 39, `stepOptions` handing `{ ...broadcast, publish: () => Promise.resolve() }`
+    (`row39-step-broadcast.patch`): expected one `step_added`, received `[]`; 4 pass, 1 fail
+    (`row39-step-broadcast-failing.log`).
+  - Rows 40-41, Step bag and resolver (`row40-step-bag.patch`, `row41-step-resolver.patch`): the
+    received keys added `"bag"`, then `Expected: true`, `Received: false`; 4 pass, 1 fail each;
+    typecheck exit 0 each (`row40-step-bag-typecheck.log`, `row41-step-resolver-typecheck.log`).
+  - Row 42, `installPriorityBand` memoized in a module-level `reusedPriorityBand`
+    (`row42-pb-per-scope.patch`), run with `-t "installs Priority band per supplied scope"`:
+    `-     "label": "Critical",` / `+     "label": "Critical now",` (all five rungs); 0 pass,
+    12 filtered out, 1 fail (`row42-pb-per-scope-failing.log`); typecheck exit 0
+    (`row42-pb-per-scope-typecheck.log`).
+  - Row 43, `installStep` memoized in `reusedStep` (`row43-step-per-scope.patch`), run with
+    `-t "installs Step per supplied scope"`: `-   "ok": false,` `-   "reason": "not_found",` /
+    `+   "ok": true,` `+   "value": {` holding `"name": "Renamed"`; 0 pass, 12 filtered out, 1 fail
+    (`row43-step-per-scope-failing.log`); typecheck exit 0 (`row43-step-per-scope-typecheck.log`).
+- Proof comments added after the observations (`slice2-10.20-proofs.patch`); both module
+  directories and `compose.test.ts` then passed 23 over 3 files (`slice2-after-proofs-focused.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []`
+  (`slice2-kinds-substitute.txt`); the test itself is the planner's.
+- Closing: core `bun test src` passed `C + 12 = 601` over `F + 2 = 64` files
+  (`slice2-core-closing.log`); the be-01 unit command passed `E = 520` over `EF = 49` files
+  (`slice2-be01-unit-closing.log`); `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-closing.log`); `module/priority-band` and `module/step` hold six files
+  each; `nx format:check --all` exited 0 (`slice2-format-check.log`).
+- Step still imports `service/assumed-assignee.ts` and `service/clean-name.ts` (task 6.1); delivery
+  still accepts `StepService` (K2, task 7.4).
