@@ -16,8 +16,21 @@ const NOTHING_YET: DirectorySnapshot = {
 /** The fields the store contract's stability rule is judged over, by identity. */
 const FIELDS = ['people', 'teams', 'tags', 'services', 'workItemTypes', 'busy', 'problem'] as const;
 
-/** Builds the directory over one client. Nothing is read until `read` is called. */
-export function createDirectory(client: DirectoryApi): DirectoryResource {
+/**
+ * Builds the directory over one client. Nothing is read until `read` is called.
+ *
+ * `isActiveReader` is the owner's answer to "is the reader this directory was
+ * built for still the one on screen", asked synchronously at the moment
+ * anything happens. Once it says no, the directory is **withdrawn**: a read or a
+ * write asked of it sends nothing, and an answer that lands afterwards — a late
+ * read, a write's refetch, a refusal — changes nothing a reader could see. The
+ * session runtime wires it to its own currency; a directory no lifetime owns is
+ * handed one that always says yes.
+ */
+export function createDirectory(
+  client: DirectoryApi,
+  isActiveReader: () => boolean,
+): DirectoryResource {
   // A `let` and not a parameter read directly, so `replaceClient` can point every
   // closure below at a different client without rebuilding any of them — which is
   // what keeps the snapshot across a replacement.
@@ -33,6 +46,7 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
    * a React render would fail the cached-snapshot check outright.
    */
   const show = (next: Partial<DirectorySnapshot>): void => {
+    if (!isActiveReader()) return;
     const merged: DirectorySnapshot = { ...shown, ...next };
     // Proof: deleting this early return made `a refusal that says nothing new
     // replaces no snapshot and wakes nobody` fail its object-identity assertion.
@@ -86,6 +100,7 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
   };
 
   const read = async (): Promise<void> => {
+    if (!isActiveReader()) return;
     const generation = latestRead + 1;
     latestRead = generation;
     const [foundPeople, foundTeams, foundTags, foundServices, foundWorkItemTypes] =
@@ -117,6 +132,7 @@ export function createDirectory(client: DirectoryApi): DirectoryResource {
   };
 
   const runWrite = (change: () => Promise<void>): Promise<void> => {
+    if (!isActiveReader()) return Promise.resolve();
     const ran = (async () => {
       show({ busy: true, problem: null });
       try {

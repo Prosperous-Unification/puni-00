@@ -14,7 +14,7 @@ import { createDirectoryManagement } from './directory-management.feature';
  * take this over; until then it is two lines.
  */
 export function directoryManagementOver(api: DirectoryApi): DirectoryManagement {
-  return createDirectoryManagement(createDirectory(api));
+  return createDirectoryManagement(createDirectory(api, () => true));
 }
 
 /** The same over the real client for one token. */
