@@ -132,7 +132,7 @@ plus one import-depth diff):
 
 - Its options take **fifteen** requirements (`WorkItemServiceOptions`, `work-item.service.ts:788`),
   so its `module.ts`, `check.ts`, host graph and missing-requirement test are three times any other.
-- **46** files name its old path (`git grep -l "work-item.service'"`), among them
+- **51** files name its old path (`git grep -l "work-item.service'"` on the rehearsal base), among them
   `module/saved-plans/saved-plan-schedule.ts:14` (a value import of `NO_DEADLINES` and `slicesOf`),
   `testing/available-work-item-service.ts`, `testing/harness.ts` and the be-01 type tests
   `clock-requirements.types.test.ts` and `deadline-plan-read.test.ts`.
@@ -4534,7 +4534,7 @@ Paths under `libs/wbs/application/core/src/` are written from `src/`.
 | 4     | `apps/wiki/cli/src/policy/pilot-policy.test.ts`, `docs/wiki-policy/modules.json`, `docs/wiki-policy/policy.json`, the six `README.md` files under `src/module/{calendar-marker,capacity,directory,priority-band,project,step}/`, `openspec/changes/adopt-di-composition/tasks.md`, `openspec/changes/adopt-di-composition/verify.md`, `tools/tool-devsync/src/repo-namespacing-handoff.test.ts` | nothing                                                                                                                                                                                                                                                                                                                                         | nothing                                               |
 
 Slice 1: 9 modified, 13 new, 1 deleted (23 paths). Slice 2: 7 modified, 12 new (19). Slice 3: 7
-modified, 12 new (19). Slice 4: 13 modified. The planner may add a revised packet file to its own
+modified, 12 new (19). Slice 4: 12 modified. The planner may add a revised packet file to its own
 commits; the lists are scoped to `$base`, so that does not break them.
 
 ## 13. Findings
