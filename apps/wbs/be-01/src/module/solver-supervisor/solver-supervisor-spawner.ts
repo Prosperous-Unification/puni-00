@@ -1,9 +1,9 @@
-import type { ReservedSolverChild, ReservedSpawner } from './optimization-coordinator';
+import type { ReservedSolverChild, ReservedSpawner } from '../optimization/contract';
 import {
   connectSolverSupervisor,
   type SolverSupervisorAttempt,
   type SolverSupervisorRequest,
-} from './solver-supervisor-client';
+} from './solver-supervisor.repository';
 
 export interface SolverSupervisorSpawnerOptions {
   readonly unix: string;
