@@ -637,7 +637,7 @@ export function usePlanRead({
   useEffect(() => {
     const feed = planFeedForReader({
       projectId,
-      api,
+      routes: api,
       subscribe,
       isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
       plan,

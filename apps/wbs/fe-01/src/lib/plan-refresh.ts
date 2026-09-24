@@ -159,16 +159,42 @@ export interface PlanRefresh {
 }
 
 /**
+ * The part of the HTTP client a refresh owner reads through: the plan feed's
+ * private repository port.
+ *
+ * The four resources and nothing else — the tree, the steps, the six
+ * vocabularies of the grouped directory, and the calendar markers. A refresh
+ * owner can write nothing and cannot reach another project's catalogue entry.
+ * The project composition root (`modules/project/composition.ts`) supplies it
+ * from the one client; delivery never sees it (rule K2).
+ */
+export type PlanReadRoutes = Pick<
+  ProjectApi,
+  | 'tree'
+  | 'steps'
+  | 'listTeams'
+  | 'listTags'
+  | 'listServices'
+  | 'listWorkItemTypes'
+  | 'listExternalSystems'
+  | 'listPeople'
+  | 'listCalendarMarkers'
+>;
+
+/**
  * Owns reads for one project/API lifetime. React consumes installed generations;
  * no transport promise, URL cache or unrelated resource decides their authority.
  * See openspec/changes/plan-refresh/design.md for bootstrap and sequence coverage.
+ *
+ * Every read looks its route up when it is made, so a client whose method is
+ * replaced after the owner is built is read through the replacement.
  */
 export function createPlanRefresh({
   projectId,
-  api,
+  routes,
 }: {
   projectId: string;
-  api: ProjectApi;
+  routes: PlanReadRoutes;
 }): PlanRefresh {
   let disposed = false;
   const isDisposed = (): boolean => disposed;
@@ -183,13 +209,13 @@ export function createPlanRefresh({
   const waiters = new Set<Waiter>();
   const events = new Map<number, readonly Obligation[]>();
   const tree = resourceRead(
-    () => api.tree(projectId),
+    () => routes.tree(projectId),
     () => true,
     () => disposed,
     publish,
   );
   const steps = resourceRead(
-    () => api.steps(projectId),
+    () => routes.steps(projectId),
     () => unsequencedAllowed,
     () => disposed,
     publish,
@@ -197,12 +223,12 @@ export function createPlanRefresh({
   const directory = resourceRead(
     async (): Promise<DirectoryRead> => {
       const [teams, tags, services, workItemTypes, externalSystems, people] = await Promise.all([
-        api.listTeams(),
-        api.listTags(),
-        api.listServices(),
-        api.listWorkItemTypes(),
-        api.listExternalSystems(),
-        api.listPeople(),
+        routes.listTeams(),
+        routes.listTags(),
+        routes.listServices(),
+        routes.listWorkItemTypes(),
+        routes.listExternalSystems(),
+        routes.listPeople(),
       ]);
       return { teams, tags, services, workItemTypes, externalSystems, people };
     },
@@ -211,7 +237,7 @@ export function createPlanRefresh({
     publish,
   );
   const markers = resourceRead(
-    () => api.listCalendarMarkers(projectId),
+    () => routes.listCalendarMarkers(projectId),
     () => unsequencedAllowed,
     () => disposed,
     publish,

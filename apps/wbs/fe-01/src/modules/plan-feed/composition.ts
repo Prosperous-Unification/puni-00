@@ -1,16 +1,19 @@
-import { createPlanRefresh } from '@/lib/plan-refresh';
+import { createPlanRefresh, type PlanReadRoutes } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { ProjectApi } from '@/lib/wbs-api';
 import type { Publisher } from '@/modules/channel';
 
 import type { PlanFeed, PlanFeedRefusal, PlanFeedStreamHandlers } from './contract';
 import type { DeliveredPlanWrites } from './delivered-plan-store';
 import { createPlanFeed } from './plan-feed.feature';
 
-/** What a screen hands the composition site: its identity and where its answers go. */
+/**
+ * What the composition site is handed: the reader's identity, where its answers
+ * go, and the routes its refresh owner reads through.
+ */
 export interface PlanFeedForReader {
   readonly projectId: string;
-  readonly api: ProjectApi;
+  /** This module's private repository port, supplied by the project composition root. */
+  readonly routes: PlanReadRoutes;
   readonly subscribe:
     | ((projectId: string, handlers: PlanFeedStreamHandlers, baseline: number) => ProjectStream)
     | undefined;
@@ -27,20 +30,21 @@ export interface PlanFeedForReader {
  * A composition site, which the design lets see everything because it installs
  * and supplies and holds no logic. It is here rather than in the screen because
  * rule K2 says delivery imports a feature-service and nothing beneath it — the
- * same line `modules/directory-management/composition.ts` carries. The project
- * lifetime of the rollout's last Task 6 row takes this over; until then it is
- * one call.
+ * same line `modules/directory-management/composition.ts` carries. Its one
+ * caller is the project composition root, `modules/project/composition.ts`,
+ * which hands it the routes; the project lifetime of the rollout's last Task 6
+ * row takes both over.
  */
 export function planFeedForReader({
   projectId,
-  api,
+  routes,
   subscribe,
   isActiveReader,
   plan,
   refusals,
 }: PlanFeedForReader): PlanFeed {
   return createPlanFeed({
-    openOwner: () => createPlanRefresh({ projectId, api }),
+    openOwner: () => createPlanRefresh({ projectId, routes }),
     openStream:
       subscribe === undefined
         ? null
