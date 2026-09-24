@@ -270,6 +270,11 @@
       "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e7-per-admission-resources.md",
       "reason": "task packet that seals six per-admission resources as DI Bag modules installed per supplied scope and registers them in the wiki pilot; its verified facts, prescribed boundaries and task notes cite each libs/core/src/service/<name>.service.ts as that module's frozen-revision predecessor",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e8-work-item.md",
+      "reason": "task packet that seals Work item as a DI Bag module installed per supplied scope and registers it in the wiki pilot; its verified facts, prescribed boundary and task notes cite libs/core/src/service/work-item.service.ts as that module's frozen-revision predecessor",
+      "excuses": ["legacy-root"]
     }
   ]
 }

@@ -111,8 +111,15 @@ describe('one clock', () => {
     const coreCapacity = sources.find(
       (file) => file.path === 'libs/wbs/application/core/src/module/capacity/capacity.resource.ts',
     );
+    // Proof (2026-09-24): with Work item moved into `module/work-item/` and this path still
+    // naming the `service/work-item.service.ts` shim, the `export class WorkItemService`
+    // assertion below failed on the shim's re-export text (3 pass, 1 fail); adding
+    // `now?: () => number;` to the moved `WorkItemServiceOptions` failed
+    // `is the only clock a service that stamps a write reads` on received
+    // ["libs/wbs/application/core/src/module/work-item/work-item.resource.ts"] (3 pass, 1 fail).
     const coreWorkItems = sources.find(
-      (file) => file.path === 'libs/wbs/application/core/src/service/work-item.service.ts',
+      (file) =>
+        file.path === 'libs/wbs/application/core/src/module/work-item/work-item.resource.ts',
     );
     const beWorkItems = sources.find(
       (file) => file.path === 'apps/wbs/be-01/src/service/work-item.service.ts',
