@@ -31,15 +31,15 @@ edits none of E8's files except by the named diffs to `index.ts`, `kinds.json`, 
 `tasks.md`, each of which inserts beside E8's lines or rewrites a Plan commands line alone. Slice 1:
 
 ```sh
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 1 <packet-containing commit sha> --batch batch-6 --require-ancestor <E8 slice-3 planner commit> --slice-note 'reviewed base <sha>' --preserve evidence
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 1 <packet-containing commit sha> --batch batch-6 --require-ancestor <E8 slice-3 planner commit> --driver claude --slice-note 'reviewed base <sha>' --preserve evidence
 ```
 
 Slices 2 to 4 resume the clone the previous slice built:
 
 ```sh
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 2 <the same sha> --batch batch-6 --resume --require-ancestor <slice 1 planner commit> --slice-note 'reviewed base <sha>' --preserve evidence
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 3 <the same sha> --batch batch-6 --resume --require-ancestor <slice 2 planner commit> --slice-note 'reviewed base <sha>' --preserve evidence
-/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 4 <the same sha> --batch batch-6 --resume --require-ancestor <slice 3 planner commit> --slice-note 'reviewed base <sha>' --preserve evidence
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 2 <the same sha> --batch batch-6 --resume --require-ancestor <slice 1 planner commit> --driver claude --slice-note 'reviewed base <sha>' --preserve evidence
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 3 <the same sha> --batch batch-6 --resume --require-ancestor <slice 2 planner commit> --driver claude --slice-note 'reviewed base <sha>' --preserve evidence
+/home/df/wd/puni/puni-plan/exec/run-executor.sh 040-6-g-plan-commands 4 <the same sha> --batch batch-6 --resume --require-ancestor <slice 3 planner commit> --driver claude --slice-note 'reviewed base <sha>' --preserve evidence
 ```
 
 `--preserve evidence` is kept although `run-executor.sh` already copies `$tmp/evidence`
@@ -1961,7 +1961,7 @@ diff --git a/tools/tool-devsync/src/repo-namespacing-handoff.test.ts b/tools/too
 diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/adopt-di-composition/tasks.md
 --- a/openspec/changes/adopt-di-composition/tasks.md
 +++ b/openspec/changes/adopt-di-composition/tasks.md
-@@ -5,13 +5,33 @@
+@@ -5,13 +5,35 @@
        compatibility export of the Project resource. Proof: `libs/wbs/domain/domain/src/project-ownership.test.ts`;
        negative: `announces nothing for a write it refused` in
        `libs/wbs/application/core/src/service/broadcast.test.ts` with the rule forced to `true`.
@@ -1974,9 +1974,11 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
 +      two admitting features, Plan commands and Plan import; barred from either feature by K6.
 +      Negative: the port-unregistered form is Plan commands' own
 +      `names itself when a host omits a requirement` (`module/plan-commands/module.test.ts`, which
-+      omits `announcements`); each resource module's broadcaster edge is its
++      omits `announcements`); the five announcing resource modules (Calendar marker, Capacity,
++      Priority band, Step, Work item) watch their broadcaster edge in their
 +      `announces … through the broadcaster install<Name> wires` test with that edge replaced
-+      (task 5.1); the resource-level port-unregistered form named here was never written.
++      (task 5.1); Directory and Project take the port but watch another edge; the
++      resource-level port-unregistered form named here was never written.
        Port landed 2026-09-22 as `libs/wbs/application/core/src/ports/project-event.ts`, with
        `ports/event-port-boundaries.test.ts` as its checked rule. The collector stays in
 -      `service/broadcast.ts` and moves with 5.2: `import.service.ts:148` builds one too, so Plan
@@ -2000,7 +2002,7 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
  - [x] 1.3 Change Plan document's marker read to an owner-neutral read port and move
        `CalendarMarkerListOutcome` out of the Calendar marker service file. Landed 2026-09-22 as
        `libs/wbs/application/core/src/ports/calendar-marker-read.ts`, with `CalendarMarkerReader` as the
-@@ -184,7 +204,29 @@
+@@ -184,7 +206,29 @@
        five negatives, its provider edge being the broadcaster. `clock.test.ts`'s `coreWorkItems`
        now names the moved file, watched failing on the shim first. No `servicesOver` resource is
        constructed with `new` any more.
@@ -2031,7 +2033,7 @@ diff --git a/openspec/changes/adopt-di-composition/tasks.md b/openspec/changes/a
 
  ## 6. Domain moves the map names
 
-@@ -278,6 +320,10 @@
+@@ -278,6 +322,10 @@
        `module.application.work-item` and `boundary.application.work-item`, bound to the
        pre-namespacing `work-item.service.ts` alone; the moved `work-item.resource.test.ts` has no
        separate baseline entry.
@@ -2215,19 +2217,21 @@ applied 13
 applied 14
 applied 15
 applied 16
-tree equals 14020aee
+tree equals ae4bf8cd
 all 16 diffs applied in slice order; every slice tree equals its rehearsal commit
 ```
 
 The rehearsal commits are throwaway: slice 1 `6e8b1ce2`, slice 2 `8f6d70e0`, slice 3 `1a70ed1c`,
-slice 4 `14020aee`, on branch `rehearse/040-6-g-plan-commands-r4` above `50720e10` (not pushed; kept
+slice 4 `ae4bf8cd`, on branch `rehearse/040-6-g-plan-commands-r5` above `50720e10` (not pushed; kept
 only as the comparison target of the script above). None of them touches `verify.md`, which only
 the executor writes. Their subjects are rehearsal labels; the planner commits every slice with
-section 7's subject, and only the trees are compared. Lefthook ran on all four. `-r4` replaces
-`-r3` and `-r2` (both kept, not deleted). `-r3` differs from `-r2` only in the collector wording
-of `contract.ts`, the `service/broadcast.ts` row of `kinds.json` and the 1.2/5.2 entries of
+section 7's subject, and only the trees are compared. Lefthook ran on all four. `-r5` replaces
+`-r4`, `-r3` and `-r2` (all kept, not deleted). `-r3` differs from `-r2` only in the collector
+wording of `contract.ts`, the `service/broadcast.ts` row of `kinds.json` and the 1.2/5.2 entries of
 `tasks.md`, applied after the first review; `-r4` shares `-r3`'s first three commits and differs
-from it only in the 1.2 "Negative:" lines of `tasks.md`, applied after the second review.
+from it only in the 1.2 "Negative:" lines of `tasks.md`, applied after the second review; `-r5`
+shares those three commits too and differs from `-r4` only in the same lines, narrowed after the
+dispatch review to the five announcing resource modules.
 
 ## 16. Deferred: label agreement
 
