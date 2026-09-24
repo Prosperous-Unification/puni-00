@@ -6,7 +6,7 @@
 | Size class  | M — three slices, each one executor attempt                                                                                                                                                                                                    |
 | Predecessor | 050.7j (`050-7-j-project-runtime.md`, beside this packet once it lands) — `createProjectOwner`, `installProjectRuntime` and `ProjectRuntime`, and its section 12, "Hand-over to the next packet"                                               |
 | Advances    | OpenSpec task **6** of `adopt-frontend-lifetimes` — **ticked** in slice 3, every sentence met (section 3.8). Designed for task **7** (Log out, packet k): the session's retirement already retires its project first and fails when it cannot. |
-| Revision    | First.                                                                                                                                                                                                                                         |
+| Revision    | Second: the round-1 review applied — two model commands (a sign-in from inside the owner's notification, an unbuildable sign-in), refusals classified by identity, the nested retirement budgets named, and a router identity probe.           |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. One new requirement with three scenarios, one per slice, inserted before "Log out stays a local exit"; task 6 ticked with a dated note.                                        |
 
 ## 1. Goal, non-goals, and the cut
@@ -46,8 +46,8 @@ read runs, instead of an empty page.
 1. **The runtime, its owner and the module**, plain TypeScript with node-tier tests and no React:
    `runtime/session-runtime.ts` (`installSessionRuntime`, `createSessionOwner`),
    `modules/directory-management/module.ts`, the directory resource's withdrawal guard, the owner's
-   model test and six examples, the module's five examples. Delivery does not change. This slice
-   carries the state machine and its eleven model faults.
+   model test and seven examples, the module's five examples. Delivery does not change. This slice
+   carries the state machine and its twelve model faults.
 2. **The directory from the session**: `SignedInApp` owns the session owner; the router context
    carries the runtime; `DirectoryPage` takes `directory: DirectoryManagement`; the directory page's
    suite draws through a fixture, `DirectoryPageOverClient`; five app examples, one of them the
@@ -57,15 +57,15 @@ read runs, instead of an empty page.
 
 ## 2. Read first
 
-| File                                                                                       | Why                                                                                                          |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `AGENTS.md`, `LLM_README.md`                                                               | Rules R1–R5 and the routing index.                                                                           |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                      | "Execution contract", "Standard blocks every packet uses" — the strict OpenSpec block and the fault form.    |
-| `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`                 | "Session owner", "Replacement and cleanup policy", exact lifecycle tests 5–7 and 13: what this delivers.     |
-| `docs/superpowers/plans/2026-09-21-batch-6/050-7-j-project-runtime.md`, sections 3 and 6–9 | The project owner this session owns, and the step-0, extraction and fault procedure this packet repeats.     |
-| `apps/wbs/fe-01/src/runtime/lifetime-slot.ts`, `project-runtime.ts`                        | The one serialized owner every lifetime uses; `createProjectOwner` and its `install` seam.                   |
-| `apps/wbs/fe-01/src/modules/preferences/module.ts`, `module.test.ts`                       | The sealed-module form the directory-management module repeats.                                              |
-| `apps/wbs/fe-01/src/app.tsx`, `app-router.tsx`, `components/directory/directory-page.tsx`  | The identity's two sources, the router created once, the directory page's per-mount directory this replaces. |
+| File                                                                                                            | Why                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `AGENTS.md`, `LLM_README.md`                                                                                    | Rules R1–R5 and the routing index.                                                                           |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                                           | "Execution contract", "Standard blocks every packet uses" — the strict OpenSpec block and the fault form.    |
+| `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`                                      | "Session owner", "Replacement and cleanup policy", exact lifecycle tests 5–7 and 13: what this delivers.     |
+| `docs/superpowers/plans/2026-09-21-batch-6/050-7-j-project-runtime.md`, sections 3 and 6–9 (its third revision) | The project owner this session owns, and the step-0, extraction and fault procedure this packet repeats.     |
+| `apps/wbs/fe-01/src/runtime/lifetime-slot.ts`, `project-runtime.ts`                                             | The one serialized owner every lifetime uses; `createProjectOwner` and its `install` seam.                   |
+| `apps/wbs/fe-01/src/modules/preferences/module.ts`, `module.test.ts`                                            | The sealed-module form the directory-management module repeats.                                              |
+| `apps/wbs/fe-01/src/app.tsx`, `app-router.tsx`, `components/directory/directory-page.tsx`                       | The identity's two sources, the router created once, the directory page's per-mount directory this replaces. |
 
 ## 3. Design
 
@@ -83,19 +83,24 @@ a newer request overtook it, or `withdrawn → stuck` when its disposal fails or
 **Each project runtime** it owns is current only while its own owner publishes it **and** its session
 is current.
 
-| From                      | Event                                                                                                      | To                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| any                       | `open(u, c)` where `u` is `wanted`'s user                                                                  | nothing: the request joins `latest`; no runtime is built or withdrawn, whatever `c` is               |
-| `empty`, `fatal` (not t.) | `open(u, c)`, another user                                                                                 | `constructing`; the runtime for `u` is installed over `clientFor(c)`, then `live(r)` if still newest |
-| `live(r)`                 | `open(v, c)` for another user, or `leave()` — **synchronously**                                            | `retiring`; `r` and every project runtime of `r` answer `isCurrent()` false from here on             |
-| `retiring`                | `r`'s disposal: its project owner left, the project closed once, succeeded                                 | `constructing` for an `open`, `empty` for a `leave`                                                  |
-| `retiring`                | `r`'s project could not be given back (`SessionProjectRetirementError`), or the disposal outran the budget | `fatal`, terminal; every later request is refused with the same state                                |
-| any                       | a newer request overtook this one                                                                          | it builds nothing, or gives back what it built; it settles quietly                                   |
-| any                       | a second `leave()`                                                                                         | queued behind the first; settles only after the retirement it joined has run                         |
-| withdrawn `r`             | a directory answer lands, a reader reads or changes the directory, or opens a project                      | nothing reaches anybody, no request is sent, no project is built                                     |
+| From                      | Event                                                                                                      | To                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| any                       | `open(u, c)` where `u` is `wanted`'s user                                                                  | nothing: the request joins `latest`; no runtime is built or withdrawn, whatever `c` is                |
+| `empty`, `fatal` (not t.) | `open(u, c)`, another user                                                                                 | `constructing`; the runtime for `u` is installed over `clientFor(c)`, then `live(r)` if still newest  |
+| `live(r)`                 | `open(v, c)` for another user, or `leave()` — **synchronously**                                            | `retiring`; `r` and every project runtime of `r` answer `isCurrent()` false from here on              |
+| `retiring`                | `r`'s disposal: its project owner left, the project closed once, succeeded                                 | `constructing` for an `open`, `empty` for a `leave`                                                   |
+| `retiring`                | `r`'s project could not be given back (`SessionProjectRetirementError`), or the disposal outran the budget | `fatal`, terminal; every later request is refused with the same state                                 |
+| `constructing`            | the installation acquired and then threw a partial acquisition; its release succeeded                      | `fatal`, not terminal; the refusal was recorded, so the request settles; another user may build again |
+| `constructing`            | that release rejected or outran the budget                                                                 | `fatal`, terminal; the release's refusal was recorded too                                             |
+| any                       | a newer request overtook this one                                                                          | it builds nothing, or gives back what it built; it settles quietly                                    |
+| any                       | a second `leave()`                                                                                         | queued behind the first; settles only after the retirement it joined has run                          |
+| withdrawn `r`             | a directory answer lands, a reader reads or changes the directory, or opens a project                      | nothing reaches anybody, no request is sent, no project is built                                      |
 
-**Events** the model generates: `signIn(u1|u2, ''|'t')`, `signOut`, one scheduled answer, all answers
-(`drain`), a captured directory `read` and `gesture` (an added tag), and a captured `openProject(p1|p2)`
+**Events** the model generates: `signIn(u1|u2, ''|'t')`, `signOut`, `signInBroken(u1|u2)` — a sign-in
+whose installation acquires the whole graph and then throws a `PartialAcquisitionError` whose release
+(the real close) is counted — `reenter(u1|u2)` — a sign-in asked from inside the owner's own
+notification, the first time it next says anything, as a component re-rendered by the owner's store
+would — one scheduled answer, all answers (`drain`), a captured directory `read` and `gesture` (an added tag), and a captured `openProject(p1|p2)`
 and `leaveProject` — each on any session runtime ever built, withdrawn or not. Each runtime gets its
 own fake directory client whose people are named after its own user, so every request, answer and
 close is attributed to the session that made it; each session's close waits on one scheduled step
@@ -122,13 +127,21 @@ session's own wiring.
   closing.
 - **S7 — the key.** No more sessions are built than there were requests naming a different user.
 - **S8 — the latest wins.** When everything has settled the owner is `live` for the last user asked
-  for, or `empty` after a `leave`. (No disposal fails in the model; failure is the slot's own
-  model's and one example's.)
+  for, `fatal` and not terminal when that user's installation fails, or `empty` after a `leave`; a
+  failed installation was released exactly once, and its request settled rather than rejected.
+
+**What the model does not cover, and who does.** No **disposal** fails or outruns its budget in the
+model: a rejecting retirement is the slot's own model's and the examples `fails the session’s
+retirement when its project will not let go` (a rejecting project close) and `settles a half-built
+session that cannot be released, …` (a rejecting release); a disposal that **expires** is the slot's
+own model's (`lifetime-slot.model.test.ts`) and, for the session through a never-settling project,
+packet k's (section 3.8).
 
 Interleavings counted over the pinned run and asserted non-zero: an answer landing after its session
 was withdrawn; a read, a gesture and a project open by a withdrawn session; a session withdrawn while
 one of its projects was current; the same user signing in again; a switch while live; a `leave` with
-nothing current.
+nothing current; a sign-in from inside a notification; an unbuildable installation; a `leave` after
+one.
 
 ### 3.2 The runtime — `installSessionRuntime`
 
@@ -162,8 +175,15 @@ directory no lifetime owns: its own suite and the page suite's fixture.
 isCurrent, installProject, budgetMs }))` **unless** `identity.userId === wanted?.userId`, when it
 returns `latest` (faults `m1`, `m2`). `leave()` clears `wanted` and is `slot.retire()`, always queued,
 never short-circuited (fault `m6`). Each runtime's `isCurrent` answers yes only while the slot is
-`live` with that very runtime (fault `m10`). Both settle as modelled outcomes, as the project owner's
-do (faults `o1`, `o2`). `install`, `clientFor`, `installProject` and the budget are injectable for
+`live` with that very runtime (fault `m10`).
+
+**Refusals are classified by identity, as packet j's third revision classifies the project's.**
+Every installation goes through `installRecorded`, which records a construction's throw — rewrapping
+a `PartialAcquisitionError` so that its release's own refusal is recorded too — and wraps the
+runtime's close in `recorded`, which records a rejected retirement. `settle` then returns for
+`TransitionSupersededError` and for a recorded refusal, and rethrows anything else as the slot's own
+fault. It never reads the slot's state after the await, which a request asked from inside a
+notification may already have moved on (faults `o1`, `o2`, `o3`, `m12`). `install`, `clientFor`, `installProject` and the budget are injectable for
 tests; production passes none of them.
 
 `sessionFor(state, userId)` is the one reader of the owner's state for delivery: the published
@@ -224,12 +244,21 @@ existing test changes. The full `wbs-fe-01:test` target was run after slice 2 an
 another`); installs the directory module (`module.ts`, its suite, faults `l1`, `l2`; the runtime's
   surface, `k1`); the router instance and address survive a same-session update (the app example
   `keeps the router, the address and a draft for the same user, whatever credential arrives`, which
-  fault `m2` injected on the final tree also fails — rehearsed, section 9.3). It is ticked in slice 3.
+  records every router `createRouter` builds and asserts the one built first is still the only one
+  after the same-user update — lifetime-map test 7's instance, asserted directly — and a second only
+  for another user; fault `m2` injected on the final tree fails it — rehearsed, section 9.3). It is
+  ticked in slice 3.
 - **Double retirement** is prevented structurally by the slot's serialization (proved in
   `lifetime-slot.model.test.ts`); no line in this packet can close a session twice, so no fault can
   make the model's exactly-once close count fail without adding a second closer by hand. The fault the
   model can observe is the one that matters to packet k — a second trigger that does not wait for the
   retirement it joined (`m6`) — and S6 asserts both halves.
+- **Nested equal budgets.** The session's disposer awaits `projects.leave()`, whose retirement runs
+  under the project slot's `RETIREMENT_BUDGET_MS`, inside the session's own close under the same
+  budget. A project that never settles therefore makes both `DiBagCloseCancelledError`s fire
+  together: the session ends terminally fatal, correctly, but through the expired wait, not through
+  `SessionProjectRetirementError` — fault `d1` covers only a **rejecting** project close. The timeout
+  variant, lifetime-map test 14 through a never-settling socket, is packet k's.
 - **Carried, not proved.** The directory route handing the page `session.directory` (a route that
   built its own directory would still pass every suite here: no suite swaps sessions under a mounted
   directory page); `SignedInApp`'s "Loading…" while no runtime is published.
@@ -245,10 +274,12 @@ another`); installs the directory module (`module.ts`, its suite, faults `l1`, `
 
 ## 4. Verified facts
 
-Every number is a **fresh observation from this packet's own rehearsal** on 2026-09-24, on `4756254d`
-— packet j's rehearsal tree `fcb49202` (which carries packet g's real code and packet h's rehearsal
-commits) merged with the planning head `4eab0b38` — and on three rehearsal commits over it, one per
-slice. None is a stop condition: each slice records its own baseline in step 0 and compares
+Every number is a **fresh observation from this packet's own rehearsal** on 2026-09-24, on `c9c99f0a`
+— the authoring base `4756254d` (packet j's first rehearsal tree `fcb49202` merged with the planning
+head `4eab0b38`) with packet j's **third-revision** runtime files (`project-runtime.ts`, its model test
+and its examples, from `62bcab33`) laid on it, which is the only difference between j's first and third
+rehearsal trees — and on three rehearsal commits over it, one per slice. The composition was checked
+against j's third revision, not its first. None is a stop condition: each slice records its own baseline in step 0 and compares
 relatively.
 
 ### 4.1 The code as it stands
@@ -266,16 +297,16 @@ relatively.
 
 ### 4.2 The measured blast radius
 
-`git diff --stat 4756254d <slice 3 rehearsal>`: **29 files changed, 1798 insertions(+), 155 deletions(-)**; with `verify.md`, which only the executor
+`git diff --stat c9c99f0a <slice 3 rehearsal>`: **29 files changed, 2017 insertions(+), 155 deletions(-)**; with `verify.md`, which only the executor
 writes, the slices own 30 distinct paths. Slice 1 owns 14 (5 new), slice 2 owns 13 (1 new, 1 deleted), slice 3
 owns 12 (1 new).
 
 | Tree            | Sandbox node suite | Session set (3 files, serial) | Adopted set (20 files, serial) | Zoned |
 | --------------- | ------------------ | ----------------------------- | ------------------------------ | ----- |
-| base `4756254d` | 53·694             | 3·59                          | 20·1218                        | 2·3   |
-| after slice 1   | 56·706             | 3·59                          | 20·1218                        | 2·3   |
-| after slice 2   | 56·707             | 3·64                          | 20·1218                        | 2·3   |
-| after slice 3   | 56·707             | 3·65                          | 20·1219                        | 2·3   |
+| base `c9c99f0a` | 53·695             | 3·59                          | 20·1218                        | 2·3   |
+| after slice 1   | 56·708             | 3·59                          | 20·1218                        | 2·3   |
+| after slice 2   | 56·709             | 3·64                          | 20·1218                        | 2·3   |
+| after slice 3   | 56·709             | 3·65                          | 20·1219                        | 2·3   |
 
 The **session set** is `src/app.test.tsx`, `src/app-router.test.tsx` and
 `src/components/directory/directory-page.test.tsx`; the **adopted set** is packet f2's twenty files,
@@ -298,14 +329,14 @@ Paths under `apps/wbs/fe-01/` unless they start with `openspec/` or `docs/`.
 | `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md`                                          | 1–3   | modify                  | the requirement (slice 1), then one scenario per slice, each before its code            |
 | `openspec/changes/adopt-frontend-lifetimes/verify.md`                                                                       | all   | modify                  | one fresh entry per slice, appended                                                     |
 | `src/runtime/session-runtime.ts`                                                                                            | 1, 2  | **create**              | sections 3.2 and 3.3 (1); `sessionFor` (2)                                              |
-| `src/runtime/session-runtime.model.test.ts`, `src/runtime/session-runtime.test.ts`                                          | 1, 2  | **create**              | the model test (3.1) and six examples (1); one example (2)                              |
+| `src/runtime/session-runtime.model.test.ts`, `src/runtime/session-runtime.test.ts`                                          | 1, 2  | **create**              | the model test (3.1) and seven examples (1); one example (2)                            |
 | `src/modules/directory-management/module.ts`, `module.test.ts`                                                              | 1     | **create**              | the sealed module and its five examples                                                 |
 | `src/modules/directory-management/contract.ts`                                                                              | 1     | modify                  | its requirements, label and module identifier                                           |
 | `src/modules/directory/directory.resource.ts`, `contract.ts`                                                                | 1     | modify                  | the withdrawal guard and its JSDoc                                                      |
 | `src/modules/directory/directory.resource.test.ts`, `src/modules/directory-management/directory-management.feature.test.ts` | 1     | modify                  | the new parameter, `() => true`, at every direct call (named edit, 12 sites)            |
 | `src/modules/directory-management/composition.ts`                                                                           | 1, 2  | modify, then **delete** | the new parameter (1); gone, `module.ts` is the composition (2)                         |
 | `vitest.node-suites.ts`                                                                                                     | 1     | modify                  | list the three DOM-free suites                                                          |
-| `src/app.tsx`, `src/app.test.tsx`                                                                                           | 2     | modify                  | `SignedInApp`; five examples and the `login` mock                                       |
+| `src/app.tsx`, `src/app.test.tsx`                                                                                           | 2     | modify                  | `SignedInApp`; five examples, the `login` mock and the router probe                     |
 | `src/app-router.tsx`                                                                                                        | 2, 3  | modify                  | the session in router context, the directory from it (2); the project owner from it (3) |
 | `src/app-router.test.tsx`                                                                                                   | 2, 3  | modify                  | `regionAt` hands a session (2); one example (3)                                         |
 | `src/components/directory/directory-page.tsx`, `src/modules/directory-management/view/use-directory-management.ts`          | 2     | modify                  | the page takes the session's directory; the hook subscribes and reads on arrival        |
@@ -435,7 +466,7 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 22
+test "$count" -eq 24
 # The twenty default-tier files that render the table or the page (packet f2's
 # adopted set), relative to apps/wbs/fe-01, for the serial "adopted" runs.
 printf '%s\n' src/app-router.test.tsx src/components/ui/page-shortcuts.test.tsx \
@@ -456,7 +487,7 @@ printf '%s\n' src/app.test.tsx src/app-router.test.tsx \
 test "$(wc -l < "$TMPDIR/session.txt")" -eq 3
 ````
 
-Expected: `patches=9`, `mutations=22`, exit 0. **Applying section 7.N** below always means exactly
+Expected: `patches=9`, `mutations=24`, exit 0. **Applying section 7.N** below always means exactly
 this, never a hand edit:
 
 ```sh
@@ -537,16 +568,16 @@ five new files — `modules/directory-management/{module.ts,module.test.ts}`,
   bash "$TMPDIR/expect-status.sh" s1-red-vitest 1
   ```
 
-  Expected, and rehearsed exactly: typecheck `status=1`, `Found 33 errors in 5 files.` — 15 in
+  Expected, and rehearsed exactly: typecheck `status=1`, `Found 34 errors in 5 files.` — 15 in
   `module.test.ts` (its missing module and exports, and what follows from them), 11 × TS2554 in
   `directory.resource.test.ts` and 1 in `directory-management.feature.test.ts` (`Expected 1 arguments,
-but got 2.`), 5 in `session-runtime.model.test.ts` (1 × TS2307, 4 × TS7006) and 1 in
+but got 2.`), 6 in `session-runtime.model.test.ts` (1 × TS2307, 5 × TS7006) and 1 in
   `session-runtime.test.ts`; the four that name the cause:
 
   ```text
   apps/wbs/fe-01/src/modules/directory-management/module.test.ts:7:43 - error TS2307: Cannot find module './module' or its corresponding type declarations.
   apps/wbs/fe-01/src/modules/directory/directory.resource.test.ts:12:42 - error TS2554: Expected 1 arguments, but got 2.
-  apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts:17:8 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
+  apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts:18:8 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
   apps/wbs/fe-01/src/runtime/session-runtime.test.ts:11:59 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
   ```
 
@@ -572,8 +603,8 @@ but got 2.`), 5 in `session-runtime.model.test.ts` (1 × TS2307, 4 × TS7006) an
   done
   ```
 
-  Expected `status=0` everywhere: runtime 5 files, 36 tests (the model test, six runtime examples, five module examples, and the two existing directory suites unchanged at 24); tiers 5 tests; sandbox = step 0 **+ 3 files,
-  - 12 tests** (rehearsed 53·694 → 56·706).
+  Expected `status=0` everywhere: runtime 5 files, 37 tests (the model test, seven runtime examples, five module examples, and the two existing directory suites unchanged at 24); tiers 5 tests; sandbox = step 0 **+ 3 files,
+  - 13 tests** (rehearsed 53·695 → 56·708).
 
 - [ ] 6. Durable lint, from the repository root:
 
@@ -586,7 +617,7 @@ but got 2.`), 5 in `session-runtime.model.test.ts` (1 × TS2307, 4 × TS7006) an
   An autofixable import-order or Prettier finding is fixed with `bunx eslint --fix <file>`, not
   reported as a stop (preamble rule 17).
 
-- [ ] 7. The seventeen proofs of section 8.1 (`m1`–`m11` on the model, `k1`, `o1`, `o2`, `d1` on the
+- [ ] 7. The nineteen proofs of section 8.1 (`m1`–`m12` on the model, `k1`, `o1`, `o2`, `o3`, `d1` on the
       runtime's examples, `l1`, `l2` on the module's), with section 8's procedure: every fault
       observed first, then the `Proof:` comments at the sites the tables name.
 - [ ] 8. Rerun `s1-final-runtime` (step 5's runtime command) and step 0c's three commands
@@ -668,7 +699,7 @@ Owns (13 paths): `spec.md`, `verify.md`, and under `apps/wbs/fe-01/src/`: `app.t
 - [ ] 3. Apply section 7.5, the test side: the fixture, **the named fixture edit** of this slice — the
       seventeen `<DirectoryPage token="t" api=` sites of `directory-page.test.tsx` become
       `<DirectoryPageOverClient api=`, with the import — the router suite's `regionAt` handing
-      `AppRouter` a session, the app suite's `login` mock and five examples, and the runtime's one new
+      `AppRouter` a session, the app suite's `login` and router-recording mocks and five examples, and the runtime's one new
       example. No other `expect` line changes. **Red checkpoint:**
 
   ```sh
@@ -725,7 +756,7 @@ address and a draft …`, `shows the sanitized report …` and `gives the sessio
 
   Expected `status=0` everywhere: session set = step 0 **+ 5 tests** (rehearsed 3·59 →
   3·64); adopted unchanged from step 1; zoned unchanged; sandbox = step 0 **+ 1 test**
-  (56·706 → 56·707).
+  (56·708 → 56·709).
 
   And delivery no longer builds a directory:
 
@@ -867,7 +898,7 @@ Owns (12 paths): `spec.md`, `verify.md`, `tasks.md` (all under
 
   Expected `status=0` everywhere: session set = step 0 **+ 1** (3·64 → 3·65: the router
   example); adopted = step 1 **+ 1** (20·1218 → 20·1219, the same example); zoned unchanged;
-  sandbox unchanged (56·707).
+  sandbox unchanged (56·709).
 
 - [ ] 6. Durable lint (`s3-lint`), expected `status=0`.
 - [ ] 7. The one proof of section 8.3 (`r1`, in `app-router.tsx`); the fault first, then the comment.
@@ -924,7 +955,8 @@ absolute paths. Do not read, quote or restate an earlier entry.
 One attempt per slice, from the reviewed packet, with no network, driven by a Claude subagent. The
 base of slice 1 is the planning lineage that contains packet h's and packet j's **real** lanes and
 this packet — planning after both lanes merged, with this packet's branch merged in. That base differs
-from the rehearsal base this packet was cut against (`4756254d`) by packet h's and packet j's executor
+from the rehearsal base this packet was cut against (`c9c99f0a`, which already carries packet j's
+third-revision runtime) by packet h's and packet j's executor
 `Proof:` comments, their `verify.md` entries, their dated notes, and whatever packet j's review
 changes: before the first dispatch the planner reruns section 9.1's script with `base=` set to that
 real base (section 9.1 also records the run against a copy with every one of their comment sites in
@@ -1216,10 +1248,10 @@ index 5d1f1dbfd..d121df5f3 100644
 
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts b/apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts
 new file mode 100644
-index 000000000..2d3ed3e81
+index 000000000..d4831ea8f
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts
-@@ -0,0 +1,568 @@
+@@ -0,0 +1,708 @@
 +import fc from 'fast-check';
 +import { describe, expect, it } from 'vitest';
 +
@@ -1230,6 +1262,7 @@ index 000000000..2d3ed3e81
 +import type { ProjectRuntime, ProjectSource } from '@/modules/project/contract';
 +import { fakeProjectApi } from '@/testing/fake-project-api';
 +
++import { PartialAcquisitionError } from './lifetime-slot';
 +import { installProjectRuntime } from './project-runtime';
 +import {
 +  createSessionOwner,
@@ -1268,6 +1301,11 @@ index 000000000..2d3ed3e81
 +  /** What it held at the instant it was withdrawn, or `null` while it has not been. */
 +  frozen: DirectorySnapshot | null;
 +  readonly projects: BuiltProject[];
++  /** Whether its installation acquires everything and then fails as a partial acquisition. */
++  readonly broken: boolean;
++  /** How often it was installed, and how often a failed installation was released. */
++  installs: number;
++  releases: number;
 +}
 +
 +const ran: Record<string, number> = {};
@@ -1283,6 +1321,8 @@ index 000000000..2d3ed3e81
 +  'gesture',
 +  'openProject',
 +  'leaveProject',
++  'signInBroken',
++  'reenter',
 +];
 +const reached = {
 +  answerLandedAfterWithdrawal: 0,
@@ -1293,6 +1333,9 @@ index 000000000..2d3ed3e81
 +  sameUserAgain: 0,
 +  switchedWhileLive: 0,
 +  leftWhileNothingCurrent: 0,
++  reenteredFromListener: 0,
++  brokenInstalled: 0,
++  leftAfterBroken: 0,
 +};
 +
 +/** The reference: who the app last asked for, and how often that changed. Nothing is read back from the owner. */
@@ -1300,6 +1343,10 @@ index 000000000..2d3ed3e81
 +  wanted: string | null;
 +  /** Requests that named a user other than the one already asked for. */
 +  userChanges: number;
++  /** Whether the user last asked for arrived with an installation that fails. */
++  broken: boolean;
++  /** Whether any installation has failed so far. */
++  anyBroken: boolean;
 +}
 +
 +interface SessionWorld {
@@ -1312,8 +1359,11 @@ index 000000000..2d3ed3e81
 +  projectsBuilt: number;
 +}
 +
++/** The credential the model hands a sign-in whose installation it makes fail. */
++const BROKEN = 'broken';
++
 +/** A fresh client for one runtime: every call counted, every read answered when the scheduler says. */
-+function clientFor(world: SessionWorld): DirectoryApi {
++function clientFor(world: SessionWorld, credential: string): DirectoryApi {
 +  world.next += 1;
 +  const base = fakeDirectoryApi();
 +  const record: Built = {
@@ -1327,6 +1377,9 @@ index 000000000..2d3ed3e81
 +    initial: null,
 +    frozen: null,
 +    projects: [],
++    broken: credential === BROKEN,
++    installs: 0,
++    releases: 0,
 +  };
 +  const gate = <T>(route: string, answer: () => Promise<T>): Promise<T> => {
 +    record.calls += 1;
@@ -1454,6 +1507,7 @@ index 000000000..2d3ed3e81
 +    }
 +    world.inflight.push(world.owner.open({ userId: this.userId, credential: this.credential }));
 +    model.wanted = this.userId;
++    if (another) model.broken = false;
 +    if (another) assertWithdrawn(world, `signIn(${this.userId})`);
 +    assertOwnership(world, model, `signIn(${this.userId}, '${this.credential}')`);
 +    await Promise.resolve();
@@ -1473,7 +1527,9 @@ index 000000000..2d3ed3e81
 +    freezeTheCurrent(world);
 +    const before = world.built.filter((record) => record.runtime !== null);
 +    const leaving = world.owner.leave();
++    if (model.anyBroken) reached.leftAfterBroken += 1;
 +    model.wanted = null;
++    model.broken = false;
 +    assertWithdrawn(world, 'signOut');
 +    // A leave settles only once the retirement it joined has run: every session
 +    // built before it has been given back by then, however many triggers asked.
@@ -1490,6 +1546,81 @@ index 000000000..2d3ed3e81
 +  }
 +  toString(): string {
 +    return 'signOut';
++  }
++}
++
++/**
++ * A sign-in whose runtime cannot be built: its installation acquires the whole
++ * graph and then throws a partial acquisition, whose release is recorded.
++ */
++class SignInBroken implements SessionCommand {
++  constructor(readonly userId: string) {}
++  check(): boolean {
++    return true;
++  }
++  async run(model: SessionModel, world: SessionWorld): Promise<void> {
++    note('signInBroken');
++    const another = model.wanted !== this.userId;
++    if (another) {
++      freezeTheCurrent(world);
++      model.userChanges += 1;
++    }
++    world.inflight.push(world.owner.open({ userId: this.userId, credential: BROKEN }));
++    if (another) {
++      model.wanted = this.userId;
++      model.broken = true;
++      model.anyBroken = true;
++      assertWithdrawn(world, `signInBroken(${this.userId})`);
++    }
++    assertOwnership(world, model, `signInBroken(${this.userId})`);
++    await Promise.resolve();
++  }
++  toString(): string {
++    return `signInBroken(${this.userId})`;
++  }
++}
++
++/**
++ * A reader that signs a user in from inside the owner's own notification — as
++ * a component re-rendered by the owner's store would — the next time the owner
++ * says anything.
++ */
++class ReenterFromListener implements SessionCommand {
++  constructor(readonly userId: string) {}
++  check(): boolean {
++    return true;
++  }
++  async run(model: SessionModel, world: SessionWorld): Promise<void> {
++    note('reenter');
++    let asked = false;
++    const stop = world.owner.subscribe(() => {
++      if (asked) return;
++      asked = true;
++      stop();
++      reached.reenteredFromListener += 1;
++      const another = model.wanted !== this.userId;
++      if (another) {
++        freezeTheCurrent(world);
++        model.userChanges += 1;
++      }
++      world.inflight.push(world.owner.open({ userId: this.userId, credential: '' }));
++      if (!another) return;
++      model.wanted = this.userId;
++      model.broken = false;
++      // A failure here is carried to the teardown, which awaits it: a listener's
++      // own throw would reach nobody.
++      try {
++        assertWithdrawn(world, `reenter(${this.userId})`);
++      } catch (refusal: unknown) {
++        world.inflight.push(
++          Promise.reject(refusal instanceof Error ? refusal : new Error(String(refusal))),
++        );
++      }
++    });
++    await Promise.resolve();
++  }
++  toString(): string {
++    return `reenter(${this.userId})`;
 +  }
 +}
 +
@@ -1643,6 +1774,8 @@ index 000000000..2d3ed3e81
 +      .tuple(fc.nat(6), fc.constantFrom('p1', 'p2'))
 +      .map(([index, projectId]) => new OpenProject(index, projectId)),
 +    fc.nat(6).map((index) => new LeaveProject(index)),
++    fc.constantFrom('u1', 'u2').map((userId) => new SignInBroken(userId)),
++    fc.constantFrom('u1', 'u2').map((userId) => new ReenterFromListener(userId)),
 +  ],
 +  { maxCommands: 24, size: 'max' },
 +);
@@ -1659,14 +1792,20 @@ index 000000000..2d3ed3e81
 +
 +    await fc.assert(
 +      fc.asyncProperty(fc.scheduler(), commandsArb, async (scheduler, commands) => {
-+        const model: SessionModel = { wanted: null, userChanges: 0 };
++        const model: SessionModel = {
++          wanted: null,
++          userChanges: 0,
++          broken: false,
++          anyBroken: false,
++        };
 +        const world: SessionWorld = {
 +          owner: createSessionOwner({
-+            clientFor: () => clientFor(world),
++            clientFor: (credential) => clientFor(world, credential),
 +            install: (dependencies) => {
 +              const record = world.byClient.get(dependencies.directoryApi);
 +              if (record === undefined) throw new Error('a session was installed from no client');
 +              record.userId = dependencies.userId;
++              record.installs += 1;
 +              const installed = installSessionRuntime({
 +                ...dependencies,
 +                // The session's own wiring wraps this, so the project runtimes it
@@ -1689,6 +1828,18 @@ index 000000000..2d3ed3e81
 +                  };
 +                },
 +              });
++              if (record.broken) {
++                reached.brokenInstalled += 1;
++                // Everything was acquired, and then the construction failed: the
++                // release is the real close, counted, and nothing is published.
++                throw new PartialAcquisitionError(
++                  new Error(`${record.name} could not be built`),
++                  async (options) => {
++                    record.releases += 1;
++                    await installed.close(options);
++                  },
++                );
++              }
 +              record.runtime = installed.services;
 +              record.initial = installed.services.directory.snapshot();
 +              // The real close, reached when the scheduler says: a retirement that
@@ -1732,21 +1883,42 @@ index 000000000..2d3ed3e81
 +          }
 +          assertOwnership(world, model, 'teardown');
 +          const state = world.owner.snapshot();
-+          if (model.wanted === null) {
++          if (model.wanted === null && model.anyBroken) {
++            // A retirement asked of a slot that a failed construction left fatal
++            // holds nothing and changes nothing; which request was the last to
++            // build is the scheduler's choice. Either way nothing is held.
++            expect(
++              state.status === 'empty' || (state.status === 'fatal' && !state.terminal),
++              `teardown: left after an unbuildable session, but the owner is ${state.status}`,
++            ).toBe(true);
++          } else if (model.wanted === null) {
 +            expect(state.status, 'teardown: left, but a session is still held').toBe('empty');
++          } else if (model.broken) {
++            expect(
++              state.status === 'fatal' && !state.terminal,
++              `teardown: the last user asked for cannot be built, but the owner is ${state.status}`,
++            ).toBe(true);
 +          } else {
 +            expect(
 +              state.status === 'live' ? state.services.userId : state.status,
 +              'teardown: the last user asked for is not the one live',
 +            ).toBe(model.wanted);
 +          }
-+          const installs = world.built.filter((record) => record.runtime !== null).length;
++          const installs = world.built.reduce((sum, record) => sum + record.installs, 0);
 +          expect(
 +            installs,
 +            'teardown: a session was built for a user already signed in',
 +          ).toBeLessThanOrEqual(model.userChanges);
 +          const live = state.status === 'live' ? state.services : null;
 +          for (const record of world.built) {
++            if (record.broken) {
++              // Acquired, then given back by the transaction, once per installation.
++              expect(
++                record.releases,
++                `teardown: unbuildable ${record.name} was released ${String(record.releases)} times after ${String(record.installs)} installs`,
++              ).toBe(record.installs);
++              continue;
++            }
 +            if (record.runtime === null) continue;
 +            const isLive = record.runtime === live;
 +            expect(
@@ -1790,10 +1962,10 @@ index 000000000..2d3ed3e81
 +});
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.test.ts b/apps/wbs/fe-01/src/runtime/session-runtime.test.ts
 new file mode 100644
-index 000000000..6a28a9103
+index 000000000..2fc4eb1cb
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.test.ts
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,203 @@
 +import { describe, expect, it } from 'vitest';
 +
 +import type { DirectoryApi } from '@/lib/wbs-api';
@@ -1802,7 +1974,7 @@ index 000000000..6a28a9103
 +import type { ProjectRuntime, ProjectSource } from '@/modules/project/contract';
 +import { fakeProjectApi } from '@/testing/fake-project-api';
 +
-+import type { RetirableRuntime } from './lifetime-slot';
++import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
 +import { installProjectRuntime, type ProjectRuntimeDependencies } from './project-runtime';
 +import { createSessionOwner, installSessionRuntime } from './session-runtime';
 +
@@ -1933,6 +2105,23 @@ index 000000000..6a28a9103
 +    expect(left.status === 'fatal' && left.terminal).toBe(true);
 +    await expect(owner.open({ userId: 'u2', credential: '' })).resolves.toBeUndefined();
 +    expect(owner.snapshot()).toBe(left);
++  });
++
++  it('settles a half-built session that cannot be released, and leaves the owner terminally fatal', async () => {
++    const owner = createSessionOwner({
++      clientFor: () => fakeDirectoryApi(),
++      install: () => {
++        throw new PartialAcquisitionError(new Error('the directory could not be built'), () =>
++          Promise.reject(new Error('and what it took could not be given back')),
++        );
++      },
++      budgetMs: 1_000,
++    });
++
++    await expect(owner.open({ userId: 'u1', credential: '' })).resolves.toBeUndefined();
++
++    const state = owner.snapshot();
++    expect(state.status === 'fatal' && state.terminal).toBe(true);
 +  });
 +
 +  it('settles a request a newer one overtook, and builds nothing for it', async () => {
@@ -2154,10 +2343,10 @@ index 582bc28e6..ef4dabda8 100644
        try {
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
 new file mode 100644
-index 000000000..7c54c3917
+index 000000000..f316694e4
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,346 @@
 +import { DiBag } from 'di-bag';
 +
 +import { type DirectoryApi, httpDirectoryApi } from '@/lib/wbs-api';
@@ -2170,6 +2359,7 @@ index 000000000..7c54c3917
 +import {
 +  createLifetimeSlot,
 +  type LifetimeState,
++  PartialAcquisitionError,
 +  type RetirableRuntime,
 +  RETIREMENT_BUDGET_MS,
 +  TransitionSupersededError,
@@ -2415,21 +2605,59 @@ index 000000000..7c54c3917
 +  /** The newest request's settlement, which a request for the same user joins. */
 +  let latest: Promise<void> = Promise.resolve();
 +  /**
-+   * Settles one transition as a modelled outcome, as the project owner does:
-+   * superseded is controlled cancellation, a refusal the slot already turned
-+   * `fatal` is what anybody is shown, and anything else is rethrown with its
-+   * cause.
++   * Every failure that left one of this owner's runtimes: a construction that
++   * threw, a partial acquisition's release or a retirement that rejected. The
++   * slot turns each of these into its `fatal` state before rethrowing it, so a
++   * refusal found here is a modelled outcome whatever the slot's state has
++   * moved on to since. Compared by identity, never by message.
++   */
++  const refusedByRuntime = new Set<unknown>();
++  /** The same close, with its refusal recorded before the slot sees it. */
++  const recorded =
++    (close: (options: { timeoutMs: number }) => Promise<void>) =>
++    async (options: { timeoutMs: number }): Promise<void> => {
++      try {
++        await close(options);
++      } catch (refusal: unknown) {
++        refusedByRuntime.add(refusal);
++        throw refusal;
++      }
++    };
++  /** Installs one runtime, recording every failure that can leave it. */
++  const installRecorded = (
++    dependencies: SessionRuntimeDependencies,
++  ): RetirableRuntime<SessionRuntime> => {
++    let runtime: RetirableRuntime<SessionRuntime>;
++    try {
++      runtime = install(dependencies);
++    } catch (failure: unknown) {
++      const refusal =
++        failure instanceof PartialAcquisitionError
++          ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
++          : failure;
++      refusedByRuntime.add(refusal);
++      throw refusal;
++    }
++    return { services: runtime.services, close: recorded(runtime.close) };
++  };
++  /**
++   * Settles one transition as a modelled outcome, classified by the refusal
++   * itself and not by the slot's state afterwards, which a later request — one
++   * a subscriber asked for from inside the notification, say — may already have
++   * moved on.
++   *
++   * Superseded is controlled cancellation; a refusal from this owner's own
++   * runtime has been published as `fatal`, sanitized, and that state is what
++   * anybody is shown. Anything else is a fault of the slot and is rethrown with
++   * its cause.
 +   */
 +  const settle = async (transition: Promise<unknown>): Promise<void> => {
 +    try {
 +      await transition;
 +    } catch (refusal: unknown) {
 +      if (refusal instanceof TransitionSupersededError) return;
-+      const state = slot.snapshot();
-+      if (state.status === 'fatal') return;
-+      throw new Error(`a session transition was refused and the slot is ${state.status}`, {
-+        cause: refusal,
-+      });
++      if (refusedByRuntime.has(refusal)) return;
++      throw new Error('a session transition was refused by the slot itself', { cause: refusal });
 +    }
 +  };
 +  return {
@@ -2445,7 +2673,7 @@ index 000000000..7c54c3917
 +            const state = slot.snapshot();
 +            return state.status === 'live' && state.services === built;
 +          };
-+          const runtime = install({
++          const runtime = installRecorded({
 +            userId: identity.userId,
 +            directoryApi: clientFor(identity.credential),
 +            isCurrent,
@@ -2517,7 +2745,7 @@ index be3cb2a86..4f3624daf 100644
 
 ### 7.5 the test side of slice 2: `directory-page-over-client.tsx` (**new**), the named fixture edit, `regionAt`, five app examples and one runtime example
 
-The seventeen `<DirectoryPage token="t" api=` sites become `<DirectoryPageOverClient api=` and nothing else in `directory-page.test.tsx` changes but its import; `regionAt` hands `AppRouter` a session over a fake directory; the app suite mocks `login` beside `me`.
+The seventeen `<DirectoryPage token="t" api=` sites become `<DirectoryPageOverClient api=` and nothing else in `directory-page.test.tsx` changes but its import; `regionAt` hands `AppRouter` a session over a fake directory; the app suite mocks `login` beside `me`, and wraps `@tanstack/react-router`'s `createRouter` to record every router built, which the router-survival example compares by identity.
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/app-router.test.tsx b/apps/wbs/fe-01/src/app-router.test.tsx
@@ -2560,11 +2788,12 @@ index fe3cd5ff8..78139f3c7 100644
        presence={() => null}
        account={<span>account menu</span>}
 diff --git a/apps/wbs/fe-01/src/app.test.tsx b/apps/wbs/fe-01/src/app.test.tsx
-index f259378da..92dbda803 100644
+index f259378da..da60fd12b 100644
 --- a/apps/wbs/fe-01/src/app.test.tsx
 +++ b/apps/wbs/fe-01/src/app.test.tsx
-@@ -1,24 +1,31 @@
+@@ -1,24 +1,49 @@
 -import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
++import type * as Router from '@tanstack/react-router';
 +import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
  import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -2585,6 +2814,23 @@ index f259378da..92dbda803 100644
 +const login = vi.hoisted(() =>
 +  vi.fn<(username: string, password: string) => ReturnType<typeof Api.login>>(),
 +);
++
++/**
++ * Every router the signed-in region builds, by identity: `AppRouter` builds one
++ * in a lazy state initializer, so a region that kept its router built exactly
++ * one, and a region rebuilt for another user built a second.
++ */
++const routers = vi.hoisted((): unknown[] => []);
++
++vi.mock('@tanstack/react-router', async (importOriginal) => {
++  const actual = await importOriginal<typeof Router>();
++  const recordRouter: typeof actual.createRouter = (options) => {
++    const router = actual.createRouter(options);
++    routers.push(router);
++    return router;
++  };
++  return { ...actual, createRouter: recordRouter };
++});
 
  vi.mock('@/lib/api', async (importOriginal) => ({
    ...(await importOriginal<typeof Api>()),
@@ -2597,7 +2843,7 @@ index f259378da..92dbda803 100644
 
  /**
   * A slot `live` over the production installer, its liveness predicate wired
-@@ -260,3 +267,157 @@ describe('the theme control through the app', () => {
+@@ -260,3 +285,162 @@ describe('the theme control through the app', () => {
      }
    });
  });
@@ -2696,8 +2942,11 @@ index f259378da..92dbda803 100644
 +    async () => {
 +      window.history.replaceState({}, '', '/directory');
 +      const credentials = directoryServer();
++      routers.length = 0;
 +      const view = render(signedInAs({ token: '', user: KAT }));
 +      await directoryShowing();
++      expect(routers).toHaveLength(1);
++      const router = routers[0];
 +      fireEvent.change(screen.getByLabelText('New tag'), { target: { value: 'legal' } });
 +
 +      view.rerender(signedInAs({ token: 't', user: { ...KAT } }));
@@ -2708,6 +2957,7 @@ index f259378da..92dbda803 100644
 +      expect(screen.getByLabelText<HTMLInputElement>('New tag').value).toBe('legal');
 +      expect(window.location.pathname).toBe('/directory');
 +      expect(credentials).toEqual(['']);
++      expect(routers).toEqual([router]);
 +
 +      view.rerender(signedInAs({ token: '', user: LEE }));
 +      await waitFor(() => {
@@ -2716,6 +2966,7 @@ index f259378da..92dbda803 100644
 +      await directoryShowing();
 +      expect(screen.getByLabelText<HTMLInputElement>('New tag').value).toBe('');
 +      expect(window.location.pathname).toBe('/directory');
++      expect(routers).toHaveLength(2);
 +    },
 +  );
 +
@@ -2925,19 +3176,19 @@ index cc865cc52..76f95b962 100644
        expect(screen.getByLabelText('Name of Platform')).toBeDefined();
      });
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.test.ts b/apps/wbs/fe-01/src/runtime/session-runtime.test.ts
-index 6a28a9103..46cdd8c5c 100644
+index 2fc4eb1cb..07f24a358 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.test.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.test.ts
 @@ -8,7 +8,7 @@ import { fakeProjectApi } from '@/testing/fake-project-api';
 
- import type { RetirableRuntime } from './lifetime-slot';
+ import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
  import { installProjectRuntime, type ProjectRuntimeDependencies } from './project-runtime';
 -import { createSessionOwner, installSessionRuntime } from './session-runtime';
 +import { createSessionOwner, installSessionRuntime, sessionFor } from './session-runtime';
 
  /** A project source over a fresh fake client, with no socket. */
  const projectSource = (): ProjectSource => ({
-@@ -183,4 +183,15 @@ describe('the session runtime', () => {
+@@ -200,4 +200,15 @@ describe('the session runtime', () => {
      await Promise.all([first, second]);
      expect(owner.snapshot().status).toBe('empty');
    });
@@ -3323,10 +3574,10 @@ index f58829323..2f1fc0b72 100644
 +  return shown;
  }
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c3917..6c781c510 100644
+index f316694e4..c4f2c3eaa 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -62,6 +62,24 @@ export interface SessionRuntime {
+@@ -63,6 +63,24 @@ export interface SessionRuntime {
    readonly projects: ProjectOwner;
  }
 
@@ -3850,7 +4101,7 @@ test $(( $(wc -l < "$TMPDIR/proofs.txt") % 4 )) -eq 0
 wc -l < "$TMPDIR/proofs.txt"
 ````
 
-Expected: 68 lines for slice 1, 16 for slice 2 and 4 for slice 3.
+Expected: 76 lines for slice 1, 16 for slice 2 and 4 for slice 3.
 
 **First, prove every filter selects exactly one test**, before injecting anything:
 
@@ -3907,11 +4158,13 @@ above the line the table names, for example:
 
 ```ts
 // Proof: on <observed date>, joining any request while a user was wanted failed `keys one runtime
-// by user, …` after 3 runs: s1 was still current after u2 signed in.
+// by user, …` after 3 runs: s1 was still current after u1's unbuildable sign-in.
 ```
 
 Faults that share a site share one comment block, one sentence each (`m1` and `m2`; `m7` and `d1`;
-`m11` and `k1`; `l1` and `l2`). In JSX (`r1`) the comment is a `//` line inside the opening tag, above
+`m11` and `k1`; `l1` and `l2`). `m12` and `o2` stand above two different
+`refusedByRuntime.add(refusal);` lines — `installRecorded`'s and `recorded`'s — which the tables tell
+apart. In JSX (`r1`) the comment is a `//` line inside the opening tag, above
 the attribute. None of these sites carries an existing `Proof:` comment.
 
 **For the model faults**, the run number, the shrunk command sequence and the innermost cause the table
@@ -3968,6 +4221,10 @@ m11
 apps/wbs/fe-01/src/runtime/session-runtime.ts
 src/runtime/session-runtime.model.test.ts
 keys one runtime by user, and nothing of a withdrawn one — nor its project — reaches anybody
+m12
+apps/wbs/fe-01/src/runtime/session-runtime.ts
+src/runtime/session-runtime.model.test.ts
+keys one runtime by user, and nothing of a withdrawn one — nor its project — reaches anybody
 k1
 apps/wbs/fe-01/src/runtime/session-runtime.ts
 src/runtime/session-runtime.test.ts
@@ -3980,6 +4237,10 @@ o2
 apps/wbs/fe-01/src/runtime/session-runtime.ts
 src/runtime/session-runtime.test.ts
 fails the session’s retirement when its project will not let go
+o3
+apps/wbs/fe-01/src/runtime/session-runtime.ts
+src/runtime/session-runtime.test.ts
+settles a half-built session that cannot be released, and leaves the owner terminally fatal
 d1
 apps/wbs/fe-01/src/runtime/session-runtime.ts
 src/runtime/session-runtime.test.ts
@@ -3998,39 +4259,41 @@ Every model fault fails the model test, `Tests 1 failed (1)`, exit 1. Run, the s
 sequence (after the scheduler's own record, which fast-check prints first) and the innermost cause, as
 rehearsed twice:
 
-| Id    | Fault                                                                                           | Run | Shrunk sequence, times                                              | Innermost cause                                                                                                | Comment above                                                 |
-| ----- | ----------------------------------------------------------------------------------------------- | --- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `m1`  | a directory read surviving a user switch: any signed-in user joins the request already made     | 3   | `signIn(u1, ''),signIn(u2, '')`, 6                                  | `signIn(u2): a session is still current after withdrawal: expected [ 's1' ] to deeply equal []`                | `if (identity.userId === wanted?.userId) return latest;`      |
-| `m2`  | the owner keyed on the credential as well as the user                                           | 9   | `signIn(u2, ''),signIn(u2, 't')`, 2                                 | `teardown: a session was built for a user already signed in: expected 2 to be less than or equal to 1`         | the same line (with `m1`)                                     |
-| `m3`  | a late answer after retirement: `show` changes a withdrawn directory                            | 8   | `signIn(u1, ''),read(0),signOut,drain`, 10                          | `drain: s1's directory changed after it was withdrawn: expected false to be true`                              | the first `if (!isActiveReader()) return;`, in `show`         |
-| `m4`  | a withdrawn session's read sends: the guard in `read` removed                                   | 1   | `signIn(u1, ''),signOut,read(0)`, 5                                 | `read: withdrawn s1 sent a request: expected 5 to be +0`                                                       | the second `if (!isActiveReader()) return;`, in `read`        |
-| `m5`  | a withdrawn session's change sends: the guard in `runWrite` removed                             | 8   | `signIn(u1, ''),signOut,gesture(0)`, 9                              | `gesture: withdrawn s1 sent a request: expected 1 to be +0`                                                    | `if (!isActiveReader()) return Promise.resolve();`            |
-| `m6`  | double retirement: a `leave` that arrives mid-transition is dropped instead of queued behind it | 3   | `signIn(u1, ''),signIn(u2, ''),signOut,drain`, 4                    | `drain: the published session is not the user last asked for: expected 'u2' to be null`                        | `wanted = null;` in `leave`                                   |
-| `m7`  | a project outliving its session: the disposal never leaves the project                          | 8   | `signIn(u1, ''),openProject(0, p1),signOut,answer`, 10              | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`            | `await projects.leave();`                                     |
-| `m8`  | a project current under a withdrawn session: the session half of its reader test dropped        | 1   | `signIn(u1, ''),openProject(0, p1),signOut`, 5                      | `signOut: a project is still current after its session was withdrawn: expected [ 's1.p1' ] to deeply equal []` | `isCurrent: () => isCurrent() && dependencies.isCurrent(),`   |
-| `m9`  | a withdrawn session opens a project                                                             | 8   | `signIn(u1, ''),signIn(u2, ''),answer,openProject(0, p1),answer`, 7 | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`            | `if (!isCurrent()) return;` in `sessionProjects`              |
-| `m10` | a stale session survives a switch: `isCurrent` compares the slot's status only                  | 1   | `signIn(u1, ''),signIn(u2, ''),drain`, 9                            | `drain: more than one session says it is current: expected [ 's1', 's2' ] to have a length of 1 but got 2`     | `return state.status === 'live' && state.services === built;` |
-| `m11` | the transaction's close gives nothing back, so the project outlives its session                 | 8   | `signIn(u1, ''),openProject(0, p1),signOut,answer`, 10              | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`            | `return acquireTransactionally(bag, () => ({`                 |
+| Id    | Fault                                                                                           | Run | Shrunk sequence, times                                               | Innermost cause                                                                                                         | Comment above                                                 |
+| ----- | ----------------------------------------------------------------------------------------------- | --- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `m1`  | a directory read surviving a user switch: any signed-in user joins the request already made     | 3   | `signIn(u2, ''),signInBroken(u1)`, 2                                 | `signInBroken(u1): a session is still current after withdrawal: expected [ 's1' ] to deeply equal []`                   | `if (identity.userId === wanted?.userId) return latest;`      |
+| `m2`  | the owner keyed on the credential as well as the user                                           | 10  | `signIn(u1, ''),signInBroken(u1),read(0)`, 6                         | `teardown: the last user asked for is not the one live: expected 'fatal' to be 'u1'`                                    | the same line (with `m1`)                                     |
+| `m3`  | a late answer after retirement: `show` changes a withdrawn directory                            | 2   | `signIn(u2, ''),read(0),signIn(u1, ''),reenter(u1)`, 6               | `teardown: s1's directory changed after it was withdrawn: expected false to be true`                                    | the first `if (!isActiveReader()) return;`, in `show`         |
+| `m4`  | a withdrawn session's read sends: the guard in `read` removed                                   | 1   | `signIn(u1, ''),signOut,read(0)`, 4                                  | `read: withdrawn s1 sent a request: expected 5 to be +0`                                                                | the second `if (!isActiveReader()) return;`, in `read`        |
+| `m5`  | a withdrawn session's change sends: the guard in `runWrite` removed                             | 1   | `signIn(u1, ''),signIn(u2, ''),gesture(0)`, 5                        | `gesture: withdrawn s1 sent a request: expected 1 to be +0`                                                             | `if (!isActiveReader()) return Promise.resolve();`            |
+| `m6`  | double retirement: a `leave` that arrives mid-transition is dropped instead of queued behind it | 1   | `signIn(u1, ''),signIn(u2, ''),signOut,drain`, 5                     | `drain: the published session is not the user last asked for: expected 'u2' to be null`                                 | `wanted = null;` in `leave`                                   |
+| `m7`  | a project outliving its session: the disposal never leaves the project                          | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2),gesture(0)`, 7   | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     | `await projects.leave();`                                     |
+| `m8`  | a project current under a withdrawn session: the session half of its reader test dropped        | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2)`, 5              | `signInBroken(u2): a project is still current after its session was withdrawn: expected [ 's1.p1' ] to deeply equal []` | `isCurrent: () => isCurrent() && dependencies.isCurrent(),`   |
+| `m9`  | a withdrawn session opens a project                                                             | 3   | `signIn(u2, ''),signInBroken(u1),drain,openProject(0, p1),drain`, 11 | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     | `if (!isCurrent()) return;` in `sessionProjects`              |
+| `m10` | a stale session survives a switch: `isCurrent` compares the slot's status only                  | 2   | `signIn(u2, ''),signIn(u1, ''),reenter(u1)`, 6                       | `teardown: more than one session says it is current: expected [ 's1', 's2' ] to have a length of 1 but got 2`           | `return state.status === 'live' && state.services === built;` |
+| `m11` | the transaction's close gives nothing back, so the project outlives its session                 | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2),gesture(0)`, 7   | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     | `return acquireTransactionally(bag, () => ({`                 |
+| `m12` | a failed construction's refusal not recorded: the owner rethrows its own runtime's failure      | 2   | `signInBroken(u1),reenter(u1)`, 4                                    | `teardown refused: Error: a session transition was refused by the slot itself`                                          | `refusedByRuntime.add(refusal);` in `installRecorded`         |
 
 The examples, each exit 1:
 
-| Id   | Fault                                                              | Suite › test                                                                                       | Observed                                                                                                                                                                                            | Comment above                                                                   |
-| ---- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `k1` | the client published beside the session's services                 | `session-runtime.test.ts` › `publishes the session’s directory and its projects, and nothing else` | `1 failed \| 5 skipped (6)`; `expected [ 'directory', 'directoryApi', …(3) ] to deeply equal [ 'directory', 'isCurrent', …(2) ]`                                                                    | `return acquireTransactionally(bag, () => ({` (with `m11`)                      |
-| `o1` | a superseded open rejects instead of settling                      | `session-runtime.test.ts` › `settles a request a newer one overtook, and builds nothing for it`    | `1 failed \| 5 skipped (6)`; `promise rejected "Error: a session transition was refused a…" instead of resolving`, caused by `TransitionSupersededError: lifetime transition 1 was superseded by 2` | `if (refusal instanceof TransitionSupersededError) return;`                     |
-| `o2` | a refusal the slot already made fatal is rethrown instead of shown | `session-runtime.test.ts` › `fails the session’s retirement when its project will not let go`      | `1 failed \| 5 skipped (6)`; `promise rejected "Error: a session transition was refused a…" instead of resolving`, caused by `DI_BAG_CLEANUP_FAILED`                                                | `if (state.status === 'fatal') return;`                                         |
-| `d1` | a project that will not let go does not fail its session           | `session-runtime.test.ts` › `fails the session’s retirement when its project will not let go`      | `1 failed \| 5 skipped (6)`; `expected false to be true` — the session was left `empty`, not terminally `fatal`                                                                                     | `await projects.leave();` (with `m7`)                                           |
-| `l1` | the module built without its label                                 | `module.test.ts` › `names itself when a host omits the client`                                     | `1 failed \| 4 skipped (5)`; `expected [Function] to throw error including 'Cannot resolve "frontend.directory-ma…' but got 'DI_BAG_MISSING_DEPENDENCY: Cannot res…'` — no label in the message     | `.buildModule(['directoryManagement'], { label: DIRECTORY_MANAGEMENT_LABEL });` |
-| `l2` | the resource exported beside the feature                           | `module.test.ts` › `keeps its directory resource out of a host graph`                              | `1 failed \| 4 skipped (5)`; `expected [Function] to throw an error` — the resource resolved from the host                                                                                          | the same line (with `l1`)                                                       |
+| Id   | Fault                                                                           | Suite › test                                                                                                              | Observed                                                                                                                                                                                                                                                      | Comment above                                                                   |
+| ---- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `k1` | the client published beside the session's services                              | `session-runtime.test.ts` › `publishes the session’s directory and its projects, and nothing else`                        | `1 failed \| 6 skipped (7)`; `expected [ 'directory', 'directoryApi', …(3) ] to deeply equal [ 'directory', 'isCurrent', …(2) ]`                                                                                                                              | `return acquireTransactionally(bag, () => ({` (with `m11`)                      |
+| `o1` | a superseded open rejects instead of settling                                   | `session-runtime.test.ts` › `settles a request a newer one overtook, and builds nothing for it`                           | `1 failed \| 6 skipped (7)`; `promise rejected "Error: a session transition was refused b…" instead of resolving`, caused by `a session transition was refused by the slot itself` and `TransitionSupersededError: lifetime transition 1 was superseded by 2` | `if (refusal instanceof TransitionSupersededError) return;`                     |
+| `o2` | a refused retirement not recorded: the owner rethrows its own runtime's failure | `session-runtime.test.ts` › `fails the session’s retirement when its project will not let go`                             | `1 failed \| 6 skipped (7)`; `promise rejected "Error: a session transition was refused b…" instead of resolving`, caused by `a session transition was refused by the slot itself` and `DI_BAG_CLEANUP_FAILED`                                                | `refusedByRuntime.add(refusal);` in `recorded`'s catch                          |
+| `o3` | a partial acquisition's release refusal not recorded: the rewrap dropped        | `session-runtime.test.ts` › `settles a half-built session that cannot be released, and leaves the owner terminally fatal` | `1 failed \| 6 skipped (7)`; `promise rejected "Error: a session transition was refused b…" instead of resolving`, caused by `a session transition was refused by the slot itself` and `and what it took could not be given back`                             | `? new PartialAcquisitionError(failure.cause, recorded(failure.release))`       |
+| `d1` | a project that will not let go does not fail its session                        | `session-runtime.test.ts` › `fails the session’s retirement when its project will not let go`                             | `1 failed \| 6 skipped (7)`; `expected false to be true` — the session was left `empty`, not terminally `fatal`                                                                                                                                               | `await projects.leave();` (with `m7`)                                           |
+| `l1` | the module built without its label                                              | `module.test.ts` › `names itself when a host omits the client`                                                            | `1 failed \| 4 skipped (5)`; `expected [Function] to throw error including 'Cannot resolve "frontend.directory-ma…' but got 'DI_BAG_MISSING_DEPENDENCY: Cannot res…'` — no label in the message                                                               | `.buildModule(['directoryManagement'], { label: DIRECTORY_MANAGEMENT_LABEL });` |
+| `l2` | the resource exported beside the feature                                        | `module.test.ts` › `keeps its directory resource out of a host graph`                                                     | `1 failed \| 4 skipped (5)`; `expected [Function] to throw an error` — the resource resolved from the host                                                                                                                                                    | the same line (with `l1`)                                                       |
 
 #### Proof m1 — a directory read surviving a user switch: any signed-in user joins the request already made
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..a3958cf 100644
+index f316694..1f22a1e 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -276,7 +276,7 @@ export function createSessionOwner({
+@@ -315,7 +315,7 @@ export function createSessionOwner({
      subscribe: slot.subscribe,
      snapshot: slot.snapshot,
      open: (identity) => {
@@ -4045,10 +4308,10 @@ index 7c54c39..a3958cf 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..7ccea0e 100644
+index f316694..8ecbb5c 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -276,7 +276,7 @@ export function createSessionOwner({
+@@ -315,7 +315,7 @@ export function createSessionOwner({
      subscribe: slot.subscribe,
      snapshot: slot.snapshot,
      open: (identity) => {
@@ -4114,10 +4377,10 @@ index ef4dabd..709cbd4 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..91b4e9e 100644
+index f316694..d2e2343 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -299,6 +299,7 @@ export function createSessionOwner({
+@@ -338,6 +338,7 @@ export function createSessionOwner({
        return latest;
      },
      leave: () => {
@@ -4131,10 +4394,10 @@ index 7c54c39..91b4e9e 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..a830bc8 100644
+index f316694..a1defb7 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -172,7 +172,6 @@ export function installSessionRuntime({
+@@ -173,7 +173,6 @@ export function installSessionRuntime({
            sessionProjects({ isCurrent, installProject, budgetMs }),
          ),
          async (projects) => {
@@ -4148,10 +4411,10 @@ index 7c54c39..a830bc8 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..bd14485 100644
+index f316694..bf86e8b 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -119,7 +119,7 @@ function sessionProjects({
+@@ -120,7 +120,7 @@ function sessionProjects({
      install: (dependencies) =>
        installProject({
          ...dependencies,
@@ -4166,10 +4429,10 @@ index 7c54c39..bd14485 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..0e140c8 100644
+index f316694..e22b179 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -127,7 +127,6 @@ function sessionProjects({
+@@ -128,7 +128,6 @@ function sessionProjects({
      subscribe: owner.subscribe,
      snapshot: owner.snapshot,
      open: async (projectId, source) => {
@@ -4183,17 +4446,17 @@ index 7c54c39..0e140c8 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..7300789 100644
+index f316694..c698f55 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -283,7 +283,7 @@ export function createSessionOwner({
+@@ -322,7 +322,7 @@ export function createSessionOwner({
            let built: SessionRuntime | null = null;
            const isCurrent = (): boolean => {
              const state = slot.snapshot();
 -            return state.status === 'live' && state.services === built;
 +            return state.status === 'live';
            };
-           const runtime = install({
+           const runtime = installRecorded({
              userId: identity.userId,
 ```
 
@@ -4201,10 +4464,10 @@ index 7c54c39..7300789 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..d215e5d 100644
+index f316694..15b8383 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -179,7 +179,7 @@ export function installSessionRuntime({
+@@ -180,7 +180,7 @@ export function installSessionRuntime({
        ),
      })
      .build();
@@ -4215,14 +4478,31 @@ index 7c54c39..d215e5d 100644
      directory: bag.resolve('directoryManagement'),
 ```
 
+#### Proof m12 — a failed construction's refusal not recorded: the owner rethrows its own runtime's failure
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
+index f316694..5d28df9 100644
+--- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
+@@ -286,7 +286,6 @@ export function createSessionOwner({
+         failure instanceof PartialAcquisitionError
+           ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
+           : failure;
+-      refusedByRuntime.add(refusal);
+       throw refusal;
+     }
+     return { services: runtime.services, close: recorded(runtime.close) };
+```
+
 #### Proof k1 — the client published beside the session's services
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..4550c0f 100644
+index f316694..59a7964 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -184,6 +184,7 @@ export function installSessionRuntime({
+@@ -185,6 +185,7 @@ export function installSessionRuntime({
      isCurrent,
      directory: bag.resolve('directoryManagement'),
      projects: bag.resolve('projects'),
@@ -4236,44 +4516,64 @@ index 7c54c39..4550c0f 100644
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..81ca270 100644
+index f316694..b8e09da 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -264,7 +264,6 @@ export function createSessionOwner({
+@@ -306,7 +306,6 @@ export function createSessionOwner({
      try {
        await transition;
      } catch (refusal: unknown) {
 -      if (refusal instanceof TransitionSupersededError) return;
-       const state = slot.snapshot();
-       if (state.status === 'fatal') return;
-       throw new Error(`a session transition was refused and the slot is ${state.status}`, {
+       if (refusedByRuntime.has(refusal)) return;
+       throw new Error('a session transition was refused by the slot itself', { cause: refusal });
+     }
 ```
 
-#### Proof o2 — a refusal the slot already made fatal is rethrown instead of shown
+#### Proof o2 — a refused retirement not recorded: the owner rethrows its own runtime's failure
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..130b046 100644
+index f316694..43a2bec 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -266,7 +266,6 @@ export function createSessionOwner({
-     } catch (refusal: unknown) {
-       if (refusal instanceof TransitionSupersededError) return;
-       const state = slot.snapshot();
--      if (state.status === 'fatal') return;
-       throw new Error(`a session transition was refused and the slot is ${state.status}`, {
-         cause: refusal,
-       });
+@@ -270,7 +270,6 @@ export function createSessionOwner({
+       try {
+         await close(options);
+       } catch (refusal: unknown) {
+-        refusedByRuntime.add(refusal);
+         throw refusal;
+       }
+     };
+```
+
+#### Proof o3 — a partial acquisition's release refusal not recorded: the rewrap dropped
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
+index f316694..10984c7 100644
+--- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
+@@ -283,9 +283,7 @@ export function createSessionOwner({
+       runtime = install(dependencies);
+     } catch (failure: unknown) {
+       const refusal =
+-        failure instanceof PartialAcquisitionError
+-          ? new PartialAcquisitionError(failure.cause, recorded(failure.release))
+-          : failure;
++        failure;
+       refusedByRuntime.add(refusal);
+       throw refusal;
+     }
 ```
 
 #### Proof d1 — a project that will not let go does not fail its session
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 7c54c39..0c4da81 100644
+index f316694..5686f1c 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -174,7 +174,6 @@ export function installSessionRuntime({
+@@ -175,7 +175,6 @@ export function installSessionRuntime({
          async (projects) => {
            await projects.leave();
            const left = projects.snapshot();
@@ -4336,7 +4636,7 @@ builds a password session’s directory from the credential the login answered
 
 | Id   | Fault                                                        | Suite › test                                                                                      | Observed                                                                                               | Comment above                                                                                 |
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `g1` | the region's reader hands out whatever is live, for any user | `session-runtime.test.ts` › `hands a region drawn for one user nothing of another user’s session` | `1 failed \| 6 skipped (7)`; `expected { userId: 'u1', …(3) } to be null`                              | `return state.status === 'live' && state.services.userId === userId ? state.services : null;` |
+| `g1` | the region's reader hands out whatever is live, for any user | `session-runtime.test.ts` › `hands a region drawn for one user nothing of another user’s session` | `1 failed \| 7 skipped (8)`; `expected { userId: 'u1', …(3) } to be null`                              | `return state.status === 'live' && state.services.userId === userId ? state.services : null;` |
 | `g2` | a fatal session draws the region anyway                      | `app.test.tsx` › `shows the sanitized report when the session cannot be built`                    | `1 failed \| 11 skipped (12)`; `Error: no fatal state yet` — no `[data-lifetime-fault]` was ever drawn | `if (sessionState.status === 'fatal') return <LifetimeFault fault={sessionState.fault} />;`   |
 | `g3` | the region going never leaves the session                    | `app.test.tsx` › `gives the session back when the signed-in region goes`                          | `1 failed \| 11 skipped (12)`; `expected 'live' to be 'empty'` — the session was never given back      | `void sessionOwner.leave();`                                                                  |
 | `g4` | the credential never reaches the directory's client          | `app.test.tsx` › `builds a password session’s directory from the credential the login answered`   | `1 failed \| 11 skipped (12)`; `expected [ '' ] to deeply equal [ 'tok' ]`                             | `void sessionOwner.open({ userId: session.user.id, credential: session.token });`             |
@@ -4345,10 +4645,10 @@ builds a password session’s directory from the credential the login answered
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/runtime/session-runtime.ts b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-index 6c781c5..840ef38 100644
+index c4f2c3e..934e3b4 100644
 --- a/apps/wbs/fe-01/src/runtime/session-runtime.ts
 +++ b/apps/wbs/fe-01/src/runtime/session-runtime.ts
-@@ -77,7 +77,7 @@ export function sessionFor(
+@@ -78,7 +78,7 @@ export function sessionFor(
    state: LifetimeState<SessionRuntime>,
    userId: string,
  ): SessionRuntime | null {
@@ -4467,14 +4767,14 @@ packets' executor output simulated in the files this packet patches. `fill=1` in
 `if (projectState.status === 'fatal') {`, `q2` at the page's second `return () => {`, `x1` and `x2` in
 the stream factory) and dates their `<observed-date>` and `<observed-date-j>` notes in `tasks.md` and
 the lifetime map; then, after slice 1's diffs and before slice 2's, it fills this packet's own
-thirteen slice-1 comment sites, which slice 2 patches around. No script, no Prettier and no
+fifteen slice-1 comment sites, which slice 2 patches around. No script, no Prettier and no
 `node_modules` are needed: every change is a diff.
 
 ````sh
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-i-session-runtime.md
-base=4756254dce4f3f1357866823cb384d9e2960c726
-final=bb8babd9a47a1f179813c147e1cf2156c1505128
+base=c9c99f0acce38c93ee70d15cf54563816b2c4a0b
+final=4999d56cefa77e10c5307bb829d2c490a3f3d148
 test -f "$packet"
 # Inserts a two-line comment above the Nth line (default 1) whose trimmed text is exactly $2.
 fill_above() {
@@ -4521,7 +4821,7 @@ for fill in 0 1; do
   ' "$packet"
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
-  test "$count" -eq 22
+  test "$count" -eq 24
   # A real repository holding exactly the base tree, so --check has something to check against.
   git archive "$base" | tar -x -C "$work/tree"
   fe="$work/tree/apps/wbs/fe-01"
@@ -4551,8 +4851,8 @@ for fill in 0 1; do
     git -C "$work/tree" apply --check "$work/patches/$n.diff"
     git -C "$work/tree" apply "$work/patches/$n.diff"
   done
-  check_faults m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 k1 o1 o2 d1 l1 l2
-  echo "fill=$fill slice 1 applied, its 17 fault patches check"
+  check_faults m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 k1 o1 o2 o3 d1 l1 l2
+  echo "fill=$fill slice 1 applied, its 19 fault patches check"
   if [ "$fill" -eq 1 ]; then
     runtime="$fe/src/runtime/session-runtime.ts"
     for anchor in "if (identity.userId === wanted?.userId) return latest;" "wanted = null;" \
@@ -4560,9 +4860,12 @@ for fill in 0 1; do
       "if (!isCurrent()) return;" "return state.status === 'live' && state.services === built;" \
       "return acquireTransactionally(bag, () => ({" \
       "if (refusal instanceof TransitionSupersededError) return;" \
-      "if (state.status === 'fatal') return;"; do
+      "? new PartialAcquisitionError(failure.cause, recorded(failure.release))"; do
       fill_above "$runtime" "$anchor"
     done
+    # `recorded`'s catch and `installRecorded`'s: the second filled first, so the first stays first.
+    fill_above "$runtime" "refusedByRuntime.add(refusal);" 2
+    fill_above "$runtime" "refusedByRuntime.add(refusal);" 1
     resource="$fe/src/modules/directory/directory.resource.ts"
     fill_above "$resource" "if (!isActiveReader()) return;" 1
     fill_above "$resource" "if (!isActiveReader()) return;" 2
@@ -4570,8 +4873,8 @@ for fill in 0 1; do
     fill_above "$fe/src/modules/directory-management/module.ts" \
       ".buildModule(['directoryManagement'], { label: DIRECTORY_MANAGEMENT_LABEL });"
     test "$(cat "$runtime" "$resource" "$fe/src/modules/directory-management/module.ts" \
-      | grep -c 'Proof: simulated')" -eq 13
-    echo "fill=1 thirteen slice-1 sites filled"
+      | grep -c 'Proof: simulated')" -eq 15
+    echo "fill=1 fifteen slice-1 sites filled"
   fi
   for n in 04 05 06; do
     git -C "$work/tree" apply --check "$work/patches/$n.diff"
@@ -4602,17 +4905,17 @@ Observed on 2026-09-24, after the final Prettier `--check` of this document:
 
 ```text
 fill=0 extracted=9
-fill=0 fault-patches=22
-fill=0 slice 1 applied, its 17 fault patches check
+fill=0 fault-patches=24
+fill=0 slice 1 applied, its 19 fault patches check
 fill=0 slice 2 applied, its 4 fault patches check
 fill=0 slice 3 applied, its 1 fault patch checks
 29
-fill=0 tree identical to bb8babd9a47a1f179813c147e1cf2156c1505128
+fill=0 tree identical to 4999d56cefa77e10c5307bb829d2c490a3f3d148
 fill=1 extracted=9
-fill=1 fault-patches=22
+fill=1 fault-patches=24
 fill=1 filled-sites=5, dated notes filled
-fill=1 slice 1 applied, its 17 fault patches check
-fill=1 thirteen slice-1 sites filled
+fill=1 slice 1 applied, its 19 fault patches check
+fill=1 fifteen slice-1 sites filled
 fill=1 slice 2 applied, its 4 fault patches check
 fill=1 slice 3 applied, its 1 fault patch checks
 29
@@ -4626,7 +4929,7 @@ which the executor writes, counting the deleted `composition.ts`. The `fill=0` t
 to the rehearsal's final commit (`diff -r` printed nothing), which holds the two `<observed-date-i>`
 placeholders slice 3 step 4 replaces. In the `fill=1` run all five simulated comments of packets h and
 j in `project-page.tsx` survive in place, their dated notes did not disturb slice 3's hunks, and slice
-2's diffs and faults apply around this packet's own thirteen filled slice-1 sites.
+2's diffs and faults apply around this packet's own fifteen filled slice-1 sites.
 
 **A failed check stops the run**: the same two-line form as packets g, h and j.
 
@@ -4656,30 +4959,30 @@ Rehearsed on the base and after every slice: `{"items":114,"passed":114,"failed"
 
 ### 9.3 Commands actually run, and what each reported
 
-All on 2026-09-24, by this packet's author, on a rehearsal branch cut at `4756254d` where each slice was
+All on 2026-09-24, by this packet's author, on a rehearsal branch cut at `c9c99f0a` where each slice was
 committed **with the hooks on** (lefthook's format, lint, wiki and secrets checks passed for all three
-commits), not inside an executor sandbox: `7883b0b1` (slice 1), `8150fe70` (slice 2) and `bb8babd9` (slice 3), on
-the throwaway branch `rehearse/050-7-i`. Each red was rebuilt from the previous slice's commit plus
+commits), not inside an executor sandbox: `ccd978d2` (slice 1), `0370c69c` (slice 2) and `4999d56c` (slice 3), on
+the throwaway branch `rehearse/050-7-i-r2` (its first commit, `c9c99f0a`, lays packet j's third-revision runtime files on the authoring base; the first revision's rehearsal, `rehearse/050-7-i`, is kept). Each red was rebuilt from the previous slice's commit plus
 that slice's contract and test side only; each fault was injected into the commit of the slice that
 owns it.
 
-| Check                                  | Base `4756254d` | Slice 1                      | Slice 2                      | Slice 3                     |
+| Check                                  | Base `c9c99f0a` | Slice 1                      | Slice 2                      | Slice 3                     |
 | -------------------------------------- | --------------- | ---------------------------- | ---------------------------- | --------------------------- |
-| sandbox node suite (files·tests)       | 53·694          | 56·706                       | 56·707                       | 56·707                      |
+| sandbox node suite (files·tests)       | 53·695          | 56·708                       | 56·709                       | 56·709                      |
 | preferences suite                      | 4·39            | 4·39                         | 4·39                         | 4·39                        |
 | session set, serial                    | 3·59            | 3·59                         | 3·64                         | 3·65                        |
 | adopted set, serial                    | 20·1218         | 20·1218                      | 20·1218                      | 20·1219                     |
 | zoned (Auckland)                       | 2·3             | 2·3                          | 2·3                          | 2·3                         |
-| red typecheck                          | —               | exit 1, 33 errors in 5 files | exit 1, 22 errors in 6 files | exit 1, 2 errors in 2 files |
+| red typecheck                          | —               | exit 1, 34 errors in 5 files | exit 1, 22 errors in 6 files | exit 1, 2 errors in 2 files |
 | red Vitest                             | —               | 3 files failed, no tests     | `3 failed \| 9 passed (12)`  | `1 failed \| 5 passed (6)`  |
 | typecheck on the slice's commit        | 0               | 0                            | 0                            | 0                           |
-| faults observed failing, file restored | —               | 17 of 17                     | 4 of 4                       | 1 of 1                      |
+| faults observed failing, file restored | —               | 19 of 19                     | 4 of 4                       | 1 of 1                      |
 | strict OpenSpec                        | 114 · 114 · 0   | 114 · 114 · 0                | 114 · 114 · 0                | 114 · 114 · 0               |
 
 (`53·694` is 53 files, 694 tests.) Every proof filter was run first and matched exactly one test, and
-the twenty-two faults were then run through section 8's own loop on their slice's commit, each
+the twenty-four faults were then run through section 8's own loop on their slice's commit, each
 `status=1` with its table's `Tests` line, each restore `cmp`-identical, each green rerun `status=0`.
-The eleven model faults were run twice, with identical run numbers and shrunk sequences.
+The twelve model faults were run twice, with identical run numbers and shrunk sequences.
 
 **Also observed**: `m2` injected on the final commit fails, beside the model test, the example `keeps
 one runtime for one user whatever credential arrives, and replaces it for another` and the app example
@@ -4693,22 +4996,22 @@ session under a mounted directory page; a session disposer that leaves its proje
 project's slot joins the second leave and nothing is observable. Neither is claimed.
 
 On the final commit, as the planner: `wbs-fe-01:lint` exit 0; `nx format:check --all` exit 0;
-`wbs-fe-01:typecheck` exit 0; slice 2's builder `git grep` empty; `wbs-fe-01:build` exit 0 (`✓ built in 607ms`); `tool-devsync:test` 366 pass, 0 fail on the committed rehearsal branch; `wbs-fe-01:test:unit` 58 files, 730 tests and `wbs-fe-01:test` UTC 145 files, 3083 tests, zoned 2 · 3 — against the base's 55·717 and 142·3064 (packet j's record of the same frontend code; this base adds only planning documents), each exit 0; and after slice 2 alone, `wbs-fe-01:test` UTC 145 files, 3082 tests (section 9.4).
+`wbs-fe-01:typecheck` exit 0; slice 2's builder `git grep` empty; `wbs-fe-01:build` exit 0 (`✓ built in 816ms`); `tool-devsync:test` 366 pass, 0 fail on the committed rehearsal branch; `wbs-fe-01:test:unit` 58 files, 732 tests and `wbs-fe-01:test` UTC 145 files, 3085 tests, zoned 2 · 3, each exit 0 (section 9.4). The base figures there are derived — the final counts less this packet's own additions — not rerun on `c9c99f0a`.
 
 ### 9.4 Planner-only, with the expected relative delta
 
 The sandbox cannot run these: three tests in two files spawn `bun` from Node, there is no browser, a
 build writes outside the attempt's lane, and devsync writes Git objects.
 
-| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                                                        | Planner's own rehearsal                                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 3 files, + 12 tests**; slice 2 **+ 1 test**; slice 3 unchanged                                                                                            | base 55 files, 717 tests (packet j's record of the same code); final commit 58 files, 730 tests; exit 0                               |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 3 files, + 12 tests**, slice 2 **+ 6 tests**, slice 3 **+ 1 test**. Auckland zoned unchanged                                                         | base UTC 142 files, 3064 tests (packet j's record); after slice 2 145 · 3082; final commit 145 files, 3083 tests, zoned 2 · 3; exit 0 |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                                                               | exit 0 on the final commit, `✓ built in 607ms`                                                                                        |
-| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module index block, no pre-namespacing path in any owned document                                                                    | 366 pass, 0 fail, exit 0 on the final commit, the slices committed                                                                    |
-| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slices 2 and 3 — the login specs and every spec that opens the directory or a project, since the region now appears once the session is live | **Pending planner verification.** Not run in this rehearsal.                                                                          |
-| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands                                          | **Pending planner verification.** Not run, not waived.                                                                                |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                                                                       | **Not run**; reported as pending, never as passed.                                                                                    |
+| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                                                        | Planner's own rehearsal                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 3 files, + 13 tests**; slice 2 **+ 1 test**; slice 3 unchanged                                                                                            | final commit 58 files, 732 tests, exit 0; base derived as 55 · 718 (final less + 3 files, + 14 tests)                      |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 3 files, + 13 tests**, slice 2 **+ 6 tests**, slice 3 **+ 1 test**. Auckland zoned unchanged                                                         | final commit UTC 145 files, 3085 tests, zoned 2 · 3, exit 0; base derived as 142 · 3065 (final less + 3 files, + 20 tests) |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                                                               | exit 0 on the final commit, `✓ built in 816ms`                                                                             |
+| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module index block, no pre-namespacing path in any owned document                                                                    | 366 pass, 0 fail, exit 0 on the final commit, the slices committed                                                         |
+| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slices 2 and 3 — the login specs and every spec that opens the directory or a project, since the region now appears once the session is live | **Pending planner verification.** Not run in this rehearsal.                                                               |
+| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands                                          | **Pending planner verification.** Not run, not waived.                                                                     |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                                                                       | **Not run**; reported as pending, never as passed.                                                                         |
 
 `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` is not decoration: `CLAUDECODE=1` changes Bun's test
 output and fails thirteen unrelated tests in this repository.
@@ -4722,7 +5025,12 @@ output and fails thirteen unrelated tests in this repository.
   five examples and the router's example exercise the real session.
 - The model's disposal is the real one behind one scheduled step; it never fails and never times out.
   Failure is the slot's own model's and the example `fails the session’s retirement when its project
-will not let go`; expiry is the slot's alone.
+will not let go` and `settles a half-built session that cannot be released, …`; expiry is the
+  slot's model's, and the session's timeout variant — nested equal budgets, section 3.8 — is packet k's.
+- **Absolute counts on the real base.** This rehearsal's base already carries packet j's third-revision
+  runtime, so its sandbox base (53·695) is what the real base should show; the review of the first
+  revision measured the real base one example higher than that revision's rehearsal. Every expectation
+  in section 6 is relative, and the deltas are what hold.
 - No production event sends a same-user identity today; the app example drives `SignedInApp` with one
   directly, which is the component the app renders.
 - The `fill=1` run proves the patches survive comments **at** packet h's and packet j's five named
@@ -4735,7 +5043,7 @@ Each is false on the rehearsal tree, checked on 2026-09-24.
 
 1. Step 0a's status is not empty, or `base` differs from the slice note's SHA. Stop: the clone is not
    the tree this packet was reviewed against.
-2. Step 0b extracts other than 9 patches or other than 22 fault patches. Stop: this document is not the
+2. Step 0b extracts other than 9 patches or other than 24 fault patches. Stop: this document is not the
    one reviewed.
 3. A patch fails `git apply --check`. Stop and report the exact error; never hand-edit a file into
    shape.
@@ -4809,47 +5117,47 @@ retries until a held write commits` failing; a single `Test timed out in 5000ms`
 
 ### 14.1 The non-negotiables of the commissioning brief
 
-| Requirement                                                                                                                                                                          | Where this packet meets it                                                                                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| the session runtime as a lifecycle keyed by user id, installing the directory module; router instance and address survive a same-session update                                      | §3.1–3.4; `createSessionOwner`, `directoryManagementModule`, `SignedInApp`; the app example of §9.3                                    |
-| designed so packet k can retire project then session with no request                                                                                                                 | §3.6 and §12: one `leave()`                                                                                                            |
-| a written state machine (states, events, invariants)                                                                                                                                 | §3.1                                                                                                                                   |
-| `fc.asyncModelRun` model test; four sabotages at least: a directory read surviving a user switch, a late answer after retirement, double retirement, a project outliving its session | §8.1: `m1` (run 3), `m3` (8), `m6` (3, the double trigger; §3.8 on the double disposal), `m7` (8), plus seven more                     |
-| "Unknown is not OK"; production-path negatives with `Proof:` comments dated by the executor                                                                                          | §8: twenty-two faults, each observed; §3.8 and §9.3 name what was tried and could not be proved                                        |
-| no `any`, unchecked cast or `!` outside tests; verb-object names, predicate booleans; no product names in identifiers                                                                | none in the production diffs; `createSessionOwner`, `installSessionRuntime`, `sessionFor`, `isCurrent`, `isActiveReader`               |
-| module-identifier grammar                                                                                                                                                            | `module.frontend.directory-management`, label `frontend.directory-management` (§7.3)                                                   |
-| task 6 ticked only if every sentence is met; residuals with owners                                                                                                                   | §3.8; ticked in slice 3 with a dated note; residuals to tasks 7, 11, 12, 13                                                            |
-| rehearsal commits, one per slice, hooks on; reds on the previous slice plus the test side; faults run, restored, `cmp`                                                               | §9.3                                                                                                                                   |
-| exact planner commit subjects and `owned.txt` per slice; relative counts; planner-only list                                                                                          | §6 each slice's step 9 and subject; §9.4                                                                                               |
-| §9.1-style extraction with a fill simulation for packets h's and j's comment sites                                                                                                   | §9.1, `fill=0` identical to the final rehearsal commit; `fill=1` over their five sites and dated notes, and this packet's own thirteen |
-| `legacy-root` exemption only if a pre-namespacing path is cited                                                                                                                      | none cited: every path is `apps/wbs/fe-01/…` or relative to it                                                                         |
-| no absolute path outside Dispatch; `--driver claude` and `--require-ancestor <J3>` on every dispatch line                                                                            | §6 Dispatch                                                                                                                            |
-| which hunks touch packet j's files                                                                                                                                                   | §5, "Why the slices are cut where they are"                                                                                            |
+| Requirement                                                                                                                                                                          | Where this packet meets it                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| the session runtime as a lifecycle keyed by user id, installing the directory module; router instance and address survive a same-session update                                      | §3.1–3.4; `createSessionOwner`, `directoryManagementModule`, `SignedInApp`; the app example of §9.3                                   |
+| designed so packet k can retire project then session with no request                                                                                                                 | §3.6 and §12: one `leave()`                                                                                                           |
+| a written state machine (states, events, invariants)                                                                                                                                 | §3.1                                                                                                                                  |
+| `fc.asyncModelRun` model test; four sabotages at least: a directory read surviving a user switch, a late answer after retirement, double retirement, a project outliving its session | §8.1: `m1` (run 3), `m3` (2), `m6` (1, the double trigger; §3.8 on the double disposal), `m7` (14), plus eight more                   |
+| "Unknown is not OK"; production-path negatives with `Proof:` comments dated by the executor                                                                                          | §8: twenty-four faults, each observed; §3.8 and §9.3 name what was tried and could not be proved                                      |
+| no `any`, unchecked cast or `!` outside tests; verb-object names, predicate booleans; no product names in identifiers                                                                | none in the production diffs; `createSessionOwner`, `installSessionRuntime`, `sessionFor`, `isCurrent`, `isActiveReader`              |
+| module-identifier grammar                                                                                                                                                            | `module.frontend.directory-management`, label `frontend.directory-management` (§7.3)                                                  |
+| task 6 ticked only if every sentence is met; residuals with owners                                                                                                                   | §3.8; ticked in slice 3 with a dated note; residuals to tasks 7, 11, 12, 13                                                           |
+| rehearsal commits, one per slice, hooks on; reds on the previous slice plus the test side; faults run, restored, `cmp`                                                               | §9.3                                                                                                                                  |
+| exact planner commit subjects and `owned.txt` per slice; relative counts; planner-only list                                                                                          | §6 each slice's step 9 and subject; §9.4                                                                                              |
+| §9.1-style extraction with a fill simulation for packets h's and j's comment sites                                                                                                   | §9.1, `fill=0` identical to the final rehearsal commit; `fill=1` over their five sites and dated notes, and this packet's own fifteen |
+| `legacy-root` exemption only if a pre-namespacing path is cited                                                                                                                      | none cited: every path is `apps/wbs/fe-01/…` or relative to it                                                                        |
+| no absolute path outside Dispatch; `--driver claude` and `--require-ancestor <J3>` on every dispatch line                                                                            | §6 Dispatch                                                                                                                           |
+| which hunks touch packet j's files                                                                                                                                                   | §5, "Why the slices are cut where they are"                                                                                           |
 
 ### 14.2 The batch-6 addendum's twenty points
 
-| Point                       | Assessment                                                                                                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Reproduced red           | Met for all three slices: compiler and runtime reds, each rebuilt from the previous slice plus its test side, diagnostics pasted (§6).                                              |
-| 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on (§9.3).                                                                         |
-| 3. Path counts              | Met: each hand-over lists the slice's exact paths (14, 13, 12); the planner's own commit adds only this document.                                                                   |
-| 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it.                                                                                                          |
-| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                      |
-| 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (§9.4).                                                                                     |
-| 7. Known race               | Met: named, one rerun, no repair authority (§10.11).                                                                                                                                |
-| 8. Names                    | Met: no product name in an identifier; the module id follows the grammar.                                                                                                           |
-| 9. Packet form and evidence | Met: three slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed messages; the unprovable named, not skipped. |
-| 10. Pins                    | Met: no pin touched.                                                                                                                                                                |
-| 11. Pipeline exit handling  | Met: the fault `diff` form after one command; the filter count, the placeholder check and the builder check read single commands or captured output.                                |
-| 12. Planner chaining        | Met: the extraction stops at the first failed check (§9.1).                                                                                                                         |
-| 13. Module index            | N/A with reason: no `fe-01` module carries a `module-index` block yet; task 12 adds them, and `module.ts` does not need one to be sealed.                                           |
-| 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                         |
-| 15. Interleaving property   | Met: the owner, its sessions and their projects under `fc.scheduler`-ordered answers, gestures, project opens and disposals (§3.1, §7.2).                                           |
-| 16. Model-based remedy      | Met: `fc.asyncModelRun` against a reference model with eleven sabotages at recorded runs (§8.1).                                                                                    |
-| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                  |
-| 18. Symbol-based checks     | N/A: no code-shape checker is introduced; slice 2's `git grep` is a verification command, and task 13 owns the symbol-based rule (§12).                                             |
-| 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                           |
-| 20. Honest limits           | Met: §3.8 and §9.5 — the fixtures, the unfailing model disposal, the absent same-user event, the double-disposal fault that cannot be observed, the fill limits.                    |
+| Point                       | Assessment                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Reproduced red           | Met for all three slices: compiler and runtime reds, each rebuilt from the previous slice plus its test side, diagnostics pasted (§6).                                                                                                                                                                                                                                                                    |
+| 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on (§9.3).                                                                                                                                                                                                                                                                                               |
+| 3. Path counts              | Met: each hand-over lists the slice's exact paths (14, 13, 12); the planner's own commit adds only this document.                                                                                                                                                                                                                                                                                         |
+| 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it.                                                                                                                                                                                                                                                                                                                                |
+| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                                                                                                                                                                                                                                            |
+| 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (§9.4).                                                                                                                                                                                                                                                                                                           |
+| 7. Known race               | Met: named, one rerun, no repair authority (§10.11).                                                                                                                                                                                                                                                                                                                                                      |
+| 8. Names                    | Met: no product name in an identifier; the module id follows the grammar.                                                                                                                                                                                                                                                                                                                                 |
+| 9. Packet form and evidence | Met: three slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed messages; the unprovable named, not skipped.                                                                                                                                                                                                                       |
+| 10. Pins                    | Met: no pin touched.                                                                                                                                                                                                                                                                                                                                                                                      |
+| 11. Pipeline exit handling  | Met: the fault `diff` form after one command; the filter count, the placeholder check and the builder check read single commands or captured output.                                                                                                                                                                                                                                                      |
+| 12. Planner chaining        | Met: the extraction stops at the first failed check (§9.1).                                                                                                                                                                                                                                                                                                                                               |
+| 13. Module index            | N/A with reason: no `fe-01` module carries a `module-index` block yet; task 12 adds them, and `module.ts` does not need one to be sealed.                                                                                                                                                                                                                                                                 |
+| 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                                                                                                                                                                                                                                               |
+| 15. Interleaving property   | Met: the owner, its sessions and their projects under `fc.scheduler`-ordered answers, gestures, project opens, disposals, sign-ins from inside a notification and unbuildable sign-ins (§3.1, §7.2).                                                                                                                                                                                                      |
+| 16. Model-based remedy      | Met: `fc.asyncModelRun` against a reference model, with re-entrant sign-ins from inside the owner's notification and partial acquisitions with a recorded release among its commands, and twelve sabotages at recorded runs (§8.1). A failing or expiring **disposal** is not a model command: it is the slot's own model's and two examples' here, and the session's timeout is packet k's (§3.1, §3.8). |
+| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                                                                                                                                                                                                                                        |
+| 18. Symbol-based checks     | N/A: no code-shape checker is introduced; slice 2's `git grep` is a verification command, and task 13 owns the symbol-based rule (§12).                                                                                                                                                                                                                                                                   |
+| 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                                                                                                                                                                                                                                                 |
+| 20. Honest limits           | Met: §3.8 and §9.5 — the fixtures, the unfailing model disposal, the absent same-user event, the double-disposal fault that cannot be observed, the fill limits.                                                                                                                                                                                                                                          |
 
 ## 15. Ready to commit
 
