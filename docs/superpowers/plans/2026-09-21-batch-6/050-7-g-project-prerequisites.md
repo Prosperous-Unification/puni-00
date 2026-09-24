@@ -6,7 +6,7 @@
 | Size class  | L — five slices, each one executor attempt                                                                                                                                                                                                                                       |
 | Predecessor | [050.7f2](050-7-f2-delivery-call-sites.md) — the call-time reader, the `live-application` fixture the table suites render through, and its model-test and proof discipline                                                                                                       |
 | Closes      | OpenSpec task **8** of `adopt-frontend-lifetimes`, and item 1 and 2 of "Required implementation order" in the [frontend lifetime map](../2026-09-21-batch-4/050-7-frontend-lifetime-map.md): React supplies no state setter to the plan feed's or the plan writer's construction |
-| Revision    | First.                                                                                                                                                                                                                                                                           |
+| Revision    | Second. Round 1 said READY AFTER FIXES; section 16 disposes of its seven findings.                                                                                                                                                                                               |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. One new requirement with five scenarios, one per slice; task 8 ticked with a dated note in slice 5.                                                                                                              |
 
 ## 1. Goal, non-goals, and the cut
@@ -233,21 +233,22 @@ section 8 re-observes each (`t1`, `s5`, `s1`).
 ### 3.7 Existing behaviour, and the tests that already hold it
 
 The map's "Exact lifecycle tests" that concern this packet, and the existing tests that are their
-oracle. None is edited; each is in a set every slice runs (the twenty adopted files, or the focused
-module suites), and each must stay green.
+oracle. None is edited. The DOM tests among them are in the twenty adopted files, which slices 3, 4
+and 5 run (slices 1 and 2 wire nothing into React and run only the node and preferences suites); the
+module tests are in the focused suites. Each must stay green wherever it is run.
 
-| Behaviour (map item)                        | Existing test(s)                                                                                                                                                                                                                                     |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| StrictMode creates a live second owner (10) | `plan-read-and-write.test.tsx` › `creates a live second owner after StrictMode cleans up its first setup`                                                                                                                                            |
-| old completions cannot publish (11) — reads | `ignores an old API read that settles by resolve on the same project`, `… by reject …`                                                                                                                                                               |
-| old completions — refusals                  | `does not toast an old API mutation refusal into its replacement`, `keeps an old dependency-list refusal out of its busy API replacement`                                                                                                            |
-| old completions — busy                      | `does not spend an old API success against its busy replacement`, `does not announce an old arrangement in its busy replacement`; `plan-writer.test.ts` › `leaves the project busy when its reader left before the answer arrived` (new, slice 3)    |
-| stale owner                                 | `plan-writer.test.ts` › `refuses a completed gesture whose feed owner was replaced under it`; `does not announce an arrangement after its covering read changes API owner`; `announces an arrangement after the same reader renews its subscription` |
-| busy                                        | `says the toolbar is busy, and marks the controls the wait holds back`                                                                                                                                                                               |
-| refusal                                     | `says a refused rename in a toast, and puts nothing above the table`, `names an unavailable optimizer and offers no export before a plan is installed`, `plan-chart-seam.test.tsx` › `rereads a marker refused because a peer already deleted it`    |
-| roster                                      | `project-page.test.tsx` › `hands the presence slot the roster, and an empty one before any socket`; new in slice 5: `hands the presence slot who the project’s stream says is here, and its connection`                                              |
-| focus                                       | `plan-keyboard.test.tsx` › `Cmd+Enter on the last row makes one and lands in it`, `Ctrl+N works from an estimate cell, and sends what was in it first`                                                                                               |
-| connection                                  | `says so while the connection is down`                                                                                                                                                                                                               |
+| Behaviour (map item)                        | Existing test(s)                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| StrictMode creates a live second owner (10) | `plan-read-and-write.test.tsx` › `creates a live second owner after StrictMode cleans up its first setup`                                                                                                                                                                                                                        |
+| old completions cannot publish (11) — reads | `plan-read-and-write.test.tsx:1691`, one `it.each` over `resolve` and `reject`: `'ignores an old API read that settles by %s on the same project'`                                                                                                                                                                               |
+| old completions — refusals                  | `does not toast an old API mutation refusal into its replacement`, `keeps an old dependency-list refusal out of its busy API replacement`                                                                                                                                                                                        |
+| old completions — busy                      | `does not spend an old API success against its busy replacement`, `does not announce an old arrangement in its busy replacement`; `plan-writer.test.ts` › `leaves the project busy when its reader left before the answer arrived` (new, slice 3)                                                                                |
+| stale owner                                 | `plan-writer.test.ts` › `refuses a completed gesture whose feed owner was replaced under it`; `plan-read-and-write.test.tsx:1968` › `does not announce an arrangement after its covering read changes API owner`; `plan-read-and-write.test.tsx:2031` › `announces an arrangement after the same reader renews its subscription` |
+| busy                                        | `says the toolbar is busy, and marks the controls the wait holds back`                                                                                                                                                                                                                                                           |
+| refusal                                     | `says a refused rename in a toast, and puts nothing above the table`, `names an unavailable optimizer and offers no export before a plan is installed`, `plan-chart-seam.test.tsx` › `rereads a marker refused because a peer already deleted it`                                                                                |
+| roster                                      | `project-page.test.tsx` › `hands the presence slot the roster, and an empty one before any socket`; new in slice 5: `hands the presence slot who the project’s stream says is here, and its connection`                                                                                                                          |
+| focus                                       | `plan-keyboard.test.tsx` › `Cmd+Enter on the last row makes one and lands in it`, `Ctrl+N works from an estimate cell, and sends what was in it first`                                                                                                                                                                           |
+| connection                                  | `says so while the connection is down`                                                                                                                                                                                                                                                                                           |
 
 Every one of these was observed green on each slice's rehearsed tree (section 9.3), and the ports'
 and the snapshot's production-path faults (section 8.4, 8.5) are observed failing named ones.
@@ -361,7 +362,9 @@ at a time — never two Vitest runs at once, and every multi-file run with `--no
 
 ### Step 0 — at the start of **every** slice
 
-**0a. The starting state.**
+**0a. The starting state.** Before running this block, replace `<the SHA named in this attempt's
+slice note>` with the 40-character hash the slice note gives (`reviewed base <sha>`); the block
+compares it with `HEAD` and stops if they differ.
 
 ```sh
 set -euo pipefail
@@ -444,7 +447,7 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 42
+test "$count" -eq 43
 # The twenty default-tier files that render the table or the page (packet f2's
 # adopted set), relative to apps/wbs/fe-01, for the serial "adopted" runs.
 printf '%s\n' src/app-router.test.tsx src/components/ui/page-shortcuts.test.tsx \
@@ -461,7 +464,7 @@ printf '%s\n' src/app-router.test.tsx src/components/ui/page-shortcuts.test.tsx 
 test "$(wc -l < "$TMPDIR/adopted.txt")" -eq 20
 ````
 
-Expected: `patches=17` and `mutations=42`, exit 0, and `adopted.txt` holding twenty paths.
+Expected: `patches=17` and `mutations=43`, exit 0, and `adopted.txt` holding twenty paths.
 **Applying section 7.N** below always means exactly this, never a hand edit:
 
 ```sh
@@ -576,8 +579,8 @@ Owns (7 paths): `spec.md`, `verify.md`, `vitest.node-suites.ts`, and four new fi
   An autofixable import-order or Prettier finding is fixed with `bunx eslint --fix <file>`, not
   reported as a stop (preamble rule 17).
 
-- [ ] 7. The nine proofs of section 8.1 (`c1`–`c5` on the channel, `b1`–`b4` on busy), with section
-      8's procedure: every fault observed first, then the nine `Proof:` comments at the sites the
+- [ ] 7. The ten proofs of section 8.1 (`c1`–`c6` on the channel, `b1`–`b4` on busy), with section
+      8's procedure: every fault observed first, then the ten `Proof:` comments at the sites the
       table names.
 - [ ] 8. Rerun the two models (`s1-final-models`) and the preferences and sandbox suites (step 0c's
       commands, `s1-final-*`). Expected: models 2 tests; preferences unchanged; sandbox as step 5.
@@ -810,7 +813,9 @@ Owns (8 paths): `spec.md`, `verify.md`, `tasks.md`, `src/components/wbs/project-
   bash "$TMPDIR/expect-status.sh" s5-before-page 0
   ```
 
-  Expected: both `status=0`; the page file at step 1's page count **+ 1** (rehearsed 73).
+  Expected: both `status=0`; the page file at its own step-1 number **+ 1** (rehearsed 72 → 73). Step 1
+  runs two files together, so read the page file's own number from Vitest's per-file line in
+  `s5-base-page.log` (`✓ src/components/wbs/project-page.test.tsx (72 tests)`), not the total.
 
 - [ ] 4. Apply sections 7.15 (`project-page.tsx`), 7.16 (the two module READMEs) and 7.17
       (`tasks.md`), then date the note by observation, never by copying a date from this packet:
@@ -5086,7 +5091,7 @@ test $(( $(wc -l < "$TMPDIR/proofs.txt") % 4 )) -eq 0
 wc -l < "$TMPDIR/proofs.txt"
 ````
 
-Expected: 36 lines for slice 1, 36 for slice 2, 28 for slice 3, 44 for slice 4 and 24 for slice 5.
+Expected: 40 lines for slice 1, 36 for slice 2, 28 for slice 3, 44 for slice 4 and 24 for slice 5.
 
 **First, prove every filter selects exactly one test**, before injecting anything:
 
@@ -5150,8 +5155,9 @@ Two faults that share a site share one comment block, one sentence each. Where a
 comment already sits at the site (`w2`, `s1`, `s5`, `t1`), the new sentence is added below it as its
 own `// Proof:` line; the existing lines are not edited.
 
-**For the model faults**, the run number, the shrunk counterexample and the first `Caused by` line
-are the evidence; they are seed-pinned (`seed: 20260924`, `numRuns: 300`, fast-check 4.9.0) and were
+**For the model faults**, the run number, the shrunk counterexample and the `Caused by` line the
+table quotes (it may be the second: the first can be the teardown aggregate, as in `r2`) are the
+evidence; they are seed-pinned (`seed: 20260924`, `numRuns: 300`, fast-check 4.9.0) and were
 identical in two rehearsal runs. A different run number or counterexample means the generator, seed
 or command set differs from what was reviewed: record it, and stop only if the named test **passes**.
 
@@ -5180,6 +5186,10 @@ c5
 apps/wbs/fe-01/src/modules/channel.ts
 src/modules/channel.model.test.ts
 delivers exactly what the model says, under generated interleavings
+c6
+apps/wbs/fe-01/src/modules/channel.ts
+src/modules/channel.model.test.ts
+delivers exactly what the model says, under generated interleavings
 b1
 apps/wbs/fe-01/src/modules/plan-writer/busy-store.ts
 src/modules/plan-writer/busy-store.model.test.ts
@@ -5200,17 +5210,18 @@ holds the last value raised or lowered, and says so once per change
 
 Every fault fails the slice's model test, `Tests 1 failed (1)`, exit 1. Run, counterexample (⏎ marks the line break fast-check prints) and the innermost cause, as rehearsed:
 
-| Id   | Fault                                                                          | Run | Counterexample, shrunk                                                                                                                                                        | Innermost cause                                                                                                                                                     | Comment above                                   |
-| ---- | ------------------------------------------------------------------------------ | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `c1` | recipients are the live set, not a copy taken when the event's delivery starts | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(join),publishLater(1) /*replayPath="BBf:F"*/]``, shrunk 5 times                                       | `Error: teardown refused: AssertionError: who heard 1, in what order: expected [ { listener: +0, event: 1 }, …(1) ] to deeply equal [ { listener: +0, event: 1 } ]` | `const recipients = [...subscriptions];`        |
-| `c2` | a listener unsubscribed before its turn is still called                        | 16  | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(dropNewest),publishLater(1),subscribe(record),settle /*replayPath="AAAAABGBS:VF"*/]``, shrunk 4 times | `AssertionError: publish(1) threw with no failing listener: expected AssertionError: listener 1 heard 1 after … { …(4) } to be null`                                | `if (!subscriptions.has(recipient)) continue;`  |
-| `c3` | a publication from inside a listener is delivered at once, nested              | 17  | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,publishLater(1),subscribe(echo),settle /*replayPath="CGC:F"*/]``, shrunk 1 time                                 | `AssertionError: listener 0 was entered re-entrantly: expected 2 to be 1`                                                                                           | `if (delivering) return;`                       |
-| `c4` | listener failures are collected and never rethrown                             | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(fail),publishLater(1) /*replayPath="BBf:F"*/]``, shrunk 5 times                                       | `Error: teardown refused: AssertionError: publish(1) did not rethrow the one failure by identity: expected null to be Error: listener 0 refused 1`                  | `if (failures.length === 1) throw failures[0];` |
-| `c5` | the first listener failure stops delivery to the rest                          | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(fail),subscribe(join),publishLater(1) /*replayPath="BBe:F"*/]``, shrunk 4 times                       | `Error: teardown refused: AssertionError: who heard 1, in what order: expected [ { listener: +0, event: 1 } ] to deeply equal [ { listener: +0, event: 1 }, …(1) ]` | `failures.push(failure);`                       |
-| `b1` | a raise or lower that changes nothing still tells every listener               | 1   | ``[schedulerFor()`⏎`,lower /*replayPath="AN:B"*/]``, shrunk 0 times                                                                                                           | `AssertionError: lower: changes heard by the listener that never leaves: expected 1 to be +0`                                                                       | `if (next === busy) return;`                    |
-| `b2` | listeners are told before the value changes                                    | 1   | ``[schedulerFor()`⏎`,raise /*replayPath="DKA:F"*/]``, shrunk 1 time                                                                                                           | `AssertionError: raise: the last value the sentinel read: expected false to be true`                                                                                | `busy = next;`                                  |
-| `b3` | `lower` does nothing                                                           | 1   | ``[schedulerFor()`⏎`,raise,lower /*replayPath="EJE:F"*/]``, shrunk 2 times                                                                                                    | `AssertionError: lower: busy: expected true to be false`                                                                                                            | `become(false);` inside `lower`                 |
-| `b4` | `raise` toggles instead of raising                                             | 2   | ``[schedulerFor()`⏎-> [task${1}] promise::gesture 0 ends resolved`,gesture,raise /*replayPath="ACLB:K"*/]``, shrunk 1 time                                                    | `AssertionError: raise: busy: expected false to be true`                                                                                                            | `become(true);` inside `raise`                  |
+| Id   | Fault                                                                          | Run | Counterexample, shrunk                                                                                                                                                        | Innermost cause                                                                                                                                                     | Comment above                                                                              |
+| ---- | ------------------------------------------------------------------------------ | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `c1` | recipients are the live set, not a copy taken when the event's delivery starts | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(join),publishLater(1) /*replayPath="BBf:F"*/]``, shrunk 5 times                                       | `Error: teardown refused: AssertionError: who heard 1, in what order: expected [ { listener: +0, event: 1 }, …(1) ] to deeply equal [ { listener: +0, event: 1 } ]` | `const recipients = [...subscriptions];`                                                   |
+| `c2` | a listener unsubscribed before its turn is still called                        | 16  | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(dropNewest),publishLater(1),subscribe(record),settle /*replayPath="AAAAABGBS:VF"*/]``, shrunk 4 times | `AssertionError: publish(1) threw with no failing listener: expected AssertionError: listener 1 heard 1 after … { …(4) } to be null`                                | `if (!subscriptions.has(recipient)) continue;`                                             |
+| `c3` | a publication from inside a listener is delivered at once, nested              | 17  | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,publishLater(1),subscribe(echo),settle /*replayPath="CGC:F"*/]``, shrunk 1 time                                 | `AssertionError: listener 0 was entered re-entrantly: expected 2 to be 1`                                                                                           | `if (delivering) return;`                                                                  |
+| `c4` | listener failures are collected and never rethrown                             | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(fail),publishLater(1) /*replayPath="BBf:F"*/]``, shrunk 5 times                                       | `Error: teardown refused: AssertionError: publish(1) did not rethrow the one failure by identity: expected null to be Error: listener 0 refused 1`                  | `if (failures.length === 1) throw failures[0];`                                            |
+| `c5` | the first listener failure stops delivery to the rest                          | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(fail),subscribe(join),publishLater(1) /*replayPath="BBe:F"*/]``, shrunk 4 times                       | `Error: teardown refused: AssertionError: who heard 1, in what order: expected [ { listener: +0, event: 1 } ] to deeply equal [ { listener: +0, event: 1 }, …(1) ]` | `failures.push(failure);`                                                                  |
+| `c6` | several listener failures rethrow only the first                               | 5   | ``[schedulerFor()`⏎-> [task${1}] promise::publish 1 resolved`,subscribe(fail),subscribe(fail),publishLater(1) /*replayPath="BBi:F"*/]``, shrunk 5 times                       | `Error: teardown refused: AssertionError: publish(1) did not aggregate its failures: expected Error: listener 0 refused 1 to be an instance of AggregateError`      | `if (failures.length > 1) throw new AggregateError(failures, 'channel listeners failed');` |
+| `b1` | a raise or lower that changes nothing still tells every listener               | 1   | ``[schedulerFor()`⏎`,lower /*replayPath="AN:B"*/]``, shrunk 0 times                                                                                                           | `AssertionError: lower: changes heard by the listener that never leaves: expected 1 to be +0`                                                                       | `if (next === busy) return;`                                                               |
+| `b2` | listeners are told before the value changes                                    | 1   | ``[schedulerFor()`⏎`,raise /*replayPath="DKA:F"*/]``, shrunk 1 time                                                                                                           | `AssertionError: raise: the last value the sentinel read: expected false to be true`                                                                                | `busy = next;`                                                                             |
+| `b3` | `lower` does nothing                                                           | 1   | ``[schedulerFor()`⏎`,raise,lower /*replayPath="EJE:F"*/]``, shrunk 2 times                                                                                                    | `AssertionError: lower: busy: expected true to be false`                                                                                                            | `become(false);` inside `lower`                                                            |
+| `b4` | `raise` toggles instead of raising                                             | 2   | ``[schedulerFor()`⏎-> [task${1}] promise::gesture 0 ends resolved`,gesture,raise /*replayPath="ACLB:K"*/]``, shrunk 1 time                                                    | `AssertionError: raise: busy: expected false to be true`                                                                                                            | `become(true);` inside `raise`                                                             |
 
 #### Proof c1 — recipients are the live set, not a copy taken when the event's delivery starts
 
@@ -5298,6 +5309,24 @@ index 5c242313..2d4ec34a 100644
              }
            }
          }
+```
+
+#### Proof c6 — several listener failures rethrow only the first
+
+```diff
+diff --git a/apps/wbs/fe-01/src/modules/channel.ts b/apps/wbs/fe-01/src/modules/channel.ts
+index 5c242313..236f74fb 100644
+--- a/apps/wbs/fe-01/src/modules/channel.ts
++++ b/apps/wbs/fe-01/src/modules/channel.ts
+@@ -80,7 +80,7 @@ export function createChannel<T>(): Channel<T> {
+         delivering = false;
+       }
+       if (failures.length === 1) throw failures[0];
+-      if (failures.length > 1) throw new AggregateError(failures, 'channel listeners failed');
++      if (failures.length > 1) throw failures[0];
+     },
+   };
+ }
 ```
 
 #### Proof b1 — a raise or lower that changes nothing still tells every listener
@@ -5628,15 +5657,15 @@ src/modules/plan-writer/plan-writer.test.ts
 leaves the project busy when its reader left before the answer arrived
 ```
 
-| Id   | Fault                                                            | Suite › test                                                                                                  | Observed (`Tests` line)                                                                                         | Comment above  |
-| ---- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------- |
-| `l1` | the subscription moves to a passive `useEffect`                  | `use-channel-listener.test.tsx` › `hears an event a child publishes from its own mount effect`                | `expected [] to deeply equal [ 'first read refused' ]`; `1 failed                                               | 4 skipped (5)` | the second `useLayoutEffect(` (the subscription)                                |
-| `l2` | the ref of the latest listener is never updated                  | `use-channel-listener.test.tsx` › `calls the listener of the latest render and never a superseded one`        | `expected [ 'after the re-render' ] to deeply equal []`; `1 failed                                              | 4 skipped (5)` | the first `useLayoutEffect(` (the ref write)                                    |
-| `l3` | the subscription does not follow the channel (`[]` dependencies) | `use-channel-listener.test.tsx` › `follows a channel replaced while it stays mounted, and leaves the old one` | `expected [ 'from the replaced channel' ] to deeply equal [ 'from the replacement' ]`; `1 failed                | 4 skipped (5)` | `[channel],`                                                                    |
-| `l4` | the subscription is never left (its unsubscribe dropped)         | `use-channel-listener.test.tsx` › `hears nothing once it is unmounted, and a publication then throws nothing` | `expected [ 'after the unmount' ] to deeply equal []`; `1 failed                                                | 4 skipped (5)` | `channel.subscribe((event) => {`                                                |
-| `l5` | the listener's failure is swallowed                              | `use-channel-listener.test.tsx` › `lets a listener’s own failure reach the publisher by identity`             | `expected null to be Error: the toast stack is gone`; `1 failed                                                 | 4 skipped (5)` | `latest.current(event);`                                                        |
-| `w1` | the command is announced after the request is sent               | `plan-writer.test.ts` › `says a command was issued before it sends anything`                                  | `expected [ 'request sent', 'command issued' ] to deeply equal [ 'command issued', 'request sent' ]`; `1 failed | 3 skipped (4)` | `commandsIssued.publish(undefined);`                                            |
-| `w2` | busy lowered even after the reader left                          | `plan-writer.test.ts` › `leaves the project busy when its reader left before the answer arrived`              | `expected false to be true`; `1 failed                                                                          | 3 skipped (4)` | `if (isActiveReader()) busy.lower();` — below the existing `Proof:` lines there |
+| Id   | Fault                                                            | Suite › test                                                                                                  | Observed (`Tests` line)                                                                                                           | Comment above                                                                   |
+| ---- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `l1` | the subscription moves to a passive `useEffect`                  | `use-channel-listener.test.tsx` › `hears an event a child publishes from its own mount effect`                | `expected [] to deeply equal [ 'first read refused' ]`; `1 failed \| 4 skipped (5)`                                               | the second `useLayoutEffect(` (the subscription)                                |
+| `l2` | the ref of the latest listener is never updated                  | `use-channel-listener.test.tsx` › `calls the listener of the latest render and never a superseded one`        | `expected [ 'after the re-render' ] to deeply equal []`; `1 failed \| 4 skipped (5)`                                              | the first `useLayoutEffect(` (the ref write)                                    |
+| `l3` | the subscription does not follow the channel (`[]` dependencies) | `use-channel-listener.test.tsx` › `follows a channel replaced while it stays mounted, and leaves the old one` | `expected [ 'from the replaced channel' ] to deeply equal [ 'from the replacement' ]`; `1 failed \| 4 skipped (5)`                | `[channel],`                                                                    |
+| `l4` | the subscription is never left (its unsubscribe dropped)         | `use-channel-listener.test.tsx` › `hears nothing once it is unmounted, and a publication then throws nothing` | `expected [ 'after the unmount' ] to deeply equal []`; `1 failed \| 4 skipped (5)`                                                | `channel.subscribe((event) => {`                                                |
+| `l5` | the listener's failure is swallowed                              | `use-channel-listener.test.tsx` › `lets a listener’s own failure reach the publisher by identity`             | `expected null to be Error: the toast stack is gone`; `1 failed \| 4 skipped (5)`                                                 | `latest.current(event);`                                                        |
+| `w1` | the command is announced after the request is sent               | `plan-writer.test.ts` › `says a command was issued before it sends anything`                                  | `expected [ 'request sent', 'command issued' ] to deeply equal [ 'command issued', 'request sent' ]`; `1 failed \| 3 skipped (4)` | `commandsIssued.publish(undefined);`                                            |
+| `w2` | busy lowered even after the reader left                          | `plan-writer.test.ts` › `leaves the project busy when its reader left before the answer arrived`              | `expected false to be true`; `1 failed \| 3 skipped (4)`                                                                          | `if (isActiveReader()) busy.lower();` — below the existing `Proof:` lines there |
 
 #### Proof l1 — the subscription moves to a passive `useEffect`
 
@@ -5835,19 +5864,19 @@ src/components/wbs/plan-read-and-write.test.tsx
 names an unavailable optimizer and offers no export before a plan is installed
 ```
 
-| Id   | Fault                                                          | Suite › test                                                                                                      | Observed (`Tests` line)                                                                                            | Comment above      |
-| ---- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| `u1` | no catch-up when a subscription starts                         | `use-snapshot-changes.test.tsx` › `catches up with a change made between its render and its subscription`         | `expected [] to deeply equal [ [ 5, +0 ] ]`; `1 failed                                                             | 5 skipped (6)`     | `catchUp();` (the call after `subscribe`)                                          |
-| `u2` | an unchanged snapshot is handed on again                       | `use-snapshot-changes.test.tsx` › `hands on nothing when told of a change that left the snapshot as it was`       | `expected [ [ +0, +0 ], [ +0, +0 ] ] to deeply equal []`; `1 failed                                                | 5 skipped (6)`     | `if (next === previous) return;`                                                   |
-| `u3` | the ref of the latest callback is never updated                | `use-snapshot-changes.test.tsx` › `calls the callback of the latest render and never a superseded one`            | `expected [ 1 ] to deeply equal []`; `1 failed                                                                     | 5 skipped (6)`     | the first `useLayoutEffect(` (the ref write)                                       |
-| `u4` | the subscription does not follow the store (`[]` dependencies) | `use-snapshot-changes.test.tsx` › `follows a store replaced while it stays mounted, and leaves the old one`       | `expected [ [ 1, +0 ] ] to deeply equal [ [ 7, +0 ], [ 8, 7 ] ]`; `1 failed                                        | 5 skipped (6)`     | `}, [store]);`                                                                     |
-| `u5` | the subscription is never left                                 | `use-snapshot-changes.test.tsx` › `hands on nothing once it is unmounted`                                         | `expected [ 1 ] to deeply equal []`; `1 failed                                                                     | 5 skipped (6)`     | `return unsubscribe;`                                                              |
-| `s1` | the hover card is no longer settled against a new tree         | `plan-cells.test.tsx` › `closes the card when a peer moves the row it is anchored to`                             | `expected <div role="tooltip" …(2)>…(2)</div> to be null`; `1 failed                                               | 125 skipped (126)` | `rowPlacements.current = placements;` in `settle` — below the moved `Proof:` lines |
-| `s2` | the drafts are no longer settled against new steps             | `plan-read-and-write.test.tsx` › `drops a half-typed figure for a step that has gone`                             | `expected [ '010' ] to deeply equal []`; `1 failed                                                                 | 87 skipped (88)`   | `if (next.steps !== previous.steps) settleAgainstSteps(next.steps);`               |
-| `s3` | whose tree it is is no longer recorded                         | `plan-layout.test.tsx` › `offers the reset only while there is a width to reset`                                  | `Unable to find an accessible element with the role "button" and name "Reset layout"`; `1 failed                   | 77 skipped (78)`   | `treeReadProject.current = projectId;` in `settle`                                 |
-| `s4` | the feed's connection reports go nowhere                       | `plan-read-and-write.test.tsx` › `says so while the connection is down`                                           | `Unable to find an accessible element with the role "status"`; `1 failed                                           | 87 skipped (88)`   | `setConnected: plan.reportConnection,` in `composition.ts`                         |
-| `s5` | the failure's words are never built                            | `plan-read-and-write.test.tsx` › `keeps the installed plan and names an unavailable peer refetch`                 | `expected 'This plan may be out of date — the la…' to contain 'Optimized scheduling is unavailable i…'`; `1 failed | 87 skipped (88)`   | the `treeFailureText` memo's function — below the moved `Proof:` lines             |
-| `f1` | the feed's refusals go nowhere                                 | `plan-read-and-write.test.tsx` › `names an unavailable optimizer and offers no export before a plan is installed` | `expected [] to include 'Optimized scheduling is unavailable i…'`; `1 failed                                       | 87 skipped (88)`   | `announceRefusal: refusals.publish,` in `composition.ts`                           |
+| Id   | Fault                                                          | Suite › test                                                                                                      | Observed (`Tests` line)                                                                                                                | Comment above                                                                      |
+| ---- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `u1` | no catch-up when a subscription starts                         | `use-snapshot-changes.test.tsx` › `catches up with a change made between its render and its subscription`         | `expected [] to deeply equal [ [ 5, +0 ] ]`; `1 failed \| 5 skipped (6)`                                                               | `catchUp();` (the call after `subscribe`)                                          |
+| `u2` | an unchanged snapshot is handed on again                       | `use-snapshot-changes.test.tsx` › `hands on nothing when told of a change that left the snapshot as it was`       | `expected [ [ +0, +0 ], [ +0, +0 ] ] to deeply equal []`; `1 failed \| 5 skipped (6)`                                                  | `if (next === previous) return;`                                                   |
+| `u3` | the ref of the latest callback is never updated                | `use-snapshot-changes.test.tsx` › `calls the callback of the latest render and never a superseded one`            | `expected [ 1 ] to deeply equal []`; `1 failed \| 5 skipped (6)`                                                                       | the first `useLayoutEffect(` (the ref write)                                       |
+| `u4` | the subscription does not follow the store (`[]` dependencies) | `use-snapshot-changes.test.tsx` › `follows a store replaced while it stays mounted, and leaves the old one`       | `expected [ [ 1, +0 ] ] to deeply equal [ [ 7, +0 ], [ 8, 7 ] ]`; `1 failed \| 5 skipped (6)`                                          | `}, [store]);`                                                                     |
+| `u5` | the subscription is never left                                 | `use-snapshot-changes.test.tsx` › `hands on nothing once it is unmounted`                                         | `expected [ 1 ] to deeply equal []`; `1 failed \| 5 skipped (6)`                                                                       | `return unsubscribe;`                                                              |
+| `s1` | the hover card is no longer settled against a new tree         | `plan-cells.test.tsx` › `closes the card when a peer moves the row it is anchored to`                             | `expected <div role="tooltip" …(2)>…(2)</div> to be null`; `1 failed \| 125 skipped (126)`                                             | `rowPlacements.current = placements;` in `settle` — below the moved `Proof:` lines |
+| `s2` | the drafts are no longer settled against new steps             | `plan-read-and-write.test.tsx` › `drops a half-typed figure for a step that has gone`                             | `expected [ '010' ] to deeply equal []`; `1 failed \| 87 skipped (88)`                                                                 | `if (next.steps !== previous.steps) settleAgainstSteps(next.steps);`               |
+| `s3` | whose tree it is is no longer recorded                         | `plan-layout.test.tsx` › `offers the reset only while there is a width to reset`                                  | `Unable to find an accessible element with the role "button" and name "Reset layout"`; `1 failed \| 77 skipped (78)`                   | `treeReadProject.current = projectId;` in `settle`                                 |
+| `s4` | the feed's connection reports go nowhere                       | `plan-read-and-write.test.tsx` › `says so while the connection is down`                                           | `Unable to find an accessible element with the role "status"`; `1 failed \| 87 skipped (88)`                                           | `setConnected: plan.reportConnection,` in `composition.ts`                         |
+| `s5` | the failure's words are never built                            | `plan-read-and-write.test.tsx` › `keeps the installed plan and names an unavailable peer refetch`                 | `expected 'This plan may be out of date — the la…' to contain 'Optimized scheduling is unavailable i…'`; `1 failed \| 87 skipped (88)` | the `treeFailureText` memo's function — below the moved `Proof:` lines             |
+| `f1` | the feed's refusals go nowhere                                 | `plan-read-and-write.test.tsx` › `names an unavailable optimizer and offers no export before a plan is installed` | `expected [] to include 'Optimized scheduling is unavailable i…'`; `1 failed \| 87 skipped (88)`                                       | `announceRefusal: refusals.publish,` in `composition.ts`                           |
 
 #### Proof u1 — no catch-up when a subscription starts
 
@@ -6073,14 +6102,14 @@ src/components/wbs/project-page.test.tsx
 hands the presence slot who the project’s stream says is here, and its connection
 ```
 
-| Id   | Fault                                                          | Suite › test                                                                                                      | Observed (`Tests` line)                                                                                                                                       | Comment above    |
-| ---- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `t1` | a cause becomes its bare `String`, not a sentence              | `plan-read-and-write.test.tsx` › `names an unavailable optimizer and offers no export before a plan is installed` | `expected [ Array(1) ] to include 'Optimized scheduling is unavailable i…'`; `1 failed                                                                        | 87 skipped (88)` | the listener's `text:` line — below the moved `Proof:` lines                     |
-| `t2` | the command listener no longer tells the focus intent          | `plan-keyboard.test.tsx` › `Cmd+Enter on the last row makes one and lands in it`                                  | `expected <textarea …(6)></textarea> to be <textarea …(6)></textarea>` — the focus stayed on the old row; `1 failed                                           | 95 skipped (96)` | `focusIntent.current.commandIssued();`                                           |
-| `t3` | the writer's refusals (the ones with a sentence) are not said  | `plan-read-and-write.test.tsx` › `says a refused rename in a toast, and puts nothing above the table`             | `expected [] to deeply equal [ Array(1) ]`; `1 failed                                                                                                         | 87 skipped (88)` | `pushToast({` in the refusal listener                                            |
-| `m1` | the markers' refusals go nowhere                               | `plan-chart-seam.test.tsx` › `rereads a marker refused because a peer already deleted it`                         | `the given combination of arguments (undefined and string) is invalid for this assertion` — there is no toast whose text could contain `no longer`; `1 failed | 22 skipped (23)` | `announceRefusal: refusals.publish,` in the `markers` memo of `use-plan-read.ts` |
-| `q1` | presence frames are not reported to the store                  | `project-page.test.tsx` › `hands the presence slot who the project’s stream says is here, and its connection`     | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`; `1 failed                                                       | 72 skipped (73)` | `onPresence: projectPresence.reportUsers,`                                       |
-| `q2` | the connection is reported to the table only, not to the store | `project-page.test.tsx` › `hands the presence slot who the project’s stream says is here, and its connection`     | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — `connected` stayed `false`; `1 failed                        | 72 skipped (73)` | `projectPresence.reportConnection(connected);`                                   |
+| Id   | Fault                                                          | Suite › test                                                                                                      | Observed (`Tests` line)                                                                                                                                                           | Comment above                                                                    |
+| ---- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `t1` | a cause becomes its bare `String`, not a sentence              | `plan-read-and-write.test.tsx` › `names an unavailable optimizer and offers no export before a plan is installed` | `expected [ Array(1) ] to include 'Optimized scheduling is unavailable i…'`; `1 failed \| 87 skipped (88)`                                                                        | the listener's `text:` line — below the moved `Proof:` lines                     |
+| `t2` | the command listener no longer tells the focus intent          | `plan-keyboard.test.tsx` › `Cmd+Enter on the last row makes one and lands in it`                                  | `expected <textarea …(6)></textarea> to be <textarea …(6)></textarea>` — the focus stayed on the old row; `1 failed \| 95 skipped (96)`                                           | `focusIntent.current.commandIssued();`                                           |
+| `t3` | the writer's refusals (the ones with a sentence) are not said  | `plan-read-and-write.test.tsx` › `says a refused rename in a toast, and puts nothing above the table`             | `expected [] to deeply equal [ Array(1) ]`; `1 failed \| 87 skipped (88)`                                                                                                         | `pushToast({` in the refusal listener                                            |
+| `m1` | the markers' refusals go nowhere                               | `plan-chart-seam.test.tsx` › `rereads a marker refused because a peer already deleted it`                         | `the given combination of arguments (undefined and string) is invalid for this assertion` — there is no toast whose text could contain `no longer`; `1 failed \| 22 skipped (23)` | `announceRefusal: refusals.publish,` in the `markers` memo of `use-plan-read.ts` |
+| `q1` | presence frames are not reported to the store                  | `project-page.test.tsx` › `hands the presence slot who the project’s stream says is here, and its connection`     | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`; `1 failed \| 72 skipped (73)`                                                       | `onPresence: projectPresence.reportUsers,`                                       |
+| `q2` | the connection is reported to the table only, not to the store | `project-page.test.tsx` › `hands the presence slot who the project’s stream says is here, and its connection`     | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }` — `connected` stayed `false`; `1 failed \| 72 skipped (73)`                        | `projectPresence.reportConnection(connected);`                                   |
 
 #### Proof t1 — a cause becomes its bare `String`, not a sentence
 
@@ -6224,7 +6253,7 @@ awk -v out="$work/mutations" '
 ' "$packet"
 count=$(find "$work/mutations" -name '*.diff' | wc -l)
 echo "fault-patches=$count"
-test "$count" -eq 42
+test "$count" -eq 43
 # A real repository holding exactly the base tree, so --check has something to check against.
 git archive "$base" | tar -x -C "$work/tree"
 git -C "$work/tree" init -q
@@ -6240,7 +6269,7 @@ echo "all 17 applied"
 for m in "$work"/mutations/*.diff; do
   git -C "$work/tree" apply --check "$m"
 done
-echo "all 42 fault patches check against the result"
+echo "all 43 fault patches check against the result"
 git -C "$work/tree" status --porcelain --untracked-files=all | wc -l
 ````
 
@@ -6248,9 +6277,9 @@ Observed on 2026-09-24, after the final Prettier `--check`:
 
 ```
 extracted=17
-fault-patches=42
+fault-patches=43
 all 17 applied
-all 42 fault patches check against the result
+all 43 fault patches check against the result
 26
 ```
 
@@ -6320,19 +6349,19 @@ only; each fault was injected into the committed tree of the slice that owns it.
 | red typecheck                                      | —               | exit 1, 3 errors         | exit 1, 2 errors         | exit 1, 6 errors              | exit 1, 1 error          | exit 0 (no red by design)           |
 | red Vitest                                         | —               | `2 failed (2)`, no tests | `2 failed (2)`, no tests | `Tests 4 failed (4)`, 2 files | `1 failed (1)`, no tests | `73 passed (73)` — characterisation |
 | typecheck on the slice's commit                    | 0               | 0                        | 0                        | 0                             | 0                        | 0                                   |
-| faults observed failing, file restored             | —               | 9 of 9                   | 9 of 9                   | 7 of 7                        | 11 of 11                 | 6 of 6                              |
+| faults observed failing, file restored             | —               | 10 of 10                 | 9 of 9                   | 7 of 7                        | 11 of 11                 | 6 of 6                              |
 | strict OpenSpec                                    | 114 · 114 · 0   | 114 · 114 · 0            | 114 · 114 · 0            | 114 · 114 · 0                 | 114 · 114 · 0            | 114 · 114 · 0                       |
 
 (`45·674` is 45 files, 674 tests.) On the final commit: `wbs-fe-01:lint` exit 0, `nx format:check
 --all` exit 0, `wbs-fe-01:build` exit 0 (`✓ built in 883ms`). Every proof filter was run on the final
-tree first and matched exactly one test — forty-two faults over twenty-six distinct patterns.
+tree first and matched exactly one test — forty-three faults over twenty-six distinct patterns.
 
-The forty-two faults were then run a **second** time through this document's own section 8 blocks —
+The forty-three faults were then run a **second** time through this document's own section 8 blocks —
 the fault patches extracted from the formatted packet by section 9.1's script, the records extracted
 per subsection, the filter check and the fault loop, all copied out of the packet — each subsection on
 its slice's rehearsal commit (8.1 on slice 1's … 8.5 on slice 5's): every filter `1 matched`, every
 fault `status=1` with its table's `Tests` line, every restore `cmp`-identical, every green rerun
-`status=0`, and the working tree clean afterwards (`status-after=0` five times). The eighteen model
+`status=0`, and the working tree clean afterwards (`status-after=0` five times). The nineteen model
 counterexamples — run number and replay path — came out byte-identical to the first run.
 
 ### 9.4 Planner-only, with the expected relative delta
@@ -6371,7 +6400,7 @@ Each is false on the real starting tree, checked on 2026-09-24.
 1. Step 0a's status is not empty, or `base` differs from the slice note's SHA, or `fast-check` is not
    4.9.0. Stop: the clone is not the tree this packet was reviewed against, or the pinned
    counterexamples of sections 8.1 and 8.2 were recorded under another generator.
-2. Step 0b extracts other than 17 patches or 42 fault patches. Stop: this document is not the one
+2. Step 0b extracts other than 17 patches or 43 fault patches. Stop: this document is not the one
    reviewed.
 3. A patch fails `git apply --check`. Stop and report the exact error; never hand-edit a file into
    shape.
@@ -6466,7 +6495,7 @@ isActiveReader, plan, refusals }` — `api` and the refresh owner's factory are 
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | project-owned plain stores for the plan snapshot, connection/roster and busy, with update rules           | §3.2–3.4, §7.3, §7.6; `PlanFeedForReader` and `PlanWriterHost` take no React setter (§3.6)                                                           |
 | each store: state machine record, model test with its own oracle, scheduler, pinned seed and runs         | §3.1–3.4; four model tests (§7.2, §7.5), seed `20260924`, 300 runs, fast-check version asserted                                                      |
-| at least four rehearsed sabotages per model test, shrunk counterexamples pasted                           | §8.1 (5 channel, 4 busy), §8.2 (5 delivered plan, 4 presence), each with run, counterexample and cause                                               |
+| at least four rehearsed sabotages per model test, shrunk counterexamples pasted                           | §8.1 (6 channel, 4 busy), §8.2 (5 delivered plan, 4 presence), each with run, counterexample and cause                                               |
 | narrow ports for the command register and refusal publication; focus stays component-owned                | §3.1, §3.5, §3.6: `commandsIssued` and `refusals` channels; `FocusIntent` stays in the table                                                         |
 | delivery through hooks, no catch-free path that can throw a lifecycle refusal into render or effect       | §3.5: no store or channel has a lifecycle; `useSyncExternalStore`, `useChannelListener`, `useSnapshotChanges`                                        |
 | withdrawal between render and effect, superseded callbacks, replacement while mounted: example + mutation | §3.5 tables: `l1`–`l5`, `u1`–`u5`, each its own test and fault (§8.3, §8.4)                                                                          |
@@ -6500,7 +6529,7 @@ isActiveReader, plan, refusals }` — `api` and the refresh owner's factory are 
 | 13. Module index            | N/A with reason: no `fe-01` module carries a `module-index` block (§4.1); devsync with the slices committed raised no unindexed-path refusal (§9.3).                                 |
 | 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                          |
 | 15. Interleaving property   | Met for every store and the channel: scheduler-ordered producers and disposals, pinned seed and runs, counted coverage (§3.1–3.4, §7.2, §7.5).                                       |
-| 16. Model-based remedy      | Met: written machines first (§3), four reference models with their own oracles, re-entrant commands from inside listeners, 18 rehearsed sabotages with counterexamples (§8.1, §8.2). |
+| 16. Model-based remedy      | Met: written machines first (§3), four reference models with their own oracles, re-entrant commands from inside listeners, 19 rehearsed sabotages with counterexamples (§8.1, §8.2). |
 | 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                   |
 | 18. Symbol-based checks     | N/A: no code-shape checker is introduced.                                                                                                                                            |
 | 19. Missing-file grep       | Met: every grep over a file follows a `test -f` or reads captured output.                                                                                                            |
@@ -6520,3 +6549,18 @@ isActiveReader, plan, refusals }` — `api` and the refresh owner's factory are 
 last commit the host gate runs on the shared build host with the committed hash, and its printed
 running-hash line and exit status are recorded. Anywhere else it is reported as not run, with the
 reason — never as passed. The Chromium runs of §9.4 are reported the same way until they have happened.
+
+## 16. Disposition of review round 1
+
+`puni-plan/reviews-batch-6/050-7-g-project-prerequisites.review1.md` — READY AFTER FIXES, no critical.
+All seven are applied.
+
+| #           | Finding                                                                           | Disposition                                                                                                                                                                                                                                                                          |
+| ----------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Important 1 | §8.3–§8.5 rows split on an unescaped `\|` inside the `Tests` code span            | **Applied.** Every pipe in those cells is escaped; an `awk` cell count over every table row of §8 reports five cells per row in 8.3–8.5 and six in 8.1–8.2, equal to their headers.                                                                                                  |
+| Minor 2     | §3.7 cited the covering-read and renewal cases and the old-read `it.each` wrongly | **Applied.** They are cited at `plan-read-and-write.test.tsx:1968`, `:2031` and `:1691` (the one `it.each`, its `%s` title quoted).                                                                                                                                                  |
+| Minor 3     | step 0a's `reviewed=<…>` placeholder inside a real `sh` block                     | **Applied.** 0a now says to replace it with the 40-character hash from the slice note before running.                                                                                                                                                                                |
+| Minor 4     | slice 5 step 3's "step 1's page count + 1" when step 1 runs two files             | **Applied.** Step 3 says to read the page file's own number from Vitest's per-file line (72 → 73).                                                                                                                                                                                   |
+| Minor 5     | "the first `Caused by` line" is the second for `r2`                               | **Applied.** §8's opening says "the `Caused by` line the table quotes (it may be the second)".                                                                                                                                                                                       |
+| Minor 6     | the channel's aggregate branch had no sabotage of its own                         | **Applied.** `c6` rethrows only the first of several failures; rehearsed, it fails after 5 runs on `publish(1) did not aggregate its failures: expected Error: listener 0 refused 1 to be an instance of AggregateError`. Records 36 → 40 lines, fault patches 42 → 43, §9.1 re-run. |
+| Minor 7     | §3.7 said every slice runs the oracle tests                                       | **Applied.** It says the DOM oracles are in the adopted set slices 3–5 run; slices 1 and 2 run only the node and preferences suites.                                                                                                                                                 |
