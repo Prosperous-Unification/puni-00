@@ -6,7 +6,7 @@
 | Size class  | S — two slices, each one executor attempt                                                                                                                                                                                                                                                          |
 | Predecessor | 050.7i (`050-7-i-session-runtime.md`, beside this packet once it lands) — `createSessionOwner`, `SignedInApp`, and its section 12, "Hand-over to the next packet": "Log out becomes `await sessionOwner.leave()`, then render signed-out only if the owner is not `fatal`"                         |
 | Advances    | OpenSpec task **7** of `adopt-frontend-lifetimes` — **ticked** in slice 2, every sentence met (section 3.7). Also closes packet j's named residual, "the fatal nobody sees" after a project page has gone (section 3.5).                                                                           |
-| Revision    | Second: the round-1 review applied — a real-base mode for section 9.1, the dispatch base built by cherry-pick, lifetime-map tests 12 and 13 amended, eight minors.                                                                                                                                 |
+| Revision    | Third: round 1 applied (a real-base mode for section 9.1, the dispatch base built by cherry-pick, lifetime-map tests 12 and 13 amended, eight minors); round 2 applied (the cherry-pick range, a stricter `code_of`, the real run against packet i's landed lane).                                 |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Two scenarios added to the existing requirement "Log out stays a local exit" (slice 1) and one to packet i's session requirement (slice 2); task 7 ticked with a dated note; one dated update to the lifetime map's session owner. |
 
 ## 1. Goal, non-goals, and the cut
@@ -707,8 +707,10 @@ absolute paths. Do not read, quote or restate an earlier entry.
 ### Dispatch
 
 One attempt per slice, from the reviewed packet, with no network, driven by a Claude subagent. The
-base of slice 1 is planning after packet i's three slices are committed, plus this packet's commit
-(`f26e3aff0` or the then-current one) **cherry-picked** — one added file. Never merge the plan
+base of slice 1 is planning after packet i's three slices are committed, plus the plan branch's
+commits since the authoring base — `f26e3aff0`, `c087048ae` and the round-2 commit, or the
+then-current range `f26e3aff0^..<head>` — **cherry-picked in order** (together they add exactly one
+file; any one of them alone conflicts on the file the first adds). Never merge the plan
 branch: its parent is the undispatched authoring base, and a merge conflicts in six paths. It differs
 from the authoring base this packet was rehearsed on (`2e237e20e`, packet i's rehearsed diffs on
 integration `52876ae12`, a commit that is never dispatched) by packet i's executor `Proof:` comments,
@@ -2731,16 +2733,19 @@ output simulated, **and on the real dispatch base**. The script has three modes:
 - `fill=1` — the authoring base with a two-line `// Proof:` comment inserted above each of packet i's
   fifteen comment sites as its rehearsal placed them, in `session-runtime.ts` (its eleven slice-1
   runtime sites and `g1`) and `app.tsx` (`g2`, `g3`, `g4`), and its `<observed-date-i>` notes dated.
-- `fill=real` — the base named by `REAL_BASE`: planning after packet i's three slices, plus this
-  packet's commit cherry-picked (section 6, Dispatch). Nothing is filled: packet i's real comments are
+- `fill=real` — the base named by `REAL_BASE`: planning after packet i's three slices, plus the plan
+  branch's commits since the authoring base cherry-picked in order (section 6, Dispatch). Nothing is filled: packet i's real comments are
   there, and not all where the rehearsal put them — its executor wrote `o3` as `? // Proof: …` inside
   the ternary, so that simulated anchor counts 0 there, and `<observed-date-i>` is already dated. The
   result must change exactly the nine owned paths; the seven files packet i's executor never comments
   must equal the rehearsal's final bytes (the two notes compared with every `observed` date
-  normalised); and `session-runtime.ts` and `app.tsx` must equal them once every `//` comment and all
-  whitespace are stripped from both sides. **This mode's output is the dispatch evidence**: the
+  normalised); and `session-runtime.ts` and `app.tsx` must equal them once every `//` comment and every
+  blank line are stripped and every run of whitespace is squeezed to one space, on both sides —
+  whitespace added where there was none, or removed, fails the mode, inside a string literal too;
+  a run's length does not (`'x  y'` squeezes to `'x y'`, checked). **This mode's output is the dispatch evidence**: the
   planner runs it with `REAL_BASE=<the reviewed base SHA>` before the first dispatch and records it
-  beside the review. Unset, the mode prints that it was skipped and proves nothing.
+  beside the review. Unset, the mode prints that it was skipped and proves nothing. A failing
+  `fill=real` after packet i's review is a re-rehearsal of the affected slice, never a waiver.
 
 No script, no Prettier and no `node_modules` are needed: every change is a diff.
 
@@ -2774,8 +2779,8 @@ fill_above() {
 check_faults() {
   for id in "$@"; do git -C "$work/tree" apply --unidiff-zero --check "$work/mutations/$id.diff"; done
 }
-# A file with every // comment and all whitespace removed: equal code, whatever the comments.
-code_of() { sed -e 's#[[:space:]]*//.*$##' "$1" | tr -d '[:space:]'; }
+# A file with every // comment and blank line removed and whitespace squeezed: equal code, whatever the comments.
+code_of() { sed -e 's#[[:space:]]*//.*$##' -e '/^[[:space:]]*$/d' "$1" | tr -s '[:space:]' ' '; }
 # A note with every "observed <date>" normalised, placeholder or date.
 dates_of() { sed -E 's/observed (<observed-date-[a-z]+>|[0-9]{4}-[0-9]{2}-[0-9]{2})/observed D/g' "$1"; }
 for fill in 0 1 real; do
@@ -2891,9 +2896,9 @@ done
 ````
 
 Observed on 2026-09-24, after the final Prettier `--check` of this document, with
-`REAL_BASE=50e4e7e48` — a stand-in for the real dispatch base built for this run only (not on any
-branch): packet i's real slice-2 lane head `e46c8d3d9`, packet i's slice-3 diffs 07–09 from its own
-packet applied, and its two notes dated:
+`REAL_BASE=153e9d224` — packet i's landed lane head (`a295df56f`, `e46c8d3d9`, `153e9d224`, branch
+`batch-6/050-7-i-session-runtime`), the packet read from this working tree. This is the dispatch
+evidence against i's lane; the planner reruns it on the reviewed planning base:
 
 ```text
 fill=0 extracted=6
@@ -3034,8 +3039,9 @@ output and fails thirteen unrelated tests in this repository.
   `void sessionOwner.open(…)`, whose `open` may reject (packet i's round-2 review). Neither is a
   refusal of the owner's runtimes, which settle.
 - The authoring base carries packet i's **rehearsed** diffs; section 9.1's `fill=real` run on the real
-  base after packet i's lane lands is what proves the rest, including any change its dispatch review
-  makes.
+  base is what proves the rest — recorded against packet i's landed lane `153e9d224`, and rerun by the
+  planner on the reviewed planning base. A failing `fill=real` after packet i's review is a
+  re-rehearsal of the affected slice, never a waiver.
 
 ## 10. Stop conditions
 
