@@ -57,6 +57,11 @@ export interface DirectorySnapshot {
  *
  * **No socket.** This service opens no subscription. A reader sees somebody
  * else's change on the next read its caller asks for.
+ *
+ * **Withdrawn with its reader.** Built with its owner's `isActiveReader`, it
+ * sends nothing and shows nothing new once that answers no: the snapshot a
+ * withdrawn directory holds is the one it held at withdrawal, whatever answers
+ * afterwards.
  */
 export interface DirectoryResource extends Store<DirectorySnapshot> {
   /**

@@ -2056,3 +2056,99 @@ edit and are reported with the attempt.
 `wbs-fe-01:test` (UTC + 1 test expected), `wbs-fe-01:test:unit` (unchanged expected),
 `wbs-fe-01:build`, `wbs-fe-01:e2e` (every spec that opens a project, then unfiltered),
 `tool-devsync:test`, and the host gate `bin/h2puni-gate.sh` — none can run in the executor sandbox.
+
+## Packet 050.7i, slice 1 — the session runtime, its owner and the directory-management module
+
+Attempt `050-7-i-session-runtime.1.20260924T183653Z`, starting hash
+`6128153ccebd97817db76ebb74079c6c1a379ebe`, clean tree (`status-before.txt` empty). Every Vitest run
+under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; every Nx command with `NX_DAEMON=false`.
+Evidence names are relative to the attempt's evidence directory.
+
+### Baselines (step 0)
+
+- Step 0b: 9 patches and 24 fault patches extracted from the packet.
+- Preferences suite 4 files, 39 tests; sandbox node suite 53 files, 695 tests; session set (serial)
+  3 files, 59 tests; each `status=0` (`base-preferences.log`, `base-sandbox.log`,
+  `base-session.log`).
+- Strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+### Contract first (section 7.1)
+
+The requirement and its first scenario applied; strict OpenSpec exit 0,
+`{"items":114,"passed":114,"failed":0}`.
+
+### Red checkpoint (after section 7.2, before section 7.3)
+
+`wbs-fe-01:typecheck` `status=1`, `Found 34 errors in 5 files.` (15 in `module.test.ts`, 11 × TS2554
+in `directory.resource.test.ts`, 1 × TS2554 in `directory-management.feature.test.ts`, 6 in
+`session-runtime.model.test.ts` — 1 × TS2307, 5 × TS7006 — and 1 in `session-runtime.test.ts`),
+including:
+
+```text
+apps/wbs/fe-01/src/modules/directory-management/module.test.ts:7:43 - error TS2307: Cannot find module './module' or its corresponding type declarations.
+apps/wbs/fe-01/src/modules/directory/directory.resource.test.ts:12:42 - error TS2554: Expected 1 arguments, but got 2.
+apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts:18:8 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
+apps/wbs/fe-01/src/runtime/session-runtime.test.ts:11:59 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
+```
+
+Vitest over the three new suites `status=1`, `Test Files 3 failed (3)`, `Tests no tests`, on
+`Failed to resolve import "./session-runtime"` (twice) and `Failed to resolve import "./module"`
+(`s1-red-typecheck.log`, `s1-red-vitest.log`).
+
+### Green checkpoint (after section 7.3)
+
+- `wbs-fe-01:typecheck` `status=0`.
+- Runtime set (the two session suites, `modules/directory-management`, `modules/directory`), serial:
+  5 files, 37 tests, `status=0`.
+- `src/test-tiers.test.ts`: 1 file, 5 tests, `status=0`.
+- Sandbox node suite: 56 files, 708 tests, `status=0` — step 0 plus 3 files and 13 tests.
+- `wbs-fe-01:lint` `status=0`, before and after the Proof comments.
+
+### Proofs, each observed failing before its comment was written
+
+Every filter first matched exactly one test (`proof-filters.txt`). Each fault was applied from its
+patch, its named test run (`status=1`), the file restored and compared with `cmp`, and the test rerun
+green (`<id>.patch`, `<id>.log`, `<id>.green.log`, `proof-loop.txt`). The model faults each failed
+`keys one runtime by user, and nothing of a withdrawn one — nor its project — reaches anybody`,
+`Tests 1 failed (1)`, seed 20260924:
+
+| Id    | Run | Shrunk sequence, times                                               | Innermost cause                                                                                                         |
+| ----- | --- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `m1`  | 3   | `signIn(u2, ''),signInBroken(u1)`, 2                                 | `signInBroken(u1): a session is still current after withdrawal: expected [ 's1' ] to deeply equal []`                   |
+| `m2`  | 10  | `signIn(u1, ''),signInBroken(u1),read(0)`, 6                         | `teardown: the last user asked for is not the one live: expected 'fatal' to be 'u1'`                                    |
+| `m3`  | 2   | `signIn(u2, ''),read(0),signIn(u1, ''),reenter(u1)`, 6               | `teardown: s1's directory changed after it was withdrawn: expected false to be true`                                    |
+| `m4`  | 1   | `signIn(u1, ''),signOut,read(0)`, 4                                  | `read: withdrawn s1 sent a request: expected 5 to be +0`                                                                |
+| `m5`  | 1   | `signIn(u1, ''),signIn(u2, ''),gesture(0)`, 5                        | `gesture: withdrawn s1 sent a request: expected 1 to be +0`                                                             |
+| `m6`  | 1   | `signIn(u1, ''),signIn(u2, ''),signOut,drain`, 5                     | `drain: the published session is not the user last asked for: expected 'u2' to be null`                                 |
+| `m7`  | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2),gesture(0)`, 7   | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     |
+| `m8`  | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2)`, 5              | `signInBroken(u2): a project is still current after its session was withdrawn: expected [ 's1.p1' ] to deeply equal []` |
+| `m9`  | 3   | `signIn(u2, ''),signInBroken(u1),drain,openProject(0, p1),drain`, 11 | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     |
+| `m10` | 2   | `signIn(u2, ''),signIn(u1, ''),reenter(u1)`, 6                       | `teardown: more than one session says it is current: expected [ 's1', 's2' ] to have a length of 1 but got 2`           |
+| `m11` | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2),gesture(0)`, 7   | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     |
+| `m12` | 2   | `signInBroken(u1),reenter(u1)`, 4                                    | `teardown refused: Error: a session transition was refused by the slot itself`                                          |
+
+For `m1` and `m6` the outermost message is the teardown's (`the published session is not the user
+last asked for: expected 'u2' to be 'u1'`; `signOut settled before s1's retirement had run`), with
+the tabled cause as its cause.
+
+The examples, each `status=1`:
+
+| Id   | Test                                                                                          | Tests line                  | Observed                                                                                                                                 |
+| ---- | --------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `k1` | `publishes the session’s directory and its projects, and nothing else`                        | `1 failed \| 6 skipped (7)` | `expected [ 'directory', 'directoryApi', …(3) ] to deeply equal [ 'directory', 'isCurrent', …(2) ]`                                      |
+| `o1` | `settles a request a newer one overtook, and builds nothing for it`                           | `1 failed \| 6 skipped (7)` | rejected with `a session transition was refused by the slot itself`, caused by `TransitionSupersededError`                               |
+| `o2` | `fails the session’s retirement when its project will not let go`                             | `1 failed \| 6 skipped (7)` | rejected with `a session transition was refused by the slot itself`, caused by `DI_BAG_CLEANUP_FAILED`                                   |
+| `o3` | `settles a half-built session that cannot be released, and leaves the owner terminally fatal` | `1 failed \| 6 skipped (7)` | rejected with `a session transition was refused by the slot itself`, caused by `and what it took could not be given back`                |
+| `d1` | `fails the session’s retirement when its project will not let go`                             | `1 failed \| 6 skipped (7)` | `expected false to be true`: the session left `empty`, not terminally `fatal`                                                            |
+| `l1` | `names itself when a host omits the client`                                                   | `1 failed \| 4 skipped (5)` | `expected [Function] to throw error including 'Cannot resolve "frontend.directory-ma…' but got 'DI_BAG_MISSING_DEPENDENCY: Cannot res…'` |
+| `l2` | `keeps its directory resource out of a host graph`                                            | `1 failed \| 4 skipped (5)` | `expected [Function] to throw an error`                                                                                                  |
+
+### After the Proof comments
+
+Runtime set 5 files, 37 tests; preferences 4 files, 39 tests; sandbox 56 files, 708 tests; session set
+3 files, 59 tests (unchanged from step 0); each `status=0` (`s1-final-*.log`).
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
+the host gate were not run in the executor sandbox.

@@ -9,7 +9,7 @@ const USED: DirectoryUsage = { projects: [], members: [{ id: 'p1', name: 'Kat' }
 
 test('a read installs all five vocabularies', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
 
   expect(directory.snapshot().people).toEqual([]);
   await directory.read();
@@ -19,7 +19,7 @@ test('a read installs all five vocabularies', async () => {
 
 test('the snapshot is the same object until something changed', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   const before = directory.snapshot();
 
   expect(directory.snapshot()).toBe(before);
@@ -31,7 +31,7 @@ test('the snapshot is the same object until something changed', async () => {
 
 test('a refusal that says nothing new replaces no snapshot and wakes nobody', () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   let told = 0;
   directory.subscribe(() => {
     told += 1;
@@ -49,7 +49,7 @@ test('a refusal that says nothing new replaces no snapshot and wakes nobody', ()
 
 test('subscribers are told once a read has installed, and not after they drop', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   let told = 0;
   const drop = directory.subscribe(() => {
     told += 1;
@@ -73,7 +73,7 @@ test('only the newest read may install', async () => {
     new Promise<PersonView[]>((answer) => {
       pending.push(answer);
     });
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
 
   const first = directory.read();
   const second = directory.read();
@@ -91,7 +91,7 @@ test('only the newest read may install', async () => {
 
 test('a write raises busy, refetches, and lowers it', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   await directory.read();
   const before = api.readCount();
 
@@ -106,7 +106,7 @@ test('a write raises busy, refetches, and lowers it', async () => {
 
 test('a write that throws becomes a refusal, and still refetches', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   api.throwOnRemoval(new Error('offline'));
   await directory.read();
   const before = api.readCount();
@@ -122,7 +122,7 @@ test('a write that throws becomes a refusal, and still refetches', async () => {
 
 test('a refetch that throws becomes a refusal, and busy still falls', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   await directory.read();
   api.listPeople = () => Promise.reject(new Error('offline'));
 
@@ -134,7 +134,7 @@ test('a refetch that throws becomes a refusal, and busy still falls', async () =
 
 test('a removal is passed the cascade it was given', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   api.refuseRemovalWith(USED);
 
   await expect(directory.removeEntry('person', 'p1', false)).resolves.toEqual({
@@ -147,7 +147,7 @@ test('a removal is passed the cascade it was given', async () => {
 
 test('each kind renames through its own route', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
 
   await directory.renameEntry('person', 'p1', 'Bo');
   await directory.renameEntry('team', 't1', 'Core');
@@ -160,7 +160,7 @@ test('each kind renames through its own route', async () => {
 
 test('a replaced client keeps everything the directory already held', async () => {
   const api = fakeDirectoryApi();
-  const directory = createDirectory(api);
+  const directory = createDirectory(api, () => true);
   await directory.read();
   expect(directory.snapshot().people).toEqual([KAT]);
 

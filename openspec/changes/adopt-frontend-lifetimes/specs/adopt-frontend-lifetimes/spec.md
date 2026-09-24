@@ -261,6 +261,35 @@ no access at all, as the requirement on degrading visibly already states.
   refused value only from that runtime's store, and while none is live answers
   that nothing is remembered without touching any store
 
+### Requirement: One session runtime per signed-in user owns the directory and the project
+
+fe-01 SHALL build the services of one signed-in identity - the directory
+management, installed from the directory-management module over a client cut
+from the identity's credential, and the owner of its selected project - as one
+DI Bag session runtime, outside React, through one session owner keyed by the
+user id. An identity for the user already asked for SHALL NOT replace the
+runtime, whatever its credential; an identity for another user, or leaving the
+session, SHALL withdraw the current runtime synchronously, before its disposal
+starts, and every project runtime it owns in the same instant. A withdrawn
+session runtime SHALL hand nothing on from a late directory answer, SHALL send
+nothing for a directory read or change asked of it, and SHALL open no project.
+Its retirement SHALL retire its project first, SHALL fail when that project
+cannot be given back, and a second trigger SHALL settle only once the retirement
+it joined has run. The runtime SHALL publish only its user id, its currency, its
+directory management and its project owner.
+
+#### Scenario: A late answer, a read, a change and a project after a user switch
+
+- **WHEN** one user's session runtime is current and another user signs in or
+  the session is left, and the old runtime's directory reads then answer, or a
+  reader still holding it reads, changes the directory or opens a project,
+  before or after its disposal
+- **THEN** no session runtime but the one the owner publishes answers that it
+  is current, no project of the old runtime is current from the withdrawal on,
+  the old runtime's directory stays exactly as it was when it was withdrawn, no
+  request is sent on its behalf, no project is opened for it, and once its
+  retirement has run every project runtime it built has been closed once
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the
