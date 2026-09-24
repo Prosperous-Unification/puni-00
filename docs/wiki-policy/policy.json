@@ -1106,6 +1106,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.work-item",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/work-item"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/work-item.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "29ab341f9befec90944900d13f9c9c823d06de95",
+          "path": "libs/core/src/service/work-item.service.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

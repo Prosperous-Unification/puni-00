@@ -46,6 +46,7 @@ const pilotPaths = [
   'libs/wbs/application/core/src/module/realtime/README.md',
   'libs/wbs/application/core/src/module/saved-plans/README.md',
   'libs/wbs/application/core/src/module/step/README.md',
+  'libs/wbs/application/core/src/module/work-item/README.md',
   'libs/wbs/application/core/src/use-cases/README.md',
   'libs/wbs/domain/domain/src/saved-plan/README.md',
   'libs/wbs/adapters/store-memory/src/README.md',

@@ -160,7 +160,7 @@
 
 ## 5. The per-admission modules
 
-- [ ] 5.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
+- [x] 5.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
       Negative: two admitted batches sharing staged stores. Six of the seven landed 2026-09-24 as
       the `calendar-marker`, `capacity`, `directory`, `priority-band`, `project` and `step`
       directories under `libs/wbs/application/core/src/module/`, each a sealed resource module
@@ -174,9 +174,16 @@
       options binding exported, the label dropped and one real provider edge replaced. The same
       slices extend `apps/wbs/be-01/src/service/clock.test.ts`'s scan to every sealed core
       module's directory and add a Calendar marker row to `ports/sideways-type-boundaries.test.ts`,
-      both watched failing. **Not ticked:** Work item (`service/work-item.service.ts`, 4598
-      lines, fifteen requirements) is still constructed with `new` inside `servicesOver`; packet
-      E8 seals and installs it and ticks this task.
+      both watched failing. The seventh, Work item, landed 2026-09-24 as
+      `libs/wbs/application/core/src/module/work-item/`: the moved `work-item.resource.ts` and its
+      98-test `work-item.resource.test.ts`, a module over fifteen requirements (twelve stores under
+      `<name>Store` host keys, the broadcaster, the scheduler and the clock), and
+      `servicesOver` installing it through `installWorkItem` on every call; the former path is a
+      compatibility re-export shim and its `kinds.json` row is rewritten in place (93 entries).
+      Proof: the same memo fault failed its own `compose.test.ts` case, and the module has the same
+      five negatives, its provider edge being the broadcaster. `clock.test.ts`'s `coreWorkItems`
+      now names the moved file, watched failing on the shim first. No `servicesOver` resource is
+      constructed with `new` any more.
 - [ ] 5.2 Plan commands, with Working plan and the announcement collector private to it.
 
 ## 6. Domain moves the map names
@@ -267,6 +274,10 @@
       `docs/wiki-policy/policy.json` boundary `boundary.application.<name>`, each using a
       `sourceSelector` bound to that module's own pre-namespacing `<name>.service.ts` predecessor
       alone; the moved `calendar-marker.resource.test.ts` has no separate baseline entry.
+      Landed again 2026-09-24 for Work item, the seventh resource of task 5.1, as
+      `module.application.work-item` and `boundary.application.work-item`, bound to the
+      pre-namespacing `work-item.service.ts` alone; the moved `work-item.resource.test.ts` has no
+      separate baseline entry.
       **Not landed for Plan document (task 4.1)**, for Plan import's reason below:
       `libs/core/src/service/plan-document.ts` was introduced at commit `8c34a33f` and renamed
       `R100` at `7c5dee9e`, both after the pilot's frozen `sourceRevision`.
