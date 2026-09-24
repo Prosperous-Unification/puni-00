@@ -9,11 +9,12 @@ import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-app
 import { projectServicesOf } from '@/testing/project-services-of';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
+import { WbsTableOverClient, type WbsTableOverClientProps } from '@/testing/wbs-table-over-client';
 
 import type * as GanttGeometryModule from './gantt-geometry';
 import type * as PlanChartInputModule from './plan-chart-input';
 import type * as TableFrameModule from './table-frame';
-import { type SubscriptionHandlers, WbsTable, type WbsTableProps } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -152,11 +153,15 @@ const rowFor = (number: string): HTMLElement => {
  * `subscribe` is optional for the prop's own reason: the table is driven by a
  * fake here and only the peer case below has a socket to open.
  */
-async function threeRoots(api = fakeApi(), subscribe?: WbsTableProps['subscribe']) {
+async function threeRoots(api = fakeApi(), subscribe?: WbsTableOverClientProps['subscribe']) {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   render(
-    <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    <WbsTableOverClient
+      projectId="p1"
+      projectServices={projectServicesOf(api)}
+      subscribe={subscribe}
+    />,
   );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
@@ -184,7 +189,10 @@ async function threeRoots(api = fakeApi(), subscribe?: WbsTableProps['subscribe'
  * wiring **between** the two faces: a suite that only hovered rows in the
  * table would be asserting the absence of a light with nothing to light.
  */
-async function planWithTheChartOpen(seeded = fakeApi(), subscribe?: WbsTableProps['subscribe']) {
+async function planWithTheChartOpen(
+  seeded = fakeApi(),
+  subscribe?: WbsTableOverClientProps['subscribe'],
+) {
   const api = await threeRoots(seeded, subscribe);
   // `threeRoots` unfolds Dev, so the three points are three boxes rather than
   // the folded cell's one.
@@ -610,7 +618,12 @@ describe('the chart under a plan being edited', () => {
   };
 
   itDom('redraws the open chart when a not-before edit moves the schedule', async () => {
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiWithMovableFloor())} />);
+    render(
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(apiWithMovableFloor())}
+      />,
+    );
     await waitFor(() => rowFor('010'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
@@ -638,7 +651,12 @@ describe('the chart under a plan being edited', () => {
     // fails on `expected 'Strip. 1 person. Held by its start-no-earlier-than
     // date' to contain 'Held by its start-no-earlier-than date — waiting on
     // client sign-off'`. Watched, 2026-08-18.
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(apiWithMovableFloor())} />);
+    render(
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(apiWithMovableFloor())}
+      />,
+    );
     await waitFor(() => rowFor('010'));
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
     const bar = () => document.querySelector('[data-gantt-bar]');
@@ -803,7 +821,9 @@ describe('holding the chart to the row the table is showing', () => {
     // Proof: the axis guard in `wbs-table.tsx` dropped — this failed on
     // `expected [ 'Error: the Gantt panel has no calendar axis to measure its
     // content top from' ] to deeply equal []`. Watched on h2puni, 2026-08-13.
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(circularApi())} />);
+    render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(circularApi())} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     click('Gantt');

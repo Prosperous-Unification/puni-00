@@ -992,6 +992,130 @@ describe('the header bar', () => {
     },
   );
 
+  itDom(
+    'hands the presence slot nobody in the next project until its own stream says',
+    async () => {
+      const sockets: SocketHandlers[] = [];
+      const streamDeps: ProjectStreamDeps = {
+        openSocket: (_url, handlers) => {
+          sockets.push(handlers);
+          return { send: () => undefined, close: () => undefined };
+        },
+        schedule: () => 0,
+        cancel: () => undefined,
+        random: () => 0,
+      };
+      const asked: { users: readonly string[]; connected: boolean }[] = [];
+      render(
+        <ProjectPage
+          token="t"
+          api={fakeProjects(TWO)}
+          streamDeps={streamDeps}
+          presence={(roster) => {
+            asked.push(roster);
+            return null;
+          }}
+        />,
+      );
+      await selectProject('p1');
+      await waitFor(() => {
+        expect(sockets).toHaveLength(1);
+      });
+      const first = sockets.at(0);
+      if (first === undefined) throw new Error('p1 opened no socket');
+      act(() => {
+        first.onOpen();
+        first.onMessage(JSON.stringify({ type: 'presence', users: ['kat', 'lee'] }));
+        first.onMessage(JSON.stringify({ type: 'resume_ack', replayed: { 'project:p1': 0 } }));
+      });
+      expect(asked.at(-1)).toEqual({ users: ['kat', 'lee'], connected: true });
+      const beforeSwitch = asked.length;
+
+      await selectProject('p2');
+      await waitFor(() => {
+        expect(sockets).toHaveLength(2);
+      });
+
+      // Only the render that moves the selection may still show p1's roster: from
+      // the withdrawal on, the header is handed nobody until p2's stream speaks.
+      const afterSwitch = asked.slice(beforeSwitch);
+      const reset = afterSwitch.findIndex(
+        (roster) => roster.users.length === 0 && !roster.connected,
+      );
+      expect(reset).toBeGreaterThanOrEqual(0);
+      expect(afterSwitch.slice(reset).filter((roster) => roster.users.length > 0)).toEqual([]);
+      expect(asked.at(-1)).toEqual({ users: [], connected: false });
+    },
+  );
+
+  itDom('closes the selected project’s stream once the page goes', async () => {
+    let opened = 0;
+    let closed = 0;
+    const streamDeps: ProjectStreamDeps = {
+      openSocket: () => {
+        opened += 1;
+        return {
+          send: () => undefined,
+          close: () => {
+            closed += 1;
+          },
+        };
+      },
+      schedule: () => 0,
+      cancel: () => undefined,
+      random: () => 0,
+    };
+    const view = render(<ProjectPage token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />);
+    await selectProject('p2');
+    await waitFor(() => {
+      expect(opened).toBe(1);
+    });
+
+    view.unmount();
+
+    await waitFor(() => {
+      expect(closed).toBe(1);
+    });
+  });
+
+  itDom(
+    'shows the sanitized report when a project will not let go, and never draws the next',
+    async () => {
+      let opened = 0;
+      const streamDeps: ProjectStreamDeps = {
+        openSocket: () => {
+          opened += 1;
+          return {
+            send: () => undefined,
+            close: () => {
+              throw new Error('alice@example.com’s socket would not close');
+            },
+          };
+        },
+        schedule: () => 0,
+        cancel: () => undefined,
+        random: () => 0,
+      };
+      render(<ProjectPage token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />);
+      await selectProject('p1');
+      await waitFor(() => {
+        expect(opened).toBe(1);
+      });
+
+      await selectProject('p2');
+
+      const fault = await waitFor(() => {
+        const shown = document.querySelector('[data-lifetime-fault]');
+        expect(shown).not.toBeNull();
+        return shown;
+      });
+      expect(fault?.textContent).toContain('Reference');
+      expect(fault?.textContent).not.toContain('alice@example.com');
+      expect(document.querySelector('[data-grid]')).toBeNull();
+      expect(opened).toBe(1);
+    },
+  );
+
   itDom('leaves the table out of the banner and in the page’s main', async () => {
     pageWith(fakeProjects(TWO));
     await selectProject('p2');
@@ -999,8 +1123,12 @@ describe('the header bar', () => {
     // The half that says the landmark is a bar rather than the whole page: a
     // `<header>` wrapped around everything would satisfy the assertions above.
     const bar = screen.getByRole('banner');
-    const grid = document.querySelector('[data-grid]');
-    expect(grid).not.toBeNull();
+    // Drawn once the project's runtime is live, a few microtasks after the pick.
+    const grid = await waitFor(() => {
+      const drawn = document.querySelector('[data-grid]');
+      expect(drawn).not.toBeNull();
+      return drawn;
+    });
     expect(bar.contains(grid)).toBe(false);
     expect(document.querySelector('main')?.contains(grid)).toBe(true);
   });

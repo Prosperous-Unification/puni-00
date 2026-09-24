@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import type { Roster } from '@/components/presence/presence-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,12 +19,15 @@ import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream
 import type { Recalled } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
-import { createPresence } from '@/modules/plan-feed/presence-store';
+import type { Presence } from '@/modules/plan-feed/presence-store';
 import { projectServicesOver } from '@/modules/project/composition';
+import type { ProjectStreamHandlers } from '@/modules/project/contract';
+import type { Store } from '@/modules/store';
 import {
   type ApplicationServicesState,
   useApplicationServicesReader,
 } from '@/runtime/application-services-context';
+import { createProjectOwner } from '@/runtime/project-runtime';
 
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
@@ -38,7 +42,7 @@ import {
 import { recordWbsScrollCommit } from './scroll-performance';
 import { useToasts } from './toasts';
 import { usePlanImport } from './use-plan-import';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
   token: string;
@@ -78,7 +82,7 @@ export interface ProjectPageProps {
    *
    * The seam is here and not on `subscribe`, because the factory below **is**
    * the thing under test: it is the only place the stream's `onChange` and the
-   * table's `SubscriptionHandlers` are joined, and a test that replaced the
+   * project runtime's handlers are joined, and a test that replaced the
    * factory would be asserting about its own wiring. Handing the socket in
    * instead leaves every line of the composition production code, and is the
    * same bargain `api` makes three props up.
@@ -119,6 +123,15 @@ export function recallLastProject(services: ApplicationServicesState): Recalled<
  * asked for and what the rename field opens holding, and two literals that
  * must agree is one of them going stale.
  */
+/** Nobody, not connected: the honest answer before any socket has spoken. */
+const NOBODY: Presence = { users: [], connected: false };
+
+/** The presence the header is handed while no project runtime is published. */
+const NOBODY_HERE: Store<Presence> = {
+  subscribe: () => () => undefined,
+  snapshot: () => NOBODY,
+};
+
 const PLACEHOLDER_PROJECT_NAME = 'New project';
 
 /**
@@ -505,27 +518,8 @@ export function ProjectPage({
     () => savedPlansOverride ?? browserSavedPlansDeps(),
     [savedPlansOverride],
   );
-  /**
-   * Who else is in the selected project, and whether the socket saying so is
-   * up.
-   *
-   * Held here because this page renders both halves of the screen the answer
-   * is for: the header's panel and the `<main>` the table fills. The table
-   * opens the stream (it is the thing that has to refetch), so the roster
-   * arrives through the factory below rather than from a socket of the header's
-   * own.
-   *
-   * A plain store the stream writes into and the header selects from, so the
-   * factory is handed no React setter. One per page mount, exactly as the state
-   * it replaces was — it is **not** reset when the selection changes, and that
-   * is kept deliberately: which lifetime resets it is the project runtime's
-   * decision (OpenSpec tasks 10 and 11), not this packet's. A lazy initializer
-   * is safe because the store holds no resource.
-   */
-  const [projectPresence] = useState(createPresence);
-  const roster: Roster = useSyncExternalStore(projectPresence.subscribe, projectPresence.snapshot);
   const subscribe = useMemo(
-    () => (projectId: string, handlers: SubscriptionHandlers, baseline: number) =>
+    () => (projectId: string, handlers: ProjectStreamHandlers, baseline: number) =>
       subscribeToProject(
         {
           projectId,
@@ -536,21 +530,19 @@ export function ProjectPage({
           sinceSeq: baseline,
           hasBaseline: true,
           onChange: handlers.onChange,
-          onConnectionChange: (connected) => {
-            // Proof: on 2026-09-24, this line deleted failed `hands the presence slot who the project’s stream
-            // says is here, and its connection` on `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal
-            // { users: [ 'kat', 'lee' ], …(1) }`, `connected` staying `false` where `true` was expected.
-            projectPresence.reportConnection(connected);
-            handlers.onConnectionChange(connected);
-          },
-          // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the project’s
-          // stream says is here, and its connection` on `expected { users: [], connected: false } to deeply
-          // equal { users: [ 'kat', 'lee' ], …(1) }`.
-          onPresence: projectPresence.reportUsers,
+          // The project's runtime tells its own presence, and the feed, from here.
+          // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the
+          // project’s stream says is here, and its connection` on `expected { users: [ 'kat', 'lee' ],
+          // …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `connected` staying `false`.
+          onConnectionChange: handlers.onConnectionChange,
+          // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the
+          // project’s stream says is here, and its connection` on `expected { users: [], connected:
+          // false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`.
+          onPresence: handlers.onPresence,
         },
         streamDeps,
       ),
-    [projectPresence, streamDeps],
+    [streamDeps],
   );
 
   /**
@@ -561,6 +553,49 @@ export function ProjectPage({
   const [projects, setProjects] = useState<ProjectListEntry[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The owner of the selected project's runtime — its feed, its writer, its
+   * marker gestures and its commands, opened once per selected project and
+   * given back when the selection moves or this page goes.
+   *
+   * A lazy initializer is safe because the owner holds nothing until it is
+   * asked to open: Strict Mode's discarded second one leaks nothing. The
+   * runtime itself is only ever built by the effect below, never in render.
+   */
+  const [projectOwner] = useState(createProjectOwner);
+  const projectState = useSyncExternalStore(projectOwner.subscribe, projectOwner.snapshot);
+  /**
+   * Who else is in the selected project, and whether the socket saying so is
+   * up: the project runtime's own presence, which its stream writes into.
+   *
+   * **Reset by a project switch**, and that is the decision rather than an
+   * accident: while no runtime is published — the instant the old project is
+   * withdrawn, until the next one is live — the header is handed nobody,
+   * disconnected, and then the next project's own store, which starts from
+   * nobody until its own stream says who is there. A roster is one project's,
+   * so the previous project's list is never shown under the next one's name.
+   */
+  const presenceStore =
+    projectState.status === 'live' ? projectState.services.presence : NOBODY_HERE;
+  const roster: Roster = useSyncExternalStore(presenceStore.subscribe, presenceStore.snapshot);
+  /**
+   * Opens the selected project's runtime, and leaves it when the selection,
+   * the client or the stream changes, or the page goes.
+   *
+   * Every trigger reaches the one owner, so a switch, an unmount and Strict
+   * Mode's re-entry each withdraw the old runtime before anything else happens
+   * and retire it once; the next is published only after that retirement
+   * succeeded, and a retirement that fails leaves the owner fatal.
+   */
+  useEffect(() => {
+    if (selected === null) return;
+    void projectOwner.open(selected, { services: projectServices, subscribe });
+    // Proof: on 2026-09-24, this cleanup replaced by `return undefined` failed `closes the selected
+    // project’s stream once the page goes` on `expected +0 to be 1`: the socket was never closed.
+    return () => {
+      void projectOwner.leave();
+    };
+  }, [projectOwner, projectServices, selected, subscribe]);
   const toastApi = useToasts();
   /**
    * The rename in progress, or null while the picker is showing.
@@ -1203,14 +1238,31 @@ export function ProjectPage({
     </div>
   );
 
+  const header = (
+    <AppHeader
+      nav={nav}
+      project={projectControls}
+      presence={presence?.(roster)}
+      account={account}
+    />
+  );
+  // Proof: on 2026-09-24, `&& false` added to this condition failed `shows the sanitized report
+  // when a project will not let go, and never draws the next` on `expected null not to be null`:
+  // no `[data-lifetime-fault]` was drawn.
+  if (projectState.status === 'fatal') {
+    // The project's runtime could not be given back, or built: the same sanitized
+    // report the page's own runtime shows, in place of the page's main, and no
+    // table drawn from services nobody owns.
+    return (
+      <>
+        {header}
+        <LifetimeFault fault={projectState.fault} />
+      </>
+    );
+  }
   return (
     <>
-      <AppHeader
-        nav={nav}
-        project={projectControls}
-        presence={presence?.(roster)}
-        account={account}
-      />
+      {header}
       {/*
         The rest of the window, and a column flex so the frame below can have
         what the toolbar does not. `min-h-0` is the load-bearing half: a flex
@@ -1229,24 +1281,27 @@ export function ProjectPage({
             {error}
           </p>
         )}
-        {selected !== null && (
+        {/* Drawn only while the owner publishes a runtime, and keyed by that
+        runtime's own project: in the render that moves the selection the owner
+        still publishes the previous project's, until the effect below withdraws
+        it, so the table stays the previous project's until then. */}
+        {projectState.status === 'live' && (
           <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
             <WbsTable
-              // Each project owns its rows and transient editor state.
-              // Proof: omitting this key left “Departed project row” in Name010
-              // in `starts a created project without the previous project’s row anchors`.
-              key={selected}
-              projectId={selected}
+              // Each project owns its rows and transient editor state. The owner
+              // usually publishes nothing between two projects' runtimes, which
+              // remounts the table by itself; the key is what keeps that true when
+              // the next runtime is drawn with no render in between.
+              key={projectState.services.projectId}
+              project={projectState.services}
               // The name the export's header and filename carry. Read from the
               // list rather than held twice: a rename lands in `projects` and the
               // next export says the new name.
               projectName={selectedProject?.name}
-              projectServices={projectServices}
               planImport={planImport}
               // Proof: omitting this page-owned API left the remounted table's
               // toast list empty after a successful import. Observed 2026-09-14.
               toastApi={toastApi}
-              subscribe={subscribe}
               // Rendered by the table only on a cards viewport, which is the
               // same answer `renderer` above gives — one hook, one store, so the
               // header's arm and this one are complementary and never both.

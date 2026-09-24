@@ -45,13 +45,13 @@ import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead, sliceView } from '@/testing/views';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { isoToday } from './gantt-panel';
 import { refusedDraftFor, unsent } from './live-editing';
 import { type CardRowActionHandlers, PlanCards } from './plan-cards';
 import { shortIsoDate } from './short-date';
 import type { TreeRow } from './wbs-rows';
-import { WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -623,7 +623,7 @@ describe('the plan on a phone', () => {
       await api.createWorkItem('p1', { parentId: `w${String(parent)}` });
     }
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('article', { name: 'Work item 080' });
 
     const cardMargin = (id: string): string => {
@@ -648,7 +648,7 @@ describe('the plan on a phone', () => {
   itDom('is cards below the breakpoint and the table above it', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     expect(screen.getByRole('article', { name: 'Work item 010' })).toBeInTheDocument();
@@ -680,7 +680,7 @@ describe('the plan on a phone', () => {
   itDom('renders no cell the table has not got one for', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const onCards = cellsOnScreen();
@@ -704,7 +704,7 @@ describe('the plan on a phone', () => {
   itDom('marks the card list as the grid, and it is no table', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const grid = document.querySelector('[data-grid]');
@@ -731,7 +731,7 @@ describe('the plan on a phone', () => {
   itDom('carries the caret to an unestimated card when the badge is taken', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     openTheSheet();
@@ -765,7 +765,7 @@ describe('the plan on a phone', () => {
   itDom('lands the focus in the card of a work item it just created', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     await waitFor(() => {
@@ -789,7 +789,7 @@ describe('the plan on a phone', () => {
    */
   itDom('keeps a draft be-01 refused when the window crosses the breakpoint', async () => {
     const api = fakeApi({ refusePatch: true });
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     fireEvent.click(screen.getByRole('button', { name: 'Add work item' }));
     const onTheTable = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
@@ -810,7 +810,7 @@ describe('the plan on a phone', () => {
   itDom('and carries it back to the table when the window widens again', async () => {
     const api = fakeApi({ refusePatch: true });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const onACard = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -842,7 +842,7 @@ describe('the plan on a phone', () => {
   itDom('keeps a refused draft, and its cells, when the phone is turned', async () => {
     const api = fakeApi({ refusePatch: true });
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const inPortrait = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -866,7 +866,7 @@ describe('the plan on a phone', () => {
   itDom('sends a name typed on a card', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const box = screen.getByLabelText('Name of 010');
@@ -890,7 +890,7 @@ describe('the plan on a phone', () => {
       // failing, 2026-08-29, on `Error: the card for 010 draws no rendered name`.
       const api = fakeApi();
       widthIs(PHONE);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await addAWorkItem();
 
       const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -930,7 +930,7 @@ describe('the plan on a phone', () => {
     // nowhere else to show it. Watched, 2026-08-09.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -952,7 +952,7 @@ describe('the plan on a phone', () => {
     // '2026-06-01 → 2026-06-03' to be '1 Jun → 3 Jun'`. Watched, 2026-08-09.
     const api = fakeApi({ dated: true });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const onCard = document.querySelector('[data-card-span]');
@@ -972,7 +972,7 @@ describe('the plan on a phone', () => {
     // dates to shorten and both renderers count days from day zero.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const onCard = document.querySelector('[data-card-span]');
@@ -989,7 +989,7 @@ describe('the plan on a phone', () => {
   itDom('offers nothing to drag a card by', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     expect(screen.queryByRole('button', { name: 'Reorder 010' })).toBeNull();
@@ -1011,7 +1011,7 @@ describe('a picker open on a card', () => {
   itDom('takes Enter for the list rather than the box under it', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1040,7 +1040,7 @@ describe('a picker open on a card', () => {
   itDom('closes on Escape and leaves what was typed', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1059,7 +1059,7 @@ describe('a picker open on a card', () => {
     // `aria-activedescendant` names — and both pointers go when the list goes.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1088,7 +1088,7 @@ describe('a picker open on a card', () => {
     // makes this the same box as the one above and a different branch of it.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1129,7 +1129,7 @@ describe('the toolbar sheet', () => {
     const api = fakeApi();
     widthIs(PHONE);
     render(
-      <WbsTable
+      <WbsTableOverClient
         projectId="p1"
         projectServices={projectServicesOf(api)}
         savedPlansShelf={
@@ -1176,7 +1176,7 @@ describe('the toolbar sheet', () => {
       return Promise.resolve();
     };
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1194,7 +1194,7 @@ describe('the toolbar sheet', () => {
   itDom('holds the toolbar, which is nowhere on the page until it is opened', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1229,7 +1229,7 @@ describe('the toolbar sheet', () => {
   itDom('offers freezing once, as a menu that opens on the sheet', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1270,7 +1270,7 @@ describe('the toolbar sheet', () => {
   itDom('closes when a control on it acts on the plan', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     expect(screen.queryByRole('button', { name: 'Add work item' })).toBeNull();
@@ -1294,7 +1294,7 @@ describe('the toolbar sheet', () => {
     // lists the control by its name rather than by a gear.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1332,7 +1332,7 @@ describe('the toolbar sheet', () => {
   itDom('closing project settings puts the focus back on its trigger', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1370,7 +1370,7 @@ describe('the toolbar sheet', () => {
   itDom('adds a step from inside the sheet', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
     openTheSheet();
     fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
@@ -1424,7 +1424,7 @@ describe('the toolbar sheet', () => {
     async () => {
       const api = fakeApi();
       widthIs(PHONE);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await addAWorkItem();
 
       const trigger = screen.getByRole('button', { name: 'Plan actions' });
@@ -1454,7 +1454,7 @@ describe('the toolbar sheet', () => {
   itDom('leaves the focus on the cheat sheet the sheet opened', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1494,7 +1494,7 @@ describe('the toolbar sheet', () => {
     localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1522,7 +1522,7 @@ describe('the toolbar sheet', () => {
       localStorage.setItem('wbs.linksResetShown.p1', 'true');
       const api = fakeApi();
       widthIs(PHONE);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
       });
@@ -1547,7 +1547,7 @@ describe('the toolbar sheet', () => {
   itDom('holds the page’s own shortcuts back while it is open', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1575,7 +1575,7 @@ describe('what a card says about capacity', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams, api);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
   }
 
@@ -1957,7 +1957,7 @@ describe('what a card says about the schedule', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
   }
 
@@ -2083,7 +2083,7 @@ describe('the trio behind a step’s figure, on a card', () => {
   itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     expect(trioOnCard(DEV.id)?.textContent).toBe('No estimate yet');
@@ -2101,7 +2101,7 @@ describe('the trio behind a step’s figure, on a card', () => {
       const created = await api.createWorkItem('p1', { parentId: null });
       await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
       widthIs(PHONE);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Name of 010');
 
       expect(trioOnCard(DEV.id)?.textContent).toBe('optimistic 2 · realistic 3 · pessimistic 8');
@@ -2123,7 +2123,7 @@ describe('the trio behind a step’s figure, on a card', () => {
     const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     expect(screen.getByLabelText<HTMLInputElement>('Dev estimate for 010').value).toBe('2/3/8');
@@ -2137,7 +2137,7 @@ describe('the trio behind a step’s figure, on a card', () => {
     const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     expect(screen.getByLabelText<HTMLInputElement>('Dev estimate for 010').value).toBe('5');
@@ -2147,7 +2147,7 @@ describe('the trio behind a step’s figure, on a card', () => {
   itDom('opens on a tap and stays shut until one', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await addAWorkItem();
 
     const detail = detailOnCard(DEV.id);
@@ -2193,7 +2193,7 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
     const created = await api.createWorkItem('p1', { parentId: null });
     if (days !== null) await api.setEstimate(created.id, DEV.id, days);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   };
@@ -2304,7 +2304,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await api.createWorkItem('p1', { parentId: null });
     const sent = recordCalls(api, 'setStatus', (_id, status, on) => ({ status, on }));
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('article', { name: 'Work item 010' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2326,7 +2326,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('article', { name: 'Work item 010' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2345,7 +2345,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await api.createWorkItem('p1', { parentId: null });
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('article', { name: 'Work item 020' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2369,7 +2369,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       // not how it came to be frozen.
       api.rows[0].frozenNumber = '010';
       widthIs(PHONE);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByRole('article', { name: 'Work item 010' });
 
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2787,7 +2787,7 @@ describe('a filter on a phone', () => {
     strip.serviceTeamId = 't1';
     strip.teamIds = ['t1'];
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
   }
 
@@ -2850,7 +2850,7 @@ describe('setting a card’s team', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -2932,7 +2932,7 @@ describe('setting a card’s team', () => {
       });
     };
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     fireEvent.click(teamFields()[0]);
@@ -3057,7 +3057,7 @@ describe('setting a card’s tags and services', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     expect(document.querySelector('[data-card-tags-field]')).toBeNull();
@@ -3073,7 +3073,7 @@ describe('setting a card’s tags and services', () => {
     api.services.push({ id: 'service-seed', name: 'seed service' });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3147,7 +3147,7 @@ describe('setting a card’s earliest start', () => {
     await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3249,7 +3249,7 @@ describe('setting a card’s earliest start', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     const field = dateFields()[0];
@@ -3312,7 +3312,7 @@ describe('setting a card’s work item deadline', () => {
     await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3459,7 +3459,7 @@ describe('setting a card’s work item deadline', () => {
     const api = fakeApi({ dated: false });
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     const field = deadlineFields()[0];
@@ -3484,7 +3484,7 @@ describe('setting a card’s priority', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3685,7 +3685,7 @@ describe('setting what a card waits for', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3935,7 +3935,7 @@ describe('what a gesture over the plan costs the cards behind it', () => {
     const api = fakeApi();
     for (let at = 0; at < 5; at += 1) await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     expect(document.querySelectorAll('[data-card]')).toHaveLength(5);
   }

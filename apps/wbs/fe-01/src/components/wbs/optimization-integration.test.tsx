@@ -7,10 +7,11 @@ import type { PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { ProjectPage } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
@@ -60,7 +61,9 @@ describe('project optimization in the plan', () => {
   itDom('persists a project-wide schedule choice across a remount', async () => {
     const api = fakeProjectApi();
     const setSettings = vi.spyOn(api, 'setOptimizationSettings');
-    const first = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const first = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await openOptimization();
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Optimize schedules' }));
@@ -90,7 +93,7 @@ describe('project optimization in the plan', () => {
     expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Fast');
 
     first.unmount();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await openOptimization();
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Time' })).toBeChecked();
@@ -106,7 +109,11 @@ describe('project optimization in the plan', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     await openOptimization();
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).not.toBeChecked();
@@ -142,7 +149,11 @@ describe('project optimization in the plan', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Earlier project deadline by 2 days',
@@ -200,7 +211,7 @@ describe('project optimization in the plan', () => {
           },
         } satisfies PlanOptimizationView,
       });
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
 
       await waitFor(() => {
         expect(screen.getByRole('status')).toHaveTextContent(
@@ -333,7 +344,11 @@ describe('project optimization in the plan', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     expect(await screen.findByRole('status')).toHaveTextContent('Optimizing…');
 
@@ -543,7 +558,11 @@ describe('project optimization in the plan', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     expect(await screen.findByRole('status')).toHaveTextContent('Optimizing…');
 
