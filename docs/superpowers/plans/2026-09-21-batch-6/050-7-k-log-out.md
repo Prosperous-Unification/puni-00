@@ -6,7 +6,7 @@
 | Size class  | S — two slices, each one executor attempt                                                                                                                                                                                                                                                          |
 | Predecessor | 050.7i (`050-7-i-session-runtime.md`, beside this packet once it lands) — `createSessionOwner`, `SignedInApp`, and its section 12, "Hand-over to the next packet": "Log out becomes `await sessionOwner.leave()`, then render signed-out only if the owner is not `fatal`"                         |
 | Advances    | OpenSpec task **7** of `adopt-frontend-lifetimes` — **ticked** in slice 2, every sentence met (section 3.7). Also closes packet j's named residual, "the fatal nobody sees" after a project page has gone (section 3.5).                                                                           |
-| Revision    | First.                                                                                                                                                                                                                                                                                             |
+| Revision    | Second: the round-1 review applied — a real-base mode for section 9.1, the dispatch base built by cherry-pick, lifetime-map tests 12 and 13 amended, eight minors.                                                                                                                                 |
 | Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Two scenarios added to the existing requirement "Log out stays a local exit" (slice 1) and one to packet i's session requirement (slice 2); task 7 ticked with a dated note; one dated update to the lifetime map's session owner. |
 
 ## 1. Goal, non-goals, and the cut
@@ -113,15 +113,19 @@ read (`tree`) waits for the scheduler, so one late answer is what a withdrawn pr
 
 **Invariants**, each asserted by the model against its own records, never against the owner's say-so:
 
-- **L1 — no request.** The log out itself sends nothing (the directory clients' request counts are
-  equal across the synchronous `exit()` call), and a session the model has withdrawn — by a log out, a
-  leave or another user — sends nothing for a read asked of it afterwards.
+- **L1 — no request.** A session the model has withdrawn — by a log out, a leave or another user —
+  sends nothing for a read asked of it afterwards; this is L1's teeth (`x1`), with the two app
+  examples' recorded `fetch` paths, one through the real owner and `httpDirectoryApi`. The model also
+  compares the request counts across the synchronous part of `exit()`, which can only see a request
+  issued before `leave()`'s first await.
 - **L2 — project, then session.** A session's close never resolves while a project it built has not
   been given back.
 - **L3 — no late project answer.** From the instant its session is withdrawn, a project's delivered
   plan stays the very object it was then, whatever answers afterwards.
-- **L4 — bounded.** Once every step has run and the clock has passed the budget, every log out asked
-  before has settled; at the teardown, every open, leave and read has too.
+- **L4 — bounded.** Once every step has run and the clock has passed the budget four times over,
+  every log out asked before has settled; at the teardown, every open, leave and read has too. The
+  model proves the bound within four budgets; **one** budget is the example `e2`'s (unsettled at 999
+  ms, `fatal` at 1 001 ms) and the app example's at 50 ms.
 - **L5 — `signed-out` is earned.** A log out settles `signed-out` only when every session published
   before it was asked has been given back, with every project it built, and no sign-in was asked for
   while its retirement was still running.
@@ -187,7 +191,12 @@ re-indented by the gate: both placed away from packet i's `g2`–`g4` comment si
 - **The failure is drawn, not logged.** Task 7 asks for "the fatal state", and the fatal page is
   visible, carries the occurrence handle, and is what packet i draws for a failed construction. A
   console line would need a seam out of `application-bootstrap.tsx`'s `showFatal`, which is the
-  application lifetime's; the lifetime map's single non-React reporter stays unbuilt, recorded here.
+  application lifetime's; the lifetime map's single non-React reporter stays unbuilt. R5 is met —
+  nothing is defaulted or swallowed, the owner is terminally `fatal`, nothing retired is republished,
+  and the region draws the sanitized report and occurrence handle — but once the reader presses
+  Reload no record remains, unlike the application's `console.error`. Slice 2's dated map update
+  therefore **amends lifetime-map tests 12 and 13** for the project and the session: reporter
+  occurrence not emitted, drawn instead, the non-React reporter unbuilt with no open task.
 - **A terminal project fault is drawn by the region.** Packet j left "the fatal nobody sees" to task 7
   or task 11. With the project owner the session's (packet i), `SignedInApp` holds it and can draw it;
   a non-terminal project fault (a construction that failed and holds nothing) stays the project
@@ -250,7 +259,7 @@ notes and `verify.md` entries (section 9.1 simulates all three).
 
 ### 4.2 The measured blast radius
 
-`git diff --stat 2e237e20e 4b375ea50`: **9 files changed, 1274 insertions(+), 24 deletions(-)**; with `verify.md`, which only the executor writes,
+`git diff --stat 2e237e20e 59cfe22a4`: **9 files changed, 1274 insertions(+), 24 deletions(-)**; with `verify.md`, which only the executor writes,
 the slices own 10 distinct paths — slice 1 owns 6 (1 new), slice 2 owns 6.
 
 | Tree             | Sandbox node suite | Runtime set (3 files) | Session set (3 files, serial) | Adopted set (20 files) | Zoned | Preferences |
@@ -518,8 +527,8 @@ not a function`; packet i's eight examples pass.
   ```
 
   Expected `status=0` everywhere: runtime 3 files, 13 tests (the log-out model, packet i's model, and
-  packet i's eight examples with this packet's three); tiers 5 tests; sandbox = step 0 **+ 1 file,
-  - 4 tests** (rehearsed 56·709 → 57·713).
+  packet i's eight examples with this packet's three); tiers 5 tests; sandbox = step 0
+  **plus 1 file and 4 tests** (rehearsed 56·709 → 57·713).
 
 - [ ] 6. Durable lint, from the repository root:
 
@@ -570,7 +579,9 @@ not a function`; packet i's eight examples pass.
   diff "$TMPDIR/evidence/owned-sorted.txt" "$TMPDIR/evidence/status-paths.txt"
   ```
 
-  Expected: the `diff` prints nothing and exits 0: five ` M` paths and one `??`.
+  Expected: the `diff` prints nothing and exits 0: five ` M` paths and one `??` — on the real base,
+  where `verify.md` already exists with packet i's entries. (On the authoring base it would be a second
+  `??`; that base is never dispatched.)
 
 Planner commit subject:
 `feat(frontend): give the session owner a local exit that retires the project and then the session`.
@@ -696,13 +707,14 @@ absolute paths. Do not read, quote or restate an earlier entry.
 ### Dispatch
 
 One attempt per slice, from the reviewed packet, with no network, driven by a Claude subagent. The
-base of slice 1 is the planning lineage that contains packet i's **real** lane and this packet —
-planning after packet i's three slices are committed, with this packet's branch merged in. It differs
+base of slice 1 is planning after packet i's three slices are committed, plus this packet's commit
+(`f26e3aff0` or the then-current one) **cherry-picked** — one added file. Never merge the plan
+branch: its parent is the undispatched authoring base, and a merge conflicts in six paths. It differs
 from the authoring base this packet was rehearsed on (`2e237e20e`, packet i's rehearsed diffs on
 integration `52876ae12`, a commit that is never dispatched) by packet i's executor `Proof:` comments,
 its dated notes and its `verify.md` entries, and by whatever packet i's dispatch review changes:
-before the first dispatch the planner reruns section 9.1's script with `base=` set to that real base
-(section 9.1 records the run against a copy with every one of packet i's sites filled). This block
+before the first dispatch the planner runs section 9.1's script with `REAL_BASE=<reviewed-base-sha>`,
+whose `fill=real` output is the dispatch evidence. This block
 holds the only absolute paths in this document.
 
 ```sh
@@ -2223,14 +2235,14 @@ index 41ddc6ab1..09a8e4d94 100644
 +  return children;
 +}
 diff --git a/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md b/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
-index bc10a5260..969a4d871 100644
+index bc10a5260..87f9872b0 100644
 --- a/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
 +++ b/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
 @@ -79,6 +79,8 @@ The existing `AccountMenu` “Log out” action is a **local exit** in 050.7. To
 
  Local exit calls the host coordinator before clearing local state: the coordinator invalidates project publication, joins/closes the project, invalidates session publication, joins/closes the session, and only after successful retirement commits the local signed-out UI state. A retirement failure or timeout refuses that local transition and publishes the sanitized fatal/public-report state described below. It never republishes the withdrawn old project/session services, even though the still-valid remote cookie may authenticate a later full reload. Project selection effects likewise call the coordinator, so route unmount, switch, local exit and page hide — which is also how a document replacement retires the page — converge on the same current handle and promise. This supplies the project-before-session control path that independent nested effect cleanup cannot guarantee. Authoritative logout is separate observable auth work and remains outside 050.7.
 
-+Update, observed <observed-date-k> (050.7k, OpenSpec task 7): the coordinator is the session owner itself. Log out is `SessionOwner.exit` in `apps/wbs/fe-01/src/runtime/session-runtime.ts` — the owner's one `leave()`, which withdraws the session and its project in the same instant, retires the project and then the session, and settles once, however many triggers asked — and `SignedInApp` in `apps/wbs/fe-01/src/app.tsx` renders the signed-out state only when it settles `signed-out`. No request is sent and nothing is revoked. A refusing or never-closing socket makes the session terminally fatal within one retirement budget (the project's wait runs inside the session's, and the session's expires first), and the sanitized fatal state is drawn in the region's place; so is a project that cannot be given back after its page has gone. The failure is drawn, not logged, and page hide's own session retirement is still observed by nobody.
++Update, observed <observed-date-k> (050.7k, OpenSpec task 7): the coordinator is the session owner itself. Log out is `SessionOwner.exit` in `apps/wbs/fe-01/src/runtime/session-runtime.ts` — the owner's one `leave()`, which withdraws the session and its project in the same instant, retires the project and then the session, and settles once, however many triggers asked — and `SignedInApp` in `apps/wbs/fe-01/src/app.tsx` renders the signed-out state only when it settles `signed-out`. No request is sent and nothing is revoked. A refusing or never-closing socket makes the session terminally fatal within one retirement budget (the project's wait runs inside the session's, and the session's expires first), and the sanitized fatal state is drawn in the region's place; so is a project that cannot be given back after its page has gone. The failure is drawn, not logged, so tests 12 and 13 below are amended for the project and the session: their reporter occurrence is not emitted and the sanitized report and occurrence handle are drawn instead; the non-React lifecycle-failure reporter stays unbuilt, and no open task owns it. Page hide's own session retirement is still observed by nobody.
 +
  Keep the router instance stable. `AppRouter` intentionally creates it once and refreshes its context because recreating it loses the current address. Router context may carry the narrow session delivery services required by lazy routes plus the existing presentational `account`, `presence`, and `nav`; it must no longer carry `token`, `ProjectApi`, `DirectoryApi`, or a bag once extraction is complete.
 
@@ -2269,7 +2281,7 @@ Every fault below was injected for real in the planner's rehearsal on 2026-09-24
 commit of the slice that owns it: its named test watched failing, the file restored and compared, the
 test rerun green, before the next fault. The executor repeats each one and writes the adjacent
 `Proof:` comment **only after observing its own failure**, dated with its own observed date
-(`date -u +%F`) — never 2026-09-24, never before the observation. Each slice runs **all** of its
+(`date -u +%F`) — never copied from this document, never before the observation. Each slice runs **all** of its
 faults first and writes its comments afterwards, so every fault patch below still applies.
 
 **Where the comments may go.** Slice 1's go into `session-runtime.ts`, slice 2's into `app.tsx`;
@@ -2366,6 +2378,11 @@ above the line the table names, for example:
 // Proof: on <observed date>, unbinding both waits made `retires the project and then the session,
 // …` fail after 75 runs: "teardown: leave never settled" — a socket that never closes hung it.
 ```
+
+**For `x2` and `x3`**, whose lines already carry packet i's `m7`/`d1` and `m8` proofs, the sentence
+says what this model adds: "the log-out model finds it too, at run N, via a user switch" (`x2`) or
+"… via a leave" (`x3`) — the same withdrawal and retirement a log out makes. The log-out-specific
+teeth are `x1`, `x5`, `x6`, `x7`, and `e1`–`e3`, `a1`, `a2`, `p1`.
 
 **For the model faults**, the run number, the shrunk command sequence and the innermost cause the table
 quotes are the evidence; they are seed-pinned and were identical in two rehearsal runs. A different run
@@ -2707,18 +2724,32 @@ index 09a8e4d94..b319a9085 100644
 
 The requirement is not "these diffs were once correct" but "these diffs, as this committed document
 spells them, apply in slice order, produce exactly the rehearsal's final tree, and every fault patch
-applies to the tree its slice leaves" — on the authoring base, **and** on that base with packet i's
-executor output simulated in the files this packet patches. `fill=1` inserts a two-line `// Proof:`
-comment above each of packet i's fifteen comment sites in `session-runtime.ts` (its eleven slice-1
-runtime sites and `g1`) and `app.tsx` (`g2`, `g3`, `g4`), and dates its `<observed-date-i>` notes in
-`tasks.md` and the lifetime map. No script, no Prettier and no `node_modules` are needed: every change
-is a diff.
+applies to the tree its slice leaves" — on the authoring base, on that base with packet i's executor
+output simulated, **and on the real dispatch base**. The script has three modes:
+
+- `fill=0` — the authoring base; the result must be byte-identical to the rehearsal's final commit.
+- `fill=1` — the authoring base with a two-line `// Proof:` comment inserted above each of packet i's
+  fifteen comment sites as its rehearsal placed them, in `session-runtime.ts` (its eleven slice-1
+  runtime sites and `g1`) and `app.tsx` (`g2`, `g3`, `g4`), and its `<observed-date-i>` notes dated.
+- `fill=real` — the base named by `REAL_BASE`: planning after packet i's three slices, plus this
+  packet's commit cherry-picked (section 6, Dispatch). Nothing is filled: packet i's real comments are
+  there, and not all where the rehearsal put them — its executor wrote `o3` as `? // Proof: …` inside
+  the ternary, so that simulated anchor counts 0 there, and `<observed-date-i>` is already dated. The
+  result must change exactly the nine owned paths; the seven files packet i's executor never comments
+  must equal the rehearsal's final bytes (the two notes compared with every `observed` date
+  normalised); and `session-runtime.ts` and `app.tsx` must equal them once every `//` comment and all
+  whitespace are stripped from both sides. **This mode's output is the dispatch evidence**: the
+  planner runs it with `REAL_BASE=<the reviewed base SHA>` before the first dispatch and records it
+  beside the review. Unset, the mode prints that it was skipped and proves nothing.
+
+No script, no Prettier and no `node_modules` are needed: every change is a diff.
 
 ````sh
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-k-log-out.md
 base=2e237e20ec0715cdaf4423d7de2a9bdb60ffa11b
-final=4b375ea50c76ac9221829635b5b323f08c62f51e
+final=59cfe22a42c5471fa1f3aa714a722faabce9e8d5
+real_base=${REAL_BASE:-}
 test -f "$packet"
 # Inserts a two-line comment above the Nth line (default 1) whose trimmed text is exactly $2.
 fill_above() {
@@ -2743,7 +2774,16 @@ fill_above() {
 check_faults() {
   for id in "$@"; do git -C "$work/tree" apply --unidiff-zero --check "$work/mutations/$id.diff"; done
 }
-for fill in 0 1; do
+# A file with every // comment and all whitespace removed: equal code, whatever the comments.
+code_of() { sed -e 's#[[:space:]]*//.*$##' "$1" | tr -d '[:space:]'; }
+# A note with every "observed <date>" normalised, placeholder or date.
+dates_of() { sed -E 's/observed (<observed-date-[a-z]+>|[0-9]{4}-[0-9]{2}-[0-9]{2})/observed D/g' "$1"; }
+for fill in 0 1 real; do
+  from=$base
+  if [ "$fill" = real ]; then
+    if [ -z "$real_base" ]; then echo "fill=real skipped: REAL_BASE unset, not dispatch evidence"; continue; fi
+    from=$real_base
+  fi
   work=$(mktemp -d "${TMPDIR:?}/extract-XXXXXX")
   mkdir -p "$work/patches" "$work/mutations" "$work/tree"
   awk -v out="$work/patches" '
@@ -2767,9 +2807,9 @@ for fill in 0 1; do
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
   test "$count" -eq 13
-  git archive "$base" | tar -x -C "$work/tree"
+  git archive "$from" | tar -x -C "$work/tree"
   fe="$work/tree/apps/wbs/fe-01"
-  if [ "$fill" -eq 1 ]; then
+  if [ "$fill" = 1 ]; then
     runtime="$fe/src/runtime/session-runtime.ts"
     # Packet i's eleven slice-1 runtime sites, as its own section 9.1 fills them, and g1.
     for anchor in "if (identity.userId === wanted?.userId) return latest;" "wanted = null;" \
@@ -2814,18 +2854,46 @@ for fill in 0 1; do
   check_faults a1 a2 p1
   echo "fill=$fill slice 2 applied, its 3 fault patches check"
   git -C "$work/tree" status --porcelain --untracked-files=all | wc -l
-  if [ "$fill" -eq 0 ]; then
-    mkdir "$work/final"
-    git archive "$final" | tar -x -C "$work/final"
+  mkdir "$work/final"
+  git archive "$final" | tar -x -C "$work/final"
+  if [ "$fill" = 0 ]; then
     diff -r --exclude=.git "$work/tree" "$work/final"
     echo "fill=0 tree identical to $final"
-  else
+  elif [ "$fill" = 1 ]; then
     echo "fill=1 simulated comments left: $(cat "$fe/src/runtime/session-runtime.ts" "$fe/src/app.tsx" | grep -c 'Proof: simulated')"
+  else
+    git -C "$work/tree" status --porcelain --untracked-files=all | cut -c4- | sort > "$work/changed.txt"
+    printf '%s\n' apps/wbs/fe-01/src/app.test.tsx apps/wbs/fe-01/src/app.tsx \
+      apps/wbs/fe-01/src/runtime/session-exit.model.test.ts \
+      apps/wbs/fe-01/src/runtime/session-runtime.test.ts \
+      apps/wbs/fe-01/src/runtime/session-runtime.ts apps/wbs/fe-01/vitest.node-suites.ts \
+      docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md \
+      openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md \
+      openspec/changes/adopt-frontend-lifetimes/tasks.md | sort > "$work/owned.txt"
+    diff "$work/owned.txt" "$work/changed.txt"
+    echo "fill=real changed exactly the nine owned paths"
+    for f in apps/wbs/fe-01/src/app.test.tsx apps/wbs/fe-01/src/runtime/session-exit.model.test.ts \
+      apps/wbs/fe-01/src/runtime/session-runtime.test.ts apps/wbs/fe-01/vitest.node-suites.ts \
+      openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md; do
+      cmp "$work/tree/$f" "$work/final/$f"
+    done
+    for f in openspec/changes/adopt-frontend-lifetimes/tasks.md \
+      docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md; do
+      diff <(dates_of "$work/tree/$f") <(dates_of "$work/final/$f")
+    done
+    echo "fill=real seven uncommented files equal the rehearsal's"
+    for f in apps/wbs/fe-01/src/runtime/session-runtime.ts apps/wbs/fe-01/src/app.tsx; do
+      test "$(code_of "$work/tree/$f")" = "$(code_of "$work/final/$f")"
+    done
+    echo "fill=real session-runtime.ts and app.tsx equal the rehearsal's but for comments"
   fi
 done
 ````
 
-Observed on 2026-09-24, after the final Prettier `--check` of this document:
+Observed on 2026-09-24, after the final Prettier `--check` of this document, with
+`REAL_BASE=50e4e7e48` — a stand-in for the real dispatch base built for this run only (not on any
+branch): packet i's real slice-2 lane head `e46c8d3d9`, packet i's slice-3 diffs 07–09 from its own
+packet applied, and its two notes dated:
 
 ```text
 fill=0 extracted=6
@@ -2833,7 +2901,7 @@ fill=0 fault-patches=13
 fill=0 slice 1 applied, its 10 fault patches check
 fill=0 slice 2 applied, its 3 fault patches check
 9
-fill=0 tree identical to 4b375ea50c76ac9221829635b5b323f08c62f51e
+fill=0 tree identical to 59cfe22a42c5471fa1f3aa714a722faabce9e8d5
 fill=1 extracted=6
 fill=1 fault-patches=13
 fill=1 filled-sites=15, packet i's dated notes filled
@@ -2841,6 +2909,14 @@ fill=1 slice 1 applied, its 10 fault patches check
 fill=1 slice 2 applied, its 3 fault patches check
 9
 fill=1 simulated comments left: 15
+fill=real extracted=6
+fill=real fault-patches=13
+fill=real slice 1 applied, its 10 fault patches check
+fill=real slice 2 applied, its 3 fault patches check
+9
+fill=real changed exactly the nine owned paths
+fill=real seven uncommented files equal the rehearsal's
+fill=real session-runtime.ts and app.tsx equal the rehearsal's but for comments
 ```
 
 `git apply --check` prints nothing on success, which is why the script's own `echo` lines are the
@@ -2849,7 +2925,9 @@ paths changed against the base: nine — every owned path of the two slices but 
 executor writes. The `fill=0` tree is byte-identical to the rehearsal's final commit (`diff -r` printed
 nothing), which holds the two `<observed-date-k>` placeholders slice 2 step 4 replaces. In the
 `fill=1` run all fifteen simulated comments of packet i survive in place, its dated notes did not
-disturb slice 2's hunks, and `x2` and `x3` locate their one line below a simulated comment.
+disturb slice 2's hunks, and `x2` and `x3` locate their one line below a simulated comment. The
+`fill=real` run is the same against packet i's own words: `x2` and `x3` find their line under i's real
+`m7`/`d1` and `m8` blocks.
 
 **A failed check stops the run**: the same two-line form as packets g to j.
 
@@ -2880,7 +2958,9 @@ Rehearsed on the base and after both slices' contract steps: `{"items":114,"pass
 
 All on 2026-09-24, by this packet's author, on the throwaway branch `rehearse/050-7-k` cut at the
 authoring base `2e237e20`, each slice committed **with the hooks on** (lefthook's wiki, secrets,
-format and lint checks passed for both): `3e272003` (slice 1) and `4b375ea5` (slice 2). Each red was
+format and lint checks passed for both): `3e272003` (slice 1) and `4b375ea5` (slice 2), and
+`59cfe22a` on top, the round-1 review's one sentence in the lifetime map (slice 2's diff 7.6 carries
+it; the final tree section 9.1 compares against is `59cfe22a`). Each red was
 rebuilt from the previous slice's commit plus that slice's contract and test side only; each fault was
 injected into the tree of the slice that owns it. The authoring base itself was built by packet i's
 section 9.1 extraction (`fill=0`) against integration `52876ae12`: `extracted=9`, `fault-patches=24`,
@@ -2949,9 +3029,13 @@ output and fails thirteen unrelated tests in this repository.
 - No production gesture reaches a log out from a `fatal` owner, or a sign-in during a log out: the
   account menu is not drawn in either state. The model and the examples exercise the owner's contract
   there, not a reader's path.
-- The authoring base carries packet i's **rehearsed** diffs; the planner's rerun of section 9.1 on the
-  real base after packet i's lane lands is what proves the rest, including any change its dispatch
-  review makes.
+- `signOut` is `void sessionOwner.exit().then(…)` with no rejection path: a fault of the slot itself
+  becomes an unhandled rejection with nothing drawn — the same shape as packet i's
+  `void sessionOwner.open(…)`, whose `open` may reject (packet i's round-2 review). Neither is a
+  refusal of the owner's runtimes, which settle.
+- The authoring base carries packet i's **rehearsed** diffs; section 9.1's `fill=real` run on the real
+  base after packet i's lane lands is what proves the rest, including any change its dispatch review
+  makes.
 
 ## 10. Stop conditions
 
@@ -3004,8 +3088,9 @@ Each is false on the rehearsal tree, checked on 2026-09-24.
   bootstrap to reach the session owner, which is an application-lifetime change. Recorded for the
   planner to assign.
 - **The lifetime map's single non-React lifecycle-failure reporter** stays unbuilt: session and
-  project faults are drawn, not logged (section 3.4). A later change that adds a seam out of
-  `application-bootstrap.tsx` can report them there.
+  project faults are drawn, not logged (section 3.4), and the map's tests 12 and 13 are amended to say
+  so, with no open task. A later change that adds a seam out of `application-bootstrap.tsx` can report
+  them there.
 - **Task 13** can state "log out sends no request" by symbol — no `fetch` or client reachable from
   `exit` — rather than by this packet's recorded `fetch` paths.
 
