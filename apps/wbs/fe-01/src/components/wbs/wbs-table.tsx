@@ -614,13 +614,24 @@ export function useToday(): Date {
 export function WbsTable({
   projectId,
   projectName,
-  api,
+  projectServices,
   planImport,
   toastApi: toastApiOverride,
   subscribe,
   savedPlansShelf,
 }: WbsTableProps) {
   const today = useToday();
+  /**
+   * This project's commands, bound to it; a new project or new services bind
+   * anew. Everything below writes through these and never sees the client.
+   */
+  const commands = useMemo(
+    () => projectServices.planCommandsFor(projectId),
+    // Proof: on 2026-09-24, keying this on `projectServices` alone failed `keeps an add burst and
+    // its refetch inside the project where it started` with `expected [ 'p1', 'p1' ] to deeply
+    // equal [ 'p1', 'p2' ]`: the second project's add went to the first.
+    [projectServices, projectId],
+  );
   const {
     plan,
     activeProject,
@@ -937,7 +948,8 @@ export function WbsTable({
     setDrafts,
     projectId,
     activeProject,
-    api,
+    projectServices,
+    commands,
     plan,
     treeReadProject,
     rowPlacements,
@@ -1071,19 +1083,19 @@ export function WbsTable({
    * schedule order because be-01 wrote the positions.
    */
   const arrangeBySchedule = useCallback(() => {
-    void run((write) => write.perform(['tree'], () => api.arrangeBySchedule(projectId))).then(
+    void run((write) => write.perform(['tree'], () => commands.arrangeBySchedule())).then(
       (landed) => {
         if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
       },
     );
-  }, [api, projectId, pushToast, run]);
+  }, [commands, pushToast, run]);
 
   const { siblingsOf, addWorkItem } = useAddWorkItem({
     flat,
     projectId,
     activeProject,
     run,
-    api,
+    commands,
     focusIntent,
   });
   const { frameState, resizeColumn, resizeGantt, resetGanttSettings, resetLayout, columnsDiffer } =
@@ -1151,8 +1163,7 @@ export function WbsTable({
     pushToast,
     setExpanded,
     run,
-    api,
-    projectId,
+    commands,
     focusIntent,
     siblingsOf,
   });
@@ -1178,7 +1189,7 @@ export function WbsTable({
       flat,
       pushToast,
       busy: busyWrites,
-      api,
+      commands,
       refreshOrMarkStale,
       setDepPicker,
       run,
@@ -1191,7 +1202,7 @@ export function WbsTable({
     combinedValue,
     combinedProblem,
     commitCombinedEstimate,
-  } = useEstimateDrafts({ drafts, setDrafts, run, api });
+  } = useEstimateDrafts({ drafts, setDrafts, run, commands });
   const {
     setNotBefore,
     setNotBeforeReason,
@@ -1213,7 +1224,7 @@ export function WbsTable({
     editingFactEnd,
     openFactEnd,
     closeFactEnd,
-  } = usePlanFields({ run, api, priorityBands, pushToast, gridElement });
+  } = usePlanFields({ run, commands, priorityBands, pushToast, gridElement });
   /**
    * What confirming the completion prompt does: the mark, on the day confirmed,
    * and then — only when the row already held a fact end and the reader changed
@@ -1252,7 +1263,7 @@ export function WbsTable({
     assignTo,
     createPersonFor,
     chooseEstimateMethod,
-  } = useReferenceSets({ run, api, projectId });
+  } = useReferenceSets({ run, commands });
   const { enterFoldedCell, readFoldedCell, closeMention, leaveFoldedCell, mentionOptions } =
     useEstimateMentions({
       foldedBox,
@@ -1443,7 +1454,7 @@ export function WbsTable({
   const liveNow: PlanLiveValues = {
     focusIntent,
     gridElement,
-    api,
+    commands,
     run,
     duplicateRow,
     deleteRow,
@@ -1732,8 +1743,8 @@ export function WbsTable({
     filterLabels,
   });
   const downloadJson = useCallback(() => {
-    void api
-      .exportPlan(projectId)
+    void commands
+      .exportPlan()
       .then((document) => {
         // Proof: replacing the server document's workItems with `shownRows` made
         // `downloads JSON with collapsed and filtered-out rows` miss exact row
@@ -1762,7 +1773,7 @@ export function WbsTable({
           text: `Plan JSON download failed (${failureText(thrown, 'unknown')}).`,
         });
       });
-  }, [api, projectId, pushToast]);
+  }, [commands, pushToast]);
   /**
    * The columns this render puts on screen, in order — which is exactly what a
    * `<colgroup>` declares and what the table's own width adds up. Read from the
@@ -1917,7 +1928,7 @@ export function WbsTable({
       setFreezeMenuOpen={setFreezeMenuOpen}
       busy={busy}
       run={run}
-      api={api}
+      commands={commands}
       projectId={projectId}
       scheduleError={scheduleError}
       arrangeBySchedule={arrangeBySchedule}
@@ -2012,12 +2023,12 @@ export function WbsTable({
         // it comes back.
         onChoose={(patch) => {
           void run((write) =>
-            write.perform(['tree'], () => api.setOptimizationSettings(projectId, patch)),
+            write.perform(['tree'], () => commands.setOptimizationSettings(patch)),
           );
         }}
         onRetry={(objective, inputHash) => {
           void run((write) =>
-            write.perform(['tree'], () => api.retryOptimization(projectId, objective, inputHash)),
+            write.perform(['tree'], () => commands.retryOptimization(objective, inputHash)),
           );
         }}
       />
@@ -2291,7 +2302,7 @@ export function WbsTable({
               }}
               dropDependency={(row, predecessorId) => {
                 return run((write) =>
-                  write.perform(['tree'], () => api.removeDependency(row.id, predecessorId)),
+                  write.perform(['tree'], () => commands.removeDependency(row.id, predecessorId)),
                 );
               }}
               // The `Start` cell's own sentence, off the one map, handed to the
@@ -2388,7 +2399,9 @@ export function WbsTable({
                   void duplicateRow(rowId);
                 },
                 unfreeze: (rowId) => {
-                  void run((write) => write.perform(['tree'], () => api.unfreezeWorkItem(rowId)));
+                  void run((write) =>
+                    write.perform(['tree'], () => commands.unfreezeWorkItem(rowId)),
+                  );
                 },
                 remove: (row) => {
                   void deleteRow(row);

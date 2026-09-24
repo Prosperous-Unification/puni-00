@@ -4,7 +4,8 @@ import type * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import type { PriorityBandView, ProjectApi } from '@/lib/wbs-api';
+import type { PriorityBandView } from '@/lib/wbs-api';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { cellIn, focusCellAt } from './editable-grid';
 import { type CommitOutcome } from './live-editing';
@@ -62,13 +63,13 @@ function useDateCellEditor(
  */
 export function usePlanFields({
   run,
-  api,
+  commands,
   priorityBands,
   pushToast,
   gridElement,
 }: {
   run: RunPlanWrite;
-  api: ProjectApi;
+  commands: PlanCommands;
   priorityBands: PriorityBandView[];
   pushToast: (toast: Toast) => void;
   gridElement: React.RefObject<HTMLElement | null>;
@@ -115,7 +116,7 @@ export function usePlanFields({
     (id: string, day: string | null, reason?: string | null) => {
       void run((write) =>
         write.perform(['tree'], () =>
-          api.patchWorkItem(
+          commands.patchWorkItem(
             id,
             day === null
               ? { startNoEarlierThan: null, startNoEarlierThanReason: null }
@@ -133,7 +134,7 @@ export function usePlanFields({
         ),
       );
     },
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -158,11 +159,11 @@ export function usePlanFields({
       const said = typed.trim();
       void run((write) =>
         write.perform(['tree'], () =>
-          api.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
+          commands.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
         ),
       );
     },
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -190,9 +191,11 @@ export function usePlanFields({
    */
   const setDeadline = useCallback(
     (id: string, day: string | null) => {
-      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { deadline: day })));
+      void run((write) =>
+        write.perform(['tree'], () => commands.patchWorkItem(id, { deadline: day })),
+      );
     },
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -203,15 +206,19 @@ export function usePlanFields({
    */
   const setFactStart = useCallback(
     (id: string, day: string | null) => {
-      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { factStart: day })));
+      void run((write) =>
+        write.perform(['tree'], () => commands.patchWorkItem(id, { factStart: day })),
+      );
     },
-    [api, run],
+    [commands, run],
   );
   const setFactEnd = useCallback(
     (id: string, day: string | null) => {
-      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { factEnd: day })));
+      void run((write) =>
+        write.perform(['tree'], () => commands.patchWorkItem(id, { factEnd: day })),
+      );
     },
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -229,8 +236,8 @@ export function usePlanFields({
    */
   const setStatus = useCallback(
     (id: string, status: SettableStatus, on: IsoDate, factStart?: IsoDate) =>
-      run((write) => write.perform(['tree'], () => api.setStatus(id, status, on, factStart))),
-    [api, run],
+      run((write) => write.perform(['tree'], () => commands.setStatus(id, status, on, factStart))),
+    [commands, run],
   );
 
   /**
@@ -259,7 +266,7 @@ export function usePlanFields({
       const trimmed = priorityTyped(priorityBands, typed).trim();
       if (trimmed === '')
         return run((write) =>
-          write.perform(['tree'], () => api.patchWorkItem(id, { priority: null })),
+          write.perform(['tree'], () => commands.patchWorkItem(id, { priority: null })),
         );
       // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
       // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
@@ -287,10 +294,10 @@ export function usePlanFields({
         return Promise.resolve<CommitOutcome>('refused');
       }
       return run((write) =>
-        write.perform(['tree'], () => api.patchWorkItem(id, { priority: asNumber })),
+        write.perform(['tree'], () => commands.patchWorkItem(id, { priority: asNumber })),
       );
     },
-    [api, priorityBands, pushToast, run],
+    [commands, priorityBands, pushToast, run],
   );
 
   /**
@@ -313,7 +320,7 @@ export function usePlanFields({
       const trimmed = typed.trim();
       if (trimmed === '')
         return run((write) =>
-          write.perform(['tree'], () => api.patchWorkItem(id, { maxParallel: null })),
+          write.perform(['tree'], () => commands.patchWorkItem(id, { maxParallel: null })),
         );
       const asNumber = Number(trimmed);
       // {@link setPriority}'s refusal, for its reason: JSON has no literal for
@@ -325,10 +332,10 @@ export function usePlanFields({
         return Promise.resolve<CommitOutcome>('refused');
       }
       return run((write) =>
-        write.perform(['tree'], () => api.patchWorkItem(id, { maxParallel: asNumber })),
+        write.perform(['tree'], () => commands.patchWorkItem(id, { maxParallel: asNumber })),
       );
     },
-    [api, pushToast, run],
+    [commands, pushToast, run],
   );
 
   /**

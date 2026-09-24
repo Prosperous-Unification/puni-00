@@ -3,7 +3,7 @@ import type { IsoDate } from '@wbs/domain/workday';
 import type * as React from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import { type ProjectApi } from '@/lib/wbs-api';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
@@ -23,7 +23,7 @@ import { type TreeRow } from './wbs-rows';
 export interface PlanLiveValues {
   focusIntent: React.RefObject<FocusIntent>;
   gridElement: React.RefObject<HTMLElement | null>;
-  api: ProjectApi;
+  commands: PlanCommands;
   run: RunPlanWrite;
   duplicateRow: (id: string) => Promise<CommitOutcome>;
   deleteRow: (row: TreeRow) => Promise<CommitOutcome>;

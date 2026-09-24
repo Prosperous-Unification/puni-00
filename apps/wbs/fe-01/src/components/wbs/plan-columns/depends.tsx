@@ -461,7 +461,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   );
                   void live.current.run((write) =>
                     write.perform(['tree'], () =>
-                      live.current.api.removeDependency(row.original.id, id),
+                      live.current.commands.removeDependency(row.original.id, id),
                     ),
                   );
                 }}

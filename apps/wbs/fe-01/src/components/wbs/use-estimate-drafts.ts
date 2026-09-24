@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { PersonView, TeamView } from '@/lib/wbs-api';
-import { type ProjectApi } from '@/lib/wbs-api';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { pickableLabel, type PickerOption } from './creatable-picker';
 import { type CellElement } from './editable-grid';
@@ -34,12 +34,12 @@ export function useEstimateDrafts({
   drafts,
   setDrafts,
   run,
-  api,
+  commands,
 }: {
   drafts: Record<string, string>;
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   run: RunPlanWrite;
-  api: ProjectApi;
+  commands: PlanCommands;
 }) {
   /**
    * Whether the numbers in the schedule columns mean anything.
@@ -143,7 +143,7 @@ export function useEstimateDrafts({
         // `0 / 0 / 0` is one.
         if (isTrioEmpty(next) && Object.hasOwn(row.estimates, stepId)) {
           return run(async (write) => {
-            await write.perform(['tree'], () => api.clearEstimate(row.id, stepId));
+            await write.perform(['tree'], () => commands.clearEstimate(row.id, stepId));
             forgetEstimateDrafts(row.id, stepId);
           });
         }
@@ -152,11 +152,11 @@ export function useEstimateDrafts({
         return unsent();
       }
       return run(async (write) => {
-        await write.perform(['tree'], () => api.setEstimate(row.id, stepId, days));
+        await write.perform(['tree'], () => commands.setEstimate(row.id, stepId, days));
         forgetEstimateDrafts(row.id, stepId);
       });
     },
-    [api, forgetEstimateDrafts, run, setDrafts, typedTrio],
+    [commands, forgetEstimateDrafts, run, setDrafts, typedTrio],
   );
 
   /**
@@ -270,16 +270,16 @@ export function useEstimateDrafts({
         // Watched, 2026-08-06.
         if (!Object.hasOwn(row.estimates, stepId)) return unsent();
         return run(async (write) => {
-          await write.perform(['tree'], () => api.clearEstimate(row.id, stepId));
+          await write.perform(['tree'], () => commands.clearEstimate(row.id, stepId));
           forgetEstimateDrafts(row.id, stepId);
         });
       }
       return run(async (write) => {
-        await write.perform(['tree'], () => api.setEstimate(row.id, stepId, entry.days));
+        await write.perform(['tree'], () => commands.setEstimate(row.id, stepId, entry.days));
         forgetEstimateDrafts(row.id, stepId);
       });
     },
-    [api, forgetEstimateDrafts, run, setDrafts],
+    [commands, forgetEstimateDrafts, run, setDrafts],
   );
   return {
     estimateValue,

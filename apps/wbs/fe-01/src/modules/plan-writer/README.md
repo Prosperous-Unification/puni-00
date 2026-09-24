@@ -32,7 +32,9 @@ work item 040.4.
 The exported types are in `contract.ts`; the service is `plan-writer.feature.ts`; the busy store is
 `busy-store.ts`. There is no
 `module.ts` yet: DI Bag is not installed, so the host builds the service with a plain factory
-call. Its one host today is `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`.
+call. Its one host today is `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`. The requests a
+gesture sends are not this module's: the table's hooks send them through the project's
+`PlanCommands` (`modules/plan-commands/`) inside the gesture this module runs.
 
 ## Checks
 

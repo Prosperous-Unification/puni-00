@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 
 import { refusedDraftFor } from './live-editing';
@@ -142,7 +143,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -165,7 +166,7 @@ async function threeRoots() {
 describe('live edits from other people', () => {
   itDom('focuses a newly created row so the next keystroke lands in it', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     const first = await screen.findByLabelText('Name of 010');
@@ -203,7 +204,9 @@ describe('live edits from other people', () => {
       };
     };
 
-    const view = render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    const view = render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await waitFor(() => {
       expect(screen.getAllByRole('row')).toHaveLength(1);
     });
@@ -270,7 +273,9 @@ describe('live edits from other people', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await waitFor(() => {
       expect(reads).toContain('listPeople');
     });
@@ -364,7 +369,9 @@ describe('live edits from other people', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
 
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await waitFor(() => {
       expect(screen.getAllByRole('row')).toHaveLength(1);
     });
@@ -398,7 +405,9 @@ describe('someone else editing while you are typing', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
 
     click('Add work item');
     const input = await screen.findByLabelText('Name of 010');
@@ -433,7 +442,9 @@ describe('someone else editing while you are typing', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
 
     click('Add work item');
     const input = await screen.findByLabelText('Name of 010');
@@ -465,7 +476,9 @@ describe('someone else editing while you are typing', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
 
     click('Add work item');
     const input = await screen.findByLabelText('Name of 010');
@@ -502,7 +515,9 @@ describe('someone else editing while you are typing', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
 
     click('Add work item');
     const input = await screen.findByLabelText('Name of 010');
@@ -552,7 +567,9 @@ describe('someone else editing while you are typing', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
 
     click('Add work item');
     const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -684,7 +701,7 @@ describe('failures you can see', () => {
           }),
         );
 
-      render(<WbsTable projectId="p1" api={api} />);
+      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
       await waitFor(() => {
         expect(toastTexts()).toContain('Optimized scheduling is unavailable in this runtime.');
@@ -712,7 +729,9 @@ describe('failures you can see', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual([]);
@@ -1327,7 +1346,7 @@ describe('a step changing, and what the table does about it', () => {
   /** One empty root row, with both seeded steps still there. */
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -1352,7 +1371,7 @@ describe('a step changing, and what the table does about it', () => {
     ] as const) {
       recordCalls(api, method, () => reads.push(method));
     }
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toContain('listCalendarMarkers');
@@ -1393,7 +1412,7 @@ describe('a step changing, and what the table does about it', () => {
       await removeStep(...args);
       throw new Error('unknown_step');
     };
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('button', { name: 'Unfold QA estimates' });
     await waitFor(() => {
       expect(reads).toContain('listCalendarMarkers');
@@ -1578,7 +1597,7 @@ describe('overlapping resource invalidations', () => {
     render(
       <WbsTable
         projectId="p1"
-        api={api}
+        projectServices={projectServicesOf(api)}
         subscribe={(_project, handlers) => {
           notify = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };
@@ -1648,7 +1667,7 @@ describe('overlapping resource invalidations', () => {
       render(
         <WbsTable
           projectId="p1"
-          api={api}
+          projectServices={projectServicesOf(api)}
           subscribe={(_project, handlers) => {
             notify = handlers.onChange;
             return { seen: () => undefined, unsubscribe: () => undefined };
@@ -1698,7 +1717,9 @@ describe('refresh owner lifetimes', () => {
         notify = handlers.onChange;
         return { seen: () => undefined, unsubscribe: () => undefined };
       };
-      const view = render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+      const view = render(
+        <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      );
       await waitFor(() => {
         expect(notify).toBeTypeOf('function');
       });
@@ -1718,7 +1739,13 @@ describe('refresh owner lifetimes', () => {
         name: 'Replacement owner',
       });
       replacement.rows[0].id = 'replacement-owner-row';
-      view.rerender(<WbsTable projectId="p1" api={replacement} subscribe={subscribe} />);
+      view.rerender(
+        <WbsTable
+          projectId="p1"
+          projectServices={projectServicesOf(replacement)}
+          subscribe={subscribe}
+        />,
+      );
       await waitFor(() => {
         expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Replacement owner');
       });
@@ -1743,7 +1770,7 @@ describe('refresh owner lifetimes', () => {
       <StrictMode>
         <WbsTable
           projectId="p1"
-          api={api}
+          projectServices={projectServicesOf(api)}
           subscribe={() => {
             opened += 1;
             return {
@@ -1768,7 +1795,7 @@ describe('refresh owner lifetimes', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old mutation' });
     api.rows[0].id = 'old-mutation-row';
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     let reject!: (cause: unknown) => void;
     api.patchWorkItem = () =>
@@ -1788,7 +1815,7 @@ describe('refresh owner lifetimes', () => {
       name: 'New mutation owner',
     });
     replacement.rows[0].id = 'new-mutation-row';
-    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'New mutation owner');
     });
@@ -1810,7 +1837,7 @@ describe('refresh owner lifetimes', () => {
       new Promise((resolve) => {
         finishOld = resolve;
       });
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Departed write');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -1846,7 +1873,7 @@ describe('refresh owner lifetimes', () => {
           void realReplacementPatch(...args).then(resolve);
         };
       });
-    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Replacement owner');
       expect(replacementReads).toContain('listCalendarMarkers');
@@ -1886,7 +1913,7 @@ describe('refresh owner lifetimes', () => {
       new Promise((resolve) => {
         finishOld = resolve;
       });
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     click('Arrange by schedule');
     await waitFor(() => {
@@ -1921,7 +1948,7 @@ describe('refresh owner lifetimes', () => {
           void patchReplacement(...args).then(resolve);
         };
       });
-    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty(
         'value',
@@ -1968,7 +1995,7 @@ describe('refresh owner lifetimes', () => {
   it('does not announce an arrangement after its covering read changes API owner', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old arrangement' });
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     const readTree = api.tree.bind(api);
@@ -2011,7 +2038,7 @@ describe('refresh owner lifetimes', () => {
     ] as const) {
       recordCalls(replacement, method, () => replacementReads.push(method));
     }
-    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty(
         'value',
@@ -2031,7 +2058,7 @@ describe('refresh owner lifetimes', () => {
   it('announces an arrangement after the same reader renews its subscription', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Same reader' });
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     const readTree = api.tree.bind(api);
@@ -2059,7 +2086,7 @@ describe('refresh owner lifetimes', () => {
     view.rerender(
       <WbsTable
         projectId="p1"
-        api={api}
+        projectServices={projectServicesOf(api)}
         subscribe={() => {
           subscriptions += 1;
           return { seen: () => undefined, unsubscribe: () => undefined };
@@ -2177,7 +2204,7 @@ describe('write failure recovery scopes', () => {
       });
     };
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2255,7 +2282,7 @@ describe('write failure recovery scopes', () => {
         rejectWrite = reject;
       });
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2329,7 +2356,7 @@ describe('write failure recovery scopes', () => {
           });
       }
 
-      render(<WbsTable projectId="p1" api={api} />);
+      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Name of 010');
       await waitFor(() => {
         expect(reads).toHaveLength(allReads.length);
@@ -2398,7 +2425,7 @@ describe('write failure recovery scopes', () => {
       return Promise.reject(cause());
     };
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2441,7 +2468,7 @@ describe('write failure recovery scopes', () => {
           );
     };
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2466,7 +2493,7 @@ describe('write failure recovery scopes', () => {
     const reads: string[] = [];
     for (const method of allReads) recordCalls(api, method, () => reads.push(method));
     api.addDependency = () => Promise.reject(new Error('cycle'));
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2491,7 +2518,7 @@ describe('write failure recovery scopes', () => {
       new Promise((_resolve, reject) => {
         rejectOldDependency = reject;
       });
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     const oldDependency = screen.getByLabelText('Add a dependency to 030');
     // A comma-separated gesture takes the dependency-list path rather than
@@ -2518,7 +2545,7 @@ describe('write failure recovery scopes', () => {
           void patchReplacement(...args).then(resolve);
         };
       });
-    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveValue('New first');
       expect(replacementReads).toHaveLength(allReads.length);
@@ -2566,7 +2593,7 @@ itDom('does not expose a first editor before its held column vocabulary installs
     requested = true;
     return held;
   };
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   await waitFor(() => {
     expect(requested).toBe(true);
   });
@@ -2594,7 +2621,7 @@ itDom('installs held directory labels after a newer tree already installed', asy
   render(
     <WbsTable
       projectId="p1"
-      api={api}
+      projectServices={projectServicesOf(api)}
       subscribe={(_id, handlers) => {
         notify = handlers.onChange;
         return { seen: () => undefined, unsubscribe: () => undefined };
@@ -2655,7 +2682,7 @@ itDom('refreshes a created tag after its attachment refuses', async () => {
       }),
     );
 
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   const box = await screen.findByRole('combobox', { name: 'Tags for 010' });
   expect(tagReads).toBe(1);
   fireEvent.focus(box);
@@ -2760,7 +2787,7 @@ describe('mounted reference creation after attachment refusal', () => {
     api.patchWorkItem = () => Promise.reject(new Error('attachment refused'));
     api.assignPerson = () => Promise.reject(new Error('assignment refused'));
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toHaveLength(9);
@@ -2825,7 +2852,7 @@ itDom('estimate refreshes only tree without a socket', async () => {
     recordCalls(api, method, () => reads.push(method));
   }
 
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   await screen.findByLabelText('Dev estimate for 010');
   await waitFor(() => {
     expect(reads).toContain('listCalendarMarkers');
@@ -2890,7 +2917,7 @@ itDom('capacity setting refreshes only tree without a socket', async () => {
     recordCalls(api, method, () => reads.push(method));
   }
 
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   await screen.findByLabelText('Name of 010');
   await waitFor(() => {
     expect(reads).toContain('listCalendarMarkers');
