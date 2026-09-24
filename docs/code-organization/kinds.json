@@ -193,8 +193,8 @@
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts",
-      "kind": "repository",
-      "rationale": "the local solver spawner and backend entrypoints use it to probe the installed solver and spawn the wbs-solver-launcher child process behind injected process boundaries"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use the solver-launcher module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-request-pair.ts",
@@ -344,9 +344,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/plan-document.ts",
-      "kind": "resource",
-      "term": "plan document",
-      "rationale": "project and import routes call it for plan document export and classification rules over DirectoryStore, CalendarMarkerService and Clock-backed document metadata"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-document module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/prepare-import.ts",

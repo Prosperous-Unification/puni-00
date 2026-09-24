@@ -1102,3 +1102,170 @@ reaches module/authentication/authentication.feature.ts` (`row10-auth-feature.*`
   `slice3-burokrat-lint-source-after.log`, `slice3-devsync-lint-after.log`,
   `slice3-core-typecheck-after.log`); the legacy pin passed, 1 pass (`slice3-legacy-pin-after.log`);
   OpenSpec validation passed `N=114` of 114 with 0 failed (`openspec-validation.J7QPlz.json`).
+
+### Plan document, Slice 1 — 2026-09-23
+
+- The slice started from `base=170e84586ee45bad421b3358b9b65c742f1f1ef0` on a clean tree, with
+  `module/plan-document` absent, `module/saved-plans/module.ts` present, `service/plan-document.ts`
+  at 208 lines, one `new PlanDocumentService({ directory, markers: calendarMarkers, clock });` in
+  `http/project.routes.ts`, and `K=93` `kinds.json` entries.
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=572` over `F=59` files (`slice1-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=513` over `EF=48` files (`slice1-be01-unit-baseline.log`).
+- Bundle red: `bun build libs/wbs/application/core/src/http/project.routes.ts --target=bun` exited 0
+  and its bundle held no `application.plan-document` (grep exit 1, `count=0`;
+  `slice1-routes-bundle-red.log`).
+- Module red: the new `module/plan-document/module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice1-module-red.log`).
+- Green: after the `cp`/`mv` move, the import diff (`slice1-10.2-imports.patch`), the shim and the
+  four module files, `bun test ./libs/wbs/application/core/src/module/plan-document/` passed 13 over
+  2 files, 33 `expect()` calls (`slice1-module-green.log`).
+- Bundle green: after `projectRoutes` installs through `installPlanDocument`
+  (`slice1-10.5-install.patch`), the same build exited 0 and the grep printed `count=1`
+  (`slice1-routes-bundle-green.log`).
+- Sideways row (`slice1-10.6-sideways-row.patch`): `ports/sideways-type-boundaries.test.ts` passed,
+  1 pass (`slice1-sideways-green.log`); `wbs-core` lint and typecheck and `wbs-be-01:typecheck`
+  exited 0 (`slice1-lint-typecheck-step7.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next:
+  - Key tuple widened to `['planDocuments', 'planDocumentOptions']` (`row05-key-tuple.patch`): the
+    private-binding test received a function that did not throw, the graph-label test received bare
+    `planDocumentOptions`, and the missing-requirement message read
+    `Cannot resolve "planDocumentOptions"`; 2 pass, 3 fail (`row05-key-tuple.log`).
+  - Label argument dropped (`row06-label.patch`): only the two label tests failed; 3 pass, 2 fail
+    (`row06-label.log`).
+  - `planDocumentOptions` handed `clock: { now: () => 0 }` (`row07-clock.patch`): `exportedAt` read
+    `"1970-01-01T00:00:00.000Z"` instead of `"2026-09-24T09:00:00.000Z"`; 4 pass, 1 fail
+    (`row07-clock.log`).
+  - `check.ts` returning an `exposed` object with `bag` (`row08-extra-key.patch`): the received keys
+    added `"bag"`; 4 pass, 1 fail (`row08-extra-key.log`); `wbs-core:typecheck` exit 0 on the
+    mutated tree (`row08-typecheck.log`).
+  - `check.ts` attaching `resolve` to the returned service (`row09-resolver.patch`): `Expected: true`,
+    `Received: false`; 4 pass, 1 fail (`row09-resolver.log`); `wbs-core:typecheck` exit 0
+    (`row09-typecheck.log`).
+  - `import '../../service/calendar-marker.service';` prepended to
+    `module/plan-document/plan-document.resource.ts` (`row10-sideways.patch`): exactly one violation,
+    `"module/plan-document/plan-document.resource.ts: '../../service/calendar-marker.service' reaches service/calendar-marker.service.ts"`;
+    0 pass, 1 fail (`row10-sideways.log`). With the new row also deleted
+    (`row11-row-deleted.patch`) the suite passed, 1 pass (`row11-row-deleted.log`).
+- Proof comments added after the observations (`slice1-10.7-proofs.patch`); the module directory
+  and the sideways suite then passed 14 over 3 files (`slice1-after-proofs.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []` (`slice1-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 5 = 577` over `F + 1 = 60` files
+  (`slice1-core-closing.log`); the be-01 unit command passed `E = 513` over `EF = 48` files
+  (`slice1-be01-unit-closing.log`); `wbs-core` lint and typecheck and `wbs-be-01:typecheck` exited 0
+  (`slice1-lint-typecheck-closing.log`); the module directory holds seven files;
+  `nx format:check --all` exited 0 (`slice1-format-check.log`).
+- Recorded K2 debt: delivery (`http/project.routes.ts`) still installs the Plan document resource
+  over the Directory and Calendar marker resources it is handed; tracked under task 7.4.
+
+### Solver launcher, Slice 2 — 2026-09-23
+
+- The slice started from `base=b53693a22de992d4d33f04d71c37f45744eddcf3` on a clean tree, with
+  `module/plan-document/module.ts` present, no `apps/wbs/be-01/src/module`,
+  `service/solver-launcher-process.ts` at 163 lines holding one five-level
+  `'../../../../../libs/wbs/adapters/solver-py/src/wbs_solver/__init__.py',` literal, and `K=93`
+  `kinds.json` entries.
+- Before any edit: `wbs-be-01` lint and typecheck exited 0 (`slice2-lint-typecheck-baseline.log`);
+  the be-01 unit command (no `*.db.test.ts`, no `app.routes.test.ts`) passed `E=513` over `EF=48`
+  files (`slice2-be01-unit-baseline.log`); `services.db.test.ts` and
+  `service/solver-child-lifecycle.db.test.ts` passed `D=13` over `DF=2` files inside the sandbox
+  (`slice2-be01-db-baseline.log`).
+- Bundle reds: `bun build apps/wbs/be-01/src/main.ts --target=bun` and the same for `dev/main.ts`
+  exited 0 and neither bundle held `backend.solver-launcher` (grep exit 1, `count=0`;
+  `slice2-main-bundle-red.log`, `slice2-dev-main-bundle-red.log`).
+- Module red: the new `module/solver-launcher/module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice2-module-red.log`).
+- Green: after the `cp`/`mv` move, the moved test's import line and the moved file's one
+  relative-depth literal (`slice2-10.9-moved.patch`), the shim and the four module files,
+  `bun test ./apps/wbs/be-01/src/module/solver-launcher/` passed 13 over 2 files, 28 `expect()`
+  calls (`slice2-module-green.log`).
+- Bundle greens: after both entrypoints read the solver version through `installSolverLauncher({})`
+  (`slice2-10.12-install.patch`), both builds exited 0 and both greps printed `count=1`
+  (`slice2-main-bundle-green.log`, `slice2-dev-main-bundle-green.log`);
+  `production-entrypoint.test.ts` passed 2 (`slice2-entrypoint.log`), so the production bundle still
+  reaches no `local-solver` string. `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-step6.log`).
+- Faults against `module/solver-launcher/module.test.ts`, each restored by `cp` and proved with
+  `cmp` before the next:
+  - Key tuple widened to `['solverLauncher', 'launcherSeams']` (`row18-key-tuple.patch`): the
+    private-binding test's resolver `did not throw`, the graph-label test received bare
+    `launcherSeams`, and the missing-requirement message read `Cannot resolve "launcherSeams"`;
+    4 pass, 3 fail (`row18-key-tuple.log`).
+  - Label argument dropped (`row19-label.patch`): only the two label tests failed; 5 pass, 2 fail
+    (`row19-label.log`).
+  - `readInstalledSolverVersion()` called without the installed probe (`row20-probe.patch`):
+    `error: Executable not found in $PATH: "wbs-solver-launcher"`; 6 pass, 1 fail
+    (`row20-probe.log`).
+  - `check.ts` returning an `exposed` object with `bag` (`row21-extra-key.patch`): the received keys
+    added `"bag"`; 6 pass, 1 fail (`row21-extra-key.log`); `wbs-be-01:typecheck` exit 0 on the
+    mutated tree (`row21-typecheck.log`).
+  - `check.ts` attaching `resolve` to the returned launcher (`row22-resolver.patch`):
+    `Expected: true`, `Received: false`; 6 pass, 1 fail (`row22-resolver.log`);
+    `wbs-be-01:typecheck` exit 0 (`row22-typecheck.log`).
+  - The moved file's pre-move five-level source-module URL kept (`row23-source-url.patch`):
+    `error: ENOENT: no such file or directory, open '…/apps/libs/wbs/adapters/solver-py/src/wbs_solver/__init__.py'`;
+    6 pass, 1 fail (`row23-source-url.log`).
+- Proof comments added after the observations (`slice2-10.13-proofs.patch`); the module directory
+  then passed 13 over 2 files (`slice2-after-proofs.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []` (`slice2-kinds-substitute.log`).
+- Closing: the be-01 unit command passed `E + 7 = 520` over `EF + 1 = 49` files
+  (`slice2-be01-unit-closing.log`); the database pair passed `D = 13` over `DF = 2` files
+  (`slice2-be01-db-closing.log`); the entrypoint test passed 2 (`slice2-entrypoint-closing.log`);
+  `wbs-be-01` lint and typecheck exited 0 (`slice2-lint-typecheck-closing.log`); the module
+  directory holds seven files; `nx format:check --all` exited 0 (`slice2-format-check.log`).
+- be-01 has no sideways or type-identity boundary check; the module's K5 compliance (imports
+  `node:fs`, `di-bag` and its own files) is read, not watched.
+
+### Solver launcher registration, Slice 3 — 2026-09-23
+
+- The slice started from `base=f3f4562235567684c47f79e051f5a59b1f21fc06` on a clean tree, with
+  `module/solver-launcher/module.ts` last changed by `f3f4562235567684c47f79e051f5a59b1f21fc06`,
+  `M=11` pilot modules, `B=11` boundaries and 7 relationship facts. The frozen revision
+  `7851161bf96312750d07b933ca5d42b75ce575c7` lists
+  `100644 blob cb21f58d1daaa28e7e5159ef038c0a38c4cf190e	apps/be-01/src/service/solver-launcher-process.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0 (`step0-typecheck.log`,
+  `step0-lint-burokrat.log`, `step0-lint-devsync.log`); `pilot-policy.test.ts` passed `T=21` tests
+  with `TF=0` failures and `P=298` `expect()` calls (`step0-pilot.log`);
+  `committed-target-facts.test.ts` passed 2 with `Q=16` `expect()` calls
+  (`step0-targetfacts.log`); the legacy pin passed, 1 pass (`step0-legacy-pin.log`); OpenSpec
+  validation passed `N=114` of 114 with 0 failed (`openspec-validation.1WIrLJ.json`).
+- Parity red (row 25): with only the `modules.json` row added (`slice3-10.14a-modules.patch`),
+  `pins exact pre-index tuples and passes observe lint from external trust` failed at
+  `pilot-policy.test.ts:376`, `Expected: 11`, `Received: 12`; 0 pass, 1 fail, 23 `expect()` calls
+  (`row25-parity-red.log`).
+- Discovered-index red (row 26): with the `policy.json` boundary added
+  (`slice3-10.14b-policy.patch`) and the README not yet in `pilotPaths`, the same test failed at
+  `pilot-policy.test.ts:413`, `Expected: true`, `Received: false`; 0 pass, 1 fail, 27 `expect()`
+  calls (`row26-discovered-index-red.log`).
+- Target fact: with `check.be-01.test` added first in `relationships.json`
+  (`slice3-10.14c-relationships.patch`), `committed-target-facts.test.ts` passed 2 with
+  `Q + 1 = 17` `expect()` calls (`step3-targetfacts-green.log`). Row 27: its `command` changed to
+  `bun test --coverage` (`row27-fact-command.patch`) failed with
+  `- "command": "bun test --coverage --coverage-reporter=lcov"` /
+  `+ "command": "bun test --coverage"` under `check.be-01.test`; 1 pass, 1 fail
+  (`row27-fact-command-red.log`). Restored by `cp`, `cmp` equal, 2 pass, 17 calls
+  (`row27-restored-green.log`).
+- Prose-pin red (row 28): with the `pilotPaths` entry (`slice3-10.14d-pilot-paths.patch`) and the
+  final README, the whole pilot file failed only
+  `refuses prose facts presented as applicable checks`, receiving
+  `applicable check has no executable authority in apps/wbs/be-01/src/module/solver-launcher/README.md: check.be-01.test (external-consumer)`;
+  20 pass, 1 fail, 299 `expect()` calls (`row28-prose-pin-red.log`).
+- Green (row 29): after the prose pin moved (`slice3-10.16-prose-pin.patch`), the whole pilot
+  file passed `T=21` tests, `TF=0` failures and `P + 1 = 299` `expect()` calls
+  (`row29-pilot-green.log`).
+- Legacy pin red, pin unchanged (row 30): `every legacy source occurrence and relevant text family
+is pinned` failed with `historical policy selector or baseline` 49 to 51, `occurrences` 267 to
+  269 and the digest `86721c9c…` to
+  `113681cd7a2c98566f565cca8176456eb50fb453b6fb94ce5bf3f611a0d576bb`, `Expected  - 3` /
+  `Received  + 3`; 0 pass, 1 fail (`row30-legacy-pin-red.log`). After the re-pin
+  (`slice3-10.17-repin.patch`) it passed, 1 pass (`step6-legacy-pin-green.log`); its Proof comment
+  followed (`slice3-10.17-proof.patch`). No other pinned literal moved.
+- Task records (`slice3-10.18-tasks.patch`): 4.1 ticked, 4.2 noted and left unticked, 7.5
+  extended.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`step8-typecheck.log`, `step8-lint-burokrat.log`,
+  `step8-lint-devsync.log`); the legacy pin passed, 1 pass (`step8-legacy-pin.log`); OpenSpec
+  validation passed `N=114` of 114 with 0 failed (`openspec-validation.pA9RJm.json`); `M=12`,
+  `B=12`, 8 relationship facts.

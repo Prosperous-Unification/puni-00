@@ -223,6 +223,27 @@
       }
     },
     {
+      "moduleId": "module.backend.solver-launcher",
+      "name": "Solver launcher sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/be-01/src/module/solver-launcher",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/be-01/src/module/solver-launcher/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/dev/main.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts" }
+        ]
+      }
+    },
+    {
       "moduleId": "module.docs.wbs-table-extraction",
       "name": "Historical WbsTable extraction pilot boundary",
       "memberships": [

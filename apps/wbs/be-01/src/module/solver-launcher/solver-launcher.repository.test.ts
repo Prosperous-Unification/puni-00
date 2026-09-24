@@ -6,7 +6,7 @@ import {
   type SolverLauncherProcess,
   type SolverLauncherSpawnOptions,
   spawnSolverLauncher,
-} from './solver-launcher-process';
+} from './solver-launcher.repository';
 
 interface Harness {
   readonly calls: SolverLauncherSpawnOptions[];
