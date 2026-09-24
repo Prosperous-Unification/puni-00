@@ -359,10 +359,17 @@ describe('composeServices', () => {
     expect(graphs[0]).not.toBe(graphs[1]);
     expect(graph.clock).toBe(clock);
     expect(graph.scheduler).toBe(runtime.scheduler);
-    expect(graphs.map(runtimeOf)).toEqual([
-      { clock, scheduler: runtime.scheduler, broadcast: broadcasts[0] },
-      { clock, scheduler: runtime.scheduler, broadcast: broadcasts[1] },
-    ]);
+    // Proof (2026-09-24): handing Work item `{ ...scheduler }` from its module's options factory
+    // left this test failing on `toBe` with "Received: serializes to the same string" (0 pass,
+    // 1 fail, run alone with `-t`); the `toEqual` over `graphs.map(runtimeOf)` it replaces had
+    // passed the same copy.
+    expect(graphs).toHaveLength(2);
+    for (const [index, services] of graphs.entries()) {
+      const seen = runtimeOf(services);
+      expect(seen.clock).toBe(clock);
+      expect(seen.scheduler).toBe(runtime.scheduler);
+      expect(seen.broadcast).toBe(broadcasts[index]);
+    }
   });
 
   test('discards a stale journal entry through the fresh repair scope', async () => {
@@ -490,5 +497,21 @@ describe('servicesOver', () => {
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope listed the first scope's `Operations` team.
     expect((await second.directory.listTeams()).map((team) => team.name)).toEqual(['Platform']);
+  });
+
+  test("installs Work item per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    expect(
+      await first.workItems.create(PROJECT, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Scope',
+      }),
+    ).toMatchObject({ ok: true });
+    // Proof (2026-09-24): memoizing one `installWorkItem(...)` result in a module-level `let` and
+    // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
+    // with `-t`): the second scope's tree listed the first scope's `Scope` work item.
+    expect(await second.workItems.tree(PROJECT)).toMatchObject({ workItems: [] });
   });
 });

@@ -1635,3 +1635,48 @@ installer` failed with received keys adding `"bag"` (`Expected  - 0`, `Received 
 - 46 code files still name `service/work-item.service.ts` and resolve through the shim; delivery,
   Plan commands, Plan import and Saved plans still name `WorkItemService` or its values directly
   (K2), tracked under 7.4.
+
+### Work item installation, Slice 2 — 2026-09-24
+
+- The slice started from `base=d37d9b63b6aadffe2e9b45359f229f980d902759` on a clean tree, with
+  `module/work-item/check.ts` present, one `workItems: new WorkItemService({` and one
+  `WorkItemService` value import in `compose.ts`, six `test("installs` cases in `compose.test.ts`,
+  and `K=93` `kinds.json` entries.
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`): core `bun test src` passed `C=618` over `F=67` files
+  (`slice2-core-baseline.log`); the be-01 unit set passed `E=520` over `EF=49`
+  (`slice2-be01-unit-baseline.log`); `compose.test.ts` passed 15, 0 fail
+  (`slice2-step1-compose-before.log`).
+- Bundle counts: before 10.7 the `compose.ts` bundle built with exit 0 and held
+  `application.work-item count=0 (grep exit 1)` (`slice2-compose-bundle-red.log`); after 10.7 it
+  held `count=1` (row 12, `slice2-compose-bundle-green.log`).
+- Row 13: after 10.8, `compose.test.ts` passed 16, 0 fail (`slice2-row13-compose-green.log`); lint
+  and typecheck of both projects exited 0 (`slice2-step4-lint-typecheck.log`).
+- Faults, each restored with `cp` and proved with `cmp`, then `compose.test.ts` rerun at 16 pass;
+  patch and log under the same basename:
+  - Row 14, one `installWorkItem(...)` result memoized in a module-level `let reusedWorkItem` in
+    `compose.ts` (`row14-per-scope`): run with
+    `-t "installs Work item per supplied scope"`, the case failed with `-   "workItems": [],` and
+    `+       "name": "Scope",` in the received tree; 0 pass, 15 filtered out, 1 fail;
+    `wbs-core:typecheck` exit 0 on the mutated tree (`row14-per-scope.typecheck.log`).
+  - Row 15, the `workItemOptions` factory's returned `scheduler,` replaced by
+    `scheduler: { ...scheduler },` in `module/work-item/module.ts` (`row15-runtime`): run with
+    `-t "shares runtime identities"`, it failed at `compose.test.ts:366`
+    (`expect(seen.scheduler).toBe(runtime.scheduler)`) with `error: expect(received).toBe(expected)`
+    and `Received: serializes to the same string`; 0 pass, 15 filtered out, 1 fail;
+    `wbs-core:typecheck` exit 0 (`row15-runtime.typecheck.log`).
+  - Row 16 (optional, run so the Proof comment states only what was seen): the same scheduler copy
+    with the replaced `toEqual` over `graphs.map(runtimeOf)` temporarily restored
+    (`row16-toEqual-false-green`): 1 pass, 15 filtered out, 0 fail — the false green 10.8 closes.
+- 10.9's two Proof comments followed; `compose.test.ts` passed 16, 0 fail
+  (`slice2-after-proofs-compose.log`).
+- Step-7 filesystem substitute for the planner's `service-kinds.test.ts`: `93 []`
+  (`slice2-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 1 = 619` over `F = 67` (`slice2-core-closing.log`); the
+  be-01 unit set passed `E = 520` over `EF = 49` (`slice2-be01-unit-closing.log`); lint and
+  typecheck of both projects exited 0 (`slice2-lint-typecheck-closing.log`);
+  `grep -cF "new WorkItemService(" compose.ts` printed `0` with exit 1.
+- `shares runtime identities while creating a fresh scope, collector and graph per batch` now
+  asserts the installed Work item's clock, scheduler and broadcaster by identity (`toBe`), watched
+  failing on a structurally equal scheduler copy; no `servicesOver` resource is constructed with
+  `new`.
