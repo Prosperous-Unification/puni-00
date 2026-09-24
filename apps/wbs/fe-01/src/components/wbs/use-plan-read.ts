@@ -10,20 +10,9 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { ALL_RESOURCES, type RefreshResource } from '@/lib/plan-refresh';
+import { ALL_RESOURCES, type DirectoryRead, type RefreshResource } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
-import type {
-  AssignedPersonView,
-  CalendarMarkerView,
-  ExternalSystemView,
-  PersonView,
-  PriorityBandView,
-  ServiceView,
-  TagView,
-  TeamCapacityView,
-  TeamView,
-  WorkItemTypeView,
-} from '@/lib/wbs-api';
+import type { AssignedPersonView } from '@/lib/wbs-api';
 import {
   DEFAULT_PERT_WEIGHTS_VIEW,
   type EstimateMethod,
@@ -38,7 +27,12 @@ import { calendarMarkersForReader } from '@/modules/calendar-markers/composition
 import type { CalendarMarkerRefusal } from '@/modules/calendar-markers/contract';
 import { type Channel, createChannel } from '@/modules/channel';
 import { planFeedForReader } from '@/modules/plan-feed/composition';
-import type { PlanFeed, PlanFeedDelivery, PlanFeedRefusal } from '@/modules/plan-feed/contract';
+import type { PlanFeed, PlanFeedRefusal } from '@/modules/plan-feed/contract';
+import {
+  createDeliveredPlan,
+  type DeliveredPlan,
+  type DeliveredPlanStore,
+} from '@/modules/plan-feed/delivered-plan-store';
 import { type BusyWrites, createBusy } from '@/modules/plan-writer/busy-store';
 import type { PlanWriteRefusal } from '@/modules/plan-writer/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
@@ -51,6 +45,7 @@ import { type Toast, type ToastStackApi } from './toasts';
 import { useChannelListener } from './use-channel-listener';
 import { dropDrafts, rowOfCellKey, stepOfCellKey, stepOfDraftKey } from './use-estimate-drafts';
 import type { PlanImportControl } from './use-plan-import';
+import { useSnapshotChanges } from './use-snapshot-changes';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -211,6 +206,7 @@ export type PlanRefusal = PlanFeedRefusal | CalendarMarkerRefusal | PlanWriteRef
  */
 function openProjectPorts() {
   return {
+    plan: createDeliveredPlan(),
     busy: createBusy(),
     refusals: createChannel<PlanRefusal>(),
     commandsIssued: createChannel<undefined>(),
@@ -218,25 +214,43 @@ function openProjectPorts() {
 }
 
 /**
- * No calendar markers — the state before the first read lands, and the state a
- * project with none stays in.
- *
- * Hoisted out of the component so the empty case is one object rather than a
- * new array on every render: `GanttPanel` takes `markers` straight into a
- * `useMemo` dependency list, and a fresh `[]` each time would rebuild the chip
- * layer on renders that changed nothing about it. `gantt-panel.tsx` keeps its
- * own `NO_MARKERS` for the same reason on the other side of the prop.
+ * The rows each delivered tree draws, built once per tree however many places
+ * ask: the table's render and the settling of the hover card below read the
+ * same array.
  */
-const NO_MARKERS: readonly CalendarMarkerView[] = [];
+const drawnRows = new WeakMap<DeliveredTree, TreeRow[]>();
+
+/** One delivered tree, as the delivered plan holds it. */
+type DeliveredTree = NonNullable<DeliveredPlan['tree']>;
+
+function rowsOf(tree: DeliveredTree): TreeRow[] {
+  const drawn = drawnRows.get(tree);
+  if (drawn !== undefined) return drawn;
+  const rows = toTree(tree.value.workItems);
+  drawnRows.set(tree, rows);
+  return rows;
+}
+
+/** A directory before the first read of one has landed: every list empty. */
+function emptyDirectory(): DirectoryRead {
+  return { teams: [], tags: [], services: [], workItemTypes: [], externalSystems: [], people: [] };
+}
 
 /**
  * What a plan read holds while it is in flight, and after it has landed: the
  * rows, the chart's slices, the vocabularies, the undo stack and whether any
  * of it is stale.
  *
- * State rather than a query cache because this table has one project on screen
- * and a socket telling it when to read again — see {@link usePlanRead} for the
- * reading itself.
+ * **Selected, never set.** The plan feed writes every publication into the
+ * project's delivered plan (`modules/plan-feed/delivered-plan-store.ts`), and
+ * every value below is derived from that one snapshot, so a render never sees
+ * two publications at once and nothing here hands a setter to anybody. Each
+ * derived value keeps its identity until the member it comes from changes,
+ * which is what the table's memos were already relying on.
+ *
+ * A store rather than a query cache because this table has one project on
+ * screen and a socket telling it when to read again — see {@link usePlanRead}
+ * for the reading itself.
  */
 export function usePlanReadState({ projectId }: { projectId: string }) {
   /**
@@ -251,7 +265,11 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
 
   activeProject.current = projectId;
 
-  const [workItems, setWorkItems] = useState<TreeRow[]>([]);
+  const [ports] = useState(openProjectPorts);
+  const delivered = useSyncExternalStore(ports.plan.subscribe, ports.plan.snapshot);
+  const tree = delivered.tree;
+
+  const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
 
   /** The project whose whole tree most recently completed a successful read. */
   const treeReadProject = useRef<string | null>(null);
@@ -264,21 +282,44 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
    * a person freed here starts something over there — and guessing which would
    * be a second implementation of the engine.
    *
-   * One state and not three, and that is the fix rather than a tidy-up.
+   * One value and not three, and that is the fix rather than a tidy-up.
    * `layOutGantt` refuses a payload whose slices name a step or a person it has
    * not got, which is exactly what this client held while the slices came from
    * `tree()` and the steps and names came from `steps()` and `listPeople()`:
    * four requests, four moments, and a peer deleting a step in between left a
-   * chart that threw. Held together, they cannot disagree — there is no setter
-   * that can move one without the others.
+   * chart that threw. Derived from one delivered tree, they cannot disagree.
    *
    * The separate reads stay for what they are actually about: {@link steps}
    * heads the estimate columns and the steps dialog edits it, and
    * {@link people} is who the assignee picker can offer.
    */
-  const [chartRead, setChartRead] = useState<ChartRead>(NO_CHART_READ);
+  const chartRead = useMemo<ChartRead>(
+    () =>
+      // On the same read as the rows and behind the same generation check: a
+      // superseded read must not leave its slices under another read's rows.
+      // Proof: written as `setSlices((current) => current.length === 0 ?
+      // tree.slices : current)` — the refetch leaving the slices where the first
+      // read put them — and `replaces the slices on every refetch, as it replaces
+      // the rows` failed on `expected '2' to be '1'`: a second row on screen with
+      // the one-row plan's slices still behind it; watched 2026-08-09.
+      tree === null
+        ? NO_CHART_READ
+        : {
+            slices: tree.value.slices,
+            steps: tree.value.steps,
+            people: tree.value.assignedPeople,
+            depReach: tree.value.depReach,
+            pertWeights: tree.value.pertWeights,
+            estimateRounding: tree.value.estimateRounding,
+            ...(tree.value.optimization === undefined
+              ? {}
+              : { optimization: tree.value.optimization }),
+            generation: tree.generation,
+          },
+    [tree],
+  );
 
-  const [steps, setSteps] = useState<StepView[]>([]);
+  const steps = delivered.steps;
 
   /**
    * Whether the last refetch failed, leaving the tree on screen possibly
@@ -289,19 +330,27 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
    * tell are worse than an empty table. Cleared by any refresh that lands —
    * the retry button's, an edit's, or a peer's change event.
    */
-  const [treeMayBeStale, setTreeMayBeStale] = useState(false);
-  const [treeFailureText, setTreeFailureText] = useState<string | null>(null);
+  const treeMayBeStale = delivered.staleResources.length > 0;
+  const treeFailure = delivered.treeFailure;
+  // Proof: suppressing this failure text left the peer-refetch window on
+  // “the last refresh failed”, expected the named optimizer-unavailable
+  // message while the previously installed plan stayed on screen.
+  const treeFailureText = useMemo(
+    () => (treeFailure === null ? null : refusalSentence(treeFailure.cause)),
+    [treeFailure],
+  );
 
-  const [ports] = useState(openProjectPorts);
   // Selected, never set here: the gestures raise and lower it through `busyWrites`.
   const busy = useSyncExternalStore(ports.busy.subscribe, ports.busy.snapshot);
   const busyWrites: BusyWrites = ports.busy;
 
-  const [connected, setConnected] = useState(true);
+  const connected = delivered.connected;
 
-  const [scheduleError, setScheduleError] = useState<'calendar_range' | 'cycle' | null>(null);
+  const scheduleError = tree === null ? null : tree.value.scheduleError;
 
-  const [estimateMethod, setEstimateMethod] = useState<EstimateMethod>('pert');
+  // Proof: renaming the shared response field to `planningMethod` made this
+  // production screen fail with TS2339: `estimateMethod` does not exist on PlanRead.
+  const estimateMethod: EstimateMethod = tree === null ? 'pert' : tree.value.estimateMethod;
 
   /**
    * Whether this reader has anything to undo or redo, as of the last tree read.
@@ -312,42 +361,31 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
    * would be a second answer to a question that has one, and it would be wrong
    * in exactly the cases that matter.
    */
-  const [stack, setStack] = useState({ undoable: false, redoable: false });
+  const stack = useMemo(
+    () =>
+      tree === null
+        ? { undoable: false, redoable: false }
+        : { undoable: tree.value.undoable, redoable: tree.value.redoable },
+    [tree],
+  );
 
   /** The project's start date, or null while the plan is not on a calendar. */
-  const [startDate, setStartDate] = useState<string | null>(null);
+  const startDate = tree === null ? null : tree.value.startDate;
 
   /**
-   * The global directory: every team and every person on this deployment.
+   * The global directory: every team and every person on this deployment, the
+   * tag and service vocabularies, the work item types and the external systems.
    *
    * Global rather than per project — Dany's ask — so it is loaded once beside
-   * the tree rather than filtered by anything.
+   * the tree rather than filtered by anything. The services label the third
+   * dimension's facet and its cell picker; a facet that offers ids instead of
+   * names is a filter nobody can aim. The external systems are loaded with the
+   * others and never added to: be-01 seeds them with exactly the names
+   * `systemOfUrl` can answer and offers no create, so a page that has read them
+   * once has read all of them.
    */
-  const [teams, setTeams] = useState<TeamView[]>([]);
-
-  /** The global tag vocabulary, for the facet's labels and the cell's picker. */
-  const [tags, setTags] = useState<TagView[]>([]);
-
-  /**
-   * The global service vocabulary, for the third dimension's facet labels and —
-   * from task 7.1 — its cell picker.
-   *
-   * Beside the tags and loaded on the same read for the same reason: a facet
-   * that offers ids instead of names is a filter nobody can aim.
-   */
-  const [services, setServices] = useState<ServiceView[]>([]);
-
-  const [workItemTypes, setWorkItemTypes] = useState<WorkItemTypeView[]>([]);
-
-  /**
-   * The external-system vocabulary, for the ref marks' names and the editor's
-   * picker.
-   *
-   * Loaded with the other four and never added to: be-01 seeds this one with
-   * exactly the names `systemOfUrl` can answer and offers no create, so a page
-   * that has read it once has read all of it.
-   */
-  const [externalSystems, setExternalSystems] = useState<ExternalSystemView[]>([]);
+  const directory = useMemo(() => delivered.directory ?? emptyDirectory(), [delivered.directory]);
+  const { teams, tags, services, workItemTypes, externalSystems, people } = directory;
 
   /**
    * How many of each team this plan may have at work at once, as be-01 sent it
@@ -357,7 +395,7 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
    * computed from these numbers, and a separately-fetched capacity could put a
    * number beside bars it does not explain. `wbs-api.ts` has the argument.
    */
-  const [teamCapacities, setTeamCapacities] = useState<TeamCapacityView[]>([]);
+  const teamCapacities = useMemo(() => (tree === null ? [] : tree.value.teamCapacities), [tree]);
 
   /**
    * What this plan calls its priority numbers — five rungs, most important first.
@@ -369,69 +407,46 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
    * answer for a plan nobody has configured, so this is empty only before the
    * first read has landed — which is the same moment the rows are empty.
    */
-  const [priorityBands, setPriorityBands] = useState<PriorityBandView[]>([]);
+  const priorityBands = useMemo(() => (tree === null ? [] : tree.value.priorityBands), [tree]);
 
-  const [people, setPeople] = useState<PersonView[]>([]);
   /**
    * The calendar markers on this project — the list `GanttPanel` draws.
    *
-   * **Its own state off its own read**, and not a member of `chartRead`, which
+   * **Its own member off its own read**, and not a member of `chartRead`, which
    * is `ProjectApi.listCalendarMarkers`'s own argument turned around: a marker
    * moves nothing in the schedule (task 4, axis-1), so folding it into the plan
    * would make every marker write a full tree reread and every tree reread
-   * carry markers the table never looks at.
-   *
-   * The panel reports its four writes upward rather than performing them
-   * ({@link GanttProps.onRenameMarker}) precisely so that this component — the
-   * owner of the list — is the single place where a write and the redraw after
-   * it can agree. Everything below is that owner.
+   * carry markers the table never looks at. The delivered plan keeps the same
+   * array until a new one arrives, so `GanttPanel`'s memo on it holds.
    */
-  const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>(NO_MARKERS);
+  const markers = delivered.markers;
   return {
+    plan: ports.plan,
     markers,
-    setMarkers,
     activeProject,
     workItems,
-    setWorkItems,
     treeReadProject,
     chartRead,
-    setChartRead,
     steps,
-    setSteps,
     treeMayBeStale,
-    setTreeMayBeStale,
     treeFailureText,
-    setTreeFailureText,
     busy,
     busyWrites,
     refusals: ports.refusals,
     commandsIssued: ports.commandsIssued,
     connected,
-    setConnected,
     scheduleError,
-    setScheduleError,
     estimateMethod,
-    setEstimateMethod,
     stack,
-    setStack,
     startDate,
-    setStartDate,
     teams,
-    setTeams,
     tags,
-    setTags,
     services,
-    setServices,
     workItemTypes,
-    setWorkItemTypes,
     externalSystems,
-    setExternalSystems,
     teamCapacities,
-    setTeamCapacities,
     priorityBands,
-    setPriorityBands,
     people,
-    setPeople,
   };
 }
 
@@ -449,30 +464,12 @@ export function usePlanRead({
   projectId,
   activeProject,
   api,
-  setTreeMayBeStale,
-  setTreeFailureText,
-  setMarkers,
-  setTeams,
-  setTags,
-  setServices,
-  setWorkItemTypes,
-  setExternalSystems,
-  setPeople,
-  setWorkItems,
+  plan,
   treeReadProject,
   rowPlacements,
   cellCards,
-  setChartRead,
-  setStack,
-  setTeamCapacities,
-  setPriorityBands,
-  setScheduleError,
-  setEstimateMethod,
-  setStartDate,
-  setSteps,
   pushToast,
   subscribe,
-  setConnected,
   focusIntent,
   busyWrites,
   refusals,
@@ -482,34 +479,14 @@ export function usePlanRead({
   projectId: string;
   activeProject: React.RefObject<string>;
   api: ProjectApi;
-  setTreeMayBeStale: React.Dispatch<React.SetStateAction<boolean>>;
-  setTreeFailureText: React.Dispatch<React.SetStateAction<string | null>>;
-  setMarkers: React.Dispatch<React.SetStateAction<readonly CalendarMarkerView[]>>;
-  setTeams: React.Dispatch<React.SetStateAction<TeamView[]>>;
-  setTags: React.Dispatch<React.SetStateAction<TagView[]>>;
-  setServices: React.Dispatch<React.SetStateAction<ServiceView[]>>;
-  setWorkItemTypes: React.Dispatch<React.SetStateAction<WorkItemTypeView[]>>;
-  setExternalSystems: React.Dispatch<React.SetStateAction<ExternalSystemView[]>>;
-  setPeople: React.Dispatch<React.SetStateAction<PersonView[]>>;
-  setWorkItems: React.Dispatch<React.SetStateAction<TreeRow[]>>;
+  plan: DeliveredPlanStore;
   treeReadProject: React.RefObject<string | null>;
   rowPlacements: React.RefObject<ReadonlyMap<string, string>>;
   cellCards: CellCards;
-  setChartRead: React.Dispatch<React.SetStateAction<ChartRead>>;
-  setStack: React.Dispatch<React.SetStateAction<{ undoable: boolean; redoable: boolean }>>;
-  setTeamCapacities: React.Dispatch<React.SetStateAction<TeamCapacityView[]>>;
-  setPriorityBands: React.Dispatch<React.SetStateAction<PriorityBandView[]>>;
-  setScheduleError: React.Dispatch<React.SetStateAction<'calendar_range' | 'cycle' | null>>;
-  setEstimateMethod: React.Dispatch<
-    React.SetStateAction<'pert' | 'optimistic' | 'realistic' | 'pessimistic'>
-  >;
-  setStartDate: React.Dispatch<React.SetStateAction<string | null>>;
-  setSteps: React.Dispatch<React.SetStateAction<StepView[]>>;
   pushToast: (toast: Toast) => void;
   subscribe:
     | ((projectId: string, handlers: SubscriptionHandlers, baseline: number) => ProjectStream)
     | undefined;
-  setConnected: React.Dispatch<React.SetStateAction<boolean>>;
   focusIntent: React.RefObject<FocusIntent>;
   busyWrites: BusyWrites;
   refusals: Channel<PlanRefusal>;
@@ -559,7 +536,7 @@ export function usePlanRead({
    * The drafts sanitizer returns the object it was given when nothing changed.
    * `drafts` is not one of `columns`' dependencies, so this is about not
    * re-rendering every cell rather than about remounting them — but the rule is
-   * the same one `sameSteps` keeps one line above, and stating it twice is
+   * the same one the delivered plan's `sameSteps` keeps, and stating it twice is
    * cheaper than the two of them drifting.
    *
    * A step change **does** cost the focus, and that is the accepted trade: the
@@ -594,28 +571,20 @@ export function usePlanRead({
     [setDrafts],
   );
 
-  const publishPlan = useCallback(
-    (delivery: PlanFeedDelivery) => {
-      setTreeMayBeStale(delivery.staleResources.length > 0);
-      // Proof: suppressing this failure text left the peer-refetch window on
-      // “the last refresh failed”, expected the named optimizer-unavailable
-      // message while the previously installed plan stayed on screen.
-      setTreeFailureText(
-        delivery.treeFailure === null ? null : refusalSentence(delivery.treeFailure.cause),
-      );
-      if (delivery.directory !== null) {
-        const vocabulary = delivery.directory;
-        setTeams(vocabulary.teams);
-        setTags(vocabulary.tags);
-        setServices(vocabulary.services);
-        setWorkItemTypes(vocabulary.workItemTypes);
-        setExternalSystems(vocabulary.externalSystems);
-        setPeople(vocabulary.people);
-      }
-      if (delivery.tree !== null) {
-        const tree = delivery.tree.value;
-        const drawn = toTree(tree.workItems);
-        setWorkItems(drawn);
+  /**
+   * What a publication changes on screen beyond the values selected from it,
+   * run inside the delivered plan's own notification — the pass the change was
+   * made in, before the table renders it.
+   *
+   * Two settlings, each keyed on its member changing: a new tree records whose
+   * tree it is and settles the open hover card against the rows that just
+   * arrived; a new step list drops what only the gone steps held. A step list
+   * that came back the same is kept as the same array by the delivered plan, so
+   * it settles nothing, exactly as it rebuilt nothing before.
+   */
+  const settle = useCallback(
+    (next: DeliveredPlan, previous: DeliveredPlan) => {
+      if (next.tree !== null && next.tree !== previous.tree) {
         treeReadProject.current = projectId;
         // The open hover card, settled against the rows that just arrived. The
         // previous placements are read into a local **before** the ref is replaced:
@@ -625,75 +594,16 @@ export function usePlanRead({
         // Proof: this pair deleted, `closes the card when a peer moves the row it
         // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
         // Watched, 2026-08-09.
-        const placements = placementsOf(drawn);
+        const placements = placementsOf(rowsOf(next.tree));
         const wasPlaced = rowPlacements.current;
         rowPlacements.current = placements;
         cellCards.updateHovered((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
-        // On the same read as the rows and behind the same generation check: a
-        // superseded read must not leave its slices under another read's rows.
-        // Proof: written as `setSlices((current) => current.length === 0 ?
-        // tree.slices : current)` — the refetch leaving the slices where the first
-        // read put them — and `replaces the slices on every refetch, as it replaces
-        // the rows` failed on `expected '2' to be '1'`: a second row on screen with
-        // the one-row plan's slices still behind it; watched 2026-08-09.
-        //
-        // One call, so the chart's three parts can only ever be one payload's. The
-        // steps and the names come from `tree` and **not** from `loadedSteps` or
-        // `loadedPeople` below: those are three more requests, and a peer's step
-        // delete landing between them is what used to hand `layOutGantt` a slice
-        // under a step the plan no longer listed.
-        setChartRead({
-          slices: tree.slices,
-          steps: tree.steps,
-          people: tree.assignedPeople,
-          depReach: tree.depReach,
-          pertWeights: tree.pertWeights,
-          estimateRounding: tree.estimateRounding,
-          ...(tree.optimization === undefined ? {} : { optimization: tree.optimization }),
-          generation: delivery.tree.generation,
-        });
-        setStack({ undoable: tree.undoable, redoable: tree.redoable });
-        setTeamCapacities(tree.teamCapacities);
-        setPriorityBands(tree.priorityBands);
-        setScheduleError(tree.scheduleError);
-        // Proof: renaming the shared response field to `planningMethod` made this
-        // production screen fail with TS2339: `estimateMethod` does not exist on PlanRead.
-        setEstimateMethod(tree.estimateMethod);
-        setStartDate(tree.startDate);
       }
-      if (delivery.steps !== null) {
-        const loadedSteps = delivery.steps;
-        setSteps((current) => (sameSteps(current, loadedSteps) ? current : [...loadedSteps]));
-        settleAgainstSteps(loadedSteps);
-      }
-      if (delivery.markers !== null) setMarkers(delivery.markers);
+      if (next.steps !== previous.steps) settleAgainstSteps(next.steps);
     },
-    [
-      projectId,
-      rowPlacements,
-      setChartRead,
-      setEstimateMethod,
-      setExternalSystems,
-      cellCards,
-      setPeople,
-      setPriorityBands,
-      setScheduleError,
-      setServices,
-      setStack,
-      setStartDate,
-      setSteps,
-      setTags,
-      setTeamCapacities,
-      setTeams,
-      setTreeFailureText,
-      setTreeMayBeStale,
-      setWorkItemTypes,
-      setWorkItems,
-      settleAgainstSteps,
-      treeReadProject,
-      setMarkers,
-    ],
+    [cellCards, projectId, rowPlacements, settleAgainstSteps, treeReadProject],
   );
+  useSnapshotChanges(plan, settle);
 
   /**
    * This reader's feed: one project, one API, one refresh owner, one stream.
@@ -710,16 +620,15 @@ export function usePlanRead({
       api,
       subscribe,
       isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
-      publish: publishPlan,
+      plan,
       refusals,
-      setConnected,
     });
     feedRef.current = feed;
     return () => {
       if (feedRef.current === feed) feedRef.current = null;
       feed.close();
     };
-  }, [activeProject, api, projectId, publishPlan, refusals, setConnected, subscribe]);
+  }, [activeProject, api, plan, projectId, refusals, subscribe]);
 
   /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
   const refreshResourcesOrMarkStale = useCallback(
@@ -918,11 +827,4 @@ export function hoveredCellAfterRefresh(
   if (open === null) return null;
   const placed = now.get(rowOfCellKey(open));
   return placed !== undefined && placed === was.get(rowOfCellKey(open)) ? open : null;
-}
-
-/** Whether two step lists say the same thing, so an equal one can be discarded. */
-export function sameSteps(a: readonly StepView[], b: readonly StepView[]): boolean {
-  return (
-    a.length === b.length && a.every((step, i) => step.id === b[i]?.id && step.name === b[i]?.name)
-  );
 }
