@@ -1976,3 +1976,83 @@ combination of arguments (undefined and string) is invalid for this assertion`
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
 `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of
 which can run in the executor sandbox.
+
+## Packet 050.7j, slice 3 — presence from the runtime, reset by a switch, and the records
+
+Attempt `050-7-j-project-runtime.3.20260924T173141Z`, starting hash
+`b9e093314d3a520ff92c9920d9a76f7b66351eb7` (the slice-2 planner commit; step 0a found it equal to
+the slice note's `b9e09331` and the working tree clean, `status-before.txt` empty). Step 0b
+extracted 9 patches, scripts of 42 and 87 lines and 23 fault patches. Every Vitest run was under
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+### Baselines (step 0 and step 1)
+
+| Check                                    | Status | Files · tests                           |
+| ---------------------------------------- | ------ | --------------------------------------- |
+| `base-preferences`                       | 0      | 4 · 39                                  |
+| `base-sandbox` (sandbox node suite)      | 0      | 53 · 695                                |
+| strict OpenSpec (`openspec-base.*.json`) | 0      | `{"items":114,"passed":114,"failed":0}` |
+| `s3-base-adopted` (twenty files, serial) | 0      | 20 · 1217                               |
+| `s3-base-zoned` (Pacific/Auckland)       | 0      | 2 · 3                                   |
+| `s3-base-page` (page and router)         | 0      | 2 · 80                                  |
+
+### Contract first (section 7.9)
+
+The scenario "A project switch resets presence" added and packet g's "The header selects presence
+from a store" amended to name the runtime's store; strict OpenSpec exit 0,
+`{"items":114,"passed":114,"failed":0}`, `passed` unchanged.
+
+### Red checkpoint (after section 7.10, before section 7.11)
+
+`s3-red-vitest`, `project-page.test.tsx -t 'hands the presence slot nobody in the next project
+until its own stream says'`: `status=1`, `Tests 1 failed | 75 skipped (76)`, on
+`AssertionError: expected -1 to be greater than or equal to 0` — after the switch the header was
+never handed nobody. No typecheck red was expected or run for this slice.
+
+### Implementation and dated notes (section 7.11)
+
+Applied with `git apply --check` then `git apply`; the two `<observed-date-j>` placeholders, one
+each in `tasks.md` and the lifetime map, replaced by the observed `date -u +%F`, `2026-09-24`; no
+placeholder left. Task 10's box still reads `- [ ] 10.`.
+
+### Green checkpoint
+
+| Check                | Status | Result                                  |
+| -------------------- | ------ | --------------------------------------- |
+| `s3-green-typecheck` | 0      | `wbs-fe-01:typecheck`                   |
+| `s3-format`          | 0      | `nx format:check --all`                 |
+| `s3-green-adopted`   | 0      | 20 · 1218 (step 1 + 1: the new example) |
+| `s3-green-zoned`     | 0      | 2 · 3, unchanged                        |
+| `s3-green-page`      | 0      | 2 · 81 (step 1 + 1)                     |
+| `s3-green-sandbox`   | 0      | 53 · 695, unchanged                     |
+| `s3-lint`            | 0      | `wbs-fe-01:lint`                        |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test first (`s3-filters.txt`). Each fault was applied from its
+section 8.3 patch, its named test run, the file restored and `cmp`-identical, and the test rerun
+green (`<id>.patch`, `<id>.log`, `<id>.green.log`); summary in `s3-proofs.txt`.
+
+| Id   | Fault                                             | Test                                                                                  | Observed (`1 failed \| 75 skipped (76)` each)                                                                             |
+| ---- | ------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `q1` | a fatal project draws the page's main anyway      | `shows the sanitized report when a project will not let go, and never draws the next` | `AssertionError: expected null not to be null`                                                                            |
+| `q2` | the owner's effect never leaves the project       | `closes the selected project’s stream once the page goes`                             | `AssertionError: expected +0 to be 1 // Object.is equality`                                                               |
+| `x1` | the stream's roster never reaches the runtime     | `hands the presence slot who the project’s stream says is here, and its connection`   | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                              |
+| `x2` | the stream's connection never reaches the runtime | same                                                                                  | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `"connected": false` diff |
+
+The four `Proof:` comments were then written in `project-page.tsx` above the tabled lines: `q1`
+above `if (projectState.status === 'fatal') {`, `q2` above the owner effect's `return () => {`
+(the line directly above `void projectOwner.leave();`), `x1` above
+`onPresence: handlers.onPresence,` and `x2` above `onConnectionChange: handlers.onConnectionChange,`.
+
+### After the Proof comments
+
+`s3-final-page` 2 · 81, `s3-final-preferences` 4 · 39, `s3-final-sandbox` 53 · 695, each
+`status=0`; `s3-lint-after`, `s3-format-after` and the strict OpenSpec block follow this entry's
+edit and are reported with the attempt.
+
+### Pending planner verification
+
+`wbs-fe-01:test` (UTC + 1 test expected), `wbs-fe-01:test:unit` (unchanged expected),
+`wbs-fe-01:build`, `wbs-fe-01:e2e` (every spec that opens a project, then unfiltered),
+`tool-devsync:test`, and the host gate `bin/h2puni-gate.sh` — none can run in the executor sandbox.

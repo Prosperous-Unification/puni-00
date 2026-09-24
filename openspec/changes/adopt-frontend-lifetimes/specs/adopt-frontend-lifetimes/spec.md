@@ -390,8 +390,8 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
 #### Scenario: The header selects presence from a store
 
 - **WHEN** the project's stream reports who is here or whether it is connected
-- **THEN** the page's presence store holds it and the header's presence slot is
-  handed it, starting from nobody and disconnected
+- **THEN** the selected project's runtime's presence store holds it and the
+  header's presence slot is handed it, starting from nobody and disconnected
 
 ### Requirement: The plan's modules reach the HTTP client only through their own ports
 
@@ -465,3 +465,11 @@ and store surfaces.
   the previous project's stream is closed once; and when a retirement fails, the
   sanitized report and its occurrence handle are shown in place of the page's
   main and the next project is never drawn
+
+#### Scenario: A project switch resets presence
+
+- **WHEN** the selected project's stream has said who is here and that it is
+  connected, and another project is selected
+- **THEN** from the old runtime's withdrawal on, the header's presence slot is
+  handed nobody and disconnected, and never the old project's list again, until
+  the next project's own stream says who is there
