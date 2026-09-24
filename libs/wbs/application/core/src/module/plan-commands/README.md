@@ -30,9 +30,11 @@ The module's tests run under the `wbs-core:test` target declared in
 
 ## Consumers
 
-`libs/wbs/application/core/src/index.ts` exports the module;
+`libs/wbs/application/core/src/compose.ts` installs the module once per composition as `commands`;
+`libs/wbs/application/core/src/index.ts` exports it;
 `libs/wbs/application/core/src/service/plan-commands.ts`,
 `libs/wbs/application/core/src/service/command-bindings.ts`,
 `libs/wbs/application/core/src/service/working-plan.ts` and
 `libs/wbs/application/core/src/use-cases/run-command-batch.ts` keep the former paths for
-`http/work-item.routes.ts`, the test fixtures, `@wbs/core`'s barrel and be-01's deep-import shim.
+`http/work-item.routes.ts`, the test fixtures, `@wbs/core`'s barrel and be-01's deep-import shim,
+through which `apps/wbs/be-01/src/app.ts` still constructs a runner of its own.
