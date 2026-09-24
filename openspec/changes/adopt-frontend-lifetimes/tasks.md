@@ -69,8 +69,18 @@
       run through the real `wbs-fe-01:e2e` Nx target, `CI=1`, a checked-free
       port shift: one test, passing (section 4.7 has the exact command and
       output).
-- [ ] 6. The session runtime is keyed by user id and installs the directory
+- [x] 6. The session runtime is keyed by user id and installs the directory
       module; the router instance and address survive a same-session update.
+      Closed by 050-7-i, observed <observed-date-i>: `createSessionOwner`
+      (`apps/wbs/fe-01/src/runtime/session-runtime.ts`) keys one DI Bag session
+      runtime by the user id, the credential only building the directory's
+      client; the runtime installs the sealed `frontend.directory-management`
+      module and owns the session's project owner, retiring it first.
+      `SignedInApp` in `app.tsx` owns it, and a same-user identity replaces
+      nothing, so the router instance, the address and a mounted route's state
+      survive. The catalog and the header token still reach `ProjectPage`: the
+      catalog facade is the lifetime map's prerequisite, and refusing a token
+      in delivery is task 13's.
 - [ ] 7. Log out is a coordinated local exit: no request, project then session
       retirement, and the fatal state when either fails.
 - [x] 8. The project prerequisites: plan snapshot, connection, roster and busy

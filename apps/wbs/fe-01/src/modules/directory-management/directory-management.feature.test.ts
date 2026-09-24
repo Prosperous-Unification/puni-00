@@ -9,7 +9,7 @@ import { createDirectoryManagement } from './directory-management.feature';
 const USED: DirectoryUsage = { projects: [], members: [{ id: 'p1', name: 'Kat' }] };
 
 const over = (api: ReturnType<typeof fakeDirectoryApi>) =>
-  createDirectoryManagement(createDirectory(api));
+  createDirectoryManagement(createDirectory(api, () => true));
 
 /** Counts how often a completion callback ran, which is the whole ordering claim. */
 function counter(): { note: () => void; ran: () => number } {
