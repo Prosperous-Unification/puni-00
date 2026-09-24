@@ -323,7 +323,7 @@ relatively.
 
 ### 4.2 The measured blast radius
 
-`git diff --stat a687bf38 <slice 3 rehearsal>`: **34 files, 2078 insertions, 583 deletions**; with
+`git diff --stat a687bf38 <slice 3 rehearsal>`: **34 files, 2108 insertions, 583 deletions**; with
 `verify.md`, which only the executor writes, the slices touch 35 distinct paths. Slice 1 owns 8 (3
 new), slice 2 owns 26 (1 new, and `project-runtime.ts` for one `Proof:` comment), slice 3 owns 10.
 
@@ -350,7 +350,7 @@ Paths under `apps/wbs/fe-01/` unless they start with `openspec/` or `docs/`.
 | `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md`                      | 1–3   | modify        | the requirement (slice 1), then one scenario per slice, each before its code; g's scenario amended (3)                            |
 | `openspec/changes/adopt-frontend-lifetimes/verify.md`                                                   | all   | modify        | one fresh entry per slice, appended                                                                                               |
 | `src/runtime/project-runtime.ts`                                                                        | 1     | **create**    | section 3.2 and 3.3: `installProjectRuntime`, `createProjectOwner`                                                                |
-| `src/runtime/project-runtime.model.test.ts`, `src/runtime/project-runtime.test.ts`                      | 1     | **create**    | the model test (section 3.1) and six examples                                                                                     |
+| `src/runtime/project-runtime.model.test.ts`, `src/runtime/project-runtime.test.ts`                      | 1     | **create**    | the model test (section 3.1) and seven examples                                                                                   |
 | `src/modules/project/contract.ts`                                                                       | 1, 2  | modify        | `ProjectRuntime`, `ProjectSource`, `ProjectStreamHandlers`, `OpenProjectStream`, `PlanRefusal` (1); `ProjectServices`'s JSDoc (2) |
 | `src/components/wbs/use-plan-read.ts`                                                                   | 1, 2  | modify        | `PlanRefusal` imported from the contract (1); the table reads the runtime (2)                                                     |
 | `vitest.node-suites.ts`                                                                                 | 1     | modify        | list the two DOM-free suites                                                                                                      |
@@ -592,9 +592,9 @@ new files — `runtime/project-runtime.ts`, `runtime/project-runtime.model.test.
   bash "$TMPDIR/expect-status.sh" s1-red-vitest 1
   ```
 
-  Expected, and rehearsed exactly: typecheck `status=1`, `Found 13 errors in 2 files.` — 8 in
-  `project-runtime.model.test.ts` (3 × TS2305, 1 × TS2307, 4 × TS7006) and 5 in
-  `project-runtime.test.ts` (2 × TS2305, 1 × TS2307, 2 × TS7006); the four that name the cause:
+  Expected, and rehearsed exactly: typecheck `status=1`, `Found 14 errors in 2 files.` — 8 in
+  `project-runtime.model.test.ts` (3 × TS2305, 1 × TS2307, 4 × TS7006) and 6 in
+  `project-runtime.test.ts` (2 × TS2305, 1 × TS2307, 3 × TS7006); the four that name the cause:
 
   ```text
   apps/wbs/fe-01/src/runtime/project-runtime.model.test.ts:8:3 - error TS2305: Module '"@/modules/project/contract"' has no exported member 'ProjectRuntime'.
@@ -4557,7 +4557,7 @@ faulted file equal the owning slice's.
 | read-and-write suite                    | 88              | 88                           | 88                           | 88                            |
 | page and router                         | 2·78            | 2·78                         | 2·80                         | 2·81                          |
 | adopted set, serial                     | 20·1215         | 20·1215                      | 20·1217                      | 20·1218                       |
-| red typecheck                           | —               | exit 1, 13 errors in 2 files | exit 1, 4 errors in 2 files  | none: a runtime red           |
+| red typecheck                           | —               | exit 1, 14 errors in 2 files | exit 1, 4 errors in 2 files  | none: a runtime red           |
 | red Vitest                              | —               | 2 files failed, no tests     | `Tests 5 failed (5)`, 1 file | `1 failed \| 75 skipped (76)` |
 | typecheck on the slice's commit         | 0               | 0                            | 0                            | 0                             |
 | faults observed failing, file restored  | —               | 18 of 18                     | 1 of 1                       | 4 of 4                        |
