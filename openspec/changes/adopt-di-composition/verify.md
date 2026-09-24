@@ -1868,3 +1868,44 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   `nx format:check --all` exited 0 (`slice3-format-check-closing.log`).
 - `composeServices` installs Plan commands once as `commands`; be-01's `mountedEndpoints` does not
   read it yet and still constructs its own runner (tracked under 7.4).
+
+### Plan commands registration, Slice 4 — 2026-09-24
+
+- The slice started from `base=a934a5a6353a23d73fb748768dbb2315bfa6ba86` on a clean tree; the
+  last commit touching `compose.ts` was slice 3's `a934a5a6353a23d73fb748768dbb2315bfa6ba86`; the
+  pilot held `M=19` modules and `B=19` boundaries; the frozen tuple printed exactly
+  `100644 blob 720f5d37a03073e4445eeb40bf3b8d8bb0f6a03d	libs/core/src/service/plan-commands.ts`.
+- Baselines before any edit: `tool-devsync` and `twilight-burokrat` typecheck exited 0
+  (`slice4-typecheck-baseline.log`), `twilight-burokrat:lint:source` exited 0
+  (`slice4-burokrat-lint-source-baseline.log`), `tool-devsync:lint` exited 0
+  (`slice4-devsync-lint-baseline.log`); the whole `pilot-policy.test.ts` ran `T=21` tests,
+  `TF=0` failures, `P=306` `expect()` calls in 381 s (`slice4-pilot-baseline.log`); the legacy pin
+  passed alone (`slice4-legacy-pin-baseline.log`); OpenSpec validation passed `N=114`, failed 0
+  (`slice4-openspec-baseline.json`).
+- Row 27: after 10.15 (the `modules.json` row, 20 modules), the filtered
+  `pins exact pre-index tuples and passes observe lint from external trust` failed at
+  `pilot-policy.test.ts:384` with `Expected: 19`, `Received: 20`; 0 pass, 20 filtered out, 1 fail
+  (`slice4-row27-parity-red.log`).
+- Row 28: after 10.16 (the `policy.json` boundary, 20 boundaries), the same test failed at
+  `pilot-policy.test.ts:421` with `Expected: true`, `Received: false`; 0 pass, 1 fail
+  (`slice4-row28-discovered-index-red.log`).
+- Row 29: after 10.17's first block (the `pilotPaths` entry and the README's `module-index` block,
+  `check.core.test` sentence and "Wiki registration"), the same test passed: 1 pass, 0 fail
+  (`slice4-row29-registered-green.log`).
+- Row 30: the whole pilot file ran `T=21` tests, `TF=0` failures and `P + 1 = 307` `expect()`
+  calls (`slice4-row30-pilot-whole.log`).
+- Row 31: with the legacy pin unchanged,
+  `every legacy source occurrence and relevant text family is pinned` failed with
+  `historical policy selector or baseline` 65 → 67, `occurrences` 283 → 285 and digest
+  `0d78b579…` → `687c123b315024882f690de60d7a3ac6890f89200a880ebf21b2242b66987a54`,
+  `Expected - 3`, `Received + 3`, `unclassified` still `[]`; 0 pass, 1 fail
+  (`slice4-row31-legacy-pin-red.log`). No other pinned literal moved.
+- Row 32: after 10.17's numbers block the test passed, 1 pass (`slice4-row32-legacy-pin-green.log`);
+  10.18's Proof comment and 10.19's `tasks.md` records (1.2 and 5.2 reworded and ticked, 7.5
+  extended) followed.
+- Closing: `tool-devsync` and `twilight-burokrat` typecheck exited 0
+  (`slice4-typecheck-closing.log`), `twilight-burokrat:lint:source` exited 0
+  (`slice4-burokrat-lint-source-closing.log`), `tool-devsync:lint` exited 0
+  (`slice4-devsync-lint-closing.log`); the legacy pin passed alone, 1 pass
+  (`slice4-legacy-pin-closing.log`); OpenSpec validation passed `N=114`, failed 0
+  (`slice4-openspec-closing.json`).

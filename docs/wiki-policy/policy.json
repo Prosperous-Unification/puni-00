@@ -1125,6 +1125,25 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.plan-commands",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/plan-commands"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/plan-commands.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "720f5d37a03073e4445eeb40bf3b8d8bb0f6a03d",
+          "path": "libs/core/src/service/plan-commands.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],
