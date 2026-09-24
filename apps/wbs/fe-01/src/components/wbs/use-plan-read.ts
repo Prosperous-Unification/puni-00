@@ -1,17 +1,8 @@
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type * as React from 'react';
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 
-import { ALL_RESOURCES, type DirectoryRead, type RefreshResource } from '@/lib/plan-refresh';
-import type { ProjectStream } from '@/lib/project-stream';
+import { ALL_RESOURCES, type DirectoryRead } from '@/lib/plan-refresh';
 import type { AssignedPersonView } from '@/lib/wbs-api';
 import {
   DEFAULT_PERT_WEIGHTS_VIEW,
@@ -22,17 +13,12 @@ import {
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
-import { type Channel, createChannel } from '@/modules/channel';
+import type { Channel } from '@/modules/channel';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
-import type { PlanFeed } from '@/modules/plan-feed/contract';
-import {
-  createDeliveredPlan,
-  type DeliveredPlan,
-  type DeliveredPlanStore,
-} from '@/modules/plan-feed/delivered-plan-store';
-import { type BusyWrites, createBusy } from '@/modules/plan-writer/busy-store';
-import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
-import type { PlanRefusal, ProjectServices } from '@/modules/project/contract';
+import type { DeliveredPlan } from '@/modules/plan-feed/delivered-plan-store';
+import type { BusyWrites } from '@/modules/plan-writer/busy-store';
+import type { PlanRefusal, ProjectRuntime } from '@/modules/project/contract';
+import type { Store } from '@/modules/store';
 
 import { type CellCards } from './cell-card-store';
 import type { FocusIntent } from './live-editing';
@@ -46,16 +32,15 @@ import { useSnapshotChanges } from './use-snapshot-changes';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
-  projectId: string;
   /**
-   * The project's feed, marker gestures and commands, composed by the page over
-   * its one client — never the client itself (rule K2).
+   * The selected project's runtime, opened and left by its owner above the
+   * table — never the client, a port or the feed's refresh owner (rule K2).
    *
-   * Its identity is the client's: the page composes once per client, so the
-   * same services mean the same reader, and a new one is a new reader whose
-   * feed replaces the old one's.
+   * The table opens nothing and closes nothing: every service it writes
+   * through and every store it selects from is this runtime's, and a new
+   * runtime is a new reader.
    */
-  projectServices: ProjectServices;
+  project: ProjectRuntime;
   /** Page-owned archival import lifecycle; absent in isolated table tests. */
   planImport?: PlanImportControl;
   /** Page-owned production toast lifetime; absent in isolated table tests. */
@@ -68,15 +53,6 @@ export interface WbsTableProps {
    * in the app — see {@link UNNAMED_PROJECT} for what an export says without it.
    */
   projectName?: string;
-  /**
-   * Opens a live subscription. Optional so the table can be tested without a
-   * socket; supplied in the app.
-   */
-  subscribe?: (
-    projectId: string,
-    handlers: SubscriptionHandlers,
-    baseline: number,
-  ) => ProjectStream;
   /**
    * The saved-plan shelf, for the phone's `Plan actions` sheet — and rendered
    * **only** there, in the `cards` arm below.
@@ -191,24 +167,6 @@ export const NO_CHART_READ: ChartRead = {
 };
 
 /**
- * The project-owned stores and ports this table's services write through.
- *
- * Built once per mount, which is one project: `ProjectPage` keys the table by
- * the selected project. A lazy state initializer is safe here only because none
- * of them holds a resource or needs closing — StrictMode's discarded second
- * initializer leaks nothing. The project runtime of OpenSpec task 10 builds them
- * instead, and then this function goes.
- */
-function openProjectPorts() {
-  return {
-    plan: createDeliveredPlan(),
-    busy: createBusy(),
-    refusals: createChannel<PlanRefusal>(),
-    commandsIssued: createChannel<undefined>(),
-  };
-}
-
-/**
  * The rows each delivered tree draws, built once per tree however many places
  * ask: the table's render and the settling of the hover card below read the
  * same array.
@@ -247,7 +205,8 @@ function emptyDirectory(): DirectoryRead {
  * screen and a socket telling it when to read again — see {@link usePlanRead}
  * for the reading itself.
  */
-export function usePlanReadState({ projectId }: { projectId: string }) {
+export function usePlanReadState({ project }: { project: ProjectRuntime }) {
+  const projectId = project.projectId;
   /**
    * The project this render belongs to, readable by work that outlives the
    * render which started it.
@@ -260,8 +219,7 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
 
   activeProject.current = projectId;
 
-  const [ports] = useState(openProjectPorts);
-  const delivered = useSyncExternalStore(ports.plan.subscribe, ports.plan.snapshot);
+  const delivered = useSyncExternalStore(project.plan.subscribe, project.plan.snapshot);
   const tree = delivered.tree;
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
@@ -339,8 +297,8 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
   );
 
   // Selected, never set here: the gestures raise and lower it through `busyWrites`.
-  const busy = useSyncExternalStore(ports.busy.subscribe, ports.busy.snapshot);
-  const busyWrites: BusyWrites = ports.busy;
+  const busy = useSyncExternalStore(project.busy.subscribe, project.busy.snapshot);
+  const busyWrites: BusyWrites = project.busy;
 
   const connected = delivered.connected;
 
@@ -419,7 +377,7 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
    */
   const markers = delivered.markers;
   return {
-    plan: ports.plan,
+    plan: project.plan,
     markers,
     activeProject,
     workItems,
@@ -430,8 +388,8 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
     treeFailureText,
     busy,
     busyWrites,
-    refusals: ports.refusals,
-    commandsIssued: ports.commandsIssued,
+    refusals: project.refusals,
+    commandsIssued: project.commandsIssued,
     connected,
     scheduleError,
     estimateMethod,
@@ -449,26 +407,29 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
 }
 
 /**
- * Reading the plan, and everything that decides **when** to read it again: the
- * socket's events, a write's own answer, and the project changing under the
- * component.
+ * What the table does with the plan its project's runtime reads: the
+ * announcements it listens to, what a publication settles on screen, and the
+ * undo stack's own sentences.
  *
- * `refresh` takes a scope rather than always reading everything, because a step
- * rename and a tree replacement are different amounts of work and the socket
- * says which happened.
+ * It opens and closes nothing. The feed, the writer and the marker gestures are
+ * the runtime's, built once when the project was opened, and every "is this
+ * reader still on screen" question is the runtime's
+ * {@link ProjectRuntime.isCurrent}.
+ *
+ * `refreshOrMarkStale` takes a scope rather than always reading everything,
+ * because a step rename and a tree replacement are different amounts of work
+ * and the socket says which happened.
  */
 export function usePlanRead({
   setDrafts,
   projectId,
-  activeProject,
-  projectServices,
+  project,
   commands,
   plan,
   treeReadProject,
   rowPlacements,
   cellCards,
   pushToast,
-  subscribe,
   focusIntent,
   busyWrites,
   refusals,
@@ -476,32 +437,20 @@ export function usePlanRead({
 }: {
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   projectId: string;
-  activeProject: React.RefObject<string>;
-  /**
-   * The project's services over the table's client. Its identity is the
-   * client's, and it is what every guard below compares where it compared the
-   * client before.
-   */
-  projectServices: ProjectServices;
+  /** The runtime the table is drawn from. */
+  project: ProjectRuntime;
   /** This project's commands, bound to it. */
   commands: PlanCommands;
-  plan: DeliveredPlanStore;
+  plan: Store<DeliveredPlan>;
   treeReadProject: React.RefObject<string | null>;
   rowPlacements: React.RefObject<ReadonlyMap<string, string>>;
   cellCards: CellCards;
   pushToast: (toast: Toast) => void;
-  subscribe:
-    | ((projectId: string, handlers: SubscriptionHandlers, baseline: number) => ProjectStream)
-    | undefined;
   focusIntent: React.RefObject<FocusIntent>;
   busyWrites: BusyWrites;
   refusals: Channel<PlanRefusal>;
   commandsIssued: Channel<undefined>;
 }) {
-  const feedRef = useRef<PlanFeed | null>(null);
-  const activeServices = useRef(projectServices);
-  activeServices.current = projectServices;
-
   // Joined before the feed below starts reading, which is a passive effect of
   // this same commit: see `useChannelListener`.
   useChannelListener(refusals, (refusal) => {
@@ -629,113 +578,21 @@ export function usePlanRead({
   useSnapshotChanges(plan, settle);
 
   /**
-   * This reader's feed: one project, one API, one refresh owner, one stream.
-   *
-   * Built in an effect and closed by its cleanup, which is what makes the
-   * owner's lifetime the reader's. `feedRef` is how everything outside this
-   * effect reaches it, and it is cleared before the feed is closed, so work
-   * that outlives the reader — a gesture whose answer is still in flight —
-   * finds no owner rather than a disposed one.
+   * Awaits this invalidation's covering outcome; failures remain in the owner
+   * snapshot. The runtime this callback was built for rereads only while it is
+   * current, so a reread asked from a project this reader has left reads
+   * nothing.
    */
-  useEffect(() => {
-    const feed = projectServices.planFeedFor({
-      projectId,
-      subscribe,
-      isActiveReader: () =>
-        activeProject.current === projectId && activeServices.current === projectServices,
-      plan,
-      refusals,
-    });
-    feedRef.current = feed;
-    return () => {
-      if (feedRef.current === feed) feedRef.current = null;
-      feed.close();
-    };
-  }, [activeProject, plan, projectId, projectServices, refusals, subscribe]);
-
-  /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
-  const refreshResourcesOrMarkStale = useCallback(
-    async (resources: readonly RefreshResource[]): Promise<void> => {
-      const feed = feedRef.current;
-      // The reader this callback was built for, and not whoever is on screen
-      // now: a reread issued from a project or an API this reader has left must
-      // not be spent against the feed that replaced it.
-      if (
-        feed === null ||
-        activeProject.current !== projectId ||
-        activeServices.current !== projectServices
-      )
-        return;
-      await feed.rereadResources(resources);
-    },
-    [activeProject, projectId, projectServices],
-  );
-
-  /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
   const refreshOrMarkStale = useCallback(
     (scope: PlanReadScope = 'all'): Promise<void> =>
-      refreshResourcesOrMarkStale(
+      project.reread(
         scope === 'tree'
           ? ['tree']
           : scope === 'tree-and-steps'
             ? ['tree', 'steps']
             : ALL_RESOURCES,
       ),
-    [refreshResourcesOrMarkStale],
-  );
-
-  /**
-   * This reader's calendar-marker gestures, rebuilt when the reader changes and
-   * not otherwise.
-   *
-   * The dependency list is the one the callback it replaces carried, so the
-   * four chart gestures built over it change identity on exactly the renders
-   * they changed on before.
-   */
-  const markers = useMemo(
-    () =>
-      projectServices.calendarMarkersFor({
-        projectId,
-        readRefreshOwner: () => feedRef.current?.owner ?? null,
-        isActiveReader: () =>
-          activeProject.current === projectId && activeServices.current === projectServices,
-        // Proof: on 2026-09-24, `() => undefined` here failed `rereads a marker refused because a peer
-        // already deleted it` on `the given combination of arguments (undefined and string) is invalid
-        // for this assertion`: no toast was there to hold `no longer`.
-        announceRefusal: refusals.publish,
-      }),
-    [activeProject, projectId, projectServices, refusals],
-  );
-
-  /**
-   * This reader's writer, rebuilt when the reader changes and not otherwise.
-   *
-   * The dependency list is the one the callback it replaces carried, so `run`'s
-   * identity changes on exactly the renders it changed on before.
-   */
-  const writer = useMemo(
-    () =>
-      createPlanWriter({
-        readRefreshOwner: () => feedRef.current?.owner ?? null,
-        // Proof: on 2026-09-24, comparing the project alone here failed `does not spend an old
-        // API success against its busy replacement` with `expected 'false' to be 'true'`: the old
-        // client's success cleared the replacement's busy state.
-        isActiveReader: () =>
-          activeProject.current === projectId && activeServices.current === projectServices,
-        rereadResources: refreshResourcesOrMarkStale,
-        busy: busyWrites,
-        commandsIssued,
-        refusals,
-      }),
-    [
-      activeProject,
-      busyWrites,
-      commandsIssued,
-      projectId,
-      projectServices,
-      refreshResourcesOrMarkStale,
-      refusals,
-    ],
+    [project],
   );
 
   /**
@@ -753,12 +610,10 @@ export function usePlanRead({
    */
   const stepStack = useCallback(
     async (direction: 'undo' | 'redo') => {
-      const owner = feedRef.current?.owner ?? null;
-      const isCurrent = () =>
-        owner !== null &&
-        feedRef.current?.owner === owner &&
-        activeProject.current === projectId &&
-        activeServices.current === projectServices;
+      // The runtime this step was asked of, and not whoever is on screen when its
+      // answer arrives: a project this reader has left says nothing and lowers
+      // nothing in the one that replaced it.
+      const isCurrent = project.isCurrent;
       busyWrites.raise();
       try {
         let outcome;
@@ -798,17 +653,9 @@ export function usePlanRead({
         if (isCurrent()) busyWrites.lower();
       }
     },
-    [
-      activeProject,
-      busyWrites,
-      commands,
-      projectId,
-      projectServices,
-      pushToast,
-      refreshOrMarkStale,
-    ],
+    [busyWrites, commands, project, pushToast, refreshOrMarkStale],
   );
-  return { refreshOrMarkStale, run: writer.run, stepStack, markers };
+  return { refreshOrMarkStale, run: project.writer.run, stepStack, markers: project.markers };
 }
 
 /**

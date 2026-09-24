@@ -456,3 +456,12 @@ and store surfaces.
   current, the withdrawn runtime's delivered plan stays exactly as it was when it
   was withdrawn, no request is sent on its behalf, and once its retirement has
   run its feed has been closed once and its stream unsubscribed once
+
+#### Scenario: The page owns the runtime, and the table draws from it
+
+- **WHEN** a project is selected, another project is selected, or the page goes
+- **THEN** the table is drawn only from the runtime the page's project owner
+  publishes for the selected project, and is handed no client, port or factory;
+  the previous project's stream is closed once; and when a retirement fails, the
+  sanitized report and its occurrence handle are shown in place of the page's
+  main and the next project is never drawn

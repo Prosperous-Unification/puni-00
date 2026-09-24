@@ -1935,3 +1935,44 @@ The eighteen `Proof:` comments were written afterwards at the twelve named sites
 
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none run in the executor sandbox.
+
+## Packet 050.7j, slice 2 — the table draws from the runtime, and the page owns it
+
+Attempt `050-7-j-project-runtime.2.20260924T170958Z`, starting hash
+`6c562db7b2df3c1a1d729b69c581da6e3dd3848f` (slice 1's planner commit), working tree
+empty (`status-before.txt`). Run inside the executor sandbox on 2026-09-24, every
+test command under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+- Step 0: 9 patches, scripts of 42 and 87 lines, 23 fault patches extracted.
+  Baselines: preferences 4·39, sandbox node suite 53·695, adopted set (serial)
+  20·1215, zoned (Auckland) 2·3, page and router 2·78, each `status=0`
+  (`base-runs.out`). Strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+- Contract first: section 7.4 applied; strict OpenSpec exit 0, 114 · 114 · 0
+  (`openspec-s2-contract.*.json`).
+- The named fixture edit (`s2-suites-script.txt`): seventeen per-suite lines, the
+  last `suites=17 sites=256`, exit 0; Prettier over the seventeen.
+- Red checkpoint, after section 7.6: typecheck `status=1`, `Found 4 errors in 2
+files.` — `wbs-table-over-client.tsx:12:18 TS2430` (`WbsTableOverClientProps`
+  incorrectly extends `Omit<WbsTableProps, "project">`) and `:59:46 TS2322`, each
+  twice; Vitest over `plan-row-dependencies.test.tsx` `status=1`, `Tests 5 failed
+(5)`, each on `TypeError: Cannot read properties of undefined (reading
+'planCommandsFor')`.
+- Regions script (`s2-regions.txt`): `read hook: 111 lines replaced by 19`,
+  `table: 21 lines replaced by 14` — the rehearsal's 108 and 18 plus packet h's
+  three-line `t2` and `t1` comments. Section 7.8 applied.
+- Green checkpoint (`green-runs.out`): typecheck `status=0`; adopted 20·1217 (step
+  1 + 2); zoned 2·3; page and router 2·80 (+ 2); sandbox 53·695 (unchanged). The
+  builder `git grep` over `src/components` printed nothing (`s2-builders.txt`
+  empty). `wbs-fe-01:lint` `status=0`.
+- Proof `w1`: the filter matched exactly one test. `announceRefusal: () =>
+undefined` in the runtime's markers factory (`w1.patch`) failed
+  `plan-chart-seam.test.tsx` › `rereads a marker refused because a peer already
+deleted it`: `Tests 1 failed | 22 skipped (23)`, `AssertionError: the given
+combination of arguments (undefined and string) is invalid for this assertion`
+  (`w1.log`); restored, `cmp` identical, rerun `1 passed | 22 skipped (23)`
+  (`w1.green.log`). The `Proof:` comment was written afterwards.
+- Final: page and router 2·80, preferences 4·39, sandbox 53·695, each `status=0`.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
+`wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of
+which can run in the executor sandbox.

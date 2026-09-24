@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import type { Roster } from '@/components/presence/presence-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,7 @@ import {
   type ApplicationServicesState,
   useApplicationServicesReader,
 } from '@/runtime/application-services-context';
+import { createProjectOwner } from '@/runtime/project-runtime';
 
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
@@ -561,6 +563,33 @@ export function ProjectPage({
   const [projects, setProjects] = useState<ProjectListEntry[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The owner of the selected project's runtime — its feed, its writer, its
+   * marker gestures and its commands, opened once per selected project and
+   * given back when the selection moves or this page goes.
+   *
+   * A lazy initializer is safe because the owner holds nothing until it is
+   * asked to open: Strict Mode's discarded second one leaks nothing. The
+   * runtime itself is only ever built by the effect below, never in render.
+   */
+  const [projectOwner] = useState(createProjectOwner);
+  const projectState = useSyncExternalStore(projectOwner.subscribe, projectOwner.snapshot);
+  /**
+   * Opens the selected project's runtime, and leaves it when the selection,
+   * the client or the stream changes, or the page goes.
+   *
+   * Every trigger reaches the one owner, so a switch, an unmount and Strict
+   * Mode's re-entry each withdraw the old runtime before anything else happens
+   * and retire it once; the next is published only after that retirement
+   * succeeded, and a retirement that fails leaves the owner fatal.
+   */
+  useEffect(() => {
+    if (selected === null) return;
+    void projectOwner.open(selected, { services: projectServices, subscribe });
+    return () => {
+      void projectOwner.leave();
+    };
+  }, [projectOwner, projectServices, selected, subscribe]);
   const toastApi = useToasts();
   /**
    * The rename in progress, or null while the picker is showing.
@@ -1203,14 +1232,28 @@ export function ProjectPage({
     </div>
   );
 
+  const header = (
+    <AppHeader
+      nav={nav}
+      project={projectControls}
+      presence={presence?.(roster)}
+      account={account}
+    />
+  );
+  if (projectState.status === 'fatal') {
+    // The project's runtime could not be given back, or built: the same sanitized
+    // report the page's own runtime shows, in place of the page's main, and no
+    // table drawn from services nobody owns.
+    return (
+      <>
+        {header}
+        <LifetimeFault fault={projectState.fault} />
+      </>
+    );
+  }
   return (
     <>
-      <AppHeader
-        nav={nav}
-        project={projectControls}
-        presence={presence?.(roster)}
-        account={account}
-      />
+      {header}
       {/*
         The rest of the window, and a column flex so the frame below can have
         what the toolbar does not. `min-h-0` is the load-bearing half: a flex
@@ -1229,24 +1272,27 @@ export function ProjectPage({
             {error}
           </p>
         )}
-        {selected !== null && (
+        {/* Drawn only while the owner publishes a runtime, and keyed by that
+        runtime's own project: in the render that moves the selection the owner
+        still publishes the previous project's, until the effect below withdraws
+        it, so the table stays the previous project's until then. */}
+        {projectState.status === 'live' && (
           <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
             <WbsTable
-              // Each project owns its rows and transient editor state.
-              // Proof: omitting this key left “Departed project row” in Name010
-              // in `starts a created project without the previous project’s row anchors`.
-              key={selected}
-              projectId={selected}
+              // Each project owns its rows and transient editor state. The owner
+              // usually publishes nothing between two projects' runtimes, which
+              // remounts the table by itself; the key is what keeps that true when
+              // the next runtime is drawn with no render in between.
+              key={projectState.services.projectId}
+              project={projectState.services}
               // The name the export's header and filename carry. Read from the
               // list rather than held twice: a rename lands in `projects` and the
               // next export says the new name.
               projectName={selectedProject?.name}
-              projectServices={projectServices}
               planImport={planImport}
               // Proof: omitting this page-owned API left the remounted table's
               // toast list empty after a successful import. Observed 2026-09-14.
               toastApi={toastApi}
-              subscribe={subscribe}
               // Rendered by the table only on a cards viewport, which is the
               // same answer `renderer` above gives — one hook, one store, so the
               // header's arm and this one are complementary and never both.

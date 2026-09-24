@@ -192,6 +192,8 @@ export function installProjectRuntime({
             projectId,
             readRefreshOwner,
             isActiveReader: isCurrent,
+            // Proof: on 2026-09-24, `() => undefined` here failed `rereads a marker refused because
+            // a peer already deleted it`: no toast was there to hold `no longer`.
             announceRefusal: refusals.publish,
           }),
       ),
