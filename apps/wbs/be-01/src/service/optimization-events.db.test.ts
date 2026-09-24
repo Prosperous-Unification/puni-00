@@ -88,6 +88,7 @@ describe('optimized outcome events', () => {
     let token = 0;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -140,6 +141,7 @@ describe('optimized outcome events', () => {
     let token = 0;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
@@ -241,6 +243,7 @@ describe('optimized outcome events', () => {
     let token = 0;
     const instance = new OptimizationCoordinator({
       db,
+      hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
       budgetMs: BUDGET,
