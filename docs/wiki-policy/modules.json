@@ -608,6 +608,195 @@
           { "kind": "path", "path": "tools/tool-dagger/src/main.ts" }
         ]
       }
+    },
+    {
+      "moduleId": "module.frontend.calendar-markers",
+      "name": "Calendar markers frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/calendar-markers",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/calendar-markers/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.directory",
+      "name": "Directory frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/directory",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/directory/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/directory-management/contract.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/directory-management/directory-management.feature.ts"
+          },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/directory-management/module.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.directory-management",
+      "name": "Directory management frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/directory-management",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/directory-management/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/directory/directory-page.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.plan-commands",
+      "name": "Plan commands frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/plan-commands",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/plan-commands/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/plan-live.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-estimate-drafts.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-fields.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-structure.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-reference-sets.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.plan-feed",
+      "name": "Plan feed frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/plan-feed",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/plan-feed/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.plan-writer",
+      "name": "Plan writer frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/plan-writer",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/plan-writer/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.preferences",
+      "name": "Preferences frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/preferences",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/preferences/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/gantt-detail.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/project-settings-modal.tsx"
+          },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/remembered-layout.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/remembered.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/theme.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/application-runtime.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/application-services-context.tsx" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.frontend.project",
+      "name": "Project frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/project",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/project/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/use-plan-read.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
+        ]
+      }
     }
   ]
 }

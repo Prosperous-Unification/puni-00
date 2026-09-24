@@ -570,3 +570,22 @@ and a module directory without a configuration of its own SHALL fail the target.
 
 - **WHEN** a directory under `src/modules` has no `tsconfig.json`
 - **THEN** `typecheck:module` fails, naming the missing configuration, and so does `typecheck`
+
+### Requirement: Every frontend module is a registered wiki module
+
+The README of every directory under fe-01's `src/modules` SHALL carry one `module-index` block
+declaring `module.frontend.<directory>` and naming every file of the directory but the README, with
+the module's own type check as its applicable check. Each SHALL be registered in the wiki's
+content-review pilot as one mapping row and one trusted boundary selecting that directory, bound to
+the file it was extracted from at the pilot's frozen source revision, and every row the pilot
+already held SHALL stay as it was.
+
+#### Scenario: A file added to a module its index does not name
+
+- **WHEN** a file is added to a module directory and the README's index does not name it
+- **THEN** the index check refuses the candidate, naming the README and the file
+
+#### Scenario: A module index the pilot does not map
+
+- **WHEN** a module's README carries an index and the pilot mapping has no row for it
+- **THEN** the pilot's lint refuses the candidate, naming the README
