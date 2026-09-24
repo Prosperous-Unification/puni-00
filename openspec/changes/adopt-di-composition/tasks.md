@@ -289,14 +289,35 @@
 ## 7. Ledger and closure
 
 - [ ] 7.1 Move each test with its owner and delete the re-export shims whose callers are gone.
-      `service-boundaries.test.ts`'s list is what decides when a shim may go.
-- [ ] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
-      suffix-declared path carries no entry, and a retained unsuffixed shim keeps one.
+      `service-boundaries.test.ts`'s list is what decides when a shim may go. **Open on 2026-09-24,
+      owned by a follow-up that retires the shims.** Every module moved its own unit tests, but
+      tests of moved code remain under `service/` and reach it through the shims, and `kinds.json`
+      still carries 33 shim rows naming a module. A module-specifier scan that day found no
+      importer of eight be-01 forwarding shims under `apps/wbs/be-01/src/service/`
+      (`assumed-assignee.ts`, `clean-name.ts`, `compensating.ts`, `dependency.ts`,
+      `directory-usage.ts`, `history.service.ts`, `optimizer-trigger-broadcaster.ts`,
+      `retention-timer.ts`). Deleting a shim is a code change with its own `kinds.json` rows and
+      checks, not a ledger entry; besides `service-boundaries.test.ts`, the be-01 `clock.test.ts`
+      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`.
+- [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
+      suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
+      2026-09-24 by evidence: both halves hold on this tree under
+      `tools/tool-devsync/src/service-kinds.test.ts`, and task 7.6 checks that every shim row naming
+      a module names the one whose files export what it re-exports. A moved file without a suffix
+      inside a module directory carries no row, because `SERVICE_ROOTS` does not scan `src/module`;
+      its module's README index names it instead, a known limit owned by the kind rules.
 - [ ] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
       type check the design names actually runs. Proof: the target fails on a module that breaks its
-      own contract.
-- [ ] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
-      tracked. Full K2 closure stays outside this change.
+      own contract. **Open on 2026-09-24, owned by a follow-up for the isolated module type
+      check:** eighteen module directories in two projects each need a configuration and a
+      watched negative, which is build configuration rather than a ledger entry.
+- [x] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
+      tracked. Full K2 closure stays outside this change. Recorded 2026-09-24 as `design.md`'s
+      "Layering debt ledger": per module, the K2 and K3 obligations its `contract.ts` states and
+      who closes them — the feature owners this change leaves outside its claim, a K3
+      resource-services follow-up, task 3.6's repository ports, Plan document's composition
+      export (it changes `AppOptions`) and task 6.1. The contracts' "tracked under task 7.4"
+      sentences resolve to that table.
 - [x] 7.5 Register each sealed module's directory as a wiki index: a `<!-- module-index -->` block
       naming every module file by path, and full membership in `docs/wiki-policy/modules.json`'s
       content-review pilot (a `modules.json` row matched one-to-one by a `policy.json` boundary).
@@ -399,3 +420,17 @@
       boundary needs either the pilot's `sourceRevision` moved forward or a documented exemption
       for a boundary with no predecessor, neither of which this packet decides; see
       `docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md`.
+- [x] 7.6 Label agreement: every sealed module's DI Bag label, the identifier its location implies,
+      its README index, its wiki pilot row and boundary, and every `kinds.json` shim row naming it
+      agree. Landed 2026-09-24 as `tools/tool-devsync/src/module-labels.test.ts`, which reads the
+      label from an installation of the one value `module.ts` exports, requires every private
+      binding to be named `<label>/<identifier>`, compares shim exports to module exports by
+      identity, and names Plan document and Plan import as the two unregistered modules, so a module
+      that skips task 7.5 now fails. Proof: twenty-four faults, each watched failing its named test
+      — among them Capacity's contract label renamed, which Capacity's own module tests did not
+      notice. Known limits, stated in the design's "Label agreement": a module that drops its label
+      and either spells `<label>/<key>` into a private key or installs an inner module sealed under
+      that label reads as labelled until di-bag exposes a label itself; a be-01 owner row rewritten
+      into the `@wbs/core directly` or `@wbs/runtime-portable directly` form is skipped until
+      forwarding rows are compared by identity against the library's index, the kind rules owning
+      the wording; and `apps/wbs/fe-01/src/modules` is outside this change.

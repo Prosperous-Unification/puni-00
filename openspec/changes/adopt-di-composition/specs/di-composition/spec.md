@@ -41,6 +41,14 @@ it lives under. The nine existing identifiers SHALL NOT change.
 - **THEN** Plan history is `module.application.plan-history` and Optimization is
   `module.backend.optimization`, and each label drops only the `module.` prefix
 
+#### Scenario: Everything that names a module agrees with its label
+
+- **GIVEN** a sealed module under the core's or be-01's module directory
+- **WHEN** its label is read from an installation, and its identifier from its README index, its
+  wiki pilot row and boundary, and every `kinds.json` shim row naming it
+- **THEN** each agrees with the identifier its location implies, and a module with no pilot
+  registration is one the change names
+
 ### Requirement: The bag is reachable only from a composition root
 
 A bag SHALL be built only by a module's own composition function or by a composition root, and the
