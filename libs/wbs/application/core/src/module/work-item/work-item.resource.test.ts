@@ -12,13 +12,13 @@ import type {
   ProjectStore,
   WorkItemStore,
   WriteStamp,
-} from '../index';
-import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
-import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
-import { testClock } from '../testing/clock-fixture';
-import { inMemoryServices } from '../testing/harness';
-import { workItemRow } from '../testing/work-item-fixture';
-import { poolsFor, type WorkItemServiceOptions } from './work-item.service';
+} from '../../index';
+import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
+import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
+import { testClock } from '../../testing/clock-fixture';
+import { inMemoryServices } from '../../testing/harness';
+import { workItemRow } from '../../testing/work-item-fixture';
+import { poolsFor, type WorkItemServiceOptions } from './work-item.resource';
 
 const OWNER = 'owner-account';
 const STRANGER = 'stranger-account';

@@ -102,17 +102,11 @@ function fixture() {
   const accountSource = openMemorySource();
   const source = accountlessSource(accountSource);
   const graph = composeServices({ source, runtime, shared: fixtureShared });
-  const runner = new PlanCommandRunner({
-    batchServices: graph.batch,
-    publicServices: graph,
-    uow: graph.uow,
-    announcements: graph.announcements,
-  });
   return {
     source,
     accountSource,
     graph,
-    runner,
+    runner: graph.commands,
     clock,
     runtime,
     pushed,
@@ -232,6 +226,33 @@ describe('composeServices', () => {
     ]);
     expect(refused.ok).toBe(false);
     expect((await graph.directory.listTeams()).map((team) => team.name)).toEqual(['Platform']);
+  });
+
+  /**
+   * Plan commands is installed once, where `composeServices` runs, and builds
+   * every batch over the scope that batch's own unit of work admits: the
+   * `Writing modules are installed per admitted scope` requirement, for the
+   * one feature whose batches are admitted.
+   */
+  test('installs Plan commands once, building every batch over its own admitted scope', async () => {
+    const { graph } = fixture();
+    const project = await graph.projects.create('Scoped', 'owner');
+
+    const refused = await graph.commands.run(project.project.id, 'owner', [
+      { kind: 'createTeam', name: 'Rolled back' },
+      {
+        kind: 'setEstimate',
+        workItemId: 'absent',
+        stepId: project.steps[0]?.id ?? 'absent-step',
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      },
+    ]);
+
+    expect(refused).toMatchObject({ ok: false, at: 1 });
+    // Proof (2026-09-24): handing Plan commands a batch factory over the process's own
+    // `source.stores` instead of `batch` left this test failing (0 pass, 1 fail, run alone with
+    // `-t`): the batch waited on the turn its own unit of work held and timed out after 5000ms.
+    expect(await graph.directory.listTeams()).toEqual([]);
   });
 
   /**
@@ -359,10 +380,17 @@ describe('composeServices', () => {
     expect(graphs[0]).not.toBe(graphs[1]);
     expect(graph.clock).toBe(clock);
     expect(graph.scheduler).toBe(runtime.scheduler);
-    expect(graphs.map(runtimeOf)).toEqual([
-      { clock, scheduler: runtime.scheduler, broadcast: broadcasts[0] },
-      { clock, scheduler: runtime.scheduler, broadcast: broadcasts[1] },
-    ]);
+    // Proof (2026-09-24): handing Work item `{ ...scheduler }` from its module's options factory
+    // left this test failing on `toBe` with "Received: serializes to the same string" (0 pass,
+    // 1 fail, run alone with `-t`); the `toEqual` over `graphs.map(runtimeOf)` it replaces had
+    // passed the same copy.
+    expect(graphs).toHaveLength(2);
+    for (const [index, services] of graphs.entries()) {
+      const seen = runtimeOf(services);
+      expect(seen.clock).toBe(clock);
+      expect(seen.scheduler).toBe(runtime.scheduler);
+      expect(seen.broadcast).toBe(broadcasts[index]);
+    }
   });
 
   test('discards a stale journal entry through the fresh repair scope', async () => {
@@ -490,5 +518,21 @@ describe('servicesOver', () => {
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope listed the first scope's `Operations` team.
     expect((await second.directory.listTeams()).map((team) => team.name)).toEqual(['Platform']);
+  });
+
+  test("installs Work item per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    expect(
+      await first.workItems.create(PROJECT, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Scope',
+      }),
+    ).toMatchObject({ ok: true });
+    // Proof (2026-09-24): memoizing one `installWorkItem(...)` result in a module-level `let` and
+    // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
+    // with `-t`): the second scope's tree listed the first scope's `Scope` work item.
+    expect(await second.workItems.tree(PROJECT)).toMatchObject({ workItems: [] });
   });
 });

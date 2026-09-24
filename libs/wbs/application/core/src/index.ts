@@ -26,6 +26,8 @@ export * from './module/capacity/contract';
 export * from './module/capacity/module';
 export * from './module/directory/contract';
 export * from './module/directory/module';
+export * from './module/plan-commands/contract';
+export * from './module/plan-commands/module';
 export * from './module/plan-document/contract';
 export * from './module/plan-document/module';
 export * from './module/plan-history/contract';
@@ -42,6 +44,8 @@ export * from './module/saved-plans/contract';
 export * from './module/saved-plans/module';
 export * from './module/step/contract';
 export * from './module/step/module';
+export * from './module/work-item/contract';
+export * from './module/work-item/module';
 export * from './ports/actual-store';
 // The owner-neutral marker read: `CalendarMarkerReader` and the list outcome it answers with.
 export * from './ports/calendar-marker-read';

@@ -12,6 +12,14 @@
       `ports/event-port-boundaries.test.ts` as its checked rule. The collector stays in
       `service/broadcast.ts` and moves with 5.2: `import.service.ts:148` builds one too, so Plan
       commands cannot own it privately before that module exists without a K6 feature-to-feature edge.
+      **Measured again 2026-09-24, with the Plan commands module landed (5.2): still open, and not
+      closable as written.** `module/plan-commands/plan-commands.feature.ts` and
+      `module/plan-import/plan-import.feature.ts` each build one `AnnouncementCollector` per
+      admitted act, so the collector is private to neither: moving it into Plan commands would make
+      Plan import import a sibling feature (K6), and a copy would be a second class definition. It
+      stays shared support in `service/broadcast.ts`, whose `kinds.json` disposition now says so.
+      Closing this needs a decision this change does not record: either an owner both admitting
+      features may import, or this task's wording changed to "shared per-admission support".
 - [x] 1.3 Change Plan document's marker read to an owner-neutral read port and move
       `CalendarMarkerListOutcome` out of the Calendar marker service file. Landed 2026-09-22 as
       `libs/wbs/application/core/src/ports/calendar-marker-read.ts`, with `CalendarMarkerReader` as the
@@ -160,7 +168,7 @@
 
 ## 5. The per-admission modules
 
-- [ ] 5.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
+- [x] 5.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
       Negative: two admitted batches sharing staged stores. Six of the seven landed 2026-09-24 as
       the `calendar-marker`, `capacity`, `directory`, `priority-band`, `project` and `step`
       directories under `libs/wbs/application/core/src/module/`, each a sealed resource module
@@ -174,10 +182,37 @@
       options binding exported, the label dropped and one real provider edge replaced. The same
       slices extend `apps/wbs/be-01/src/service/clock.test.ts`'s scan to every sealed core
       module's directory and add a Calendar marker row to `ports/sideways-type-boundaries.test.ts`,
-      both watched failing. **Not ticked:** Work item (`service/work-item.service.ts`, 4598
-      lines, fifteen requirements) is still constructed with `new` inside `servicesOver`; packet
-      E8 seals and installs it and ticks this task.
-- [ ] 5.2 Plan commands, with Working plan and the announcement collector private to it.
+      both watched failing. The seventh, Work item, landed 2026-09-24 as
+      `libs/wbs/application/core/src/module/work-item/`: the moved `work-item.resource.ts` and its
+      98-test `work-item.resource.test.ts`, a module over fifteen requirements (twelve stores under
+      `<name>Store` host keys, the broadcaster, the scheduler and the clock), and
+      `servicesOver` installing it through `installWorkItem` on every call; the former path is a
+      compatibility re-export shim and its `kinds.json` row is rewritten in place (93 entries).
+      Proof: the same memo fault failed its own `compose.test.ts` case, and the module has the same
+      five negatives, its provider edge being the broadcaster. `clock.test.ts`'s `coreWorkItems`
+      now names the moved file, watched failing on the shim first. No `servicesOver` resource is
+      constructed with `new` any more.
+- [ ] 5.2 Plan commands, with Working plan and the announcement collector private to it. Plan
+      commands and Working plan landed 2026-09-24 as
+      `libs/wbs/application/core/src/module/plan-commands/`: the moved `plan-commands.feature.ts`,
+      its use case `run-command-batch.ts` and its private `command-bindings.ts`, a module exporting
+      only `commands`, and `composeServices` installing it once as `commands` over the per-batch
+      `batch` factory; `service/plan-commands.ts`, `service/command-bindings.ts` and
+      `use-cases/run-command-batch.ts` are compatibility re-export shims and their `kinds.json`
+      rows are rewritten in place. The Working plan is private to the module as
+      `working-plan.resource.ts` with its five implementation files, which keep no former path
+      (their five `kinds.json` rows are removed, 93 to 88 entries); `service/working-plan.ts` stays
+      a shim only because `@wbs/core`'s barrel exports `createWorkingPlan` to one SQLite database
+      test. Proof: the module's own tests; negatives for the installer leaking its bag, its
+      resolver leaking through the returned runner, the private `planCommandOptions` binding
+      exported, the label dropped, the supplied broadcaster replaced, and every batch handed the
+      direct broadcaster instead of its own collector; `compose.test.ts`'s own case failed when
+      the installed runner was handed a factory over the process's stores instead of each
+      admitted scope; three `ports/sideways-type-boundaries.test.ts` rows follow
+      `run-command-batch.ts` out of `use-cases/`, each watched failing. **Not ticked:** the
+      announcement collector is not private to Plan commands (see 1.2), and be-01's
+      `mountedEndpoints` still constructs its own `PlanCommandRunner` (the map's composition
+      hazard, tracked under 7.4).
 
 ## 6. Domain moves the map names
 
@@ -267,6 +302,14 @@
       `docs/wiki-policy/policy.json` boundary `boundary.application.<name>`, each using a
       `sourceSelector` bound to that module's own pre-namespacing `<name>.service.ts` predecessor
       alone; the moved `calendar-marker.resource.test.ts` has no separate baseline entry.
+      Landed again 2026-09-24 for Work item, the seventh resource of task 5.1, as
+      `module.application.work-item` and `boundary.application.work-item`, bound to the
+      pre-namespacing `work-item.service.ts` alone; the moved `work-item.resource.test.ts` has no
+      separate baseline entry.
+      Landed again 2026-09-24 for Plan commands (task 5.2) as `module.application.plan-commands`
+      and `boundary.application.plan-commands`, bound to the pre-namespacing `plan-commands.ts`
+      alone; `run-command-batch.ts`'s own predecessor stays in `boundary.application.use-cases`'s
+      baseline, and the other moved files have no separate baseline entry.
       **Not landed for Plan document (task 4.1)**, for Plan import's reason below:
       `libs/core/src/service/plan-document.ts` was introduced at commit `8c34a33f` and renamed
       `R100` at `7c5dee9e`, both after the pilot's frozen `sourceRevision`.

@@ -8,6 +8,8 @@ import type { RetentionTimer } from './module/bounded-replay-sweep/retention-tim
 import { installCalendarMarker } from './module/calendar-marker/check';
 import { installCapacity } from './module/capacity/check';
 import { installDirectory } from './module/directory/check';
+import { installPlanCommands } from './module/plan-commands/check';
+import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import { installPlanImport } from './module/plan-import/check';
@@ -21,6 +23,7 @@ import type { ReplayOrchestrator } from './module/realtime/replay-orchestrator';
 import { installSavedPlans } from './module/saved-plans/check';
 import type { SavedPlanService } from './module/saved-plans/saved-plans.feature';
 import { installStep } from './module/step/check';
+import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
@@ -32,7 +35,6 @@ import type { PlanTransactionalStores, TransactionalStores } from './ports/store
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
-import { WorkItemService } from './service/work-item.service';
 
 /** Runtime capabilities required by every service composition. */
 export interface RuntimePorts {
@@ -117,7 +119,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
-    workItems: new WorkItemService({
+    workItems: installWorkItem({
       clock,
       workItems: stores.workItems,
       projects: stores.projects,
@@ -133,7 +135,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       journal: stores.journal,
       broadcast,
       scheduler,
-    }),
+    }).workItems,
   };
 }
 
@@ -153,6 +155,13 @@ interface CommonServices extends WritingServices {
   readonly replay: ReplayOrchestrator;
   readonly retention: RetentionTimer;
   readonly imports: ImportService;
+  /**
+   * Plan commands, installed once for the process over {@link batch}: every
+   * batch it runs builds its own graph over the scope its own unit of work
+   * admits. be-01's `mountedEndpoints` does not read this yet and constructs a
+   * second, stateless `PlanCommandRunner` over the same values (task 7.4).
+   */
+  readonly commands: PlanCommandRunner;
 }
 
 export type AccountlessServices = CommonServices;
@@ -248,6 +257,12 @@ export function composeServices(
       announcements,
       batchServices: batch,
     }).imports,
+    commands: installPlanCommands({
+      batchServices: batch,
+      publicServices,
+      uow: source.uow,
+      announcements,
+    }).commands,
     history: installPlanHistory({
       projectStore: source.stores.projects,
       planEventStore: source.stores.planEvents,

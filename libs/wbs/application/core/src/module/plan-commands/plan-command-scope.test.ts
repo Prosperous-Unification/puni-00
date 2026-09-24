@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { Broadcaster } from '../ports/project-event';
-import type { PlanTransactionalStores } from '../ports/stores';
-import type { Decision, Scope, UnitOfWork } from '../ports/unit-of-work';
-import { PlanCommandRunner, type PlanCommandServices } from './plan-commands';
+import type { Broadcaster } from '../../ports/project-event';
+import type { PlanTransactionalStores } from '../../ports/stores';
+import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import { PlanCommandRunner, type PlanCommandServices } from './plan-commands.feature';
 
 interface JournalEntry {
   id: string;

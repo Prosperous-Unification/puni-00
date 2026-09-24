@@ -1,4 +1,4 @@
-import type { WorkItemStore } from '../ports/work-item-store';
+import type { WorkItemStore } from '../../ports/work-item-store';
 
 interface RetainedWorkItemReads {
   all(): ReturnType<WorkItemStore['listByProject']>;
