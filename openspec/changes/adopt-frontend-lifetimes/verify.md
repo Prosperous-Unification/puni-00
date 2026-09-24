@@ -1759,3 +1759,52 @@ entry was written.
 
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
+
+## Packet 050.7h, slice 2 — the table's hooks, toolbar and columns write through the project's commands
+
+Attempt `050-7-h-project-api-ports.2.20260924T063902Z`, starting at
+`36c499d48c761f74e902032612be957123952b8d` (slice 1's planner commit), with an empty status
+(`base.txt`, `status-before.txt`). Every test command ran with `CLAUDECODE` and
+`CLAUDE_CODE_ENTRYPOINT` unset.
+
+Baselines, before any edit: preferences 4 files, 39 tests (`base-preferences.log`); sandbox node
+suite 51 files, 687 tests (`base-sandbox.log`); the twenty adopted files, serial, 20 files, 1215
+tests (`s2-base-adopted.log`); zoned (Auckland) 2 files, 3 tests (`s2-base-zoned.log`); strict
+OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`). Every one `status=0`.
+
+The scenario "The table's gestures write through the project's commands" was applied first; the
+strict block then read `{"items":114,"passed":114,"failed":0}`, exit 0
+(`openspec-s2-contract.*.json`).
+
+No red checkpoint, by design: this slice adds and edits no test. The table still takes the client and
+composes over it, so the adopted set is the oracle, unchanged.
+
+Section 7.5's diff applied cleanly (`git apply --check`, then `git apply`). The markers memo script
+printed exactly `markers memo rewritten, 3 comment lines kept`, exit 0 (`s2-markers-memo.txt`): three
+`//` lines, the `Proof:` comment packet g's slice 5 wrote above `announceRefusal`, were kept unchanged.
+The packet's rehearsal base had 0 lines there.
+
+Green: `wbs-fe-01:typecheck` `status=0` (`s2-green-typecheck.log`); adopted 20 files, 1215 tests,
+unchanged (`s2-green-adopted.log`); zoned 2 files, 3 tests (`s2-green-zoned.log`); sandbox 51 files,
+687 tests, unchanged (`s2-green-sandbox.log`). `wbs-fe-01:lint` `status=0` (`s2-lint.log`).
+
+Proof `d1`: the filter matched exactly one test. With `isCurrent` in `dependOn` replaced by
+`() => true` (`d1.patch`), `plan-read-and-write.test.tsx` › `keeps an old dependency-list refusal out
+of its busy API replacement` failed, `Tests 1 failed | 87 skipped (88)`, `status=1`, on
+`expect(element).toHaveAttribute("aria-busy", "true")`: the old client's answer lowered the
+replacement's busy state (`d1.log`). Restored, compared with `cmp`, rerun green `1 passed | 87 skipped
+(88)` (`d1.green.log`). The `Proof:` comment was written above that line after the observation.
+
+Final: `plan-read-and-write.test.tsx` alone 88 tests (`s2-final-read.log`); preferences 4 files, 39
+tests (`s2-final-preferences.log`); sandbox 51 files, 687 tests (`s2-final-sandbox.log`); each
+`status=0`. Owned-file Prettier and the strict OpenSpec block were run after this entry was written.
+
+Accepted residual: four stale-client guards in `use-plan-read.ts` changed operand from the client
+to the composition without a production-path negative: the feed's `isActiveReader`,
+`refreshResourcesOrMarkStale`'s guard, the markers' `isActiveReader` and `stepStack`'s `isCurrent`.
+No existing test reaches the window between a commit that installs new services and the passive
+effect that retires the old feed. Task 11 ("a stale completion changes nothing") owns the test that
+opens it.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.

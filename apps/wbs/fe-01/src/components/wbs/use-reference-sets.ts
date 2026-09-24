@@ -7,7 +7,8 @@ import { useCallback, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { PersonView, ServiceView, TagView, TeamView } from '@/lib/wbs-api';
-import { type EstimateMethod, type ProjectApi } from '@/lib/wbs-api';
+import { type EstimateMethod } from '@/lib/wbs-api';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { type ExternalRefDraft } from './external-refs-modal';
 import {
@@ -371,22 +372,14 @@ export function usePlanLabels({
  * reference cell does and they refuse differently — a replace can lose a race,
  * a create can collide on a name.
  */
-export function useReferenceSets({
-  run,
-  api,
-  projectId,
-}: {
-  run: RunPlanWrite;
-  api: ProjectApi;
-  projectId: string;
-}) {
+export function useReferenceSets({ run, commands }: { run: RunPlanWrite; commands: PlanCommands }) {
   /** Replaces a work item's own team set, whole. */
   const setTeamOf = useCallback(
     (id: string, teamIds: readonly string[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(['tree'], () => api.patchWorkItem(id, { teamIds: [...teamIds] })),
+        write.perform(['tree'], () => commands.patchWorkItem(id, { teamIds: [...teamIds] })),
       ),
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -408,9 +401,9 @@ export function useReferenceSets({
   const setServicesOf = useCallback(
     (id: string, serviceIds: readonly string[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(['tree'], () => api.patchWorkItem(id, { serviceIds: [...serviceIds] })),
+        write.perform(['tree'], () => commands.patchWorkItem(id, { serviceIds: [...serviceIds] })),
       ),
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -423,8 +416,10 @@ export function useReferenceSets({
    */
   const setTagsOf = useCallback(
     (id: string, tagIds: readonly string[]): Promise<CommitOutcome> =>
-      run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { tagIds: [...tagIds] }))),
-    [api, run],
+      run((write) =>
+        write.perform(['tree'], () => commands.patchWorkItem(id, { tagIds: [...tagIds] })),
+      ),
+    [commands, run],
   );
 
   /** Adds a team nobody had yet and appends it to the work item's whole set. */
@@ -437,12 +432,12 @@ export function useReferenceSets({
         // left its mounted picker at one tree read instead of seven and hid
         // the created option after attachment refusal. Watched in `keeps a new
         // $name visible when its assignment refuses`, 2026-09-14.
-        const team = await write.perform(['tree', 'directory'], () => api.addTeam(name));
+        const team = await write.perform(['tree', 'directory'], () => commands.addTeam(name));
         await write.perform(['tree'], () =>
-          api.patchWorkItem(id, { teamIds: [...current, team.id] }),
+          commands.patchWorkItem(id, { teamIds: [...current, team.id] }),
         );
       }),
-    [api, run],
+    [commands, run],
   );
 
   /** Adds a service nobody had yet and labels the work item with it, in one go. */
@@ -450,12 +445,12 @@ export function useReferenceSets({
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async (write) => {
         // Proof: see the mounted five-family mutation at {@link createTeamFor}.
-        const service = await write.perform(['tree', 'directory'], () => api.addService(name));
+        const service = await write.perform(['tree', 'directory'], () => commands.addService(name));
         await write.perform(['tree'], () =>
-          api.patchWorkItem(id, { serviceIds: [...current, service.id] }),
+          commands.patchWorkItem(id, { serviceIds: [...current, service.id] }),
         );
       }),
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -476,19 +471,19 @@ export function useReferenceSets({
     (id: string, refs: readonly ExternalRefDraft[]): Promise<CommitOutcome> =>
       run((write) =>
         write.perform(['tree'], () =>
-          api.patchWorkItem(id, { externalRefs: refs.map((ref) => ({ ...ref })) }),
+          commands.patchWorkItem(id, { externalRefs: refs.map((ref) => ({ ...ref })) }),
         ),
       ),
-    [api, run],
+    [commands, run],
   );
 
   /** The whole type set, replaced — `setTagsOf`'s shape and signature. */
   const setTypesOf = useCallback(
     (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(['tree'], () => api.patchWorkItem(id, { typeIds: [...typeIds] })),
+        write.perform(['tree'], () => commands.patchWorkItem(id, { typeIds: [...typeIds] })),
       ),
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -506,13 +501,13 @@ export function useReferenceSets({
         // up on one type rather than two.
         // Proof: see the mounted five-family mutation at {@link createTeamFor}.
         const workItemType = await write.perform(['tree', 'directory'], () =>
-          api.addWorkItemType(name),
+          commands.addWorkItemType(name),
         );
         await write.perform(['tree'], () =>
-          api.patchWorkItem(id, { typeIds: [...current, workItemType.id] }),
+          commands.patchWorkItem(id, { typeIds: [...current, workItemType.id] }),
         );
       }),
-    [api, run],
+    [commands, run],
   );
 
   /** Adds a tag nobody had yet and labels the work item with it, in one go. */
@@ -520,19 +515,21 @@ export function useReferenceSets({
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async (write) => {
         // Proof: see the mounted five-family mutation at {@link createTeamFor}.
-        const tag = await write.perform(['tree', 'directory'], () => api.addTag(name));
+        const tag = await write.perform(['tree', 'directory'], () => commands.addTag(name));
         await write.perform(['tree'], () =>
-          api.patchWorkItem(id, { tagIds: [...current, tag.id] }),
+          commands.patchWorkItem(id, { tagIds: [...current, tag.id] }),
         );
       }),
-    [api, run],
+    [commands, run],
   );
 
   const assignTo = useCallback(
     (id: string, stepId: string, personId: string | null) => {
-      void run((write) => write.perform(['tree'], () => api.assignPerson(id, stepId, personId)));
+      void run((write) =>
+        write.perform(['tree'], () => commands.assignPerson(id, stepId, personId)),
+      );
     },
-    [api, run],
+    [commands, run],
   );
 
   /**
@@ -549,20 +546,20 @@ export function useReferenceSets({
       void run(async (write) => {
         // Proof: see the mounted five-family mutation at {@link createTeamFor}.
         const person = await write.perform(['tree', 'directory'], () =>
-          api.addPerson(name, row.teamIds),
+          commands.addPerson(name, row.teamIds),
         );
-        await write.perform(['tree'], () => api.assignPerson(row.id, stepId, person.id));
+        await write.perform(['tree'], () => commands.assignPerson(row.id, stepId, person.id));
       });
     },
-    [api, run],
+    [commands, run],
   );
 
   /** Changes how the project turns its trios into one number, for everybody. */
   const chooseEstimateMethod = useCallback(
     (method: EstimateMethod) => {
-      void run((write) => write.perform(['tree'], () => api.setEstimateMethod(projectId, method)));
+      void run((write) => write.perform(['tree'], () => commands.setEstimateMethod(method)));
     },
-    [api, projectId, run],
+    [commands, run],
   );
   return {
     setTeamOf,
