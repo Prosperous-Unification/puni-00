@@ -1721,3 +1721,74 @@ is pinned` failed with `historical policy selector or baseline` 63 to 65, `occur
   failed (`slice3-openspec-after.json`); `M=19`, `B=19`. The whole
   `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
   objects).
+
+### Plan commands, Slice 1 — 2026-09-24
+
+- The slice started from `base=a726b701b8619cacdeead282317a565c0b97ebae` on a clean tree, with
+  `module/plan-commands/` absent, E8's `module/work-item/check.ts` present,
+  `service/plan-commands.ts` at 393 lines, `use-cases/run-command-batch.ts` at 31,
+  `service/command-bindings.ts` at 545, one `AnnouncementCollector` class in
+  `service/broadcast.ts`, no `new PlanCommandRunner(` in `compose.ts`, and `K=93` `kinds.json`
+  entries (`slice1-step0.log`).
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`): core `bun test src` passed `C=619` over `F=67` files
+  (`slice1-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice1-be01-unit-baseline.log`); the
+  `compose.ts` bundle built with exit 0 and held `application.plan-commands count=0 (grep exit 1)`
+  (row 2, `slice1-compose-bundle-red.log`).
+- Row 1: the new `module/plan-commands/module.test.ts` failed with
+  `error: Cannot find module './check'`, 0 pass, 1 fail, 1 error (`slice1-row1-module-red.log`).
+- Row 3: after the `cp`, the `mv`, 10.2's import diff, 10.3's shims and 10.4's module files, the
+  module directory passed 41 tests, 0 fail, 159 `expect()` calls over 4 files
+  (`slice1-row3-module-green.log`).
+- Row 4: after 10.5 (`index.ts`, four `kinds.json` rows), the sideways suite passed, 1 pass, 0 fail
+  (`slice1-row4-sideways.log`).
+- Row 11, the gap: with the move made and no module rows, `import '../../service/auth.service';`
+  prepended to `module/plan-commands/run-command-batch.ts` left the sideways suite passing, 1 pass,
+  0 fail (`row11-gap-auth-shim`). After 10.6's three rows the unmutated suite passed, 1 pass
+  (row 15, `slice1-row15-sideways.log`); lint and typecheck of both projects exited 0
+  (`slice1-step6-lint-typecheck.log`).
+- Faults, each restored with `cp` and proved with `cmp` before the next; patch and log under the
+  same basename:
+  - Row 5, tuple widened to `['commands', 'planCommandOptions']` (`row5-tuple`): 3 pass, 3 fail —
+    `Received function did not throw`; `Expected to contain:
+"application.plan-commands/planCommandOptions"`; message
+    `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "planCommandOptions"`.
+  - Row 6, label dropped (`row6-label`): 4 pass, 2 fail — the two label tests; the private-binding
+    test stayed green.
+  - Row 7, drain: the returned object's `announcements,` replaced by
+    `announcements: { ...announcements, publish: () => Promise.resolve() },` (`row7-drain`):
+    `drains a committed batch into the broadcaster installPlanCommands wires` failed, expected
+    `[{ "event": { "type": "capacity_changed" }, "projectId": "project-1" }]`, received `[]`;
+    5 pass, 1 fail.
+  - Row 8, collector: the returned object's `batchServices,` replaced by
+    `batchServices: (scope) => batchServices(scope, announcements),` (`row8-collector`):
+    `hands every batch its own collector, never the direct broadcaster` failed with
+    `expect(received).not.toBe(expected)` at `expect(handed[0]).not.toBe(handed[1])`; 5 pass,
+    1 fail; `wbs-core:typecheck` exit 0 on the mutated tree (`row8-collector.typecheck.log`).
+  - Row 9, `bag` exposed (`row9-bag`): `exposes only the contract exports from its installer`
+    failed with received keys adding `"bag"` (`Expected  - 0`, `Received  + 1`); 5 pass, 1 fail;
+    `wbs-core:typecheck` exit 0 (`row9-bag.typecheck.log`).
+  - Row 10, `resolve` attached (`row10-resolver`): the same test failed at `Expected: true`,
+    `Received: false`; 5 pass, 1 fail; `wbs-core:typecheck` exit 0
+    (`row10-resolver.typecheck.log`).
+  - Row 12 (`row12-auth-shim`): the sideways suite failed with exactly
+    `"module/plan-commands/run-command-batch.ts: '../../service/auth.service' reaches service/auth.service.ts"`;
+    0 pass, 1 fail.
+  - Row 13 (`row13-auth-feature`): exactly
+    `"module/plan-commands/run-command-batch.ts: '../authentication/authentication.feature' reaches module/authentication/authentication.feature.ts"`;
+    0 pass, 1 fail.
+  - Row 14 (`row14-endpoint`): exactly
+    `"module/plan-commands/run-command-batch.ts: '../../http/endpoint' reaches http/endpoint.ts"`;
+    0 pass, 1 fail.
+- 10.7's Proof comments followed the restores. Filesystem substitute for the planner's
+  `service-kinds.test.ts`: `93 []` (`slice1-kinds-substitute.log`).
+- Closing: core `bun test src` passed `C + 6 = 625` over `F + 1 = 68` (`slice1-closing-core.log`);
+  the be-01 unit set passed `E = 520` over `EF = 49` (`slice1-closing-be01-unit.log`); lint and
+  typecheck of both projects exited 0 (`slice1-closing-lint-typecheck.log`); be-01's
+  `clock.test.ts` passed 4 (`slice1-closing-clock.log`); `module/plan-commands/` holds eleven
+  files; `nx format:check --all` exited 0 (`slice1-closing-format.log`).
+- The announcement collector stays in `service/broadcast.ts` as an implementation of the neutral
+  `Broadcaster` port shared by the two admitting features, barred from either by K6: Plan import
+  builds one too (task 1.2); be-01's `mountedEndpoints` still constructs `PlanCommandRunner`
+  directly (tracked under 7.4).

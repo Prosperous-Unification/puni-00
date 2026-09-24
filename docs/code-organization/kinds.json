@@ -241,8 +241,8 @@
     {
       "path": "libs/wbs/application/core/src/service/broadcast.ts",
       "kind": "support",
-      "disposition": "Plan commands' batch announcement collector; move it there with task 5.2",
-      "rationale": "import.service.ts and plan-commands.ts collect announcements through it, and the event contracts it re-exports for compatibility now live in ports/project-event.ts"
+      "disposition": "an implementation of the neutral Broadcaster port shared by the two admitting features, Plan commands and Plan import; barred from either feature by K6; its end state is beside that port under ports/",
+      "rationale": "the Plan commands and Plan import features each build one AnnouncementCollector per admitted act over the Broadcaster port of ports/project-event.ts, so a private owner would give the other a feature-to-feature edge; the event contracts it re-exports for compatibility live in that port"
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",
@@ -263,8 +263,7 @@
     {
       "path": "libs/wbs/application/core/src/service/command-bindings.ts",
       "kind": "support",
-      "disposition": "private member of plan-commands.ts",
-      "rationale": "plan-commands.ts is its only production importer and uses its bindings and command context to dispatch the batch runner's admitted service graph"
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
@@ -335,9 +334,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/plan-commands.ts",
-      "kind": "feature",
-      "capability": "wbs-domain",
-      "rationale": "run-command-batch and work-item routes call it to own UnitOfWork and coordinate directory, capacity, priority-band and work-item services for one admitted command batch, the user-facing batch behaviour specified by the archived 2026-08-30-plan-commands requirement group"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/plan-document.ts",
@@ -488,9 +486,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts",
-      "kind": "feature",
-      "capability": "wbs-domain",
-      "rationale": "workItemRoutes and the portable composition call it to enforce write-scope admission before coordinating project or directory command batches through PlanCommandRunner for the same archived 2026-08-30-plan-commands requirement group"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/save-plan.ts",
