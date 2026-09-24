@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 49,
+      'historical policy selector or baseline': 51,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -822,8 +822,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // naming the pre-move `libs/core/src/service/saved-plan.service.ts` this module was extracted
     // from; raised `historical policy selector or baseline` from 47 to 49 and occurrences from 265
     // to 267, no unclassified entries (2026-09-23).
-    digest: '86721c9c2457e04146bd4db56db16869936be5a012fddc671bf2e39989c23d0f',
-    occurrences: 267,
+    // Proof: registering `module.backend.solver-launcher` added its
+    // `boundary.backend.solver-launcher`'s `sourceSelector` and one `baselineEntries` path, both
+    // naming the pre-namespacing `apps/be-01/src/service/solver-launcher-process.ts` this module
+    // was extracted from; raised `historical policy selector or baseline` from 49 to 51 and
+    // occurrences from 267 to 269, no unclassified entries (2026-09-23).
+    digest: '113681cd7a2c98566f565cca8176456eb50fb453b6fb94ce5bf3f611a0d576bb',
+    occurrences: 269,
     unclassified: [],
   });
 });

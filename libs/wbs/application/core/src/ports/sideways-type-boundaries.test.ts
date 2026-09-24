@@ -139,6 +139,20 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * Proof (2026-09-23): independently prepending `import '../../http/endpoint';` to the same
  * file failed this suite with exactly one violation, `"module/saved-plans/save-plan.ts:
  * '../../http/endpoint' reaches http/endpoint.ts"` (0 pass, 1 fail).
+ *
+ * The eighteenth row is the fifth row re-scoped to the Plan document module's
+ * own directory once `plan-document.ts` moved to
+ * `module/plan-document/plan-document.resource.ts`: the fifth row's
+ * `path === 'service/plan-document.ts'` now names only the compatibility shim,
+ * so the moved resource, and every other file of its module, would otherwise
+ * be free to read markers through the Calendar marker resource again.
+ *
+ * Proof (2026-09-23): prepending the bare import
+ * `import '../../service/calendar-marker.service';` to
+ * `module/plan-document/plan-document.resource.ts` failed this suite with exactly one
+ * violation, `"module/plan-document/plan-document.resource.ts:
+ * '../../service/calendar-marker.service' reaches service/calendar-marker.service.ts"`
+ * (0 pass, 1 fail); with this row deleted the same import left the suite passing (1 pass).
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -202,6 +216,10 @@ const routes = [
   {
     reaches: 'http/endpoint.ts',
     from: (path: string) => path.startsWith('module/saved-plans/'),
+  },
+  {
+    reaches: 'service/calendar-marker.service.ts',
+    from: (path: string) => path.startsWith('module/plan-document/'),
   },
 ] as const;
 

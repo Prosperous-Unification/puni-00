@@ -1,8 +1,8 @@
 import { planDocumentResponse, validateSchema, type WorkItemTree } from '@wbs/contracts';
 import { expect, test } from 'bun:test';
 
-import type { CalendarMarker, DirectoryStore, Project } from '../index';
-import { classifyPlanDocument, PlanDocumentService } from './plan-document';
+import type { CalendarMarker, DirectoryStore, Project } from '../../index';
+import { classifyPlanDocument, PlanDocumentService } from './plan-document.resource';
 
 const PROJECT: Project = {
   id: 'project-1',

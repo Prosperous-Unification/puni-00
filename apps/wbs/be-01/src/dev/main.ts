@@ -16,7 +16,7 @@ import { createLogger } from '@wbs/observability';
 import { bootBe01 } from '../boot';
 import { loadConfig } from '../config';
 import { oidcRouteOptionsFromEnv } from '../controller/oidc-options';
-import { readRuntimeSolverVersion } from '../service/solver-launcher-process';
+import { installSolverLauncher } from '../module/solver-launcher/check';
 import {
   createLocalSolverSpawner,
   localSolverCapabilities,
@@ -61,7 +61,9 @@ try {
     version: process.env['VERSION'],
     migrateOnStartup: process.env['MIGRATE_ON_STARTUP'] === 'true',
     optimizer: {
-      solverVersion: readRuntimeSolverVersion(process.env.NODE_ENV),
+      solverVersion: installSolverLauncher({}).solverLauncher.readRuntimeVersion(
+        process.env.NODE_ENV,
+      ),
       budgetMs: cfg.SOLVER_BUDGET_MS,
       spawn: createLocalSolverSpawner({
         binDirectory,

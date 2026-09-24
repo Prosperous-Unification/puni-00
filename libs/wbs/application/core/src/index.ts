@@ -20,6 +20,8 @@ export * from './module/authentication/contract';
 export * from './module/authentication/module';
 export * from './module/bounded-replay-sweep/contract';
 export * from './module/bounded-replay-sweep/module';
+export * from './module/plan-document/contract';
+export * from './module/plan-document/module';
 export * from './module/plan-history/contract';
 export * from './module/plan-history/module';
 export * from './module/plan-import/contract';
