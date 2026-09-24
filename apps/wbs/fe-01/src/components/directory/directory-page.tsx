@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/modal';
 import { CreatablePicker } from '@/components/wbs/creatable-picker';
 import {
-  type DirectoryApi,
   type DirectoryEffect,
   directoryRefusalSentence,
   type DirectoryUsage,
@@ -24,13 +23,12 @@ import {
   type ServiceView,
   type TeamView,
 } from '@/lib/wbs-api';
-import type { DirectoryKind } from '@/modules/directory-management/contract';
+import type { DirectoryKind, DirectoryManagement } from '@/modules/directory-management/contract';
 import { useDirectoryManagement } from '@/modules/directory-management/view/use-directory-management';
 
 export interface DirectoryPageProps {
-  token: string;
-  /** Injected in tests; the app lets it default to the real one. */
-  api?: DirectoryApi;
+  /** The signed-in session's directory, from router context. */
+  directory: DirectoryManagement;
   /** The two-page navigation, from router context. */
   nav?: ReactNode;
   /** The account menu, from router context. */
@@ -174,8 +172,8 @@ const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_inpu
  * from what came back, so a refused change leaves the screen as it was with the
  * refusal on it.
  */
-export function DirectoryPage({ token, api: apiOverride, nav, account }: DirectoryPageProps) {
-  const { management, shown } = useDirectoryManagement(token, apiOverride);
+export function DirectoryPage({ directory: management, nav, account }: DirectoryPageProps) {
+  const shown = useDirectoryManagement(management);
   const { people, teams, tags, services, workItemTypes, busy, problem } = shown;
 
   const [newTag, setNewTag] = useState('');

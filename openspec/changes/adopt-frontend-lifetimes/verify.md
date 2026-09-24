@@ -2056,3 +2056,188 @@ edit and are reported with the attempt.
 `wbs-fe-01:test` (UTC + 1 test expected), `wbs-fe-01:test:unit` (unchanged expected),
 `wbs-fe-01:build`, `wbs-fe-01:e2e` (every spec that opens a project, then unfiltered),
 `tool-devsync:test`, and the host gate `bin/h2puni-gate.sh` — none can run in the executor sandbox.
+
+## Packet 050.7i, slice 1 — the session runtime, its owner and the directory-management module
+
+Attempt `050-7-i-session-runtime.1.20260924T183653Z`, starting hash
+`6128153ccebd97817db76ebb74079c6c1a379ebe`, clean tree (`status-before.txt` empty). Every Vitest run
+under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; every Nx command with `NX_DAEMON=false`.
+Evidence names are relative to the attempt's evidence directory.
+
+### Baselines (step 0)
+
+- Step 0b: 9 patches and 24 fault patches extracted from the packet.
+- Preferences suite 4 files, 39 tests; sandbox node suite 53 files, 695 tests; session set (serial)
+  3 files, 59 tests; each `status=0` (`base-preferences.log`, `base-sandbox.log`,
+  `base-session.log`).
+- Strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+### Contract first (section 7.1)
+
+The requirement and its first scenario applied; strict OpenSpec exit 0,
+`{"items":114,"passed":114,"failed":0}`.
+
+### Red checkpoint (after section 7.2, before section 7.3)
+
+`wbs-fe-01:typecheck` `status=1`, `Found 34 errors in 5 files.` (15 in `module.test.ts`, 11 × TS2554
+in `directory.resource.test.ts`, 1 × TS2554 in `directory-management.feature.test.ts`, 6 in
+`session-runtime.model.test.ts` — 1 × TS2307, 5 × TS7006 — and 1 in `session-runtime.test.ts`),
+including:
+
+```text
+apps/wbs/fe-01/src/modules/directory-management/module.test.ts:7:43 - error TS2307: Cannot find module './module' or its corresponding type declarations.
+apps/wbs/fe-01/src/modules/directory/directory.resource.test.ts:12:42 - error TS2554: Expected 1 arguments, but got 2.
+apps/wbs/fe-01/src/runtime/session-runtime.model.test.ts:18:8 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
+apps/wbs/fe-01/src/runtime/session-runtime.test.ts:11:59 - error TS2307: Cannot find module './session-runtime' or its corresponding type declarations.
+```
+
+Vitest over the three new suites `status=1`, `Test Files 3 failed (3)`, `Tests no tests`, on
+`Failed to resolve import "./session-runtime"` (twice) and `Failed to resolve import "./module"`
+(`s1-red-typecheck.log`, `s1-red-vitest.log`).
+
+### Green checkpoint (after section 7.3)
+
+- `wbs-fe-01:typecheck` `status=0`.
+- Runtime set (the two session suites, `modules/directory-management`, `modules/directory`), serial:
+  5 files, 37 tests, `status=0`.
+- `src/test-tiers.test.ts`: 1 file, 5 tests, `status=0`.
+- Sandbox node suite: 56 files, 708 tests, `status=0` — step 0 plus 3 files and 13 tests.
+- `wbs-fe-01:lint` `status=0`, before and after the Proof comments.
+
+### Proofs, each observed failing before its comment was written
+
+Every filter first matched exactly one test (`proof-filters.txt`). Each fault was applied from its
+patch, its named test run (`status=1`), the file restored and compared with `cmp`, and the test rerun
+green (`<id>.patch`, `<id>.log`, `<id>.green.log`, `proof-loop.txt`). The model faults each failed
+`keys one runtime by user, and nothing of a withdrawn one — nor its project — reaches anybody`,
+`Tests 1 failed (1)`, seed 20260924:
+
+| Id    | Run | Shrunk sequence, times                                               | Innermost cause                                                                                                         |
+| ----- | --- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `m1`  | 3   | `signIn(u2, ''),signInBroken(u1)`, 2                                 | `signInBroken(u1): a session is still current after withdrawal: expected [ 's1' ] to deeply equal []`                   |
+| `m2`  | 10  | `signIn(u1, ''),signInBroken(u1),read(0)`, 6                         | `teardown: the last user asked for is not the one live: expected 'fatal' to be 'u1'`                                    |
+| `m3`  | 2   | `signIn(u2, ''),read(0),signIn(u1, ''),reenter(u1)`, 6               | `teardown: s1's directory changed after it was withdrawn: expected false to be true`                                    |
+| `m4`  | 1   | `signIn(u1, ''),signOut,read(0)`, 4                                  | `read: withdrawn s1 sent a request: expected 5 to be +0`                                                                |
+| `m5`  | 1   | `signIn(u1, ''),signIn(u2, ''),gesture(0)`, 5                        | `gesture: withdrawn s1 sent a request: expected 1 to be +0`                                                             |
+| `m6`  | 1   | `signIn(u1, ''),signIn(u2, ''),signOut,drain`, 5                     | `drain: the published session is not the user last asked for: expected 'u2' to be null`                                 |
+| `m7`  | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2),gesture(0)`, 7   | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     |
+| `m8`  | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2)`, 5              | `signInBroken(u2): a project is still current after its session was withdrawn: expected [ 's1.p1' ] to deeply equal []` |
+| `m9`  | 3   | `signIn(u2, ''),signInBroken(u1),drain,openProject(0, p1),drain`, 11 | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     |
+| `m10` | 2   | `signIn(u2, ''),signIn(u1, ''),reenter(u1)`, 6                       | `teardown: more than one session says it is current: expected [ 's1', 's2' ] to have a length of 1 but got 2`           |
+| `m11` | 14  | `signIn(u1, ''),openProject(0, p1),signInBroken(u2),gesture(0)`, 7   | `teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live'`                     |
+| `m12` | 2   | `signInBroken(u1),reenter(u1)`, 4                                    | `teardown refused: Error: a session transition was refused by the slot itself`                                          |
+
+For `m1` and `m6` the outermost message is the teardown's (`the published session is not the user
+last asked for: expected 'u2' to be 'u1'`; `signOut settled before s1's retirement had run`), with
+the tabled cause as its cause.
+
+The examples, each `status=1`:
+
+| Id   | Test                                                                                          | Tests line                  | Observed                                                                                                                                 |
+| ---- | --------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `k1` | `publishes the session’s directory and its projects, and nothing else`                        | `1 failed \| 6 skipped (7)` | `expected [ 'directory', 'directoryApi', …(3) ] to deeply equal [ 'directory', 'isCurrent', …(2) ]`                                      |
+| `o1` | `settles a request a newer one overtook, and builds nothing for it`                           | `1 failed \| 6 skipped (7)` | rejected with `a session transition was refused by the slot itself`, caused by `TransitionSupersededError`                               |
+| `o2` | `fails the session’s retirement when its project will not let go`                             | `1 failed \| 6 skipped (7)` | rejected with `a session transition was refused by the slot itself`, caused by `DI_BAG_CLEANUP_FAILED`                                   |
+| `o3` | `settles a half-built session that cannot be released, and leaves the owner terminally fatal` | `1 failed \| 6 skipped (7)` | rejected with `a session transition was refused by the slot itself`, caused by `and what it took could not be given back`                |
+| `d1` | `fails the session’s retirement when its project will not let go`                             | `1 failed \| 6 skipped (7)` | `expected false to be true`: the session left `empty`, not terminally `fatal`                                                            |
+| `l1` | `names itself when a host omits the client`                                                   | `1 failed \| 4 skipped (5)` | `expected [Function] to throw error including 'Cannot resolve "frontend.directory-ma…' but got 'DI_BAG_MISSING_DEPENDENCY: Cannot res…'` |
+| `l2` | `keeps its directory resource out of a host graph`                                            | `1 failed \| 4 skipped (5)` | `expected [Function] to throw an error`                                                                                                  |
+
+### After the Proof comments
+
+Runtime set 5 files, 37 tests; preferences 4 files, 39 tests; sandbox 56 files, 708 tests; session set
+3 files, 59 tests (unchanged from step 0); each `status=0` (`s1-final-*.log`).
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
+the host gate were not run in the executor sandbox.
+
+## Packet 050.7i, slice 2 — the directory drawn from the signed-in user's session, kept across a same-user update
+
+Attempt `050-7-i-session-runtime.2.20260924T185138Z`, observed 2026-09-24, in the executor sandbox.
+Starting hash `a295df56ff682ce4cca3a4a13dc3b0aa615bac6c` (the slice-1 planner commit), equal to the
+slice note's reviewed base; the starting status was empty (`status-before.txt`). Every test run had
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset. Evidence names are relative to the attempt's
+evidence directory.
+
+**Baselines** (`s2-baselines.out`), each `status=0`: preferences 4 files · 39 tests; sandbox node
+suite 56 · 708; session set, serial, 3 · 59; adopted set, serial, 20 · 1218; zoned (Auckland) 2 · 3.
+Strict OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+**Contract first.** The scenario "The same user keeps the session, the router and the address"
+applied; strict OpenSpec unchanged at 114 · 114 · 0 (`openspec-s2-contract.*.json`).
+
+**Red** (the test side applied, nothing else): `wbs-fe-01:typecheck` `status=1`,
+`Found 22 errors in 6 files.` — 17 × TS2741 in `directory-page.test.tsx` (`Property 'token' is
+missing in type '{ api: DirectoryApi; … }' but required in type 'DirectoryPageOverClientProps'`),
+2 × TS2322 at `directory-page-over-client.tsx:32:25`, 1 × TS2322 in `app-router.test.tsx`
+(`session` not yet a region prop), 1 × TS2339 in `app.test.tsx` (`Property 'SignedInApp' does not
+exist`), 1 × TS2724 in `session-runtime.test.ts` (no exported member `sessionFor`)
+(`s2-red-typecheck.log`). Vitest over `src/app.test.tsx` `status=1`, `Tests 3 failed | 9 passed
+(12)`: `keeps the router, the address and a draft …`, `shows the sanitized report …` and `gives the
+session back …`, all on `Element type is invalid: … got: undefined` (`s2-red-vitest.log`).
+
+**Green**, each `status=0` (`s2-green.out`): typecheck; session set 3 · 64 (+5); adopted set
+20 · 1218 (unchanged); zoned 2 · 3 (unchanged); sandbox 56 · 709 (+1). `composition.ts` is gone, and
+the builder `git grep` over delivery printed nothing (`s2-builders.txt` empty). `wbs-fe-01:lint`
+`status=0` (`s2-lint.log`).
+
+**Proofs.** Each filter matched exactly one test (`s2-proof-filters.txt`); each fault was injected,
+its named test failed, the file was restored and `cmp`-identical, and the test reran green
+(`s2-proofs.txt`, `<id>.patch`, `<id>.log`, `<id>.green.log`):
+
+| Id   | Fault                                                 | Observed                                                                   |
+| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| `g1` | `sessionFor` hands out whatever is live, for any user | `1 failed \| 7 skipped (8)`; `expected { userId: 'u1', …(3) } to be null`  |
+| `g2` | a fatal session draws the region anyway               | `1 failed \| 11 skipped (12)`; `Error: no fatal state yet`                 |
+| `g3` | the region's unmount never leaves the session         | `1 failed \| 11 skipped (12)`; `expected 'live' to be 'empty'`             |
+| `g4` | the owner is opened with an empty credential          | `1 failed \| 11 skipped (12)`; `expected [ '' ] to deeply equal [ 'tok' ]` |
+
+**After the comments** (`s2-final-*.log`), each `status=0`: session set 3 · 64, preferences 4 · 39,
+sandbox 56 · 709.
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which runs in the executor sandbox.
+
+## Packet 050.7i, slice 3 — the project opened through the signed-in user's session, and the records
+
+Attempt `050-7-i-session-runtime.3.20260924T191341Z`, starting at
+`e46c8d3d9650e29cbbd05e764449f5a300defbcf` with an empty `git status` (`base.txt`,
+`status-before.txt`). Every check below recorded its own exit status as the last line of its log
+under the attempt's evidence directory; Vitest ran with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT`
+unset.
+
+**Baselines** (`base-*.log`, `s3-base-*.log`), each `status=0`: preferences 4 · 39, sandbox node
+suite 56 · 709, session set (serial) 3 · 64, adopted set (serial) 20 · 1218, zoned (Auckland) 2 · 3.
+Strict OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+**Contract first.** The scenario "The project page opens its project through the session" applied;
+strict OpenSpec still `{"items":114,"passed":114,"failed":0}` (`openspec-s3-contract.*.json`).
+
+**Red checkpoint**, after the fixture, the named fixture edit and the router example only:
+`wbs-fe-01:typecheck` `status=1`, `Found 2 errors in 2 files.` — the same TS2322 at
+`apps/wbs/fe-01/src/testing/project-page-over-owner.tsx:22:23`, once per build project that includes
+`src/testing` (`s3-red-typecheck.log`); `vitest run src/app-router.test.tsx` `status=1`,
+`Tests 1 failed | 5 passed (6)`, on `AssertionError: expected 'empty' to be 'p1'` in `opens the
+selected project through the signed-in session’s own project owner` (`s3-red-vitest.log`).
+
+**Green checkpoint**, after the page, the router, the READMEs, the lifetime map and `tasks.md` (both
+notes dated 2026-09-24 by `date -u +%F`; task 6 reads `[x]`), each `status=0`: typecheck;
+`nx format:check --all`; session set 3 · 65 (step 0 + 1, the router example); adopted set
+20 · 1219 (step 1 + 1, the same example); zoned 2 · 3; sandbox 56 · 709 (`s3-green-*.log`,
+`s3-format.log`). `wbs-fe-01:lint` `status=0` (`s3-lint.log`), and again after the proof comment
+(`s3-lint-after.log`).
+
+**Proof `r1`.** The filter matched exactly one test. The route handing `ProjectPage`
+`createProjectOwner()` instead of `session.projects` (`r1.patch`) failed `opens the selected project
+through the signed-in session’s own project owner` with `Tests 1 failed | 5 skipped (6)` and
+`AssertionError: expected 'empty' to be 'p1'` (`r1.log`); the file was restored, `cmp`-identical to
+the saved copy, and the test reran green (`r1.green.log`). The `Proof:` comment stands above
+`projectOwner={session.projects}` in `app-router.tsx`.
+
+**Final reruns** (`s3-final-*.log`), each `status=0`: session set 3 · 65, preferences 4 · 39,
+sandbox 56 · 709.
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which runs in the executor sandbox.
