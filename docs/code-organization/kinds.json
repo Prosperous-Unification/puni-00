@@ -246,15 +246,13 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",
-      "kind": "resource",
-      "term": "calendar marker",
-      "rationale": "calendar-marker and project routes call it for the calendar marker aggregate's rules over CalendarMarkerStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the calendar-marker module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/capacity.service.ts",
-      "kind": "resource",
-      "term": "capacity",
-      "rationale": "composeServices and PlanCommandRunner use it for the capacity aggregate's edit rules over CapacityStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the capacity module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/clean-name.ts",
@@ -294,9 +292,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/directory.service.ts",
-      "kind": "resource",
-      "term": "directory",
-      "rationale": "directory and project routes, ImportService and PlanCommandRunner call it for directory vocabulary invariants over DirectoryStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the directory module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts",
@@ -354,15 +351,13 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/priority-band.service.ts",
-      "kind": "resource",
-      "term": "priority band",
-      "rationale": "composeServices and PlanCommandRunner use it for the priority band aggregate's edit rules over PriorityBandStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the priority-band module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/project.service.ts",
-      "kind": "resource",
-      "term": "project",
-      "rationale": "project, solution and saved-plan routes plus several resource services call it for project aggregate creation, access and settings rules over ProjectStore, with Clock, Broadcaster and optimizer-availability ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the project module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/replay-buffer.ts",
@@ -437,9 +432,8 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/step.service.ts",
-      "kind": "resource",
-      "term": "step",
-      "rationale": "step routes and PlanCommandRunner call it for step aggregate add, rename, usage and removal rules over StepStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the step module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/work-item.service.ts",

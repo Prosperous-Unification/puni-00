@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 51,
+      'historical policy selector or baseline': 63,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -827,8 +827,14 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // naming the pre-namespacing `apps/be-01/src/service/solver-launcher-process.ts` this module
     // was extracted from; raised `historical policy selector or baseline` from 49 to 51 and
     // occurrences from 267 to 269, no unclassified entries (2026-09-23).
-    digest: '113681cd7a2c98566f565cca8176456eb50fb453b6fb94ce5bf3f611a0d576bb',
-    occurrences: 269,
+    // Proof: registering the six per-admission resource modules — Calendar marker, Capacity,
+    // Directory, Priority band, Project and Step — added each `boundary.application.<name>`'s
+    // `sourceSelector` and one `baselineEntries` path, all naming the pre-namespacing
+    // `libs/core/src/service/<name>.service.ts` each module was extracted from; raised
+    // `historical policy selector or baseline` from 51 to 63 and occurrences from 269 to 281, no
+    // unclassified entries (2026-09-24).
+    digest: '5864733ccd1d50e0a81c9c0f71b3bb20a46565ed4200f417ed0b9b1d56f9a5e2',
+    occurrences: 281,
     unclassified: [],
   });
 });
