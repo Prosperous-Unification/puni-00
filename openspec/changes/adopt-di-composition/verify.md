@@ -1792,3 +1792,39 @@ is pinned` failed with `historical policy selector or baseline` 63 to 65, `occur
   `Broadcaster` port shared by the two admitting features, barred from either by K6: Plan import
   builds one too (task 1.2); be-01's `mountedEndpoints` still constructs `PlanCommandRunner`
   directly (tracked under 7.4).
+
+### Working plan, Slice 2 — 2026-09-24
+
+- The slice started from `base=364db8f539082b413eda640ee70ded83617ab90e` on a clean tree, with
+  slice 1's `module/plan-commands/check.ts` present, no `working-plan.resource.ts` in the module,
+  `service/working-plan.ts` at 629 lines, nine `service/working-plan*` files, and `K=93`
+  `kinds.json` entries.
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`): core `bun test src` passed `C=625` over `F=68` files
+  (`slice2-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice2-be01-unit-baseline.log`); the
+  `compose.ts` bundle built with exit 0 and held `application.plan-commands count=0 (grep exit 1)`
+  (`slice2-compose-bundle-red.log`).
+- Row 17: after the three test `mv`s and 10.8's import diff, before the sources moved, the three
+  moved tests failed with `error: Cannot find module './working-plan.resource'` (twice) and
+  `'./working-plan-directory'`; 0 pass, 3 fail (`slice2-row17-moved-tests-red.log`).
+- Row 18: after the `cp`, the five `mv`s, 10.9's shim and 10.10's import diff, the module directory
+  passed 61 tests, 0 fail, 240 `expect()` calls over 7 files (`slice2-row18-module-green.log`).
+- Row 19: after 10.11 (one `kinds.json` row rewritten to a shim, five removed; the README's Working
+  plan paragraph), the filesystem substitute for the planner's `service-kinds.test.ts` printed
+  `88 []` (`K - 5`, `slice2-kinds-substitute.log`); lint and typecheck of both projects exited 0
+  (`slice2-step4-lint-typecheck.log`).
+- Row 20, restored with `cp` and proved with `cmp` (`row20-working-plan`): `readonly stores:
+PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` replaced by
+  `readonly stores: PlanTransactionalStores & { readonly users?: unknown };` made
+  `wbs-core:typecheck` exit 1 with exactly
+  `module/plan-commands/working-plan.types.test.ts:11:1 - error TS2578: Unused '@ts-expect-error' directive.`
+  and `Found 1 error` — the moved compile witness is still type-checked. No Proof comment follows:
+  the witness's own Proof already names this fault, and the moved body may not change.
+- Closing: core `bun test src` passed `C = 625` over `F = 68` (`slice2-closing-core.log`); the
+  be-01 unit set passed `E = 520` over `EF = 49` (`slice2-closing-be01-unit.log`); lint and
+  typecheck of both projects exited 0 (`slice2-closing-lint-typecheck.log`);
+  `module/plan-commands/` holds twenty files and `service/` one `working-plan*` file
+  (`slice2-closing-listing.log`); `nx format:check --all` exited 0 (`slice2-closing-format.log`).
+- The five Working plan implementation files keep no former path; `service/working-plan.ts` stays
+  a shim for `@wbs/core`'s `createWorkingPlan` export, which one SQLite database test uses.

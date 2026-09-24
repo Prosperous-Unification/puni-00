@@ -1,4 +1,4 @@
-import type { DirectoryStore } from '../ports/directory-store';
+import type { DirectoryStore } from '../../ports/directory-store';
 
 /**
  * Builds the directory part of a batch-owned working plan.

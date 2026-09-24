@@ -1,5 +1,5 @@
-import type { SubtreeStore } from '../ports/subtree-store';
-import type { WorkItemStore } from '../ports/work-item-store';
+import type { SubtreeStore } from '../../ports/subtree-store';
+import type { WorkItemStore } from '../../ports/work-item-store';
 
 interface RetainedSubtreeReads {
   byIds(ids: readonly string[]): ReturnType<WorkItemStore['listByIds']>;
