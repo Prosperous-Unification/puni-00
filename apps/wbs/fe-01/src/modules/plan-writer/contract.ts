@@ -1,5 +1,8 @@
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
+import type { Publisher } from '@/modules/channel';
+
+import type { BusyWrites } from './busy-store';
 
 /**
  * A gesture that be-01 refused, in the sentence a reader is owed.
@@ -17,10 +20,13 @@ export interface PlanWriteRefusal {
 /**
  * What the plan writer needs from whoever is hosting it.
  *
- * Every member is a function rather than a value because all of them are read at
+ * Two kinds of member, and no React in either. The first three are **read** at
  * the moment a gesture asks, not at the moment the writer is built: the feed
  * owner can be renewed under the same reader by a covering read, and the reader
- * can leave for another project between a request and its answer.
+ * can leave for another project between a request and its answer. The last
+ * three are the project's own **store and ports** — the writer raises and
+ * lowers busy through one and says what happened through the other two, and
+ * never learns who is listening.
  */
 export interface PlanWriterHost {
   /**
@@ -40,20 +46,24 @@ export interface PlanWriterHost {
    * renewal must not cost the reader its own gesture's outcome or leave it busy.
    */
   isActiveReader: () => boolean;
-  /**
-   * Records where the gesture now starting was issued from, synchronously.
-   *
-   * Called at the moment the gesture happens and not when its answer arrives:
-   * everything between the two is the interval in which the reader may have gone
-   * somewhere else, and that interval is the thing the focus intent measures.
-   */
-  noteCommandIssued: () => void;
   /** Awaits the covering outcome of an invalidation; failures stay in the feed's own snapshot. */
   rereadResources: (resources: readonly RefreshResource[]) => Promise<void>;
-  /** Raises and clears the shared busy state the toolbar and the cells read. */
-  setBusy: (busy: boolean) => void;
-  /** Announces one refusal to whoever says things to the reader. */
-  announceRefusal: (refusal: PlanWriteRefusal) => void;
+  /**
+   * The project's busy state: raised when a gesture starts, and lowered when it
+   * ends only if {@link PlanWriterHost.isActiveReader} still answers yes — the
+   * reader that raised it owns it; a different API or project does not.
+   */
+  busy: BusyWrites;
+  /**
+   * Says that a gesture is starting, synchronously, at the moment it happens and
+   * not when its answer arrives: everything between the two is the interval in
+   * which the reader may have gone somewhere else, and whoever draws the focus
+   * measures that interval from here. The event carries nothing; what it means
+   * for the focus is the listener's decision.
+   */
+  commandsIssued: Publisher<undefined>;
+  /** Where a refusal is announced, once, to whoever says things to the reader. */
+  refusals: Publisher<PlanWriteRefusal>;
 }
 
 /**

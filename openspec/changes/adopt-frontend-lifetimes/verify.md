@@ -1368,3 +1368,324 @@ evidence files and the attempt's report.
 
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, which was not run.
+
+## Packet 050.7g, slice 1 — the channel and the busy store, each with its model test
+
+Attempt `050-7-g-project-prerequisites.1.20260924T031312Z`, starting hash
+`d71dd2d69b3aa26bced0334415bcade2f17b786c` (equal to the slice note), empty status, fast-check
+4.9.0 (`base.txt`, `status-before.txt`, `fast-check.txt`). Observed on 2026-09-24. Evidence names
+are basenames in that attempt's evidence directory.
+
+### Baselines (step 0)
+
+| Check                                                  | Status | Result                                  |
+| ------------------------------------------------------ | ------ | --------------------------------------- |
+| preferences suite (`base-preferences.log`)             | 0      | 4 files, 39 tests                       |
+| sandbox node suite (`base-sandbox.log`)                | 0      | 45 files, 674 tests                     |
+| strict OpenSpec (`openspec-base.KXURWt.json`)          | 0      | `{"items":114,"passed":114,"failed":0}` |
+| strict OpenSpec after section 7.1, the new requirement | 0      | `{"items":114,"passed":114,"failed":0}` |
+
+### Red checkpoint (after section 7.2, before section 7.3)
+
+`wbs-fe-01:typecheck` status 1 (`s1-red-typecheck.log`), `Found 3 errors in 2 files.`:
+
+```text
+apps/wbs/fe-01/src/modules/channel.model.test.ts:4:45 - error TS2307: Cannot find module './channel' or its corresponding type declarations.
+apps/wbs/fe-01/src/modules/channel.model.test.ts:136:48 - error TS7006: Parameter 'event' implicitly has an 'any' type.
+apps/wbs/fe-01/src/modules/plan-writer/busy-store.model.test.ts:4:39 - error TS2307: Cannot find module './busy-store' or its corresponding type declarations.
+```
+
+Vitest on the two model tests status 1 (`s1-red-vitest.log`): `Test Files 2 failed (2)`,
+`Tests no tests`, on `Failed to resolve import "./channel"` and
+`Failed to resolve import "./busy-store"`.
+
+### Green checkpoint (after section 7.3)
+
+| Check                                               | Status | Result                       |
+| --------------------------------------------------- | ------ | ---------------------------- |
+| `wbs-fe-01:typecheck` (`s1-green-typecheck.log`)    | 0      |                              |
+| the two model tests, serial (`s1-green-models.log`) | 0      | 2 files, 2 tests             |
+| `src/test-tiers.test.ts` (`s1-green-tiers.log`)     | 0      | 5 tests                      |
+| sandbox node suite (`s1-green-sandbox.log`)         | 0      | 47 files, 676 tests (+2, +2) |
+| `wbs-fe-01:lint` (`s1-lint.log`)                    | 0      |                              |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`s1-proof-filters.txt`). Every fault failed its model test
+with `Tests 1 failed (1)` and status 1, was restored and compared with `cmp`, and its named test then
+passed again (`<id>.patch`, `<id>.log`, `<id>.green.log`, `s1-proof-loop.txt`). Seed `20260924`,
+300 runs; the run numbers and counterexamples are identical to the packet's section 8.1.
+
+| Id   | Fault                                             | Run | Counterexample, shrunk                                                                       | Cause observed                                                                                                        |
+| ---- | ------------------------------------------------- | --- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `c1` | recipients are the live set, not a copy           | 5   | `subscribe(join),publishLater(1)`, `replayPath="BBf:F"`, shrunk 5 times                      | `teardown refused: AssertionError: who heard 1, in what order` (two deliveries where the model has one)               |
+| `c2` | an unsubscribed listener is still called          | 16  | `subscribe(dropNewest),publishLater(1),subscribe(record),settle`, `"AAAAABGBS:VF"`, shrunk 4 | `publish(1) threw with no failing listener: expected AssertionError: listener 1 heard 1 after …`                      |
+| `c3` | an inner publication is delivered at once, nested | 17  | `publishLater(1),subscribe(echo),settle`, `"CGC:F"`, shrunk 1 time                           | `listener 0 was entered re-entrantly: expected 2 to be 1`                                                             |
+| `c4` | failures are collected and never rethrown         | 5   | `subscribe(fail),publishLater(1)`, `"BBf:F"`, shrunk 5 times                                 | `publish(1) did not rethrow the one failure by identity: expected null to be Error: listener 0 refused 1`             |
+| `c5` | the first failure stops delivery                  | 5   | `subscribe(fail),subscribe(join),publishLater(1)`, `"BBe:F"`, shrunk 4 times                 | `who heard 1, in what order` (one delivery where the model has two)                                                   |
+| `c6` | several failures rethrow only the first           | 5   | `subscribe(fail),subscribe(fail),publishLater(1)`, `"BBi:F"`, shrunk 5 times                 | `publish(1) did not aggregate its failures: expected Error: listener 0 refused 1 to be an instance of AggregateError` |
+| `b1` | a raise or lower that changes nothing still tells | 1   | `lower`, `"AN:B"`, shrunk 0 times                                                            | `lower: changes heard by the listener that never leaves: expected 1 to be +0`                                         |
+| `b2` | listeners told before the value changes           | 1   | `raise`, `"DKA:F"`, shrunk 1 time                                                            | `raise: the last value the sentinel read: expected false to be true`                                                  |
+| `b3` | `lower` does nothing                              | 1   | `raise,lower`, `"EJE:F"`, shrunk 2 times                                                     | `lower: busy: expected true to be false`                                                                              |
+| `b4` | `raise` toggles                                   | 2   | `gesture,raise`, `"ACLB:K"`, shrunk 1 time                                                   | `raise: busy: expected false to be true`                                                                              |
+
+### After the Proof comments
+
+| Check                                               | Status | Result              |
+| --------------------------------------------------- | ------ | ------------------- |
+| the two model tests, serial (`s1-final-models.log`) | 0      | 2 files, 2 tests    |
+| preferences suite (`s1-final-preferences.log`)      | 0      | 4 files, 39 tests   |
+| sandbox node suite (`s1-final-sandbox.log`)         | 0      | 47 files, 676 tests |
+| `wbs-fe-01:lint` (`s1-lint-after-proofs.log`)       | 0      |                     |
+
+Owned-file Prettier `--write` then `--check` over the seven paths, and the strict OpenSpec block
+after this entry, are recorded in the attempt's report.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
+the host gate `bin/h2puni-gate.sh`, none of which the executor runs in its sandbox.
+
+## Packet 050.7g, slice 2 — the delivered plan and presence stores, each with its model test
+
+Attempt `050-7-g-project-prerequisites.2.20260924T032154Z`, starting hash
+`8edb8a55025997da7bbc4761f60402292fc9a494`, observed 2026-09-24. Evidence basenames are relative to
+that attempt's evidence directory.
+
+### Step 0
+
+- `base.txt`: `HEAD` equal to the slice note's hash; `status-before.txt` empty; `fast-check=4.9.0`.
+- Step 0b: `patches=17`, `mutations=43`, twenty adopted paths.
+- Preferences suite (`base-preferences.log`): 4 files, 39 tests, `status=0`.
+- Sandbox node suite (`base-sandbox.log`): 47 files, 676 tests, `status=0`.
+- Strict OpenSpec (`openspec-base.*.json`): `{"items":114,"passed":114,"failed":0}`, exit 0.
+
+### Contract (section 7.4)
+
+The scenario "A publication that says nothing new changes nothing" applied; strict OpenSpec
+(`openspec-s2-contract.*.json`) `{"items":114,"passed":114,"failed":0}`, exit 0, `passed` unchanged.
+
+### Red checkpoint (after section 7.5, before section 7.6)
+
+- `s2-red-typecheck.log`: `status=1`, `Found 2 errors in 2 files.` —
+  `delivered-plan-store.model.test.ts:13:8 - error TS2307: Cannot find module './delivered-plan-store'`
+  and `presence-store.model.test.ts:4:67 - error TS2307: Cannot find module './presence-store'`.
+- `s2-red-vitest.log`: `status=1`, `Test Files 2 failed (2)`, `Tests no tests`, on
+  `Failed to resolve import "./delivered-plan-store"` and `Failed to resolve import "./presence-store"`.
+
+### Green checkpoint (after section 7.6)
+
+- `s2-green-typecheck.log`: `status=0`.
+- `s2-green-models.log`: `Test Files 2 passed (2)`, `Tests 2 passed (2)`, `status=0`.
+- `s2-green-tiers.log`: 1 file, 5 tests, `status=0`.
+- `s2-green-sandbox.log`: 49 files, 678 tests, `status=0` — step 0 plus 2 files and 2 tests.
+- `s2-lint.log`: `wbs-fe-01:lint` `status=0`.
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`s2-filters.txt`). Every fault ran through section 8's loop
+(`s2-fault-loop.txt`, exit 0): the named test failed with `Tests 1 failed (1)` and `status=1`, the
+file was restored and `cmp`-identical, and the green rerun passed. Seed `20260924`, 300 runs,
+fast-check 4.9.0; every run number, shrunk counterexample and cause below equals the packet's table.
+
+| Id   | Fault                                                          | Run | Shrunk | Replay path  | Observed cause                                                                              |
+| ---- | -------------------------------------------------------------- | --- | ------ | ------------ | ------------------------------------------------------------------------------------------- |
+| `d1` | an equal step list replaces the held one (`sameSteps` dropped) | 1   | 0      | `AN:B`       | `redeliver: a new snapshot exactly when something changed: expected true to be false`       |
+| `d2` | a null tree clears the held tree                               | 1   | 13     | `IFp:F`      | `deliverNow: a new snapshot exactly when something changed: expected true to be false`      |
+| `d3` | listeners told before the snapshot is replaced                 | 1   | 14     | `GHq:F`      | `listener 0: markers: expected [] to be []`                                                 |
+| `d4` | the tree failure compared by its wrapper                       | 5   | 10     | `MCx:F`      | `redeliver: a new snapshot exactly when something changed: expected true to be false`       |
+| `d5` | the delivered step array kept instead of a copy                | 1   | 6      | `CLL:F`      | `deliverLater #0: steps are not the store’s own: expected true to be false`                 |
+| `r1` | a frame with the list already held is a change                 | 1   | 3      | `NAAABCF:VB` | `users(["lee"]): a new snapshot exactly when something changed: expected true to be false`  |
+| `r2` | a frame arriving while disconnected is dropped                 | 1   | 2      | `CLD:F`      | `later users([]): a new snapshot exactly when something changed: expected false to be true` |
+| `r3` | listeners told before the snapshot is replaced                 | 1   | 2      | `CLF:F`      | `listener 0: users: expected [] to be []`                                                   |
+| `r4` | a connection change also clears the list                       | 1   | 1      | `DKA:F`      | `connection(true): users: expected [] to be []`                                             |
+
+Patches and failing output: `<id>.patch`, `<id>.log`, `<id>.green.log`.
+
+### After the Proof comments
+
+- `s2-final-models.log`: 2 files, 2 tests, `status=0`.
+- `s2-final-preferences.log`: 4 files, 39 tests, `status=0`.
+- `s2-final-sandbox.log`: 49 files, 678 tests, `status=0`.
+- `s2-final-typecheck.log` and `s2-lint-after.log`: `status=0`.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and
+the host gate were not run in this attempt; each is pending planner verification.
+
+## Packet 050.7g, slice 3 — commands, refusals and busy through the project's ports
+
+Attempt `050-7-g-project-prerequisites.3.20260924T033155Z`, starting hash
+`c1fa2735b018c399b8304f5e5c10b0262101eef1` (`base.txt`); the working tree was clean
+(`status-before.txt` empty) and fast-check was 4.9.0 (`fast-check.txt`). Step 0b extracted 17
+patches and 43 fault patches.
+
+### Baselines (step 0 and step 1)
+
+| Check                                                        | Status | Result                                  | Log                    |
+| ------------------------------------------------------------ | ------ | --------------------------------------- | ---------------------- |
+| preferences suite                                            | 0      | 4 files, 39 tests                       | `base-preferences.log` |
+| sandbox node suite                                           | 0      | 49 files, 678 tests                     | `base-sandbox.log`     |
+| strict OpenSpec                                              | 0      | `{"items":114,"passed":114,"failed":0}` | `openspec-base.*.json` |
+| `plan-writer.test.ts`                                        | 0      | 1 file, 2 tests                         | `s3-base-writer.log`   |
+| adopted set, serial (`--no-file-parallelism --maxWorkers=1`) | 0      | 20 files, 1214 tests (332.94 s)         | `s3-base-adopted.log`  |
+
+After section 7.7 (the scenario "The writer and the feed announce through the project's ports"),
+strict OpenSpec exit 0, `{"items":114,"passed":114,"failed":0}` (`openspec-s3-contract.*.json`).
+
+### Red checkpoint (after section 7.8, before section 7.9)
+
+`wbs-fe-01:typecheck` status 1, `Found 6 errors in 2 files.` (`s3-red-typecheck.log`):
+
+```text
+apps/wbs/fe-01/src/components/wbs/use-channel-listener.test.tsx:7:36 - error TS2307: Cannot find module './use-channel-listener' or its corresponding type declarations.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:52:7 - error TS2353: Object literal may only specify known properties, and 'busy' does not exist in type 'PlanWriterHost'.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:57:29 - error TS7006: Parameter 'refusal' implicitly has an 'any' type.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:92:7 - error TS2353: Object literal may only specify known properties, and 'busy' does not exist in type 'PlanWriterHost'.
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:114:7 - error TS2561: Object literal may only specify known properties, but 'commandsIssued' does not exist in type 'PlanWriterHost'. Did you mean to write 'noteCommandIssued'?
+apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts:134:7 - error TS2353: Object literal may only specify known properties, and 'busy' does not exist in type 'PlanWriterHost'.
+```
+
+Vitest status 1, `Test Files 2 failed (2)`, `Tests 4 failed (4)` (`s3-red-vitest.log`): the four
+writer tests on `TypeError: noteCommandIssued is not a function`, and the listener file on
+`Failed to resolve import "./use-channel-listener"`.
+
+### Green checkpoint (after section 7.9)
+
+| Check                             | Status | Result                                      | Log                      |
+| --------------------------------- | ------ | ------------------------------------------- | ------------------------ |
+| `wbs-fe-01:typecheck`             | 0      |                                             | `s3-green-typecheck.log` |
+| writer and listener files, serial | 0      | 2 files, 9 tests (writer 2 + 2, listener 5) | `s3-green-focused.log`   |
+| adopted set, serial               | 0      | 20 files, 1214 tests — unchanged (344.99 s) | `s3-green-adopted.log`   |
+| sandbox node suite                | 0      | 49 files, 680 tests (step 0 + 0 files, + 2) | `s3-green-sandbox.log`   |
+| `wbs-fe-01:lint`                  | 0      |                                             | `s3-lint.log`            |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test (`s3-filters.log`). Each fault was injected from its section 8.3
+patch, its named test run, the file restored and compared with `cmp`, and the test rerun green
+(`<id>.patch`, `<id>.log`, `<id>.green.log`; loop summary `s3-faults.log`, status 0).
+
+| Id   | Fault                                             | Named test                                                                  | Observed                                                                                                                                |
+| ---- | ------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `l1` | the subscription in a passive `useEffect`         | `hears an event a child publishes from its own mount effect`                | `expected [] to deeply equal [ 'first read refused' ]`; `Tests 1 failed \| 4 skipped (5)`                                               |
+| `l2` | the latest listener's ref never written           | `calls the listener of the latest render and never a superseded one`        | `expected [ 'after the re-render' ] to deeply equal []`; `Tests 1 failed \| 4 skipped (5)`                                              |
+| `l3` | `[]` dependencies on the subscription             | `follows a channel replaced while it stays mounted, and leaves the old one` | `expected [ 'from the replaced channel' ] to deeply equal [ 'from the replacement' ]`; `Tests 1 failed \| 4 skipped (5)`                |
+| `l4` | the unsubscribe dropped                           | `hears nothing once it is unmounted, and a publication then throws nothing` | `expected [ 'after the unmount' ] to deeply equal []`; `Tests 1 failed \| 4 skipped (5)`                                                |
+| `l5` | the listener's failure swallowed                  | `lets a listener’s own failure reach the publisher by identity`             | `expected null to be Error: the toast stack is gone`; `Tests 1 failed \| 4 skipped (5)`                                                 |
+| `w1` | the command announced after the request is sent   | `says a command was issued before it sends anything`                        | `expected [ 'request sent', 'command issued' ] to deeply equal [ 'command issued', 'request sent' ]`; `Tests 1 failed \| 3 skipped (4)` |
+| `w2` | busy lowered without the `isActiveReader()` guard | `leaves the project busy when its reader left before the answer arrived`    | `expected false to be true`; `Tests 1 failed \| 3 skipped (4)`                                                                          |
+
+Each fault run was filtered to its named test, so no other test ran under a fault. The seven `Proof:`
+comments were then written, dated 2026-09-24, five in `use-channel-listener.ts` and two in
+`plan-writer.feature.ts` (`w2` below the existing lines there).
+
+### After the Proof comments
+
+Writer and listener files 2 files, 9 tests (`s3-final-focused.log`); preferences 4 files, 39 tests
+(`s3-final-preferences.log`); sandbox 49 files, 680 tests (`s3-final-sandbox.log`); all status 0.
+Lint, typecheck, format check and strict OpenSpec after the owned-file Prettier are recorded in the
+attempt report.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`
+and the host gate were not run in the executor sandbox.
+
+## Packet 050.7g, slice 4 — the table selects the delivered plan
+
+Attempt `050-7-g-project-prerequisites.4.20260924T040032Z`, starting hash
+`1453f6d3228584c39b1a899fb954290921d8bc78`, observed 2026-09-24. Evidence basenames are relative to
+that attempt's evidence directory.
+
+- Step 0: `base=` equal to the slice note's hash, `status-before.txt` empty, `fast-check=4.9.0`.
+  Preferences suite 4 files, 39 tests, `status=0` (`base-preferences.log`); sandbox node suite 49
+  files, 680 tests, `status=0` (`base-sandbox.log`); strict OpenSpec
+  `{"items":114,"passed":114,"failed":0}`.
+- Step 1: adopted set, serial, 20 files, 1214 tests, `status=0`, 344.88 s (`s4-base-adopted.log`).
+- Step 2: section 7.10 applied; strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+- Step 3, red: typecheck `status=1`, one error,
+  `use-snapshot-changes.test.tsx:8:36 - error TS2307: Cannot find module './use-snapshot-changes'`
+  (`s4-red-typecheck.log`); Vitest `status=1`, `Test Files 1 failed (1)`, `Tests no tests`, on
+  `Failed to resolve import "./use-snapshot-changes"` (`s4-red-vitest.log`).
+- Step 5, green: typecheck `status=0`; hook file `Tests 6 passed (6)`; adopted set 20 files, 1214
+  tests, `status=0` (unchanged from step 1); sandbox 49 files, 680 tests (unchanged from step 0).
+- Step 6: `wbs-fe-01:lint` `status=0` (`s4-lint.log`).
+- Step 7: every filter matched exactly one test (`s4-filters.txt`); every fault observed failing,
+  its file restored and `cmp`-identical, its named test green again (`s4-faults.txt`, `<id>.patch`,
+  `<id>.log`, `<id>.green.log`):
+  - `u1` no catch-up: `expected [] to deeply equal [ [ 5, +0 ] ]`; `1 failed | 5 skipped (6)`.
+  - `u2` unchanged snapshot handed on: `expected [ [ +0, +0 ], [ +0, +0 ] ] to deeply equal []`;
+    `1 failed | 5 skipped (6)`.
+  - `u3` ref never updated: `expected [ 1 ] to deeply equal []`; `1 failed | 5 skipped (6)`.
+  - `u4` `[]` dependencies: `expected [ [ 1, +0 ] ] to deeply equal [ [ 7, +0 ], [ 8, 7 ] ]`;
+    `1 failed | 5 skipped (6)`.
+  - `u5` never unsubscribed: `expected [ 1 ] to deeply equal []`; `1 failed | 5 skipped (6)`.
+  - `s1` hover card not settled: `expected <div role="tooltip" …(2)>…(2)</div> to be null`;
+    `1 failed | 125 skipped (126)`.
+  - `s2` drafts not settled: `expected [ '010' ] to deeply equal []`; `1 failed | 87 skipped (88)`.
+  - `s3` tree owner not recorded: `Unable to find an accessible element with the role "button" and
+name "Reset layout"`; `1 failed | 77 skipped (78)`.
+  - `s4` connection reports dropped: `Unable to find an accessible element with the role
+"status"`; `1 failed | 87 skipped (88)`.
+  - `s5` failure words never built: `expected 'This plan may be out of date — the la…' to contain
+'Optimized scheduling is unavailable i…'`; `1 failed | 87 skipped (88)`.
+  - `f1` feed refusals dropped: `expected [] to include 'Optimized scheduling is unavailable i…'`;
+    `1 failed | 87 skipped (88)`.
+- Step 8, after the eleven `Proof:` comments: hook file 6 tests, preferences 4 files 39 tests,
+  sandbox 49 files 680 tests, typecheck and lint `status=0`.
+- Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+  `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none run in the executor sandbox.
+
+## Packet 050.7g, slice 5 — presence from a store, the ports' production-path proofs, and task 8
+
+Attempt `050-7-g-project-prerequisites.5.20260924T042313Z`, starting hash
+`31949887ed05b92a16c6b6d987b3502b4775d696`, observed 2026-09-24. Evidence basenames are relative
+to that attempt's evidence directory.
+
+**Step 0.** `base.txt` equal to the slice note's hash; `status-before.txt` empty; `fast-check=4.9.0`;
+17 patches and 43 fault patches extracted. Preferences suite 4 files, 39 tests, `status=0`
+(`base-preferences.log`); sandbox node suite 49 files, 680 tests, `status=0` (`base-sandbox.log`);
+strict OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+**Step 1.** Page and router pair 2 files, 77 tests, `status=0` (`s5-base-page.log`); the reporter
+printed no per-file line, so the page file alone was run for its own number: 72 tests, `status=0`
+(`s5-base-page-only.log`). Adopted set 20 files, 1214 tests, `status=0` (`s5-base-adopted.log`).
+
+**Contract.** Section 7.13 applied; strict OpenSpec `{"items":114,"passed":114,"failed":0}`, exit 0
+(`openspec-s5-contract.*.json`).
+
+**Characterisation, no red by design.** Section 7.14 applied to the unchanged page: typecheck
+`status=0` (`s5-before-typecheck.log`); `project-page.test.tsx` 73 passed (73), `status=0`
+(`s5-before-page.log`) — the page file's 72 plus the new example.
+
+**Implementation.** Sections 7.15, 7.16 and 7.17 applied; the task 8 note dated `2026-09-24` by
+`date -u +%F`, no placeholder left.
+
+**Green.** Typecheck `status=0` (`s5-green-typecheck.log`); page and router 2 files, 78 tests,
+`status=0` (`s5-green-page.log`); adopted set 20 files, 1215 tests, `status=0` (`s5-green-adopted.log`,
+step 1's 1214 plus the new example); sandbox 49 files, 680 tests, `status=0` (`s5-green-sandbox.log`);
+`nx format:check --all` `status=0` (`s5-format.log`); `wbs-fe-01:lint` `status=0` (`s5-lint.log`).
+
+**Proofs.** Every filter matched exactly one test (`s5-proof-filters.txt`). Each fault was injected
+from its patch, its named test run, the file restored and compared with `cmp`, and the test rerun
+green (`<id>.patch`, `<id>.log`, `<id>.green.log`; loop `status=0` in `s5-proof-loop.log`):
+
+| Id   | Test                                                                                | Observed                                                                                                                                           |
+| ---- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `t1` | `names an unavailable optimizer and offers no export before a plan is installed`    | `expected [ Array(1) ] to include 'Optimized scheduling is unavailable i…'`; `1 failed \| 87 skipped (88)`                                         |
+| `t2` | `Cmd+Enter on the last row makes one and lands in it`                               | `expected <textarea …(6)></textarea> to be <textarea …(6)></textarea>`; `1 failed \| 95 skipped (96)`                                              |
+| `t3` | `says a refused rename in a toast, and puts nothing above the table`                | `expected [] to deeply equal [ Array(1) ]`; `1 failed \| 87 skipped (88)`                                                                          |
+| `m1` | `rereads a marker refused because a peer already deleted it`                        | `the given combination of arguments (undefined and string) is invalid for this assertion`; `1 failed \| 22 skipped (23)`                           |
+| `q1` | `hands the presence slot who the project’s stream says is here, and its connection` | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`; `1 failed \| 72 skipped (73)`                        |
+| `q2` | `hands the presence slot who the project’s stream says is here, and its connection` | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `connected` `false`; `1 failed \| 72 skipped (73)` |
+
+Every green rerun `1 passed`. The six `Proof:` comments were written afterwards, four in
+`use-plan-read.ts` and two in `project-page.tsx`.
+
+**Final.** Page and router 78 tests, preferences 39, sandbox 49 files and 680 tests, each `status=0`
+(`s5-final-page.log`, `s5-final-preferences.log`, `s5-final-sandbox.log`).
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
