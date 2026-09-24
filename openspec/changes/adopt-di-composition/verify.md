@@ -1680,3 +1680,44 @@ installer` failed with received keys adding `"bag"` (`Expected  - 0`, `Received 
   asserts the installed Work item's clock, scheduler and broadcaster by identity (`toBe`), watched
   failing on a structurally equal scheduler copy; no `servicesOver` resource is constructed with
   `new`.
+
+### Work item registration, Slice 3 — 2026-09-24
+
+- The slice started from `base=365e37dddbbd87fe065df6c694e5b8158354cbfd` on a clean tree, with
+  `compose.ts` last changed by `365e37dddbbd87fe065df6c694e5b8158354cbfd`, `M=18` pilot modules and
+  `B=18` boundaries. The frozen revision `7851161bf96312750d07b933ca5d42b75ce575c7` lists
+  `100644 blob 29ab341f9befec90944900d13f9c9c823d06de95` `libs/core/src/service/work-item.service.ts`.
+- Before any edit: the `tool-devsync` and `twilight-burokrat` type-checks,
+  `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0
+  (`slice3-typecheck-baseline.log`, `slice3-burokrat-lint-source-baseline.log`,
+  `slice3-devsync-lint-baseline.log`); `pilot-policy.test.ts` passed `T=21` tests with `TF=0`
+  failures and `P=305` `expect()` calls (`slice3-pilot-baseline.log`); the legacy pin passed,
+  1 pass (`slice3-legacy-pin-baseline.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`slice3-openspec-baseline.json`).
+- Registration, each step run with `-t "pins exact pre-index tuples"`, each patch and log under the
+  same basename:
+  - Row 18, the `modules.json` row alone (`slice3-work-item-1-row-red`): failed at
+    `pilot-policy.test.ts:383`, `Expected: 18`, `Received: 19`; 0 pass, 20 filtered out, 1 fail,
+    30 `expect()` calls.
+  - Row 19, with the `policy.json` boundary (`slice3-work-item-2-boundary-red`): failed at
+    `pilot-policy.test.ts:420`, `Expected: true`, `Received: false`; 0 pass, 20 filtered out,
+    1 fail, 34 calls.
+  - Row 20, with the `pilotPaths` entry and the README index (`slice3-work-item-3-index-green`):
+    1 pass, 20 filtered out, 0 fail, 40 calls.
+- Green (row 21): the whole pilot file passed `T=21` tests, `TF=0` failures and `P + 1 = 306`
+  `expect()` calls (`slice3-pilot-whole-green.log`); the prose-refusal pin did not move.
+- Legacy pin red, pin unchanged (row 22): `every legacy source occurrence and relevant text family
+is pinned` failed with `historical policy selector or baseline` 63 to 65, `occurrences` 281 to
+  283 and the digest `5864733c…` to
+  `0d78b5794663e2bd708b6d307ba2643d33a414d717771b682392445958fe4e07`, `Expected  - 3` /
+  `Received  + 3`; 0 pass, 14 filtered out, 1 fail (`slice3-legacy-pin-red.log`). After the
+  re-pin (`slice3-legacy-repin.patch`) it passed, 1 pass (row 23, `slice3-legacy-pin-green.log`);
+  its Proof comment followed (`slice3-legacy-proof.patch`). No other pinned literal moved.
+- Task records (`slice3-tasks.patch`): 5.1 ticked with its dated note, 7.5 extended.
+- Closing: the `tool-devsync` and `twilight-burokrat` type-checks, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice3-typecheck-after.log`,
+  `slice3-burokrat-lint-source-after.log`, `slice3-devsync-lint-after.log`); the legacy pin
+  passed, 1 pass (`slice3-legacy-pin-after.log`); OpenSpec validation passed `N=114` of 114 with 0
+  failed (`slice3-openspec-after.json`); `M=19`, `B=19`. The whole
+  `repo-namespacing-handoff.test.ts` and `tool-devsync:test` are the planner's (they write Git
+  objects).
