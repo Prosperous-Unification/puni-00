@@ -26,6 +26,8 @@ export * from './module/capacity/contract';
 export * from './module/capacity/module';
 export * from './module/directory/contract';
 export * from './module/directory/module';
+export * from './module/plan-commands/contract';
+export * from './module/plan-commands/module';
 export * from './module/plan-document/contract';
 export * from './module/plan-document/module';
 export * from './module/plan-history/contract';

@@ -1,5 +1,5 @@
-import type { Scope } from '../ports/unit-of-work';
-import { createWorkingPlan } from './working-plan';
+import type { Scope } from '../../ports/unit-of-work';
+import { createWorkingPlan } from './working-plan.resource';
 
 /** Compile-time witness that a plan-only scope is sufficient and remains accountless. */
 export function workingPlanOver(accountlessScope: Scope) {
