@@ -1808,3 +1808,58 @@ opens it.
 
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
+
+## Packet 050.7h, slice 3 — the table takes the project's services, the page composes them, and task 9 closes
+
+Attempt `050-7-h-project-api-ports.3.20260924T065909Z`, starting hash
+`88624cffae825ce4455b6d6755fa3985ba979966` (slice 2's planner commit); the starting status was
+empty (`status-before.txt`). All observations 2026-09-24, in the executor sandbox, every Vitest run
+with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
+
+Baselines before any edit, each `status=0`: preferences 4 files, 39 tests; sandbox node suite 51
+files, 687 tests; adopted set, serial, 20 files, 1215 tests; zoned (Auckland) 2 files, 3 tests; the
+page and the router 2 files, 78 tests; strict OpenSpec `{"items":114,"passed":114,"failed":0}`
+(`base-*.log`, `s3-base-*.log`, `openspec-base.*.json`).
+
+Contract first: the scenario "The page composes the table's services once per client" applied, then
+the strict block exit 0, `{"items":114,"passed":114,"failed":0}`.
+
+Red, after the new `src/testing/project-services-of.ts` and the named fixture edit in the seventeen
+table suites (`api={X}` → `projectServices={projectServicesOf(X)}`, one import each, no `expect`
+line changed — `git diff -U0 -- '*.test.tsx' | grep -E '^[-+].*expect\('` printed nothing):
+`wbs-fe-01:typecheck` `status=1`, `Found 256 errors in 17 files.`, all 256 `TS2322` — 1
+page-shortcuts, 3 gantt-panel, 7 optimization-integration, 56 plan-cards, 31 plan-cells, 4
+plan-chart-seam, 9 plan-dependencies, 6 plan-estimates, 15 plan-filter, 3 plan-keyboard, 23
+plan-layout, 44 plan-read-and-write, 1 plan-row-dependencies, 5 plan-row-render-cost, 8
+plan-structure, 25 plan-table, 15 plan-toolbar — the first at `page-shortcuts.test.tsx:155:34`;
+`plan-row-dependencies.test.tsx` `status=1`, `Tests 5 failed (5)`, all five on
+`Unable to find a label with the text of: Name of 010` (`s3-red-typecheck.log`, `s3-red-vitest.log`).
+
+Green, after `WbsTableProps.projectServices`, the table's and the page's edits, the READMEs, the
+markers composition's JSDoc, the lifetime map's K2 note and task 9 (both notes dated by
+`date -u +%F`, `2026-09-24`): typecheck `status=0`; `nx format:check --all` `status=0`; adopted set
+20 files, 1215 tests (unchanged); zoned 2·3 (unchanged); page and router 2·78 (unchanged); sandbox
+51·687 (unchanged); `wbs-fe-01:lint` `status=0` (`s3-green-*.log`, `s3-format.log`, `s3-lint.log`).
+The client-holder `git grep` listed exactly `components/wbs/project-page.tsx` and
+`components/wbs/use-plan-import.ts` (`s3-client-holders.txt`).
+
+Proofs: each filter matched exactly one test (`s3-filters.txt`); each fault injected, observed
+failing, restored and `cmp`-identical, then green (`s3-proofs.txt`, `<id>.patch`, `<id>.log`,
+`<id>.green.log`):
+
+- `t1`, the table's commands keyed on `[projectServices]` alone: `plan-table.test.tsx` › `keeps an
+add burst and its refetch inside the project where it started`, `Tests 1 failed | 46 skipped
+(47)`, `expected [ 'p1', 'p1' ] to deeply equal [ 'p1', 'p2' ]`.
+- `t2`, the writer's `isActiveReader` comparing the project only: `plan-read-and-write.test.tsx` ›
+  `does not spend an old API success against its busy replacement`, `Tests 1 failed | 87 skipped
+(88)`, `expected 'false' to be 'true'`.
+- `q1`, the page composing on every render: `project-page.test.tsx` › `recovers a persistent
+resume_ack without replacing the registered socket`, `Tests 1 failed | 72 skipped (73)`,
+  `expected 3 to be 2`.
+
+After the comments: page and router 2·78, preferences 4·39, sandbox 51·687, lint `status=0`
+(`s3-final-*.log`). Owned-file Prettier, `nx format:check --all` and the strict block run after this
+entry is written.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.

@@ -14,7 +14,9 @@ contract in `apps/wbs/fe-01/src/modules/store.ts`, which is rule F2.
 - `plan-feed.feature.ts` is the **feature**-service: the live plan on screen for as long as this
   reader owns it, which is what a screen asks for and the only thing delivery may import (rule
   K2).
-- `composition.ts` is where the refresh owner's factory and the feature meet. A screen calls it.
+- `composition.ts` is where the refresh owner's factory and the feature meet, over the routes the
+  refresh owner reads — `PlanReadRoutes` in `apps/wbs/fe-01/src/lib/plan-refresh.ts`, this
+  module's private repository port. The project composition root calls it; a screen does not.
 - `delivered-plan-store.ts` is the **store** the feed publishes into: every publication folded
   into the one snapshot a screen selects from, with the connection the stream last reported.
 - `presence-store.ts` is the **store** of who else has the project open and whether the socket
@@ -67,9 +69,10 @@ the delivered plan's own notification.
 
 There is no `module.ts`: DI Bag 0.4.0 is installed but nothing in this application is composed
 through it yet, which is the rollout's lifetimes task, so `composition.ts` is a function, as
-`modules/directory-management/composition.ts` is. Its one caller today is
-`apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, which also wires this feed to the plan writer
-module beside it: the writer compares the owner's identity and sends its rereads back through the
+`modules/directory-management/composition.ts` is. Its one caller is the project composition root,
+`modules/project/composition.ts`, which hands it the page's one client as its routes. The plan read
+hook, `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, opens the feed through the project's
+services and wires it to the plan writer module beside it: the writer compares the owner's identity and sends its rereads back through the
 hook. The same hook builds the delivered plan once per table mount, and `project-page.tsx` builds
 the presence store once per page mount; the project runtime of OpenSpec task 10 builds both
 instead.

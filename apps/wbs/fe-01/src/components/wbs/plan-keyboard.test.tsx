@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 
 import type * as TableFrameModule from './table-frame';
@@ -175,7 +176,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -1214,7 +1215,7 @@ describe('the command chords', () => {
     // The whole of R1's second half: a note is typed under the name, which
     // needs Enter to mean what it means in every other text box in the world.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     const cell = await screen.findByLabelText('Name of 010');
 
@@ -1843,7 +1844,7 @@ describe('the command chords', () => {
     render(
       <WbsTable
         projectId="p1"
-        api={api}
+        projectServices={projectServicesOf(api)}
         subscribe={(_projectId, handlers) => {
           notify = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };

@@ -19,7 +19,6 @@ import {
   type EstimateRoundingView,
   type PertWeightsView,
   type PlanOptimizationView,
-  type ProjectApi,
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
@@ -50,7 +49,15 @@ import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
   projectId: string;
-  api: ProjectApi;
+  /**
+   * The project's feed, marker gestures and commands, composed by the page over
+   * its one client — never the client itself (rule K2).
+   *
+   * Its identity is the client's: the page composes once per client, so the
+   * same services mean the same reader, and a new one is a new reader whose
+   * feed replaces the old one's.
+   */
+  projectServices: ProjectServices;
   /** Page-owned archival import lifecycle; absent in isolated table tests. */
   planImport?: PlanImportControl;
   /** Page-owned production toast lifetime; absent in isolated table tests. */
@@ -722,6 +729,9 @@ export function usePlanRead({
     () =>
       createPlanWriter({
         readRefreshOwner: () => feedRef.current?.owner ?? null,
+        // Proof: on 2026-09-24, comparing the project alone here failed `does not spend an old
+        // API success against its busy replacement` with `expected 'false' to be 'true'`: the old
+        // client's success cleared the replacement's busy state.
         isActiveReader: () =>
           activeProject.current === projectId && activeServices.current === projectServices,
         rereadResources: refreshResourcesOrMarkStale,
