@@ -29,15 +29,14 @@ export type CalendarMarkersReader = Omit<CalendarMarkersHost, 'api'>;
  * What a plan screen may build for the project it shows: its feed, its marker
  * gestures and its commands — feature-services only (rule K2).
  *
- * Factories and not instances, because the table still owns when each is
- * opened and closed: the feed per reader effect, the markers and the commands
- * per reader memo. The project runtime of OpenSpec task 10 builds them once
- * per selected project instead. The HTTP client and the three private ports
- * cut from it are inside, and no member hands either out.
+ * Factories and not instances, because this is what a project runtime is
+ * built **from**: `runtime/project-runtime.ts` calls each once for the one
+ * project it opens, and nothing in delivery calls them. The HTTP client and
+ * the three private ports cut from it are inside, and no member hands either
+ * out.
  *
- * Its **identity** is the reader's API identity: a table that is handed a
- * different one has been handed a different client, and every stale-owner guard
- * that compared the client before compares this now.
+ * Its **identity** is the client's: the page composes once per client, and a
+ * new one makes its project owner open the selected project again over it.
  */
 export interface ProjectServices {
   /** Opens one reader's live plan, reading through the plan feed's routes. */

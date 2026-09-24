@@ -3,12 +3,12 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { KeyboardCheatSheet } from '@/components/wbs/keyboard-cheat-sheet';
-import { WbsTable } from '@/components/wbs/wbs-table';
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { refusingApi } from '@/testing/refusing-api';
 import { personView, planRead, workItemView } from '@/testing/views';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { Modal, ModalContent, ModalTitle } from './modal';
 
@@ -152,7 +152,7 @@ function silentApi(): SilentApi {
 
 /** The table, on screen with its one row, and its window listeners registered. */
 async function renderTable(api: ProjectApi): Promise<void> {
-  render(<WbsTable projectId="p" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p" projectServices={projectServicesOf(api)} />);
   await waitFor(() => {
     expect(screen.getByLabelText('Name of 010')).toBeDefined();
   });

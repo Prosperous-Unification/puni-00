@@ -6,9 +6,10 @@ import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as TableFrameModule from './table-frame';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
 const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =>
@@ -178,7 +179,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -215,7 +216,7 @@ describe('duplicating a branch', () => {
   /** A one-row project, already loaded, so the button has something to copy. */
   async function shownRow(api: ProjectApi): Promise<void> {
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
   }
 
@@ -227,7 +228,7 @@ describe('duplicating a branch', () => {
       afterId: null,
       name: 'Sockets',
     });
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     takeRowAction('010', 'Duplicate');
@@ -286,7 +287,7 @@ describe('the row actions menu', () => {
     for (const name of ['Strip', 'Sand', 'Paint']) {
       await api.createWorkItem('p1', { parentId: null, afterId: null, name });
     }
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
   }
 
@@ -371,7 +372,7 @@ describe('the row actions menu', () => {
       name: 'Sand',
     });
     const removed = recordCalls(api, 'removeWorkItem');
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010.1');
 
     takeRowAction('010', 'Delete');
@@ -512,7 +513,7 @@ describe('the row actions menu', () => {
 describe('collapsing a branch', () => {
   itDom('hides the children of a collapsed parent and brings them back', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -544,7 +545,7 @@ describe('collapsing a branch', () => {
 
   itDom('offers no expander on a leaf', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -749,7 +750,11 @@ describe('a drag interrupted by someone else', () => {
     };
     // Re-render with a subscription so a peer edit can be delivered.
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     await waitFor(() => {
       expect(screen.getAllByLabelText(/^Reorder 0/)).toHaveLength(6);
