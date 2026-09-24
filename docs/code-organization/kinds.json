@@ -246,15 +246,13 @@
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",
-      "kind": "resource",
-      "term": "calendar marker",
-      "rationale": "calendar-marker and project routes call it for the calendar marker aggregate's rules over CalendarMarkerStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the calendar-marker module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/capacity.service.ts",
-      "kind": "resource",
-      "term": "capacity",
-      "rationale": "composeServices and PlanCommandRunner use it for the capacity aggregate's edit rules over CapacityStore and ProjectStore, with Clock and Broadcaster ports"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the capacity module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/clean-name.ts",

@@ -5,6 +5,8 @@ import { installAuthentication } from './module/authentication/check';
 import type { LoginThrottle } from './module/authentication/login-throttle';
 import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
 import type { RetentionTimer } from './module/bounded-replay-sweep/retention-timer';
+import { installCalendarMarker } from './module/calendar-marker/check';
+import { installCapacity } from './module/capacity/check';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import { installPlanImport } from './module/plan-import/check';
@@ -25,8 +27,6 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
-import { CalendarMarkerService } from './service/calendar-marker.service';
-import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { PriorityBandService } from './service/priority-band.service';
@@ -72,7 +72,17 @@ export interface ServicesOverOptions {
   readonly scheduler: Scheduler;
 }
 
-/** Builds the writing services over exactly the stores admitted to this act. */
+/**
+ * Builds the writing services over exactly the stores admitted to this act.
+ *
+ * Called once for the public graph and once per admitted batch or import, so
+ * every resource module is installed here, per call, over the stores it is
+ * handed — never once for the process. A shared installation would hand one
+ * batch's staged stores to the next: the backend module map's "A singleton
+ * module installation here would leak staged stores" hazard, and the
+ * `Writing modules are installed per admitted scope` requirement of
+ * `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`.
+ */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler } = shared;
   return {
@@ -82,18 +92,18 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
     }),
-    capacity: new CapacityService({
+    capacity: installCapacity({
       clock,
       projects: stores.projects,
       capacity: stores.capacity,
       broadcast,
-    }),
-    calendarMarkers: new CalendarMarkerService({
+    }).capacity,
+    calendarMarkers: installCalendarMarker({
       clock,
       projects: stores.projects,
       markers: stores.calendarMarkers,
       broadcast,
-    }),
+    }).calendarMarkers,
     priorityBands: new PriorityBandService({
       clock,
       projects: stores.projects,

@@ -1269,3 +1269,100 @@ is pinned` failed with `historical policy selector or baseline` 49 to 51, `occur
   `step8-lint-devsync.log`); the legacy pin passed, 1 pass (`step8-legacy-pin.log`); OpenSpec
   validation passed `N=114` of 114 with 0 failed (`openspec-validation.pA9RJm.json`); `M=12`,
   `B=12`, 8 relationship facts.
+
+### Calendar marker and Capacity, Slice 1 — 2026-09-24
+
+- The slice started from `base=8c8674c78b494f2c7e7895956c9c85c9bb62cb3b` on a clean tree, with
+  `module/calendar-marker` and `module/capacity` absent, E6's `module/plan-document/module.ts` and
+  `apps/wbs/be-01/src/module/solver-launcher/module.ts` present, `service/calendar-marker.service.ts`
+  at 193 lines, `service/capacity.service.ts` at 96, one `new CalendarMarkerService({` and one
+  `new CapacityService({` in `compose.ts`, and `K=93` `kinds.json` entries.
+- Before any edit: `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`); `(cd libs/wbs/application/core && bun test src)` passed
+  `C=577` over `F=60` files (`slice1-core-baseline.log`); the be-01 unit command (no `*.db.test.ts`,
+  no `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice1-be01-unit-baseline.log`).
+- Bundle red (row 3): `bun build libs/wbs/application/core/src/compose.ts --target=bun` exited 0 and
+  its bundle held neither `application.calendar-marker` nor `application.capacity` (grep exit 1,
+  `count=0` each; `slice1-compose-bundle-red.log`, `slice1-baseline-block.out`).
+- Module reds (rows 1-2): each new `module.test.ts` alone failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error
+  (`slice1-row-red-calendar-marker.log`, `slice1-row-red-capacity.log`).
+- Move red (row 4): after the `cp`/`mv` move, the import diff (`slice1-10.3-imports.patch`) and the
+  two shims, `apps/wbs/be-01/src/service/clock.test.ts` failed
+  `is reading real service sources, not an empty list` on
+  `Expected to contain: "export class CapacityService"`; 3 pass, 1 fail (`slice1-row4-clock-red.log`).
+- Module greens (rows 5-6): with the four files of each module,
+  `bun test ./libs/wbs/application/core/src/module/calendar-marker/` passed 22 over 2 files, 40
+  `expect()` calls (`slice1-green-calendar-marker.log`), and the Capacity directory passed 5, 7
+  `expect()` calls (`slice1-green-capacity.log`).
+- Bundle green (row 8): after `servicesOver` installs both (`slice1-10.7-install.patch`), the same
+  build exited 0 and printed `count=1` for each label (`slice1-compose-bundle-green.log`,
+  `slice1-compose-bundle-green-counts.txt`).
+- Per-scope cases (`slice1-10.8-per-scope-cases.patch`): `compose.test.ts` passed 11, 0 fail
+  (`slice1-compose-test-green.log`). Sideways row (`slice1-10.9-sideways-row.patch`): the suite
+  passed, 1 pass (`slice1-sideways-green.log`). Clock scan (`slice1-10.10-clock-scan.patch`,
+  row 7): `clock.test.ts` passed 4, 0 fail (`slice1-row7-clock-green.log`). `wbs-core` and
+  `wbs-be-01` lint and typecheck exited 0 (`slice1-lint-typecheck-step7.log`).
+- Faults, each restored by `cp` and proved with `cmp` before the next, each followed by a green
+  rerun (`<row>-restored.log`):
+  - Row 9, Calendar marker key tuple widened to `['calendarMarkers', 'calendarMarkerOptions']`
+    (`row09-cm-tuple.patch`): `Received function did not throw`;
+    `Expected to contain: "application.calendar-marker/calendarMarkerOptions"`; the message read
+    `Cannot resolve "calendarMarkerOptions"`; 2 pass, 3 fail (`row09-cm-tuple-failing.log`).
+  - Row 10, Calendar marker label dropped (`row10-cm-label.patch`): only the two label tests
+    failed; 3 pass, 2 fail (`row10-cm-label-failing.log`).
+  - Row 11, `broadcast,` deleted from the `calendarMarkerOptions` factory's return
+    (`row11-cm-broadcast.patch`): the published events expected one `calendar_markers_changed` and
+    received `[]`; 4 pass, 1 fail (`row11-cm-broadcast-failing.log`).
+  - Row 12, Calendar marker `check.ts` returning an `exposed` object with `bag`
+    (`row12-cm-bag.patch`): the received keys added `"bag"`; 4 pass, 1 fail
+    (`row12-cm-bag-failing.log`); `wbs-core:typecheck` exit 0 (`row12-cm-bag-typecheck.log`).
+  - Row 13, Calendar marker `check.ts` attaching `resolve` (`row13-cm-resolver.patch`):
+    `Expected: true`, `Received: false`; 4 pass, 1 fail (`row13-cm-resolver-failing.log`);
+    typecheck exit 0 (`row13-cm-resolver-typecheck.log`).
+  - Rows 14-15, Capacity tuple and label (`row14-cap-tuple.patch`, `row15-cap-label.patch`): 2 pass,
+    3 fail and 3 pass, 2 fail, with the same three and two messages as rows 9 and 10
+    (`row14-cap-tuple-failing.log`, `row15-cap-label-failing.log`).
+  - Row 16, `capacityOptions` handing `{ ...broadcast, publish: () => Promise.resolve() }`
+    (`row16-cap-broadcast.patch`): expected one `capacity_changed`, received `[]`; 4 pass, 1 fail
+    (`row16-cap-broadcast-failing.log`).
+  - Rows 17-18, Capacity bag and resolver (`row17-cap-bag.patch`, `row18-cap-resolver.patch`): the
+    received keys added `"bag"`, then `Expected: true`, `Received: false`; 4 pass, 1 fail each;
+    typecheck exit 0 each (`row17-cap-bag-typecheck.log`, `row18-cap-resolver-typecheck.log`).
+  - Row 19, `installCalendarMarker` memoized in a module-level `reusedCalendarMarker`
+    (`row19-cm-per-scope.patch`), run with `-t "installs Calendar marker per supplied scope"`:
+    `-   "value": [],` / `+   "value": [` holding the first scope's `"name": "Launch"` marker;
+    0 pass, 10 filtered out, 1 fail (`row19-cm-per-scope-failing.log`); typecheck exit 0
+    (`row19-cm-per-scope-typecheck.log`). A first injection omitted the closing parenthesis and did
+    not parse (`row19-cm-per-scope.attempt1-syntax.patch`); it was restored, `cmp`-proved and
+    redone.
+  - Row 20, `installCapacity` memoized in `reusedCapacity` (`row20-cap-per-scope.patch`), run with
+    `-t "installs Capacity per supplied scope"`: `- []` /
+    `+ [ { "serviceTeamId": "team-1", "size": 3 } ]`; 0 pass, 10 filtered out, 1 fail
+    (`row20-cap-per-scope-failing.log`); typecheck exit 0 (`row20-cap-per-scope-typecheck.log`).
+  - Row 21, `import type { CalendarMarkerService } from '../../index';` and
+    `export type BarrelMarkers = CalendarMarkerService;` prepended to E6's
+    `module/plan-document/plan-document.resource.ts` (`row21-sideways-barrel.patch`): exactly one
+    violation,
+    `"module/plan-document/plan-document.resource.ts: CalendarMarkerService reaches module/calendar-marker/calendar-marker.resource.ts"`;
+    `Expected - 1`, `Received + 3`; 0 pass, 1 fail (`row21-sideways-barrel-failing.log`). The file
+    was restored by `cp`, `cmp` equal, and `git diff` shows it unchanged.
+  - Row 24, `now?: () => number;` added to the moved `CapacityServiceOptions`
+    (`row24-clock-capacity-now.patch`): `is the only clock a service that stamps a write reads`
+    received `["libs/wbs/application/core/src/module/capacity/capacity.resource.ts"]`; 3 pass,
+    1 fail (`row24-clock-capacity-now-failing.log`).
+  - Row 25, `serviceFolders` returning `[...FOLDERS]` (`row25-clock-folders.patch`): the
+    `coreCapacity` assertion received `undefined`; 3 pass, 1 fail
+    (`row25-clock-folders-failing.log`).
+- Proof comments added after the observations (`slice1-10.11-proofs.patch`); both module
+  directories, `compose.test.ts`, the sideways suite and `clock.test.ts` then passed 43 over 6 files
+  (`slice1-after-proofs-focused.log`).
+- Filesystem substitute for `service-kinds.test.ts` printed `93 []`
+  (`slice1-kinds-substitute.txt`); the test itself is the planner's.
+- Closing: core `bun test src` passed `C + 12 = 589` over `F + 2 = 62` files
+  (`slice1-core-closing.log`); the be-01 unit command passed `E = 520` over `EF = 49` files
+  (`slice1-be01-unit-closing.log`); `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-closing.log`); `module/calendar-marker` holds seven files and
+  `module/capacity` six; `nx format:check --all` exited 0 (`slice1-format-check.log`).
+- Delivery still accepts `CalendarMarkerService` and reaches `CapacityService` through the composed
+  graph (K2), tracked under 7.4.

@@ -1,11 +1,14 @@
 import { noopLogger } from '@wbs/contracts';
 import { openMemorySource } from '@wbs/store-memory';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, test } from 'bun:test';
 
 import {
   type AccountlessSource,
   composeServices,
   type RuntimePorts,
+  servicesOver,
+  type ServicesOverOptions,
   type SharedComposition,
   type WritingServices,
 } from './compose';
@@ -14,6 +17,7 @@ import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
 import { PlanCommandRunner } from './service/plan-commands';
+import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
 import { replay } from './use-cases/replay';
 import { savePlan } from './use-cases/save-plan';
@@ -378,5 +382,65 @@ describe('composeServices', () => {
       ok: false,
       reason: 'nothing_to_undo',
     });
+  });
+});
+
+/**
+ * `servicesOver` installs each per-admission resource over the stores it is
+ * handed, once per call, so two admitted scopes over distinct stores never
+ * share one: the `Writing modules are installed per admitted scope`
+ * requirement. Each resource has a case of its own, so a shared installation
+ * of any one of them fails its own case.
+ */
+describe('servicesOver', () => {
+  const PROJECT = 'project-1';
+  const OWNER = 'owner';
+  const TEAM = 'team-1';
+
+  /** One source holding the project and the team, and a writing graph over its stores. */
+  async function scopeOver(shared: ServicesOverOptions): Promise<WritingServices> {
+    const source = openMemorySource();
+    await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
+      at: 1,
+      by: OWNER,
+    });
+    await source.stores.directory.addTeam({ id: TEAM, name: 'Platform' }, { at: 1, by: OWNER });
+    return servicesOver(source.stores, shared);
+  }
+
+  /** Two such scopes, sharing only what every admission shares. */
+  async function twoScopes(): Promise<{
+    readonly first: WritingServices;
+    readonly second: WritingServices;
+  }> {
+    let next = 0;
+    const shared: ServicesOverOptions = {
+      clock: clockOf({ now: () => 1_000, newId: () => `id-${String(++next)}` }),
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+    };
+    return { first: await scopeOver(shared), second: await scopeOver(shared) };
+  }
+
+  test("installs Calendar marker per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    expect(
+      await first.calendarMarkers.create(PROJECT, OWNER, { date: '2026-09-30', name: 'Launch' }),
+    ).toMatchObject({ ok: true });
+    // Proof (2026-09-24): memoizing one `installCalendarMarker(...)` result in a module-level
+    // `let` and handing it to every `servicesOver` call left this case failing (0 pass, 1 fail,
+    // run alone with `-t`): the second scope listed the first scope's `Launch` marker.
+    expect(await second.calendarMarkers.list(PROJECT)).toEqual({ ok: true, value: [] });
+  });
+
+  test("installs Capacity per supplied scope, over that scope's own stores", async () => {
+    const { first, second } = await twoScopes();
+
+    expect(await first.capacity.set(PROJECT, OWNER, TEAM, 3)).toMatchObject({ ok: true });
+    // Proof (2026-09-24): memoizing one `installCapacity(...)` result in a module-level `let` and
+    // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
+    // with `-t`): the second scope listed the first scope's `{ serviceTeamId: "team-1", size: 3 }`.
+    expect(await second.capacity.listFor(PROJECT)).toEqual([]);
   });
 });
