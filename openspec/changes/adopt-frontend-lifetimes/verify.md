@@ -2199,3 +2199,45 @@ sandbox 56 · 709.
 
 **Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which runs in the executor sandbox.
+
+## Packet 050.7i, slice 3 — the project opened through the signed-in user's session, and the records
+
+Attempt `050-7-i-session-runtime.3.20260924T191341Z`, starting at
+`e46c8d3d9650e29cbbd05e764449f5a300defbcf` with an empty `git status` (`base.txt`,
+`status-before.txt`). Every check below recorded its own exit status as the last line of its log
+under the attempt's evidence directory; Vitest ran with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT`
+unset.
+
+**Baselines** (`base-*.log`, `s3-base-*.log`), each `status=0`: preferences 4 · 39, sandbox node
+suite 56 · 709, session set (serial) 3 · 64, adopted set (serial) 20 · 1218, zoned (Auckland) 2 · 3.
+Strict OpenSpec `{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`).
+
+**Contract first.** The scenario "The project page opens its project through the session" applied;
+strict OpenSpec still `{"items":114,"passed":114,"failed":0}` (`openspec-s3-contract.*.json`).
+
+**Red checkpoint**, after the fixture, the named fixture edit and the router example only:
+`wbs-fe-01:typecheck` `status=1`, `Found 2 errors in 2 files.` — the same TS2322 at
+`apps/wbs/fe-01/src/testing/project-page-over-owner.tsx:22:23`, once per build project that includes
+`src/testing` (`s3-red-typecheck.log`); `vitest run src/app-router.test.tsx` `status=1`,
+`Tests 1 failed | 5 passed (6)`, on `AssertionError: expected 'empty' to be 'p1'` in `opens the
+selected project through the signed-in session’s own project owner` (`s3-red-vitest.log`).
+
+**Green checkpoint**, after the page, the router, the READMEs, the lifetime map and `tasks.md` (both
+notes dated 2026-09-24 by `date -u +%F`; task 6 reads `[x]`), each `status=0`: typecheck;
+`nx format:check --all`; session set 3 · 65 (step 0 + 1, the router example); adopted set
+20 · 1219 (step 1 + 1, the same example); zoned 2 · 3; sandbox 56 · 709 (`s3-green-*.log`,
+`s3-format.log`). `wbs-fe-01:lint` `status=0` (`s3-lint.log`), and again after the proof comment
+(`s3-lint-after.log`).
+
+**Proof `r1`.** The filter matched exactly one test. The route handing `ProjectPage`
+`createProjectOwner()` instead of `session.projects` (`r1.patch`) failed `opens the selected project
+through the signed-in session’s own project owner` with `Tests 1 failed | 5 skipped (6)` and
+`AssertionError: expected 'empty' to be 'p1'` (`r1.log`); the file was restored, `cmp`-identical to
+the saved copy, and the test reran green (`r1.green.log`). The `Proof:` comment stands above
+`projectOwner={session.projects}` in `app-router.tsx`.
+
+**Final reruns** (`s3-final-*.log`), each `status=0`: session set 3 · 65, preferences 4 · 39,
+sandbox 56 · 709.
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which runs in the executor sandbox.

@@ -57,9 +57,19 @@ const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: function ProjectRoute() {
-    const { token, presence, account, nav, projectApi } = projectRoute.useRouteContext();
+    const { session, token, presence, account, nav, projectApi } = projectRoute.useRouteContext();
     return (
-      <ProjectPage token={token} api={projectApi} presence={presence} account={account} nav={nav} />
+      <ProjectPage
+        // Proof: on 2026-09-24, handing the page an owner of its own (r1) failed `opens the
+        // selected project through the signed-in session’s own project owner`: expected 'empty'
+        // to be 'p1', the session's owner never opened the project.
+        projectOwner={session.projects}
+        token={token}
+        api={projectApi}
+        presence={presence}
+        account={account}
+        nav={nav}
+      />
     );
   },
 });

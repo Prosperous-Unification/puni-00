@@ -32,11 +32,12 @@ import {
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
-import { ProjectPage, recallLastProject, rememberLastProject } from './project-page';
+import { recallLastProject, rememberLastProject } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -332,7 +333,7 @@ const fakeSavedPlansDeps = (
 });
 
 const pageWith = (api: ProjectApi, savedPlansDeps: SavedPlansPanelDeps = fakeSavedPlansDeps()) =>
-  render(<ProjectPage token="t" api={api} savedPlansDeps={savedPlansDeps} />);
+  render(<ProjectPageOverOwner token="t" api={api} savedPlansDeps={savedPlansDeps} />);
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
 
@@ -530,7 +531,7 @@ describe('opening an imported project', () => {
     });
 
     view.rerender(
-      <ProjectPage token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+      <ProjectPageOverOwner token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
     );
     await act(async () => {
       finishImport(IMPORTED);
@@ -573,7 +574,7 @@ describe('opening an imported project', () => {
       importFile();
 
       view.rerender(
-        <ProjectPage token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+        <ProjectPageOverOwner token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
       );
       await act(async () => {
         finishRead();
@@ -611,7 +612,7 @@ describe('opening an imported project', () => {
     });
 
     view.rerender(
-      <ProjectPage token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+      <ProjectPageOverOwner token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
     );
     await act(async () => {
       finishCatalogue([
@@ -856,7 +857,7 @@ describe('the header bar', () => {
 
   itDom('gives the header the slots the app fills, in the bar itself', async () => {
     render(
-      <ProjectPage
+      <ProjectPageOverOwner
         token="t"
         api={fakeProjects(TWO)}
         presence={() => <p>who is here</p>}
@@ -883,7 +884,7 @@ describe('the header bar', () => {
    */
   itDom('carries the navigation beside the project controls', async () => {
     render(
-      <ProjectPage
+      <ProjectPageOverOwner
         token="t"
         api={fakeProjects(TWO)}
         nav={<nav aria-label="Pages">the two pages</nav>}
@@ -915,7 +916,7 @@ describe('the header bar', () => {
     // roster 2026-09-02.
     const asked: { users: readonly string[]; connected: boolean }[] = [];
     render(
-      <ProjectPage
+      <ProjectPageOverOwner
         token="t"
         api={fakeProjects(TWO)}
         presence={(roster) => {
@@ -955,7 +956,7 @@ describe('the header bar', () => {
       };
       const asked: { users: readonly string[]; connected: boolean }[] = [];
       render(
-        <ProjectPage
+        <ProjectPageOverOwner
           token="t"
           api={fakeProjects(TWO)}
           streamDeps={streamDeps}
@@ -1007,7 +1008,7 @@ describe('the header bar', () => {
       };
       const asked: { users: readonly string[]; connected: boolean }[] = [];
       render(
-        <ProjectPage
+        <ProjectPageOverOwner
           token="t"
           api={fakeProjects(TWO)}
           streamDeps={streamDeps}
@@ -1065,7 +1066,9 @@ describe('the header bar', () => {
       cancel: () => undefined,
       random: () => 0,
     };
-    const view = render(<ProjectPage token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />);
+    const view = render(
+      <ProjectPageOverOwner token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />,
+    );
     await selectProject('p2');
     await waitFor(() => {
       expect(opened).toBe(1);
@@ -1096,7 +1099,7 @@ describe('the header bar', () => {
         cancel: () => undefined,
         random: () => 0,
       };
-      render(<ProjectPage token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />);
+      render(<ProjectPageOverOwner token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />);
       await selectProject('p1');
       await waitFor(() => {
         expect(opened).toBe(1);
@@ -1493,7 +1496,7 @@ describe('the remembered project, over the runtime live when it is used', () => 
   const pageUnder = (slot: LifetimeSlot<ApplicationServices>, api: ProjectApi) =>
     render(
       <ApplicationServicesProvider slot={slot}>
-        <ProjectPage token="t" api={api} savedPlansDeps={fakeSavedPlansDeps()} />
+        <ProjectPageOverOwner token="t" api={api} savedPlansDeps={fakeSavedPlansDeps()} />
       </ApplicationServicesProvider>,
     );
 
@@ -2074,7 +2077,7 @@ describe('the hover card follows the list, not a stale pointer', () => {
   itDom('remeasures during list scroll without rerendering the project page', async () => {
     let pageRenders = 0;
     render(
-      <ProjectPage
+      <ProjectPageOverOwner
         token="t"
         api={fakeProjects(TWO)}
         presence={() => {

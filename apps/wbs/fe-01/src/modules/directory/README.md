@@ -16,6 +16,8 @@ exposes the one store contract in `apps/wbs/fe-01/src/modules/store.ts`, which i
   the directory's own words, refetch either way, lower busy.
 - Which route each of the five kinds renames and removes through.
 - Pointing at a replacement client without losing what it already holds.
+- Withdrawal: built with its owner's `isActiveReader`, it sends nothing and shows nothing new once
+  that answers no, so a signed-out or replaced session's directory keeps what it held.
 
 ## What it does not own
 
@@ -25,9 +27,9 @@ optimistic, and nothing here opens a socket.
 
 ## Relationships
 
-The exported types are in `contract.ts`; the service is `directory.resource.ts`. There is no
-`module.ts` yet: DI Bag is not installed, so the host builds the service with a plain factory
-call, from `apps/wbs/fe-01/src/modules/directory-management/composition.ts`. The plan pickers are
+The exported types are in `contract.ts`; the service is `directory.resource.ts`. It has no
+`module.ts` of its own: the directory-management module registers it as its private `directory`
+binding, in `apps/wbs/fe-01/src/modules/directory-management/module.ts`. The plan pickers are
 expected to share this resource, which is why it is a module of its own rather than a private
 member of the feature.
 

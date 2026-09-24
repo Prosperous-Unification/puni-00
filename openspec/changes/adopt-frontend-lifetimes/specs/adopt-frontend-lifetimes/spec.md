@@ -301,6 +301,12 @@ directory management and its project owner.
   again - and another user's arrival draws the signed-in region again from that
   user's own runtime, at the same address
 
+#### Scenario: The project page opens its project through the session
+
+- **WHEN** a project is selected on the project page of a signed-in session
+- **THEN** its runtime is opened through that session runtime's own project
+  owner, and not through an owner of the page's own
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the
