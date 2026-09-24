@@ -1,6 +1,14 @@
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type * as React from 'react';
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { ALL_RESOURCES, type RefreshResource } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
@@ -27,8 +35,12 @@ import {
   type StepView,
 } from '@/lib/wbs-api';
 import { calendarMarkersForReader } from '@/modules/calendar-markers/composition';
+import type { CalendarMarkerRefusal } from '@/modules/calendar-markers/contract';
+import { type Channel, createChannel } from '@/modules/channel';
 import { planFeedForReader } from '@/modules/plan-feed/composition';
-import type { PlanFeed, PlanFeedDelivery } from '@/modules/plan-feed/contract';
+import type { PlanFeed, PlanFeedDelivery, PlanFeedRefusal } from '@/modules/plan-feed/contract';
+import { type BusyWrites, createBusy } from '@/modules/plan-writer/busy-store';
+import type { PlanWriteRefusal } from '@/modules/plan-writer/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
 
 import { type CellCards } from './cell-card-store';
@@ -36,6 +48,7 @@ import type { FocusIntent } from './live-editing';
 import { forgetRefusedDrafts } from './live-editing';
 import { NOTHING_TO_REDO, NOTHING_TO_UNDO, refusalSentence } from './plan-refusal';
 import { type Toast, type ToastStackApi } from './toasts';
+import { useChannelListener } from './use-channel-listener';
 import { dropDrafts, rowOfCellKey, stepOfCellKey, stepOfDraftKey } from './use-estimate-drafts';
 import type { PlanImportControl } from './use-plan-import';
 import { toTree, type TreeRow } from './wbs-rows';
@@ -178,6 +191,33 @@ export const NO_CHART_READ: ChartRead = {
 };
 
 /**
+ * A refusal one of this project's services announces: the feed's and the
+ * markers' as a cause, the writer's as the sentence it already chose.
+ *
+ * The words for a cause are built by the table's listener and nowhere else, for
+ * the reason `PlanFeedDelivery` gives: a service that imported the refusal
+ * vocabulary would be importing upward out of `components/`.
+ */
+export type PlanRefusal = PlanFeedRefusal | CalendarMarkerRefusal | PlanWriteRefusal;
+
+/**
+ * The project-owned stores and ports this table's services write through.
+ *
+ * Built once per mount, which is one project: `ProjectPage` keys the table by
+ * the selected project. A lazy state initializer is safe here only because none
+ * of them holds a resource or needs closing — StrictMode's discarded second
+ * initializer leaks nothing. The project runtime of OpenSpec task 10 builds them
+ * instead, and then this function goes.
+ */
+function openProjectPorts() {
+  return {
+    busy: createBusy(),
+    refusals: createChannel<PlanRefusal>(),
+    commandsIssued: createChannel<undefined>(),
+  };
+}
+
+/**
  * No calendar markers — the state before the first read lands, and the state a
  * project with none stays in.
  *
@@ -252,7 +292,10 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
   const [treeMayBeStale, setTreeMayBeStale] = useState(false);
   const [treeFailureText, setTreeFailureText] = useState<string | null>(null);
 
-  const [busy, setBusy] = useState(false);
+  const [ports] = useState(openProjectPorts);
+  // Selected, never set here: the gestures raise and lower it through `busyWrites`.
+  const busy = useSyncExternalStore(ports.busy.subscribe, ports.busy.snapshot);
+  const busyWrites: BusyWrites = ports.busy;
 
   const [connected, setConnected] = useState(true);
 
@@ -360,7 +403,9 @@ export function usePlanReadState({ projectId }: { projectId: string }) {
     treeFailureText,
     setTreeFailureText,
     busy,
-    setBusy,
+    busyWrites,
+    refusals: ports.refusals,
+    commandsIssued: ports.commandsIssued,
     connected,
     setConnected,
     scheduleError,
@@ -429,7 +474,9 @@ export function usePlanRead({
   subscribe,
   setConnected,
   focusIntent,
-  setBusy,
+  busyWrites,
+  refusals,
+  commandsIssued,
 }: {
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   projectId: string;
@@ -464,11 +511,29 @@ export function usePlanRead({
     | undefined;
   setConnected: React.Dispatch<React.SetStateAction<boolean>>;
   focusIntent: React.RefObject<FocusIntent>;
-  setBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  busyWrites: BusyWrites;
+  refusals: Channel<PlanRefusal>;
+  commandsIssued: Channel<undefined>;
 }) {
   const feedRef = useRef<PlanFeed | null>(null);
   const activeApi = useRef(api);
   activeApi.current = api;
+
+  // Joined before the feed below starts reading, which is a passive effect of
+  // this same commit: see `useChannelListener`.
+  useChannelListener(refusals, (refusal) => {
+    pushToast({
+      kind: 'error',
+      // Proof: using the bare failure code here left the unavailable-plan
+      // fixture with no named toast and an unhandled refusal-code branch.
+      text: 'sentence' in refusal ? refusal.sentence : refusalSentence(refusal.cause),
+    });
+  });
+  // The table decides what a command issued means for the focus; the writer
+  // only says that one was.
+  useChannelListener(commandsIssued, () => {
+    focusIntent.current.commandIssued();
+  });
 
   /**
    * Settles this browser's own state against the steps be-01 just reported.
@@ -646,11 +711,7 @@ export function usePlanRead({
       subscribe,
       isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
       publish: publishPlan,
-      announceRefusal: ({ cause }) => {
-        // Proof: using the bare failure code here left the unavailable-plan
-        // fixture with no named toast and an unhandled refusal-code branch.
-        pushToast({ kind: 'error', text: refusalSentence(cause) });
-      },
+      refusals,
       setConnected,
     });
     feedRef.current = feed;
@@ -658,7 +719,7 @@ export function usePlanRead({
       if (feedRef.current === feed) feedRef.current = null;
       feed.close();
     };
-  }, [activeProject, api, projectId, publishPlan, pushToast, setConnected, subscribe]);
+  }, [activeProject, api, projectId, publishPlan, refusals, setConnected, subscribe]);
 
   /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
   const refreshResourcesOrMarkStale = useCallback(
@@ -701,11 +762,9 @@ export function usePlanRead({
         api,
         readRefreshOwner: () => feedRef.current?.owner ?? null,
         isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
-        announceRefusal: ({ cause }) => {
-          pushToast({ kind: 'error', text: refusalSentence(cause) });
-        },
+        announceRefusal: refusals.publish,
       }),
-    [activeProject, api, projectId, pushToast],
+    [activeProject, api, projectId, refusals],
   );
 
   /**
@@ -719,16 +778,20 @@ export function usePlanRead({
       createPlanWriter({
         readRefreshOwner: () => feedRef.current?.owner ?? null,
         isActiveReader: () => activeProject.current === projectId && activeApi.current === api,
-        noteCommandIssued: () => {
-          focusIntent.current.commandIssued();
-        },
         rereadResources: refreshResourcesOrMarkStale,
-        setBusy,
-        announceRefusal: ({ sentence }) => {
-          pushToast({ kind: 'error', text: sentence });
-        },
+        busy: busyWrites,
+        commandsIssued,
+        refusals,
       }),
-    [activeProject, api, focusIntent, projectId, pushToast, refreshResourcesOrMarkStale, setBusy],
+    [
+      activeProject,
+      api,
+      busyWrites,
+      commandsIssued,
+      projectId,
+      refreshResourcesOrMarkStale,
+      refusals,
+    ],
   );
 
   /**
@@ -752,7 +815,7 @@ export function usePlanRead({
         feedRef.current?.owner === owner &&
         activeProject.current === projectId &&
         activeApi.current === api;
-      setBusy(true);
+      busyWrites.raise();
       try {
         let outcome;
         try {
@@ -788,10 +851,10 @@ export function usePlanRead({
         }
         await refreshOrMarkStale();
       } finally {
-        if (isCurrent()) setBusy(false);
+        if (isCurrent()) busyWrites.lower();
       }
     },
-    [activeProject, api, projectId, pushToast, refreshOrMarkStale, setBusy],
+    [activeProject, api, busyWrites, projectId, pushToast, refreshOrMarkStale],
   );
   return { refreshOrMarkStale, run: writer.run, stepStack, markers };
 }

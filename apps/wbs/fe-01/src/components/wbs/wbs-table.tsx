@@ -637,7 +637,9 @@ export function WbsTable({
     markers,
     setMarkers,
     busy,
-    setBusy,
+    busyWrites,
+    refusals,
+    commandsIssued,
     connected,
     setConnected,
     scheduleError,
@@ -979,7 +981,9 @@ export function WbsTable({
     subscribe,
     setConnected,
     focusIntent,
-    setBusy,
+    busyWrites,
+    refusals,
+    commandsIssued,
   });
   usePlanKeyboardEffects({
     setCheatSheetOpen,
@@ -1209,7 +1213,7 @@ export function WbsTable({
     usePlanDependencies({
       flat,
       pushToast,
-      setBusy,
+      busy: busyWrites,
       api,
       refreshOrMarkStale,
       setDepPicker,
