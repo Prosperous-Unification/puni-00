@@ -1,4 +1,4 @@
-import type { DependencyStore } from '../ports/dependency-store';
+import type { DependencyStore } from '../../ports/dependency-store';
 
 interface RetainedDependencyReads {
   all(projectId: string): ReturnType<DependencyStore['listByProject']>;

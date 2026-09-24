@@ -1,14 +1,14 @@
 import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
-import { servicesOver } from '../compose';
-import type { Broadcaster } from '../ports/project-event';
-import type { PlanTransactionalStores } from '../ports/stores';
-import { testClock } from '../testing/clock-fixture';
-import { fastScheduler } from '../testing/scheduler-fixture';
-import { workItemRow } from '../testing/work-item-fixture';
-import { PlanCommandRunner } from './plan-commands';
-import { createWorkingPlan } from './working-plan';
+import { servicesOver } from '../../compose';
+import type { Broadcaster } from '../../ports/project-event';
+import type { PlanTransactionalStores } from '../../ports/stores';
+import { testClock } from '../../testing/clock-fixture';
+import { fastScheduler } from '../../testing/scheduler-fixture';
+import { workItemRow } from '../../testing/work-item-fixture';
+import { PlanCommandRunner } from './plan-commands.feature';
+import { createWorkingPlan } from './working-plan.resource';
 
 const OWNER = 'working-plan-owner';
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
