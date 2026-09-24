@@ -68,15 +68,13 @@
     },
     {
       "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts",
-      "kind": "feature",
-      "capability": "scheduler-runtime-port",
-      "rationale": "buildServices and AppOptions use it to coordinate optimization generation, queue, cache and admission repositories with solver child lifecycles and outcome broadcasts for optimized scheduling and Retry"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use the optimization module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts",
       "kind": "support",
-      "disposition": "private member of optimization-coordinator.ts",
-      "rationale": "OptimizationCoordinator is its only production importer and uses its reader alias while the file otherwise re-exports the core optimizer projection types without accessing the cache"
+      "disposition": "re-export shim; delete when importers use the optimization module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/optimizer-trigger-broadcaster.ts",
@@ -182,8 +180,7 @@
     {
       "path": "apps/wbs/be-01/src/service/solver-child-lifecycle.ts",
       "kind": "support",
-      "disposition": "private member of optimization-coordinator.ts",
-      "rationale": "OptimizationCoordinator is its only production importer (the other two are its database tests) and calls it to drain one child, heartbeat its solver-slot repository row and release capacity; it holds lifecycle policy, not raw process access"
+      "disposition": "re-export shim; delete when importers use the optimization module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-exit-outcome.ts",
@@ -204,13 +201,8 @@
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts",
-      "kind": "repository",
-      "rationale": "solverSupervisorSpawner and diagnostic scripts call it as the bounded protocol adapter for one external Unix supervisor socket and its streamed child output"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-supervisor-spawner.ts",
-      "kind": "repository",
-      "rationale": "main uses it to adapt a ReservedSpawnRequest to the external host supervisor client and expose that socket-backed attempt as the coordinator's child-process port"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use the solver-supervisor module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/step.service.ts",

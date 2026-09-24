@@ -4,7 +4,7 @@ import { bootBe01 } from './boot';
 import { loadConfig } from './config';
 import { oidcRouteOptionsFromEnv } from './controller/oidc-options';
 import { installSolverLauncher } from './module/solver-launcher/check';
-import { solverSupervisorSpawner } from './service/solver-supervisor-spawner';
+import { installSolverSupervisor } from './module/solver-supervisor/check';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
@@ -43,12 +43,12 @@ try {
     optimizer: {
       solverVersion,
       budgetMs: cfg.SOLVER_BUDGET_MS,
-      spawn: solverSupervisorSpawner({
+      spawn: installSolverSupervisor({
         unix: '/run/wbs-solver/supervisor.sock',
         callerId,
         searchWorkers: cfg.SOLVER_SEARCH_WORKERS,
         memoryLimitMb: cfg.SOLVER_MEMORY_LIMIT_MB,
-      }),
+      }).spawner,
     },
   });
 } catch (err) {

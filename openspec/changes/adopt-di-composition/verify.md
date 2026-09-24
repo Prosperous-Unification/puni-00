@@ -1909,3 +1909,261 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   (`slice4-devsync-lint-closing.log`); the legacy pin passed alone, 1 pass
   (`slice4-legacy-pin-closing.log`); OpenSpec validation passed `N=114`, failed 0
   (`slice4-openspec-closing.json`).
+
+### Optimization, Slice 1 — 2026-09-24
+
+- The slice started from `base=1916df5cb7838a82a80e46ec5830b9737da03382` on a clean tree, with
+  `module/optimization` absent and packet G's `plan-commands/check.ts` present; the coordinator had
+  737 lines, the lifecycle 106, `services.ts` one `new OptimizationCoordinator({` construction, and
+  `kinds.json` held `K=88` entries.
+- Baselines before any edit: `wbs-be-01` lint and typecheck exited 0
+  (`slice1-lint-typecheck-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` files (`slice1-be01-unit-baseline.log`); the six
+  optimizer database files passed `D=54` over `DF=6` (`slice1-be01-db-baseline.log`).
+- Row 1: `module/optimization/module.test.ts` alone, before any module file existed, failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice1-row1-red.log`).
+- Row 2: the bundles of `main.ts` and `dev/main.ts` built (exit 0) and held
+  `backend.optimization` and `backend.solver-supervisor` `count=0 (grep exit 1)` in both
+  (`slice1-main-bundle-red.log`, `slice1-dev-main-bundle-red.log`).
+- Row 3: after the moves, 10.2, the shims and the four module files, the module directory ran
+  11 pass, 0 fail, 17 `expect()` calls over 2 files (`slice1-row3-green.log`).
+- Row 4: before 10.6, adding `now?: () => number;` to the moved `OptimizationCoordinatorOptions`
+  left `clock.test.ts` at 4 pass, 0 fail — the gap the move opened (`row4-clock-gap.patch`,
+  `row4-clock-gap.log`); after 10.6 the unmutated file ran 4 pass
+  (`slice1-clock-after-10.6.log`).
+- Row 5: after 10.5, `backend.optimization count=1` in both bundles and
+  `backend.solver-supervisor` still `count=0 (grep exit 1)` (`slice1-row5-bundles.out`).
+- Row 6, tuple (`['optimizer', 'optimizationOptions']`): the private-binding, graph-label and
+  missing-requirement tests failed with `Received function did not throw`,
+  `Expected to contain: "backend.optimization/optimizationOptions"` and a message naming
+  `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "optimizationOptions"`; 3 pass, 3 fail
+  (`row6-tuple.patch`, `row6-tuple.log`).
+- Row 7, label (`{ label: OPTIMIZATION_LABEL }` dropped): only
+  `labels its private bindings with the module name` and
+  `names itself when a host omits a requirement` failed; 4 pass, 2 fail (`row7-label.patch`,
+  `row7-label.log`).
+- Row 8, edge (`contractVersion: solverVersion`):
+  `reads an idle plan under the identity installOptimization wires` failed on
+  `-   "contractVersion": "7+0.1.0",` / `+   "contractVersion": "0.1.0",`; 5 pass, 1 fail
+  (`row8-edge.patch`, `row8-edge.log`).
+- Row 9, sink (`onChildError: () => undefined`):
+  `reports a failed edit read to the error sink installOptimization wires` expected
+  `[ [Error: enabled read refused] ]` and received `[]`; 5 pass, 1 fail (`row9-sink.patch`,
+  `row9-sink.log`).
+- Row 10, bag (an `exposed` object carrying `bag`):
+  `exposes only the contract exports from its installer` failed on `+   "bag",`
+  (`Expected - 0`, `Received + 1`); 5 pass, 1 fail; `wbs-be-01:typecheck` on the mutated tree
+  exited 0 (`row10-bag.patch`, `row10-bag.log`, `row10-bag-typecheck.log`).
+- Row 11, resolver (`resolve` attached to the returned coordinator): the same test failed its
+  second assertion, `Expected: true`, `Received: false`; 5 pass, 1 fail; typecheck exited 0
+  (`row11-resolver.patch`, `row11-resolver.log`, `row11-resolver-typecheck.log`).
+- Row 12, clock again after 10.6: `is the only clock a service that stamps a write reads` failed
+  on `+   "apps/wbs/be-01/src/module/optimization/optimization.feature.ts",`; 3 pass, 1 fail
+  (`row12-clock.patch`, `row12-clock.log`).
+- Row 13, scan (`serviceFolders` returning `[...FOLDERS, ...modulesIn(MODULES)]`):
+  `is reading real service sources, not an empty list` failed at
+  `expect(received).toBeDefined()` with `Received: undefined`; 3 pass, 1 fail (`row13-scan.patch`,
+  `row13-scan.log`).
+- Each fault was restored by copying the saved bytes back and proved with `cmp` before the next.
+- Row 15: Bun's transpiler output with every `import` and `export … from` statement removed was
+  byte-identical for the moved coordinator and lifecycle against their `base` sources:
+  `optimization-coordinator body identical`, `solver-child-lifecycle body identical`
+  (`slice1-erased.out`, `slice1-erased-before-*.js`, `slice1-erased-after-*.js`).
+- Kinds substitute: `88 []` (`slice1-kinds.out`).
+- Closing: the be-01 unit set passed `E + 6 = 526` over `EF + 1 = 50` files
+  (`slice1-close-unit.log`); the database files `54` over 6 (`slice1-close-db.log`);
+  `clock.test.ts` 4 pass (`slice1-close-clock.log`); `production-entrypoint.test.ts` 2 pass
+  (`slice1-close-entrypoint.log`); `wbs-be-01` lint and typecheck exited 0
+  (`slice1-close-lint-typecheck.log`); `module/optimization/` holds nine files.
+- The feature still takes the SQLite `db` and calls the repository functions directly (K3,
+  recorded in `contract.ts`, tracked under 3.6 and 7.4).
+
+### Optimization cache-key port, Slice 2 — 2026-09-24
+
+- The slice started from `base=ec5a282b3ac875dcfd10480d5c86a7cbe9b1cf13` on a clean tree, with
+  `module/optimization/check.ts` present and no `module-boundaries.test.ts`; the feature held three
+  `scheduleInputHash(` calls and `optimization-coordinator.db.test.ts` seven
+  `new OptimizationCoordinator({` constructions.
+- Baselines before any edit: `wbs-be-01` lint and typecheck exited 0
+  (`slice2-lint-typecheck-baseline.log`); the be-01 unit set passed `E=526` over `EF=50` files
+  (`slice2-be01-unit-baseline.log`); the six optimizer database files passed `D=54` over `DF=6`
+  (`slice2-be01-db-baseline.log`); `backend.optimization count=1` in both bundles and
+  `backend.solver-supervisor count=0 (grep exit 1)` in both (`slice2-main-bundle-red.log`,
+  `slice2-dev-main-bundle-red.log`).
+- Row 16: `module-boundaries.test.ts` on the unchanged feature failed with exactly
+  `"module/optimization/optimization.feature.ts: '../../repository/schedule-input-hash' reaches apps/wbs/be-01/src/repository/schedule-input-hash.ts"`
+  and
+  `"module/optimization/optimization.feature.ts: scheduleInputHash reaches libs/wbs/adapters/store-sqlite/src/schedule-input-hash.ts"`;
+  0 pass, 1 fail (`slice2-row16-boundary-red.log`).
+- Row 17: after 10.9 alone, `module/optimization/module.test.ts` ran 5 pass, 2 fail on
+  `-   "inputHash": "port-hash",` and `-   "currentInputHash": "port-hash",` against
+  `a2aad9dfa76c921e25b3204345d3216920dcf8787577905f5c9ac0637120ab11`
+  (`slice2-row17-module-red.log`); `wbs-be-01:typecheck` exited 1 with `TS2353` at
+  `module.test.ts:51:5` (`'hashInput' does not exist in type 'OptimizationCoordinatorOptions'`) and
+  `TS2339` at `:73:53` (`slice2-row17-typecheck-red.log`).
+- Row 18: after 10.10, the module directory and the boundary file ran 13 pass, 0 fail, 21
+  `expect()` calls over 3 files: the module directory 12 (18 calls) and the boundary file 1
+  (3 calls; the packet's rehearsal note said 4, the file holds three `expect`s)
+  (`slice2-row18-green.log`). `wbs-be-01` lint and typecheck then exited 0
+  (`slice2-step4-lint-typecheck.log`).
+- Row 19, port (`hashInput: () => 'module-hash'` in `module.ts`'s returned options):
+  `reads an idle plan under the identity installOptimization wires` and
+  `hashes a Retry through the cache-key port installOptimization wires` failed on
+  `+   "inputHash": "module-hash",` and `+   "currentInputHash": "module-hash",`; 5 pass, 2 fail
+  (`slice2-row19-port.patch`, `slice2-row19-port.log`).
+- Row 20, schema (prepended
+  `import type { SolverObjectiveName as StoredObjectiveName } from '../../repository/schema';`):
+  exactly `'../../repository/schema' reaches apps/wbs/be-01/src/repository/schema.ts` and
+  `SolverObjectiveName reaches libs/wbs/adapters/store-sqlite/src/schema.ts`; 0 pass, 1 fail
+  (`slice2-row20-schema.patch`, `slice2-row20-schema.log`).
+- Row 21, package (prepended `import '@wbs/store-sqlite/schema';`): exactly
+  `'@wbs/store-sqlite/schema' reaches libs/wbs/adapters/store-sqlite/src/schema.ts`; 0 pass, 1 fail
+  (`slice2-row21-package.patch`, `slice2-row21-package.log`).
+- Row 22, repo (prepended to `contract.ts` `import '../../repository/optimization-admission';`):
+  exactly
+  `"module/optimization/contract.ts: '../../repository/optimization-admission' reaches apps/wbs/be-01/src/repository/optimization-admission.ts"`;
+  0 pass, 1 fail (`slice2-row22-repo.patch`, `slice2-row22-repo.log`).
+- Row 23, adapter (`import '@wbs/store-sqlite/optimization-admission';`): exactly
+  `'@wbs/store-sqlite/optimization-admission' reaches libs/wbs/adapters/store-sqlite/src/optimization-admission.ts`;
+  0 pass, 1 fail (`slice2-row23-adapter.patch`, `slice2-row23-adapter.log`).
+- Row 24, private (`import './solver-child-lifecycle';`): exactly
+  `'./solver-child-lifecycle' reaches apps/wbs/be-01/src/module/optimization/solver-child-lifecycle.ts`;
+  0 pass, 1 fail (`slice2-row24-private.patch`, `slice2-row24-private.log`).
+- Row 25, absent (`configPath` at `tsconfig.absent.json`):
+  `error: Cannot read file '…/apps/wbs/be-01/tsconfig.absent.json'.`; 0 pass, 1 fail
+  (`slice2-row25-absent.patch`, `slice2-row25-absent.log`).
+- Row 26, invalid (`"module": "invalid"` in `tsconfig.lib.json`):
+  `error: refused tsconfig.lib.json: 6046`; 0 pass, 1 fail (`slice2-row26-invalid.patch`,
+  `slice2-row26-invalid.log`).
+- Row 27, paths (`paths: undefined` in the program options): the positive control failed with
+  `Expected to contain: "libs/wbs/domain/domain/src/stored-vocabularies.ts"`; 0 pass, 1 fail
+  (`slice2-row27-paths.patch`, `slice2-row27-paths.log`).
+- Row 28, missing (`.concat('module/missing.ts')` before the sort):
+  `error: the program holds no module/missing.ts`; 0 pass, 1 fail (`slice2-row28-missing.patch`,
+  `slice2-row28-missing.log`).
+- Row 29, scanned (filter on `.tsx`): the scanned-file control failed with
+  `Expected to contain: "module/optimization/contract.ts"`, `Received: []`; 0 pass, 1 fail
+  (`slice2-row29-scanned.patch`, `slice2-row29-scanned.log`).
+- Each fault was restored by copying the saved bytes back, proved with `cmp`, and the named test
+  rerun green (`slice2-row*-restored.log`) before the next.
+- Row 31: Bun's transpiler output with every `import` and `export … from` statement removed
+  differed from the `base` feature in exactly six lines, three pairs, each
+  `scheduleInputHash(` → `this.options.hashInput(`: `if (… (input) !== next.inputHash)`,
+  `const currentInputHash = …(ask.input);` and `const inputHash = …(ask.input);`
+  (`slice2-erased.diff`, `slice2-erased-before.js`, `slice2-erased-after.js`).
+- Closing: the be-01 unit set passed `E + 2 = 528` over `EF + 1 = 51` files
+  (`slice2-be01-unit-green.log`); the database files `54` over 6 (`slice2-be01-db-green.log`);
+  `wbs-be-01` lint and typecheck exited 0 (`slice2-lint-typecheck-green.log`); the format check
+  exited 0 (`slice2-format-check.log`).
+- `module-boundaries.test.ts` resolves module specifiers and identifiers; a member selected by
+  string key out of an allowed barrel is its stated residual.
+
+### Solver supervisor, Slice 3 — 2026-09-24
+
+- The slice started from `base=3c8b89628dc431e56dfcbaa39c54582119fb5cb0` on a clean tree, with
+  `module-boundaries.test.ts` present and no `module/solver-supervisor/`; the client held 277 lines,
+  the mapper 47, its first line
+  `import type { ReservedSolverChild, ReservedSpawner } from './optimization-coordinator';`, and
+  `kinds.json` `K=88` entries.
+- Baselines before any edit: `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-baseline.log`); the be-01 unit set passed `E=528` over `EF=51` files
+  (`slice3-be01-unit-baseline.log`); the six optimizer database files passed `D=54` over `DF=6`
+  (`slice3-be01-db-baseline.log`); `backend.optimization count=1` in both bundles and
+  `backend.solver-supervisor count=0 (grep exit 1)` in both (`slice3-main-bundle-red.log`,
+  `slice3-dev-main-bundle-red.log`).
+- Row 32: `module/solver-supervisor/module.test.ts` on the unchanged tree failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice3-row32-module-red.log`).
+- Row 33: after the `cp` and three `mv`s, before 10.13, `wbs-be-01:typecheck` exited 1, among its
+  errors `s/solver-supervisor-spawner.ts:1:59 - error TS2307: Cannot find module './optimization-coordinator'`
+  (`slice3-row33-typecheck-red.log`).
+- Row 34: after 10.13, 10.14 and 10.15, the module directory ran 9 pass, 0 fail, 25 `expect()`
+  calls over 3 files (`slice3-row34-green.log`).
+- Row 35: after 10.16, `main backend.solver-supervisor count=1`,
+  `dev/main backend.solver-supervisor count=0 (grep exit 1)`, `backend.optimization count=1` in both
+  (`slice3-main-bundle-green.log`, `slice3-dev-main-bundle-green.log`);
+  `production-entrypoint.test.ts` 2 pass (`slice3-row35-entrypoint.log`). After 10.17 the boundary
+  file ran 1 pass (`slice3-step5-boundary-green.log`); `wbs-be-01` lint and typecheck exited 0
+  (`slice3-step6-lint-typecheck.log`).
+- Row 36, tuple (`['spawner', 'supervisorOptions']`): `Received function did not throw`;
+  `Expected to contain: "backend.solver-supervisor/supervisorOptions"`; message
+  `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "supervisorOptions"`; 2 pass, 3 fail
+  (`slice3-row36-tuple.patch`, `slice3-row36-tuple.log`).
+- Row 37, label (`.buildModule(['spawner'])`): the two label tests failed; 3 pass, 2 fail
+  (`slice3-row37-label.patch`, `slice3-row37-label.log`).
+- Row 38, edge (`searchWorkers: 1` in the returned options):
+  `hands the reserved attempt to the connector installSolverSupervisor wires` failed on
+  `-     "searchWorkers": 2,` / `+     "searchWorkers": 1,`; 4 pass, 1 fail
+  (`slice3-row38-edge.patch`, `slice3-row38-edge.log`).
+- Row 39, bag (`exposed` with `bag`): `exposes only the contract exports from its installer` failed
+  on `+   "bag",`; 4 pass, 1 fail in `module.test.ts` alone; `wbs-be-01:typecheck` exit 0
+  (`slice3-row39-bag.patch`, `slice3-row39-bag.log`, `slice3-row39-bag-typecheck.log`).
+- Row 40, resolver (`resolve` attached to the port): the same test failed on `Expected: true`,
+  `Received: false`; 4 pass, 1 fail in `module.test.ts` alone; typecheck exit 0
+  (`slice3-row40-resolver.patch`, `slice3-row40-resolver.log`, `slice3-row40-resolver-typecheck.log`).
+- Row 41, shim (prepended
+  `import type { ReservedSpawner as FeatureSpawner } from '../../service/optimization-coordinator';`
+  to the mapper): exactly one violation,
+  `"module/solver-supervisor/solver-supervisor-spawner.ts: '../../service/optimization-coordinator' reaches apps/wbs/be-01/src/service/optimization-coordinator.ts"`;
+  0 pass, 1 fail (`slice3-row41-shim.patch`, `slice3-row41-shim.log`).
+- Row 42, feature (prepended `import '../optimization/optimization.feature';`): exactly one
+  violation,
+  `"module/solver-supervisor/solver-supervisor-spawner.ts: '../optimization/optimization.feature' reaches apps/wbs/be-01/src/module/optimization/optimization.feature.ts"`;
+  0 pass, 1 fail (`slice3-row42-feature.patch`, `slice3-row42-feature.log`).
+- Each fault was restored by copying the saved bytes back, proved with `cmp`, and the named test
+  rerun green (`slice3-row*-restored.log`) before the next.
+- `cmp` of `module/solver-supervisor/solver-supervisor.repository.ts` with the `base` client exited 0:
+  the repository file moved unchanged. The moved mapper differs from its `base` source in its two
+  import specifiers only, and its erased body is identical (`slice3-mapper.diff`,
+  `slice3-erased-before-spawner.js`, `slice3-erased-after-spawner.js`).
+- The kinds substitute printed `87 []` (`K - 1`).
+- Closing: the be-01 unit set passed `E + 5 = 533` over `EF + 1 = 52` files
+  (`slice3-be01-unit-green.log`); the database files `54` over 6 (`slice3-be01-db-green.log`);
+  `production-entrypoint.test.ts` 2 pass (`slice3-entrypoint-green.log`); `wbs-be-01` lint and
+  typecheck exited 0 (`slice3-lint-typecheck-green.log`); `module/solver-supervisor/` holds nine
+  files; the format check exited 0 (`slice3-format-check.log`).
+- The mapper keeps no former path; its `kinds.json` repository row is removed, the module README
+  names it private support.
+
+### Optimization and Solver supervisor registration, Slice 4 — 2026-09-24
+
+- `base` `f6abafe6bdaedfa1923ac58facf35a4f12cb88ea` (slice 3's planner commit); clean tree; the
+  last commit touching `module/solver-supervisor/module.ts` is `base` itself. `M = 20` modules and
+  `B = 20` boundaries (`slice4-step0.log`).
+- Frozen tuples at `7851161bf96312750d07b933ca5d42b75ce575c7`:
+  `100644 blob 5a8c8f54f430cd67e29d12d3f35b4d77a2d9ae39 apps/be-01/src/service/optimization-coordinator.ts`
+  and
+  `100644 blob 31b66e999d627f2b2cd2709893c449dcfab8b3f8 apps/be-01/src/service/solver-supervisor-client.ts`.
+- Before any edit: `tool-devsync` and `twilight-burokrat` typecheck, `twilight-burokrat:lint:source`
+  and `tool-devsync:lint` exited 0 (`slice4-baseline-typecheck.log`,
+  `slice4-baseline-burokrat-lint-source.log`, `slice4-baseline-devsync-lint.log`); the legacy pin
+  1 pass (`slice4-baseline-legacy-pin.log`); the whole pilot file `T = 21` tests, `TF = 0`
+  failures, `P = 307` `expect()` calls in 319.68 s (`slice4-pilot-baseline.log`); OpenSpec
+  `N = 114` passed, 0 failed (`openspec-validation.baseline.sFWVcT.json`).
+- Row 44, `modules.json` rows alone: `pins exact pre-index tuples and passes observe lint from
+external trust` failed at `pilot-policy.test.ts:385` on `Expected: 20`, `Received: 22`; 0 pass,
+  1 fail (`slice4-row44-parity-red.log`).
+- Row 45, rows and boundaries: the same test failed at `pilot-policy.test.ts:422` on
+  `Expected: true`, `Received: false`; 0 pass, 1 fail (`slice4-row45-discovered-index-red.log`).
+- Row 46, `pilotPaths` and both README indexes added: the same test 1 pass, 0 fail
+  (`slice4-row46-filtered-green.log`).
+- Row 47, the whole pilot file with the prose pin unchanged: exactly
+  `refuses prose facts presented as applicable checks` failed with
+  `Received: "applicable check has no executable authority in apps/wbs/be-01/src/module/optimization/README.md: check.be-01.test (external-consumer)\n"`;
+  20 pass, 1 fail, 309 `expect()` calls (`slice4-row47-prose-pin-red.log`).
+- Row 48, after 10.22's pin moved: the whole pilot file 21 pass, 0 fail, 309 `expect()` calls
+  (`T`, `TF`, `P + 2`) in 281.70 s (`slice4-row48-pilot-green.log`).
+- Row 49, the legacy pin unchanged: `every legacy source occurrence and relevant text family is
+pinned` failed on `historical policy selector or baseline` 67 → 71, `occurrences` 285 → 289 and
+  `digest` `687c123b…` →
+  `8d9667b7d195746954849db31d5e6e106858109737d058581c5d33b4e7097d2e`; `Expected - 3` /
+  `Received + 3`; 0 pass, 1 fail (`slice4-row49-legacy-pin-red.log`). No other pinned literal moved.
+- Row 50, after 10.23: the same test 1 pass (`slice4-row50-legacy-pin-green.log`); 10.24's Proof
+  comment was added after it.
+- After 10.25: the typecheck, `twilight-burokrat:lint:source` and `tool-devsync:lint` exited 0
+  again, and the legacy pin passed 1 alone (`slice4-final-typecheck.log`,
+  `slice4-final-burokrat-lint-source.log`, `slice4-final-devsync-lint.log`,
+  `slice4-final-legacy-pin.log`); OpenSpec `N = 114` passed, 0 failed
+  (`openspec-validation.final.kYciN5.json`).
+- Not run by the executor: the whole `repo-namespacing-handoff.test.ts` and `tool-devsync:test`
+  (they write Git objects), `check-indexes committed`, the other `apps/wiki/cli` policy suites and
+  the host gate; all are the planner's.

@@ -14,9 +14,13 @@ import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable'
 import {
   capturedOptimizationReaderOf,
   DrizzleEventLogStore,
+  scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
 
+import { installOptimization } from './module/optimization/check';
+import type { ReservedSpawner } from './module/optimization/contract';
+import type { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
 import {
   bunPasswordHasher,
@@ -25,7 +29,6 @@ import {
   systemInterval,
 } from './runtime/bun-runtime';
 import type { AuthenticatedUser } from './service/auth.service';
-import { OptimizationCoordinator, type ReservedSpawner } from './service/optimization-coordinator';
 import { optimizerWiring } from './service/optimizer-wiring';
 
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
@@ -133,7 +136,7 @@ export function buildServices(options: ServicesOptions): BeServices {
   });
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
-    coordinator = new OptimizationCoordinator({
+    coordinator = installOptimization({
       db: source.db,
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,
@@ -144,6 +147,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       inputOf: async (projectId) => await graph.workItems.scheduleInput(projectId),
       enabledOf: async (projectId) =>
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
+      hashInput: scheduleInputHash,
       spawn: optimizer.spawn,
       eventLog: new DrizzleEventLogStore(source.db, source.gate),
       pushRecorded: (subscription, recorded, event) =>
@@ -151,7 +155,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       onChildError: (error) => {
         options.logger.error({ err: error }, 'optimizer child failed');
       },
-    });
+    }).optimizer;
   }
 
   return { ...graph, optimizer: coordinator, gate: source.gate };

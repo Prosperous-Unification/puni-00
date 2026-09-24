@@ -1,9 +1,9 @@
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
-import type { ReservedSpawnRequest } from './optimization-coordinator';
-import { buildSolverRequestPair } from './solver-request-pair';
-import type { SolverSupervisorRequest } from './solver-supervisor-client';
+import { buildSolverRequestPair } from '../../service/solver-request-pair';
+import type { ReservedSpawnRequest } from '../optimization/contract';
+import type { SolverSupervisorRequest } from './solver-supervisor.repository';
 import { solverSupervisorSpawner } from './solver-supervisor-spawner';
 
 const INPUT: ScheduleInput = {

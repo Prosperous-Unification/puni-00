@@ -1,7 +1,7 @@
 import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { describe, expect, it } from 'bun:test';
 
-import type { CachedOutcome } from '../repository/optimized-schedule-cache';
+import type { CachedOutcome } from '../../repository/optimized-schedule-cache';
 import { optimizationVariantState } from './optimized-schedule-reader';
 
 const STORED = { generation: 4, createdAt: 12 } as const;
