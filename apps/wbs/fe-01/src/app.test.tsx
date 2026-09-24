@@ -1,24 +1,49 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type * as Router from '@tanstack/react-router';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as Api from '@/lib/api';
+import { ThemeProvider } from '@/lib/theme';
+import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
+import { createSessionOwner, type SessionOwner } from '@/runtime/session-runtime';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
 const me = vi.hoisted(() => vi.fn<() => ReturnType<typeof Api.me>>());
+const login = vi.hoisted(() =>
+  vi.fn<(username: string, password: string) => ReturnType<typeof Api.login>>(),
+);
+
+/**
+ * Every router the signed-in region builds, by identity: `AppRouter` builds one
+ * in a lazy state initializer, so a region that kept its router built exactly
+ * one, and a region rebuilt for another user built a second.
+ */
+const routers = vi.hoisted((): unknown[] => []);
+
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof Router>();
+  const recordRouter: typeof actual.createRouter = (options) => {
+    const router = actual.createRouter(options);
+    routers.push(router);
+    return router;
+  };
+  return { ...actual, createRouter: recordRouter };
+});
 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof Api>()),
   me,
+  login,
 }));
 
-const { App } = await import('./app');
+const { App, SignedInApp } = await import('./app');
 
 /**
  * A slot `live` over the production installer, its liveness predicate wired
@@ -258,5 +283,164 @@ describe('the theme control through the app', () => {
       }
       second.unmount();
     }
+  });
+});
+
+/**
+ * The signed-in user's session: keyed by the user id, built from whichever
+ * credential the identity arrived with, and handed to the router as one runtime
+ * that a same-user update does not replace.
+ */
+describe('the signed-in user’s session', () => {
+  const SCOPES: ('read' | 'write')[] = ['read', 'write'];
+  const KAT = { id: 'u1', username: 'kat', scopes: SCOPES };
+  const LEE = { id: 'u2', username: 'lee', scopes: SCOPES };
+
+  /** Answers every directory read empty, and keeps the credential each people read carried. */
+  const directoryServer = () => {
+    const credentials: (string | null)[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string, init?: RequestInit) => {
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        if (collection === 'people')
+          credentials.push(new Headers(init?.headers).get('x-wbs-token'));
+        return Promise.resolve(new Response(JSON.stringify({ [collection]: [] }), { status: 200 }));
+      }),
+    );
+    return credentials;
+  };
+
+  const signedInAs = (session: Api.Session, openOwner?: () => SessionOwner) => (
+    <ApplicationServicesProvider slot={servicesSlot}>
+      <ThemeProvider>
+        <SignedInApp session={session} onSignOut={() => undefined} openOwner={openOwner} />
+      </ThemeProvider>
+    </ApplicationServicesProvider>
+  );
+
+  const directoryShowing = async () => {
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
+    });
+  };
+
+  itDom(
+    'builds a restored session’s directory from the empty credential the cookie leaves',
+    async () => {
+      window.history.replaceState({}, '', '/directory');
+      me.mockResolvedValue({
+        kind: 'success',
+        representation: 'json',
+        status: 200,
+        body: { user: KAT },
+        headers: new Headers(),
+      });
+      const credentials = directoryServer();
+
+      renderApp();
+
+      await directoryShowing();
+      await waitFor(() => {
+        expect(credentials).toEqual(['']);
+      });
+    },
+  );
+
+  itDom(
+    'builds a password session’s directory from the credential the login answered',
+    async () => {
+      window.history.replaceState({}, '', '/directory');
+      login.mockResolvedValue({
+        kind: 'success',
+        representation: 'json',
+        status: 200,
+        body: { token: 'tok', user: KAT },
+        headers: new Headers(),
+      });
+      const credentials = directoryServer();
+      renderApp();
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Sign in with password' })).toBeDefined();
+      });
+
+      fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'kat' } });
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in with password' }));
+
+      await directoryShowing();
+      await waitFor(() => {
+        expect(credentials).toEqual(['tok']);
+      });
+    },
+  );
+
+  itDom(
+    'keeps the router, the address and a draft for the same user, whatever credential arrives',
+    async () => {
+      window.history.replaceState({}, '', '/directory');
+      const credentials = directoryServer();
+      routers.length = 0;
+      const view = render(signedInAs({ token: '', user: KAT }));
+      await directoryShowing();
+      expect(routers).toHaveLength(1);
+      const router = routers[0];
+      fireEvent.change(screen.getByLabelText('New tag'), { target: { value: 'legal' } });
+
+      view.rerender(signedInAs({ token: 't', user: { ...KAT } }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByLabelText<HTMLInputElement>('New tag').value).toBe('legal');
+      expect(window.location.pathname).toBe('/directory');
+      expect(credentials).toEqual(['']);
+      expect(routers).toEqual([router]);
+
+      view.rerender(signedInAs({ token: '', user: LEE }));
+      await waitFor(() => {
+        expect(credentials).toEqual(['', '']);
+      });
+      await directoryShowing();
+      expect(screen.getByLabelText<HTMLInputElement>('New tag').value).toBe('');
+      expect(window.location.pathname).toBe('/directory');
+      expect(routers).toHaveLength(2);
+    },
+  );
+
+  itDom('shows the sanitized report when the session cannot be built', async () => {
+    directoryServer();
+    render(
+      signedInAs({ token: '', user: KAT }, () =>
+        createSessionOwner({
+          install: () => {
+            throw new Error('alice@example.com could not be built');
+          },
+        }),
+      ),
+    );
+
+    const fault = await waitFor(() => {
+      const shown = document.querySelector('[data-lifetime-fault]');
+      if (shown === null) throw new Error('no fatal state yet');
+      return shown;
+    });
+    expect(fault.textContent).not.toContain('alice@example.com');
+    expect(screen.queryByRole('navigation', { name: 'Pages' })).toBeNull();
+  });
+
+  itDom('gives the session back when the signed-in region goes', async () => {
+    window.history.replaceState({}, '', '/directory');
+    directoryServer();
+    const owner = createSessionOwner({ clientFor: () => fakeDirectoryApi(), budgetMs: 1_000 });
+    const view = render(signedInAs({ token: '', user: KAT }, () => owner));
+    await directoryShowing();
+    expect(owner.snapshot().status).toBe('live');
+
+    view.unmount();
+
+    await waitFor(() => {
+      expect(owner.snapshot().status).toBe('empty');
+    });
   });
 });

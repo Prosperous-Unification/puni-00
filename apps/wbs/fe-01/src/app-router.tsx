@@ -11,28 +11,30 @@ import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 import { PageNav } from '@/components/chrome/page-nav';
 import type { Roster } from '@/components/presence/presence-panel';
 import { ProjectPage } from '@/components/wbs/project-page';
-import type { DirectoryApi, ProjectApi } from '@/lib/wbs-api';
+import type { ProjectApi } from '@/lib/wbs-api';
+import type { SessionRuntime } from '@/runtime/session-runtime';
 
 /**
  * What the signed-in region is given by the gate above it.
  *
- * These are the session's, not any page's: the token every client is built
- * from, the presence slot that needs the account's own username, and the
- * account menu that signs out. They reach the pages as **router context**
- * rather than as props threaded through routes, because a route component
- * takes no props — anything else would be a closure captured at route-creation
- * time, which is a second place the session would live.
+ * These are the session's, not any page's: its runtime — the directory and the
+ * project owner, and nothing else of it — the token the project catalog's client
+ * is still built from, the presence slot that needs the account's own username,
+ * and the account menu that signs out. They reach the pages as **router
+ * context** rather than as props threaded through routes, because a route
+ * component takes no props — anything else would be a closure captured at
+ * route-creation time, which is a second place the session would live.
  */
 export interface SignedInRegion {
+  session: SessionRuntime;
   token: string;
   presence: (roster: Roster) => ReactNode;
   account: ReactNode;
   /**
-   * Injected in tests. Production leaves them out and each page builds the real
-   * client from `token`, exactly as `ProjectPage` already did.
+   * Injected in tests. Production leaves it out and the project page builds the
+   * real client from `token`, exactly as it already did.
    */
   projectApi?: ProjectApi;
-  directoryApi?: DirectoryApi;
 }
 
 /** The region, plus the navigation both pages draw and neither owns. */
@@ -88,7 +90,7 @@ const directoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/directory',
   component: function DirectoryRoute() {
-    const { token, account, nav, directoryApi } = directoryRoute.useRouteContext();
+    const { session, account, nav } = directoryRoute.useRouteContext();
     return (
       // Nothing rather than a spinner: the chunk is fetched from the same
       // origin that just served the document, and a flash of "loading…"
@@ -96,7 +98,7 @@ const directoryRoute = createRoute({
       // page reads on arrival anyway, so its own empty states are what a reader
       // sees first.
       <Suspense fallback={null}>
-        <DirectoryPage token={token} api={directoryApi} nav={nav} account={account} />
+        <DirectoryPage directory={session.directory} nav={nav} account={account} />
       </Suspense>
     );
   },
@@ -138,16 +140,18 @@ declare module '@tanstack/react-router' {
  * The router instance is created once and its **context** is refreshed on every
  * render, because the account menu and the presence slot are elements the gate
  * rebuilds when the session changes. A router recreated with them would throw
- * the current address away on a re-render.
+ * the current address away on a re-render. The session's runtime is context
+ * too, and it is the same object for as long as the same user is signed in: the
+ * session owner replaces it only for another user.
  */
 export function AppRouter({
   history,
   ...region
 }: SignedInRegion & { history?: RouterHistory }): React.JSX.Element {
-  const { token, presence, account, projectApi, directoryApi } = region;
+  const { session, token, presence, account, projectApi } = region;
   const context = useMemo<RouteContext>(
-    () => ({ token, presence, account, projectApi, directoryApi, nav: <PageNav /> }),
-    [token, presence, account, projectApi, directoryApi],
+    () => ({ session, token, presence, account, projectApi, nav: <PageNav /> }),
+    [session, token, presence, account, projectApi],
   );
   const [router] = useState(() => createAppRouter(context, history));
   return <RouterProvider router={router} context={context} />;

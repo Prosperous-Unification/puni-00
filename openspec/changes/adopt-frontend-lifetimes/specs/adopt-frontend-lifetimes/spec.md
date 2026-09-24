@@ -290,6 +290,17 @@ directory management and its project owner.
   request is sent on its behalf, no project is opened for it, and once its
   retirement has run every project runtime it built has been closed once
 
+#### Scenario: The same user keeps the session, the router and the address
+
+- **WHEN** a signed-in identity arrives from startup identity restoration or a
+  password login, and then an identity for the same user arrives with another
+  credential, or an identity for another user arrives
+- **THEN** the directory's client carries the credential the first identity
+  arrived with, the same user's arrival replaces nothing - the router instance,
+  the address and what a mounted route holds survive, and nothing is read
+  again - and another user's arrival draws the signed-in region again from that
+  user's own runtime, at the same address
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import { AppRouter } from '@/app-router';
 import { AuthForm } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
+import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
+import { createSessionOwner, sessionFor, type SessionOwner } from '@/runtime/session-runtime';
 
 /**
  * The document's whole app, inside the boundary that catches what it throws.
@@ -132,6 +134,65 @@ function AppContent() {
     );
 
   return (
+    <SignedInApp
+      session={session}
+      onSignOut={() => {
+        setSession(null);
+      }}
+    />
+  );
+}
+
+/** What the signed-in region is drawn from. */
+export interface SignedInAppProps {
+  /** The identity the gate let in: from the startup check, or from a password login. */
+  session: Session;
+  onSignOut: () => void;
+  /** Injected in tests; the app lets it default to the real owner. */
+  openOwner?: () => SessionOwner;
+}
+
+/**
+ * Everything a signed-in reader sees, drawn from the runtime of the user it is
+ * drawn for.
+ *
+ * **One session owner per mount**, keyed by the user id: the identity it is
+ * handed is opened in an effect, never in render, and an identity for the user
+ * already opened — the same account arriving with another credential — changes
+ * nothing, so the router below keeps its instance, its address and whatever a
+ * mounted route holds. Another user withdraws the previous runtime, and its
+ * project with it, before anything else happens. The owner holds nothing until
+ * it is asked to open, so Strict Mode's discarded initializer leaks nothing, and
+ * the region going gives the session back.
+ *
+ * The router is drawn only while the owner publishes **this** user's runtime —
+ * see {@link sessionFor} — and the sanitized fatal state when the runtime
+ * could not be built or given back.
+ */
+export function SignedInApp({
+  session,
+  onSignOut,
+  openOwner = createSessionOwner,
+}: SignedInAppProps): React.JSX.Element {
+  const [sessionOwner] = useState(openOwner);
+  const sessionState = useSyncExternalStore(sessionOwner.subscribe, sessionOwner.snapshot);
+  useEffect(() => {
+    void sessionOwner.open({ userId: session.user.id, credential: session.token });
+  }, [sessionOwner, session]);
+  useEffect(
+    () => () => {
+      void sessionOwner.leave();
+    },
+    [sessionOwner],
+  );
+  if (sessionState.status === 'fatal') return <LifetimeFault fault={sessionState.fault} />;
+  const services = sessionFor(sessionState, session.user.id);
+  if (services === null)
+    return (
+      <main className="bg-background text-muted-foreground min-h-full p-8 font-sans">Loading…</main>
+    );
+
+  return (
     /*
      * The signed-in page is exactly one window tall, and that is what makes the
      * table's frame the thing that scrolls: `h-full` fixes the outer height —
@@ -164,6 +225,7 @@ function AppContent() {
        * ADR 0004 has the alternatives.
        */}
       <AppRouter
+        session={services}
         token={session.token}
         presence={
           // The panel is presentational and the roster is the page's, because
@@ -174,14 +236,7 @@ function AppContent() {
           // TS2339 here and at AccountMenu below in the actual FE app typecheck.
           (roster) => <PresencePanel me={session.user.username} {...roster} />
         }
-        account={
-          <ThemedAccountMenu
-            username={session.user.username}
-            onSignOut={() => {
-              setSession(null);
-            }}
-          />
-        }
+        account={<ThemedAccountMenu username={session.user.username} onSignOut={onSignOut} />}
       />
     </div>
   );
