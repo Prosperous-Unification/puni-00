@@ -439,40 +439,9 @@
       "disposition": "re-export shim; delete when importers use @wbs/core or the work-item module directly"
     },
     {
-      "path": "libs/wbs/application/core/src/service/working-plan-directory.ts",
-      "kind": "support",
-      "disposition": "private member of working-plan.ts",
-      "rationale": "working-plan.ts is its only production importer and uses its DirectoryStore wrapper to refresh retained plan rows after directory writes, so the port-backed helper is not pure domain code"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/working-plan-edges.ts",
-      "kind": "support",
-      "disposition": "private member of working-plan.ts",
-      "rationale": "working-plan.ts is its only production importer and uses its DependencyStore wrapper to refresh retained edge endpoints after writes, so the port-backed helper is not pure domain code"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/working-plan-rows.ts",
-      "kind": "support",
-      "disposition": "private member of working-plan.ts",
-      "rationale": "working-plan.ts is its only production importer and uses its WorkItemStore wrapper to refresh retained identities and placements after row writes, so the port-backed helper is not pure domain code"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/working-plan-subtrees.ts",
-      "kind": "support",
-      "disposition": "private member of working-plan.ts",
-      "rationale": "working-plan.ts is its only production importer and uses its SubtreeStore wrapper to refresh copied, reparented and affected rows after atomic subtree writes, so the port-backed helper is not pure domain code"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/working-plan-values.ts",
-      "kind": "support",
-      "disposition": "private member of working-plan.ts",
-      "rationale": "working-plan.ts is its only production importer and uses its generic step-value store wrapper to refresh retained work-item identities after value writes, so the port-backed helper is not pure domain code"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/working-plan.ts",
-      "kind": "resource",
-      "term": "working plan",
-      "rationale": "PlanCommandRunner is its only production caller and uses it for the working plan aggregate's batch-lifetime retained reads, refresh invariants and closed-state refusal over the admitted transactional stores"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/replay.ts",

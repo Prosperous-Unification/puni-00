@@ -22,8 +22,8 @@ import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-c
 import type { PriorityBandService } from '../../service/priority-band.service';
 import type { WorkItemRefusal } from '../../service/work-item.service';
 import type { Collected, UndoOutcome, WorkItemService } from '../../service/work-item.service';
-import { createWorkingPlan } from '../../service/working-plan';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
+import { createWorkingPlan } from './working-plan.resource';
 
 /** The four services a command batch can invoke. */
 export interface PlanCommandServices {

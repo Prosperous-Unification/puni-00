@@ -14,6 +14,15 @@ case: it refuses an actor without the `write` scope before a batch is admitted. 
 each command to the service it belongs to. Private bindings are named under the
 `application.plan-commands` label, so a DI failure says which module asked.
 
+`working-plan.resource.ts` (the moved `service/working-plan.ts`) is the Working plan, a resource
+private to this module: one project's lazily retained reads, owned by one admitted batch, which the
+batch's graph writes through and which refuses every read once the batch closes it.
+`working-plan-directory.ts`, `working-plan-edges.ts`, `working-plan-rows.ts`,
+`working-plan-subtrees.ts` and `working-plan-values.ts` are its implementation and keep no former
+path: nothing but the Working plan and its own moved tests imported them. No module export names the
+Working plan; `@wbs/core`'s barrel still exports `createWorkingPlan` through the former path for one
+SQLite database test.
+
 ## Checks
 
 The module's tests run under the `wbs-core:test` target declared in
@@ -23,6 +32,7 @@ The module's tests run under the `wbs-core:test` target declared in
 
 `libs/wbs/application/core/src/index.ts` exports the module;
 `libs/wbs/application/core/src/service/plan-commands.ts`,
-`libs/wbs/application/core/src/service/command-bindings.ts` and
+`libs/wbs/application/core/src/service/command-bindings.ts`,
+`libs/wbs/application/core/src/service/working-plan.ts` and
 `libs/wbs/application/core/src/use-cases/run-command-batch.ts` keep the former paths for
 `http/work-item.routes.ts`, the test fixtures, `@wbs/core`'s barrel and be-01's deep-import shim.
