@@ -58,7 +58,7 @@ nine existing identifiers are untouched.
 - K3 debt is preserved: a feature-service reading a repository port keeps doing so, declared not
   implicit; task 7.4 records it.
 - Wiki registration is part of this change: task 7.5 tracks the index block and full pilot
-  membership (mapping row and boundary, both required); label agreement is deferred.
+  membership (mapping row and boundary, both required); task 7.6 checks label agreement.
 
 ## Impact
 

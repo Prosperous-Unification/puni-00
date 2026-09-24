@@ -2167,3 +2167,91 @@ pinned` failed on `historical policy selector or baseline` 67 → 71, `occurrenc
 - Not run by the executor: the whole `repo-namespacing-handoff.test.ts` and `tool-devsync:test`
   (they write Git objects), `check-indexes committed`, the other `apps/wiki/cli` policy suites and
   the host gate; all are the planner's.
+
+### Label agreement, Slice 1 — 2026-09-24
+
+- `base` = `b9fae32ac7bc70312316576716c0297d16113a64`; clean tree, the check absent, packet H
+  landed, one `module.backend.solver-supervisor` row, 15 core and 3 be-01 module directories.
+- Baselines before any edit: `tool-devsync:lint` and `tool-devsync:typecheck` exited 0
+  (`slice1-lint-baseline.log`, `slice1-typecheck-baseline.log`); `service-kinds.test.ts`
+  `S = 17` pass, 0 fail (`slice1-service-kinds-baseline.log`); the legacy pin 1 pass
+  (`slice1-legacy-pin-baseline.log`); OpenSpec `N = 114` passed, 0 failed
+  (`openspec-validation.YJz04w.json`).
+- Row 1, Capacity's contract label renamed `application.capacities` on the unchanged tree:
+  Capacity's own module tests 5 pass, 0 fail, `exit=0` (`gap.log`) — nothing existing sees the
+  drift.
+- Row 2, `tools/tool-devsync/src/module-labels.test.ts` written from the listing: 5 pass, 0 fail,
+  8 `expect()` calls (`row2-green.log`).
+- Rows 3 to 26, one fault each, each restored and proved with `cmp`; every log ends `exit=1`, no
+  `STOP:` line:
+  - Row 3 (`label.log`): `seals every module under the label its location implies` failed on
+    `private binding "application.capacities/capacityOptions" is not under application.capacity`;
+    4 pass, 1 fail.
+  - Row 4 (`slash.log`): the same test, `private binding
+"application.capacity/nested/capacityOptions" is not under application.capacity`; 4 pass, 1 fail.
+  - Row 5 (`dropped.log`): the same test, `private binding "capacityOptions" is not under
+application.capacity`; 4 pass, 1 fail.
+  - Row 6 (`decoy.log`): the same test, `…/module/capacity/module.ts exports 2 values, expected 1`;
+    4 pass, 1 fail.
+  - Row 7 (`private.log`): the same test, eighteen `: seals no private binding` lines, one per
+    module; 4 pass, 1 fail.
+  - Row 8 (`index.log`): `indexes every module under the identifier its location implies`,
+    `…/module/capacity: README names module.application.capacities`; 4 pass, 1 fail.
+  - Row 9 (`twice.log`) and row 10 (`fence.log`): the same test, `…/capacity/README.md holds 2 HTML
+comments, expected 1`; 4 pass, 1 fail each.
+  - Row 11 (`spaced.log`): the same test, `…/capacity/README.md's one HTML comment is not a
+module-index line`; 4 pass, 1 fail.
+  - Row 12 (`fenced-only.log`): the same test, `…/plan-document/README.md's module-index line
+follows a code fence`; 4 pass, 1 fail.
+  - Row 13 (`row.log`): `registers every module in the pilot under that identifier, or is known
+not to`, exactly `…/module/capacity: modules.json does not index it once as
+module.application.capacity` and `modules.json: module.application.capacities indexes
+…/module/capacity`; 4 pass, 1 fail.
+  - Row 14 (`foreign.log`): the same test, exactly `modules.json: module.adapter.store-memory
+indexes …/module/plan-document`; 4 pass, 1 fail.
+  - Row 15 (`boundary.log`) and row 16 (`selector.log`): the same test, exactly `…/module/capacity:
+policy.json does not select it once as boundary.application.capacity`; 4 pass, 1 fail each.
+  - Row 17 (`unregistered.log`): the same test's `UNREGISTERED` assertion, received gaining
+    `"module.application.capacity"` (`Received + 1`); 4 pass, 1 fail.
+  - Row 18 (`absent.log`): `names in kinds.json only the module that owns every export of the
+shim`, exactly `…/service/capacity.service.ts: names no sealed module capacities`; 4 pass, 1 fail.
+  - Row 19 (`owner.log`): the same test, exactly `…/service/capacity.service.ts: re-exports what
+…/module/step does not export`; 4 pass, 1 fail.
+  - Rows 20 to 22 (`reworded.log`, `shim-case.log`, `core-forwarding.log`): the same test, exactly
+    `…/service/capacity.service.ts: re-export shim disposition matches no known form`; 4 pass,
+    1 fail each.
+  - Row 23 (`forwarding-missing.log`): the same test, exactly
+    `apps/wbs/be-01/src/service/assumed-assignee.ts: forwards to a core service that does not exist: assumed-assignee-missing`;
+    4 pass, 1 fail.
+  - Row 24 (`pattern.log`): the same test's row count, `Expected: > 0`, `Received: 0`; 4 pass,
+    1 fail.
+  - Row 25 (`root.log`): every test, `ENOENT: no such file or directory, scandir
+'…/apps/wbs/be-01/src/modules'`; 0 pass, 5 fail.
+  - Row 26 (`scan.log`): every test, `libs/wbs/application/core/src/module holds no module
+directory`; 0 pass, 5 fail.
+- After the negatives `git status` listed only the new check, which reran 5 pass
+  (`after-negatives-green.log`); after 10.2's `Proof:` comments, 5 pass, 0 fail
+  (`after-proofs-green.log`).
+- Row 27: `tool-devsync:lint` and `tool-devsync:typecheck` exited 0 (`slice1-lint-end.log`,
+  `slice1-typecheck-end.log`); Prettier on the check exited 0 (`slice1-prettier-end.log`);
+  `service-kinds.test.ts` 17 pass, 0 fail (`slice1-service-kinds-end.log`); the legacy pin 1 pass
+  (`slice1-legacy-pin-end.log`).
+- Not run by the executor: `tool-devsync:test` (it writes Git objects), the wiki pilot suite,
+  `check-indexes committed` and the host gate; all are the planner's.
+
+### Label agreement and the closing ledger, Slice 2 — 2026-09-24
+
+- `base` = `a9addd4db24955e0f87d5db9ac3c4e7b4e5e3226` (slice 1's commit, which is also the last
+  commit touching `tools/tool-devsync/src/module-labels.test.ts`); clean tree, the four OpenSpec
+  files present, `proposal.md` 397 words, four open tasks 7.1 to 7.4.
+- OpenSpec before any edit: `N = 114` passed, 0 failed (`slice2-openspec-before.json`); the check
+  5 pass, 0 fail, 8 `expect()` calls (`slice2-check-before.log`).
+- The packet's four diffs for `tasks.md`, `design.md`, `proposal.md` and `spec.md` each passed
+  `git apply --check` and applied. Prettier's check on the four files exited 0 with no reflow
+  (`slice2-prettier-four.log`).
+- After: `proposal.md` 398 words (R4's cap is 400); `tasks.md` holds two open tasks among 7.1 to
+  7.4 (7.1 and 7.3) and three ticked among 7.2, 7.4 and 7.6.
+- OpenSpec after: 114 passed, 0 failed (`slice2-openspec-after.json`), equal to `N`; the check reran
+  5 pass, 0 fail (`slice2-check-after.log`), reading none of these files.
+- Not run by the executor: `tool-devsync:test` (it writes Git objects), the wiki pilot suite,
+  `check-indexes committed` and the host gate; all are the planner's.
