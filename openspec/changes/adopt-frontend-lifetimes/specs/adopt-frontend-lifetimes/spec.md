@@ -392,3 +392,24 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
 - **WHEN** the project's stream reports who is here or whether it is connected
 - **THEN** the page's presence store holds it and the header's presence slot is
   handed it, starting from nobody and disconnected
+
+### Requirement: The plan's modules reach the HTTP client only through their own ports
+
+The plan feed, the calendar markers and the plan commands SHALL each be handed
+only its own private repository port, cut from one HTTP client by the project
+composition root: the plan feed the routes that read the plan, the calendar
+markers the four marker routes, and the plan commands the routes a plan gesture
+writes through. Delivery - the table, its hooks, its toolbar and its columns -
+SHALL receive the project's feature-services and SHALL NOT receive the HTTP
+client or a port. A plan command SHALL be bound to the project it was built for,
+SHALL reach its route at the moment it is called, and SHALL hand back that
+route's own promise. What a reader sees SHALL NOT change.
+
+#### Scenario: A command reaches its own project through its own route
+
+- **WHEN** a project's commands send a write about the whole project or about
+  one work item, or a route of the client is replaced after the commands were
+  built
+- **THEN** the write reaches that route with the project bound first and the
+  other arguments exactly as given, the caller receives the route's own promise,
+  and a replaced route is the one called
