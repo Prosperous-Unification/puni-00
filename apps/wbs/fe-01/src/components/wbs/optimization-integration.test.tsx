@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ALL_RESOURCES, resourcesFor } from '@/lib/plan-refresh';
 import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
 import type { PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
+import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import { ProjectPage } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
@@ -12,6 +13,8 @@ import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+publishApplicationRuntimeForEachTest();
 
 afterEach(cleanup);
 
