@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { shortIsoDate } from './short-date';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -55,7 +56,11 @@ async function twoRowsAndAPeer() {
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
   render(
-    <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    <WbsTableOverClient
+      projectId="p1"
+      projectServices={projectServicesOf(api)}
+      subscribe={subscribe}
+    />,
   );
   click('Add work item');
   await screen.findByLabelText('Name of 010');

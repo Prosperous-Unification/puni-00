@@ -20,7 +20,8 @@ contract in `apps/wbs/fe-01/src/modules/store.ts`, which is rule F2.
 - `delivered-plan-store.ts` is the **store** the feed publishes into: every publication folded
   into the one snapshot a screen selects from, with the connection the stream last reported.
 - `presence-store.ts` is the **store** of who else has the project open and whether the socket
-  saying so is up. The page owns it today and the project's stream writes into it.
+  saying so is up. The project runtime owns one per selected project, and its stream writes into
+  it only while that runtime is current.
 
 Both stores are plain TypeScript over `modules/channel.ts`, keep their snapshot the same object
 until a member changes, tell each listener once per change, and never throw a lifecycle refusal.
@@ -51,8 +52,8 @@ connection change — so a reader that has gone is told nothing.
 Anything React holds, and any sentence. The rows, the chart payload, the vocabularies, the undo
 stack, the estimate drafts and the hover card belong to the plan read hook, which applies each
 delivery to them; a refusal travels as its **cause**, and the words for it are built where they
-are said. Gestures belong to the plan writer beside this module. Presence stays with the page that
-renders the header.
+are said. Gestures belong to the plan writer beside this module. Which presence the header shows is the
+page's choice: the current project runtime's, or nobody while none is published.
 
 ## How it is read
 
@@ -71,11 +72,11 @@ There is no `module.ts`: DI Bag 0.4.0 is installed but nothing in this applicati
 through it yet, which is the rollout's lifetimes task, so `composition.ts` is a function, as
 `modules/directory-management/composition.ts` is. Its one caller is the project composition root,
 `modules/project/composition.ts`, which hands it the page's one client as its routes. The plan read
-hook, `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, opens the feed through the project's
-services and wires it to the plan writer module beside it: the writer compares the owner's identity and sends its rereads back through the
-hook. The same hook builds the delivered plan once per table mount, and `project-page.tsx` builds
-the presence store once per page mount; the project runtime of OpenSpec task 10 builds both
-instead.
+runtime, `apps/wbs/fe-01/src/runtime/project-runtime.ts`, opens the feed once per selected project
+through the project's services, with the delivered plan and the presence it writes into, and
+wires it to the plan writer module beside it: the writer compares the owner's identity and sends
+its rereads through the runtime, which reads only while it is current. The runtime gives the feed
+back — owner disposed, stream unsubscribed — when the page's project owner retires it.
 
 ## Checks
 

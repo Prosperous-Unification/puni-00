@@ -7,10 +7,11 @@ import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { refusedDraftFor } from './live-editing';
 import type * as TableFrameModule from './table-frame';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -143,7 +144,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -166,7 +167,7 @@ async function threeRoots() {
 describe('live edits from other people', () => {
   itDom('focuses a newly created row so the next keystroke lands in it', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     const first = await screen.findByLabelText('Name of 010');
@@ -205,7 +206,11 @@ describe('live edits from other people', () => {
     };
 
     const view = render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     await waitFor(() => {
       expect(screen.getAllByRole('row')).toHaveLength(1);
@@ -223,7 +228,10 @@ describe('live edits from other people', () => {
     expect(cursors.at(-1)).toBe(api.rows.length - 1);
 
     view.unmount();
-    expect(unsubscribed).toBe(true);
+    // The runtime's retirement runs after its withdrawal, not inside the unmount.
+    await waitFor(() => {
+      expect(unsubscribed).toBe(true);
+    });
   });
 
   /**
@@ -274,7 +282,11 @@ describe('live edits from other people', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     await waitFor(() => {
       expect(reads).toContain('listPeople');
@@ -370,7 +382,11 @@ describe('live edits from other people', () => {
     };
 
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     await waitFor(() => {
       expect(screen.getAllByRole('row')).toHaveLength(1);
@@ -406,7 +422,11 @@ describe('someone else editing while you are typing', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
 
     click('Add work item');
@@ -443,7 +463,11 @@ describe('someone else editing while you are typing', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
 
     click('Add work item');
@@ -477,7 +501,11 @@ describe('someone else editing while you are typing', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
 
     click('Add work item');
@@ -516,7 +544,11 @@ describe('someone else editing while you are typing', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
 
     click('Add work item');
@@ -568,7 +600,11 @@ describe('someone else editing while you are typing', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
 
     click('Add work item');
@@ -701,7 +737,7 @@ describe('failures you can see', () => {
           }),
         );
 
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
 
       await waitFor(() => {
         expect(toastTexts()).toContain('Optimized scheduling is unavailable in this runtime.');
@@ -730,7 +766,11 @@ describe('failures you can see', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await waitFor(() => {
@@ -1346,7 +1386,7 @@ describe('a step changing, and what the table does about it', () => {
   /** One empty root row, with both seeded steps still there. */
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -1371,7 +1411,7 @@ describe('a step changing, and what the table does about it', () => {
     ] as const) {
       recordCalls(api, method, () => reads.push(method));
     }
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toContain('listCalendarMarkers');
@@ -1412,7 +1452,7 @@ describe('a step changing, and what the table does about it', () => {
       await removeStep(...args);
       throw new Error('unknown_step');
     };
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('button', { name: 'Unfold QA estimates' });
     await waitFor(() => {
       expect(reads).toContain('listCalendarMarkers');
@@ -1595,7 +1635,7 @@ describe('overlapping resource invalidations', () => {
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Before write' });
     let notify: SubscriptionHandlers['onChange'] | undefined;
     render(
-      <WbsTable
+      <WbsTableOverClient
         projectId="p1"
         projectServices={projectServicesOf(api)}
         subscribe={(_project, handlers) => {
@@ -1665,7 +1705,7 @@ describe('overlapping resource invalidations', () => {
       api.rows[0].id = 'overlap-row';
       let notify: SubscriptionHandlers['onChange'] | undefined;
       render(
-        <WbsTable
+        <WbsTableOverClient
           projectId="p1"
           projectServices={projectServicesOf(api)}
           subscribe={(_project, handlers) => {
@@ -1718,7 +1758,11 @@ describe('refresh owner lifetimes', () => {
         return { seen: () => undefined, unsubscribe: () => undefined };
       };
       const view = render(
-        <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(api)}
+          subscribe={subscribe}
+        />,
       );
       await waitFor(() => {
         expect(notify).toBeTypeOf('function');
@@ -1740,7 +1784,7 @@ describe('refresh owner lifetimes', () => {
       });
       replacement.rows[0].id = 'replacement-owner-row';
       view.rerender(
-        <WbsTable
+        <WbsTableOverClient
           projectId="p1"
           projectServices={projectServicesOf(replacement)}
           subscribe={subscribe}
@@ -1768,7 +1812,7 @@ describe('refresh owner lifetimes', () => {
     let closed = 0;
     const view = render(
       <StrictMode>
-        <WbsTable
+        <WbsTableOverClient
           projectId="p1"
           projectServices={projectServicesOf(api)}
           subscribe={() => {
@@ -1788,14 +1832,19 @@ describe('refresh owner lifetimes', () => {
     });
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strict owner');
     view.unmount();
-    expect(closed).toBe(1);
+    // The runtime's retirement runs after its withdrawal, not inside the unmount.
+    await waitFor(() => {
+      expect(closed).toBe(1);
+    });
   });
 
   it('does not toast an old API mutation refusal into its replacement', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old mutation' });
     api.rows[0].id = 'old-mutation-row';
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     let reject!: (cause: unknown) => void;
     api.patchWorkItem = () =>
@@ -1815,7 +1864,9 @@ describe('refresh owner lifetimes', () => {
       name: 'New mutation owner',
     });
     replacement.rows[0].id = 'new-mutation-row';
-    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
+    view.rerender(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(replacement)} />,
+    );
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'New mutation owner');
     });
@@ -1837,7 +1888,9 @@ describe('refresh owner lifetimes', () => {
       new Promise((resolve) => {
         finishOld = resolve;
       });
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Departed write');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -1873,7 +1926,9 @@ describe('refresh owner lifetimes', () => {
           void realReplacementPatch(...args).then(resolve);
         };
       });
-    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
+    view.rerender(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(replacement)} />,
+    );
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Replacement owner');
       expect(replacementReads).toContain('listCalendarMarkers');
@@ -1913,7 +1968,9 @@ describe('refresh owner lifetimes', () => {
       new Promise((resolve) => {
         finishOld = resolve;
       });
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     click('Arrange by schedule');
     await waitFor(() => {
@@ -1948,7 +2005,9 @@ describe('refresh owner lifetimes', () => {
           void patchReplacement(...args).then(resolve);
         };
       });
-    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
+    view.rerender(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(replacement)} />,
+    );
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty(
         'value',
@@ -1995,7 +2054,9 @@ describe('refresh owner lifetimes', () => {
   it('does not announce an arrangement after its covering read changes API owner', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old arrangement' });
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     const readTree = api.tree.bind(api);
@@ -2038,7 +2099,9 @@ describe('refresh owner lifetimes', () => {
     ] as const) {
       recordCalls(replacement, method, () => replacementReads.push(method));
     }
-    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
+    view.rerender(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(replacement)} />,
+    );
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveProperty(
         'value',
@@ -2055,10 +2118,12 @@ describe('refresh owner lifetimes', () => {
     expect(toastTexts()).toEqual([]);
   });
 
-  it('announces an arrangement after the same reader renews its subscription', async () => {
+  it('drops an arrangement whose reader renewed its subscription, and leaves the new one idle', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Same reader' });
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     const readTree = api.tree.bind(api);
@@ -2084,7 +2149,7 @@ describe('refresh owner lifetimes', () => {
     api.tree = readTree;
     let subscriptions = 0;
     view.rerender(
-      <WbsTable
+      <WbsTableOverClient
         projectId="p1"
         projectServices={projectServicesOf(api)}
         subscribe={() => {
@@ -2103,7 +2168,7 @@ describe('refresh owner lifetimes', () => {
         setTimeout(resolve, 0);
       });
     });
-    expect(toastTexts()).toEqual(['Arranged by schedule.']);
+    expect(toastTexts()).toEqual([]);
     expect(document.querySelector('[data-toolbar]')).toHaveAttribute('aria-busy', 'false');
     expect(screen.getByRole('button', { name: 'Arrange by schedule' })).toBeEnabled();
     expect(screen.getByLabelText('Name of 010')).toBeEnabled();
@@ -2204,7 +2269,7 @@ describe('write failure recovery scopes', () => {
       });
     };
 
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2282,7 +2347,7 @@ describe('write failure recovery scopes', () => {
         rejectWrite = reject;
       });
 
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2356,7 +2421,7 @@ describe('write failure recovery scopes', () => {
           });
       }
 
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Name of 010');
       await waitFor(() => {
         expect(reads).toHaveLength(allReads.length);
@@ -2425,7 +2490,7 @@ describe('write failure recovery scopes', () => {
       return Promise.reject(cause());
     };
 
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2468,7 +2533,7 @@ describe('write failure recovery scopes', () => {
           );
     };
 
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2493,7 +2558,7 @@ describe('write failure recovery scopes', () => {
     const reads: string[] = [];
     for (const method of allReads) recordCalls(api, method, () => reads.push(method));
     api.addDependency = () => Promise.reject(new Error('cycle'));
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
     await waitFor(() => {
       expect(reads).toHaveLength(allReads.length);
@@ -2518,7 +2583,9 @@ describe('write failure recovery scopes', () => {
       new Promise((_resolve, reject) => {
         rejectOldDependency = reject;
       });
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 030');
     const oldDependency = screen.getByLabelText('Add a dependency to 030');
     // A comma-separated gesture takes the dependency-list path rather than
@@ -2545,7 +2612,9 @@ describe('write failure recovery scopes', () => {
           void patchReplacement(...args).then(resolve);
         };
       });
-    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(replacement)} />);
+    view.rerender(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(replacement)} />,
+    );
     await waitFor(() => {
       expect(screen.getByLabelText('Name of 010')).toHaveValue('New first');
       expect(replacementReads).toHaveLength(allReads.length);
@@ -2593,7 +2662,7 @@ itDom('does not expose a first editor before its held column vocabulary installs
     requested = true;
     return held;
   };
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   await waitFor(() => {
     expect(requested).toBe(true);
   });
@@ -2619,7 +2688,7 @@ itDom('installs held directory labels after a newer tree already installed', asy
     throw new Error('not subscribed');
   };
   render(
-    <WbsTable
+    <WbsTableOverClient
       projectId="p1"
       projectServices={projectServicesOf(api)}
       subscribe={(_id, handlers) => {
@@ -2682,7 +2751,7 @@ itDom('refreshes a created tag after its attachment refuses', async () => {
       }),
     );
 
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   const box = await screen.findByRole('combobox', { name: 'Tags for 010' });
   expect(tagReads).toBe(1);
   fireEvent.focus(box);
@@ -2787,7 +2856,7 @@ describe('mounted reference creation after attachment refusal', () => {
     api.patchWorkItem = () => Promise.reject(new Error('attachment refused'));
     api.assignPerson = () => Promise.reject(new Error('assignment refused'));
 
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     await waitFor(() => {
       expect(reads).toHaveLength(9);
@@ -2852,7 +2921,7 @@ itDom('estimate refreshes only tree without a socket', async () => {
     recordCalls(api, method, () => reads.push(method));
   }
 
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   await screen.findByLabelText('Dev estimate for 010');
   await waitFor(() => {
     expect(reads).toContain('listCalendarMarkers');
@@ -2917,7 +2986,7 @@ itDom('capacity setting refreshes only tree without a socket', async () => {
     recordCalls(api, method, () => reads.push(method));
   }
 
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   await screen.findByLabelText('Name of 010');
   await waitFor(() => {
     expect(reads).toContain('listCalendarMarkers');

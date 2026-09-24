@@ -612,26 +612,19 @@ export function useToday(): Date {
  * which would be a second implementation of the derivation as well.
  */
 export function WbsTable({
-  projectId,
+  project,
   projectName,
-  projectServices,
   planImport,
   toastApi: toastApiOverride,
-  subscribe,
   savedPlansShelf,
 }: WbsTableProps) {
+  const projectId = project.projectId;
   const today = useToday();
   /**
-   * This project's commands, bound to it; a new project or new services bind
-   * anew. Everything below writes through these and never sees the client.
+   * This project's commands, bound to it by its runtime. Everything below
+   * writes through these and never sees the client.
    */
-  const commands = useMemo(
-    () => projectServices.planCommandsFor(projectId),
-    // Proof: on 2026-09-24, keying this on `projectServices` alone failed `keeps an add burst and
-    // its refetch inside the project where it started` with `expected [ 'p1', 'p1' ] to deeply
-    // equal [ 'p1', 'p2' ]`: the second project's add went to the first.
-    [projectServices, projectId],
-  );
+  const commands = project.commands;
   const {
     plan,
     activeProject,
@@ -659,7 +652,7 @@ export function WbsTable({
     teamCapacities,
     priorityBands,
     people,
-  } = usePlanReadState({ projectId });
+  } = usePlanReadState({ project });
   const {
     expanded,
     setExpanded,
@@ -947,15 +940,13 @@ export function WbsTable({
   } = usePlanRead({
     setDrafts,
     projectId,
-    activeProject,
-    projectServices,
+    project,
     commands,
     plan,
     treeReadProject,
     rowPlacements,
     cellCards,
     pushToast,
-    subscribe,
     focusIntent,
     busyWrites,
     refusals,

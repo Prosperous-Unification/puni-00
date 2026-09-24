@@ -6,12 +6,12 @@ import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { STEP_FINAL_HINT } from './column-hints';
 import { initialsOf } from './initials';
 import { QUIET_TRIO_PX } from './plan-columns/estimates';
 import type * as TableFrameModule from './table-frame';
-import { WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -141,7 +141,7 @@ const rowFor = (number: string): HTMLElement => {
 describe('step columns fold away', () => {
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -317,7 +317,7 @@ describe('assigning from a folded step’s cell with @', () => {
   /** One row and two steps, both folded — where a person starts. */
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -863,7 +863,7 @@ describe('one cell for the whole trio', () => {
   /** One row, steps left folded — which is where a person starts. */
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -1571,7 +1571,7 @@ describe('estimates are never edited for you', () => {
 
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     unfoldStep('Dev');
@@ -1781,7 +1781,7 @@ describe('what the plan is still missing', () => {
   /** Rows with nothing typed into them yet, steps left folded — where a person starts. */
   async function rows(count: number) {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     for (const number of ['010', '020', '030'].slice(0, count)) {
       click('Add work item');
       await screen.findByLabelText(`Name of ${number}`);
@@ -1832,7 +1832,7 @@ describe('what the plan is still missing', () => {
 
   itDom('says nothing about a project with no work items in it', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Add work item' })).toBeDefined();
     });

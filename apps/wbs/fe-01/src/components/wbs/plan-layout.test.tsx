@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { DAY_PX } from './gantt-panel';
 import type * as TableFrameModule from './table-frame';
@@ -16,7 +17,7 @@ import {
   type FrameLayoutState,
 } from './table-frame';
 import { widthFromDrag } from './use-plan-layout';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
 const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =>
@@ -192,7 +193,7 @@ async function threeRoots() {
   }
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -484,7 +485,11 @@ describe('the widths the table is laid out by', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     click('Add work item');
     const name = await screen.findByLabelText('Name of 010');
@@ -758,7 +763,7 @@ describe('the outline past the Number cap', () => {
    */
   itDom('hands the Name cell the share of the indent the Number cap withheld', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -861,7 +866,11 @@ describe('the widths this browser has dragged', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
     );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -1190,7 +1199,7 @@ describe('the widths this browser has dragged', () => {
     const api = fakeApi();
     const root = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Root' });
     await api.createWorkItem('p1', { parentId: root.id, afterId: null, name: 'Child' });
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010.1');
 
     expect(laidOut()['number']).toBe('68px');
@@ -1212,7 +1221,7 @@ describe('the widths this browser has dragged', () => {
       name: 'Child',
     });
     await api.createWorkItem('p1', { parentId: child.id, afterId: null, name: 'Grandchild' });
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010.1.1');
 
     expect(laidOut()['number']).toBe('98px');
@@ -1294,7 +1303,7 @@ describe('the widths this browser has dragged', () => {
     // half-typed name gone with it. Watched, 2026-08-09.
     storedWidths({ number: 240 });
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     const name = await screen.findByLabelText('Name of 010');
     name.focus();
@@ -1316,13 +1325,13 @@ describe('the widths this browser has dragged', () => {
     localStorage.setItem('wbs.columnWidths.p2', JSON.stringify({ number: 300 }));
     const api = fakeApi();
     const { rerender } = render(
-      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
     );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     expect(laidOut()['number']).toBe('240px');
 
-    rerender(<WbsTable projectId="p2" projectServices={projectServicesOf(api)} />);
+    rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
 
     await waitFor(() => {
       expect(laidOut()['number']).toBe('300px');
@@ -1632,7 +1641,7 @@ describe('the columns a reader has hidden', () => {
   const stored = (): string | null => localStorage.getItem(KEY);
 
   async function oneRow(api = fakeApi()) {
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -1675,7 +1684,7 @@ describe('the columns a reader has hidden', () => {
       const api = fakeApi();
       const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
       api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Name of 010');
       expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
       expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
@@ -1686,7 +1695,7 @@ describe('the columns a reader has hidden', () => {
       expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
 
       cleanup();
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Name of 010');
       expect(headerIds()).toContain('refs');
     },
@@ -1706,18 +1715,20 @@ describe('the columns a reader has hidden', () => {
     localStorage.setItem(RESET_MARKER, 'true');
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'One row' });
-    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    const view = render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     expect(headerIds()).toContain('refs');
 
-    view.rerender(<WbsTable projectId="p2" projectServices={projectServicesOf(api)} />);
+    view.rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(headerIds()).not.toContain('refs');
     });
     expect(localStorage.getItem(RESET_MARKER)).toBe('true');
     expect(localStorage.getItem('wbs.linksResetShown.p2')).toBeNull();
 
-    view.rerender(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    view.rerender(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(headerIds()).toContain('refs');
     });
@@ -1734,7 +1745,7 @@ describe('the columns a reader has hidden', () => {
     const read = vi.fn(() => held);
     api.tree = read;
 
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(read).toHaveBeenCalledTimes(1);
     });
@@ -1752,7 +1763,7 @@ describe('the columns a reader has hidden', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
     api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/held' }]);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     api.tree = () => Promise.reject(new Error('offline'));
 
@@ -1768,7 +1779,7 @@ describe('the columns a reader has hidden', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
     api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
     click('Reset layout');
     expect(headerIds()).toContain('refs');
@@ -1802,7 +1813,7 @@ describe('the columns a reader has hidden', () => {
       linkedApi.linkTo(linkedRow.id, [
         { systemId: 'github', url: 'https://example.test/before-removal' },
       ]);
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(linkedApi)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(linkedApi)} />);
       await screen.findByLabelText('Name of 010');
 
       const linkedTree = linkedApi.tree.bind(linkedApi);
@@ -1838,7 +1849,7 @@ describe('the columns a reader has hidden', () => {
         afterId: null,
         name: 'Unlinked',
       });
-      render(<WbsTable projectId="p1" projectServices={projectServicesOf(emptyApi)} />);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(emptyApi)} />);
       await screen.findByLabelText('Name of 010');
       fireEvent.click(within(openColumns()).getByLabelText('Links'));
       expect(headerIds()).toContain('refs');
@@ -1883,7 +1894,7 @@ describe('the columns a reader has hidden', () => {
       name: 'Linked child',
     });
     api.linkTo(child.id, [{ systemId: 'github', url: 'https://example.test/child' }]);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010.1');
     click('Collapse all');
     expect(screen.queryByLabelText('Name of 010.1')).toBeNull();
@@ -1972,7 +1983,7 @@ describe('the columns a reader has hidden', () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.setEstimate(row.id, 'step-qa', { optimistic: 2, realistic: 3, pessimistic: 4 });
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
     });
@@ -1984,7 +1995,7 @@ describe('the columns a reader has hidden', () => {
     cleanup();
 
     storedHidden(['step-qa']);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
     });
