@@ -2315,3 +2315,60 @@ set 3·65, zoned 2·3, `wbs-fe-01:typecheck` and `wbs-fe-01:lint` clean, each st
 
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`
 and the host gate were not run in the executor sandbox.
+
+## Packet 050.7k, slice 2 — log out through the region, the region's project fault, and task 7
+
+Attempt `050-7-k-log-out.2.20260924T203018Z`, observed 2026-09-24, starting at
+`f76c5f423b56b168b4b69df422256c0361263917` (slice 1's planner commit; packet
+base `05ace3365` an ancestor), with an empty `git status`. Every Vitest run
+below ran with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; every
+multi-file run was serial.
+
+Step 0 baselines (`base-*.log`): preferences 4 files · 39 tests, sandbox node
+suite 57 · 713, session set 3 · 65, Auckland zoned 2 · 3, all `status=0`;
+strict OpenSpec `{"items":114,"passed":114,"failed":0}`. Step 0b extracted 6
+patches and 13 fault patches.
+
+- Contract: section 7.4 applied; strict OpenSpec exit 0,
+  `{"items":114,"passed":114,"failed":0}`.
+- Red (`s2-red-typecheck.log`, `s2-red-vitest.log`), after section 7.5 alone:
+  typecheck `status=1`, `Found 2 errors in the same file, starting at:
+apps/wbs/fe-01/src/app.test.tsx:325` — TS2322 at `:325:40` and `:518:11`,
+  `… is not assignable to type 'IntrinsicAttributes & SignedInAppProps'.`;
+  Vitest `status=1`, `Tests 4 failed | 13 passed (17)`, `Errors 3 errors`:
+  `signs out once …` on `AssertionError: expected [] to include 'signed out'`,
+  the two fatal-page examples and the region example on
+  `Error: no fatal state yet`, three unhandled
+  `TypeError: onSignOut is not a function`; `returns to the sign-in form
+through the app, …` passed.
+- Section 7.6 applied; both notes dated by `date -u +%F` to 2026-09-24, no
+  `<observed-date-k>` left; task 7 reads `[x]`.
+- Green (`s2-green-*.log`, `s2-format.log`): `wbs-fe-01:typecheck`
+  `status=0`; `nx format:check --all` `status=0`; session set 3 · 70 (five
+  tests more than step 0); zoned 2 · 3; sandbox 57 · 713 (unchanged).
+- Lint (`s2-lint.log`): `wbs-fe-01:lint` `status=0`.
+- Proofs, each filter matched exactly one test; each fault restored and
+  `cmp`-identical, its named test rerun green (`<id>.patch`, `<id>.log`,
+  `<id>.green.log`):
+  - `a1` — the menu handed `onSignedOut` itself: `signs out once the project
+and then the session have let go, and sends nothing` failed,
+    `1 failed | 16 skipped (17)`, `AssertionError: expected [ 'signed out' ]
+to deeply equal [ 'project given back', …(2) ]`.
+  - `a2` — signed out whatever the exit settled: `shows the fatal state
+instead of signing out when the project will not let go` failed,
+    `1 failed | 16 skipped (17)`, `AssertionError: expected [ 'signed out' ]
+to not include 'signed out'`.
+  - `p1` — the gate's terminal-fault branch removed: `draws the fatal state in
+the region’s place when its project cannot be given back outside a log
+out` failed, `1 failed | 16 skipped (17)`, `Error: no fatal state yet`, the
+    directory still in the DOM.
+- After the `Proof:` comments (`s2-final-*.log`): typecheck and lint
+  `status=0`; session set 3 · 70; preferences 4 · 39; sandbox 57 · 713.
+- Owned-file Prettier, `nx format:check --all` (`s2-format-after.log`) and the
+  strict OpenSpec block ran after this entry was written; their results are in
+  the attempt's report and evidence.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
+`wbs-fe-01:build`, `wbs-fe-01:e2e` (the login specs and every spec that clicks
+Log out, then unfiltered on the integration commit), `tool-devsync:test`, and
+the host gate, none of which the executor sandbox can run.
