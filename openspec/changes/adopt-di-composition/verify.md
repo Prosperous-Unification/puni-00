@@ -2057,3 +2057,69 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   exited 0 (`slice2-format-check.log`).
 - `module-boundaries.test.ts` resolves module specifiers and identifiers; a member selected by
   string key out of an allowed barrel is its stated residual.
+
+### Solver supervisor, Slice 3 — 2026-09-24
+
+- The slice started from `base=3c8b89628dc431e56dfcbaa39c54582119fb5cb0` on a clean tree, with
+  `module-boundaries.test.ts` present and no `module/solver-supervisor/`; the client held 277 lines,
+  the mapper 47, its first line
+  `import type { ReservedSolverChild, ReservedSpawner } from './optimization-coordinator';`, and
+  `kinds.json` `K=88` entries.
+- Baselines before any edit: `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-baseline.log`); the be-01 unit set passed `E=528` over `EF=51` files
+  (`slice3-be01-unit-baseline.log`); the six optimizer database files passed `D=54` over `DF=6`
+  (`slice3-be01-db-baseline.log`); `backend.optimization count=1` in both bundles and
+  `backend.solver-supervisor count=0 (grep exit 1)` in both (`slice3-main-bundle-red.log`,
+  `slice3-dev-main-bundle-red.log`).
+- Row 32: `module/solver-supervisor/module.test.ts` on the unchanged tree failed with
+  `error: Cannot find module './check'`; 0 pass, 1 fail, 1 error (`slice3-row32-module-red.log`).
+- Row 33: after the `cp` and three `mv`s, before 10.13, `wbs-be-01:typecheck` exited 1, among its
+  errors `s/solver-supervisor-spawner.ts:1:59 - error TS2307: Cannot find module './optimization-coordinator'`
+  (`slice3-row33-typecheck-red.log`).
+- Row 34: after 10.13, 10.14 and 10.15, the module directory ran 9 pass, 0 fail, 25 `expect()`
+  calls over 3 files (`slice3-row34-green.log`).
+- Row 35: after 10.16, `main backend.solver-supervisor count=1`,
+  `dev/main backend.solver-supervisor count=0 (grep exit 1)`, `backend.optimization count=1` in both
+  (`slice3-main-bundle-green.log`, `slice3-dev-main-bundle-green.log`);
+  `production-entrypoint.test.ts` 2 pass (`slice3-row35-entrypoint.log`). After 10.17 the boundary
+  file ran 1 pass (`slice3-step5-boundary-green.log`); `wbs-be-01` lint and typecheck exited 0
+  (`slice3-step6-lint-typecheck.log`).
+- Row 36, tuple (`['spawner', 'supervisorOptions']`): `Received function did not throw`;
+  `Expected to contain: "backend.solver-supervisor/supervisorOptions"`; message
+  `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "supervisorOptions"`; 2 pass, 3 fail
+  (`slice3-row36-tuple.patch`, `slice3-row36-tuple.log`).
+- Row 37, label (`.buildModule(['spawner'])`): the two label tests failed; 3 pass, 2 fail
+  (`slice3-row37-label.patch`, `slice3-row37-label.log`).
+- Row 38, edge (`searchWorkers: 1` in the returned options):
+  `hands the reserved attempt to the connector installSolverSupervisor wires` failed on
+  `-     "searchWorkers": 2,` / `+     "searchWorkers": 1,`; 4 pass, 1 fail
+  (`slice3-row38-edge.patch`, `slice3-row38-edge.log`).
+- Row 39, bag (`exposed` with `bag`): `exposes only the contract exports from its installer` failed
+  on `+   "bag",`; 4 pass, 1 fail in `module.test.ts` alone; `wbs-be-01:typecheck` exit 0
+  (`slice3-row39-bag.patch`, `slice3-row39-bag.log`, `slice3-row39-bag-typecheck.log`).
+- Row 40, resolver (`resolve` attached to the port): the same test failed on `Expected: true`,
+  `Received: false`; 4 pass, 1 fail in `module.test.ts` alone; typecheck exit 0
+  (`slice3-row40-resolver.patch`, `slice3-row40-resolver.log`, `slice3-row40-resolver-typecheck.log`).
+- Row 41, shim (prepended
+  `import type { ReservedSpawner as FeatureSpawner } from '../../service/optimization-coordinator';`
+  to the mapper): exactly one violation,
+  `"module/solver-supervisor/solver-supervisor-spawner.ts: '../../service/optimization-coordinator' reaches apps/wbs/be-01/src/service/optimization-coordinator.ts"`;
+  0 pass, 1 fail (`slice3-row41-shim.patch`, `slice3-row41-shim.log`).
+- Row 42, feature (prepended `import '../optimization/optimization.feature';`): exactly one
+  violation,
+  `"module/solver-supervisor/solver-supervisor-spawner.ts: '../optimization/optimization.feature' reaches apps/wbs/be-01/src/module/optimization/optimization.feature.ts"`;
+  0 pass, 1 fail (`slice3-row42-feature.patch`, `slice3-row42-feature.log`).
+- Each fault was restored by copying the saved bytes back, proved with `cmp`, and the named test
+  rerun green (`slice3-row*-restored.log`) before the next.
+- `cmp` of `module/solver-supervisor/solver-supervisor.repository.ts` with the `base` client exited 0:
+  the repository file moved unchanged. The moved mapper differs from its `base` source in its two
+  import specifiers only, and its erased body is identical (`slice3-mapper.diff`,
+  `slice3-erased-before-spawner.js`, `slice3-erased-after-spawner.js`).
+- The kinds substitute printed `87 []` (`K - 1`).
+- Closing: the be-01 unit set passed `E + 5 = 533` over `EF + 1 = 52` files
+  (`slice3-be01-unit-green.log`); the database files `54` over 6 (`slice3-be01-db-green.log`);
+  `production-entrypoint.test.ts` 2 pass (`slice3-entrypoint-green.log`); `wbs-be-01` lint and
+  typecheck exited 0 (`slice3-lint-typecheck-green.log`); `module/solver-supervisor/` holds nine
+  files; the format check exited 0 (`slice3-format-check.log`).
+- The mapper keeps no former path; its `kinds.json` repository row is removed, the module README
+  names it private support.

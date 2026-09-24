@@ -3,8 +3,8 @@ import { describe, expect, it } from 'bun:test';
 import type {
   SolverSupervisorConnect,
   SolverSupervisorSocketEvents,
-} from './solver-supervisor-client';
-import { connectSolverSupervisor } from './solver-supervisor-client';
+} from './solver-supervisor.repository';
+import { connectSolverSupervisor } from './solver-supervisor.repository';
 
 const request = {
   unix: '/run/wbs-solver/supervisor.sock',

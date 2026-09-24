@@ -31,7 +31,11 @@ interface ImportRule {
  * through the repository's SHA-256 helper. The second is preparation 7's
  * neutral half (task 1.5): the Optimization contract's spawn, child and event
  * types name no repository row type and nothing of the private solver child
- * lifecycle, so a launcher that imports the contract imports no adapter.
+ * lifecycle, so a launcher that imports the contract imports no adapter. The
+ * third is preparation 7's other half (tasks 1.5 and 4.2): the Supervisor, a
+ * repository module, reaches Optimization only through that contract — never
+ * the feature, its private support or the coordinator's compatibility path
+ * (K5).
  *
  * Proof (2026-09-24): on the Optimization module as sealed before its
  * cache-key port, this suite failed with exactly
@@ -51,6 +55,13 @@ interface ImportRule {
  * `apps/wbs/be-01/src/repository/optimization-admission.ts`,
  * `libs/wbs/adapters/store-sqlite/src/optimization-admission.ts` and
  * `apps/wbs/be-01/src/module/optimization/solver-child-lifecycle.ts` (0 pass, 1 fail each).
+ * Proof (2026-09-24): prepending
+ * `import type { ReservedSpawner as FeatureSpawner } from '../../service/optimization-coordinator';`
+ * to `module/solver-supervisor/solver-supervisor-spawner.ts` failed it with exactly
+ * `'../../service/optimization-coordinator' reaches apps/wbs/be-01/src/service/optimization-coordinator.ts`;
+ * prepending `import '../optimization/optimization.feature';` instead failed it with exactly
+ * `'../optimization/optimization.feature' reaches apps/wbs/be-01/src/module/optimization/optimization.feature.ts`
+ * (0 pass, 1 fail each).
  */
 const rules: readonly ImportRule[] = [
   {
@@ -69,6 +80,13 @@ const rules: readonly ImportRule[] = [
       declared.startsWith('apps/wbs/be-01/src/repository/') ||
       declared.startsWith('libs/wbs/adapters/') ||
       declared === 'apps/wbs/be-01/src/module/optimization/solver-child-lifecycle.ts',
+  },
+  {
+    from: (path) => path.startsWith('module/solver-supervisor/'),
+    reaches: (declared) =>
+      declared === 'apps/wbs/be-01/src/service/optimization-coordinator.ts' ||
+      (declared.startsWith('apps/wbs/be-01/src/module/optimization/') &&
+        declared !== 'apps/wbs/be-01/src/module/optimization/contract.ts'),
   },
 ];
 
@@ -215,6 +233,7 @@ describe('the checked import routes of the backend modules', () => {
     // Proof (2026-09-24): filtering `scannedSources` on `.tsx` instead of `.ts` failed here on
     // `Received: []` (0 pass, 1 fail).
     expect(scanned).toContain('module/optimization/contract.ts');
+    expect(scanned).toContain('module/solver-supervisor/solver-supervisor-spawner.ts');
     // Proof (2026-09-24): building the program with `paths: undefined` failed here: the feature
     // no longer reached `libs/wbs/domain/domain/src/stored-vocabularies.ts` (0 pass, 1 fail).
     expect(report.reached.get('module/optimization/optimization.feature.ts')).toContain(

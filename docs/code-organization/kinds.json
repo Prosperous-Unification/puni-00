@@ -201,13 +201,8 @@
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts",
-      "kind": "repository",
-      "rationale": "solverSupervisorSpawner and diagnostic scripts call it as the bounded protocol adapter for one external Unix supervisor socket and its streamed child output"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-supervisor-spawner.ts",
-      "kind": "repository",
-      "rationale": "main uses it to adapt a ReservedSpawnRequest to the external host supervisor client and expose that socket-backed attempt as the coordinator's child-process port"
+      "kind": "support",
+      "disposition": "re-export shim; delete when importers use the solver-supervisor module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/step.service.ts",
