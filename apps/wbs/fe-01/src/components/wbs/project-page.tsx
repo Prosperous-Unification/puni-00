@@ -19,8 +19,10 @@ import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream
 import type { Recalled } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
-import { createPresence } from '@/modules/plan-feed/presence-store';
+import type { Presence } from '@/modules/plan-feed/presence-store';
 import { projectServicesOver } from '@/modules/project/composition';
+import type { ProjectStreamHandlers } from '@/modules/project/contract';
+import type { Store } from '@/modules/store';
 import {
   type ApplicationServicesState,
   useApplicationServicesReader,
@@ -40,7 +42,7 @@ import {
 import { recordWbsScrollCommit } from './scroll-performance';
 import { useToasts } from './toasts';
 import { usePlanImport } from './use-plan-import';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
   token: string;
@@ -80,7 +82,7 @@ export interface ProjectPageProps {
    *
    * The seam is here and not on `subscribe`, because the factory below **is**
    * the thing under test: it is the only place the stream's `onChange` and the
-   * table's `SubscriptionHandlers` are joined, and a test that replaced the
+   * project runtime's handlers are joined, and a test that replaced the
    * factory would be asserting about its own wiring. Handing the socket in
    * instead leaves every line of the composition production code, and is the
    * same bargain `api` makes three props up.
@@ -121,6 +123,15 @@ export function recallLastProject(services: ApplicationServicesState): Recalled<
  * asked for and what the rename field opens holding, and two literals that
  * must agree is one of them going stale.
  */
+/** Nobody, not connected: the honest answer before any socket has spoken. */
+const NOBODY: Presence = { users: [], connected: false };
+
+/** The presence the header is handed while no project runtime is published. */
+const NOBODY_HERE: Store<Presence> = {
+  subscribe: () => () => undefined,
+  snapshot: () => NOBODY,
+};
+
 const PLACEHOLDER_PROJECT_NAME = 'New project';
 
 /**
@@ -504,27 +515,8 @@ export function ProjectPage({
     () => savedPlansOverride ?? browserSavedPlansDeps(),
     [savedPlansOverride],
   );
-  /**
-   * Who else is in the selected project, and whether the socket saying so is
-   * up.
-   *
-   * Held here because this page renders both halves of the screen the answer
-   * is for: the header's panel and the `<main>` the table fills. The table
-   * opens the stream (it is the thing that has to refetch), so the roster
-   * arrives through the factory below rather than from a socket of the header's
-   * own.
-   *
-   * A plain store the stream writes into and the header selects from, so the
-   * factory is handed no React setter. One per page mount, exactly as the state
-   * it replaces was — it is **not** reset when the selection changes, and that
-   * is kept deliberately: which lifetime resets it is the project runtime's
-   * decision (OpenSpec tasks 10 and 11), not this packet's. A lazy initializer
-   * is safe because the store holds no resource.
-   */
-  const [projectPresence] = useState(createPresence);
-  const roster: Roster = useSyncExternalStore(projectPresence.subscribe, projectPresence.snapshot);
   const subscribe = useMemo(
-    () => (projectId: string, handlers: SubscriptionHandlers, baseline: number) =>
+    () => (projectId: string, handlers: ProjectStreamHandlers, baseline: number) =>
       subscribeToProject(
         {
           projectId,
@@ -535,21 +527,13 @@ export function ProjectPage({
           sinceSeq: baseline,
           hasBaseline: true,
           onChange: handlers.onChange,
-          onConnectionChange: (connected) => {
-            // Proof: on 2026-09-24, this line deleted failed `hands the presence slot who the project’s stream
-            // says is here, and its connection` on `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal
-            // { users: [ 'kat', 'lee' ], …(1) }`, `connected` staying `false` where `true` was expected.
-            projectPresence.reportConnection(connected);
-            handlers.onConnectionChange(connected);
-          },
-          // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the project’s
-          // stream says is here, and its connection` on `expected { users: [], connected: false } to deeply
-          // equal { users: [ 'kat', 'lee' ], …(1) }`.
-          onPresence: projectPresence.reportUsers,
+          // The project's runtime tells its own presence, and the feed, from here.
+          onConnectionChange: handlers.onConnectionChange,
+          onPresence: handlers.onPresence,
         },
         streamDeps,
       ),
-    [projectPresence, streamDeps],
+    [streamDeps],
   );
 
   /**
@@ -571,6 +555,20 @@ export function ProjectPage({
    */
   const [projectOwner] = useState(createProjectOwner);
   const projectState = useSyncExternalStore(projectOwner.subscribe, projectOwner.snapshot);
+  /**
+   * Who else is in the selected project, and whether the socket saying so is
+   * up: the project runtime's own presence, which its stream writes into.
+   *
+   * **Reset by a project switch**, and that is the decision rather than an
+   * accident: while no runtime is published — the instant the old project is
+   * withdrawn, until the next one is live — the header is handed nobody,
+   * disconnected, and then the next project's own store, which starts from
+   * nobody until its own stream says who is there. A roster is one project's,
+   * so the previous project's list is never shown under the next one's name.
+   */
+  const presenceStore =
+    projectState.status === 'live' ? projectState.services.presence : NOBODY_HERE;
+  const roster: Roster = useSyncExternalStore(presenceStore.subscribe, presenceStore.snapshot);
   /**
    * Opens the selected project's runtime, and leaves it when the selection,
    * the client or the stream changes, or the page goes.

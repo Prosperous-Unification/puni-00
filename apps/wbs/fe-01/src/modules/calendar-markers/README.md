@@ -46,10 +46,11 @@ feed's `markers` resource comes out, and every answer a person sees arrives thro
 There is no `module.ts`: DI Bag 0.4.0 is installed but nothing in this application is composed
 through it yet, which is the rollout's lifetimes task, so `composition.ts` is a function, as
 `modules/plan-feed/composition.ts` is. Its one caller is the project composition root,
-`modules/project/composition.ts`, which hands it the page's one client as its routes. The plan read
-hook, `apps/wbs/fe-01/src/components/wbs/use-plan-read.ts`, builds the gestures through the
-project's services and hands them the refresh owner the plan feed beside it holds; the four chart
-gestures reach it through `wbs-table.tsx`.
+`modules/project/composition.ts`, which hands it the page's one client as its routes. The project
+runtime, `apps/wbs/fe-01/src/runtime/project-runtime.ts`, builds the gestures once per selected
+project through the project's services and hands them the refresh owner of the plan feed it holds
+while it is current, and none once it has been withdrawn; the four chart gestures reach it through
+`wbs-table.tsx`.
 
 ## Checks
 

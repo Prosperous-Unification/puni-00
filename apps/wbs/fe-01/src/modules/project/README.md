@@ -21,9 +21,10 @@ Plain TypeScript, no React (rule F1 of the code organization design in
 
 ## What it does not own
 
-When anything is opened or closed. The table still opens its feed in an effect and builds its
-markers and commands in memos, per reader; the project runtime of OpenSpec task 10 of
-`adopt-frontend-lifetimes` builds them once per selected project instead. The project catalog —
+When anything is opened or closed. `contract.ts` also declares `ProjectRuntime`, the services of
+one selected project, and the source a runtime is built over; the runtime itself and its owner
+are `apps/wbs/fe-01/src/runtime/project-runtime.ts`, which calls these factories once per selected
+project and gives what they built back when the project is left. The project catalog —
 listing, creating, opening, renaming and importing projects — is the page's, on the same client,
 and is not a plan module's.
 
