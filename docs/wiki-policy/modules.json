@@ -475,6 +475,34 @@
       }
     },
     {
+      "moduleId": "module.backend.optimization",
+      "name": "Optimization sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/be-01/src/module/optimization",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/be-01/src/module/optimization/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/module/solver-supervisor/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/module/solver-supervisor/module.ts" },
+          {
+            "kind": "path",
+            "path": "apps/wbs/be-01/src/module/solver-supervisor/solver-supervisor-spawner.ts"
+          },
+          { "kind": "path", "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-child-lifecycle.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/services.ts" }
+        ]
+      }
+    },
+    {
       "moduleId": "module.backend.solver-launcher",
       "name": "Solver launcher sealed DI Bag module",
       "memberships": [
@@ -492,6 +520,26 @@
           { "kind": "path", "path": "apps/wbs/be-01/src/dev/main.ts" },
           { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" },
           { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.backend.solver-supervisor",
+      "name": "Solver supervisor sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/be-01/src/module/solver-supervisor",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/be-01/src/module/solver-supervisor/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts" }
         ]
       }
     },
