@@ -17,13 +17,25 @@ import type {
   ProjectListEntry,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW, PlanImportRefusalError } from '@/lib/wbs-api';
+import type { BrowserStorage } from '@/modules/preferences/contract';
+import {
+  fakeBrowserStorage,
+  type HeldByFake,
+  writeRefusingBrowserStorage,
+} from '@/modules/preferences/fake-browser-storage';
+import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
+import {
+  ApplicationServicesProvider,
+  applicationServicesStateFor,
+} from '@/runtime/application-services-context';
+import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
-import { ProjectPage } from './project-page';
+import { ProjectPage, recallLastProject, rememberLastProject } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -1252,6 +1264,186 @@ describe('the chosen project survives a refresh', () => {
     expect(picker().value).toBe('');
     expect(screen.queryByRole('button', { name: 'Rename project' })).toBeNull();
   });
+});
+
+/**
+ * The four lifecycle transitions of `docs/superpowers/plans/2026-09-21-batch-6/050-7-f1-theme-hook-model.md`,
+ * for a page that reads and writes the last-opened project only when a list load
+ * lands or a handler runs.
+ *
+ * The page renders nothing derived from that store and does not re-render when
+ * the slot moves, so every transition here is about which runtime a callback
+ * reaches at the instant it runs.
+ */
+describe('the remembered project, over the runtime live when it is used', () => {
+  const PROJECT_KEY = 'wbs.project';
+  /** Every slot this block built, given back after React's own cleanup. */
+  const built: LifetimeSlot<ApplicationServices>[] = [];
+
+  afterEach(async () => {
+    try {
+      cleanup();
+    } finally {
+      for (const slot of built.splice(0)) await slot.retire();
+    }
+  });
+
+  function emptySlot(): LifetimeSlot<ApplicationServices> {
+    const slot = createLifetimeSlot<ApplicationServices>(50);
+    built.push(slot);
+    return slot;
+  }
+
+  /** The production installer over `store`, live when this resolves. */
+  async function publishOver(
+    slot: LifetimeSlot<ApplicationServices>,
+    store: BrowserStorage,
+  ): Promise<void> {
+    await act(async () => {
+      await slot.replace(() =>
+        installApplicationRuntime({
+          openStore: () => store,
+          isLive: () => slot.snapshot().status === 'live',
+        }),
+      );
+    });
+  }
+
+  const pageUnder = (slot: LifetimeSlot<ApplicationServices>, api: ProjectApi) =>
+    render(
+      <ApplicationServicesProvider slot={slot}>
+        <ProjectPage token="t" api={api} savedPlansDeps={fakeSavedPlansDeps()} />
+      </ApplicationServicesProvider>,
+    );
+
+  const heldProject = (store: HeldByFake): string | undefined => store.held()[PROJECT_KEY];
+
+  itDom('restores nothing and remembers nothing when no runtime is live', async () => {
+    const slot = emptySlot();
+    pageUnder(slot, fakeProjects(TWO));
+
+    await selectProject('p2');
+
+    expect(picker().value).toBe('Paint the fence');
+    // Not the page's own runtime either: nothing fell through to it.
+    expect(localStorage.getItem(PROJECT_KEY)).toBeNull();
+    expect(recallLastProject(applicationServicesStateFor(slot))).toEqual({
+      value: null,
+      persists: false,
+    });
+  });
+
+  itDom('stops remembering once its runtime is withdrawn, and never throws', async () => {
+    const store = fakeBrowserStorage({ [PROJECT_KEY]: 'p2' });
+    const slot = emptySlot();
+    await publishOver(slot, store);
+    pageUnder(slot, fakeProjects(TWO));
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+    await act(async () => {
+      await slot.retire();
+    });
+
+    await selectProject('p1');
+
+    expect(picker().value).toBe('Rewire the shed');
+    expect(heldProject(store)).toBe('p2');
+    expect(rememberLastProject(applicationServicesStateFor(slot), 'p1')).toBe(false);
+  });
+
+  itDom(
+    'restores the replacement runtime’s own project when a list load lands after a replacement',
+    async () => {
+      const first = fakeBrowserStorage({ [PROJECT_KEY]: 'p1' });
+      const second = fakeBrowserStorage({ [PROJECT_KEY]: 'p2' });
+      const slot = emptySlot();
+      await publishOver(slot, first);
+      const api = fakeProjects(TWO);
+      let land = (): void => {
+        throw new Error('the list was never asked for');
+      };
+      const listed = new Promise<void>((resolve) => {
+        land = resolve;
+      });
+      const listProjects = api.listProjects.bind(api);
+      api.listProjects = async () => {
+        await listed;
+        return listProjects();
+      };
+      pageUnder(slot, api);
+      await publishOver(slot, second);
+
+      await act(async () => {
+        land();
+        await listed;
+      });
+
+      await waitFor(() => {
+        expect(picker().value).toBe('Paint the fence');
+      });
+      expect(heldProject(first)).toBe('p1');
+    },
+  );
+
+  itDom(
+    'writes a project chosen after a replacement into the replacement, from a page drawn before it',
+    async () => {
+      const first = fakeBrowserStorage();
+      const second = fakeBrowserStorage();
+      const slot = emptySlot();
+      await publishOver(slot, first);
+      pageUnder(slot, fakeProjects(TWO));
+      await waitFor(() => {
+        expect(screen.getByLabelText('Project')).toBeDefined();
+      });
+      openPicker();
+      await waitFor(() => {
+        expect(document.getElementById('project-option-p2')).not.toBeNull();
+      });
+      // The option is on screen, drawn under the first runtime; nothing renders
+      // again before it is clicked.
+      await publishOver(slot, second);
+
+      const option = document.getElementById('project-option-p2');
+      if (option === null) throw new Error('setup: no option for p2');
+      fireEvent.click(option);
+
+      expect(picker().value).toBe('Paint the fence');
+      expect(heldProject(second)).toBe('p2');
+      expect(heldProject(first)).toBeUndefined();
+    },
+  );
+
+  itDom(
+    'lets a store’s own write failure through by identity, selecting nothing it could not keep',
+    async () => {
+      const denied = new Error('write denied');
+      const store = writeRefusingBrowserStorage(denied);
+      const slot = emptySlot();
+      await publishOver(slot, store);
+      const api = fakeProjects(TWO);
+      pageUnder(slot, api);
+
+      const reported: unknown[] = [];
+      const report = (event: ErrorEvent): void => {
+        reported.push(event.error);
+        event.preventDefault();
+      };
+      window.addEventListener('error', report);
+      try {
+        await selectProject('p2');
+      } finally {
+        window.removeEventListener('error', report);
+      }
+
+      expect(reported).toHaveLength(1);
+      expect(reported[0]).toBe(denied);
+      expect(screen.queryByRole('button', { name: 'Rename project' })).toBeNull();
+      expect(api.opened).toEqual([]);
+      expect(heldProject(store)).toBeUndefined();
+    },
+  );
 });
 
 describe('an entry says who owns it and when it was made', () => {

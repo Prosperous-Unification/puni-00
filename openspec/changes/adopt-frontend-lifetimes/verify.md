@@ -1147,3 +1147,71 @@ files and 41 tests, sandbox node suite 46 files and 675 tests, all
     `wbs-fe-01:build`, `wbs-fe-01:e2e` (no production path changed in this
     slice), `tool-devsync:test` with the twenty-six paths staged, and the host
     gate `bin/h2puni-gate.sh <sha>`.
+
+## Packet 050.7f2, slice 2 — the settings modal and the project page, read at the moment of use
+
+Attempt `050-7-f2-delivery-call-sites.2.20260923T235846Z`, starting at
+`dea3c79391cb6a39e56a1dfb01ea22b0f3465a6f` with an empty status and `fast-check` 4.9.0 (`base.txt`,
+`status-before.txt`, `fast-check.txt`). Observed 2026-09-24, in the executor sandbox.
+
+Step 0 baselines: preferences suite 6 files, 41 tests, `status=0` (`base-preferences.log`); sandbox
+node suite 46 files, 675 tests, `status=0` (`base-sandbox.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}` (`openspec-base.*.json`). Slice baselines, each `status=0`:
+`project-settings-modal.test.tsx` 15 tests, `project-page.test.tsx` 67, `app-router.test.tsx` 5
+(`s2-base-modal.log`, `s2-base-page.log`, `s2-base-router.log`).
+
+Contract first: the scenario "With no runtime live, the default is shown and reported as not
+remembered" applied before any test or code; strict OpenSpec `{"items":114,"passed":114,"failed":0}`
+(`openspec-s2-contract.*.json`).
+
+Red, with the two test files applied and the production code unchanged:
+
+- `wbs-fe-01:typecheck` `status=1`, `Found 5 errors in 2 files.` — `project-page.test.tsx:38:23` and
+  `:38:42` `TS2305` (`recallLastProject`, `rememberLastProject` not exported);
+  `project-settings-modal.test.tsx:427:79` and `:486:73` `TS2554: Expected 1 arguments, but got 2.`;
+  `:507:80` `TS2554: Expected 2 arguments, but got 3.` (`s2-red-typecheck.log`).
+- Vitest over the two files `status=1`, `Test Files 2 failed (2)`, `Tests 11 failed | 81 passed (92)`
+  (`s2-red-vitest.log`): the edited `reads an absent key as the first section` on
+  `expected 'teams' to deeply equal { value: 'teams', persists: true }`; modal `opens on the first
+section …` on `expected 'priorities' to be null`; `stops remembering …` on
+  `expected undefined to be false`; `reopens on a replacement runtime’s own remembered section` on
+  `toHaveAttribute("aria-selected", "true")`; `writes a section chosen after a replacement …` on
+  `expected undefined to be 'steps'`; `lets a store’s own write failure through …` on
+  `expected [] to have a length of 1 but got +0`; page `restores nothing …` on
+  `expected 'p2' to be null`; `stops remembering …` and `restores the replacement runtime’s own
+project …` on `expected '' to be 'Paint the fence'`; `writes a project chosen after a replacement …`
+  on `expected undefined to be 'p2'`; `lets a store’s own write failure through …` on
+  `expected [] to have a length of 1 but got +0`.
+
+Green, after `Recalled<T>`, the modal and the page: typecheck `status=0` (`s2-green-typecheck.log`);
+the two files 92 tests (82 + 10), `status=0` (`s2-green-vitest.log`); router 5, unchanged
+(`s2-green-router.log`); the twenty adopted files, serially, 20 files, 1214 tests, `status=0`
+(`s2-green-adopted.log`); `wbs-fe-01:lint` `status=0` (`s2-lint.log`).
+
+Proofs: all twelve filters matched exactly one test (`s2-filters.txt`). Each fault was injected from
+its patch, its named test run, the file restored from the saved copy and `cmp`-identical, and the
+test rerun green (`s2-faults.log`, `<id>.patch`, `<id>.log`, `<id>.green.log`). Modal faults each
+`Tests 1 failed | 19 skipped (20)`, page faults each `Tests 1 failed | 71 skipped (72)`, all `status=1`:
+
+| Id  | Fault                                            | Observed                                                                                                                                      |
+| --- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| m1  | no runtime, yet the read claims `persists: true` | `expected { value: 'teams', persists: true } to deeply equal { value: 'teams', persists: false }`                                             |
+| m2  | no runtime, yet the write answers `true`         | `expected true to be false`                                                                                                                   |
+| m3  | `show` uses the runtime read at render           | `toHaveAttribute("aria-selected", "true")`, with `PreferenceStoreLifecycleError: the preferences store was revoked with its runtime` reported |
+| m4  | `show` shows the section before writing it       | `toHaveAttribute("aria-selected", "true")` on Teams                                                                                           |
+| m5  | `show` swallows the write's failure              | `expected [] to have a length of 1 but got +0`                                                                                                |
+| m6  | opening shows the first section without reading  | `toHaveAttribute("aria-selected", "true")` on Priorities                                                                                      |
+| p1  | no runtime, yet the read claims `persists: true` | `expected { value: null, persists: true } to deeply equal { value: null, persists: false }`                                                   |
+| p2  | no runtime, yet the write answers `true`         | `expected true to be false`                                                                                                                   |
+| p3  | the list load reads the runtime once, at mount   | `PreferenceStoreLifecycleError: the preferences store was revoked with its runtime`                                                           |
+| p4  | `choose` uses the runtime read at render         | `expected '' to be 'Paint the fence'`, with the revoked refusal reported                                                                      |
+| p5  | `choose` selects before writing                  | `expected <button …(3)></button> to be null`                                                                                                  |
+| p6  | `choose` swallows the write's failure            | `expected [] to have a length of 1 but got +0`                                                                                                |
+
+The `Proof:` comments were written after all twelve were observed. Afterwards: the two files 92 tests
+`status=0` (`s2-final-vitest.log`); preferences 6 files, 41 tests and sandbox 46 files, 675 tests,
+both unchanged and `status=0` (`s2-final-preferences.log`, `s2-final-sandbox.log`).
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e` (`e2e/project-settings.spec.ts`, `e2e/project-picker.spec.ts`), `tool-devsync:test`
+and the host gate `bin/h2puni-gate.sh <sha>`, none of which the sandbox can run.

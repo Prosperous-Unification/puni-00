@@ -3,6 +3,22 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_PERT_WEIGHTS_VIEW, type PriorityBandView } from '@/lib/wbs-api';
+import type { BrowserStorage } from '@/modules/preferences/contract';
+import {
+  fakeBrowserStorage,
+  type HeldByFake,
+  writeRefusingBrowserStorage,
+} from '@/modules/preferences/fake-browser-storage';
+import {
+  type ApplicationServices,
+  applicationSlot,
+  installApplicationRuntime,
+} from '@/runtime/application-runtime';
+import {
+  ApplicationServicesProvider,
+  applicationServicesStateFor,
+} from '@/runtime/application-services-context';
+import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import {
@@ -10,6 +26,7 @@ import {
   ProjectSettingsModal,
   type ProjectSettingsModalProps,
   rememberedSettingsSection,
+  rememberSettingsSection,
 } from './project-settings-modal';
 import { INITIAL_HIDDEN_COLUMNS } from './table-frame';
 
@@ -43,7 +60,10 @@ function held(): { promise: Promise<void>; land: () => void } {
  * recorded, opened through its own trigger — because the trigger is the
  * component's, for Radix's focus-restore reason.
  */
-function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
+function mounted(
+  overrides: Partial<ProjectSettingsModalProps> = {},
+  slot: LifetimeSlot<ApplicationServices> | null = null,
+) {
   const setCapacity = vi.fn(() => Promise.resolve());
   const setBands = vi.fn<(bands: readonly PriorityBandView[]) => Promise<void>>(() =>
     Promise.resolve(),
@@ -98,7 +118,17 @@ function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
     },
     ...overrides,
   };
-  render(<ProjectSettingsModal {...props} />);
+  // A test that owns its own slot renders its own provider inside the file's;
+  // the nearer provider is the one the modal reads.
+  render(
+    slot === null ? (
+      <ProjectSettingsModal {...props} />
+    ) : (
+      <ApplicationServicesProvider slot={slot}>
+        <ProjectSettingsModal {...props} />
+      </ApplicationServicesProvider>
+    ),
+  );
   return { setCapacity, setBands, addStep, renameStep, removeStep, setArithmetic, onChanged };
 }
 
@@ -393,8 +423,153 @@ describe('the section it reopens on', () => {
   });
 
   it('reads an absent key as the first section', () => {
-    expect(rememberedSettingsSection('nobody')).toBe('teams');
+    expect(
+      rememberedSettingsSection(applicationServicesStateFor(applicationSlot), 'nobody'),
+    ).toEqual({ value: 'teams', persists: true });
   });
+});
+
+/**
+ * The four lifecycle transitions of `docs/superpowers/plans/2026-09-21-batch-6/050-7-f1-theme-hook-model.md`,
+ * for a modal that reads and writes its section only when a handler runs.
+ *
+ * The modal renders nothing derived from the store and does not re-render when
+ * the slot moves, so every transition here is about which runtime a handler
+ * reaches at the instant it runs.
+ */
+describe('the section it reopens on, over the runtime live when a handler runs', () => {
+  /** Every slot this block built, given back after React's own cleanup. */
+  const built: LifetimeSlot<ApplicationServices>[] = [];
+
+  afterEach(async () => {
+    try {
+      cleanup();
+    } finally {
+      for (const slot of built.splice(0)) await slot.retire();
+    }
+  });
+
+  function emptySlot(): LifetimeSlot<ApplicationServices> {
+    const slot = createLifetimeSlot<ApplicationServices>(50);
+    built.push(slot);
+    return slot;
+  }
+
+  /** The production installer over `store`, live when this resolves. */
+  async function publishOver(
+    slot: LifetimeSlot<ApplicationServices>,
+    store: BrowserStorage,
+  ): Promise<void> {
+    await act(async () => {
+      await slot.replace(() =>
+        installApplicationRuntime({
+          openStore: () => store,
+          isLive: () => slot.snapshot().status === 'live',
+        }),
+      );
+    });
+  }
+
+  const heldSection = (store: HeldByFake): string | undefined => store.held()[SECTION_KEY];
+
+  itDom('opens on the first section and remembers nothing when no runtime is live', () => {
+    const slot = emptySlot();
+    mounted({}, slot);
+    open();
+    expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(tab('Priorities'));
+
+    expect(tab('Priorities')).toHaveAttribute('aria-selected', 'true');
+    // Not the page's own runtime either: nothing fell through to it.
+    expect(localStorage.getItem(SECTION_KEY)).toBeNull();
+    expect(rememberedSettingsSection(applicationServicesStateFor(slot), PROJECT)).toEqual({
+      value: 'teams',
+      persists: false,
+    });
+  });
+
+  itDom('stops remembering once its runtime is withdrawn, and never throws', async () => {
+    const store = fakeBrowserStorage({ [SECTION_KEY]: 'steps' });
+    const slot = emptySlot();
+    await publishOver(slot, store);
+    mounted({}, slot);
+    await act(async () => {
+      await slot.retire();
+    });
+
+    open();
+    expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(tab('Estimating'));
+
+    expect(tab('Estimating')).toHaveAttribute('aria-selected', 'true');
+    expect(heldSection(store)).toBe('steps');
+    expect(rememberSettingsSection(applicationServicesStateFor(slot), PROJECT, 'teams')).toBe(
+      false,
+    );
+  });
+
+  itDom('reopens on a replacement runtime’s own remembered section', async () => {
+    const first = fakeBrowserStorage({ [SECTION_KEY]: 'steps' });
+    const second = fakeBrowserStorage({ [SECTION_KEY]: 'priorities' });
+    const slot = emptySlot();
+    await publishOver(slot, first);
+    mounted({}, slot);
+    await publishOver(slot, second);
+
+    open();
+
+    expect(tab('Priorities')).toHaveAttribute('aria-selected', 'true');
+    expect(heldSection(first)).toBe('steps');
+  });
+
+  itDom(
+    'writes a section chosen after a replacement into the replacement, from a modal opened before it',
+    async () => {
+      const first = fakeBrowserStorage();
+      const second = fakeBrowserStorage();
+      const slot = emptySlot();
+      await publishOver(slot, first);
+      mounted({}, slot);
+      open();
+      await publishOver(slot, second);
+
+      fireEvent.click(tab('Steps'));
+
+      expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
+      expect(heldSection(second)).toBe('steps');
+      expect(heldSection(first)).toBeUndefined();
+    },
+  );
+
+  itDom(
+    'lets a store’s own write failure through by identity, showing no section it could not keep',
+    async () => {
+      const denied = new Error('write denied');
+      const store = writeRefusingBrowserStorage(denied);
+      const slot = emptySlot();
+      await publishOver(slot, store);
+      mounted({}, slot);
+      open();
+
+      const reported: unknown[] = [];
+      const report = (event: ErrorEvent): void => {
+        reported.push(event.error);
+        event.preventDefault();
+      };
+      window.addEventListener('error', report);
+      try {
+        fireEvent.click(tab('Priorities'));
+      } finally {
+        window.removeEventListener('error', report);
+      }
+
+      expect(reported).toHaveLength(1);
+      expect(reported[0]).toBe(denied);
+      expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
+      expect(heldSection(store)).toBeUndefined();
+    },
+  );
 });
 
 describe('the control that opens it', () => {

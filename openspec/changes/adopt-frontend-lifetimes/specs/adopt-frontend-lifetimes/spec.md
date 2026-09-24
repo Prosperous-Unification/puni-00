@@ -243,6 +243,15 @@ no access at all, as the requirement on degrading visibly already states.
   replaced runtime's, and a reader kept from that earlier render answers the
   replacement
 
+#### Scenario: With no runtime live, the default is shown and reported as not remembered
+
+- **WHEN** a settings section or a last-opened project is read or written while
+  no runtime is live, whether none has been published yet or the one that was has
+  been withdrawn
+- **THEN** the caller's documented default is used, nothing is read, dropped or
+  written in any store, nothing throws, and the returned value says the answer
+  is not being remembered
+
 ### Requirement: Log out stays a local exit
 
 The Log out action SHALL send no request to the server and SHALL retire the

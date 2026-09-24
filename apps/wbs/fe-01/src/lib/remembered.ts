@@ -4,6 +4,22 @@ import type { Claim, Remembered } from '@/modules/preferences/contract';
 export type { Claim, Remembered };
 
 /**
+ * A remembered answer as it stood at the instant it was asked for, and whether a
+ * live runtime was there to answer.
+ *
+ * `persists: false` is the visible degradation rule R5 asks for when the page
+ * has no live runtime: `value` is then the caller's own documented default —
+ * exactly what an unread key already produces — and nothing was read, dropped or
+ * written. A caller that shows `value` either way still has the answer to "is
+ * this being remembered" in its hands, rather than a default it cannot tell
+ * apart from a stored one.
+ */
+export interface Recalled<T> {
+  readonly value: T;
+  readonly persists: boolean;
+}
+
+/**
  * The store for one key, judged by one guard — the preferences service's now.
  *
  * Kept as a free function at this path because the layout module builds a store
