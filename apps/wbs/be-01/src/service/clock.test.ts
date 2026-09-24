@@ -17,6 +17,12 @@ const FOLDERS = ['apps/wbs/be-01/src/service', 'libs/wbs/application/core/src/se
  * would stop reading every service the moment it is sealed.
  */
 const MODULES = 'libs/wbs/application/core/src/module';
+/**
+ * Where a be-01 service goes when it is sealed as a backend module, for the
+ * same reason as {@link MODULES}: the Optimization coordinator moved out of
+ * {@link FOLDERS} into `module/optimization/optimization.feature.ts`.
+ */
+const BACKEND_MODULES = 'apps/wbs/be-01/src/module';
 const ROOT = join(import.meta.dir, '../../../../..');
 
 /**
@@ -35,19 +41,27 @@ const AGE_THEIR_OWN_ENTRIES = new Set([
 ]);
 
 /**
- * {@link FOLDERS} and every sealed core module's own directory.
+ * {@link FOLDERS}, every sealed core module's own directory and every sealed
+ * backend module's own directory.
  *
  * Proof (2026-09-24): adding `now?: () => number;` to the moved
  * `CapacityServiceOptions` in `module/capacity/capacity.resource.ts` failed
  * `is the only clock a service that stamps a write reads` on expected [],
  * received ["libs/wbs/application/core/src/module/capacity/capacity.resource.ts"]
  * (3 pass, 1 fail).
+ * Proof (2026-09-24): with the Optimization coordinator moved into
+ * `apps/wbs/be-01/src/module/optimization/` and only core modules scanned, adding
+ * `now?: () => number;` to the moved `OptimizationCoordinatorOptions` left all four cases
+ * passing; with every backend module directory scanned as well, the same fault failed
+ * `is the only clock a service that stamps a write reads` on received
+ * ["apps/wbs/be-01/src/module/optimization/optimization.feature.ts"] (3 pass, 1 fail).
  */
 function serviceFolders(): string[] {
-  const modules = readdirSync(join(ROOT, MODULES), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => `${MODULES}/${entry.name}`);
-  return [...FOLDERS, ...modules];
+  const modulesIn = (root: string): string[] =>
+    readdirSync(join(ROOT, root), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `${root}/${entry.name}`);
+  return [...FOLDERS, ...modulesIn(MODULES), ...modulesIn(BACKEND_MODULES)];
 }
 
 function serviceSources(): { name: string; path: string; text: string }[] {
@@ -124,6 +138,9 @@ describe('one clock', () => {
     const beWorkItems = sources.find(
       (file) => file.path === 'apps/wbs/be-01/src/service/work-item.service.ts',
     );
+    const beOptimization = sources.find(
+      (file) => file.path === 'apps/wbs/be-01/src/module/optimization/optimization.feature.ts',
+    );
     // Proof: removing the core folder from FOLDERS failed this assertion on
     // Received: undefined while the two shape checks passed (2026-09-09).
     expect(coreCapacity).toBeDefined();
@@ -134,6 +151,10 @@ describe('one clock', () => {
     expect(coreWorkItems?.text).toContain('export class WorkItemService');
     expect(beWorkItems).toBeDefined();
     expect(beWorkItems?.text).toContain("export * from '@wbs/core/service/work-item.service'");
+    // Proof (2026-09-24): returning `[...FOLDERS, ...modulesIn(MODULES)]` from `serviceFolders`
+    // failed the `beOptimization` assertion below on Received: undefined (3 pass, 1 fail).
+    expect(beOptimization).toBeDefined();
+    expect(beOptimization?.text).toContain('export class OptimizationCoordinator');
   });
 
   it('dates one act from one reading of the clock', () => {
