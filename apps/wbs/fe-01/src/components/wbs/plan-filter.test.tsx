@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 
 import type * as TableFrameModule from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
@@ -142,7 +143,7 @@ describe('finding a work item in the tree', () => {
   /** Renders the plan above and waits for it to be on screen. */
   async function shownPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
     const api = await decorating();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(EVERY_ROW);
     });
@@ -157,7 +158,7 @@ describe('finding a work item in the tree', () => {
 
   itDom('a project switch cannot show or apply the previous project’s query', async () => {
     const api = await decorating();
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(EVERY_ROW);
     });
@@ -166,7 +167,7 @@ describe('finding a work item in the tree', () => {
       expect(numbersOnScreen()).toEqual(['010', '010.2']);
     });
 
-    view.rerender(<WbsTable projectId="p2" api={api} />);
+    view.rerender(<WbsTable projectId="p2" projectServices={projectServicesOf(api)} />);
 
     expect(findBox().value).toBe('');
     await waitFor(() => {
@@ -322,7 +323,7 @@ describe('finding a work item in the tree', () => {
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
 
     cleanup();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
@@ -335,7 +336,7 @@ describe('finding a work item in the tree', () => {
     expect(numbersOnScreen()).toEqual(['010', '020']);
 
     cleanup();
-    render(<WbsTable projectId="p2" api={api} />);
+    render(<WbsTable projectId="p2" projectServices={projectServicesOf(api)} />);
 
     // A different project has its own memory, and no memory means everything
     // open — not the shape the last project was left in.
@@ -415,7 +416,7 @@ describe('narrowing the plan by facet', () => {
     await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await api.setEstimate(paint.id, QA.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
     });
@@ -516,7 +517,7 @@ describe('narrowing the plan by facet', () => {
     const ready = await api.addTag('Ready');
     api.labelWithTag(strip.id, [risk.id]);
     api.labelWithTag(sockets.id, [ready.id]);
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
     });
@@ -679,7 +680,7 @@ describe('narrowing the plan by facet', () => {
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
 
     cleanup();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
@@ -779,7 +780,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
 
   /** Draw it, and wait for the six rows the fixture builds. */
   async function shown(api: ProjectApi): Promise<void> {
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
     });
@@ -855,7 +856,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       // feature is broken.
       const api = fakeApi();
       await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
-      render(<WbsTable projectId="p1" api={api} />);
+      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
       await waitFor(() => {
         expect(numbersOnScreen()).toEqual(['010']);
       });
@@ -1127,7 +1128,9 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} subscribe={subscribe} />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
     });
@@ -1188,7 +1191,7 @@ describe('saved views, per browser', () => {
     const billing = await api.addTeam('Billing');
     await api.patchWorkItem(strip.id, { serviceTeamId: billing.id });
 
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -1309,7 +1312,7 @@ describe('saved views, per browser', () => {
     find('');
 
     cleanup();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -1369,7 +1372,7 @@ describe('saved views, per browser', () => {
 
     localStorage.removeItem(HIDDEN_KEY);
     cleanup();
-    render(<WbsTable projectId="p1" api={fakeApi()} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(fakeApi())} />);
     await waitFor(() => {
       expect(columnsOnScreen()).not.toContain('refs');
     });
@@ -1553,7 +1556,13 @@ describe('what the filter says it dropped, and what it exports', () => {
     await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await api.addDependency(paint.id, strip.id);
 
-    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });

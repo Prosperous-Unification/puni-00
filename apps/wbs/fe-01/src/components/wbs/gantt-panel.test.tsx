@@ -18,6 +18,7 @@ import type {
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
@@ -3362,7 +3363,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
 
 /** Puts the plan on screen and opens the chart under it. */
 async function showTheChart(startDate: string | null = MONDAY, skew: ReadSkew = {}): Promise<void> {
-  render(<WbsTable projectId="p1" api={fakeApi(startDate, skew)} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(fakeApi(startDate, skew))} />);
   await screen.findByDisplayValue('Hull');
   fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
   await screen.findByLabelText('Gantt chart');
@@ -3527,7 +3528,7 @@ describe('the chart mirrors the plan', () => {
    */
   itDom('takes the plan to a row on the cards face too', async () => {
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" api={fakeApi(MONDAY)} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(fakeApi(MONDAY))} />);
     await screen.findByLabelText('Name of 010');
     fireEvent.click(screen.getByRole('button', { name: 'Plan actions' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Gantt' }));
@@ -3888,7 +3889,13 @@ describe('a chart that cannot be drawn', () => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
-    render(<WbsTable projectId="p1" api={fakeApi(MONDAY, skew)} subscribe={subscribe} />);
+    render(
+      <WbsTable
+        projectId="p1"
+        projectServices={projectServicesOf(fakeApi(MONDAY, skew))}
+        subscribe={subscribe}
+      />,
+    );
     await screen.findByDisplayValue('Hull');
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
     await screen.findByLabelText('Gantt chart');

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 
 import { hintFor } from './column-hints';
@@ -240,7 +241,7 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTable projectId="p1" api={api} />);
+  render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -289,7 +290,7 @@ describe('the WBS table', () => {
 
   itDom('types a three-level breakdown without touching the mouse', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -320,7 +321,7 @@ describe('the WBS table', () => {
 
   itDom('gives the number cell words only when the number does not fit', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -401,7 +402,7 @@ describe('the WBS table', () => {
         return api.createWorkItem(projectId, input);
       },
     };
-    render(<WbsTable projectId="p1" api={slow} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(slow)} />);
     await screen.findByRole('button', { name: 'Add work item' });
 
     for (let i = 0; i < 6; i += 1) click('Add work item');
@@ -447,7 +448,9 @@ describe('the WBS table', () => {
         return forProject(projectId).createWorkItem(projectId, input);
       },
     };
-    const { rerender } = render(<WbsTable projectId="p1" api={api} />);
+    const { rerender } = render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     await screen.findByRole('button', { name: 'Add work item' });
 
     click('Add work item');
@@ -455,7 +458,7 @@ describe('the WBS table', () => {
       expect(calls).toEqual(['p1']);
     });
 
-    rerender(<WbsTable projectId="p2" api={api} />);
+    rerender(<WbsTable projectId="p2" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     releaseFirst?.();
 
@@ -471,7 +474,7 @@ describe('the WBS table', () => {
 
   itDom('abandons queued adds when unmounted during their covering read', async () => {
     const api = fakeApi();
-    const view = render(<WbsTable projectId="p1" api={api} />);
+    const view = render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await waitFor(() => {
       expect(document.querySelector('[data-export]')).not.toBeNull();
     });
@@ -504,7 +507,7 @@ describe('the WBS table', () => {
 
   itDom('outdents with shift-tab', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -531,7 +534,9 @@ describe('the WBS table', () => {
     // opaque; what is asserted is that they are this read's and not the last
     // one's.
     const api = fakeApi();
-    const { container } = render(<WbsTable projectId="p1" api={api} />);
+    const { container } = render(
+      <WbsTable projectId="p1" projectServices={projectServicesOf(api)} />,
+    );
     const sliceCount = () =>
       container.querySelector('[data-slice-count]')?.getAttribute('data-slice-count');
 
@@ -565,7 +570,7 @@ describe('the WBS table', () => {
     // the hidden ones carry headers and hints of their own.
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Strip');
@@ -618,7 +623,7 @@ describe('the WBS table', () => {
 
   itDom('backspace at the start of the name outdents the row', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -641,7 +646,7 @@ describe('the WBS table', () => {
 
   itDom('backspace anywhere else, or over a selection, stays a backspace', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -672,7 +677,7 @@ describe('the WBS table', () => {
 
   itDom('backspace in an empty root row removes it and puts the focus above', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -692,7 +697,7 @@ describe('the WBS table', () => {
 
   itDom('a nested empty row outdents on backspace, and is not removed', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -719,7 +724,7 @@ describe('the WBS table', () => {
 
   itDom('anything the item holds vetoes the backspace removal', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     // 010 gets its child first, so the numbering of everything after is settled.
@@ -787,7 +792,7 @@ describe('the WBS table', () => {
     // not happened — so the note is still there for everyone else, and a
     // keystroke reflex must not take the row it belongs to with it.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     const name = await screen.findByLabelText<HTMLInputElement>('Name of 010');
     fireEvent.change(name, { target: { value: '\nmeasure twice' } });
@@ -815,7 +820,7 @@ describe('the WBS table', () => {
 
   itDom('tab inside the text walks to the next cell instead of indenting', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -848,7 +853,7 @@ describe('the WBS table', () => {
 
   itDom('shift-tab inside the text walks backwards instead of outdenting', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -881,7 +886,7 @@ describe('the WBS table', () => {
 
   itDom('tab over a selection navigates rather than indenting', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -914,7 +919,7 @@ describe('the WBS table', () => {
 
   itDom('backspace at the start of a root row moves nothing', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
 
@@ -933,7 +938,7 @@ describe('the WBS table', () => {
 
   itDom('shows a parent estimate cell as read-only and a leaf as editable', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -953,7 +958,7 @@ describe('the WBS table', () => {
 
   itDom('locks a frozen row and offers to unfreeze it', async () => {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -971,7 +976,7 @@ describe('the WBS table', () => {
 describe('the plan on a calendar', () => {
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
@@ -1142,7 +1147,7 @@ describe('the plan on a calendar', () => {
       name: 'Parent',
     });
     await api.createWorkItem('p1', { parentId: parent.id, afterId: null, name: 'Child' });
-    render(<WbsTable projectId="p1" api={api} />);
+    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 010');
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
@@ -1193,7 +1198,7 @@ describe('the plan on a calendar', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-09-15T00:00:00Z'));
     try {
-      render(<WbsTable projectId="p1" api={api} />);
+      render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Name of 020');
 
       // The whole title through the real call site, day and sentence, spelled out

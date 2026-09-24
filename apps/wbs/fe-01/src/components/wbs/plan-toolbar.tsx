@@ -16,7 +16,8 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
-import { isEstimateMethod, type ProjectApi, type StepView } from '@/lib/wbs-api';
+import { isEstimateMethod, type StepView } from '@/lib/wbs-api';
+import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { MenuControl } from './actions-menu';
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
@@ -539,7 +540,7 @@ export function PlanToolbar({
   setFreezeMenuOpen,
   busy,
   run,
-  api,
+  commands,
   projectId,
   addWorkItem,
   filtering,
@@ -603,7 +604,7 @@ export function PlanToolbar({
   setFreezeMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   busy: boolean;
   run: RunPlanWrite;
-  api: ProjectApi;
+  commands: PlanCommands;
   projectId: string;
   addWorkItem: () => void;
   filtering: boolean;
@@ -728,14 +729,13 @@ export function PlanToolbar({
           {
             id: 'freeze',
             label: 'Freeze numbering',
-            run: () =>
-              void run((write) => write.perform(['tree'], () => api.freezeProject(projectId))),
+            run: () => void run((write) => write.perform(['tree'], () => commands.freezeProject())),
           },
           {
             id: 'unfreeze-all',
             label: 'Unfreeze all',
             run: () =>
-              void run((write) => write.perform(['tree'], () => api.unfreezeProject(projectId))),
+              void run((write) => write.perform(['tree'], () => commands.unfreezeProject())),
           },
         ]}
         trigger={{
@@ -929,13 +929,13 @@ export function PlanToolbar({
             teamCapacities,
             flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
           ),
-          setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
+          setCapacity: (teamId, size) => commands.setTeamCapacity(teamId, size),
           onChanged: () => refreshOrMarkStale('tree'),
           onRefused: recoverAmbiguousSettingsChange,
         }}
         priorities={{
           bands: priorityBands,
-          setBands: (bands) => api.setPriorityBands(projectId, bands),
+          setBands: (bands) => commands.setPriorityBands(bands),
           onChanged: () => refreshOrMarkStale('tree'),
           onRefused: recoverAmbiguousSettingsChange,
         }}
@@ -945,16 +945,16 @@ export function PlanToolbar({
           frameState,
           numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
           nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
-          addStep: (name) => api.addStep(projectId, name),
-          renameStep: (stepId, name) => api.renameStep(projectId, stepId, name),
-          removeStep: (stepId, cascade) => api.removeStep(projectId, stepId, cascade),
+          addStep: (name) => commands.addStep(name),
+          renameStep: (stepId, name) => commands.renameStep(stepId, name),
+          removeStep: (stepId, cascade) => commands.removeStep(stepId, cascade),
           // How far a dependency reaches, on the same surface as the steps it
           // is about: reordering them moves what an `anchor-slice` dependency
           // waits for. Off the chart read rather than a state of its own, so
           // the value ticked here and the reach the arrows were drawn with are
           // one fact.
           depReach: chartRead.depReach,
-          setDepReach: (reach: DependencyReach) => api.setDepReach(projectId, reach),
+          setDepReach: (reach: DependencyReach) => commands.setDepReach(reach),
           // The same reread every other change on this page makes, which is
           // what puts the new columns on the table and the new list in the
           // section.
@@ -973,7 +973,7 @@ export function PlanToolbar({
           // these are the weights the figures on screen were computed with.
           pertWeights: chartRead.pertWeights,
           estimateRounding: chartRead.estimateRounding,
-          setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
+          setArithmetic: (arithmetic) => commands.setEstimateArithmetic(arithmetic),
           onChanged: () => refreshOrMarkStale('tree'),
           onRefused: recoverAmbiguousSettingsChange,
         }}
@@ -982,7 +982,7 @@ export function PlanToolbar({
           : {
               optimization: {
                 value: chartRead.optimization,
-                setSettings: (patch) => api.setOptimizationSettings(projectId, patch),
+                setSettings: (patch) => commands.setOptimizationSettings(patch),
                 onChanged: () => refreshOrMarkStale('tree'),
                 onRefused: recoverAmbiguousSettingsChange,
               },
@@ -1407,9 +1407,7 @@ export function PlanToolbar({
           value={startDate ?? ''}
           commit={(typed) => {
             void run((write) =>
-              write.perform(['tree'], () =>
-                api.setStartDate(projectId, typed === '' ? null : typed),
-              ),
+              write.perform(['tree'], () => commands.setStartDate(typed === '' ? null : typed)),
             );
           }}
         />

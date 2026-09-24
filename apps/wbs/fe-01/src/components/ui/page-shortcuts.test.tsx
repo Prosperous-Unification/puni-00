@@ -6,6 +6,7 @@ import { KeyboardCheatSheet } from '@/components/wbs/keyboard-cheat-sheet';
 import { WbsTable } from '@/components/wbs/wbs-table';
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { projectServicesOf } from '@/testing/project-services-of';
 import { refusingApi } from '@/testing/refusing-api';
 import { personView, planRead, workItemView } from '@/testing/views';
 
@@ -151,7 +152,7 @@ function silentApi(): SilentApi {
 
 /** The table, on screen with its one row, and its window listeners registered. */
 async function renderTable(api: ProjectApi): Promise<void> {
-  render(<WbsTable projectId="p" api={api} />);
+  render(<WbsTable projectId="p" projectServices={projectServicesOf(api)} />);
   await waitFor(() => {
     expect(screen.getByLabelText('Name of 010')).toBeDefined();
   });

@@ -88,8 +88,19 @@
       therefore not reset by a project switch, exactly as before — until task 10's
       project runtime builds them; the feed's owner reads and the broad
       `ProjectApi` are tasks 9 and 10's.
-- [ ] 9. The broad project API moves behind the plan and command modules' private
+- [x] 9. The broad project API moves behind the plan and command modules' private
       repository ports.
+      Closed by 050-7-h, observed 2026-09-24: each plan module is handed only
+      its own port, cut from the page's one client by the project composition root
+      `apps/wbs/fe-01/src/modules/project/composition.ts` — the plan feed
+      `PlanReadRoutes` (`src/lib/plan-refresh.ts`), the calendar markers
+      `CalendarMarkerRoutes`, and the new `modules/plan-commands` module
+      `PlanCommandRoutes`. The table receives `ProjectServices`, which builds the
+      feed, the marker gestures and the project-bound `PlanCommands`, and its hooks,
+      toolbar and columns receive `PlanCommands`; none of them sees `ProjectApi`.
+      The page keeps the client for the project catalog and the archival import,
+      which are not plan modules. When each service is opened and closed, and the
+      feed's owner reads, stay task 10's.
 - [ ] 10. The project runtime owns feed, writer, markers and saved plans for one
       selected project, replacing the per-effect ownership under `WbsTable`.
 - [ ] 11. Project switch, route unmount and Strict Mode re-entry each replace all
