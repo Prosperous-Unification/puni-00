@@ -542,3 +542,31 @@ and store surfaces.
 - **THEN** from the old runtime's withdrawal on, the header's presence slot is
   handed nobody and disconnected, and never the old project's list again, until
   the next project's own stream says who is there
+
+### Requirement: Each frontend module type-checks on its own
+
+fe-01 SHALL give every directory under `src/modules` a type check of its own, run by the
+`typecheck:module` target that `typecheck` depends on. A module's check SHALL compile its own files
+against only the shared outside files every module may reach — the store and channel primitives,
+the HTTP client with its refusal words and refresh routes, and the domain and contracts libraries —
+and the outside files its own configuration names. A module that breaks its own types, or reaches
+any other file, such as a sibling module's private file or a component, SHALL fail its own check,
+and a module directory without a configuration of its own SHALL fail the target.
+
+#### Scenario: A module reaches a sibling's private file
+
+- **WHEN** a file of one module imports a file of another module that its configuration does not
+  name
+- **THEN** `typecheck:module` fails, naming the reached file and the module whose check refused
+  it, while the application's own type check still passes
+
+#### Scenario: A module reaches a component
+
+- **WHEN** a file of a module other than the ones whose configurations name it imports a
+  component
+- **THEN** that module's check fails, naming the component
+
+#### Scenario: A module directory with no check of its own
+
+- **WHEN** a directory under `src/modules` has no `tsconfig.json`
+- **THEN** `typecheck:module` fails, naming the missing configuration, and so does `typecheck`

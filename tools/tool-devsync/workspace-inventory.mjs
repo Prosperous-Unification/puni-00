@@ -17,6 +17,31 @@ function isProjectConfig(name) {
 }
 
 /**
+ * Every project or TypeScript configuration file at or below one directory of a project, skipping
+ * dependencies, build output and dot-directories. A configuration nested inside a project — a
+ * frontend module's own isolated type check — carries parent-relative paths that move with the
+ * project exactly as its root configuration's do.
+ *
+ * @param {string} root
+ * @param {string} directory
+ * @returns {Promise<string[]>}
+ */
+async function projectConfigFiles(root, directory) {
+  /** @type {string[]} */
+  const found = [];
+  const entries = await readdir(join(root, directory), { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) {
+      continue;
+    }
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) found.push(...(await projectConfigFiles(root, path)));
+    else if (isProjectConfig(entry.name)) found.push(path);
+  }
+  return found;
+}
+
+/**
  * @param {unknown} candidate
  * @param {readonly string[]} segments
  * @param {string} file
@@ -55,25 +80,24 @@ export async function readDepthSensitiveConfigPaths(workspace) {
   );
   /** @type {{file: string; propertyPath: string; value: string}[]} */
   const paths = [];
+  /** @type {Set<string>} */
+  const files = new Set();
   for (const project of projects) {
-    const names = (await readdir(join(root, project.root)))
-      .filter(isProjectConfig)
-      .sort((left, right) => left.localeCompare(right));
-    for (const name of names) {
-      const file = `${project.root}/${name}`;
-      /** @type {import('jsonc-parser').ParseError[]} */
-      const errors = [];
-      const config = parse(await readFile(join(root, file), 'utf8'), errors, {
-        allowTrailingComma: true,
-      });
-      // Proof: omitting the JSONC error check made the malformed-config fixture
-      // report `inventory unexpectedly succeeded` (2026-09-14).
-      if (errors.length > 0) {
-        const failures = errors.map(({ error }) => printParseErrorCode(error)).join(', ');
-        throw new Error(`cannot parse ${file}: ${failures}`);
-      }
-      collectParentRelativePaths(config, [], file, paths);
+    for (const file of await projectConfigFiles(root, project.root)) files.add(file);
+  }
+  for (const file of [...files].sort((left, right) => left.localeCompare(right))) {
+    /** @type {import('jsonc-parser').ParseError[]} */
+    const errors = [];
+    const config = parse(await readFile(join(root, file), 'utf8'), errors, {
+      allowTrailingComma: true,
+    });
+    // Proof: omitting the JSONC error check made the malformed-config fixture
+    // report `inventory unexpectedly succeeded` (2026-09-14).
+    if (errors.length > 0) {
+      const failures = errors.map(({ error }) => printParseErrorCode(error)).join(', ');
+      throw new Error(`cannot parse ${file}: ${failures}`);
     }
+    collectParentRelativePaths(config, [], file, paths);
   }
   return paths.sort((left, right) =>
     `${left.file}\0${left.propertyPath}\0${left.value}`.localeCompare(
