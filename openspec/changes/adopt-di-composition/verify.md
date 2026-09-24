@@ -1828,3 +1828,43 @@ PlanTransactionalStores;` in `module/plan-commands/working-plan.resource.ts` rep
   (`slice2-closing-listing.log`); `nx format:check --all` exited 0 (`slice2-closing-format.log`).
 - The five Working plan implementation files keep no former path; `service/working-plan.ts` stays
   a shim for `@wbs/core`'s `createWorkingPlan` export, which one SQLite database test uses.
+
+### Plan commands installation, Slice 3 — 2026-09-24
+
+- The slice started from `base=7bb788887186b0fdfb18bde076c26dd4db705516` on a clean tree, with
+  slice 2's `module/plan-commands/working-plan.resource.ts` present, no `installPlanCommands` in
+  `compose.ts` (`0`) and one fixture runner in `compose.test.ts` (`1`) (`slice3-step0.log`).
+- Baselines, after `wbs-core` and `wbs-be-01` lint and typecheck exited 0
+  (`slice3-lint-typecheck-baseline.log`): core `bun test src` passed `C=625` over `F=68` files
+  (`slice3-core-baseline.log`); the be-01 unit set (without `*.db.test.ts` and
+  `app.routes.test.ts`) passed `E=520` over `EF=49` (`slice3-be01-unit-baseline.log`); the red
+  `compose.ts` bundle built with exit 0 and held `application.plan-commands count=0 (grep exit 1)`
+  (`slice3-compose-bundle-red.log`).
+- Row 21: after 10.12 (the fixture's runner becomes `graph.commands`; one new case),
+  `compose.test.ts` ran 13 pass, 4 fail, with
+  `TypeError: undefined is not an object (evaluating 'runner.run')` (three) and
+  `(evaluating 'graph.commands.runDirectory')` (`slice3-row21-compose-test-red.log`);
+  `wbs-core:typecheck` exited 1 with
+  `TS2339: Property 'commands' does not exist on type 'CommonServices'.` at `compose.test.ts:109`,
+  `:241`, `:244` and `:250` (`slice3-row21-typecheck-red.log`).
+- Row 23: after 10.13 (`compose.ts` installs Plan commands as `commands`; the README names the
+  installation), `compose.test.ts` passed 17, 0 fail (`slice3-row23-compose-test-green.log`).
+- Row 22: the green `compose.ts` bundle built with exit 0 and held
+  `application.plan-commands count=1` (`slice3-compose-bundle-green.log`). Lint and typecheck of
+  both projects exited 0 (`slice3-step4-lint-typecheck.log`).
+- Row 26, restored with `cp` and proved with `cmp` (`slice3-row26-memo-fault.patch`): one line
+  `let firstBatch: WritingServices | undefined;` before `export interface ServicesOverOptions {`
+  and Plan commands' `batchServices: batch,` replaced by
+  `batchServices: (scope, broadcast) => (firstBatch ??= batch(scope, broadcast)),` made
+  `bun test ./libs/wbs/application/core/src/compose.test.ts -t "installs Plan commands once"` fail
+  at the final `listTeams` assertion with `error: expect(received).toEqual(expected)`,
+  `-   "Second",`, `Expected  - 1`, `Received  + 0`; 0 pass, 16 filtered out, 1 fail
+  (`slice3-row26-memo-fault.log`); `wbs-core:typecheck` on the mutated tree exited 0
+  (`slice3-row26-memo-fault-typecheck.log`). After the restore the named test passed alone
+  (`slice3-row26-restored-green.log`); 10.14's Proof comment followed.
+- Closing: core `bun test src` passed `C + 1 = 626` over `F = 68` (`slice3-core-closing.log`); the
+  be-01 unit set passed `E = 520` over `EF = 49` (`slice3-be01-unit-closing.log`); lint and
+  typecheck of both projects exited 0 (`slice3-lint-typecheck-closing.log`);
+  `nx format:check --all` exited 0 (`slice3-format-check-closing.log`).
+- `composeServices` installs Plan commands once as `commands`; be-01's `mountedEndpoints` does not
+  read it yet and still constructs its own runner (tracked under 7.4).

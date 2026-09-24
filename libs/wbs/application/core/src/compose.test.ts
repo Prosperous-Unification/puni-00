@@ -102,17 +102,11 @@ function fixture() {
   const accountSource = openMemorySource();
   const source = accountlessSource(accountSource);
   const graph = composeServices({ source, runtime, shared: fixtureShared });
-  const runner = new PlanCommandRunner({
-    batchServices: graph.batch,
-    publicServices: graph,
-    uow: graph.uow,
-    announcements: graph.announcements,
-  });
   return {
     source,
     accountSource,
     graph,
-    runner,
+    runner: graph.commands,
     clock,
     runtime,
     pushed,
@@ -232,6 +226,38 @@ describe('composeServices', () => {
     ]);
     expect(refused.ok).toBe(false);
     expect((await graph.directory.listTeams()).map((team) => team.name)).toEqual(['Platform']);
+  });
+
+  /**
+   * Plan commands is installed once, where `composeServices` runs, and builds
+   * every batch over the scope that batch's own unit of work admits: the
+   * `Writing modules are installed per admitted scope` requirement, for the
+   * one feature whose batches are admitted.
+   */
+  test('installs Plan commands once, building every batch over its own admitted scope', async () => {
+    const { graph } = fixture();
+
+    expect(
+      await graph.commands.runDirectory('owner', [{ kind: 'createTeam', name: 'First' }]),
+    ).toMatchObject({ ok: true });
+    expect(
+      await graph.commands.runDirectory('owner', [
+        { kind: 'createTeam', name: 'Rolled back' },
+        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Needs a project' },
+      ]),
+    ).toMatchObject({ ok: false, at: 1, reason: 'project_required' });
+    expect(
+      await graph.commands.runDirectory('owner', [{ kind: 'createTeam', name: 'Second' }]),
+    ).toMatchObject({ ok: true });
+
+    // Proof (2026-09-24): memoizing the first batch's graph in `composeServices`
+    // (`(scope, broadcast) => (firstBatch ??= batch(scope, broadcast))` as the installed batch
+    // factory) left this test failing on this assertion (0 pass, 1 fail, run alone with `-t`):
+    // `Second` went into the first batch's settled scope and only `First` was listed.
+    expect((await graph.directory.listTeams()).map((team) => team.name).sort()).toEqual([
+      'First',
+      'Second',
+    ]);
   });
 
   /**
