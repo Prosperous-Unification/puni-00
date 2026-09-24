@@ -10,6 +10,13 @@ import { describe, expect, it } from 'bun:test';
  * not moved yet.
  */
 const FOLDERS = ['apps/wbs/be-01/src/service', 'libs/wbs/application/core/src/service'];
+/**
+ * Where a core service goes when it is sealed as a DI Bag module. Its body
+ * lives in `<module>/<name>.resource.ts` or `.feature.ts` and its former
+ * `service/` path is a one-line re-export, so a scan of {@link FOLDERS} alone
+ * would stop reading every service the moment it is sealed.
+ */
+const MODULES = 'libs/wbs/application/core/src/module';
 const ROOT = join(import.meta.dir, '../../../../..');
 
 /**
@@ -27,8 +34,24 @@ const AGE_THEIR_OWN_ENTRIES = new Set([
   'login-throttle.ts',
 ]);
 
+/**
+ * {@link FOLDERS} and every sealed core module's own directory.
+ *
+ * Proof (2026-09-24): adding `now?: () => number;` to the moved
+ * `CapacityServiceOptions` in `module/capacity/capacity.resource.ts` failed
+ * `is the only clock a service that stamps a write reads` on expected [],
+ * received ["libs/wbs/application/core/src/module/capacity/capacity.resource.ts"]
+ * (3 pass, 1 fail).
+ */
+function serviceFolders(): string[] {
+  const modules = readdirSync(join(ROOT, MODULES), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => `${MODULES}/${entry.name}`);
+  return [...FOLDERS, ...modules];
+}
+
 function serviceSources(): { name: string; path: string; text: string }[] {
-  return FOLDERS.flatMap((folder) =>
+  return serviceFolders().flatMap((folder) =>
     readdirSync(join(ROOT, folder))
       .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
       .map((name) => ({
@@ -83,8 +106,10 @@ describe('one clock', () => {
     expect(sources.length).toBeGreaterThan(20);
     expect(sources.map((file) => file.name)).toContain('work-item.service.ts');
     expect(sources.some((file) => file.text.includes('this.clock.stampFor('))).toBe(true);
+    // Proof (2026-09-24): returning `[...FOLDERS]` from `serviceFolders` failed the
+    // `coreCapacity` assertion below on Received: undefined (3 pass, 1 fail).
     const coreCapacity = sources.find(
-      (file) => file.path === 'libs/wbs/application/core/src/service/capacity.service.ts',
+      (file) => file.path === 'libs/wbs/application/core/src/module/capacity/capacity.resource.ts',
     );
     const coreWorkItems = sources.find(
       (file) => file.path === 'libs/wbs/application/core/src/service/work-item.service.ts',

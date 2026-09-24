@@ -992,6 +992,120 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.calendar-marker",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/calendar-marker"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/calendar-marker.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "1e36dc086592483df3c5facd52dc756c00a46b08",
+          "path": "libs/core/src/service/calendar-marker.service.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.capacity",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/capacity"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/capacity.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "ae86655ecd969b4016c1b9b96fb5eb60dec35a96",
+          "path": "libs/core/src/service/capacity.service.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.directory",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/directory"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/directory.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "8deae4ad476af259c2ecc4b90345557dca80eab3",
+          "path": "libs/core/src/service/directory.service.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.priority-band",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/priority-band"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/priority-band.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "b9c1342e6c7f0e112a0538c19eb4ad47359386cc",
+          "path": "libs/core/src/service/priority-band.service.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.project",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/project"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/project.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "1b40cb91901c693b8a9e9970b938e7327954988b",
+          "path": "libs/core/src/service/project.service.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.step",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/step"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "libs/core/src/service/step.service.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "1e53de89b1d4f1b1ebf901696bdf36dbfc6d1944",
+          "path": "libs/core/src/service/step.service.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

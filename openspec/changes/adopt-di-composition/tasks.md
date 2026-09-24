@@ -161,7 +161,22 @@
 ## 5. The per-admission modules
 
 - [ ] 5.1 Install the seven resource responsibilities per supplied scope inside `servicesOver`.
-      Negative: two admitted batches sharing staged stores.
+      Negative: two admitted batches sharing staged stores. Six of the seven landed 2026-09-24 as
+      the `calendar-marker`, `capacity`, `directory`, `priority-band`, `project` and `step`
+      directories under `libs/wbs/application/core/src/module/`, each a sealed resource module
+      that `servicesOver` installs through its own installer on every call, over the stores it
+      is handed; each former `service/<name>.service.ts` is a compatibility re-export shim and
+      its `kinds.json` row is rewritten in place (93 entries, unchanged). `compose.test.ts`
+      builds two `servicesOver` graphs over distinct memory sources and proves, per resource,
+      that the second never reads the first one's writes. Proof: a module-level memo reusing one
+      installation across scopes failed each resource's own case; per module, negatives for the
+      installer leaking its bag, its resolver leaking through the returned service, the private
+      options binding exported, the label dropped and one real provider edge replaced. The same
+      slices extend `apps/wbs/be-01/src/service/clock.test.ts`'s scan to every sealed core
+      module's directory and add a Calendar marker row to `ports/sideways-type-boundaries.test.ts`,
+      both watched failing. **Not ticked:** Work item (`service/work-item.service.ts`, 4598
+      lines, fifteen requirements) is still constructed with `new` inside `servicesOver`; packet
+      E8 seals and installs it and ticks this task.
 - [ ] 5.2 Plan commands, with Working plan and the announcement collector private to it.
 
 ## 6. Domain moves the map names
@@ -246,6 +261,12 @@
       `apps/be-01/src/service/solver-launcher-process.ts` alone. Its index names
       `check.be-01.test`, a new `docs/wiki-policy/relationships.json` fact for `wbs-be-01:test`,
       because the pilot requires every index to name an applicable check.
+      Landed again 2026-09-24 for the six per-admission resource modules of task 5.1 — Calendar
+      marker, Capacity, Directory, Priority band, Project and Step — as each module's `README.md`,
+      a `docs/wiki-policy/modules.json` row `module.application.<name>` and a
+      `docs/wiki-policy/policy.json` boundary `boundary.application.<name>`, each using a
+      `sourceSelector` bound to that module's own pre-namespacing `<name>.service.ts` predecessor
+      alone; the moved `calendar-marker.resource.test.ts` has no separate baseline entry.
       **Not landed for Plan document (task 4.1)**, for Plan import's reason below:
       `libs/core/src/service/plan-document.ts` was introduced at commit `8c34a33f` and renamed
       `R100` at `7c5dee9e`, both after the pilot's frozen `sourceRevision`.
