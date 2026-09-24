@@ -21,6 +21,7 @@ import type { ReplayOrchestrator } from './module/realtime/replay-orchestrator';
 import { installSavedPlans } from './module/saved-plans/check';
 import type { SavedPlanService } from './module/saved-plans/saved-plans.feature';
 import { installStep } from './module/step/check';
+import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
@@ -32,7 +33,6 @@ import type { PlanTransactionalStores, TransactionalStores } from './ports/store
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
-import { WorkItemService } from './service/work-item.service';
 
 /** Runtime capabilities required by every service composition. */
 export interface RuntimePorts {
@@ -117,7 +117,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
-    workItems: new WorkItemService({
+    workItems: installWorkItem({
       clock,
       workItems: stores.workItems,
       projects: stores.projects,
@@ -133,7 +133,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       journal: stores.journal,
       broadcast,
       scheduler,
-    }),
+    }).workItems,
   };
 }
 
