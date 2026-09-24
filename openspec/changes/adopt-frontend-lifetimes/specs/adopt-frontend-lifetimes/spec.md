@@ -379,3 +379,10 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
 - **THEN** the table hears that a command was issued before any request is sent,
   says each refusal once in the toast stack it was given, and a gesture whose
   reader has left lowers no busy state and announces nothing
+
+#### Scenario: The table selects the delivered plan and settles what changed
+
+- **WHEN** a publication changes the delivered plan, including one that lands after
+  the table has rendered and before its effects have run
+- **THEN** the table draws the delivered values, and the hover card and the drafts
+  are settled against the rows and steps that changed, once per change

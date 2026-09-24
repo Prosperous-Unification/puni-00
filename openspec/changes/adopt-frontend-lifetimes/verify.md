@@ -1592,3 +1592,48 @@ attempt report.
 
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`
 and the host gate were not run in the executor sandbox.
+
+## Packet 050.7g, slice 4 — the table selects the delivered plan
+
+Attempt `050-7-g-project-prerequisites.4.20260924T040032Z`, starting hash
+`1453f6d3228584c39b1a899fb954290921d8bc78`, observed 2026-09-24. Evidence basenames are relative to
+that attempt's evidence directory.
+
+- Step 0: `base=` equal to the slice note's hash, `status-before.txt` empty, `fast-check=4.9.0`.
+  Preferences suite 4 files, 39 tests, `status=0` (`base-preferences.log`); sandbox node suite 49
+  files, 680 tests, `status=0` (`base-sandbox.log`); strict OpenSpec
+  `{"items":114,"passed":114,"failed":0}`.
+- Step 1: adopted set, serial, 20 files, 1214 tests, `status=0`, 344.88 s (`s4-base-adopted.log`).
+- Step 2: section 7.10 applied; strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+- Step 3, red: typecheck `status=1`, one error,
+  `use-snapshot-changes.test.tsx:8:36 - error TS2307: Cannot find module './use-snapshot-changes'`
+  (`s4-red-typecheck.log`); Vitest `status=1`, `Test Files 1 failed (1)`, `Tests no tests`, on
+  `Failed to resolve import "./use-snapshot-changes"` (`s4-red-vitest.log`).
+- Step 5, green: typecheck `status=0`; hook file `Tests 6 passed (6)`; adopted set 20 files, 1214
+  tests, `status=0` (unchanged from step 1); sandbox 49 files, 680 tests (unchanged from step 0).
+- Step 6: `wbs-fe-01:lint` `status=0` (`s4-lint.log`).
+- Step 7: every filter matched exactly one test (`s4-filters.txt`); every fault observed failing,
+  its file restored and `cmp`-identical, its named test green again (`s4-faults.txt`, `<id>.patch`,
+  `<id>.log`, `<id>.green.log`):
+  - `u1` no catch-up: `expected [] to deeply equal [ [ 5, +0 ] ]`; `1 failed | 5 skipped (6)`.
+  - `u2` unchanged snapshot handed on: `expected [ [ +0, +0 ], [ +0, +0 ] ] to deeply equal []`;
+    `1 failed | 5 skipped (6)`.
+  - `u3` ref never updated: `expected [ 1 ] to deeply equal []`; `1 failed | 5 skipped (6)`.
+  - `u4` `[]` dependencies: `expected [ [ 1, +0 ] ] to deeply equal [ [ 7, +0 ], [ 8, 7 ] ]`;
+    `1 failed | 5 skipped (6)`.
+  - `u5` never unsubscribed: `expected [ 1 ] to deeply equal []`; `1 failed | 5 skipped (6)`.
+  - `s1` hover card not settled: `expected <div role="tooltip" …(2)>…(2)</div> to be null`;
+    `1 failed | 125 skipped (126)`.
+  - `s2` drafts not settled: `expected [ '010' ] to deeply equal []`; `1 failed | 87 skipped (88)`.
+  - `s3` tree owner not recorded: `Unable to find an accessible element with the role "button" and
+name "Reset layout"`; `1 failed | 77 skipped (78)`.
+  - `s4` connection reports dropped: `Unable to find an accessible element with the role
+"status"`; `1 failed | 87 skipped (88)`.
+  - `s5` failure words never built: `expected 'This plan may be out of date — the la…' to contain
+'Optimized scheduling is unavailable i…'`; `1 failed | 87 skipped (88)`.
+  - `f1` feed refusals dropped: `expected [] to include 'Optimized scheduling is unavailable i…'`;
+    `1 failed | 87 skipped (88)`.
+- Step 8, after the eleven `Proof:` comments: hook file 6 tests, preferences 4 files 39 tests,
+  sandbox 49 files 680 tests, typecheck and lint `status=0`.
+- Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+  `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none run in the executor sandbox.
