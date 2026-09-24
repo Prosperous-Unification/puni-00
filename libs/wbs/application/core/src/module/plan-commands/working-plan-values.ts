@@ -1,5 +1,5 @@
-import type { StepWriteOutcome } from '../ports/estimate-store';
-import type { WriteStamp } from '../ports/write-stamp';
+import type { StepWriteOutcome } from '../../ports/estimate-store';
+import type { WriteStamp } from '../../ports/write-stamp';
 
 interface StoredValue {
   readonly workItemId: string;

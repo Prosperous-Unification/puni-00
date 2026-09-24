@@ -168,6 +168,48 @@
       }
     },
     {
+      "moduleId": "module.application.plan-commands",
+      "name": "Plan commands sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-commands",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-commands/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/command-bindings.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/plan-commands.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/working-plan.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts"
+          }
+        ]
+      }
+    },
+    {
       "moduleId": "module.application.plan-history",
       "name": "Plan history sealed DI Bag module",
       "memberships": [
