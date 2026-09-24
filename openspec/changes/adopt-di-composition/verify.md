@@ -2238,3 +2238,20 @@ directory`; 0 pass, 5 fail.
   (`slice1-legacy-pin-end.log`).
 - Not run by the executor: `tool-devsync:test` (it writes Git objects), the wiki pilot suite,
   `check-indexes committed` and the host gate; all are the planner's.
+
+### Label agreement and the closing ledger, Slice 2 — 2026-09-24
+
+- `base` = `a9addd4db24955e0f87d5db9ac3c4e7b4e5e3226` (slice 1's commit, which is also the last
+  commit touching `tools/tool-devsync/src/module-labels.test.ts`); clean tree, the four OpenSpec
+  files present, `proposal.md` 397 words, four open tasks 7.1 to 7.4.
+- OpenSpec before any edit: `N = 114` passed, 0 failed (`slice2-openspec-before.json`); the check
+  5 pass, 0 fail, 8 `expect()` calls (`slice2-check-before.log`).
+- The packet's four diffs for `tasks.md`, `design.md`, `proposal.md` and `spec.md` each passed
+  `git apply --check` and applied. Prettier's check on the four files exited 0 with no reflow
+  (`slice2-prettier-four.log`).
+- After: `proposal.md` 398 words (R4's cap is 400); `tasks.md` holds two open tasks among 7.1 to
+  7.4 (7.1 and 7.3) and three ticked among 7.2, 7.4 and 7.6.
+- OpenSpec after: 114 passed, 0 failed (`slice2-openspec-after.json`), equal to `N`; the check reran
+  5 pass, 0 fail (`slice2-check-after.log`), reading none of these files.
+- Not run by the executor: `tool-devsync:test` (it writes Git objects), the wiki pilot suite,
+  `check-indexes committed` and the host gate; all are the planner's.
