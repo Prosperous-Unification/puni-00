@@ -20,6 +20,7 @@ import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
@@ -60,7 +61,7 @@ import { initialsOf } from './initials';
 import { createPointedRows } from './pointed-row-store';
 import type * as ShortDateModule from './short-date';
 import { PLAN_TERMINAL_ALLOWANCE, TABLE_FRAME } from './table-frame';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -3363,7 +3364,12 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
 
 /** Puts the plan on screen and opens the chart under it. */
 async function showTheChart(startDate: string | null = MONDAY, skew: ReadSkew = {}): Promise<void> {
-  render(<WbsTable projectId="p1" projectServices={projectServicesOf(fakeApi(startDate, skew))} />);
+  render(
+    <WbsTableOverClient
+      projectId="p1"
+      projectServices={projectServicesOf(fakeApi(startDate, skew))}
+    />,
+  );
   await screen.findByDisplayValue('Hull');
   fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
   await screen.findByLabelText('Gantt chart');
@@ -3528,7 +3534,9 @@ describe('the chart mirrors the plan', () => {
    */
   itDom('takes the plan to a row on the cards face too', async () => {
     widthIs(PHONE);
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(fakeApi(MONDAY))} />);
+    render(
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(fakeApi(MONDAY))} />,
+    );
     await screen.findByLabelText('Name of 010');
     fireEvent.click(screen.getByRole('button', { name: 'Plan actions' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Gantt' }));
@@ -3890,7 +3898,7 @@ describe('a chart that cannot be drawn', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(
-      <WbsTable
+      <WbsTableOverClient
         projectId="p1"
         projectServices={projectServicesOf(fakeApi(MONDAY, skew))}
         subscribe={subscribe}

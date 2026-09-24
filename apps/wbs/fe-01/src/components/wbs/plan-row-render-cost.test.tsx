@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
+import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as InlineMarkdownModule from './inline-markdown';
 import type * as PlanCellPropsModule from './plan-cell-props';
 import type * as PlanIndexesModule from './plan-indexes';
 import type * as PlanSpanModule from './plan-span';
 import type * as TableFrameModule from './table-frame';
-import { WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -128,7 +128,7 @@ describe('what one row costs per render', () => {
     for (const name of ['Road', 'River', 'Rock']) {
       await api.createWorkItem('p1', { parentId: null, afterId: null, name });
     }
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Name of 030');
 
     cellStyleCalls.count = 0;
@@ -148,7 +148,7 @@ describe('what one row costs per render', () => {
     // failed below on `expected 4 to be +0`: all four Name cells rendered for
     // a toolbar state change that altered no row input. Watched 2026-09-08.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     for (const number of ['010', '020', '030']) {
       click('Add work item');
       await screen.findByLabelText(`Name of ${number}`);
@@ -167,7 +167,7 @@ describe('what one row costs per render', () => {
     // Proof: with `WbsTable` subscribed to `cellCards` again, opening this one
     // card failed below on `expected 60 to be +0`. Watched 2026-09-08.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     for (const number of ['010', '020', '030']) {
       click('Add work item');
       await screen.findByLabelText(`Name of ${number}`);
@@ -200,7 +200,7 @@ describe('what one row costs per render', () => {
     // three sentences worked out per row where there is one. Watched
     // 2026-09-08.
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     for (const number of ['010', '020', '030']) {
       click('Add work item');
       await screen.findByLabelText(`Name of ${number}`);
@@ -243,7 +243,7 @@ describe('what one row costs per render', () => {
     // per assignee on screen.
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTable projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     for (const number of ['010', '020', '030']) {
       click('Add work item');
       await screen.findByLabelText(`Name of ${number}`);

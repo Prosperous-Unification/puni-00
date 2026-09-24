@@ -1863,3 +1863,196 @@ entry is written.
 
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
 `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of which the executor sandbox runs.
+
+## Packet 050.7j, slice 1 — the project runtime and its owner, with the state machine's model test
+
+Attempt `050-7-j-project-runtime.1.20260924T165651Z`, starting hash
+`f683ceab8f5d4a346d03a5842b78456270393a7e`, working tree empty at the start (`status-before.txt`).
+Every Vitest run carried `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`; every Nx run `NX_DAEMON=false`.
+Evidence names below are relative to the attempt's evidence directory.
+
+Step 0: 9 patches, scripts of 42 and 87 lines, 23 fault patches extracted. Baselines: preferences
+4 files, 39 tests, `status=0` (`base-preferences.log`); sandbox node suite 51 files, 687 tests,
+`status=0` (`base-sandbox.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`;
+read-and-write suite 88 tests, `status=0` (`s1-base-read.log`).
+
+| Check                                          | Status | Observed                                         |
+| ---------------------------------------------- | ------ | ------------------------------------------------ |
+| strict OpenSpec after the new requirement      | 0      | `{"items":114,"passed":114,"failed":0}`          |
+| red typecheck (`s1-red-typecheck.log`)         | 1      | `Found 14 errors in 2 files.`                    |
+| red Vitest (`s1-red-vitest.log`)               | 1      | `Test Files 2 failed (2)`, `Tests no tests`      |
+| green typecheck (`s1-green-typecheck.log`)     | 0      | `wbs-fe-01:typecheck` succeeded                  |
+| runtime pair (`s1-green-runtime.log`)          | 0      | 2 files, 8 tests passed                          |
+| read-and-write (`s1-green-read.log`)           | 0      | 88 tests passed, unchanged                       |
+| test tiers (`s1-green-tiers.log`)              | 0      | 5 tests passed                                   |
+| sandbox node suite (`s1-green-sandbox.log`)    | 0      | 53 files, 695 tests: step 0 + 2 files, + 8 tests |
+| lint (`s1-lint.log`)                           | 0      | `wbs-fe-01:lint` succeeded                       |
+| every proof filter (`s1-filters.txt`)          | 0      | each of the 18 records matched exactly 1 test    |
+| final runtime pair (`s1-final-runtime.log`)    | 0      | 2 files, 8 tests passed                          |
+| final preferences (`s1-final-preferences.log`) | 0      | 4 files, 39 tests, unchanged                     |
+| final sandbox (`s1-final-sandbox.log`)         | 0      | 53 files, 695 tests, as the green checkpoint     |
+
+The red typecheck's diagnostics: 8 in `project-runtime.model.test.ts` (3 × TS2305 for
+`ProjectRuntime`, `ProjectSource`, `ProjectStreamHandlers`; 1 × TS2307 for `./project-runtime` at
+15:78; 4 × TS7006) and 6 in `project-runtime.test.ts` (2 × TS2305 for `ProjectSource`,
+`ProjectStreamHandlers`; 1 × TS2307 at 11:59; 3 × TS7006). The red Vitest failed both files on
+`Failed to resolve import "./project-runtime"`.
+
+Faults, each injected into `apps/wbs/fe-01/src/runtime/project-runtime.ts`, its named test run
+(`<id>.log`, `status=1`), the file restored and compared with `cmp`, the test rerun green
+(`<id>.green.log`, `status=0`); the patch is `<id>.patch`. The model faults each failed
+`keeps one runtime current, and nothing of a withdrawn one reaches anybody` (seed 20260924, 300
+runs), `Tests 1 failed (1)`:
+
+| Id    | Run | Shrunk sequence, times                                            | Innermost cause                                                                                                     |
+| ----- | --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `m1`  | 2   | `reenter(p1),open(p1),drain`, 2                                   | `drain: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2`          |
+| `m2`  | 2   | `open(p1),drain,leave,frame(0, change)`, 7                        | `teardown: r1's delivered plan changed after it was withdrawn: expected false to be true`                           |
+| `m3`  | 6   | `reenter(p1),openBroken(p1),drain,open(p1),reread(0)`, 5          | `reread: withdrawn r2 sent a request: expected 1 to be +0`                                                          |
+| `m4`  | 2   | `open(p1),leave,reenter(p1)`, 5                                   | `teardown: r1's feed closed 2 times, live=false: expected 2 to be 1`                                                |
+| `m5`  | 2   | `open(p1),leave,reenter(p1)`, 5                                   | `teardown: r1's feed closed 0 times, live=false: expected +0 to be 1`                                               |
+| `m6`  | 2   | `reenter(p1),open(p1),mark(0)`, 2                                 | `mark: withdrawn r1 sent a request: expected 1 to be +0`                                                            |
+| `m7`  | 3   | `reenter(p1),openBroken(p1),drain,open(p1),frame(0, connect)`, 7  | `frame(r2, connect): r2's presence changed after it was withdrawn: expected false to be true`                       |
+| `m8`  | 6   | `reenter(p1),openBroken(p1),drain,open(p1),frame(0, presence)`, 5 | `frame(r2, presence): r2's presence changed after it was withdrawn: expected false to be true`                      |
+| `m9`  | 2   | `reenter(p1),open(p1),drain`, 1                                   | `drain: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2`          |
+| `m10` | 3   | `openBroken(p1),reread(0)`, 6                                     | `teardown refused: Error: a project transition was refused by the slot itself`, caused by `PartialAcquisitionError` |
+
+The examples, each `Tests 1 failed | 6 skipped (7)`:
+
+| Id   | Test                                                                             | Observed                                                                                                                    |
+| ---- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `k1` | `publishes the project’s feature and store surfaces, and nothing else`           | `expected [ 'busy', 'commands', …(10) ] to deeply equal [ 'busy', 'commands', …(9) ]`                                       |
+| `k2` | `gives back the feed a half-built runtime had already opened`                    | `expected +0 to be 1`                                                                                                       |
+| `r1` | `tells the project’s presence who its stream says is here, and whether it is up` | `expected { users: [], connected: true } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                                 |
+| `r2` | the same                                                                         | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                              |
+| `o1` | `settles a request a newer one overtook, and builds nothing for it`              | `promise rejected … instead of resolving`, caused by `TransitionSupersededError: lifetime transition 1 was superseded by 2` |
+| `o2` | `shows a retirement that fails as the fatal state, and refuses the next project` | `promise rejected … instead of resolving`, caused by the slot-fault wrapper and `DI_BAG_CLEANUP_FAILED`                     |
+| `o3` | `gives back the feed a half-built runtime had already opened`                    | `Error: a project transition was refused by the slot itself`, caused by `PartialAcquisitionError`                           |
+| `o4` | `is terminal, and still settles, when a half-built runtime cannot be released`   | `promise rejected … instead of resolving`, caused by the slot-fault wrapper and `DI_BAG_CLEANUP_FAILED`                     |
+
+The eighteen `Proof:` comments were written afterwards at the twelve named sites. Prettier moves
+`o4`'s comment from above the rewrap's `?` to just after it, the start of the same branch.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none run in the executor sandbox.
+
+## Packet 050.7j, slice 2 — the table draws from the runtime, and the page owns it
+
+Attempt `050-7-j-project-runtime.2.20260924T170958Z`, starting hash
+`6c562db7b2df3c1a1d729b69c581da6e3dd3848f` (slice 1's planner commit), working tree
+empty (`status-before.txt`). Run inside the executor sandbox on 2026-09-24, every
+test command under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+- Step 0: 9 patches, scripts of 42 and 87 lines, 23 fault patches extracted.
+  Baselines: preferences 4·39, sandbox node suite 53·695, adopted set (serial)
+  20·1215, zoned (Auckland) 2·3, page and router 2·78, each `status=0`
+  (`base-runs.out`). Strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+- Contract first: section 7.4 applied; strict OpenSpec exit 0, 114 · 114 · 0
+  (`openspec-s2-contract.*.json`).
+- The named fixture edit (`s2-suites-script.txt`): seventeen per-suite lines, the
+  last `suites=17 sites=256`, exit 0; Prettier over the seventeen.
+- Red checkpoint, after section 7.6: typecheck `status=1`, `Found 4 errors in 2
+files.` — `wbs-table-over-client.tsx:12:18 TS2430` (`WbsTableOverClientProps`
+  incorrectly extends `Omit<WbsTableProps, "project">`) and `:59:46 TS2322`, each
+  twice; Vitest over `plan-row-dependencies.test.tsx` `status=1`, `Tests 5 failed
+(5)`, each on `TypeError: Cannot read properties of undefined (reading
+'planCommandsFor')`.
+- Regions script (`s2-regions.txt`): `read hook: 111 lines replaced by 19`,
+  `table: 21 lines replaced by 14` — the rehearsal's 108 and 18 plus packet h's
+  three-line `t2` and `t1` comments. Section 7.8 applied.
+- Green checkpoint (`green-runs.out`): typecheck `status=0`; adopted 20·1217 (step
+  1 + 2); zoned 2·3; page and router 2·80 (+ 2); sandbox 53·695 (unchanged). The
+  builder `git grep` over `src/components` printed nothing (`s2-builders.txt`
+  empty). `wbs-fe-01:lint` `status=0`.
+- Proof `w1`: the filter matched exactly one test. `announceRefusal: () =>
+undefined` in the runtime's markers factory (`w1.patch`) failed
+  `plan-chart-seam.test.tsx` › `rereads a marker refused because a peer already
+deleted it`: `Tests 1 failed | 22 skipped (23)`, `AssertionError: the given
+combination of arguments (undefined and string) is invalid for this assertion`
+  (`w1.log`); restored, `cmp` identical, rerun `1 passed | 22 skipped (23)`
+  (`w1.green.log`). The `Proof:` comment was written afterwards.
+- Final: page and router 2·80, preferences 4·39, sandbox 53·695, each `status=0`.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
+`wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test` and the host gate, none of
+which can run in the executor sandbox.
+
+## Packet 050.7j, slice 3 — presence from the runtime, reset by a switch, and the records
+
+Attempt `050-7-j-project-runtime.3.20260924T173141Z`, starting hash
+`b9e093314d3a520ff92c9920d9a76f7b66351eb7` (the slice-2 planner commit; step 0a found it equal to
+the slice note's `b9e09331` and the working tree clean, `status-before.txt` empty). Step 0b
+extracted 9 patches, scripts of 42 and 87 lines and 23 fault patches. Every Vitest run was under
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+### Baselines (step 0 and step 1)
+
+| Check                                    | Status | Files · tests                           |
+| ---------------------------------------- | ------ | --------------------------------------- |
+| `base-preferences`                       | 0      | 4 · 39                                  |
+| `base-sandbox` (sandbox node suite)      | 0      | 53 · 695                                |
+| strict OpenSpec (`openspec-base.*.json`) | 0      | `{"items":114,"passed":114,"failed":0}` |
+| `s3-base-adopted` (twenty files, serial) | 0      | 20 · 1217                               |
+| `s3-base-zoned` (Pacific/Auckland)       | 0      | 2 · 3                                   |
+| `s3-base-page` (page and router)         | 0      | 2 · 80                                  |
+
+### Contract first (section 7.9)
+
+The scenario "A project switch resets presence" added and packet g's "The header selects presence
+from a store" amended to name the runtime's store; strict OpenSpec exit 0,
+`{"items":114,"passed":114,"failed":0}`, `passed` unchanged.
+
+### Red checkpoint (after section 7.10, before section 7.11)
+
+`s3-red-vitest`, `project-page.test.tsx -t 'hands the presence slot nobody in the next project
+until its own stream says'`: `status=1`, `Tests 1 failed | 75 skipped (76)`, on
+`AssertionError: expected -1 to be greater than or equal to 0` — after the switch the header was
+never handed nobody. No typecheck red was expected or run for this slice.
+
+### Implementation and dated notes (section 7.11)
+
+Applied with `git apply --check` then `git apply`; the two `<observed-date-j>` placeholders, one
+each in `tasks.md` and the lifetime map, replaced by the observed `date -u +%F`, `2026-09-24`; no
+placeholder left. Task 10's box still reads `- [ ] 10.`.
+
+### Green checkpoint
+
+| Check                | Status | Result                                  |
+| -------------------- | ------ | --------------------------------------- |
+| `s3-green-typecheck` | 0      | `wbs-fe-01:typecheck`                   |
+| `s3-format`          | 0      | `nx format:check --all`                 |
+| `s3-green-adopted`   | 0      | 20 · 1218 (step 1 + 1: the new example) |
+| `s3-green-zoned`     | 0      | 2 · 3, unchanged                        |
+| `s3-green-page`      | 0      | 2 · 81 (step 1 + 1)                     |
+| `s3-green-sandbox`   | 0      | 53 · 695, unchanged                     |
+| `s3-lint`            | 0      | `wbs-fe-01:lint`                        |
+
+### Proofs, each observed failing before its comment was written
+
+Every filter matched exactly one test first (`s3-filters.txt`). Each fault was applied from its
+section 8.3 patch, its named test run, the file restored and `cmp`-identical, and the test rerun
+green (`<id>.patch`, `<id>.log`, `<id>.green.log`); summary in `s3-proofs.txt`.
+
+| Id   | Fault                                             | Test                                                                                  | Observed (`1 failed \| 75 skipped (76)` each)                                                                             |
+| ---- | ------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `q1` | a fatal project draws the page's main anyway      | `shows the sanitized report when a project will not let go, and never draws the next` | `AssertionError: expected null not to be null`                                                                            |
+| `q2` | the owner's effect never leaves the project       | `closes the selected project’s stream once the page goes`                             | `AssertionError: expected +0 to be 1 // Object.is equality`                                                               |
+| `x1` | the stream's roster never reaches the runtime     | `hands the presence slot who the project’s stream says is here, and its connection`   | `expected { users: [], connected: false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`                              |
+| `x2` | the stream's connection never reaches the runtime | same                                                                                  | `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `"connected": false` diff |
+
+The four `Proof:` comments were then written in `project-page.tsx` above the tabled lines: `q1`
+above `if (projectState.status === 'fatal') {`, `q2` above the owner effect's `return () => {`
+(the line directly above `void projectOwner.leave();`), `x1` above
+`onPresence: handlers.onPresence,` and `x2` above `onConnectionChange: handlers.onConnectionChange,`.
+
+### After the Proof comments
+
+`s3-final-page` 2 · 81, `s3-final-preferences` 4 · 39, `s3-final-sandbox` 53 · 695, each
+`status=0`; `s3-lint-after`, `s3-format-after` and the strict OpenSpec block follow this entry's
+edit and are reported with the attempt.
+
+### Pending planner verification
+
+`wbs-fe-01:test` (UTC + 1 test expected), `wbs-fe-01:test:unit` (unchanged expected),
+`wbs-fe-01:build`, `wbs-fe-01:e2e` (every spec that opens a project, then unfiltered),
+`tool-devsync:test`, and the host gate `bin/h2puni-gate.sh` — none can run in the executor sandbox.
