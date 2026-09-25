@@ -611,8 +611,9 @@ export function usePlanRead({
   const stepStack = useCallback(
     async (direction: 'undo' | 'redo') => {
       // The runtime this step was asked of, and not whoever is on screen when its
-      // answer arrives: a project this reader has left says nothing and lowers
-      // nothing in the one that replaced it.
+      // answer arrives. The toasts are the page's and outlive this table, so a
+      // project this reader has left must say nothing into them: the page would
+      // show it over the project that replaced it.
       const isCurrent = project.isCurrent;
       busyWrites.raise();
       try {
@@ -620,6 +621,9 @@ export function usePlanRead({
         try {
           outcome = direction === 'undo' ? await commands.undo() : await commands.redo();
         } catch (thrown: unknown) {
+          // Proof: on 2026-09-25, removing this return put the left project's refusal
+          // over the next one in `says nothing in the next project when an undo asked
+          // of the last one is refused`: expected [ Array(1) ] to deeply equal [].
           if (!isCurrent()) return;
           // The same register as `run`: be-01's two *modeled* refusals are read
           // out of the 409 below and get their own sentences; anything else is
@@ -627,6 +631,9 @@ export function usePlanRead({
           pushToast({ kind: 'error', text: refusalSentence(thrown) });
           return;
         }
+        // Proof: on 2026-09-25, removing this return put `Undid: rename “Strip”` over
+        // the next project in `says nothing in the next project when an undo asked of
+        // the last one succeeds`.
         if (!isCurrent()) return;
         if (outcome.ok) {
           pushToast({
@@ -650,7 +657,9 @@ export function usePlanRead({
         }
         await refreshOrMarkStale();
       } finally {
-        if (isCurrent()) busyWrites.lower();
+        // Lowered whoever is reading now: this busy state is the runtime's own,
+        // so a project this reader has left lowers only a busy nobody draws.
+        busyWrites.lower();
       }
     },
     [busyWrites, commands, project, pushToast, refreshOrMarkStale],

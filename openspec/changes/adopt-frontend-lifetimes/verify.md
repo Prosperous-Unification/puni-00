@@ -2621,3 +2621,60 @@ After the `Proof:` comments and owned-file Prettier: `wbs-fe-01:lint` uncached (
 `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`,
 the whole wiki pilot suite, `check-indexes committed` after the commit, and the host gate
 `bin/h2puni-gate.sh`: none was run in this attempt.
+
+## Packet 050.7m, slice 2 — a project given back whole, through the page, the router and Strict Mode
+
+Attempt `050-7-m-project-replacement.2.20260925T091513Z`, observed 2026-09-25, starting at
+`6496d801f8ab08d4271a68faddeee2d3539686df` with an empty `git status` (`base.txt`,
+`status-before.txt`). Step 0b extracted `patches=6` and `mutations=13`. Every log below is in the
+attempt's evidence directory under the named check.
+
+Step 0 baselines, each `status=0`: sandbox node suite 57 files · 714 tests (`base-sandbox`), module
+set 7 · 31 (`base-modules`), session set 3 · 70 (`base-session`), zoned Auckland 2 · 3
+(`base-zoned`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+Contract first: section 7.3 applied; strict OpenSpec again `{"items":114,"passed":114,"failed":0}`,
+and `grep -c 'lowers no busy'` over the spec prints 0.
+
+Red, after section 7.4 only:
+
+- `s2-red-typecheck`: `status=1`; `typecheck:module` passed first, then one TS2322 at
+  `apps/wbs/fe-01/src/app.test.tsx:744` — the props object with `projectApi` is not assignable to
+  `IntrinsicAttributes & SignedInAppProps` — and `Found 1 error in apps/wbs/fe-01/src/app.test.tsx:744`.
+- `s2-red-vitest`: `status=1`, `Tests 4 failed | 22 passed (26)`: the three region cases on
+  `AssertionError: expected null not to be null`, and `says nothing in the next project when a
+dependency list asked of the last one is refused` on `AssertionError: expected [ Array(1) ] to
+deeply equal []`. The other five page cases passed.
+
+Green, after sections 7.5 and 7.6, task 14 appended and both notes dated: `s2-green-typecheck`
+`status=0` (uncached, `typecheck:module` then `typecheck`); `s2-format` (`nx format:check --all`)
+`status=0`; `s2-green-session` 4 · 79 (step 0 plus one file and nine tests); `s2-green-zoned` 2 · 3;
+`s2-green-sandbox` 57 · 714; `s2-green-adopted` 20 · 1219. `s2-lint` (uncached) `status=0`.
+
+Every proof filter selected exactly one test (`s2-filters.log`). Each fault was injected with
+`git apply --unidiff-zero`, its named test run, the file restored and compared with `cmp`, and the
+test rerun green (`<id>.patch`, `<id>.log`, `<id>.green.log`); each exited 1:
+
+| Fault | Named test                                                                                              | Observed                                                                                                                              |
+| ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `s1`  | `says nothing in the next project when an undo asked of the last one succeeds`                          | `1 failed \| 5 skipped (6)`; `expected [ 'Undid: rename “Strip”' ] to deeply equal []`                                                |
+| `s2`  | `says nothing in the next project when an undo asked of the last one is refused`                        | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                               |
+| `d1`  | `says nothing in the next project when a dependency list asked of the last one is refused`              | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                               |
+| `d2`  | `says nothing in the next project when a dependency list asked of the last one is refused`              | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                               |
+| `h1`  | `draws no table and hands the header nobody while the last project lets go`                             | `1 failed \| 5 skipped (6)`; `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [], connected: false }`             |
+| `t1`  | `draws the next project in a table of its own`                                                          | `1 failed \| 5 skipped (6)`; `expected <table data-grid="true" …(2)>…(3)</table> not to be <table data-grid="true" …(2)>…(3)</table>` |
+| `m1`  | `opens one runtime per pick under Strict Mode, and gives each back once`                                | `1 failed \| 5 skipped (6)`; `expected 'live' to be 'empty'`                                                                          |
+| `r1`  | `gives the project back once when its route goes, keeps the session, and opens a new runtime on return` | `1 failed \| 19 skipped (20)`; `expected [ 'session built', 'project p1 built' ] to include 'project p1 given back'`                  |
+| `g1`  | `draws the fatal state in the region’s place when a route change cannot give the project back`          | `1 failed \| 19 skipped (20)`; `Error: no fatal state yet`                                                                            |
+| `n1`  | `leaves the session Strict Mode first opened, and opens the project in the one it opens again`          | `1 failed \| 19 skipped (20)`; `TestingLibraryElementError: Unable to find a label with the text of: Project`                         |
+
+The `Proof:` comments were written after all ten were observed. Final reruns: `s2-final-session`
+4 · 79 and `s2-final-sandbox` 57 · 714, both `status=0`.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e` (every spec that picks or switches a project or follows the Directory and Plan
+links, and the unfiltered suite), `tool-devsync:test` and the host gate. None ran in this attempt.
+
+After the `Proof:` comments and this entry, owned-file Prettier `--write` then `--check` printed
+`All matched files use Prettier code style!`; `s2-format-after` (`nx format:check --all`),
+`s2-lint-after` and `s2-typecheck-after` (both uncached) each `status=0`.
