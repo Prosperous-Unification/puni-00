@@ -17,7 +17,7 @@ import { type BrowserProbeBundle, buildBrowserProbeBundle } from './e2e/browser-
  * What it is really for is vacuity: without it, a bundle that contained nothing at all
  * would satisfy every other case in this file.
  */
-const LIBRARY_MARKERS = ['DI_BAG_CLASSIFIER_REQUIRED', 'appex/public/v4', 'corj/v0.14'];
+const LIBRARY_MARKERS = ['DI_BAG_CLASSIFIER_REQUIRED', 'appex/public/v4', 'corj/v0.15'];
 
 /** nanoid's own top-level files, as `modules` names them: not `url-alphabet/index.js`. */
 const NANOID_ENTRY = /\/nanoid\/[^/]+$/;

@@ -87,7 +87,7 @@ test('logs one registered forward failure with owned secrets redacted', () => {
   expect(reporting.reports.diagnostic.context).toEqual({ operation: 'forward' });
   expect(reporting.reports.public.occurrence_id).toBe(reporting.reports.diagnostic.occurrence_id);
   expect(emitted.err).toMatchObject({
-    v: 'corj/v0.14',
+    v: 'corj/v0.15',
     occurrence_id: reporting.reports.diagnostic.occurrence_id,
   });
 });

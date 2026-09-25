@@ -61,7 +61,7 @@ test('logs one registered, redacted report under its original occurrence', () =>
   expect(captured.reports.public.code).toBe('INTERNAL_ERROR');
   expect(JSON.stringify(captured.reports.public)).not.toContain(secret);
   expect(emitted.err).toMatchObject({
-    v: 'corj/v0.14',
+    v: 'corj/v0.15',
     occurrence_id: captured.reports.diagnostic.occurrence_id,
     fingerprint: captured.reports.diagnostic.fingerprint,
   });

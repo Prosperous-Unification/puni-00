@@ -1,5 +1,5 @@
-import { createRedactionPolicy, defineException, toReports } from 'application-exception';
-import { makeCorj } from 'caught-object-report-json';
+import { defineException, makeRedactionPolicy, makeReportPair } from 'application-exception';
+import { Corj } from 'caught-object-report-json';
 import { DiBag } from 'di-bag';
 
 /**
@@ -18,11 +18,11 @@ export interface BrowserPackagesProof {
   readonly reportVersion: string | undefined;
 }
 
-/** One options bag, built once, as the adoption plan's reporting contract requires. */
-const REPORT_LIMITS = { maxReportSize: 32_768, maxDepth: 4, maxChildren: 16 } as const;
+/** The inspection limits both reports take; the byte budget is the diagnostic report's alone. */
+const REPORT_LIMITS = { maxDepth: 4, maxChildren: 16 } as const;
 
 /** The one secret this probe owns, scrubbed wherever its text appears in either report. */
-const redact = createRedactionPolicy({ patterns: [/probe-secret/g] });
+const redact = makeRedactionPolicy({ patterns: [/probe-secret/g] });
 
 const ProbeFailed = defineException({
   tag: 'probe/ProbeFailed',
@@ -37,7 +37,7 @@ const ProbeFailed = defineException({
  * Every call here is one the adoption plan says browser code must be able to make:
  * `fromSyncFactory` and `fromAsyncFactory` fix the acquisition mode by name, so the
  * graph needs no `process.getBuiltinModule` classifier — a browser has none — and one
- * `toReports` call correlates the operator's report with the disclosed one under a
+ * `makeReportPair` call correlates the operator's report with the disclosed one under a
  * single occurrence identifier.
  *
  * @returns What the run observed, for an assertion made outside the page.
@@ -61,8 +61,8 @@ async function proveTheThreeLibraries(): Promise<BrowserPackagesProof> {
   await services.close();
 
   const options = { corj: REPORT_LIMITS, redact } as const;
-  const reports = toReports(new ProbeFailed({ details: { step: 'probe-secret' } }), {
-    diagnostic: options,
+  const reports = makeReportPair(new ProbeFailed({ details: { step: 'probe-secret' } }), {
+    diagnostic: { ...options, maxReportBytes: 32_768 },
     public: options,
   });
 
@@ -72,7 +72,7 @@ async function proveTheThreeLibraries(): Promise<BrowserPackagesProof> {
     correlated: reports.diagnostic.occurrence_id === reports.public.occurrence_id,
     publicCode: reports.public.code,
     disclosesTheSecret: JSON.stringify(reports).includes('probe-secret'),
-    reportVersion: makeCorj('a plain string', { maxReportSize: 1024 }).v,
+    reportVersion: Corj.makeReport('a plain string', { maxReportSize: 1024 }).v,
   };
 }
 

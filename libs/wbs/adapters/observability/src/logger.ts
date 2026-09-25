@@ -23,8 +23,8 @@ export interface CreateLoggerOptions {
 
 export function createLogger(opts: CreateLoggerOptions): Logger {
   const level = opts.level ?? process.env['LOG_LEVEL'] ?? 'info';
-  // One policy per logger, built once: `@shared/failures` caches one report maker per policy,
-  // and a policy rebuilt per record would throw that cache away on every failure.
+  // One policy per logger, built once: compiling the caller's secrets into patterns is work no
+  // failure record should repeat.
   const redact = createFailureRedaction(opts.secrets ?? []);
   const base: Record<string, unknown> = { service: opts.service };
   if (opts.version) base['version'] = opts.version;
