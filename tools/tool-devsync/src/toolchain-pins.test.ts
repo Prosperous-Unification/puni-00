@@ -504,8 +504,8 @@ describe('the CI gate scope', () => {
  */
 const OWNER_PACKAGES = {
   'di-bag': '0.4.0',
-  'application-exception': '0.5.0',
-  'caught-object-report-json': '11.0.1',
+  'application-exception': '0.7.0',
+  'caught-object-report-json': '13.0.0',
 } as const;
 
 // Proof: `"di-bag": "^0.4.0"` failed `are pinned to exact versions in the root manifest` on the
@@ -540,6 +540,38 @@ describe('the owner-maintained libraries', () => {
         );
       return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
     });
-    expect(copies).toEqual(['caught-object-report-json@11.0.1']);
+    expect(copies).toEqual(['caught-object-report-json@13.0.0']);
+  });
+
+  /**
+   * What the runtime loads, which the lock keys above cannot say.
+   *
+   * application-exception builds its reports with the copy of the report library it resolves
+   * itself. A second copy beside it — nested under `node_modules/application-exception`, left
+   * behind by an install over an older tree, or installed because the two pins stopped agreeing
+   * — writes the operator's reports in that copy's format while this repository's own imports
+   * load the other. So both resolutions must land on the same file, and that file's package must
+   * be the pinned version.
+   *
+   * Nx keys this suite's cache on `bun.lock`, not on `node_modules`, which it cannot hash: an
+   * installed tree that drifts without a lockfile change is seen by an uncached run and by every
+   * fresh install, not by a cached answer.
+   */
+  it('installs one copy of the report library, the one application-exception loads', () => {
+    const fromRoot = createRequire(new URL('package.json', WORKSPACE));
+    const rootCopy = fromRoot.resolve('caught-object-report-json/package.json');
+    const fromApplicationException = createRequire(fromRoot.resolve('application-exception'));
+    const loadedCopy = fromApplicationException.resolve('caught-object-report-json/package.json');
+    // Proof: on 2026-09-25, a copy of the report library nested under application-exception
+    // failed this test on the two resolutions,
+    // `node_modules/application-exception/node_modules/…` received where the root copy was
+    // expected, while the lock-key test beside it passed; with this assertion weakened to a type
+    // check the same nested copy passed the whole suite.
+    expect(loadedCopy).toBe(rootCopy);
+    const { version } = fromRoot(rootCopy) as { version: string };
+    // Proof: on 2026-09-25, the installed copy's `package.json` edited to `"version": "12.9.9"`
+    // failed this test with `Expected: "13.0.0"`, `Received: "12.9.9"` while the lock-key test
+    // passed; with this assertion weakened to a type check the same edit passed the whole suite.
+    expect(version).toBe(OWNER_PACKAGES['caught-object-report-json']);
   });
 });

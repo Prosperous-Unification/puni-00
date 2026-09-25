@@ -35,6 +35,9 @@ export const LogRecord = type({
   // `err.message must be a string (was missing)` (2026-09-21).
   'err?': [
     {
+      // Proof: on 2026-09-25, narrowing this rule to `/^corj\/v0\.15$/` failed "accepts a failure
+      // record written before the report format moved" with `err.v must be matched by
+      // ^corj/v0\.15$ (was "corj/v0.14")`; every other logger test passed.
       v: '/^corj\\//',
       occurrence_id: 'string',
       'fingerprint?': 'string',

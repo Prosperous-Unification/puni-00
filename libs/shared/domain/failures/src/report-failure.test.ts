@@ -1,23 +1,24 @@
 import Ajv2020 from 'ajv/dist/2020';
-import { createRedactionPolicy, defineException, toReports } from 'application-exception';
-import diagnosticSchema from 'application-exception/schemas/diagnostic-report-v5.json';
+import { defineException, makeRedactionPolicy, makeReportPair } from 'application-exception';
+import diagnosticSchema from 'application-exception/schemas/diagnostic-report-v6.json';
 import publicSchema from 'application-exception/schemas/public-report-v4.json';
 import { expect, test } from 'bun:test';
 
 import {
   createFailureRedaction,
   FAILURE_REPORT_LIMITS,
+  FAILURE_REPORT_MAX_BYTES,
   reportFailure,
   SENSITIVE_KEYS,
 } from './report-failure';
 
 test('bounds the whole report and refuses to run the caught value', () => {
   expect(FAILURE_REPORT_LIMITS).toEqual({
-    maxReportSize: 32_768,
     maxDepth: 4,
     maxChildren: 16,
     inspection: 'no-invoke',
   });
+  expect(FAILURE_REPORT_MAX_BYTES).toBe(32_768);
 });
 
 test('names every property both reports skip', () => {
@@ -39,8 +40,8 @@ test('skips a sensitive property whatever its capitalisation', () => {
   const failure = new Error('header rejected');
   Object.assign(failure, { Authorization: 'Bearer live-token', password: 'p' });
   const redact = createFailureRedaction([]);
-  const { diagnostic } = toReports(failure, {
-    diagnostic: { redact, corj: FAILURE_REPORT_LIMITS },
+  const { diagnostic } = makeReportPair(failure, {
+    diagnostic: { redact, corj: FAILURE_REPORT_LIMITS, maxReportBytes: FAILURE_REPORT_MAX_BYTES },
     public: { redact, corj: FAILURE_REPORT_LIMITS },
   });
 
@@ -49,8 +50,13 @@ test('skips a sensitive property whatever its capitalisation', () => {
 
 test('scrubs a caller-owned secret from message and stack, not only from its property', () => {
   const redact = createFailureRedaction(['hunter2']);
-  const { diagnostic } = toReports(new Error('token was hunter2'), {
-    diagnostic: { redact, context: { note: 'hunter2' }, corj: FAILURE_REPORT_LIMITS },
+  const { diagnostic } = makeReportPair(new Error('token was hunter2'), {
+    diagnostic: {
+      redact,
+      context: { note: 'hunter2' },
+      corj: FAILURE_REPORT_LIMITS,
+      maxReportBytes: FAILURE_REPORT_MAX_BYTES,
+    },
     public: { redact, corj: FAILURE_REPORT_LIMITS },
   });
 
@@ -61,8 +67,8 @@ test('scrubs a caller-owned secret from message and stack, not only from its pro
 test('treats a secret as literal text, not as a pattern', () => {
   const secret = 'a.b*c+(d)[e]';
   const redact = createFailureRedaction([secret]);
-  const { diagnostic } = toReports(new Error(`leaked ${secret} here`), {
-    diagnostic: { redact, corj: FAILURE_REPORT_LIMITS },
+  const { diagnostic } = makeReportPair(new Error(`leaked ${secret} here`), {
+    diagnostic: { redact, corj: FAILURE_REPORT_LIMITS, maxReportBytes: FAILURE_REPORT_MAX_BYTES },
     public: { redact, corj: FAILURE_REPORT_LIMITS },
   });
 
@@ -73,8 +79,8 @@ test('an empty secret list leaves the key rules in force', () => {
   const failure = new Error('x');
   Object.assign(failure, { cookie: 'a=b' });
   const redact = createFailureRedaction([]);
-  const { diagnostic } = toReports(failure, {
-    diagnostic: { redact, corj: FAILURE_REPORT_LIMITS },
+  const { diagnostic } = makeReportPair(failure, {
+    diagnostic: { redact, corj: FAILURE_REPORT_LIMITS, maxReportBytes: FAILURE_REPORT_MAX_BYTES },
     public: { redact, corj: FAILURE_REPORT_LIMITS },
   });
 
@@ -87,7 +93,7 @@ const SignInFailed = defineException({
   public: {
     code: 'SIGN_IN_FAILED',
     message: 'Sign-in failed.',
-    details: ({ user }) => ({ user }),
+    detailsSelector: ({ user }) => ({ user }),
   },
 });
 
@@ -257,9 +263,9 @@ test('drops the context whole when the report is over budget', () => {
 test('drops the reporting errors after the context when both cannot fit', () => {
   // A policy that throws is the only way to make reporting errors under `no-invoke`; it is a
   // test fixture, never a production policy.
-  const throwing = createRedactionPolicy({
+  const throwing = makeRedactionPolicy({
     transform: (value, context) => {
-      if (context.key === 'as_json') throw new Error('nope');
+      if (context.reportKey === 'as_json') throw new Error('nope');
       return value;
     },
   });
