@@ -162,3 +162,21 @@
       theirs in `module.test.ts`.
 - [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
+      Moved by 050-7-l, observed 2026-09-25: `apps/wbs/fe-01/src/delivery-boundaries.test.ts`
+      resolves every identifier (and every export of a namespace object that escapes whole),
+      module specifier, `export *`, `export * as`, `import()` and `typeof import()`, call result by its type, element access
+      and indexed-access type (by the key's literal type) and destructured property of
+      delivery — `src/components`, `src/app-router.tsx` and each module's `view/` — through
+      the TypeScript checker, and refuses any that is a bag, a
+      broad HTTP client, a repository or its port, a resource-service, a composition root,
+      a socket or browser storage, and any member of `ApplicationServices`,
+      `SessionRuntime`, `ProjectRuntime` or `SignedInRegion` typed as one. It refuses every
+      route but twenty-one recorded as still owed, and a recorded route that has gone. This
+      box stays unchecked for those routes: the project catalog and the archival import on
+      `ProjectApi` in `ProjectPage`, `usePlanImport` and the router's region, with the
+      header token `httpProjectApi` is built from, and the project runtime's source — the
+      socket and `projectServicesOver` — that `ProjectPage` still builds, all of which the
+      lifetime map's catalog facade moves into the session runtime (this task's
+      remainder); the saved-plan shelf's client (task 10); and the application's
+      `preferences` resource, task 12's accepted debt. A credential is a string, so the
+      check follows it only where a factory that takes one is reached.

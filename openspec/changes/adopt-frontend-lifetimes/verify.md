@@ -2478,3 +2478,68 @@ pre-namespacing root: the legacy pin stayed 1 pass (`s2-comments-legacy.log`). T
 **Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, the
 whole pilot suite, `check-indexes committed`, `tool-devsync:test` and the host gate — none run in
 the executor sandbox.
+
+## Packet 050.7l, slice 3 — delivery reaches no infrastructure but the routes still owed
+
+Attempt `050-7-l-isolated-checks-and-architecture.3.20260925T070441Z`, starting hash
+`85ff1b1ab80abb3b9dd105e0b08d189f301260ad` (slice 2's planner commit), clean status
+(`status-before.txt` empty). Run on 2026-09-25 with `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and
+`AGENT` unset.
+
+Step 0 baselines: `wbs-fe-01:typecheck` status 0 (`base-typecheck.log`); the legacy pin `1 pass`,
+`0 fail` (`base-legacy.log`); the sandbox node suite `57` files, `713` tests, status 0
+(`base-sandbox.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`. Step 0b extracted
+11 patches and 33 fault patches.
+
+- Section 7.9 applied; strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+- Section 7.10 applied with an empty ledger. Red (`s3-red.log`): status 1, `Tests 1 failed (1)`,
+  `AssertionError: expected [ …(21) ] to deeply equal []`. The twenty-one received lines, sorted,
+  are identical to section 7.11's ledger entries (`ledger-received.txt` against
+  `ledger-expected.txt`, no difference).
+- Section 7.11 applied; the task 13 note and the lifetime map's update dated `observed 2026-09-25`.
+- Green: `wbs-fe-01:typecheck` status 0 (`s3-typecheck.log`); `wbs-fe-01:lint` status 0
+  (`s3-lint.log`); `delivery-boundaries.test.ts` with `test-tiers.test.ts` `2` files, `6` tests
+  passed (`s3-green.log`); the sandbox node suite `57`·`713`, status 0 (`s3-green-sandbox.log`),
+  unchanged from step 0.
+- Faults, 23 of 23 through `run-fault.sh`, each `status=1` and `Tests 1 failed (1)`, every file
+  restored and compared with `cmp`; `after-faults.txt` equals `after-green.txt`. Received-list
+  changes observed (`…` is `src/components/chrome/page-nav.tsx`):
+  - `d1` `+ …: httpDirectoryApi is a broad HTTP client`
+  - `d2` `+ …: connect is …`, `+ …: httpDirectoryApi is …`
+  - `d3` `+ …: httpDirectoryApi is a broad HTTP client`
+  - `d4` `+ …: DirectoryApi is a broad HTTP client`
+  - `d5` `+ …: localStorage is storage`
+  - `d6` `+ …: getItem is storage`, `+ …: localStorage is storage`
+  - `d7` `+ …: sessionStorage is storage`
+  - `d8` `+ …: WebSocket is a socket`
+  - `d9` `+ …: 'di-bag' is a bag`, `+ …: DiBag is a bag`, `+ …: createBuilder is a bag`
+  - `d10` `+ …: '@/modules/directory/directory.resource' is a resource-service`,
+    `+ …: createDirectory is a resource-service`
+  - `c1` `+ "ProjectRuntime.client is a broad HTTP client"`
+  - `o1` `- "SignedInRegion.projectApi is a broad HTTP client"`
+  - `d11` `+ …: httpDirectoryApi is a broad HTTP client`
+  - `d12` `+ …: localStorage is storage`
+  - `d13` `+ …: localStorage is storage`
+  - `d14` `+ …: DirectoryApi is …`, `+ …: ProjectApi is …`, `+ …: httpDirectoryApi is …`,
+    `+ …: httpProjectApi is …` — three more lines than section 8.3's table predicts; the
+    qualifier-less `typeof import(…)` inside the indexed-access type is judged whole as well.
+  - Planner, 2026-09-25: `d14` does not prove the indexed-access clause. With that clause
+    disabled (`false &&`), `d14` still failed with the same four lines. Its replacement `d14b`,
+    `export type Kept = (typeof window)['localStorage']` in `page-nav.tsx`, passed (status 0)
+    with the clause disabled and failed with it (`+ …: localStorage is storage`). The clause's
+    `Proof:` comment names `d14b`.
+  - `d15`, `d16`, `d17`, `d19`, `d20` each the same four lines: `DirectoryApi`, `ProjectApi`,
+    `httpDirectoryApi`, `httpProjectApi`, each `is a broad HTTP client`.
+  - `d18` `+ …: Storage is storage`
+  - `d21` `+ …: localStorage is storage`, `+ …: sessionStorage is storage`
+- `Proof:` comments written at the sixteen sites section 8.3 names, only comments added; then
+  `s3-final-green` `2`·`6` and `s3-final-sandbox` `57`·`713`, both status 0.
+
+Pending planner verification: `wbs-fe-01:test` (expected UTC + 1 file, + 1 test),
+`wbs-fe-01:test:unit`, `wbs-fe-01:build`, the whole pilot suite, `check-indexes committed`,
+`tool-devsync:test` and the host gate, none of which the executor runs in the sandbox.
+
+After this entry was first written: owned-file Prettier over the five paths left every file
+unchanged and its check passed; `nx format:check --all` status 0 (`s3-format.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}`; `wbs-fe-01:lint` after the `Proof:` comments status 0
+(`s3-final-lint.log`).

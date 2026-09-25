@@ -589,3 +589,37 @@ already held SHALL stay as it was.
 
 - **WHEN** a module's README carries an index and the pilot mapping has no row for it
 - **THEN** the pilot's lint refuses the candidate, naming the README
+
+### Requirement: Delivery reaches no infrastructure but the routes still owed
+
+fe-01 SHALL keep an architecture check that judges delivery — every production file under
+`src/components`, `src/app-router.tsx` and each module's `view/` — by symbol identity through the
+TypeScript checker, and the types a context, a route or a runtime hands delivery by their members'
+types. It SHALL refuse any route to a bag, a broad HTTP client, a repository or its port, a
+resource-service, a composition root, a socket or browser storage — whether named, renamed,
+namespaced, re-exported, imported dynamically, keyed by a literal-typed or literal-constrained key,
+destructured or returned by a call — except the routes it records as still owed, each naming the task that owns removing it; a recorded
+route that no longer exists SHALL fail the check as well.
+
+#### Scenario: A new route to a broad client, under any spelling
+
+- **WHEN** a delivery file reaches a broad HTTP client by a named, renamed, namespace, type-only or
+  string-keyed import
+- **THEN** the check fails, naming the file, the symbol reached and what it is
+
+#### Scenario: Storage, a socket or a bag reached from delivery
+
+- **WHEN** a delivery file reads browser storage as a global, a window property or a destructured
+  property, opens a socket, or imports the DI container
+- **THEN** the check fails, naming the file and what it reached
+
+#### Scenario: A context hands delivery a client
+
+- **WHEN** a member of a type delivery is handed by a context, a route or a runtime is typed as a
+  broad client
+- **THEN** the check fails, naming the type and the member
+
+#### Scenario: A route still owed is paid off
+
+- **WHEN** a route the check records as still owed no longer exists
+- **THEN** the check fails until the record is struck
