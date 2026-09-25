@@ -1,13 +1,13 @@
 # 050.7 m — every project ownership replaced, and a stale completion changes nothing
 
-|             |                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **seventeenth packet**, the last of 050.7's task packets                                                                                                                                                                                                                                                                                                      |
-| Size class  | S — two slices, each one executor attempt                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Predecessor | 050.7k (`050-7-k-log-out.md`) and 050.7i, 050.7j, 050.7h — each one's section 12, "Hand-over to the next packet", and section 3.8, which hand task 11 the residuals section 3.1 lists; 050.7l (tasks 12 and 13) is authored in parallel on the same base and lands first                                                                                                                                                                                 |
-| Advances    | OpenSpec task **11** of `adopt-frontend-lifetimes` — **ticked** in slice 2, every sentence met (section 3.5). Every residual the earlier packets handed task 11 is proved, deleted as unreachable, or named with an owner (section 3.1)                                                                                                                                                                                                                  |
-| Revision    | Third: round 1 applied (section 16) — slice 1's red made real-base-proof, packet h's busy scenario reworded, the dependency list's stale toast found and fixed, page hide given its owner; round 2 applied (section 17) — the dependency list's reread and busy guards deleted with their false `Proof:`, the stand-in rebuilt on integration `f15971021` and packet l's round 2.                                                                        |
-| Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Slice 2: one requirement with six scenarios, added before packet j's "One project runtime owns the selected project's plan services"; packet h's scenario "The writer and the feed announce through the project's ports" reworded for the busy state slice 1 lowers; task 11 ticked with a dated note; task 14 appended, unchecked, for page hide; one dated update to the lifetime map. |
+|             |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **seventeenth packet**, the last of 050.7's task packets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Size class  | S — two slices, each one executor attempt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Predecessor | 050.7k (`050-7-k-log-out.md`) and 050.7i, 050.7j, 050.7h — each one's section 12, "Hand-over to the next packet", and section 3.8, which hand task 11 the residuals section 3.1 lists; 050.7l (tasks 12 and 13) is authored in parallel on the same base and lands first                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Advances    | OpenSpec task **11** of `adopt-frontend-lifetimes` — **ticked** in slice 2, every sentence met (section 3.5). Every residual the earlier packets handed task 11 is proved, deleted as unreachable, or named with an owner (section 3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Revision    | Fourth: round 1 applied (section 16) — slice 1's red made real-base-proof, packet h's busy scenario reworded, the dependency list's stale toast found and fixed, page hide given its owner; round 2 applied (section 17) — the dependency list's reread and busy guards deleted with their false `Proof:`, the stand-in rebuilt on integration `f15971021` and packet l's round 2; round 3, the dispatch review, applied (section 18) — the dependency list's late-answer spec sentence reworded, the two module READMEs slice 1 makes false corrected in slice 1, step 0b made safe to rerun, and the rehearsal re-cut as `rehearse/050-7-m-r4` on a stand-in for the dispatch base. |
+| Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Slice 2: one requirement with six scenarios, added before packet j's "One project runtime owns the selected project's plan services"; packet h's scenario "The writer and the feed announce through the project's ports" reworded for the busy state slice 1 lowers, and the dependency list's late-answer sentence in "The table's gestures write through the project's commands"; task 11 ticked with a dated note; task 14 appended, unchecked, for page hide; one dated update to the lifetime map.                                                                                                               |
 
 ## 1. Goal, non-goals, and the cut
 
@@ -24,8 +24,9 @@ turns out to be unreachable in production, **deletes it and says why** (R5: no d
 moved to another project used to say its refusal over the next project — its guard was a ref to the
 commands the table last rendered with, which stays true once that table is gone, while the toasts are
 the page's and outlive it. It now asks its runtime's `isCurrent` (section 3.1, row 15). Nothing else a
-reader can see changes: two checks and one React key go because nothing can reach them — a gesture
-whose reader has left now lowers its own runtime's busy state, which nobody draws — and one test seam
+reader can see changes: the hosts' reader predicate, the undo stack's busy guard, the dependency
+list's busy and reread guards and one React key go because nothing can reach them — a gesture whose
+reader has left now lowers its own runtime's busy state, which nobody draws — and one test seam
 (`SignedInApp`'s `projectApi`, the bargain `openOwner` already makes) is added so the route can be
 driven over a project the test holds.
 
@@ -46,16 +47,18 @@ driven over a project the test holds.
   dependency list's existing guard the runtime's predicate in place of a ref, and adds a test seam. The owners' models (`project-runtime.model.test.ts`, `session-runtime.model.test.ts`,
   `session-exit.model.test.ts`, `lifetime-slot.model.test.ts`) are not extended: no residual on the
   list is an interleaving they do not already generate (section 3.4).
-- No dependency, `project.json`, `bun.lock`, tsconfig, module README or pin change;
-  `lifetime-slot.ts`, `session-runtime.ts` and `application-*` are not touched.
+- No dependency, `project.json`, `bun.lock`, tsconfig or pin change, and no module README change but
+  the sentences slice 1 makes false (section 5); `lifetime-slot.ts`, `session-runtime.ts` and
+  `application-*` are not touched.
 
 **The cut, and why two slices.**
 
 1. **The modules** — plain TypeScript, node-tier tests, no React: the plan writer's and the calendar
    markers' `isActiveReader` predicate is removed, because the refresh owner's identity — `null` from
    the instant the project runtime is withdrawn — answers everything it did; the writer's stale
-   "same-reader renewal" notes go with it; `createProjectOwner`'s JSDoc says whose owner it is now.
-   Three negatives prove the identity checks that remain.
+   "same-reader renewal" notes go with it; `createProjectOwner`'s JSDoc says whose owner it is now;
+   the two modules' READMEs say what each now asks. Three negatives prove the identity checks that
+   remain.
 2. **Delivery and the records** — six page cases in a new `project-replacement.test.tsx` (a switch
    mid-undo and mid-dependency-list, the interval while the old project lets go, Strict Mode at the
    project page), three region cases in `app.test.tsx` through the real router (a route change, a
@@ -275,31 +278,34 @@ out in 5000ms`; the file alone passed three times after it, on the slice tree an
 
 Paths under `apps/wbs/fe-01/` unless they start with `openspec/` or `docs/`.
 
-| File                                                                               | Slice | Create/modify | Responsibility                                                                                      |
-| ---------------------------------------------------------------------------------- | ----- | ------------- | --------------------------------------------------------------------------------------------------- |
-| `src/modules/calendar-markers/contract.ts`                                         | 1     | modify        | `CalendarMarkersHost` loses `isActiveReader`; `readRefreshOwner`'s JSDoc says `null` once withdrawn |
-| `src/modules/calendar-markers/calendar-markers.feature.ts`                         | 1     | modify        | `isCurrent` is the identity alone                                                                   |
-| `src/modules/calendar-markers/calendar-markers.feature.test.ts`                    | 1     | modify        | the host's `leave` answers no owner, as a withdrawal does; `isActiveReader` gone from two hosts     |
-| `src/modules/plan-writer/contract.ts`                                              | 1     | modify        | `PlanWriterHost` loses `isActiveReader`; `busy` lowered however a gesture ended                     |
-| `src/modules/plan-writer/plan-writer.feature.ts`                                   | 1     | modify        | identity alone; the renewal notes go; `busy.lower()` unconditional                                  |
-| `src/modules/plan-writer/plan-writer.test.ts`                                      | 1     | modify        | `isActiveReader` gone from the hosts; the busy case replaced by two reader-left cases               |
-| `src/modules/plan-writer/busy-store.ts`                                            | 1     | modify        | JSDoc only                                                                                          |
-| `src/modules/project/composition.test.ts`                                          | 1     | modify        | `isActiveReader` gone from the markers' host                                                        |
-| `src/runtime/project-runtime.ts`                                                   | 1     | modify        | two wirings gone; `installProjectRuntime`'s and `createProjectOwner`'s JSDoc                        |
-| `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` | 2     | modify        | one requirement, six scenarios; packet h's busy sentence reworded                                   |
-| `src/components/wbs/project-replacement.test.tsx`                                  | 2     | **create**    | six page cases                                                                                      |
-| `src/app.test.tsx`                                                                 | 2     | modify        | one `StrictMode` import, three region cases in a new `describe`                                     |
-| `src/app.tsx`                                                                      | 2     | modify        | `SignedInApp`'s `projectApi` seam, passed to `AppRouter`                                            |
-| `src/components/wbs/project-page.tsx`                                              | 2     | modify        | the key and its comment gone; two comments                                                          |
-| `src/components/wbs/use-plan-read.ts`                                              | 2     | modify        | the undo stack's busy guard gone; its comment                                                       |
-| `src/components/wbs/use-plan-dependencies.ts`                                      | 2     | modify        | the toast asks `isCurrent` in place of the `activeCommands` ref; the reread and busy guards gone    |
-| `src/components/wbs/wbs-table.tsx`                                                 | 2     | modify        | one line: hands the dependency list `project.isCurrent`                                             |
-| `openspec/changes/adopt-frontend-lifetimes/tasks.md`                               | 2     | modify        | task 11 ticked, with a dated note (a diff); task 14 appended at the end (a script, step 4)          |
-| `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`         | 2     | modify        | one dated update before "Planning constraints and open implementation facts"                        |
-| `openspec/changes/adopt-frontend-lifetimes/verify.md`                              | 1, 2  | modify        | one fresh entry per slice, appended                                                                 |
+| File                                                                               | Slice | Create/modify | Responsibility                                                                                                             |
+| ---------------------------------------------------------------------------------- | ----- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `src/modules/calendar-markers/contract.ts`                                         | 1     | modify        | `CalendarMarkersHost` loses `isActiveReader`; `readRefreshOwner`'s JSDoc says `null` once withdrawn                        |
+| `src/modules/calendar-markers/calendar-markers.feature.ts`                         | 1     | modify        | `isCurrent` is the identity alone                                                                                          |
+| `src/modules/calendar-markers/calendar-markers.feature.test.ts`                    | 1     | modify        | the host's `leave` answers no owner, as a withdrawal does; `isActiveReader` gone from two hosts                            |
+| `src/modules/plan-writer/contract.ts`                                              | 1     | modify        | `PlanWriterHost` loses `isActiveReader`; `busy` lowered however a gesture ended                                            |
+| `src/modules/plan-writer/plan-writer.feature.ts`                                   | 1     | modify        | identity alone; the renewal notes go; `busy.lower()` unconditional                                                         |
+| `src/modules/plan-writer/plan-writer.test.ts`                                      | 1     | modify        | `isActiveReader` gone from the hosts; the busy case replaced by two reader-left cases                                      |
+| `src/modules/plan-writer/busy-store.ts`                                            | 1     | modify        | JSDoc only                                                                                                                 |
+| `src/modules/project/composition.test.ts`                                          | 1     | modify        | `isActiveReader` gone from the markers' host                                                                               |
+| `src/modules/calendar-markers/README.md`                                           | 1     | modify        | "What the feature owns": one identity question, not two                                                                    |
+| `src/modules/plan-writer/README.md`                                                | 1     | modify        | "What it owns": the one question and its three asks, busy lowered however a gesture ended; the index's `invariants` reason |
+| `src/runtime/project-runtime.ts`                                                   | 1     | modify        | two wirings gone; `installProjectRuntime`'s and `createProjectOwner`'s JSDoc                                               |
+| `openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md` | 2     | modify        | one requirement, six scenarios; packet h's busy sentence and the dependency list's late-answer sentence reworded           |
+| `src/components/wbs/project-replacement.test.tsx`                                  | 2     | **create**    | six page cases                                                                                                             |
+| `src/app.test.tsx`                                                                 | 2     | modify        | one `StrictMode` import, three region cases in a new `describe`                                                            |
+| `src/app.tsx`                                                                      | 2     | modify        | `SignedInApp`'s `projectApi` seam, passed to `AppRouter`                                                                   |
+| `src/components/wbs/project-page.tsx`                                              | 2     | modify        | the key and its comment gone; two comments                                                                                 |
+| `src/components/wbs/use-plan-read.ts`                                              | 2     | modify        | the undo stack's busy guard gone; its comment                                                                              |
+| `src/components/wbs/use-plan-dependencies.ts`                                      | 2     | modify        | the toast asks `isCurrent` in place of the `activeCommands` ref; the reread and busy guards gone                           |
+| `src/components/wbs/wbs-table.tsx`                                                 | 2     | modify        | one line: hands the dependency list `project.isCurrent`                                                                    |
+| `openspec/changes/adopt-frontend-lifetimes/tasks.md`                               | 2     | modify        | task 11 ticked, with a dated note (a diff); task 14 appended at the end (a script, step 4)                                 |
+| `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`         | 2     | modify        | one dated update before "Planning constraints and open implementation facts"                                               |
+| `openspec/changes/adopt-frontend-lifetimes/verify.md`                              | 1, 2  | modify        | one fresh entry per slice, appended                                                                                        |
 
 Nothing else. Not `lifetime-slot.ts`, `session-runtime.ts`, `application-*`, `app-router.tsx`,
-`plan-feed/*`, any module README or `tsconfig.json`, `project.json`, `bun.lock` or `package.json`.
+`plan-feed/*`, any other module README, any `module-index` membership, `tsconfig.json`,
+`project.json`, `bun.lock` or `package.json`.
 
 ### Which hunks meet other packets' files, and why they apply after their executors
 
@@ -314,9 +320,13 @@ Nothing else. Not `lifetime-slot.ts`, `session-runtime.ts`, `application-*`, `ap
   packet l's note is what ends it); its map update goes after the exact lifecycle tests, before
   "## Planning constraints". Packet l also adds a `tsconfig.json` and a README
   `module-index` block to `modules/plan-writer` and `modules/calendar-markers`; this packet edits only
-  the `.ts` files beside them, and adds no module file. Packet l's `plan-writer` README speaks of "the
-  three ownership moments … documented on the writer"; after slice 1 the writer documents two. That
-  wording is packet l's lane to fix, not this packet's.
+  the `.ts` files beside them and the prose of the two READMEs, and adds no module file. Those READMEs
+  are true when packet l lands and false after slice 1, so slice 1 owns them: the calendar markers'
+  "What the feature owns" described two reader tests, and the plan writer's said the writer "lowers
+  only while its reader is still on screen" and named "three moments" with different answers, in its
+  body and in its index block's `invariants` reason. Slice 1's hunks for them are cut against packet
+  l's text, index block included, and change no membership; its green runs the wiki pilot's `pins …`
+  test and `check-indexes`.
 - **Packet i and packet k** comment `app.tsx` — i at `g2` (`if (sessionState.status === 'fatal') …`),
   `g3` (`void sessionOwner.leave();`), `g4` (`void sessionOwner.open(…)`); k at `a1` (the `account=`
   attribute), `a2` (`if (exit === 'signed-out') onSignedOut();`), `p1` (the gate's
@@ -328,9 +338,9 @@ Nothing else. Not `lifetime-slot.ts`, `session-runtime.ts`, `application-*`, `ap
 - **Packet j** landed for real in the base: its comments in `project-runtime.ts`, `project-page.tsx`
   and `use-plan-read.ts` are already there, and this packet's context includes some of them verbatim.
 
-Section 9.1's `fill=1` run proves all of it against a copy with every one of packet i's and k's sites
-filled, their notes dated, and packet l's rehearsed spec and task edits simulated; `fill=real` proves it
-against the real base.
+Section 9.1's `fill=0` run proves all of it on a stand-in that carries packets i's, k's and l's text,
+`fill=1` on that stand-in with a second comment at each of packet i's and k's sites and packet l's notes
+dated another day, and `fill=real` against the real base.
 
 ## 6. Slices
 
@@ -398,13 +408,15 @@ EOF
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-m-project-replacement.md
 test -f "$packet"
 mkdir -p "$TMPDIR/patches" "$TMPDIR/mutations"
-# Section 7's fenced diffs, in document order, as 01.diff … 06.diff.
+# Section 7's fenced diffs, in document order, as 01.diff … 06.diff. awk's `>` empties each file
+# the first time this run writes it and appends after that, so a rerun in the same $TMPDIR
+# rewrites every patch rather than doubling it.
 awk -v out="$TMPDIR/patches" '
   /^## 7\. The code$/ { inside=1; next }
   /^## 8\. Proofs$/   { inside=0 }
   inside && /^```diff$/ { n++; f=sprintf("%s/%02d.diff", out, n); capture=1; next }
   capture && /^```$/ { capture=0; next }
-  capture { print >> f }
+  capture { print > f }
 ' "$packet"
 count=$(find "$TMPDIR/patches" -name '*.diff' | wc -l)
 echo "patches=$count"
@@ -416,7 +428,7 @@ awk -v out="$TMPDIR/mutations" '
   inside && /^#### Proof / { id=$3; next }
   inside && /^```diff$/ { f=sprintf("%s/%s.diff", out, id); capture=1; next }
   capture && /^```$/ { capture=0; next }
-  capture { print >> f }
+  capture { print > f }
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
@@ -441,7 +453,8 @@ test "$(wc -l < "$TMPDIR/session.txt")" -eq 3
 test "$(wc -l < "$TMPDIR/adopted.txt")" -eq 20
 ````
 
-Expected: `patches=6`, `mutations=13`, exit 0. **Applying section 7.N** below always means exactly
+Expected: `patches=6`, `mutations=13`, exit 0, on a first run and on any rerun in the same `$TMPDIR`.
+**Applying section 7.N** below always means exactly
 this, never a hand edit:
 
 ```sh
@@ -501,9 +514,9 @@ relative delta.
 
 ### Slice 1 — the refresh owner's identity is the only reader test
 
-Owns (10 paths): `verify.md`, and under `apps/wbs/fe-01/src/`:
-`modules/calendar-markers/{contract.ts,calendar-markers.feature.ts,calendar-markers.feature.test.ts}`,
-`modules/plan-writer/{contract.ts,plan-writer.feature.ts,plan-writer.test.ts,busy-store.ts}`,
+Owns (12 paths): `verify.md`, and under `apps/wbs/fe-01/src/`:
+`modules/calendar-markers/{README.md,contract.ts,calendar-markers.feature.ts,calendar-markers.feature.test.ts}`,
+`modules/plan-writer/{README.md,contract.ts,plan-writer.feature.ts,plan-writer.test.ts,busy-store.ts}`,
 `modules/project/composition.test.ts` and `runtime/project-runtime.ts`.
 
 - [ ] 1. Step 0. Expected: module set rehearsed 7·30, session set 3·70, sandbox 57·713, zoned 2·3.
@@ -576,12 +589,17 @@ required in type …` for `CalendarMarkersHost` (two), `PlanWriterHost` (two) an
   `TypeError: isActiveReader is not a function`: the hosts no longer pass it and the modules still
   call it.
 
-- [ ] 4. Apply section 7.2, the production side.
+- [ ] 4. Apply section 7.2, the production side and the two READMEs.
 - [ ] 5. **Green checkpoint.**
 
   ```sh
   set -euo pipefail
   bash "$TMPDIR/run-check.sh" s1-green-typecheck env NX_DAEMON=false bunx nx run wbs-fe-01:typecheck
+  # The two READMEs are wiki pilot members: the pilot's pins test overlays them on HEAD.
+  bash "$TMPDIR/run-check.sh" s1-green-pins env -u CLAUDECODE -u AGENT bash -c 'cd apps/wiki/cli && TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules timeout 900 bun test --preload ../../../tools/test/scratch/preload.ts src/policy/pilot-policy.test.ts -t "pins exact pre-index tuples and passes observe lint from external trust"'
+  bash "$TMPDIR/run-check.sh" s1-green-indexes env -u CLAUDECODE -u AGENT \
+    bun run apps/wiki/cli/src/cli.ts check-indexes working . HEAD
+  test "$(head -n 1 "$TMPDIR/evidence/s1-green-indexes.log" | jq '[.indexes[] | select(.moduleId | startswith("module.frontend."))] | length')" -eq 8
   cd apps/wbs/fe-01
   # shellcheck disable=SC2046 # fixed paths without spaces
   bash "$TMPDIR/run-check.sh" s1-green-modules env TZ=UTC bunx vitest run --no-file-parallelism \
@@ -592,7 +610,8 @@ required in type …` for `CalendarMarkersHost` (two), `PlanWriterHost` (two) an
   # shellcheck disable=SC2046
   bash "$TMPDIR/run-check.sh" s1-green-adopted env TZ=UTC bunx vitest run --no-file-parallelism \
     --maxWorkers=1 $(cat "$TMPDIR/adopted.txt")
-  for check in s1-green-typecheck s1-green-modules s1-green-tiers s1-green-sandbox s1-green-adopted; do
+  for check in s1-green-typecheck s1-green-pins s1-green-indexes s1-green-modules s1-green-tiers \
+    s1-green-sandbox s1-green-adopted; do
     bash "$TMPDIR/expect-status.sh" "$check" 0
   done
   ```
@@ -601,7 +620,9 @@ required in type …` for `CalendarMarkersHost` (two), `PlanWriterHost` (two) an
   writer case replaced by two); sandbox = step 0 **plus 1 test** (57·713 → 57·714); the adopted set
   unchanged in files and tests (20·1219) — the production-path proof that nothing the predicate did is
   missed. On the real base `wbs-fe-01:typecheck` also runs packet l's `typecheck:module`, which
-  compiles each of the two modules alone: it must pass too.
+  compiles each of the two modules alone: it must pass too. The pilot's `pins …` test prints `1 pass`
+  and `0 fail`; `check-indexes working` exits 0 and lists the eight `module.frontend.*` indexes, the
+  plan writer's with its reworded reason.
 
 - [ ] 6. Durable lint, from the repository root:
 
@@ -618,16 +639,18 @@ required in type …` for `CalendarMarkersHost` (two), `PlanWriterHost` (two) an
       observed first, then the `Proof:` comments at the sites the table names.
 - [ ] 8. Rerun `s1-final-modules` (step 5's module command) and step 0c's sandbox, session and zoned
       commands (`s1-final-*`): session set and zoned unchanged from step 0, the others as step 5.
-- [ ] 9. Append this slice's `verify.md` entry (shape below), then owned-file Prettier over the ten
+- [ ] 9. Append this slice's `verify.md` entry (shape below), then owned-file Prettier over the twelve
       paths, `--write` then `--check`, from this list, which step 10 reuses; then rerun the strict
       OpenSpec block — **after** the evidence edit.
 
   ```sh
   set -euo pipefail
   printf '%s\n' \
+    apps/wbs/fe-01/src/modules/calendar-markers/README.md \
     apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.test.ts \
     apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.ts \
     apps/wbs/fe-01/src/modules/calendar-markers/contract.ts \
+    apps/wbs/fe-01/src/modules/plan-writer/README.md \
     apps/wbs/fe-01/src/modules/plan-writer/busy-store.ts \
     apps/wbs/fe-01/src/modules/plan-writer/contract.ts \
     apps/wbs/fe-01/src/modules/plan-writer/plan-writer.feature.ts \
@@ -636,7 +659,7 @@ required in type …` for `CalendarMarkersHost` (two), `PlanWriterHost` (two) an
     apps/wbs/fe-01/src/runtime/project-runtime.ts \
     openspec/changes/adopt-frontend-lifetimes/verify.md \
     > "$TMPDIR/owned.txt"
-  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 10
+  test "$(wc -l < "$TMPDIR/owned.txt")" -eq 12
   # shellcheck disable=SC2046 # fixed repository paths without spaces
   GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
   # shellcheck disable=SC2046
@@ -655,7 +678,7 @@ required in type …` for `CalendarMarkersHost` (two), `PlanWriterHost` (two) an
   diff "$TMPDIR/evidence/owned-sorted.txt" "$TMPDIR/evidence/status-paths.txt"
   ```
 
-  Expected: the `diff` prints nothing and exits 0: ten ` M` paths.
+  Expected: the `diff` prints nothing and exits 0: twelve ` M` paths.
 
 Planner commit subject:
 `refactor(frontend): drop the reader predicate the refresh owner's identity already answers`.
@@ -671,10 +694,20 @@ Owns (11 paths): `spec.md`, `verify.md`, `tasks.md` (all under
 
 - [ ] 1. Step 0. Expected: session set rehearsed 3·70, sandbox 57·714, zoned 2·3.
 - [ ] 2. **The contract first (R4).** Apply section 7.3 (the requirement "Every trigger gives a
-      project back whole, and a late answer changes nothing", and packet h's scenario "The writer and
-      the feed announce through the project's ports" reworded for the busy state slice 1 lowers) and
-      rerun the strict block. Expected: exit 0, `passed` equal to step 0's number (rehearsed 114 →
-      114).
+      project back whole, and a late answer changes nothing"; packet h's scenario "The writer and the
+      feed announce through the project's ports" reworded for the busy state slice 1 lowers; and the
+      dependency list's late-answer sentence in "The table's gestures write through the project's
+      commands", which section 7.5 makes lower its busy state however it ends) and rerun the strict
+      block. Expected: exit 0, `passed` equal to step 0's number (rehearsed 114 → 114). Then no
+      scenario still says a late answer lowers no busy state:
+
+  ```sh
+  set -euo pipefail
+  spec=openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
+  test -f "$spec"
+  test "$(grep -c 'lowers no busy' "$spec")" -eq 0
+  ```
+
 - [ ] 3. Apply section 7.4: the new page file and the region cases. **Red checkpoint:**
 
   ```sh
@@ -855,8 +888,10 @@ stops; the Claude subagent runs the slice and the planner collects the attempt.
 ## 7. The code
 
 Six fenced diffs, in slice order. Step 0b extracts them as `01.diff` … `06.diff`, and section 9.1
-records the run that applies all of them, in this order, to a tree extracted from the authoring base
-and proves the result byte-identical to the rehearsal's final commit. No diff adds a `Proof:` comment;
+records the run that applies all of them, in this order, to a tree extracted from the rehearsal's
+stand-in base and proves the result byte-identical to the rehearsal's final commit. The code hunks
+were cut on the authoring base `59cfe22a4` and apply to the stand-in with offsets; the two README
+hunks at the end of 7.2 exist only over packet l's text and were cut on the stand-in. No diff adds a `Proof:` comment;
 the ones they remove are the deleted checks' own (section 3.2) and packet j's comment beside the key,
 which had become false.
 
@@ -1004,6 +1039,10 @@ index b73fab6b3..283a67c29 100644
 ```
 
 ### 7.2 The modules and the runtime — slice 1, the production side
+
+The last two files are the modules' READMEs, whose ownership sentences described the predicate this
+slice removes. The plan writer's first hunk is its `module-index` line, packet l's, of which only the
+`invariants` reason changes.
 
 ```diff
 diff --git a/apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.ts b/apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.ts
@@ -1297,13 +1336,65 @@ index a2d9cbdce..2ef93f92e 100644
   */
  export function createProjectOwner({
    install = installProjectRuntime,
+diff --git a/apps/wbs/fe-01/src/modules/calendar-markers/README.md b/apps/wbs/fe-01/src/modules/calendar-markers/README.md
+index 9a3ed891f..5f23c3047 100644
+--- a/apps/wbs/fe-01/src/modules/calendar-markers/README.md
++++ b/apps/wbs/fe-01/src/modules/calendar-markers/README.md
+@@ -27,10 +27,11 @@ TypeScript and import no React, which is rule F1 of the code organization design
+
+ ## What the feature owns
+
+-Whether the write still belongs to whoever asked for it, at the two moments that question has
+-different answers: the refresh owner being replaced under it, and the screen leaving the project
+-or the API it was opened for. A refusal is said and the markers are read again only while both
+-hold. A refused write rereads as an accepted one does, because the marker it named may have gone.
++Whether the write still belongs to whoever asked for it: the refresh owner it started against is
++still the one answered. An owner replaced under it and a reader withdrawn from the project or the
++API it was opened for both fail that, because the host answers no owner from the withdrawal on. A
++refusal is said and the markers are read again only while it holds. A refused write rereads as an
++accepted one does, because the marker it named may have gone.
+
+ ## What neither owns
+
+diff --git a/apps/wbs/fe-01/src/modules/plan-writer/README.md b/apps/wbs/fe-01/src/modules/plan-writer/README.md
+index 0c0d65456..730d7d0ba 100644
+--- a/apps/wbs/fe-01/src/modules/plan-writer/README.md
++++ b/apps/wbs/fe-01/src/modules/plan-writer/README.md
+@@ -1,6 +1,6 @@
+ # Plan writer
+
+-<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-writer","memberships":[{"kind":"path","path":"busy-store.model.test.ts"},{"kind":"path","path":"busy-store.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"plan-writer.feature.ts"},{"kind":"path","path":"plan-writer.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The reread ledger and the three ownership moments are documented on the writer, and the busy store carries its own model test; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
++<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-writer","memberships":[{"kind":"path","path":"busy-store.model.test.ts"},{"kind":"path","path":"busy-store.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"plan-writer.feature.ts"},{"kind":"path","path":"plan-writer.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The reread ledger and the refresh owner's identity check are documented on the writer, and the busy store carries its own model test; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
+ One plan gesture, and what has to be read again once it is over. Every command service in the
+ table writes through this module.
+@@ -15,11 +15,13 @@ handed, and it holds no transport of its own.
+ - The ledger of the gesture's completed requests, and therefore the reread set a landing earns.
+ - Which resources a refusal earns instead: the completed prefix normally, everything when the
+   failure is ambiguous, when the target has gone, or when be-01 could not read the request.
+-- Whether the gesture still belongs to the reader on screen, at each of the three moments that
+-  question has a different answer.
+-- Raising and clearing the shared busy state, and the outcome the caller acts on. The state
++- Whether the gesture still belongs to the reader on screen: the refresh owner it began under is
++  still the one answered, asked when a request is refused, when the gesture lands and after its
++  covering read.
++- Raising and clearing the project's busy state, and the outcome the caller acts on. The state
+   itself is `busy-store.ts`, a plain store the table selects from; the writer is handed only its
+-  `raise` and `lower`, and lowers only while its reader is still on screen.
++  `raise` and `lower`, and lowers however the gesture ended: the state is one project runtime's
++  own, so a gesture whose reader has left lowers only a state nobody draws.
+ - Saying that a command was issued, and announcing a refusal, each through a `Publisher` of a
+   project channel (`modules/channel.ts`). The table listens; the writer never learns who does.
+
 ```
 
 ### 7.3 `spec.md` — slice 2, the requirement, and packet h's busy sentence
 
 The first hunk rewords packet h's scenario "The writer and the feed announce through the project's
 ports": after slice 1 a gesture whose reader has left lowers its own runtime's busy state, which nobody
-draws, where the scenario said it lowered none. The second is the requirement.
+draws, where the scenario said it lowered none. The second rewords the dependency list's late-answer
+sentence in "The table's gestures write through the project's commands", for the same reason: after
+section 7.5 the list lowers its busy state however its answer ends. The third is the requirement.
 
 ```diff
 diff --git a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
@@ -1320,7 +1411,17 @@ index a19b2244f..c2548cd37 100644
 
  #### Scenario: The table selects the delivered plan and settles what changed
 
-@@ -500,6 +501,66 @@ route's own promise. What a reader sees SHALL NOT change.
+@@ -490,7 +491,8 @@ route's own promise. What a reader sees SHALL NOT change.
+   table was handed another client
+ - **THEN** the write goes through the commands bound to the table's project and
+   the plan is read through the feed the composition root opened, and the late
+-  answer lowers no busy state and announces nothing
++  answer announces nothing and lowers only its own runtime's busy state, which
++  nobody draws once it is withdrawn
+
+ #### Scenario: The page composes the table's services once per client
+
+@@ -500,6 +502,66 @@ route's own promise. What a reader sees SHALL NOT change.
    same client, a new client replaces all three, and the table is never handed
    the client itself
 
@@ -2652,22 +2753,23 @@ diff --git a/apps/wbs/fe-01/src/app.tsx b/apps/wbs/fe-01/src/app.tsx
 
 The requirement is not "these diffs were once correct" but "these diffs, as this committed document
 spells them, apply in slice order, produce exactly the rehearsal's final tree, and every fault patch
-applies to the tree its slice leaves" — on the authoring base, on that base with the other packets'
-executor output simulated, **and on the real dispatch base**. The script has three modes:
+applies to the tree its slice leaves" — on the rehearsal's stand-in base, on that base with the
+other packets' executor output varied, **and on the real dispatch base**. The script has three modes:
 
-- `fill=0` — the authoring base; the result must be byte-identical to the rehearsal's final commit.
-- `fill=1` — the authoring base with a two-line `// Proof:` comment inserted above each of packet i's
-  and packet k's six comment sites in `app.tsx` (`g2`, `g3`, `g4`, `a1`, `a2`, `p1`), their
-  `<observed-date-i>` and `<observed-date-k>` notes dated, and packet l's rehearsed edits simulated as far
-  as they can be named: a requirement appended to `spec.md`, task 3 ticked and notes added after tasks 12
-  and 13 in `tasks.md`, a dated paragraph after packet h's in the lifetime map.
+- `fill=0` — `base`, the stand-in for the dispatch base the rehearsal is cut on (below); the result
+  must be byte-identical to the rehearsal's final commit.
+- `fill=1` — the stand-in with a second two-line `// Proof:` comment inserted above each of packet i's
+  and packet k's six comment sites in `app.tsx` (`g2`, `g3`, `g4`, `a1`, `a2`, `p1`), and packet l's
+  four dated notes — three in `tasks.md`, one in the lifetime map — moved to another day, as packet
+  l's executor dates them by its own observation.
 - `fill=real` — the base named by `REAL_BASE`: planning after packets i, k and l, plus this plan branch's
   commits cherry-picked (section 6, Dispatch). Nothing is filled. The result must change exactly the
-  nineteen owned paths; the five test files must equal the rehearsal's final bytes; the eleven production
+  twenty-one owned paths; the five test files must equal the rehearsal's final bytes; the eleven production
   files must equal them once every `//` comment and every blank line are stripped and every run of
   whitespace is squeezed to one space, on both sides — whitespace added where there was none, or
-  removed, fails the mode, inside a string literal too; a run's length does not; and the three records,
-  which packet l also edits, must carry exactly this packet's delta — the lines its diffs add and remove,
+  removed, fails the mode, inside a string literal too; a run's length does not; and the five records
+  packet l also edits — the spec, the tasks, the lifetime map and the two READMEs — must carry exactly
+  this packet's delta — the lines its diffs add and remove,
   every `observed` date normalised — and nothing else of this packet's. **This mode's output is the
   dispatch evidence**: the planner runs it with `REAL_BASE=<the reviewed base SHA>` before the first
   dispatch and records it beside the review. Unset, the mode prints that it was skipped and proves
@@ -2699,20 +2801,6 @@ fill_above() {
       print ind "// not knowable from here."
     }
     { print }
-  ' "$file" > "$file.filled"
-  mv "$file.filled" "$file"
-}
-# Inserts the given lines after the one line whose text is exactly $2.
-insert_after() {
-  file=$1
-  anchor=$2
-  shift 2
-  test -f "$file"
-  test "$(awk -v a="$anchor" '$0 == a { n++ } END { print n + 0 }' "$file")" -eq 1
-  printf '%s\n' "$@" > "$file.lines"
-  awk -v a="$anchor" -v lines="$file.lines" '
-    { print }
-    $0 == a { while ((getline l < lines) > 0) print l }
   ' "$file" > "$file.filled"
   mv "$file.filled" "$file"
 }
@@ -2756,7 +2844,7 @@ for fill in 0 1 real; do
     /^## 8\. Proofs$/   { inside=0 }
     inside && /^```diff$/ { n++; f=sprintf("%s/%02d.diff", out, n); capture=1; next }
     capture && /^```$/ { capture=0; next }
-    capture { print >> f }
+    capture { print > f }
   ' "$packet"
   count=$(find "$work/patches" -name '*.diff' | wc -l)
   echo "fill=$fill extracted=$count"
@@ -2767,7 +2855,7 @@ for fill in 0 1 real; do
     inside && /^#### Proof / { id=$3; next }
     inside && /^```diff$/ { f=sprintf("%s/%s.diff", out, id); capture=1; next }
     capture && /^```$/ { capture=0; next }
-    capture { print >> f }
+    capture { print > f }
   ' "$packet"
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
@@ -2787,27 +2875,14 @@ for fill in 0 1 real; do
     test "$(grep -c 'Proof: simulated' "$app")" -eq 6
     tasks="$work/tree/openspec/changes/adopt-frontend-lifetimes/tasks.md"
     map="$work/tree/docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md"
-    spec="$work/tree/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md"
-    for note in "$tasks" "$map"; do
-      test "$(grep -c '<observed-date-[ik]>' "$note")" -eq 2
-      sed -i -E 's/<observed-date-[ik]>/2026-09-25/' "$note"
-    done
-    # Packet l, as its rehearsal edits these three records.
-    sed -i 's/^- \[ \] 3\. The page/- [x] 3. The page/' "$tasks"
-    test "$(grep -c '^- \[x\] 3\. The page' "$tasks")" -eq 1
-    insert_after "$tasks" "      trusted pilot mappings are preserved untouched." \
-      "      Moved by 050-7-l, observed 2026-09-25: simulated, standing where packet l's" \
-      "      note on task 12 goes."
-    insert_after "$tasks" "      bag, credential, broad client, repository or resource in delivery." \
-      "      Moved by 050-7-l, observed 2026-09-25: simulated, standing where packet l's" \
-      "      note on task 13 goes."
-    printf '%s\n' '' '### Requirement: Simulated, standing where packet l appends its own' '' \
-      'fe-01 SHALL be simulated.' '' '#### Scenario: Simulated' '' '- **WHEN** simulated' \
-      '- **THEN** simulated' >> "$spec"
-    h_update=$(grep '^Update, observed 2026-09-24 (050.7h, OpenSpec task 9)' "$map")
-    insert_after "$map" "$h_update" "" \
-      "Update, observed 2026-09-25 (050.7l, OpenSpec tasks 12 and 13): simulated, standing where packet l's goes."
-    echo "fill=1 filled-sites=6, packets i and k dated, packet l's three records simulated"
+    # Packet l's executor dates its four notes by its own observation: move each to another day.
+    test "$(grep -cE '050-7-l, observed [0-9]{4}-[0-9]{2}-[0-9]{2}' "$tasks")" -eq 3
+    sed -i -E 's/(050-7-l, observed )[0-9]{4}-[0-9]{2}-[0-9]{2}/\12026-10-01/' "$tasks"
+    test "$(grep -c '050-7-l, observed 2026-10-01' "$tasks")" -eq 3
+    test "$(grep -cE '^Update, observed [0-9]{4}-[0-9]{2}-[0-9]{2} \(050\.7l,' "$map")" -eq 1
+    sed -i -E 's/^Update, observed [0-9]{4}-[0-9]{2}-[0-9]{2} \(050\.7l,/Update, observed 2026-10-01 (050.7l,/' "$map"
+    test "$(grep -c '^Update, observed 2026-10-01 (050\.7l,' "$map")" -eq 1
+    echo "fill=1 filled-sites=6, packet l's four notes moved to another day"
   fi
   git -C "$work/tree" init -q
   git -C "$work/tree" add -A
@@ -2848,12 +2923,13 @@ for fill in 0 1 real; do
       apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts apps/wbs/fe-01/src/components/wbs/wbs-table.tsx"
     records="openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
       openspec/changes/adopt-frontend-lifetimes/tasks.md
-      docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md"
+      docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md
+      $m/calendar-markers/README.md $m/plan-writer/README.md"
     # shellcheck disable=SC2086 # three fixed lists of paths without spaces
     printf '%s\n' $tests $code $records | sort > "$work/owned.txt"
-    test "$(wc -l < "$work/owned.txt")" -eq 19
+    test "$(wc -l < "$work/owned.txt")" -eq 21
     diff "$work/owned.txt" "$work/changed.txt"
-    echo "fill=real changed exactly the nineteen owned paths"
+    echo "fill=real changed exactly the twenty-one owned paths"
     for f in $tests; do cmp "$work/tree/$f" "$work/final/$f"; done
     echo "fill=real five test files equal the rehearsal's"
     for f in $code; do test "$(code_of "$work/tree/$f")" = "$(code_of "$work/final/$f")"; done
@@ -2866,7 +2942,7 @@ for fill in 0 1 real; do
       test -n "$mine"
       test "$landed" = "$mine"
     done
-    echo "fill=real three records carry exactly this packet's delta"
+    echo "fill=real five records carry exactly this packet's delta"
   fi
 done
 ````
@@ -3084,8 +3160,9 @@ pointer outranks it`); or a `DiBagCloseCancelledError` (`DI_BAG_CLOSE_TIMEOUT`) 
 - `runtime/lifetime-slot.ts`, `runtime/session-runtime.ts`, `runtime/application-*`: read only.
 - `modules/plan-feed/*` — the feed's own `isActiveReader` stays; it is packet j's `m2` and is not
   redundant (the feed has no refresh-owner comparison to lean on).
-- Every module `README.md` and `tsconfig.json`, `project.json`, `docs/wiki-policy/*`,
-  `docs/code-organization/*`, `src/delivery-boundaries.test.ts`: packet l's.
+- Every module `README.md` but the two sentences slice 1 rewords and the plan writer's `invariants`
+  reason, every `tsconfig.json`, `project.json`, `docs/wiki-policy/*`, `docs/code-organization/*`,
+  `src/delivery-boundaries.test.ts`: packet l's.
 - `app-router.tsx`, `components/chrome/*`, `lib/*`, `main.tsx`, `testing/*`, every suite not named in
   section 5, the Vitest configs, `bun.lock`, `package.json`: no dependency is added, removed or bumped.
 
@@ -3165,9 +3242,9 @@ After this packet 050.7 owes, and no task of it is this packet's:
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Reproduced red           | Met: slice 1's compiler and runtime reds — on the authoring base and on a real-shaped base, where the typecheck status differs (1, 130) and is asserted non-zero — and slice 2's for the seam and the dependency list, each rebuilt from the previous slice plus its test side, diagnostics pasted; the five page oracles' reds are their faults. |
 | 2. Typecheck and lint       | Met: both native per slice, exit 0 on each rehearsed commit, both committed with lefthook on (section 9.3).                                                                                                                                                                                                                                       |
-| 3. Path counts              | Met: each hand-over lists the slice's exact paths (10, 11); the planner's own commit adds only this document.                                                                                                                                                                                                                                     |
+| 3. Path counts              | Met: each hand-over lists the slice's exact paths (12, 11); the planner's own commit adds only this document.                                                                                                                                                                                                                                     |
 | 4. Failure-visible commands | Met: every check records its own status and `expect-status.sh` asserts it.                                                                                                                                                                                                                                                                        |
-| 5. HEAD-reading tests       | N/A: no project, target or CI path is renamed.                                                                                                                                                                                                                                                                                                    |
+| 5. HEAD-reading tests       | Met: no project, target or CI path is renamed; the pilot's `pins …` test clones `HEAD` and overlays its member READMEs, which is why slice 1's green sees the two README edits before they are committed.                                                                                                                                         |
 | 6. Sandbox constraints      | Met: whole targets, build, devsync and Chromium are the planner's, with expected deltas (section 9.4).                                                                                                                                                                                                                                            |
 | 7. Known race               | Met: named, one rerun, no repair authority (section 10.11).                                                                                                                                                                                                                                                                                       |
 | 8. Names                    | Met: no product name in an identifier; no module identifier added.                                                                                                                                                                                                                                                                                |
@@ -3175,7 +3252,7 @@ After this packet 050.7 owes, and no task of it is this packet's:
 | 10. Pins                    | Met: no pin touched.                                                                                                                                                                                                                                                                                                                              |
 | 11. Pipeline exit handling  | Met: every `\|\| test $? -eq 1` follows one command; `delta_of` writes its `diff` before reading it.                                                                                                                                                                                                                                              |
 | 12. Planner chaining        | Met: the extraction stops at the first failed check (section 9.1).                                                                                                                                                                                                                                                                                |
-| 13. Module index            | N/A with reason: no file is added to a module directory; the new suite is under `components/wbs`.                                                                                                                                                                                                                                                 |
+| 13. Module index            | Met: no file is added to a module directory and no membership changes; the plan writer's `invariants` reason is reworded, checked by `check-indexes working` and the pilot's `pins …` test in slice 1's green.                                                                                                                                    |
 | 14. Bun directory filters   | N/A: every suite runs through Vitest from `apps/wbs/fe-01`.                                                                                                                                                                                                                                                                                       |
 | 15. Interleaving property   | N/A with reason: no owner, queue or retirement logic is written or changed; the owners' existing properties stand (section 3.4).                                                                                                                                                                                                                  |
 | 16. Model-based remedy      | N/A: no review round has found a race here; page hide, which would need one, is handed on with that requirement (section 12).                                                                                                                                                                                                                     |
@@ -3186,10 +3263,10 @@ After this packet 050.7 owes, and no task of it is this packet's:
 
 ## 15. Ready to commit
 
-| Slice | Paths                                                                                                                                                                                                                                                                                                                                                                               | Subject                                                                                                        |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 1     | `verify.md`, `apps/wbs/fe-01/src/modules/calendar-markers/{contract.ts,calendar-markers.feature.ts,calendar-markers.feature.test.ts}`, `apps/wbs/fe-01/src/modules/plan-writer/{contract.ts,plan-writer.feature.ts,plan-writer.test.ts,busy-store.ts}`, `apps/wbs/fe-01/src/modules/project/composition.test.ts`, `apps/wbs/fe-01/src/runtime/project-runtime.ts` — **10 modified** | `refactor(frontend): drop the reader predicate the refresh owner's identity already answers`                   |
-| 2     | `spec.md`, `verify.md`, `tasks.md`, `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, `apps/wbs/fe-01/src/{app.tsx,app.test.tsx}`, `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,use-plan-dependencies.ts,use-plan-read.ts,wbs-table.tsx}` — **10 modified**; `apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx` — **1 new**         | `refactor(frontend): give a project back whole on a switch, a route change and Strict Mode, and close task 11` |
+| Slice | Paths                                                                                                                                                                                                                                                                                                                                                                                                   | Subject                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1     | `verify.md`, `apps/wbs/fe-01/src/modules/calendar-markers/{README.md,contract.ts,calendar-markers.feature.ts,calendar-markers.feature.test.ts}`, `apps/wbs/fe-01/src/modules/plan-writer/{README.md,contract.ts,plan-writer.feature.ts,plan-writer.test.ts,busy-store.ts}`, `apps/wbs/fe-01/src/modules/project/composition.test.ts`, `apps/wbs/fe-01/src/runtime/project-runtime.ts` — **12 modified** | `refactor(frontend): drop the reader predicate the refresh owner's identity already answers`                   |
+| 2     | `spec.md`, `verify.md`, `tasks.md`, `docs/superpowers/plans/2026-09-21-batch-4/050-7-frontend-lifetime-map.md`, `apps/wbs/fe-01/src/{app.tsx,app.test.tsx}`, `apps/wbs/fe-01/src/components/wbs/{project-page.tsx,use-plan-dependencies.ts,use-plan-read.ts,wbs-table.tsx}` — **10 modified**; `apps/wbs/fe-01/src/components/wbs/project-replacement.test.tsx` — **1 new**                             | `refactor(frontend): give a project back whole on a switch, a route change and Strict Mode, and close task 11` |
 
 (`spec.md`, `verify.md` and `tasks.md` are under `openspec/changes/adopt-frontend-lifetimes/`.) After
 the last commit the host gate runs on the shared build host with the committed hash, and its printed
@@ -3199,19 +3276,19 @@ happened.
 
 ## 16. Round 1, disposed
 
-| Finding                                                                         | Disposal                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Critical 1 — slice 1's red typecheck cannot be `status=1` on the real base      | Fixed as prescribed: the status is asserted non-zero (`test "$(tail -n 1 …)" != "status=0"`) and the five TS2741 lines are counted; the expectation names 130 as observed, not pinned, with the three per-module `Found … error` lines; section 9.3's red row and stop condition 6 follow. Re-rehearsed on a real-shaped base: `status=130`, five TS2741 (section 9.3).                                       |
-| Important 1 — packet h's scenario says a left gesture lowers no busy state      | Fixed: 7.3's first hunk rewords it ("announces nothing and lowers only its own runtime's busy state, which nobody draws once it is withdrawn"); "slice 1 changes no behaviour and no spec" is gone from section 1 and the schema row. Strict block 114 · 114 · 0 after it.                                                                                                                                    |
-| Important 2 — the dependency list's `activeCommands` guard is not in the ledger | Added as row 15, and it was **broken**, not merely unproved: the ref stays equal to a gesture's commands once its table is gone, and a list refused after a switch toasted over the next project (red on the unchanged tree). Repaired — the hook takes its runtime's `isCurrent` — and proved on a production path (`d1`, `d2`); its busy and reread uses keep the one predicate (section 13, assumption 8). |
-| Important 3 — page hide has no owner                                            | WBS item `4334fc49-e143-4671-af58-28cfd5f35423`; slice 2 step 4 appends task 14 (unchecked) naming it; sections 1, 3.1 row 13, 3.4, 3.5 and 12 cite it. Appended by a script because it follows packet l's note, at the end of the file (section 5).                                                                                                                                                          |
-| Important 4 — the task-11 note omits what stays open                            | Fixed: the note ends with the saved-plan shelf (task 10) and page hide (task 14).                                                                                                                                                                                                                                                                                                                             |
-| Minor 1 — stale proxy SHA                                                       | Section 9.1's observed run is now against a stand-in built from packet k's lane and packet l's current packet and diffs, named there.                                                                                                                                                                                                                                                                         |
-| Minor 2 — the failed-check example quotes the wrong line                        | Re-observed and quoted as printed (section 9.1).                                                                                                                                                                                                                                                                                                                                                              |
-| Minor 3 — cite where the page-level Strict Mode property is proved              | Section 3.2 cites packet j's `o1` and `lifetime-slot.model.test.ts`.                                                                                                                                                                                                                                                                                                                                          |
-| Minor 4 — `run-check.sh`'s summary misses coloured tsc output                   | Recorded in section 9.5; slice 1's red counts `TS2741`, not `error TS`.                                                                                                                                                                                                                                                                                                                                       |
-| Minor 5 — packet l's README "three ownership moments"                           | Section 5 says it is packet l's lane to fix.                                                                                                                                                                                                                                                                                                                                                                  |
-| Minor 6 — packets i and k are absent from the authoring base                    | Section 2 says so.                                                                                                                                                                                                                                                                                                                                                                                            |
+| Finding                                                                         | Disposal                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical 1 — slice 1's red typecheck cannot be `status=1` on the real base      | Fixed as prescribed: the status is asserted non-zero (`test "$(tail -n 1 …)" != "status=0"`) and the five TS2741 lines are counted; the expectation names 130 as observed, not pinned, with the three per-module `Found … error` lines; section 9.3's red row and stop condition 6 follow. Re-rehearsed on a real-shaped base: `status=130`, five TS2741 (section 9.3).                                          |
+| Important 1 — packet h's scenario says a left gesture lowers no busy state      | Fixed: 7.3's first hunk rewords it ("announces nothing and lowers only its own runtime's busy state, which nobody draws once it is withdrawn"); "slice 1 changes no behaviour and no spec" is gone from section 1 and the schema row. Strict block 114 · 114 · 0 after it.                                                                                                                                       |
+| Important 2 — the dependency list's `activeCommands` guard is not in the ledger | Added as row 15, and it was **broken**, not merely unproved: the ref stays equal to a gesture's commands once its table is gone, and a list refused after a switch toasted over the next project (red on the unchanged tree). Repaired — the hook takes its runtime's `isCurrent` — and proved on a production path (`d1`, `d2`). Its busy and reread guards were kept here and deleted in round 2 (section 17). |
+| Important 3 — page hide has no owner                                            | WBS item `4334fc49-e143-4671-af58-28cfd5f35423`; slice 2 step 4 appends task 14 (unchecked) naming it; sections 1, 3.1 row 13, 3.4, 3.5 and 12 cite it. Appended by a script because it follows packet l's note, at the end of the file (section 5).                                                                                                                                                             |
+| Important 4 — the task-11 note omits what stays open                            | Fixed: the note ends with the saved-plan shelf (task 10) and page hide (task 14).                                                                                                                                                                                                                                                                                                                                |
+| Minor 1 — stale proxy SHA                                                       | Section 9.1's observed run is now against a stand-in built from packet k's lane and packet l's current packet and diffs, named there.                                                                                                                                                                                                                                                                            |
+| Minor 2 — the failed-check example quotes the wrong line                        | Re-observed and quoted as printed (section 9.1).                                                                                                                                                                                                                                                                                                                                                                 |
+| Minor 3 — cite where the page-level Strict Mode property is proved              | Section 3.2 cites packet j's `o1` and `lifetime-slot.model.test.ts`.                                                                                                                                                                                                                                                                                                                                             |
+| Minor 4 — `run-check.sh`'s summary misses coloured tsc output                   | Recorded in section 9.5; slice 1's red counts `TS2741`, not `error TS`.                                                                                                                                                                                                                                                                                                                                          |
+| Minor 5 — packet l's README "three ownership moments"                           | Handed to packet l's lane here; round 3 moved it to this packet's slice 1 (section 18).                                                                                                                                                                                                                                                                                                                          |
+| Minor 6 — packets i and k are absent from the authoring base                    | Section 2 says so.                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ## 17. Round 2, disposed
 
@@ -3220,4 +3297,4 @@ happened.
 | Important 1 — row 15 and assumption 8 claim a fixture negative for the dependency list's busy and reread guards; the busy guard's `Proof:` is false | The preferred fix: 7.5 deletes both guards — `refreshOrMarkStale(…)` and `busy.lower()` unconditional — and the stale `Proof:` block; `isCurrent` stays for the toast (`d1`, `d2`). The reviewer's observations are the deletion evidence (each guard removed, and both: 167 of 167 in the four suites), and the re-cut slice's own green is the same run with both gone. Row 15, assumption 8, section 3.2 and section 9.3 follow; slice 2 re-cut as `rehearse/050-7-m-r3`; `final=` updated. |
 | Minor 1 — the scenario covers a dependency list's success                                                                                           | Reworded: "an undo's success or refusal, or a dependency list's refusal".                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Minor 2 — code spans broken across lines in both red expectations                                                                                   | The quoted diagnostics are now in `text` blocks, one per line.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Minor 3 — the recorded stand-in predates packet l's round 2 and integration's move                                                                  | Section 9.1's run is on a stand-in built from integration `f15971021`, packet l's three packet commits and its diffs, and this packet's file.                                                                                                                                                                                                                                                                                                                                                  |
+| Minor 3 — the recorded stand-in predates packet l's round 2 and integration's move                                                                  | Section 9.1's run is on a stand-in built from integration `f15971021`, packet l's four packet commits and its diffs, and this packet's file.                                                                                                                                                                                                                                                                                                                                                   |
