@@ -47,7 +47,12 @@ export async function writeProject(
     targets: {
       lint: {
         executor: 'nx:run-commands',
-        options: { command: `bunx eslint ${root}/src --no-cache` },
+        // `--bun` runs ESLint under Bun. Under Node, a child whose stdio is one of Bun's socket
+        // pipes loses everything it writes when `getsockname` is refused (the Codex sandbox's
+        // network filter does this) while its exit status survives, so the policy diagnostics
+        // these fixtures assert on vanish. Observed 2026-09-26: 11 pass, 4 fail sandboxed with
+        // `bunx eslint`, 15 pass, 0 fail with `bunx --bun eslint`, sandboxed and not.
+        options: { command: `bunx --bun eslint ${root}/src --no-cache` },
       },
     },
   });
