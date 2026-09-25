@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mappingId": "modules.tool-wiki-bootstrap.v1",
-  "mappingVersion": "tool-wiki-bootstrap-6475fdcc-v3",
+  "mappingVersion": "tool-wiki-bootstrap-6475fdcc-v4",
   "sourceRevision": "364cc0f8ef901cbfc574c6391c385e7f79bf27b4",
   "modules": [
     {
@@ -206,12 +206,12 @@
       "memberships": [
         {
           "kind": "directory-prefix",
-          "prefix": "apps/wiki/cli",
+          "prefix": "apps/twilight-structure/twilight-burokrat/cli",
           "exclusions": []
         }
       ],
       "predecessorModuleIds": [],
-      "indexPath": "apps/wiki/cli/README.md",
+      "indexPath": "apps/twilight-structure/twilight-burokrat/cli/README.md",
       "externalConsumers": {
         "kind": "declared",
         "memberships": [

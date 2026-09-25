@@ -25,7 +25,7 @@ import {
   write,
 } from '../policy/relocation-fixtures';
 
-const workspace = resolve(import.meta.dir, '../../../../..');
+const workspace = resolve(import.meta.dir, '../../../../../..');
 const bootstrapSource = join(workspace, 'infra/ci/burokrat');
 const trustedWorkflow = join(workspace, '.github/workflows/trusted-wiki.yml');
 const compatibilityRoute = join(workspace, 'bin/tool-wiki-package-lint.sh');

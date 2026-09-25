@@ -741,7 +741,7 @@
       "boundaryId": "boundary.infra.tool-wiki",
       "selector": {
         "kind": "prefix",
-        "value": "apps/wiki/cli"
+        "value": "apps/twilight-structure/twilight-burokrat/cli"
       },
       "sourceSelector": {
         "kind": "prefix",

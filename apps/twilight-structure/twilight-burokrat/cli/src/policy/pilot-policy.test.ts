@@ -25,7 +25,7 @@ interface ExactTuple {
   blob: string;
 }
 
-const repositoryRoot = resolve(import.meta.dir, '../../../../..');
+const repositoryRoot = resolve(import.meta.dir, '../../../../../..');
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 const pilotPaths = [
   'docs/refactoring/w4-4/README.md',
@@ -71,7 +71,7 @@ const pilotPaths = [
   'apps/wbs/fe-01/src/modules/plan-writer/README.md',
   'apps/wbs/fe-01/src/modules/preferences/README.md',
   'apps/wbs/fe-01/src/modules/project/README.md',
-  'apps/wiki/cli/README.md',
+  'apps/twilight-structure/twilight-burokrat/cli/README.md',
 ] as const;
 const scratch: string[] = [];
 
@@ -601,9 +601,10 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // one when tool-wiki became `apps/wiki/cli` (2026-09-16), from there to the Solver
     // launcher's index when the first backend module registered `check.be-01.test`
     // (2026-09-23), and from there to the Optimization module's index, which sorts before it
-    // (2026-09-24).
+    // (2026-09-24). Moving Twilight Burokrat into the Twilight Structure suite put its own index
+    // first again, since `apps/twilight-structure` sorts before `apps/wbs` (2026-09-25).
     expect(observed).toContain(
-      'applicable check has no executable authority in apps/wbs/be-01/src/module/optimization/README.md: check.be-01.test (external-consumer)',
+      'applicable check has no executable authority in apps/twilight-structure/twilight-burokrat/cli/README.md: check.wiki-cli.test (external-consumer)',
     );
   }, 120_000);
 
@@ -967,8 +968,12 @@ describe('on-disk bootstrap policy, mapping and relationship files', () => {
     // only ask that a selector match something, which a widened `apps` would also do.
     // Proof: widening the boundary's selector to `apps` in the real policy file left every
     // assertion below green — `apps` matches at HEAD and every mapped path still lies under it —
-    // and failed here alone on `- "value": "apps/wiki/cli" · + "value": "apps"` (2026-09-16).
-    expect(wiki?.selector).toEqual({ kind: 'prefix', value: 'apps/wiki/cli' });
+    // and failed here alone on `- "value": "apps/twilight-structure/twilight-burokrat/cli" ·
+    // + "value": "apps"` (2026-09-25).
+    expect(wiki?.selector).toEqual({
+      kind: 'prefix',
+      value: 'apps/twilight-structure/twilight-burokrat/cli',
+    });
     expect(wiki?.sourceSelector).toEqual({ kind: 'prefix', value: 'tools/tool-wiki' });
     // Proof: with the three moved boundaries still selecting `libs/domain/src/saved-plan`,
     // `libs/core/src/use-cases` and `libs/store-memory/src`, this assertion failed with exactly

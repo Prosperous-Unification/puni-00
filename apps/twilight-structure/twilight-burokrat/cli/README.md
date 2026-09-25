@@ -52,7 +52,7 @@ tests the installed tarball outside this checkout, records its SHA-256 and npm i
 the same file between jobs, verifies it again, and runs a registry dry run before publication. The
 package is distributed under the MIT License ([LICENSE](./LICENSE)). The registry name, protected
 environment and token are external prerequisites. Operational details
-live in [the activation runbook](../../../docs/runbook-tool-wiki-activation.md#release).
+live in [the activation runbook](../../../../docs/runbook-tool-wiki-activation.md#release).
 
 ## Experiment evidence
 

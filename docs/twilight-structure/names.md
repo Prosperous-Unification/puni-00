@@ -136,4 +136,4 @@ Twilight Navigator, or about rules and evidence, which is Twilight Burokrat.
 Review receipts, research notes and stored evidence are historical snapshots and keep their
 original wording. Stored evidence identities, version-1 record and module identifiers, role
 filenames and the legacy wiki environment variables keep their spelling, as the
-[Burokrat package](../../apps/wiki/cli/README.md) already requires.
+[Burokrat package](../../apps/twilight-structure/twilight-burokrat/cli/README.md) already requires.

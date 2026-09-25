@@ -25,8 +25,8 @@ import {
 } from '../policy/relocation-fixtures';
 import { packPackage } from './pack';
 
-const workspace = resolve(import.meta.dir, '../../../../..');
-const packageSource = join(workspace, 'apps/wiki/cli');
+const workspace = resolve(import.meta.dir, '../../../../../..');
+const packageSource = join(workspace, 'apps/twilight-structure/twilight-burokrat/cli');
 const packedTarball = join(workspace, 'dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz');
 const scratchRoots: string[] = [];
 

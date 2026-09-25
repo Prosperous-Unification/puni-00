@@ -179,7 +179,10 @@ export async function preparePackageRelease(
     throw new Error(`release checkout is dirty: ${dirty.slice(0, 3).join(', ')}`);
 
   const sourceManifest = readObject(
-    readFileSync(join(repository, 'apps/wiki/cli/package.json'), 'utf8'),
+    readFileSync(
+      join(repository, 'apps/twilight-structure/twilight-burokrat/cli/package.json'),
+      'utf8',
+    ),
     'source package manifest',
   );
   // Proof: tagging the same commit as `twilight-burokrat-v0.2.0` let a 0.1.0 tarball reach the
@@ -195,7 +198,7 @@ export async function preparePackageRelease(
     typeof sourceManifest['license'] !== 'string' ||
     sourceManifest['license'].trim() === '' ||
     sourceManifest['license'] === 'UNLICENSED' ||
-    !existsSync(join(repository, 'apps/wiki/cli/LICENSE'))
+    !existsSync(join(repository, 'apps/twilight-structure/twilight-burokrat/cli/LICENSE'))
   ) {
     throw new Error('package publication requires a source distribution license');
   }

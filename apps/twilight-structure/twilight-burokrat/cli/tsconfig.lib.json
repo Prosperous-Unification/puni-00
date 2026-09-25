@@ -1,6 +1,9 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "outDir": "../../../dist/apps/wiki/cli", "declaration": true },
+  "compilerOptions": {
+    "outDir": "../../../../dist/apps/twilight-structure/twilight-burokrat/cli",
+    "declaration": true
+  },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }

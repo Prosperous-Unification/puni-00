@@ -6,7 +6,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 
 import { extractNxRelationships } from './nx';
 
-const repositoryRoot = resolve(import.meta.dir, '../../../../..');
+const repositoryRoot = resolve(import.meta.dir, '../../../../../..');
 const DECLARATIONS = [
   'docs/wiki-policy/relationships.json',
   'docs/wiki-policy/relationships.bootstrap.json',

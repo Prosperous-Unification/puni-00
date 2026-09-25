@@ -22,11 +22,19 @@ import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
 import { resolveValidatorArtifactPaths } from './trust';
 
-const workspace = join(import.meta.dir, '..', '..', '..', '..', '..');
+const workspace = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
 const adapterPath = join(workspace, 'bin', 'tool-wiki-lint.sh');
 const gateLibraryPath = join(workspace, 'bin', 'h2puni-gate-lib.sh');
 const pushAuditPath = join(workspace, 'bin', 'tool-wiki-push-audit.sh');
-const trustedCliPath = join(workspace, 'apps', 'wiki', 'cli', 'src', 'cli.ts');
+const trustedCliPath = join(
+  workspace,
+  'apps',
+  'twilight-structure',
+  'twilight-burokrat',
+  'cli',
+  'src',
+  'cli.ts',
+);
 const scratchPaths: string[] = [];
 
 function streamText(stream: Uint8Array | undefined, subject: string): string {
@@ -126,7 +134,7 @@ function fixture(): {
   write(join(activationRoot, 'validator-path'), `${cliPath}\n`);
   write(
     join(activationRoot, 'snapshotter-path'),
-    `${join(workspace, 'apps', 'wiki', 'cli', 'src', 'policy', 'snapshot-validator.ts')}\n`,
+    `${join(workspace, 'apps', 'twilight-structure', 'twilight-burokrat', 'cli', 'src', 'policy', 'snapshot-validator.ts')}\n`,
   );
   write(join(activationRoot, 'local-binding-path'), `${bindingPath}\n`);
   write(join(activationRoot, 'ci-binding-path'), `${bindingPath}\n`);
@@ -149,7 +157,10 @@ function activationArchiveRoot(sourceRevision: string): string {
     mapping: join(sources, 'mapping.json'),
     policy: join(sources, 'policy.json'),
     reviewReceipt: join(sources, 'review.json'),
-    snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+    snapshotter: join(
+      workspace,
+      'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+    ),
     validator,
   };
   for (const role of ['authority', 'evidence', 'mapping', 'policy', 'reviewReceipt'] as const)
@@ -515,7 +526,7 @@ function realFixture(): RealFixture {
   write(join(trust, 'validator-path'), `${realpathSync(trustedCliPath)}\n`);
   write(
     join(trust, 'snapshotter-path'),
-    `${join(workspace, 'apps', 'wiki', 'cli', 'src', 'policy', 'snapshot-validator.ts')}\n`,
+    `${join(workspace, 'apps', 'twilight-structure', 'twilight-burokrat', 'cli', 'src', 'policy', 'snapshot-validator.ts')}\n`,
   );
   write(join(trust, 'local-binding-path'), `${bindingPath}\n`);
   write(join(trust, 'ci-binding-path'), `${bindingPath}\n`);
@@ -737,7 +748,10 @@ describe('tool-wiki production entrypoint adapter', () => {
       mapping: join(sources, 'mapping.json'),
       policy: join(sources, 'policy.json'),
       reviewReceipt: join(sources, 'review.json'),
-      snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+      snapshotter: join(
+        workspace,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+      ),
       validator,
     };
     for (const role of ['authority', 'evidence', 'mapping', 'policy', 'reviewReceipt'] as const)
@@ -852,7 +866,10 @@ describe('tool-wiki production entrypoint adapter', () => {
         mapping,
         policy,
         reviewReceipt,
-        snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+        snapshotter: join(
+          workspace,
+          'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+        ),
         validator,
       },
       sourceRevision: '4'.repeat(40),
@@ -1111,7 +1128,8 @@ exec "$real_bun" "$@"
     const productionSnapshotter = join(
       workspace,
       'apps',
-      'wiki',
+      'twilight-structure',
+      'twilight-burokrat',
       'cli',
       'src',
       'policy',
@@ -1189,7 +1207,10 @@ await import(${JSON.stringify(productionSnapshotter)});
 
   test('Nx, host gate, CI and lefthook select the whole tree without caching', () => {
     const project = JSON.parse(
-      readFileSync(join(workspace, 'apps', 'wiki', 'cli', 'project.json'), 'utf8'),
+      readFileSync(
+        join(workspace, 'apps', 'twilight-structure', 'twilight-burokrat', 'cli', 'project.json'),
+        'utf8',
+      ),
     ) as {
       targets: Partial<
         Record<string, { cache?: boolean; inputs?: string[]; options?: { command?: string } }>
@@ -1214,7 +1235,9 @@ await import(${JSON.stringify(productionSnapshotter)});
       inputs: ['{workspaceRoot}/**/*'],
       options: { command: 'bash bin/tool-wiki-lint.sh working . HEAD' },
     });
-    expect(project.targets['lint:source']?.options?.command).toBe('bunx eslint apps/wiki/cli/src');
+    expect(project.targets['lint:source']?.options?.command).toBe(
+      'bunx eslint apps/twilight-structure/twilight-burokrat/cli/src',
+    );
     expect(hostGate).not.toContain('cp "$repo_root/bin/tool-wiki-lint.sh"');
     expect(hostGate).toContain(
       'launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")',
@@ -1289,7 +1312,14 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci).toContain('--exclude=twilight-burokrat');
     expect(ci).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     const consumerTemplate = readFileSync(
-      join(workspace, 'apps', 'wiki', 'consumer', 'trusted-wiki.yml'),
+      join(
+        workspace,
+        'apps',
+        'twilight-structure',
+        'twilight-burokrat',
+        'consumer',
+        'trusted-wiki.yml',
+      ),
       'utf8',
     );
     // Proof: an edited copy of the template failed here with the two texts printed side by side.
@@ -1297,7 +1327,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     // divergence becomes a repository whose admission workflow is not the reviewed one.
     expect(consumerTemplate).toBe(trustedCi);
     const consumerReadme = readFileSync(
-      join(workspace, 'apps', 'wiki', 'consumer', 'README.md'),
+      join(workspace, 'apps', 'twilight-structure', 'twilight-burokrat', 'consumer', 'README.md'),
       'utf8',
     );
     for (const required of [

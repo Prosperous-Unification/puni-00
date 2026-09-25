@@ -49,12 +49,12 @@ function fixture(
   const packageRoot = join(root, 'package/package');
   const version = options.version ?? '0.1.0';
   const packedVersion = options.packedVersion ?? version;
-  mkdirSync(join(repository, 'apps/wiki/cli'), { recursive: true });
+  mkdirSync(join(repository, 'apps/twilight-structure/twilight-burokrat/cli'), { recursive: true });
   run(['git', 'init', '--initial-branch=main'], repository);
   run(['git', 'config', 'user.email', 'release@example.test'], repository);
   run(['git', 'config', 'user.name', 'Release Fixture'], repository);
   writeFileSync(
-    join(repository, 'apps/wiki/cli/package.json'),
+    join(repository, 'apps/twilight-structure/twilight-burokrat/cli/package.json'),
     `${JSON.stringify({
       name: 'twilight-burokrat',
       version,
@@ -62,7 +62,10 @@ function fixture(
     })}\n`,
   );
   if (!options.unlicensed)
-    writeFileSync(join(repository, 'apps/wiki/cli/LICENSE'), 'fixture license\n');
+    writeFileSync(
+      join(repository, 'apps/twilight-structure/twilight-burokrat/cli/LICENSE'),
+      'fixture license\n',
+    );
   run(['git', 'add', '--all'], repository);
   run(['git', 'commit', '--message', 'release package'], repository);
   const sourceRevision = run(['git', 'rev-parse', 'HEAD'], repository);
@@ -129,7 +132,7 @@ afterAll(async () => {
 describe('package release planner', () => {
   test('workflow pins both checkouts and performs executable release-state proofs', () => {
     const workflow = readFileSync(
-      join(import.meta.dir, '../../../../../.github/workflows/twilight-burokrat-release.yml'),
+      join(import.meta.dir, '../../../../../../.github/workflows/twilight-burokrat-release.yml'),
       'utf8',
     );
     expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/g)).toHaveLength(2);

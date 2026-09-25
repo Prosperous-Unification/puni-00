@@ -17,3 +17,15 @@ policies 0·2, cache 2·2. Green: layout 23·0, policies 17·0, cache 4·0, lega
 `cli/tsconfig.json`, whose `extends` line alone changed (`s2-tsconfig.diff`). Pending planner
 verification: the commit's rename summary; whole `tool-devsync:test` is red at this commit by
 design (slice 3 repairs it).
+
+## Slice 3 — every reference follows (author's rehearsal, 2026-09-25)
+
+Baselines on the slice 2 commit were red by design: layout 22·1, workspace-projects 15·2, sync 50·2,
+inventory 3·1, targets 17·2, legacy pin 0·1, `twilight-burokrat:typecheck` TS6053. The retired-root
+check went red first (1·2, 115 current lines). `s3-edit` matched every count; Prettier reformatted 12
+of the 50 touched files. Green: devsync focused files, both typechecks and lints, the build, thirteen
+Twilight Burokrat files and two pilot filters all exit 0; the legacy pin moved to `c0a77f33…` at 308.
+Faults g1–g7 with their clause-off twins, e1–e3 and r1–r5 behaved as section 8.2 records
+(`fault-*.log`). Pending planner verification: whole `tool-devsync:test`, whole
+`twilight-burokrat:test`, the pilot suite, `check-indexes committed`, `test:package` and the tarball
+listing, the Nx graph, the host gate.

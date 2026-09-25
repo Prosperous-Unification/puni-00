@@ -34,7 +34,7 @@ import {
   writeBytes,
 } from './trusted-modules';
 
-const workspace = resolve(import.meta.dir, '..', '..', '..', '..', '..');
+const workspace = resolve(import.meta.dir, '..', '..', '..', '..', '..', '..');
 const scratchPaths: string[] = [];
 
 function scratch(prefix: string): string {
@@ -70,19 +70,31 @@ function releaseCheckout(): { repository: string; destinationParent: string } {
   write(join(repository, '.bun-version'), `${Bun.version}\n`);
   cpSync(join(workspace, 'bin', 'tool-wiki-lint.sh'), join(repository, 'bin/tool-wiki-lint.sh'));
   cpSync(
-    join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
-    join(repository, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+    join(
+      workspace,
+      'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+    ),
+    join(
+      repository,
+      'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+    ),
   );
   write(
-    join(repository, 'apps/wiki/cli/src/cli.ts'),
+    join(repository, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
     'process.stdout.write(`${JSON.stringify({ argv: process.argv.slice(2) })}\\n`);\n',
   );
   write(
-    join(repository, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
+    join(
+      repository,
+      'apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-activation-cli.ts',
+    ),
     'process.stdout.write("prepare\\n");\n',
   );
   write(
-    join(repository, 'apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts'),
+    join(
+      repository,
+      'apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-relocation-activation-cli.ts',
+    ),
     'process.stdout.write("prepare relocation\\n");\n',
   );
   write(
@@ -230,7 +242,10 @@ describe('wiki-cli release target', () => {
     const { repository, destinationParent } = releaseCheckout();
     const parent = git(repository, ['rev-parse', 'HEAD']);
     git(repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
-    write(join(repository, 'apps/wiki/cli/src/cli.ts'), 'process.stdout.write("moved\\n");\n');
+    write(
+      join(repository, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
+      'process.stdout.write("moved\\n");\n',
+    );
     git(repository, ['add', '--all']);
     git(repository, ['commit', '--message', 'after the tag']);
     const head = git(repository, ['rev-parse', 'HEAD']);
@@ -462,9 +477,14 @@ async function realToolkit(): Promise<string> {
   const roleBytes = {
     'launcher.sh': readFileSync(join(workspace, 'bin/tool-wiki-lint.sh')),
     'snapshotter.ts': readFileSync(
-      join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+      join(
+        workspace,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+      ),
     ),
-    'validator.mjs': await buildValidatorBundle(join(workspace, 'apps/wiki/cli/src/cli.ts')),
+    'validator.mjs': await buildValidatorBundle(
+      join(workspace, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
+    ),
     'prepare-activation.mjs': new TextEncoder().encode('// not executed by this test\n'),
     'prepare-relocation-activation.mjs': new TextEncoder().encode('// not executed by this test\n'),
   };
@@ -623,7 +643,10 @@ describe('consumer activation from a toolkit', () => {
     writeBytes(
       bundle,
       await buildValidatorBundle(
-        join(workspace, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
+        join(
+          workspace,
+          'apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-activation-cli.ts',
+        ),
       ),
     );
 

@@ -1546,7 +1546,7 @@ describe('trusted policy production CLI', () => {
     );
     write(join(activation, 'ci-binding-path'), `${fixture.bindingPath}\n`);
     write(join(activation, 'evidence-path'), `${fixture.evidencePath}\n`);
-    const workspace = join(import.meta.dir, '..', '..', '..', '..', '..');
+    const workspace = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
     const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
     scratchPaths.push(runtime);
 
@@ -1670,7 +1670,7 @@ describe('trusted policy production CLI', () => {
     );
     write(join(activation, 'ci-binding-path'), `${fixture.bindingPath}\n`);
     write(join(activation, 'evidence-path'), `${fixture.evidencePath}\n`);
-    const workspace = join(import.meta.dir, '..', '..', '..', '..', '..');
+    const workspace = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
     const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
     scratchPaths.push(runtime);
 
@@ -1780,7 +1780,7 @@ describe('trusted policy production CLI', () => {
     );
     write(join(activation, 'ci-binding-path'), `${fixture.bindingPath}\n`);
     write(join(activation, 'evidence-path'), `${fixture.evidencePath}\n`);
-    const workspace = join(import.meta.dir, '..', '..', '..', '..', '..');
+    const workspace = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
     const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
     scratchPaths.push(runtime);
 

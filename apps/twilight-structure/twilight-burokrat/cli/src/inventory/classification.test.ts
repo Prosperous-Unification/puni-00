@@ -626,13 +626,13 @@ describe('entry classification production CLI', () => {
     (policyName) => {
       const repository = createRepository();
       const containerfile = 'infra/controller/Containerfile';
-      const notice = 'apps/wiki/cli/NOTICE';
+      const notice = 'apps/twilight-structure/twilight-burokrat/cli/NOTICE';
       write(repository, containerfile, 'FROM scratch\n');
       write(repository, notice, 'Third-party notices\n');
       const revision = commitAll(repository);
       const trustedPolicy = JSON.parse(
         readFileSync(
-          join(import.meta.dir, '../../../../..', 'docs/wiki-policy', policyName),
+          join(import.meta.dir, '../../../../../..', 'docs/wiki-policy', policyName),
           'utf8',
         ),
       ) as { classificationPolicy: object };
@@ -644,7 +644,8 @@ describe('entry classification production CLI', () => {
 
       // Proof: before the explicit names were added, the production CLI refused the fleet
       // candidate at `ordinary content infra/controller/Containerfile matched 0 classification
-      // rules`; removing NOTICE then moves the same refusal to `apps/wiki/cli/NOTICE`.
+      // rules`; removing NOTICE then moves the same refusal to
+      // `apps/twilight-structure/twilight-burokrat/cli/NOTICE`.
       expect(invocation.exitCode, output(invocation)).toBe(0);
       const classified = JSON.parse(standardOutput(invocation)) as {
         entries: { path: string; classification: { contentClass: string } }[];

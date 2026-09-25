@@ -300,21 +300,37 @@ function filterTags(project, axis) {
 export const APPLICATION_SUITES = Object.freeze(['twilight-structure']);
 
 /**
- * Application roots whose directory temporarily differs from their product.
- * `apps/wiki/cli` publishes and runs as `twilight-burokrat` but moves to
- * `apps/twilight-burokrat/cli` only after the wiki freeze/adoption tasks
- * (openspec/changes/twilight-burokrat-package/design.md). Each entry excuses
- * exactly one root, product and name; {@link findStaleLayoutExceptions} fails
- * once the root is gone so the excuse cannot outlive the move.
+ * Application roots whose Nx name differs from the `<product>-<project>` their directories give.
+ * Twilight Burokrat's command-line project keeps the name `twilight-burokrat` it publishes and
+ * runs under rather than `twilight-burokrat-cli`
+ * (`openspec/changes/adopt-suite-directory-layout`). Each entry excuses exactly one root's name
+ * and nothing else; {@link findStaleLayoutExceptions} fails once the root is gone so the excuse
+ * cannot outlive the project.
  *
- * @type {Readonly<Record<string, { readonly product: string, readonly name: string }>>}
+ * @type {Readonly<Record<string, string>>}
  */
-export const FROZEN_APPLICATION_ROOTS = {
-  'apps/wiki/cli': { product: 'twilight-burokrat', name: 'twilight-burokrat' },
+export const APPLICATION_NAME_EXCEPTIONS = {
+  'apps/twilight-structure/twilight-burokrat/cli': 'twilight-burokrat',
 };
 
 /**
- * Name every frozen application root that no discovered project still occupies.
+ * The Nx name {@link APPLICATION_NAME_EXCEPTIONS} gives an application root, if it names one.
+ *
+ * @param {string} root
+ * @returns {string | undefined}
+ */
+function excusedName(root) {
+  // Proof: excusing every root under the product directory instead of the exact one made
+  // `excuses only the exact root its name exception names` lose its
+  // `…/twilight-burokrat/other: project name must be twilight-burokrat-other` line
+  // (2026-09-25).
+  return Object.hasOwn(APPLICATION_NAME_EXCEPTIONS, root)
+    ? APPLICATION_NAME_EXCEPTIONS[root]
+    : undefined;
+}
+
+/**
+ * Name every name exception whose root no discovered project still occupies.
  *
  * @param {readonly NamespaceProject[]} projects
  * @returns {readonly string[]}
@@ -322,11 +338,11 @@ export const FROZEN_APPLICATION_ROOTS = {
 export function findStaleLayoutExceptions(projects) {
   const roots = new Set(projects.map((project) => project.root));
   return (
-    Object.keys(FROZEN_APPLICATION_ROOTS)
-      // Proof: disabling this filter failed `names a frozen root that no project occupies after
-      // the move` (2026-09-18).
+    Object.keys(APPLICATION_NAME_EXCEPTIONS)
+      // Proof: with this filter answering `false`, `names a name exception that no project
+      // occupies` received `[]` (2026-09-25).
       .filter((root) => !roots.has(root))
-      .map((root) => `${root}: frozen layout exception names no project; remove it`)
+      .map((root) => `${root}: name exception names no project; remove it`)
   );
 }
 
@@ -435,17 +451,10 @@ export function findNamespaceLayoutViolations(projects) {
       // Proof: disabling this check made the owning Nx target omit the app's
       // directory/product disagreement while retaining the library refusal
       // (2026-09-14).
-      // Proof: matching any `apps/wiki/` root instead of the exact frozen root failed
-      // `excuses only the exact frozen application product and name`; without the entry the
-      // actual workspace reported `apps/wiki/cli: directory product wiki disagrees with
-      // product:twilight-burokrat` and its name refusal (2026-09-18).
-      const frozen = Object.hasOwn(FROZEN_APPLICATION_ROOTS, project.root)
-        ? FROZEN_APPLICATION_ROOTS[project.root]
-        : undefined;
       // Proof: with the product read at `segments[1]`, `derives a suite project product and
       // name from its product directory` lost its `directory product twilight-probe` line
       // (2026-09-25).
-      const expectedProduct = frozen?.product ?? segments[productAt];
+      const expectedProduct = segments[productAt];
       if (products.length === 1 && products[0] !== `product:${expectedProduct}`) {
         violations.push(
           `${project.root}: directory product ${expectedProduct} disagrees with ${products[0]}`,
@@ -453,7 +462,11 @@ export function findNamespaceLayoutViolations(projects) {
       }
       // Proof: with the name built from `segments[1]` and `segments[2]`, the same case lost its
       // `project name must be twilight-probe-cli` line (2026-09-25).
-      const expectedName = frozen?.name ?? `${segments[productAt]}-${segments[productAt + 1]}`;
+      // Proof: without `excusedName(project.root) ??`, `accepts the complete actual workspace
+      // after the coordinated move` received `apps/twilight-structure/twilight-burokrat/cli:
+      // project name must be twilight-burokrat-cli, found twilight-burokrat` (2026-09-25).
+      const expectedName =
+        excusedName(project.root) ?? `${segments[productAt]}-${segments[productAt + 1]}`;
       // Proof: disabling this app-name check made the owning Nx target omit the
       // unqualified be-01 refusal while retaining the library refusal
       // (2026-09-14).

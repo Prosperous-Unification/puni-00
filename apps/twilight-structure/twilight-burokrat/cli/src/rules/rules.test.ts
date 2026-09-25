@@ -305,7 +305,7 @@ function createKindedCandidate(sources: Record<string, string>): {
 function createTrustedModules(): string {
   const modules = scratch('twilight-rules-modules-');
   symlinkSync(
-    join(import.meta.dir, '..', '..', '..', '..', '..', 'node_modules', 'typescript'),
+    join(import.meta.dir, '..', '..', '..', '..', '..', '..', 'node_modules', 'typescript'),
     join(modules, 'typescript'),
   );
   mkdirSync(join(modules, '@tanstack', 'react-query'), { recursive: true });

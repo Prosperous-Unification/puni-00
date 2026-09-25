@@ -8,7 +8,7 @@ import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
 
 const scratch: string[] = [];
-const workspace = join(import.meta.dir, '..', '..', '..', '..', '..');
+const workspace = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
 afterAll(() => {
   for (const path of scratch) rmSync(path, { force: true, recursive: true });
 });
@@ -89,7 +89,7 @@ test('packages the real launcher and a standalone build of the real validator', 
     [
       'bun',
       'build',
-      join(workspace, 'apps/wiki/cli/src/cli.ts'),
+      join(workspace, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
       '--target=bun',
       '--format=esm',
       `--outfile=${validator}`,
@@ -122,7 +122,10 @@ test('packages the real launcher and a standalone build of the real validator', 
     roleSources: {
       ...subject.roleSources,
       launcher: join(workspace, 'bin/tool-wiki-lint.sh'),
-      snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+      snapshotter: join(
+        workspace,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+      ),
       validator,
     },
     validatorIdentity: hashBytes(readFileSync(validator)),

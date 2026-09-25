@@ -14,15 +14,15 @@ const WORKSPACE = new URL('../../../', import.meta.url);
 // in. The product is read back off the root below rather than spelled out per
 // row, so a second product cannot be added here without its directory agreeing.
 const EXPECTED_PRODUCT_PROJECTS = [
+  // Proof: leaving this row out after Twilight Burokrat moved into the Twilight Structure
+  // suite failed the owning Nx target on the exact extra
+  // `['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat']` tuple, and the
+  // product-axis case below on its `product:twilight-burokrat` companion (2026-09-25).
+  ['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat'],
   ['apps/wbs/be-01', 'wbs-be-01'],
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
-  // Proof: leaving this row out after tool-wiki moved to apps/wiki/cli failed the owning
-  // Nx target on the exact extra `['apps/wiki/cli', 'twilight-burokrat']` tuple, and the
-  // product-axis case below on its `['apps/wiki/cli', ['product:twilight-burokrat']]`
-  // companion (2026-09-16).
-  ['apps/wiki/cli', 'twilight-burokrat'],
   ['libs/shared/domain/failures', 'shared-failures'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
@@ -196,7 +196,7 @@ describe('readProjects', () => {
     expect(products).toEqual(
       EXPECTED_PRODUCT_PROJECTS.map(([root]) => [
         root,
-        [root === 'apps/wiki/cli' ? 'product:twilight-burokrat' : `product:${root.split('/')[1]}`],
+        [`product:${root.split('/')[root.startsWith('apps/twilight-structure/') ? 2 : 1]}`],
       ]),
     );
   });

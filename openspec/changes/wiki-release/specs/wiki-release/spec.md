@@ -102,7 +102,7 @@ selector that selects nothing, a membership mismatch, and a failed or skipped ch
 
 The trusted workflow SHALL install the launcher the archive root's `launcher-path` names and run
 that copy. It SHALL NOT check out the activation version, and SHALL NOT install validator runtime
-modules from any source checkout. It SHALL be byte-identical to `apps/wiki/consumer/trusted-wiki.yml`,
+modules from any source checkout. It SHALL be byte-identical to `apps/twilight-structure/twilight-burokrat/consumer/trusted-wiki.yml`,
 and its pinned Bun version SHALL equal `.bun-version`.
 
 #### Scenario: The workflow provisions its launcher from the archive
@@ -113,7 +113,7 @@ and its pinned Bun version SHALL equal `.bun-version`.
 
 #### Scenario: A consumer copies the workflow unchanged
 
-- **WHEN** `apps/wiki/consumer/trusted-wiki.yml` is compared with `.github/workflows/trusted-wiki.yml`
+- **WHEN** `apps/twilight-structure/twilight-burokrat/consumer/trusted-wiki.yml` is compared with `.github/workflows/trusted-wiki.yml`
 - **THEN** the bytes are identical, so a consumer needs no edit beyond its three repository variables
 
 ### Requirement: The launcher defaults its trusted runtime to the archive root
@@ -198,5 +198,5 @@ the review record and audit strata are operator attestation the preparer validat
 
 #### Scenario: A consumer follows the README only
 
-- **WHEN** an operator reads `apps/wiki/consumer/README.md`
+- **WHEN** an operator reads `apps/twilight-structure/twilight-burokrat/consumer/README.md`
 - **THEN** it names the three variables, the authored files, the marker shape, the runbook link and the operator-attestation rule

@@ -30,7 +30,7 @@ type Flag = (typeof flags)[number];
 
 /**
  * `--repository` defaults to the git work tree containing the process's cwd, not to `.`: the Nx
- * target runs with `cwd: apps/wiki/cli`, and every role path this command reads is relative to the
+ * target runs with `cwd: apps/twilight-structure/twilight-burokrat/cli`, and every role path this command reads is relative to the
  * repository root.
  */
 function defaultRepository(): string {
@@ -159,14 +159,25 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
   const roleBytes = {
     'launcher.sh': readFileSync(join(repository, 'bin/tool-wiki-lint.sh')),
     'snapshotter.ts': readFileSync(
-      join(repository, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+      join(
+        repository,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+      ),
     ),
-    'validator.mjs': await buildValidatorBundle(join(repository, 'apps/wiki/cli/src/cli.ts')),
+    'validator.mjs': await buildValidatorBundle(
+      join(repository, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
+    ),
     'prepare-activation.mjs': await buildValidatorBundle(
-      join(repository, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
+      join(
+        repository,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-activation-cli.ts',
+      ),
     ),
     'prepare-relocation-activation.mjs': await buildValidatorBundle(
-      join(repository, 'apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts'),
+      join(
+        repository,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-relocation-activation-cli.ts',
+      ),
     ),
   } satisfies Record<ToolkitRole, Uint8Array>;
 

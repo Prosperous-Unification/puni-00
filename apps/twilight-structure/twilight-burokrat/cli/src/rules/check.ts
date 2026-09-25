@@ -163,7 +163,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
   }
   return {
     schemaVersion: 1,
-    // The identity `lintTrustedCandidate` records (apps/wiki/cli/src/policy/trust.ts:1480).
+    // The identity `lintTrustedCandidate` in `policy/trust.ts` records.
     candidate: hashCanonical({
       selection: candidate.selection,
       entries: candidate.entries,

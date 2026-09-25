@@ -31,7 +31,7 @@ function fixture() {
   const store = new MemoryAuthorityStore(undefined, clock);
   const token = acquireClaims(store, {
     owner: { sessionId: 'session-a', worktreePath: '/worktrees/session-a' },
-    paths: [{ access: 'write', path: 'apps/wiki/cli' }],
+    paths: [{ access: 'write', path: 'apps/twilight-structure/twilight-burokrat/cli' }],
     conflictGroups: ['wiki-authority'],
   });
   return { clock, store, token };
@@ -55,7 +55,7 @@ test('heartbeats use the store clock and expiry fences for investigation without
   const generation = store.inspect().generations[0];
   expect(generation).toMatchObject({
     claims: [
-      { access: 'write', identity: 'apps/wiki/cli', kind: 'path' },
+      { access: 'write', identity: 'apps/twilight-structure/twilight-burokrat/cli', kind: 'path' },
       { identity: 'wiki-authority', kind: 'group' },
     ],
     heartbeatAt: 1_050,
@@ -76,7 +76,7 @@ test('submission freezes one exact identity and keeps claims until integration',
   expect(submitGeneration(store, token, submission)).toEqual(token);
   expect(store.inspect().generations[0]).toMatchObject({
     claims: [
-      { access: 'write', identity: 'apps/wiki/cli', kind: 'path' },
+      { access: 'write', identity: 'apps/twilight-structure/twilight-burokrat/cli', kind: 'path' },
       { identity: 'wiki-authority', kind: 'group' },
     ],
     status: 'submitted',
@@ -113,7 +113,7 @@ test('exact release is idempotent while wrong-generation release preserves a suc
   clock.now = 1_020;
   const successor = acquireClaims(store, {
     owner: { sessionId: 'session-a', worktreePath: '/worktrees/session-a' },
-    paths: [{ access: 'write', path: 'apps/wiki/cli' }],
+    paths: [{ access: 'write', path: 'apps/twilight-structure/twilight-burokrat/cli' }],
     conflictGroups: [],
   });
   expect(successor.generation).toBe(2);
@@ -122,7 +122,9 @@ test('exact release is idempotent while wrong-generation release preserves a suc
     'generation does not exist',
   );
   expect(store.inspect().generations.find(({ generation }) => generation === 2)).toMatchObject({
-    claims: [{ access: 'write', identity: 'apps/wiki/cli', kind: 'path' }],
+    claims: [
+      { access: 'write', identity: 'apps/twilight-structure/twilight-burokrat/cli', kind: 'path' },
+    ],
     status: 'working',
   });
 });
@@ -135,7 +137,7 @@ test('rejection and abandonment free claims for a new generation', () => {
     clock.now = 1_020;
     const successor = acquireClaims(store, {
       owner: { sessionId: 'session-b', worktreePath: '/worktrees/session-b' },
-      paths: [{ access: 'write', path: 'apps/wiki/cli/src' }],
+      paths: [{ access: 'write', path: 'apps/twilight-structure/twilight-burokrat/cli/src' }],
       conflictGroups: ['wiki-authority'],
     });
     expect(successor.generation).toBe(2);
@@ -161,7 +163,7 @@ test('every old-writer mutation is fenced after successor acquisition', () => {
   clock.now = 1_020;
   const successor = acquireClaims(store, {
     owner: { sessionId: 'session-b', worktreePath: '/worktrees/session-b' },
-    paths: [{ access: 'write', path: 'apps/wiki/cli' }],
+    paths: [{ access: 'write', path: 'apps/twilight-structure/twilight-burokrat/cli' }],
     conflictGroups: [],
   });
   const operations = [
@@ -194,7 +196,7 @@ test('a rejected submitted generation cannot integrate after a successor acquire
   clock.now = 1_030;
   const successor = acquireClaims(store, {
     owner: { sessionId: 'session-b', worktreePath: '/worktrees/session-b' },
-    paths: [{ access: 'write', path: 'apps/wiki/cli' }],
+    paths: [{ access: 'write', path: 'apps/twilight-structure/twilight-burokrat/cli' }],
     conflictGroups: [],
   });
   expect(() => integrateGeneration(store, token)).toThrow('generation is terminal');

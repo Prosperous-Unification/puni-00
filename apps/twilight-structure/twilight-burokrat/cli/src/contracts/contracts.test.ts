@@ -368,6 +368,7 @@ describe('strict contract decoders', () => {
       '..',
       '..',
       '..',
+      '..',
       'docs',
       'experiment-evidence',
       'fixed-benchmark-corpus.v1.json',

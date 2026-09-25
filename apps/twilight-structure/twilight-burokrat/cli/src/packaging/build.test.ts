@@ -248,7 +248,7 @@ describe('buildPackage', () => {
 
     const lint = invoke(
       executable,
-      ['lint', 'working', resolve(import.meta.dir, '../../../../..'), 'HEAD'],
+      ['lint', 'working', resolve(import.meta.dir, '../../../../../..'), 'HEAD'],
       externalRoot,
     );
     expect(lint.exitCode, lint.stderr.toString()).toBe(0);
@@ -272,7 +272,7 @@ describe('buildPackage', () => {
       [
         'prepare-activation',
         '--candidate-repository',
-        resolve(import.meta.dir, '../../../../..'),
+        resolve(import.meta.dir, '../../../../../..'),
         '--candidate-sha',
         '0'.repeat(40),
         '--candidate-policy',

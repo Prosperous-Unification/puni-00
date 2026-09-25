@@ -30,5 +30,5 @@ export async function packPackage(
 
 if (import.meta.main) {
   const packageRoot = join(import.meta.dir, '../..');
-  await packPackage(packageRoot, join(packageRoot, '../../../dist/twilight-burokrat-pack'));
+  await packPackage(packageRoot, join(packageRoot, '../../../../dist/twilight-burokrat-pack'));
 }

@@ -36,7 +36,7 @@ function obligations(): AuditObligation[] {
       subject: {
         subjectId: 'subject.project.tool-wiki',
         kind: 'project' as const,
-        locator: { kind: 'path' as const, path: 'apps/wiki/cli' },
+        locator: { kind: 'path' as const, path: 'apps/twilight-structure/twilight-burokrat/cli' },
         contentIdentity: SHA_A,
       },
     },
