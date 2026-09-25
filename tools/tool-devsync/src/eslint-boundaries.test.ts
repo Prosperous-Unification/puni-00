@@ -1,11 +1,11 @@
-import { chmod, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
 
-import { createPolicyWorkspace, runLint } from './testing/lint-workspace';
+import { createPolicyWorkspace, runLint, writeProject } from './testing/lint-workspace';
 
 const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const lint = new ESLint({ cwd: workspace });
@@ -339,6 +339,39 @@ describe('product lint policy discovery', () => {
     // otherwise keep the negative green with the rethrow gone.
     expect(unreadable.output, unreadable.output).toContain('cannot load product lint policy');
     expect(unreadable.output, unreadable.output).toContain('apps/probe/eslint.product.mjs');
+  }, 90_000);
+
+  it('applies a suite product policy at apps/<suite>/<product>/eslint.product.mjs', async () => {
+    const fixture = await createPolicyWorkspace();
+    await writeProject(fixture, 'apps/twilight-structure/probe/app', 'probe-suite-app', [
+      'scope:app',
+      'type:app',
+      'runtime:bun',
+      'ring:adapter',
+      'product:probe',
+    ]);
+    await writeFile(
+      join(fixture, 'apps/twilight-structure/probe/eslint.product.mjs'),
+      "export default () => [{ files: ['apps/twilight-structure/probe/**/*.ts'], rules: { 'no-restricted-imports': ['error', { paths: ['left-pad'] }] } }];\n",
+    );
+    await writeFile(
+      join(fixture, 'apps/twilight-structure/probe/app/src/main.ts'),
+      "import 'left-pad';\n",
+    );
+    const applied = await runLint(fixture, 'probe-suite-app');
+    expect(applied.code, applied.output).toBe(1);
+    expect(applied.output, applied.output).toContain('no-restricted-imports');
+  }, 90_000);
+
+  it('refuses a policy in a suite directory itself', async () => {
+    const fixture = await createPolicyWorkspace();
+    const suitePolicy = join(fixture, 'apps/twilight-structure/eslint.product.mjs');
+    await mkdir(dirname(suitePolicy), { recursive: true });
+    await writeFile(suitePolicy, 'export default () => [];\n');
+    const refused = await runLint(fixture, 'probe-app');
+    expect(refused.code, refused.output).not.toBe(0);
+    expect(refused.output, refused.output).toContain('sits in a suite directory');
+    expect(refused.output, refused.output).toContain('apps/twilight-structure/eslint.product.mjs');
   }, 90_000);
 
   it('refuses a policy that is not a function and one that returns no array', async () => {

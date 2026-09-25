@@ -618,7 +618,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // the classified occurrence count and categories remain unchanged (2026-09-19).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 31,
+      'current recursive selector': 34,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 87,
@@ -855,8 +855,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `apps/fe-01/` it was extracted from; raised `historical policy selector or baseline` from 71
     // to 87 and occurrences from 289 to 305, digest `8d9667b7…` to `68a1e15d…`, no unclassified
     // entries; the `Proof:` comments added in the pilot suite moved nothing (2026-09-25).
-    digest: '68a1e15da4a66840c53c9a57c43583e1b303f2115504abc09e8bbe08d7294e02',
-    occurrences: 305,
+    // Proof: declaring the suite products' lint policies as Nx lint inputs added one
+    // `current recursive selector` to nx.json and two to lint-policy-cache.test.ts; leaving
+    // `68a1e15d…` at 305 here failed on the observed digest below, recursive selectors 31 to
+    // 34, occurrences 305 to 308, none unclassified (2026-09-25).
+    digest: '551e2a7d0fb1ed4b5659abee6b00ede7ccf703b9f65f71761b88be12a318eb80',
+    occurrences: 308,
     unclassified: [],
   });
 });
