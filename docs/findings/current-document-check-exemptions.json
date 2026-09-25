@@ -290,6 +290,11 @@
       "path": "docs/superpowers/plans/2026-09-21-batch-6/050-7-l-isolated-checks-and-architecture.md",
       "reason": "task packet that registers the eight frontend modules in the wiki pilot; its design, prescribed boundaries and fault patches cite each module's frozen-revision predecessor under apps/fe-01/src, where fe-01 lived before namespacing",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-25-batch-7/suite-directory-move.md",
+      "reason": "task packet quoting legacy paths and recursive selectors in exact patches, fault injections and migration evidence",
+      "excuses": ["legacy-root"]
     }
   ]
 }
