@@ -17,13 +17,17 @@ export function installAuthentication(
   requirements: AuthenticationRequirements,
 ): AuthenticationExports {
   const bag = DiBag.createBuilder()
-    .installModule(authenticationModule)
-    .register({
-      account: DiBag.fromSyncFactory(() => requirements.account),
-      now: DiBag.fromSyncFactory(() => requirements.now),
-      maxConcurrentLogins: DiBag.fromSyncFactory(() => requirements.maxConcurrentLogins),
+    .withInstalledModules([authenticationModule])
+    .withServices({
+      account: DiBag.createProvider(() => requirements.account, {
+        factoryReturnKind: 'sync-value',
+      }),
+      now: DiBag.createProvider(() => requirements.now, { factoryReturnKind: 'sync-value' }),
+      maxConcurrentLogins: DiBag.createProvider(() => requirements.maxConcurrentLogins, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable object that also held `bag` made the
   // installer-surface assertion receive the extra `bag` key; 8 tests passed and 1 failed.
   // Proof (2026-09-23): attaching `resolve` to the returned `AuthService` kept the key list correct

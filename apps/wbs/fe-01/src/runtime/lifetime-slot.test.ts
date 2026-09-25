@@ -49,7 +49,7 @@ interface RuntimeRecord {
  * resource — whose disposer this test chooses.
  *
  * Not a stub `close`: the refusals under test are DI Bag's own
- * `DiBagCleanupError` and `DiBagCloseCancelledError`, and a hand-written
+ * `DiBagDisposalError` and `DiBagCloseCancelledError`, and a hand-written
  * rejection would prove the slot against a shape the library never produces.
  * The record also keeps the `timeoutMs` each close was given, which is how the
  * production budget is asserted where it is actually used.
@@ -64,20 +64,23 @@ function runtimeNamed(
   const budgets: number[] = [];
   const seen: string[] = [];
   const bag = DiBag.createBuilder()
-    .register({
-      owned: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): NamedServices => {
-          builds += 1;
-          return { name };
-        }),
-        async () => {
+    .withServices({
+      owned: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          (): NamedServices => {
+            builds += 1;
+            return { name };
+          },
+          { factoryReturnKind: 'sync-value' },
+        ),
+        disposeService: async () => {
           closes += 1;
           if (watch !== undefined) seen.push(watch());
           await dispose();
         },
-      ),
+      }),
     })
-    .build();
+    .buildContainer();
   const services = bag.resolve('owned');
   return {
     name: () => name,
@@ -86,7 +89,7 @@ function runtimeNamed(
       services,
       close: (options) => {
         budgets.push(options.timeoutMs);
-        return bag.close(options);
+        return bag.close({ waitTimeoutMs: options.timeoutMs });
       },
     },
     closes: () => closes,
@@ -117,22 +120,25 @@ function acquiresThenThrows(dispose: () => Promise<void>): PartialAcquisition {
     released: () => released,
     acquire: () => {
       const bag = DiBag.createBuilder()
-        .register({
-          first: DiBag.withDisposal(
-            DiBag.fromSyncFactory((): NamedServices => {
-              acquired += 1;
-              return { name: 'first resource' };
-            }),
-            async () => {
+        .withServices({
+          first: DiBag.providerWithDisposal({
+            provider: DiBag.createProvider(
+              (): NamedServices => {
+                acquired += 1;
+                return { name: 'first resource' };
+              },
+              { factoryReturnKind: 'sync-value' },
+            ),
+            disposeService: async () => {
               released += 1;
               await dispose();
             },
-          ),
+          }),
         })
-        .build();
+        .buildContainer();
       bag.resolve('first');
       throw new PartialAcquisitionError(new Error('the second resource refused'), (options) =>
-        bag.close(options),
+        bag.close({ waitTimeoutMs: options.timeoutMs }),
       );
     },
   };
@@ -371,7 +377,7 @@ describe('one lifetime’s ownership', () => {
         built += 1;
         return second.runtime;
       }),
-    ).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
+    ).rejects.toThrow('DI_BAG_DISPOSAL_FAILED');
 
     expect(built).toBe(0);
     const fatal = slot.snapshot();
@@ -387,11 +393,11 @@ describe('one lifetime’s ownership', () => {
     const slot = createLifetimeSlot<NamedServices>();
     await slot.replace(() => runtimeNamed('first', refuses).runtime);
     await expect(slot.replace(() => runtimeNamed('second', settles).runtime)).rejects.toThrow(
-      'DI_BAG_CLEANUP_FAILED',
+      'DI_BAG_DISPOSAL_FAILED',
     );
     const third = runtimeNamed('third', settles);
 
-    await expect(slot.replace(() => third.runtime)).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
+    await expect(slot.replace(() => third.runtime)).rejects.toThrow('DI_BAG_DISPOSAL_FAILED');
 
     expect(third.closes()).toBe(0);
     expect(slot.snapshot().status).toBe('fatal');
@@ -464,7 +470,7 @@ describe('one lifetime’s ownership', () => {
     await expect(slot.retire()).rejects.toThrow('DI_BAG_CLOSE_TIMEOUT');
 
     pending.refuse();
-    await expect(slot.lateCleanup()).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
+    await expect(slot.lateCleanup()).rejects.toThrow('DI_BAG_DISPOSAL_FAILED');
 
     expect(slot.lateOutcome()).toBe('failed');
     expect(slot.snapshot().status).toBe('fatal');
@@ -567,12 +573,12 @@ describe('one lifetime’s ownership', () => {
     await slot.replace(() => runtimeNamed('first', settles).runtime);
     const partial = acquiresThenThrows(refuses);
 
-    await expect(slot.replace(partial.acquire)).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
+    await expect(slot.replace(partial.acquire)).rejects.toThrow('DI_BAG_DISPOSAL_FAILED');
 
     const fatal = slot.snapshot();
     expect(fatal.status === 'fatal' ? fatal.terminal : false).toBe(true);
     const third = runtimeNamed('third', settles);
-    await expect(slot.replace(() => third.runtime)).rejects.toThrow('DI_BAG_CLEANUP_FAILED');
+    await expect(slot.replace(() => third.runtime)).rejects.toThrow('DI_BAG_DISPOSAL_FAILED');
     expect(third.closes()).toBe(0);
   });
 
@@ -582,13 +588,15 @@ describe('one lifetime’s ownership', () => {
     // published contract is literally `null` behaves like any other.
     const slot = createLifetimeSlot<null>();
     const bag = DiBag.createBuilder()
-      .register({ owned: DiBag.fromSyncFactory((): null => null) })
-      .build();
+      .withServices({
+        owned: DiBag.createProvider((): null => null, { factoryReturnKind: 'sync-value' }),
+      })
+      .buildContainer();
 
     await expect(
       slot.replace(() => ({
         services: bag.resolve('owned'),
-        close: (options) => bag.close(options),
+        close: (options) => bag.close({ waitTimeoutMs: options.timeoutMs }),
       })),
     ).resolves.toBe(null);
     expect(slot.snapshot()).toEqual({ status: 'live', services: null });

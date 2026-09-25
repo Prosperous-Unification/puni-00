@@ -14,7 +14,7 @@ type CoordinatorOption<K extends keyof OptimizationCoordinatorOptions> =
  *
  * Only `optimizer` is exported. `optimizationOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `backend.optimization/optimizationOptions` rather than
  * against an anonymous binding. The five optional seams (`runChild`,
  * `editDebounceMs`, `sleep`, `setInterval`, `clearInterval`) are registered
@@ -26,8 +26,8 @@ type CoordinatorOption<K extends keyof OptimizationCoordinatorOptions> =
  * shutdown order, and a second owner here would stop it twice.
  */
 export const optimizationModule = DiBag.createBuilder()
-  .register({
-    optimizationOptions: DiBag.fromSyncFactory(
+  .withServices({
+    optimizationOptions: DiBag.createProvider(
       ({
         db,
         contractVersion,
@@ -100,15 +100,17 @@ export const optimizationModule = DiBag.createBuilder()
         setInterval,
         clearInterval,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    optimizer: DiBag.fromSyncFactory(
+  .withServices({
+    optimizer: DiBag.createProvider(
       ({
         optimizationOptions,
       }: {
         optimizationOptions: OptimizationCoordinatorOptions;
       }): OptimizationCoordinator => new OptimizationCoordinator(optimizationOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['optimizer', 'optimizationOptions']` left the
@@ -119,4 +121,4 @@ export const optimizationModule = DiBag.createBuilder()
   // assertions failing (4 pass, 2 fail): `inspectGraph()` reported `optimizationOptions`
   // unlabelled, and the missing-requirement message named `optimizationOptions` instead of
   // `backend.optimization/optimizationOptions`.
-  .buildModule(['optimizer'], { label: OPTIMIZATION_LABEL });
+  .buildModule({ exportedServiceKeys: ['optimizer'], moduleLabel: OPTIMIZATION_LABEL });

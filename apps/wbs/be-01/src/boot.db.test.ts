@@ -6,7 +6,7 @@ import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { DiBagCleanupError } from 'di-bag';
+import { DiBagDisposalError } from 'di-bag';
 import { errors } from 'jose';
 
 import { bootBe01, type RunningBe } from './boot';
@@ -514,9 +514,9 @@ describe('bootBe01', () => {
       delete seam.stop;
     }
 
-    expect(caught).toBeInstanceOf(DiBagCleanupError);
-    if (!(caught instanceof DiBagCleanupError)) throw new Error('unreachable');
-    expect(caught.failures.map((failure) => failure.label)).toEqual(['server']);
+    expect(caught).toBeInstanceOf(DiBagDisposalError);
+    if (!(caught instanceof DiBagDisposalError)) throw new Error('unreachable');
+    expect(caught.failures.map((failure) => failure.bindingLabel)).toEqual(['server']);
     expect(caught.failures.map((failure) => reasons(failure.error))).toEqual([
       'optimizer refused to settle',
     ]);
@@ -555,9 +555,9 @@ describe('bootBe01', () => {
       await real?.();
     }
 
-    expect(caught).toBeInstanceOf(DiBagCleanupError);
-    if (!(caught instanceof DiBagCleanupError)) throw new Error('unreachable');
-    expect(caught.failures.map((failure) => failure.label)).toEqual(['source']);
+    expect(caught).toBeInstanceOf(DiBagDisposalError);
+    if (!(caught instanceof DiBagDisposalError)) throw new Error('unreachable');
+    expect(caught.failures.map((failure) => failure.bindingLabel)).toEqual(['source']);
     expect(caught.failures.map((failure) => reasons(failure.error))).toEqual(['disk gone']);
     expect(be.services.retention.isRunning()).toBe(false);
 

@@ -15,12 +15,16 @@ import { planHistoryModule } from './module';
  */
 export function installPlanHistory(requirements: PlanHistoryRequirements): PlanHistoryExports {
   const bag = DiBag.createBuilder()
-    .installModule(planHistoryModule)
-    .register({
-      projectStore: DiBag.fromSyncFactory(() => requirements.projectStore),
-      planEventStore: DiBag.fromSyncFactory(() => requirements.planEventStore),
+    .withInstalledModules([planHistoryModule])
+    .withServices({
+      projectStore: DiBag.createProvider(() => requirements.projectStore, {
+        factoryReturnKind: 'sync-value',
+      }),
+      planEventStore: DiBag.createProvider(() => requirements.planEventStore, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof: on 2026-09-22, returning `bag` here made the installer-surface test
   // receive the extra `bag` key (5 pass, 1 fail).
   // Proof: on 2026-09-22, attaching `resolve` to `history` made that test

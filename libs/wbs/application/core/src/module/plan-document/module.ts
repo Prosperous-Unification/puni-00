@@ -10,7 +10,7 @@ import { PlanDocumentService, type PlanDocumentServiceOptions } from './plan-doc
  *
  * Only `planDocuments` is exported. `planDocumentOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.plan-document/planDocumentOptions` rather
  * than against an anonymous binding.
  *
@@ -18,8 +18,8 @@ import { PlanDocumentService, type PlanDocumentServiceOptions } from './plan-doc
  * reads and a clock and no timer, socket or handle of its own.
  */
 export const planDocumentModule = DiBag.createBuilder()
-  .register({
-    planDocumentOptions: DiBag.fromSyncFactory(
+  .withServices({
+    planDocumentOptions: DiBag.createProvider(
       ({
         directory,
         markers,
@@ -32,15 +32,17 @@ export const planDocumentModule = DiBag.createBuilder()
         // clock left `exports a project with its markers over the graph installPlanDocument wires`
         // failing (4 pass, 1 fail): `exportedAt` read "1970-01-01T00:00:00.000Z".
       }): PlanDocumentServiceOptions => ({ directory, markers, clock }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    planDocuments: DiBag.fromSyncFactory(
+  .withServices({
+    planDocuments: DiBag.createProvider(
       ({
         planDocumentOptions,
       }: {
         planDocumentOptions: PlanDocumentServiceOptions;
       }): PlanDocumentService => new PlanDocumentService(planDocumentOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): widening the key tuple to `['planDocuments', 'planDocumentOptions']` left
@@ -51,4 +53,4 @@ export const planDocumentModule = DiBag.createBuilder()
   // assertions failing (3 pass, 2 fail): `inspectGraph()` reported `planDocumentOptions`
   // unlabelled, and the missing-requirement message named `planDocumentOptions` instead of
   // `application.plan-document/planDocumentOptions`.
-  .buildModule(['planDocuments'], { label: PLAN_DOCUMENT_LABEL });
+  .buildModule({ exportedServiceKeys: ['planDocuments'], moduleLabel: PLAN_DOCUMENT_LABEL });

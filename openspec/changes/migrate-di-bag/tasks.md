@@ -4,7 +4,7 @@
 
 ## 2. Move the composition library
 
-- [ ] 2.1 Move `di-bag` to 0.5.0 in one lockfile edit, run the library's codemod, apply the
+- [x] 2.1 Move `di-bag` to 0.5.0 in one lockfile edit, run the library's codemod, apply the
       residual edit and prove the tree equals the rehearsed one — test: the pins and label
       suites, `wbs-core`, `wbs-be-01`, the frontend runtime, module and model suites, the browser
       build test, the two budget tests, and the registry probe on Bun, TypeScript 7 and

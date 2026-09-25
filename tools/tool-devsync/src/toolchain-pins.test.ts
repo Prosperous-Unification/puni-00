@@ -503,7 +503,7 @@ describe('the CI gate scope', () => {
  * runtime is a different claim, proved by the resolution probe in the task's verification.
  */
 const OWNER_PACKAGES = {
-  'di-bag': '0.4.0',
+  'di-bag': '0.5.0',
   'application-exception': '0.7.0',
   'caught-object-report-json': '13.0.0',
 } as const;

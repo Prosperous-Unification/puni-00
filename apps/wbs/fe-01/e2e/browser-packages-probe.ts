@@ -35,8 +35,8 @@ const ProbeFailed = defineException({
  * and report one typed failure twice.
  *
  * Every call here is one the adoption plan says browser code must be able to make:
- * `fromSyncFactory` and `fromAsyncFactory` fix the acquisition mode by name, so the
- * graph needs no `process.getBuiltinModule` classifier — a browser has none — and one
+ * `createProvider` with `factoryReturnKind: 'sync-value'` or `'native-promise'` fixes
+ * each provider's return kind by name, so the graph needs no `process.getBuiltinModule` classifier — a browser has none — and one
  * `makeReportPair` call correlates the operator's report with the disclosed one under a
  * single occurrence identifier.
  *
@@ -45,18 +45,22 @@ const ProbeFailed = defineException({
 async function proveTheThreeLibraries(): Promise<BrowserPackagesProof> {
   const disposed: string[] = [];
   const services = DiBag.createBuilder()
-    .register({
-      clock: DiBag.fromSyncFactory(() => ({ now: () => 1_726_800_000_000 })),
-      session: DiBag.withDisposal(
-        DiBag.fromAsyncFactory(async ({ clock }: { clock: { now: () => number } }) =>
-          Promise.resolve({ at: clock.now() }),
+    .withServices({
+      clock: DiBag.createProvider(() => ({ now: () => 1_726_800_000_000 }), {
+        factoryReturnKind: 'sync-value',
+      }),
+      session: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          async ({ clock }: { clock: { now: () => number } }) =>
+            Promise.resolve({ at: clock.now() }),
+          { factoryReturnKind: 'native-promise' },
         ),
-        () => {
+        disposeService: () => {
           disposed.push('session');
         },
-      ),
+      }),
     })
-    .build();
+    .buildContainer();
   const session = await services.resolve('session');
   await services.close();
 

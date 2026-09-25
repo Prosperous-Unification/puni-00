@@ -49,12 +49,16 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    digest: DiBag.fromSyncFactory(() => lengthDigest),
-    capture: DiBag.fromSyncFactory(() => source.history.savedPlanCapture),
-    plans: DiBag.fromSyncFactory(() => source.history.savedPlans),
-    scheduler: DiBag.fromSyncFactory(() => fastScheduler),
-    newId: DiBag.fromSyncFactory(() => () => 'id'),
-    now: DiBag.fromSyncFactory(() => () => STAMP_AT / 1_000),
+    digest: DiBag.createProvider(() => lengthDigest, { factoryReturnKind: 'sync-value' }),
+    capture: DiBag.createProvider(() => source.history.savedPlanCapture, {
+      factoryReturnKind: 'sync-value',
+    }),
+    plans: DiBag.createProvider(() => source.history.savedPlans, {
+      factoryReturnKind: 'sync-value',
+    }),
+    scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    newId: DiBag.createProvider(() => () => 'id', { factoryReturnKind: 'sync-value' }),
+    now: DiBag.createProvider(() => () => STAMP_AT / 1_000, { factoryReturnKind: 'sync-value' }),
   };
 };
 
@@ -68,9 +72,12 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(savedPlansModule)
-    .register({ ...hostRequirements(), quota: DiBag.fromSyncFactory(() => undefined) })
-    .build();
+    .withInstalledModules([savedPlansModule])
+    .withServices({
+      ...hostRequirements(),
+      quota: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    })
+    .buildContainer();
 
 describe('the Saved plans module', () => {
   it('saves and reads back a plan over the graph installSavedPlans wires', async () => {
@@ -143,14 +150,14 @@ describe('the Saved plans module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('savedPlanOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "savedPlanOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "savedPlanOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${SAVED_PLANS_LABEL}/savedPlanOptions`,
     );
   });
@@ -163,11 +170,11 @@ describe('the Saved plans module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(savedPlansModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([savedPlansModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('savedPlans')).toThrow(
       `Cannot resolve "${SAVED_PLANS_LABEL}/savedPlanOptions": dependency "quota" is not registered. Resolution path: savedPlans -> ${SAVED_PLANS_LABEL}/savedPlanOptions -> quota.`,

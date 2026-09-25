@@ -248,13 +248,16 @@ describe('the ownership rule, under generated interleavings', () => {
             disposal: Extract<Command, { kind: 'replace' }>['disposal'],
           ): RetirableRuntime<Tracked> => {
             const bag = DiBag.createBuilder()
-              .register({
-                owned: DiBag.withDisposal(
-                  DiBag.fromSyncFactory((): Tracked => {
-                    record.acquisitions += 1;
-                    return record;
-                  }),
-                  async () => {
+              .withServices({
+                owned: DiBag.providerWithDisposal({
+                  provider: DiBag.createProvider(
+                    (): Tracked => {
+                      record.acquisitions += 1;
+                      return record;
+                    },
+                    { factoryReturnKind: 'sync-value' },
+                  ),
+                  disposeService: async () => {
                     if (disposal === 'never') return new Promise<void>(() => undefined);
                     await scheduler.schedule(
                       disposal === 'settles'
@@ -264,9 +267,9 @@ describe('the ownership rule, under generated interleavings', () => {
                     );
                     return undefined;
                   },
-                ),
+                }),
               })
-              .build();
+              .buildContainer();
             const services = bag.resolve('owned');
             return {
               services,
@@ -278,7 +281,7 @@ describe('the ownership rule, under generated interleavings', () => {
                   world.disposing,
                 );
                 try {
-                  await bag.close(options);
+                  await bag.close({ waitTimeoutMs: options.timeoutMs });
                 } finally {
                   world.disposing -= 1;
                   record.closeSettles += 1;
@@ -352,19 +355,22 @@ describe('the ownership rule, under generated interleavings', () => {
           /** A construction that acquires one resource and then throws, transactionally. */
           const buildPartial = (record: Tracked): never => {
             const bag = DiBag.createBuilder()
-              .register({
-                owned: DiBag.withDisposal(
-                  DiBag.fromSyncFactory((): Tracked => {
-                    record.acquisitions += 1;
-                    return record;
-                  }),
-                  async () => {
+              .withServices({
+                owned: DiBag.providerWithDisposal({
+                  provider: DiBag.createProvider(
+                    (): Tracked => {
+                      record.acquisitions += 1;
+                      return record;
+                    },
+                    { factoryReturnKind: 'sync-value' },
+                  ),
+                  disposeService: async () => {
                     await scheduler.schedule(Promise.resolve(), `release ${record.name}`);
                     return undefined;
                   },
-                ),
+                }),
               })
-              .build();
+              .buildContainer();
             bag.resolve('owned');
             throw new PartialAcquisitionError(
               new Error(`${record.name} could not finish building`),
@@ -376,7 +382,7 @@ describe('the ownership rule, under generated interleavings', () => {
                   world.disposing,
                 );
                 try {
-                  await bag.close(options);
+                  await bag.close({ waitTimeoutMs: options.timeoutMs });
                 } finally {
                   world.disposing -= 1;
                   record.closeSettles += 1;

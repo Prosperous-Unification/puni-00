@@ -21,7 +21,7 @@ import { createPreferences } from './preferences.resource';
  * {@link import('./contract').PreferencesExports}.
  *
  * `preferencesStore` stays private, so a host cannot name it — resolving it
- * answers `DI_BAG_MISSING_REGISTRATION` — and it is the module's **one owned
+ * answers `DI_BAG_UNKNOWN_SERVICE_KEY` — and it is the module's **one owned
  * disposable**: the revocable store, given back when the installation closes.
  * The raw adapter it wraps is a host requirement rather than a private binding,
  * which is what makes a host that forgets it say which module asked:
@@ -39,27 +39,28 @@ import { createPreferences } from './preferences.resource';
  * only applies to code that calls it directly, bypassing this module.
  */
 export const preferencesModule = DiBag.createBuilder()
-  .register({
+  .withServices({
     // Proof: on 2026-09-22, dropping this disposal made 'gives the store back when
     // its host graph closes' receive no throw (4 failed, 38 passed).
-    preferencesStore: DiBag.withDisposal(
-      DiBag.fromSyncFactory(
+    preferencesStore: DiBag.providerWithDisposal({
+      provider: DiBag.createProvider(
         ({ browserStore }: { browserStore: BrowserStorage }): RevocableBrowserStorage =>
           revocableStorage(browserStore),
+        { factoryReturnKind: 'sync-value' },
       ),
-      (store) => {
+      disposeService: (store) => {
         store.revoke();
       },
-    ),
+    }),
   })
-  .register({
+  .withServices({
     // `preferencesStore` destructured before `isLive`: a host that supplies
     // neither is told about the missing `browserStore` behind `preferencesStore`
     // first, matching this module's own established resolution-order fact —
     // see module.test.ts's "names itself when a host omits the browser store".
     // Proof: on 2026-09-22, destructuring `isLive` first failed that test with
     // missing dependency "isLive" instead of the labelled missing browser store.
-    preferences: DiBag.fromSyncFactory(
+    preferences: DiBag.createProvider(
       ({
         preferencesStore,
         isLive,
@@ -67,16 +68,21 @@ export const preferencesModule = DiBag.createBuilder()
         preferencesStore: RevocableBrowserStorage;
         isLive: IsRuntimeLive;
       }): Preferences => createPreferences(preferencesStore, isLive),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    remembered: DiBag.fromSyncFactory(
+  .withServices({
+    remembered: DiBag.createProvider(
       ({ preferences }: { preferences: Preferences }): RememberedPreferences =>
         createRememberedPreferences(preferences),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof: on 2026-09-22, exporting `preferencesStore` made 'keeps its owned store
   // out of a host graph' receive no throw (4 failed, 38 passed).
   // Proof: on 2026-09-22, dropping the label made the graph omit
   // `frontend.preferences/preferencesStore` (2 failed, 40 passed).
-  .buildModule(['preferences', 'remembered'], { label: PREFERENCES_LABEL });
+  .buildModule({
+    exportedServiceKeys: ['preferences', 'remembered'],
+    moduleLabel: PREFERENCES_LABEL,
+  });

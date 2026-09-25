@@ -34,9 +34,15 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.fromSyncFactory(() => source.stores.projects),
-    priorityBandStore: DiBag.fromSyncFactory(() => source.stores.priorityBands),
-    broadcast: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+    projectStore: DiBag.createProvider(() => source.stores.projects, {
+      factoryReturnKind: 'sync-value',
+    }),
+    priorityBandStore: DiBag.createProvider(() => source.stores.priorityBands, {
+      factoryReturnKind: 'sync-value',
+    }),
+    broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -50,12 +56,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(priorityBandModule)
-    .register({
+    .withInstalledModules([priorityBandModule])
+    .withServices({
       ...hostRequirements(),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 0, newId: () => 'unused' })),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Priority band module', () => {
   it('announces a ladder write through the broadcaster installPriorityBand wires', async () => {
@@ -95,14 +103,14 @@ describe('the Priority band module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('priorityBandOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "priorityBandOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "priorityBandOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${PRIORITY_BAND_LABEL}/priorityBandOptions`,
     );
   });
@@ -115,11 +123,11 @@ describe('the Priority band module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(priorityBandModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([priorityBandModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('priorityBands')).toThrow(
       `Cannot resolve "${PRIORITY_BAND_LABEL}/priorityBandOptions": dependency "clock" is not registered. Resolution path: priorityBands -> ${PRIORITY_BAND_LABEL}/priorityBandOptions -> clock.`,

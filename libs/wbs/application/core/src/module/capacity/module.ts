@@ -12,7 +12,7 @@ import { CAPACITY_LABEL } from './contract';
  *
  * Only `capacity` is exported. `capacityOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.capacity/capacityOptions` rather than against
  * an anonymous binding. The two stores are required as `projectStore` and
  * `capacityStore` because the host graph's `capacity` key is this module's
@@ -22,8 +22,8 @@ import { CAPACITY_LABEL } from './contract';
  * stores of one scope, a clock and a broadcaster, and no handle of its own.
  */
 export const capacityModule = DiBag.createBuilder()
-  .register({
-    capacityOptions: DiBag.fromSyncFactory(
+  .withServices({
+    capacityOptions: DiBag.createProvider(
       ({
         projectStore,
         capacityStore,
@@ -44,12 +44,14 @@ export const capacityModule = DiBag.createBuilder()
         broadcast,
         clock,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    capacity: DiBag.fromSyncFactory(
+  .withServices({
+    capacity: DiBag.createProvider(
       ({ capacityOptions }: { capacityOptions: CapacityServiceOptions }): CapacityService =>
         new CapacityService(capacityOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['capacity', 'capacityOptions']` left the
@@ -60,4 +62,4 @@ export const capacityModule = DiBag.createBuilder()
   // failing (3 pass, 2 fail): `inspectGraph()` reported `capacityOptions` unlabelled, and the
   // missing-requirement message named `capacityOptions` instead of
   // `application.capacity/capacityOptions`.
-  .buildModule(['capacity'], { label: CAPACITY_LABEL });
+  .buildModule({ exportedServiceKeys: ['capacity'], moduleLabel: CAPACITY_LABEL });

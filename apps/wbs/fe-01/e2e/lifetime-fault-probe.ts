@@ -35,21 +35,23 @@ export interface LifetimeFaultProof {
  */
 function refuseAfterAcquiring(): RetirableRuntime<ApplicationServices> {
   const bag = DiBag.createBuilder()
-    .register({
-      owned: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): string => 'the store it took'),
-        async () => {
+    .withServices({
+      owned: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider((): string => 'the store it took', {
+          factoryReturnKind: 'sync-value',
+        }),
+        disposeService: async () => {
           await Promise.resolve();
         },
-      ),
+      }),
     })
-    .build();
+    .buildContainer();
   bag.resolve('owned');
   throw new PartialAcquisitionError(
     new Error('saving plan p-7 for alice@example.com failed', {
       cause: { authorization: 'Bearer live-token', detail: 'row 42 of plan_steps' },
     }),
-    (options) => bag.close(options),
+    (options) => bag.close({ waitTimeoutMs: options.timeoutMs }),
   );
 }
 

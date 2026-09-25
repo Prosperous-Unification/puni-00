@@ -39,22 +39,27 @@ const requirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(planImportModule)
-    .register({
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => STAMP_AT, newId: () => 'id' })),
-      scheduler: DiBag.fromSyncFactory(() => fastScheduler),
-      uow: DiBag.fromSyncFactory(() => openMemorySource().uow),
-      announcements: DiBag.fromSyncFactory(() => recordingBroadcaster()),
-      batchServices: DiBag.fromSyncFactory(
+    .withInstalledModules([planImportModule])
+    .withServices({
+      clock: DiBag.createProvider(() => clockOf({ now: () => STAMP_AT, newId: () => 'id' }), {
+        factoryReturnKind: 'sync-value',
+      }),
+      scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+      uow: DiBag.createProvider(() => openMemorySource().uow, { factoryReturnKind: 'sync-value' }),
+      announcements: DiBag.createProvider(() => recordingBroadcaster(), {
+        factoryReturnKind: 'sync-value',
+      }),
+      batchServices: DiBag.createProvider(
         () => (scope: Scope, broadcast: Broadcaster) =>
           servicesOver(scope.stores, {
             clock: clockOf({ now: () => STAMP_AT, newId: () => 'id' }),
             broadcast,
             scheduler: fastScheduler,
           }),
+        { factoryReturnKind: 'sync-value' },
       ),
     })
-    .build();
+    .buildContainer();
 
 describe('the Plan import module', () => {
   it('refuses a document whose deadline sits before the project start, without an admitted batch', async () => {
@@ -105,14 +110,14 @@ describe('the Plan import module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('importOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "importOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "importOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${PLAN_IMPORT_LABEL}/importOptions`,
     );
   });
@@ -125,16 +130,22 @@ describe('the Plan import module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(planImportModule)
-      .register({
-        clock: DiBag.fromSyncFactory(() => clockOf({ now: () => STAMP_AT, newId: () => 'id' })),
-        scheduler: DiBag.fromSyncFactory(() => fastScheduler),
-        uow: DiBag.fromSyncFactory(() => openMemorySource().uow),
-        announcements: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+      .withInstalledModules([planImportModule])
+      .withServices({
+        clock: DiBag.createProvider(() => clockOf({ now: () => STAMP_AT, newId: () => 'id' }), {
+          factoryReturnKind: 'sync-value',
+        }),
+        scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+        uow: DiBag.createProvider(() => openMemorySource().uow, {
+          factoryReturnKind: 'sync-value',
+        }),
+        announcements: DiBag.createProvider(() => recordingBroadcaster(), {
+          factoryReturnKind: 'sync-value',
+        }),
       }) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('imports')).toThrow(
       `Cannot resolve "${PLAN_IMPORT_LABEL}/importOptions": dependency "batchServices" is not registered. Resolution path: imports -> ${PLAN_IMPORT_LABEL}/importOptions -> batchServices.`,

@@ -55,11 +55,14 @@ const hostRequirements = () => {
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
   return {
-    batchServices: DiBag.fromSyncFactory(
+    batchServices: DiBag.createProvider(
       () => (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
+      { factoryReturnKind: 'sync-value' },
     ),
-    publicServices: DiBag.fromSyncFactory(() => graphOver(source.stores, recordingBroadcaster())),
-    uow: DiBag.fromSyncFactory(() => source.uow),
+    publicServices: DiBag.createProvider(() => graphOver(source.stores, recordingBroadcaster()), {
+      factoryReturnKind: 'sync-value',
+    }),
+    uow: DiBag.createProvider(() => source.uow, { factoryReturnKind: 'sync-value' }),
   };
 };
 
@@ -73,12 +76,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(planCommandsModule)
-    .register({
+    .withInstalledModules([planCommandsModule])
+    .withServices({
       ...hostRequirements(),
-      announcements: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+      announcements: DiBag.createProvider(() => recordingBroadcaster(), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Plan commands module', () => {
   it('drains a committed batch into the broadcaster installPlanCommands wires', async () => {
@@ -136,14 +141,14 @@ describe('the Plan commands module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('planCommandOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "planCommandOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "planCommandOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${PLAN_COMMANDS_LABEL}/planCommandOptions`,
     );
   });
@@ -156,11 +161,11 @@ describe('the Plan commands module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(planCommandsModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([planCommandsModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('commands')).toThrow(
       `Cannot resolve "${PLAN_COMMANDS_LABEL}/planCommandOptions": dependency "announcements" is not registered. Resolution path: commands -> ${PLAN_COMMANDS_LABEL}/planCommandOptions -> announcements.`,

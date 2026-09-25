@@ -42,17 +42,19 @@ const requirements = () => ({
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(realtimeModule)
-    .register({
-      eventLog: DiBag.fromSyncFactory(() => inMemoryEventLog()),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 1_000, newId: () => 'id' })),
-      push: DiBag.fromSyncFactory(() => fakePush().client),
-      maxPerSubscription: DiBag.fromSyncFactory(() => 100),
-      maxAgeMs: DiBag.fromSyncFactory(() => 5 * 60_000),
-      maxEvents: DiBag.fromSyncFactory(() => undefined),
-      onPushFailed: DiBag.fromSyncFactory(() => undefined),
+    .withInstalledModules([realtimeModule])
+    .withServices({
+      eventLog: DiBag.createProvider(() => inMemoryEventLog(), { factoryReturnKind: 'sync-value' }),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 1_000, newId: () => 'id' }), {
+        factoryReturnKind: 'sync-value',
+      }),
+      push: DiBag.createProvider(() => fakePush().client, { factoryReturnKind: 'sync-value' }),
+      maxPerSubscription: DiBag.createProvider(() => 100, { factoryReturnKind: 'sync-value' }),
+      maxAgeMs: DiBag.createProvider(() => 5 * 60_000, { factoryReturnKind: 'sync-value' }),
+      maxEvents: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+      onPushFailed: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Realtime module', () => {
   it('builds a buffer, a broadcaster and a replay orchestrator over the same requirements', () => {
@@ -106,10 +108,10 @@ describe('the Realtime module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('broadcasterOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "broadcasterOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "broadcasterOptions" is not registered.');
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('replayOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "replayOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "replayOptions" is not registered.');
   });
 
   /**
@@ -119,7 +121,7 @@ describe('the Realtime module', () => {
    */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
-    const labels = host.inspectGraph().bindings.map((binding) => binding.label);
+    const labels = host.graphSnapshot().bindings.map((binding) => binding.bindingLabel);
 
     expect(labels).toContain(`${REALTIME_LABEL}/broadcasterOptions`);
     expect(labels).toContain(`${REALTIME_LABEL}/replayOptions`);
@@ -133,18 +135,22 @@ describe('the Realtime module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(realtimeModule)
-      .register({
-        eventLog: DiBag.fromSyncFactory(() => inMemoryEventLog()),
-        clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 1_000, newId: () => 'id' })),
-        maxPerSubscription: DiBag.fromSyncFactory(() => 100),
-        maxAgeMs: DiBag.fromSyncFactory(() => 5 * 60_000),
-        maxEvents: DiBag.fromSyncFactory(() => undefined),
-        onPushFailed: DiBag.fromSyncFactory(() => undefined),
+      .withInstalledModules([realtimeModule])
+      .withServices({
+        eventLog: DiBag.createProvider(() => inMemoryEventLog(), {
+          factoryReturnKind: 'sync-value',
+        }),
+        clock: DiBag.createProvider(() => clockOf({ now: () => 1_000, newId: () => 'id' }), {
+          factoryReturnKind: 'sync-value',
+        }),
+        maxPerSubscription: DiBag.createProvider(() => 100, { factoryReturnKind: 'sync-value' }),
+        maxAgeMs: DiBag.createProvider(() => 5 * 60_000, { factoryReturnKind: 'sync-value' }),
+        maxEvents: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+        onPushFailed: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
       }) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('broadcaster')).toThrow(
       `Cannot resolve "${REALTIME_LABEL}/broadcasterOptions": dependency "push" is not registered. Resolution path: broadcaster -> ${REALTIME_LABEL}/broadcasterOptions -> push.`,

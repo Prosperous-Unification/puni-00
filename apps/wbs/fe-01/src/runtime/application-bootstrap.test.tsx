@@ -1,5 +1,5 @@
 import { waitFor } from '@testing-library/react';
-import { DiBag, DiBagCleanupError } from 'di-bag';
+import { DiBag, DiBagDisposalError } from 'di-bag';
 import { act, isValidElement, type ReactNode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -103,19 +103,21 @@ const SECRET = 'alice@example.com';
 function refusingAcquisition(): () => RetirableRuntime<ApplicationServices> {
   return () => {
     const bag = DiBag.createBuilder()
-      .register({
-        owned: DiBag.withDisposal(
-          DiBag.fromSyncFactory((): string => 'the store it took'),
-          async () => {
+      .withServices({
+        owned: DiBag.providerWithDisposal({
+          provider: DiBag.createProvider((): string => 'the store it took', {
+            factoryReturnKind: 'sync-value',
+          }),
+          disposeService: async () => {
             await Promise.resolve();
           },
-        ),
+        }),
       })
-      .build();
+      .buildContainer();
     bag.resolve('owned');
     throw new PartialAcquisitionError(
       new Error(`the page for ${SECRET} could not be composed`),
-      (options) => bag.close(options),
+      (options) => bag.close({ waitTimeoutMs: options.timeoutMs }),
     );
   };
 }
@@ -624,18 +626,20 @@ describe('the page-lifecycle retirement trigger', () => {
         // is what `lifetime-slot.ts`'s `lateCleanupOf` recognises, which is
         // what makes `slot.lateOutcome()` observable at all.
         const bag = DiBag.createBuilder()
-          .register({
-            owned: DiBag.withDisposal(
-              DiBag.fromSyncFactory((): ApplicationServices => installed.services),
-              () =>
+          .withServices({
+            owned: DiBag.providerWithDisposal({
+              provider: DiBag.createProvider((): ApplicationServices => installed.services, {
+                factoryReturnKind: 'sync-value',
+              }),
+              disposeService: () =>
                 new Promise<void>((resolve) => {
                   closeRelease.current = resolve;
                 }),
-            ),
+            }),
           })
-          .build();
+          .buildContainer();
         const services = bag.resolve('owned');
-        return { services, close: (options) => bag.close(options) };
+        return { services, close: (options) => bag.close({ waitTimeoutMs: options.timeoutMs }) };
       };
 
       await bootstrapApplication(document.createElement('div'), {
@@ -708,20 +712,25 @@ describe('the page-lifecycle retirement trigger', () => {
       const acquire = (): RetirableRuntime<ApplicationServices> => {
         const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
         const bag = DiBag.createBuilder()
-          .register({
-            completing: DiBag.withDisposal(
-              DiBag.fromSyncFactory((): ApplicationServices => installed.services),
-              () => {
+          .withServices({
+            completing: DiBag.providerWithDisposal({
+              provider: DiBag.createProvider((): ApplicationServices => installed.services, {
+                factoryReturnKind: 'sync-value',
+              }),
+              disposeService: () => {
                 otherDisposerRan.current = true;
                 return Promise.resolve();
               },
-            ),
-            rejecting: DiBag.withDisposal(
-              DiBag.fromSyncFactory((): string => 'the store it took'),
-              () => Promise.reject(new Error(`the store of ${SECRET} would not let go`)),
-            ),
+            }),
+            rejecting: DiBag.providerWithDisposal({
+              provider: DiBag.createProvider((): string => 'the store it took', {
+                factoryReturnKind: 'sync-value',
+              }),
+              disposeService: () =>
+                Promise.reject(new Error(`the store of ${SECRET} would not let go`)),
+            }),
           })
-          .build();
+          .buildContainer();
         const services = bag.resolve('completing');
         bag.resolve('rejecting');
         return {
@@ -731,7 +740,7 @@ describe('the page-lifecycle retirement trigger', () => {
           // second, parallel call to `bag.close()`, which would run the
           // disposers twice.
           close: (options) => {
-            const outcome = bag.close(options);
+            const outcome = bag.close({ waitTimeoutMs: options.timeoutMs });
             closeOutcome.current = outcome;
             return outcome;
           },
@@ -752,7 +761,7 @@ describe('the page-lifecycle retirement trigger', () => {
       });
 
       if (closeOutcome.current === null) throw new Error('setup: close() was never called');
-      await expect(closeOutcome.current).rejects.toBeInstanceOf(DiBagCleanupError);
+      await expect(closeOutcome.current).rejects.toBeInstanceOf(DiBagDisposalError);
       // Proof: on 2026-09-23, replacing `close` with a hand-rolled version
       // that rejects without ever calling `completing`'s own disposer (a
       // cleanup that stops at the first failure, the exact defect the

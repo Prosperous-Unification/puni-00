@@ -15,14 +15,20 @@ import { projectModule } from './module';
  */
 export function installProject(requirements: ProjectRequirements): ProjectExports {
   const bag = DiBag.createBuilder()
-    .installModule(projectModule)
-    .register({
-      projectStore: DiBag.fromSyncFactory(() => requirements.projects),
-      clock: DiBag.fromSyncFactory(() => requirements.clock),
-      broadcast: DiBag.fromSyncFactory(() => requirements.broadcast),
-      optimizerAvailable: DiBag.fromSyncFactory(() => requirements.optimizerAvailable),
+    .withInstalledModules([projectModule])
+    .withServices({
+      projectStore: DiBag.createProvider(() => requirements.projects, {
+        factoryReturnKind: 'sync-value',
+      }),
+      clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      broadcast: DiBag.createProvider(() => requirements.broadcast, {
+        factoryReturnKind: 'sync-value',
+      }),
+      optimizerAvailable: DiBag.createProvider(() => requirements.optimizerAvailable, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (4 pass, 1 fail), with
   // `wbs-core:typecheck` at exit 0.

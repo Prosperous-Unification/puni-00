@@ -13,7 +13,7 @@ import { SavedPlanService, type SavedPlanServiceOptions } from './saved-plans.fe
  *
  * Only `savedPlans` is exported. `savedPlanOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.saved-plans/savedPlanOptions` rather than
  * against an anonymous binding. `quota` is registered even when absent, as
  * `undefined`, the way Realtime registers its optional `maxEvents`: the
@@ -23,8 +23,8 @@ import { SavedPlanService, type SavedPlanServiceOptions } from './saved-plans.fe
  * and callbacks and no timer, socket or handle of its own.
  */
 export const savedPlansModule = DiBag.createBuilder()
-  .register({
-    savedPlanOptions: DiBag.fromSyncFactory(
+  .withServices({
+    savedPlanOptions: DiBag.createProvider(
       ({
         digest,
         capture,
@@ -53,12 +53,14 @@ export const savedPlansModule = DiBag.createBuilder()
         // "refused", because the feature fell back to its default limits.
         ...(quota === undefined ? {} : { quota }),
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    savedPlans: DiBag.fromSyncFactory(
+  .withServices({
+    savedPlans: DiBag.createProvider(
       ({ savedPlanOptions }: { savedPlanOptions: SavedPlanServiceOptions }): SavedPlanService =>
         new SavedPlanService(savedPlanOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): widening the key tuple to `['savedPlans', 'savedPlanOptions']` left the
@@ -69,4 +71,4 @@ export const savedPlansModule = DiBag.createBuilder()
   // assertions failing (5 pass, 2 fail): `inspectGraph()` reported `savedPlanOptions` unlabelled,
   // and the missing-requirement message named `savedPlanOptions` instead of
   // `application.saved-plans/savedPlanOptions`.
-  .buildModule(['savedPlans'], { label: SAVED_PLANS_LABEL });
+  .buildModule({ exportedServiceKeys: ['savedPlans'], moduleLabel: SAVED_PLANS_LABEL });
