@@ -20,9 +20,8 @@ export interface PlanWriteRefusal {
 /**
  * What the plan writer needs from whoever is hosting it.
  *
- * Two kinds of member, and no React in either. The first three are **read** at
- * the moment a gesture asks, not at the moment the writer is built: the feed
- * owner can be renewed under the same reader by a covering read, and the reader
+ * Two kinds of member, and no React in either. The first two are **read** at
+ * the moment a gesture asks, not at the moment the writer is built: the reader
  * can leave for another project between a request and its answer. The last
  * three are the project's own **store and ports** — the writer raises and
  * lowers busy through one and says what happened through the other two, and
@@ -30,28 +29,25 @@ export interface PlanWriteRefusal {
  */
 export interface PlanWriterHost {
   /**
-   * The plan feed owner as it stands now, or null while none is installed.
+   * The plan feed owner as it stands now: null while none is installed, and
+   * null from the instant the reader is withdrawn.
    *
    * Its **identity** is all that is read — a gesture compares the owner it began
-   * under against the owner that exists when its answer arrives. The writer calls
-   * no member of it; rereads go through {@link PlanWriterHost.rereadResources}.
+   * under against the owner answered when its answer arrives, and that is the
+   * whole of "is this still the reader's gesture". A feed opens its refresh
+   * owner once and never renews it, and the project runtime answers `null` here
+   * once its owner has withdrawn it (`readRefreshOwner` in
+   * `runtime/project-runtime.ts`), so a reader that left and a reader replaced
+   * fail the same comparison. The writer calls no member of it; rereads go
+   * through {@link PlanWriterHost.rereadResources}.
    */
   readRefreshOwner: () => PlanRefresh | null;
-  /**
-   * Whether this writer still owns the screen: the same project and the same API
-   * the gesture was issued against.
-   *
-   * Separate from the owner above because the two guards disagree on purpose. A
-   * covering read may renew the feed owner for the same logical reader, and that
-   * renewal must not cost the reader its own gesture's outcome or leave it busy.
-   */
-  isActiveReader: () => boolean;
   /** Awaits the covering outcome of an invalidation; failures stay in the feed's own snapshot. */
   rereadResources: (resources: readonly RefreshResource[]) => Promise<void>;
   /**
    * The project's busy state: raised when a gesture starts, and lowered when it
-   * ends only if {@link PlanWriterHost.isActiveReader} still answers yes — the
-   * reader that raised it owns it; a different API or project does not.
+   * ends, however it ended. It is one project runtime's own, so a gesture whose
+   * reader has left lowers only a busy state nobody draws any more.
    */
   busy: BusyWrites;
   /**
