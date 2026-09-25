@@ -1225,7 +1225,8 @@ _Avoid_: contract tests (alone), shared tests, test harness
 One application family in this repository — WBS is the first — named by its directory under
 `apps/` or under a suite's directory, a project-name prefix and a `product:` tag that keeps one
 product's code out of another's.
-`wiki` is the second: one CLI, `apps/wiki/cli`, released separately from the WBS tool.
+Twilight Burokrat is the second: one CLI, `apps/twilight-structure/twilight-burokrat/cli`,
+released separately from the WBS tool.
 Tools belong to no product.
 _Avoid_: app (that is one deployable), workspace, scope (that is an Nx tag axis already in use)
 

@@ -78,29 +78,33 @@ describe('namespace layout validation', () => {
     expect(findStaleLayoutExceptions(projects)).toEqual([]);
   });
 
-  it('excuses only the exact frozen application product and name', () => {
-    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+  it('excuses only the exact root its name exception names', () => {
+    const tags = [
+      'scope:app',
+      'type:app',
+      'runtime:bun',
+      'ring:adapter',
+      'product:twilight-burokrat',
+    ];
     expect(
       findNamespaceLayoutViolations([
-        project('apps/wiki/cli', 'twilight-burokrat', [...tags, 'product:twilight-burokrat']),
+        project('apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat', tags),
       ]),
     ).toEqual([]);
     expect(
       findNamespaceLayoutViolations([
-        project('apps/wiki/cli', 'wiki-cli', [...tags, 'product:wiki']),
-        project('apps/wiki/other', 'twilight-burokrat', [...tags, 'product:twilight-burokrat']),
+        project('apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat-cli', tags),
+        project('apps/twilight-structure/twilight-burokrat/other', 'twilight-burokrat', tags),
       ]),
     ).toEqual([
-      'apps/wiki/cli: directory product twilight-burokrat disagrees with product:wiki',
-      'apps/wiki/cli: project name must be twilight-burokrat, found wiki-cli',
-      'apps/wiki/other: directory product wiki disagrees with product:twilight-burokrat',
-      'apps/wiki/other: project name must be wiki-other, found twilight-burokrat',
+      'apps/twilight-structure/twilight-burokrat/cli: project name must be twilight-burokrat, found twilight-burokrat-cli',
+      'apps/twilight-structure/twilight-burokrat/other: project name must be twilight-burokrat-other, found twilight-burokrat',
     ]);
   });
 
-  it('names a frozen root that no project occupies after the move', () => {
+  it('names a name exception that no project occupies', () => {
     expect(findStaleLayoutExceptions(VALID_PROJECTS)).toEqual([
-      'apps/wiki/cli: frozen layout exception names no project; remove it',
+      'apps/twilight-structure/twilight-burokrat/cli: name exception names no project; remove it',
     ]);
   });
 
