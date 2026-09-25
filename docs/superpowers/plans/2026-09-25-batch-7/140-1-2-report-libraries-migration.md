@@ -83,14 +83,14 @@ of both items record the merge.
 
 ## 2. Read first
 
-| File                                                                                                                       | Why                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGENTS.md`, `LLM_README.md`                                                                                               | Rules R1–R5 and the routing index.                                                                                                           |
-| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                                                      | "Execution contract" and "Standard blocks every packet uses": the strict OpenSpec block, the patch-saving form, creating an OpenSpec change. |
-| `docs/superpowers/plans/2026-09-17-personal-package-adoption.md`, its 2026-09-19 amendment                                 | The reporting contract this packet keeps; slice 4 adds a 2026-09-25 amendment above it.                                                      |
-| `openspec/changes/adopt-failure-reporting/specs/failure-reporting/spec.md`, `openspec/changes/log-failure-records/specs/…` | The behaviour every boundary must keep; none of their requirements changes.                                                                  |
-| `libs/shared/domain/failures/src/report-failure.ts` and its test                                                           | The one module that calls application-exception's reporting API.                                                                             |
-| `tools/tool-devsync/src/toolchain-pins.test.ts`, `describe('the owner-maintained libraries')`                              | The pins and the lock-key test this packet extends.                                                                                          |
+| File                                                                                                                                                 | Why                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`, `LLM_README.md`                                                                                                                         | Rules R1–R5 and the routing index.                                                                                                           |
+| `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                                                                                | "Execution contract" and "Standard blocks every packet uses": the strict OpenSpec block, the patch-saving form, creating an OpenSpec change. |
+| `docs/superpowers/plans/2026-09-17-personal-package-adoption.md`, its 2026-09-19 amendment                                                           | The reporting contract this packet keeps; slice 4 adds a 2026-09-25 amendment above it.                                                      |
+| `openspec/changes/adopt-failure-reporting/specs/failure-reporting/spec.md`, `openspec/changes/log-failure-records/specs/failure-log-records/spec.md` | The behaviour every boundary must keep; none of their requirements changes.                                                                  |
+| `libs/shared/domain/failures/src/report-failure.ts` and its test                                                                                     | The one module that calls application-exception's reporting API.                                                                             |
+| `tools/tool-devsync/src/toolchain-pins.test.ts`, `describe('the owner-maintained libraries')`                                                        | The pins and the lock-key test this packet extends.                                                                                          |
 
 ## 3. Design
 
@@ -178,6 +178,9 @@ one alternative (two steps) is recorded in section 1.1 and the proposal.
 
 - **One constant for both bags.** `FAILURE_REPORT_LIMITS` is typed `PublicReportCorjOptions` —
   the narrower type — so the compiler refuses anything a public bag would reject at run time.
+  Observed on 2026-09-25: a `PublicReportCorjOptions` literal with `maxReportSize: 32_768` failed
+  `tsc` 7.0.2 with `TS2353: Object literal may only specify known properties, and
+'maxReportSize' does not exist in type 'PublicReportCorjOptions'`.
 - **The one-copy test resolves, it does not list directories.** Both resolutions go through
   `createRequire(...).resolve('caught-object-report-json/package.json')` (CORJ exports
   `./package.json`), so a nested copy, a hoisting change or a stale tree all show as two different
@@ -262,8 +265,10 @@ refusal of a public policy's `details` (`APPEX_INVALID_PUBLIC_POLICY: unknown pu
 
 No new source file under `apps/wiki/cli`, so the Twilight Burokrat validator identity does not
 move. No module README with a `module-index` block is touched. `bun.lock` and `package.json` move
-here, as the batch-7 brief's point 6 assigns them to this item; `di-bag` is not touched. The suite
-directory move (the other batch-7 lane) touches none of these paths.
+here, as the batch-7 brief's point 6 assigns them to this item; `di-bag` is not touched. The suite directory move (the other batch-7 lane) had no packet when this one was written; on
+the stand-in no owned path lies under `apps/wiki`. The owned file most likely to be shared is
+`tools/tool-devsync/src/toolchain-pins.test.ts`, which asserts on `ci.yml` text (`tool_wiki`,
+`GATE_TOOL_WIKI`): check it against the suite-move packet once that is written.
 
 ## 6. Slices
 
@@ -344,7 +349,7 @@ bash "$run" "$prefix-gateway" env -u CLAUDECODE -u AGENT bash -c \
   'cd apps/wbs/gw-01 && bun test ./src/controller/unexpected-backend-failure.test.ts ./src/failure-reporting.integration.test.ts'
 bash "$run" "$prefix-mcp" env -u CLAUDECODE -u AGENT bash -c \
   'cd apps/wbs/mcp-01 && bun test ./src/unexpected-tool-failure.test.ts ./src/main.test.ts'
-bash "$run" "$prefix-frontend" env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT TZ=UTC bash -c \
+bash "$run" "$prefix-frontend" env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT TZ=UTC bash -c \
   'cd apps/wbs/fe-01 && bunx vitest run --no-file-parallelism --maxWorkers=1 browser-packages.test.ts src/main.test.tsx src/components/chrome/app-fault.test.tsx src/components/chrome/lifetime-fault.test.tsx src/components/wbs/gantt-panel.test.tsx src/runtime/application-bootstrap.test.tsx src/runtime/application-bootstrap.model.test.tsx'
 EOF
 packet=docs/superpowers/plans/2026-09-25-batch-7/140-1-2-report-libraries-migration.md
@@ -394,7 +399,7 @@ the totals line:
 ```sh
 set -euo pipefail
 report=$(mktemp "$TMPDIR/evidence/openspec-base.XXXXXX.json")
-OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json > "$report"
+env -u CLAUDECODE -u AGENT OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json > "$report"
 jq -s -e '
   length == 1 and
   (.[0] | type == "object") and
@@ -418,7 +423,7 @@ Owns (5 paths), all under `openspec/changes/migrate-report-libraries/`: `.opensp
   ```sh
   set -euo pipefail
   test ! -e openspec/changes/migrate-report-libraries
-  OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change migrate-report-libraries --schema sdd-lean
+  env -u CLAUDECODE -u AGENT OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change migrate-report-libraries --schema sdd-lean
   grep -n "schema: sdd-lean" openspec/changes/migrate-report-libraries/.openspec.yaml
   ```
 
@@ -439,9 +444,9 @@ Owns (5 paths), all under `openspec/changes/migrate-report-libraries/`: `.opensp
   printf '%s\n' "$d/.openspec.yaml" "$d/proposal.md" "$d/specs/report-libraries/spec.md" \
     "$d/tasks.md" "$d/verify.md" > "$TMPDIR/owned.txt"
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
   # shellcheck disable=SC2046
-  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
   git status --porcelain --untracked-files=all > "$TMPDIR/evidence/status-after.txt"
   cut -c4- "$TMPDIR/evidence/status-after.txt" | sort > "$TMPDIR/evidence/status-paths.txt"
   sort "$TMPDIR/owned.txt" > "$TMPDIR/evidence/owned-sorted.txt"
@@ -478,7 +483,7 @@ on every Nx command, as everywhere on this machine. Nothing else.
   set -euo pipefail
   test ! -e node_modules/application-exception/node_modules/caught-object-report-json
   bash "$TMPDIR/suites.sh" base
-  bash "$TMPDIR/run-check.sh" base-typecheck env NX_DAEMON=false bunx nx run-many -t typecheck \
+  bash "$TMPDIR/run-check.sh" base-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t typecheck \
     -p shared-failures wbs-observability wbs-be-01 wbs-gw-01 wbs-mcp-01 wbs-fe-01 tool-devsync --skip-nx-cache
   for check in base-pins base-failures base-observability base-backend base-gateway base-mcp \
     base-frontend base-typecheck; do
@@ -488,7 +493,7 @@ on every Nx command, as everywhere on this machine. Nothing else.
 
   Expected, each `status=0`; rehearsed: pins `19 pass`, failures `20 pass`, observability `28
 pass`, backend `5 pass`, gateway `5 pass`, mcp `4 pass`, frontend `Test Files 7 passed (7)`
-  `Tests 288 passed (288)`, typecheck `Successfully ran target typecheck for 7 projects`. Record
+  `Tests 288 passed (288)`, typecheck `Successfully ran target typecheck for 7 projects and 1 task they depend on`. Record
   each as that suite's **N**. A nested copy already present is a stop (section 10).
 
 - [ ] 2. **The registry, read again** (network):
@@ -524,7 +529,7 @@ pass`, backend `5 pass`, gateway `5 pass`, mcp `4 pass`, frontend `Test Files 7 
   ```sh
   set -euo pipefail
   bash "$TMPDIR/suites.sh" red
-  bash "$TMPDIR/run-check.sh" red-typecheck env NX_DAEMON=false bunx nx run-many -t typecheck \
+  bash "$TMPDIR/run-check.sh" red-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t typecheck \
     -p shared-failures wbs-observability wbs-be-01 wbs-gw-01 wbs-mcp-01 wbs-fe-01 tool-devsync --skip-nx-cache
   for check in red-pins red-failures red-observability red-backend red-gateway red-mcp red-frontend; do
     bash "$TMPDIR/expect-status.sh" "$check" 1
@@ -575,9 +580,9 @@ deletions(-)`: `--frozen-lockfile` refused nothing and rewrote neither file beyo
   ```sh
   set -euo pipefail
   bash "$TMPDIR/suites.sh" green
-  bash "$TMPDIR/run-check.sh" green-typecheck env NX_DAEMON=false bunx nx run-many -t typecheck \
+  bash "$TMPDIR/run-check.sh" green-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t typecheck \
     -p shared-failures wbs-observability wbs-be-01 wbs-gw-01 wbs-mcp-01 wbs-fe-01 tool-devsync --skip-nx-cache
-  bash "$TMPDIR/run-check.sh" green-lint env NX_DAEMON=false bunx nx run-many -t lint \
+  bash "$TMPDIR/run-check.sh" green-lint env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t lint \
     -p shared-failures wbs-observability wbs-be-01 wbs-gw-01 wbs-mcp-01 wbs-fe-01 tool-devsync --skip-nx-cache
   for check in green-pins green-failures green-observability green-backend green-gateway \
     green-mcp green-frontend green-typecheck green-lint; do
@@ -595,7 +600,9 @@ deletions(-)`: `--frozen-lockfile` refused nothing and rewrote neither file beyo
 
 - [ ] 7. **The registry probe on Bun and both compilers.** The probe lives under `$TMPDIR`, beside a
       symbolic link to this clone's `node_modules`, so it resolves exactly what the repository
-      installed and adds nothing to the working tree:
+      installed and adds nothing to the working tree. **Strip the two-space list indent** before
+      running it: an indented `EOF` does not end a heredoc, and bash would swallow the rest of the
+      block. The `test -s` lines catch that:
 
   ```sh
   set -euo pipefail
@@ -659,6 +666,9 @@ deletions(-)`: `--frozen-lockfile` refused nothing and rewrote neither file beyo
   }
   console.log(`issue 217 ${issue217}`);
   EOF
+  test -s "$probe/tsconfig.json"
+  test -s "$probe/registry-probe.ts"
+  test "$(tail -n 1 "$probe/registry-probe.ts")" = 'console.log(`issue 217 ${issue217}`);'
   bash "$TMPDIR/run-check.sh" probe-bun env -u CLAUDECODE -u AGENT bun "$probe/registry-probe.ts"
   bash "$TMPDIR/run-check.sh" probe-tsc7 node_modules/.bin/tsc -p "$probe/tsconfig.json"
   bash "$TMPDIR/run-check.sh" probe-tsc6 node_modules/.bin/tsc6 -p "$probe/tsconfig.json"
@@ -714,9 +724,9 @@ deletions(-)`: `--frozen-lockfile` refused nothing and rewrote neither file beyo
     > "$TMPDIR/prettier.txt"
   test "$(wc -l < "$TMPDIR/prettier.txt")" -eq 18
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/prettier.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/prettier.txt")
   # shellcheck disable=SC2046
-  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/prettier.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/prettier.txt")
   { cat "$TMPDIR/prettier.txt"; echo bun.lock; } | sort > "$TMPDIR/evidence/owned-sorted.txt"
   git status --porcelain --untracked-files=all > "$TMPDIR/evidence/status-after.txt"
   cut -c4- "$TMPDIR/evidence/status-after.txt" | sort > "$TMPDIR/evidence/status-paths.txt"
@@ -752,7 +762,8 @@ change's `tasks.md` and `verify.md`.
   Expected: no nested directory, `"version": "13.0.0",`, every suite `status=0` at slice 2's green
   counts (rehearsed 20, 20, 29, 5, 5, 4, 7·288). **A clone whose `node_modules` still holds 11.0.1**
   (the attempt was resumed without an install) fails the version line: run `env -u CLAUDECODE -u
-AGENT bun install --frozen-lockfile` once, record it, and rerun this step.
+AGENT bun install --frozen-lockfile` once, record it, and rerun this step. The install must
+  succeed offline from the Bun cache (slice 3 has no network); needing the network is a stop.
 
 - [ ] 2. The section 8.1 faults, with section 8's procedure: every fault observed first, each
       restored and compared, then the `Proof:` comments at the sites 8.1 names.
@@ -763,9 +774,9 @@ AGENT bun install --frozen-lockfile` once, record it, and rerun this step.
   ```sh
   set -euo pipefail
   bash "$TMPDIR/suites.sh" final
-  bash "$TMPDIR/run-check.sh" s3-lint env NX_DAEMON=false bunx nx run-many -t lint \
+  bash "$TMPDIR/run-check.sh" s3-lint env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t lint \
     -p shared-failures wbs-observability tool-devsync --skip-nx-cache
-  bash "$TMPDIR/run-check.sh" s3-typecheck env NX_DAEMON=false bunx nx run-many -t typecheck \
+  bash "$TMPDIR/run-check.sh" s3-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t typecheck \
     -p shared-failures wbs-observability tool-devsync --skip-nx-cache
   for check in final-pins final-failures final-observability final-backend final-gateway \
     final-mcp final-frontend s3-lint s3-typecheck; do
@@ -788,9 +799,9 @@ AGENT bun install --frozen-lockfile` once, record it, and rerun this step.
     tools/tool-devsync/src/toolchain-pins.test.ts \
     > "$TMPDIR/owned.txt"
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
   # shellcheck disable=SC2046
-  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
   git status --porcelain --untracked-files=all > "$TMPDIR/evidence/status-after.txt"
   cut -c4- "$TMPDIR/evidence/status-after.txt" | sort > "$TMPDIR/evidence/status-paths.txt"
   sort "$TMPDIR/owned.txt" > "$TMPDIR/evidence/owned-sorted.txt"
@@ -835,9 +846,9 @@ Owns (4 paths): `docs/superpowers/plans/2026-09-17-personal-package-adoption.md`
     openspec/changes/migrate-report-libraries/verify.md \
     > "$TMPDIR/owned.txt"
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
   # shellcheck disable=SC2046
-  GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
   git status --porcelain --untracked-files=all > "$TMPDIR/evidence/status-after.txt"
   cut -c4- "$TMPDIR/evidence/status-after.txt" | sort > "$TMPDIR/evidence/status-paths.txt"
   sort "$TMPDIR/owned.txt" > "$TMPDIR/evidence/owned-sorted.txt"
@@ -889,6 +900,10 @@ the only absolute paths in this document.
 # Slices 3 and 4 the same way from P2 and P3, without --network.
 ```
 
+**A `fill=real` failure is a planner stop**, never a waiver: rebase the rehearsal on the new base
+and re-rehearse the affected slices before dispatch. The first path to check against the suite-move
+packet is `tools/tool-devsync/src/toolchain-pins.test.ts` (section 5).
+
 No `--seed`: no slice reads another attempt's evidence. `--slice-note` is load-bearing: step 0a
 reads the reviewed SHA from it. Slice 2's install changes the clone's `node_modules`, which
 `--resume` keeps for slices 3 and 4 (their step 1 checks it).
@@ -900,6 +915,8 @@ applies all of them, in order, to a tree extracted from the stand-in base and pr
 equal to the rehearsal's final commit. No diff adds a `Proof:` comment; the executor writes those
 after observing its own faults. `bun.lock`'s hunk is Bun's own output of `bun add --exact
 caught-object-report-json@13.0.0 application-exception@0.7.0`, including the integrity hashes.
+The dates in 7.5 ("Amendment, 2026-09-25", "Amended 2026-09-25") are the planner's decision date
+for this move, not observed dates: the executor keeps them as written.
 
 ### 7.1 The OpenSpec change — slice 1
 
@@ -1857,7 +1874,16 @@ accepts a failure record written before the report format moved
 **The two installed-tree faults come first**, by hand, because `node_modules` is not tracked and
 no patch can carry them. Each is run with its clause in place and again with **its clause
 disabled** (the `p1c` and `p2c` patches weaken exactly that assertion to a type check), because a
-fault that another clause also catches proves neither (brief addendum, point 2):
+fault that another clause also catches proves neither (brief addendum, point 2).
+
+**`node_modules` files are hard links into `~/.bun/install/cache`** and into every other install on
+this host: the reviewer saw a link count of 114 on the installed 11.0.1 `package.json` in a fresh install. Mutate them
+only with this block's `sed -i` (which writes a new file and breaks the link, checked by `stat -c
+%h` right after it) and `cp -R`, **never with an editor tool, `cat >` or any other in-place
+write** — that would rewrite the cached 13.0.0 manifest for every clone on the machine. The block
+checks the cache's copy before and after. It refuses to start unless both files are clean, and a
+`trap` restores both files and moves any nested copy aside on every exit. **A failure anywhere in
+the block is a stop, not a rerun**: report it with the evidence directory as it stands.
 
 ```sh
 set -euo pipefail
@@ -1868,9 +1894,24 @@ pins() {
 nested=node_modules/application-exception/node_modules
 manifest=node_modules/caught-object-report-json/package.json
 test_file=tools/tool-devsync/src/toolchain-pins.test.ts
+cache="$HOME/.bun/install/cache/caught-object-report-json@13.0.0@@@1/package.json"
+test -f "$cache"
+grep -h '"version"' "$cache" | tee "$TMPDIR/evidence/cache-before.txt"
+grep -q '"version": "13.0.0"' "$cache"
+# Clean state before the passing copies are saved: a mutated file must never become "passing".
 test ! -e "$nested"
+git diff --quiet -- "$test_file"
+grep -q '"version": "13.0.0"' "$manifest"
 cp "$test_file" "$TMPDIR/pins.passing"
 cp "$manifest" "$TMPDIR/corj-manifest.passing"
+restore() {
+  rc=$?
+  if [ -e "$nested" ]; then mv "$nested" "$(mktemp -d "$TMPDIR/p1-nested.XXXXXX")/"; fi
+  cp "$TMPDIR/pins.passing" "$test_file"
+  cp "$TMPDIR/corj-manifest.passing" "$manifest"
+  exit "$rc"
+}
+trap restore EXIT
 # p1: a second copy nested under application-exception.
 mkdir -p "$nested"
 cp -R node_modules/caught-object-report-json "$nested/"
@@ -1880,11 +1921,14 @@ git apply --unidiff-zero "$TMPDIR/mutations/p1c.diff"
 if pins > "$TMPDIR/evidence/p1c.log" 2>&1; then p1c=0; else p1c=$?; fi
 cp "$TMPDIR/pins.passing" "$test_file"
 cmp "$test_file" "$TMPDIR/pins.passing"
-mv "$nested" "$TMPDIR/p1-nested"
+mv "$nested" "$(mktemp -d "$TMPDIR/p1-nested.XXXXXX")/"
 test ! -e "$nested"
-# p2: the installed copy's own version edited.
+# p2: the installed copy's own version edited, by sed -i only.
+stat -c %h "$manifest" | tee "$TMPDIR/evidence/manifest-links-before.txt"
 test "$(grep -c '"version": "13.0.0"' "$manifest")" -eq 1
 sed -i 's/"version": "13.0.0"/"version": "12.9.9"/' "$manifest"
+test "$(stat -c %h "$manifest")" -eq 1
+grep -q '"version": "13.0.0"' "$cache"
 if pins > "$TMPDIR/evidence/p2.log" 2>&1; then p2=0; else p2=$?; fi
 # p2c: the same edit, with the version clause weakened.
 git apply --unidiff-zero "$TMPDIR/mutations/p2c.diff"
@@ -1893,6 +1937,8 @@ cp "$TMPDIR/pins.passing" "$test_file"
 cp "$TMPDIR/corj-manifest.passing" "$manifest"
 cmp "$test_file" "$TMPDIR/pins.passing"
 cmp "$manifest" "$TMPDIR/corj-manifest.passing"
+grep -h '"version"' "$cache" | tee "$TMPDIR/evidence/cache-after.txt"
+grep -q '"version": "13.0.0"' "$cache"
 echo "p1=$p1 p1c=$p1c p2=$p2 p2c=$p2c"
 test "$p1" -eq 1
 test "$p1c" -eq 0
@@ -1905,8 +1951,11 @@ if pins > "$TMPDIR/evidence/p-green.log" 2>&1; then green=0; else green=$?; fi
 test "$green" -eq 0
 ```
 
-Expected, and rehearsed: `p1=1 p1c=0 p2=1 p2c=0`, exit 0. The restore is a move of the nested
-directory into `$TMPDIR` (nothing is deleted) and two byte copies, each compared.
+Expected, and rehearsed (round 2, 2026-09-25): the cache's `"version": "13.0.0",` before and after,
+a link count above 1 before the edit (2: the cache's file and this clone's in the rehearsal's clone) and exactly 1 after it,
+`p1=1 p1c=0 p2=1 p2c=0`, exit 0. The restore is a move of the nested directory into `$TMPDIR`
+(nothing is deleted) and two byte copies, each compared; the `trap` repeats the copies on exit, the
+same bytes.
 
 | Id    | Fault                                                                                                 | Named test                                                                            | Observed                                                                                                                                                                                                                                               | Comment above                                                        |
 | ----- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
@@ -1928,7 +1977,7 @@ does not hide behind the refusal clause.
 with the observed date, naming the fault and the fact observed. For example, as rehearsed:
 
 ```ts
-// Proof: on <observed date>, a copy of the report library nested under application-exception
+// Proof: on <observed-date-p1>, a copy of the report library nested under application-exception
 // failed this test on the two resolutions, `node_modules/application-exception/node_modules/…`
 // received where the root copy was expected, while the lock-key test beside it passed; with this
 // assertion weakened to a type check the same nested copy passed the whole suite.
@@ -2367,7 +2416,7 @@ entries the run appended. Slice 3's `Proof:` comments in that run were the rehea
 set -euo pipefail
 mkdir -p "$TMPDIR/evidence"
 report=$(mktemp "$TMPDIR/evidence/openspec-validation.XXXXXX.json")
-OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
+env -u CLAUDECODE -u AGENT OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
 jq -s -e '
   length == 1 and
   (.[0] | type == "object") and
@@ -2408,7 +2457,7 @@ own install. Every fault of section 8 was run on the commit before its slice's o
 `276368515`, slice 4's on `400deded9`), and again from the extracted blocks in the second clone.
 
 Also run by the author on the second clone's final commit, outside any sandbox:
-`CI=1 E2E_PORT_SHIFT=2700 NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- e2e/browser-packages.spec.ts
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT CI=1 E2E_PORT_SHIFT=2700 NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- e2e/browser-packages.spec.ts
 e2e/fault-boundary.spec.ts` exited 0 with `2 passed` — the three libraries in Chromium from this
 app's Vite build, `reportVersion: 'corj/v0.15'`, and the root fault boundary — and
 `wbs-fe-01:test:unit --skip-nx-cache` exited 0 with `Test Files 59 passed (59)`, `Tests 737 passed
@@ -2416,20 +2465,22 @@ app's Vite build, `reportVersion: 'corj/v0.15'`, and the root fault boundary —
 
 ### 9.4 Planner-only, with the expected relative delta
 
-| Check                                                                                                                          | Why the planner's                                                                              | Expected                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, after each slice's commit          | Its namespacing test writes Git objects                                                        | Base + 1 test after slice 2, unchanged after the others; rehearsed `372 pass`, `0 fail` on the final commit |
-| `check-indexes committed . <commit>` after each commit                                                                         | Writes Git objects (brief addendum 7, point 3)                                                 | exit 0; no module index is touched                                                                          |
-| `NX_DAEMON=false bunx nx run-many -t test -p shared-failures wbs-observability wbs-be-01 wbs-gw-01 wbs-mcp-01 --skip-nx-cache` | Whole targets, outside the focused files                                                       | exit 0, each project's base count, observability + 1                                                        |
-| `wbs-fe-01:test` and `wbs-fe-01:test:unit`                                                                                     | Three tests spawn `bun` from Node                                                              | unchanged counts                                                                                            |
-| `CI=1 E2E_PORT_SHIFT=<n> NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- e2e/browser-packages.spec.ts e2e/fault-boundary.spec.ts` | Chromium                                                                                       | both pass; `reportVersion: 'corj/v0.15'` in the first                                                       |
-| `NX_DAEMON=false bunx nx format:check --all`                                                                                   | Repository-wide                                                                                | exit 0                                                                                                      |
-| `bin/h2puni-gate.sh <sha>` on the batch's integration commit                                                                   | The host gate. **Its tree must be installed from the new lockfile** (it is: the gate installs) | exit 0                                                                                                      |
+| Check                                                                                                                                                                               | Why the planner's                                                                              | Expected                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`, after each slice's commit                                                               | Its namespacing test writes Git objects                                                        | Base + 1 test after slice 2, unchanged after the others; rehearsed `372 pass`, `0 fail` on the final commit |
+| `check-indexes committed . <commit>` after each commit                                                                                                                              | Writes Git objects (brief addendum 7, point 3)                                                 | exit 0; no module index is touched                                                                          |
+| `env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t test -p shared-failures wbs-observability wbs-be-01 wbs-gw-01 wbs-mcp-01 --skip-nx-cache`                           | Whole targets, outside the focused files                                                       | exit 0, each project's base count, observability + 1                                                        |
+| `wbs-fe-01:test` and `wbs-fe-01:test:unit`                                                                                                                                          | Three tests spawn `bun` from Node                                                              | unchanged counts                                                                                            |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT CI=1 E2E_PORT_SHIFT=<n> NX_DAEMON=false bunx nx run wbs-fe-01:e2e -- e2e/browser-packages.spec.ts e2e/fault-boundary.spec.ts` | Chromium                                                                                       | both pass; `reportVersion: 'corj/v0.15'` in the first                                                       |
+| `env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx format:check --all`                                                                                                             | Repository-wide                                                                                | exit 0                                                                                                      |
+| `bin/h2puni-gate.sh <sha>` on the batch's integration commit                                                                                                                        | The host gate. **Its tree must be installed from the new lockfile** (it is: the gate installs) | exit 0                                                                                                      |
 
-**A planner worktree whose `node_modules` is a link to another worktree's install** (as the author
-worktrees of this batch are) still holds 11.0.1 and 0.5.0: the new pins test fails there on the
-installed version until that tree runs `bun install --frozen-lockfile`. That is the test doing its
-job, not a regression.
+**Never install through a linked `node_modules`: it is shared with other lanes.** Run the planner
+checks in the executor's clone, or replace the link in that worktree with its own install
+(`unlink node_modules`, then `bun install --frozen-lockfile`). For this packet the planner runs
+every check in section 9.4 in the executor's lane clone, which has its own install. A worktree
+whose `node_modules` still links to an 11.0.1 install fails the new pins test on the installed
+version: that is the test doing its job, not a regression.
 
 ### 9.5 What none of this proves
 
@@ -2473,6 +2524,9 @@ historical packets under `docs/superpowers/plans/2026-09-1*` and `2026-09-2[0-4]
   wrapper's own test (`a cause that cannot be inspected …`) and the backend, gateway, MCP and
   observability loss tests need another value the reporter cannot inspect; the wrapper stays either
   way (R5: a hostile value can always throw).
+- **The next report-library migration MODIFIES** `report-libraries`' requirement "Operator
+  records stay readable across a report-format change": its scenario "A boundary logs a failure
+  after the move" hard-codes `corj/v0.15`.
 - A public byte budget (`maxReportBytes` on the public bag) is available and unused; adopting it is
   a behaviour change with its own OpenSpec change.
 
@@ -2511,3 +2565,25 @@ historical packets under `docs/superpowers/plans/2026-09-1*` and `2026-09-2[0-4]
 | 2     | `build(deps): move the report library to 13.0.0 and application-exception to 0.7.0 together` | 19    |
 | 3     | `test(failures): prove one report library copy, the moved budget and older log records`      | 5     |
 | 4     | `docs(plans): record the report libraries' move and observe the reporting proofs again`      | 4     |
+
+## 16. Round 1, disposed
+
+Review 1 (READY AFTER FIXES), every finding applied; the planner's decisions are in brackets.
+
+| Finding     | What changed                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Important 1 | Section 9.4: the reviewer's sentence replaces the install advice — never install through a linked `node_modules`; [planner checks run in the executor's lane clone, which has its own install].                                                                                                                                                                                            |
+| Important 2 | Section 8.1: the hard-link warning; clean-state guards (`git diff --quiet`, the manifest's 13.0.0) before the passing copies are saved; `stat -c %h` equal to 1 after `sed -i`; a `trap` restoring both files and moving any nested copy aside on every exit; the Bun cache's 13.0.0 manifest checked before and after; "a failure is a stop, not a rerun". Rehearsed again (section 9.3). |
+| Minor 1     | Section 5 no longer claims the suite move's paths; Dispatch says a `fill=real` failure is a planner stop and names `toolchain-pins.test.ts` as the path to check against the suite-move packet.                                                                                                                                                                                            |
+| Minor 2     | Slice 2 step 7 says to strip the list indent, and three `test` lines prove both heredocs ended where they should.                                                                                                                                                                                                                                                                          |
+| Minor 3     | Slice 2 step 1 expects `… for 7 projects and 1 task they depend on`.                                                                                                                                                                                                                                                                                                                       |
+| Minor 4     | Every `bunx nx`, `bunx prettier` and OpenSpec command carries `env -u CLAUDECODE -u AGENT`, and every Vitest and Playwright command also `-u AGENT`; no exemption.                                                                                                                                                                                                                         |
+| Minor 5     | Section 3.6 records the observed `TS2353` for `maxReportSize` in a `PublicReportCorjOptions` literal.                                                                                                                                                                                                                                                                                      |
+| Minor 6     | The example `Proof:` comment uses `<observed-date-p1>`; section 7 says the 7.5 dates are the planner's decision date.                                                                                                                                                                                                                                                                      |
+| Minor 7     | Section 12: the next report-library migration MODIFIES the requirement whose scenario names `corj/v0.15`.                                                                                                                                                                                                                                                                                  |
+| Minor 8     | Slice 3 step 1: the fallback install must succeed offline from the Bun cache; needing the network is a stop.                                                                                                                                                                                                                                                                               |
+| Minor 9     | Section 2 spells out `openspec/changes/log-failure-records/specs/failure-log-records/spec.md`.                                                                                                                                                                                                                                                                                             |
+
+No section 7 diff and no section 8 fault patch changed, so section 9.1's extraction is unchanged
+and the rehearsal stays `rehearse/140-1-2-r1`; only executor blocks and prose changed, and every
+changed block was run again (section 9.3, "Round 2 rerun").
