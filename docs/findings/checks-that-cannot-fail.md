@@ -47,7 +47,7 @@ from `AGENTS.md`, so it carries no `root-source` marker and
 mapped, and nothing may be inserted there.
 
 **R5-28 — a contract guard whose fault cannot be injected, kept deliberately and labelled.**
-`apps/wiki/cli/src/policy/release-cli.ts` runs `assertStandaloneValidator` over each bundle the
+`apps/twilight-structure/twilight-burokrat/cli/src/policy/release-cli.ts` runs `assertStandaloneValidator` over each bundle the
 release target packs (`T6`). `Bun.build` with no `external` configuration either inlines every bare
 specifier or fails the build, so this repository cannot currently emit a bundle that reaches the
 refusal: the fault cannot be injected on the production path, and the check has never been watched

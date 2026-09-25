@@ -1,0 +1,101 @@
+{
+  "name": "twilight-burokrat",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/twilight-structure/twilight-burokrat/cli/src",
+  "projectType": "application",
+  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-burokrat"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/.github/workflows/ci.yml",
+        "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
+        "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/consumer/**/*",
+        "{projectRoot}/package.json",
+        "{projectRoot}/NOTICE",
+        "{workspaceRoot}/infra/ci/burokrat/**/*",
+        "{workspaceRoot}/bin/tool-wiki-*.sh"
+      ],
+      "options": {
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["{workspaceRoot}/**/*"],
+      "options": {
+        "command": "bash bin/tool-wiki-lint.sh working . HEAD"
+      }
+    },
+    "lint:source": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bunx eslint apps/twilight-structure/twilight-burokrat/cli/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/twilight-structure/twilight-burokrat/cli/src --cache --cache-location .nx/eslintcache-twilight-burokrat"
+      }
+    },
+    "release": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun src/packaging/release-cli.ts",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/package.json",
+        "{projectRoot}/README.md",
+        "{projectRoot}/NOTICE",
+        "{workspaceRoot}/libs/shared/domain/validation/src/**/*",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/bun.lock",
+        "{workspaceRoot}/.bun-version"
+      ],
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "command": "bun src/packaging/build.ts",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
+    },
+    "pack": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/dist/twilight-burokrat-pack"],
+      "options": {
+        "command": "bun src/packaging/pack.ts",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
+    },
+    "test:package": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["pack"],
+      "options": {
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src/packaging",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"
+      }
+    }
+  }
+}

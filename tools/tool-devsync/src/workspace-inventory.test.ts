@@ -235,10 +235,12 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   });
   // Proof: pinning the pre-move `../../dist/tools/tool-wiki` here failed this oracle with the
   // moved project's actual three-deep outDir (2026-09-16).
+  // Proof: pinning the three-deep outDir the project had before it joined the Twilight
+  // Structure suite failed this oracle with its actual four-deep one (2026-09-25).
   expect(paths).toContainEqual({
-    file: 'apps/wiki/cli/tsconfig.lib.json',
+    file: 'apps/twilight-structure/twilight-burokrat/cli/tsconfig.lib.json',
     propertyPath: 'compilerOptions.outDir',
-    value: '../../../dist/apps/wiki/cli',
+    value: '../../../../dist/apps/twilight-structure/twilight-burokrat/cli',
   });
 });
 
