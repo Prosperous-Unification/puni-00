@@ -1,15 +1,23 @@
 import type * as Router from '@tanstack/react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { DiBag } from 'di-bag';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as Api from '@/lib/api';
 import { ThemeProvider } from '@/lib/theme';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
+import { projectServicesOver } from '@/modules/project/composition';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
-import { createSessionOwner, type SessionOwner } from '@/runtime/session-runtime';
+import { installProjectRuntime } from '@/runtime/project-runtime';
+import {
+  createSessionOwner,
+  installSessionRuntime,
+  type SessionOwner,
+} from '@/runtime/session-runtime';
+import { fakeProjectApi } from '@/testing/fake-project-api';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -314,7 +322,7 @@ describe('the signed-in user’s session', () => {
   const signedInAs = (session: Api.Session, openOwner?: () => SessionOwner) => (
     <ApplicationServicesProvider slot={servicesSlot}>
       <ThemeProvider>
-        <SignedInApp session={session} onSignOut={() => undefined} openOwner={openOwner} />
+        <SignedInApp session={session} onSignedOut={() => undefined} openOwner={openOwner} />
       </ThemeProvider>
     </ApplicationServicesProvider>
   );
@@ -443,4 +451,227 @@ describe('the signed-in user’s session', () => {
       expect(owner.snapshot().status).toBe('empty');
     });
   });
+});
+
+/**
+ * Log out, through the account menu the reader clicks: a local exit that sends
+ * nothing, retires the session's project and then the session, and hands the
+ * signed-out state up only once both have let go — the fatal state otherwise.
+ */
+describe('log out', () => {
+  const KAT = { id: 'u1', username: 'kat', scopes: ['read', 'write'] as ('read' | 'write')[] };
+
+  /** Every request the page sends, by path. */
+  const requestsSent = () => {
+    const paths: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        paths.push(path);
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(new Response(JSON.stringify({ [collection]: [] }), { status: 200 }));
+      }),
+    );
+    return paths;
+  };
+
+  /**
+   * An owner over fake clients that records, in order, what was given back; the
+   * project's close ends however `closeSocket` says.
+   */
+  const recordingOwner = (
+    events: string[],
+    closeSocket: (options: { timeoutMs: number }) => Promise<void> = () => Promise.resolve(),
+    budgetMs = 1_000,
+  ): SessionOwner =>
+    createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      install: (dependencies) => {
+        const installed = installSessionRuntime(dependencies);
+        return {
+          services: installed.services,
+          close: async (options) => {
+            await installed.close(options);
+            events.push('session given back');
+          },
+        };
+      },
+      installProject: (dependencies) => {
+        const installed = installProjectRuntime(dependencies);
+        return {
+          services: installed.services,
+          close: async (options) => {
+            await installed.close(options);
+            await closeSocket(options);
+            events.push('project given back');
+          },
+        };
+      },
+      budgetMs,
+    });
+
+  const regionOf = (owner: SessionOwner, onSignedOut: () => void) => (
+    <ApplicationServicesProvider slot={servicesSlot}>
+      <ThemeProvider>
+        <SignedInApp
+          session={{ token: '', user: KAT }}
+          onSignedOut={onSignedOut}
+          openOwner={() => owner}
+        />
+      </ThemeProvider>
+    </ApplicationServicesProvider>
+  );
+
+  /** Draws the region at the directory, and opens a project through its session. */
+  const signedInWithProject = async (owner: SessionOwner, onSignedOut: () => void) => {
+    window.history.replaceState({}, '', '/directory');
+    render(regionOf(owner, onSignedOut));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
+    });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+    await act(async () => {
+      await opened.services.projects.open('p1', {
+        services: projectServicesOver(fakeProjectApi()),
+        subscribe: undefined,
+      });
+    });
+    expect(opened.services.projects.snapshot().status).toBe('live');
+    return opened.services;
+  };
+
+  const logOut = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
+  };
+
+  const fatalShown = () =>
+    waitFor(() => {
+      const shown = document.querySelector('[data-lifetime-fault]');
+      if (shown === null) throw new Error('no fatal state yet');
+      return shown;
+    });
+
+  itDom(
+    'signs out once the project and then the session have let go, and sends nothing',
+    async () => {
+      const paths = requestsSent();
+      const events: string[] = [];
+      await signedInWithProject(recordingOwner(events), () => events.push('signed out'));
+      const sent = paths.length;
+
+      logOut();
+
+      await waitFor(() => {
+        expect(events).toContain('signed out');
+      });
+      expect(events).toEqual(['project given back', 'session given back', 'signed out']);
+      expect(paths.slice(sent)).toEqual([]);
+    },
+  );
+
+  itDom(
+    'shows the fatal state instead of signing out when the project will not let go',
+    async () => {
+      requestsSent();
+      const events: string[] = [];
+      const owner = recordingOwner(events, () =>
+        Promise.reject(new Error('alice@example.com: the socket would not close')),
+      );
+      await signedInWithProject(owner, () => events.push('signed out'));
+
+      logOut();
+
+      const fault = await fatalShown();
+      // A second log out joins the first and settles after it, with its outcome.
+      await act(async () => {
+        await expect(owner.exit()).resolves.toBe('fatal');
+      });
+      expect(events).not.toContain('signed out');
+      expect(fault.textContent).not.toContain('alice@example.com');
+      expect(screen.queryByRole('heading', { name: 'Directory' })).toBeNull();
+    },
+  );
+
+  itDom('shows the fatal state at the budget when the project’s socket never closes', async () => {
+    requestsSent();
+    const events: string[] = [];
+    const socket = DiBag.createBuilder()
+      .register({
+        socket: DiBag.withDisposal(
+          DiBag.fromSyncFactory((): string => 'open'),
+          () => new Promise<void>(() => undefined),
+        ),
+      })
+      .build();
+    socket.resolve('socket');
+    const owner = recordingOwner(events, (options) => socket.close(options), 50);
+    await signedInWithProject(owner, () => events.push('signed out'));
+
+    logOut();
+
+    await fatalShown();
+    await act(async () => {
+      await expect(owner.exit()).resolves.toBe('fatal');
+    });
+    expect(events).toEqual([]);
+  });
+
+  itDom(
+    'draws the fatal state in the region’s place when its project cannot be given back outside a log out',
+    async () => {
+      requestsSent();
+      const events: string[] = [];
+      const owner = recordingOwner(events, () =>
+        Promise.reject(new Error('the socket would not close')),
+      );
+      const session = await signedInWithProject(owner, () => events.push('signed out'));
+
+      // What the project page's own cleanup does when its route goes.
+      await act(async () => {
+        await session.projects.leave();
+      });
+
+      await fatalShown();
+      expect(screen.queryByRole('heading', { name: 'Directory' })).toBeNull();
+      expect(owner.snapshot().status).toBe('live');
+      expect(events).toEqual([]);
+    },
+  );
+
+  itDom(
+    'returns to the sign-in form through the app, and a reload restores the identity',
+    async () => {
+      window.history.replaceState({}, '', '/directory');
+      me.mockResolvedValue({
+        kind: 'success',
+        representation: 'json',
+        status: 200,
+        body: { user: KAT },
+        headers: new Headers(),
+      });
+      const paths = requestsSent();
+      const first = renderApp();
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
+      });
+      const sent = paths.length;
+
+      logOut();
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+      });
+      expect(paths.slice(sent)).toEqual([]);
+      expect(window.location.pathname).toBe('/directory');
+
+      // A reload is a fresh document: the cookie the log out left alone restores the identity.
+      first.unmount();
+      renderApp();
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
+      });
+    },
+  );
 });
