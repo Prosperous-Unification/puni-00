@@ -583,6 +583,9 @@ export function ProjectPage({
    * nobody until its own stream says who is there. A roster is one project's,
    * so the previous project's list is never shown under the next one's name.
    */
+  // Proof: on 2026-09-25, handing the header the last live runtime's presence through the
+  // gap failed `draws no table and hands the header nobody while the last project lets go`:
+  // expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [], connected: false }.
   const presenceStore =
     projectState.status === 'live' ? projectState.services.presence : NOBODY_HERE;
   const roster: Roster = useSyncExternalStore(presenceStore.subscribe, presenceStore.snapshot);
@@ -590,16 +593,22 @@ export function ProjectPage({
    * Opens the selected project's runtime, and leaves it when the selection,
    * the client or the stream changes, or the page goes.
    *
-   * Every trigger reaches the one owner, so a switch, an unmount and Strict
-   * Mode's re-entry each withdraw the old runtime before anything else happens
-   * and retire it once; the next is published only after that retirement
-   * succeeded, and a retirement that fails leaves the owner fatal.
+   * Every trigger reaches the one owner, so a switch and an unmount each
+   * withdraw the old runtime before anything else happens and retire it once;
+   * the next is published only after that retirement succeeded, and a
+   * retirement that fails leaves the owner fatal. Strict Mode's re-entry finds
+   * nothing selected — the page mounts with no selection — and opens nothing.
    */
   useEffect(() => {
     if (selected === null) return;
     void projectOwner.open(selected, { services: projectServices, subscribe });
     // Proof: on 2026-09-24, this cleanup replaced by `return undefined` failed `closes the selected
     // project’s stream once the page goes` on `expected +0 to be 1`: the socket was never closed.
+    // Proof: on 2026-09-25, the same `return undefined` failed `opens one runtime per pick
+    // under Strict Mode, and gives each back once` on `expected 'live' to be 'empty'`, and,
+    // through the router, `gives the project back once when its route goes, keeps the session,
+    // and opens a new runtime on return` on `expected [ 'session built', 'project p1 built' ]
+    // to include 'project p1 given back'`.
     return () => {
       void projectOwner.leave();
     };
@@ -1289,18 +1298,18 @@ export function ProjectPage({
             {error}
           </p>
         )}
-        {/* Drawn only while the owner publishes a runtime, and keyed by that
-        runtime's own project: in the render that moves the selection the owner
-        still publishes the previous project's, until the effect below withdraws
-        it, so the table stays the previous project's until then. */}
+        {/* Drawn only while the owner publishes a runtime. In the render that
+        moves the selection the owner still publishes the previous project's,
+        until the page's effect withdraws it; from that withdrawal nothing is
+        drawn here until the next runtime is live, so every runtime is drawn in a
+        table of its own — its rows and transient editor state with it — and no
+        key is needed to say so. */}
+        {/* Proof: on 2026-09-25, drawing the table from the last live runtime through the
+        gap failed `draws the next project in a table of its own`: the next project kept the
+        old table element (`expected <table …> not to be <table …>`). */}
         {projectState.status === 'live' && (
           <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
             <WbsTable
-              // Each project owns its rows and transient editor state. The owner
-              // usually publishes nothing between two projects' runtimes, which
-              // remounts the table by itself; the key is what keeps that true when
-              // the next runtime is drawn with no render in between.
-              key={projectState.services.projectId}
               project={projectState.services}
               // The name the export's header and filename carry. Read from the
               // list rather than held twice: a rename lands in `projects` and the

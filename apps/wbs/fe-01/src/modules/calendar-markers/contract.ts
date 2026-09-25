@@ -78,15 +78,17 @@ export interface CalendarMarkerRefusal {
 export interface CalendarMarkersHost extends CalendarMarkerPorts {
   /**
    * The refresh owner this reader is currently reading through, or `null`
-   * before the first one exists.
+   * before the first one exists and from the instant the reader is withdrawn.
    *
    * Its **identity** is what makes a write this reader's: the same object it
-   * started against, still installed. {@link PlanFeed.owner} is what answers
-   * this today.
+   * started against, still answered. That is the whole test, and no second
+   * "is the reader still on screen" question is asked beside it: a feed opens
+   * its refresh owner once, and the project runtime answers `null` here from
+   * the moment its owner withdraws it (`readRefreshOwner` in
+   * `runtime/project-runtime.ts`), so a reader that left and a reader replaced
+   * fail the same comparison.
    */
   readonly readRefreshOwner: () => PlanRefresh | null;
-  /** Whether the screen still holds the project and API this reader opened. */
-  readonly isActiveReader: () => boolean;
   /** Announces one refusal to whoever says things to the reader. */
   readonly announceRefusal: (refusal: CalendarMarkerRefusal) => void;
 }

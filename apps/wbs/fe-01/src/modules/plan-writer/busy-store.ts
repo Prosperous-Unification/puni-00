@@ -5,15 +5,13 @@ import type { Store } from '@/modules/store';
  * Whether this project is waiting for be-01 on one of its reader's gestures —
  * the shared busy state the toolbar and the cells read.
  *
- * A gesture raises it when it starts and lowers it when it ends, **if its
- * reader is still the one on screen**. That condition is the gesture's to test,
- * not this store's: it is the same question the gesture already asks before it
- * spends its answer, `isActiveReader()` in `plan-writer.feature.ts`, and the
- * reason is the one the busy-replacement cases prove — a departed reader's
- * answer must not clear its replacement's pending rename. What this store owns
- * is the value and the telling: a boolean, stable by value, and a listener is
- * told once for each change and never when a raise finds it already raised or a
- * lower finds it already lowered.
+ * A gesture raises it when it starts and lowers it when it ends, however it
+ * ended. One of these belongs to each project runtime and to nothing else, so
+ * a departed reader's answer lowers only its own runtime's, which nobody draws
+ * any more, and can never clear its replacement's pending rename. What this
+ * store owns is the value and the telling: a boolean, stable by value, and a
+ * listener is told once for each change and never when a raise finds it already
+ * raised or a lower finds it already lowered.
  *
  * Notification goes through {@link createChannel}, so a listener that raises or
  * lowers from inside its own notification is told again afterwards rather than
@@ -21,8 +19,8 @@ import type { Store } from '@/modules/store';
  *
  * Plain TypeScript and no lifetime of its own (rule F1): it holds no resource,
  * nothing closes it, and no call on it ever throws a lifecycle refusal. Its
- * owner today is the table's mount, one per project; the project runtime of
- * OpenSpec task 10 takes it over.
+ * owner is the project runtime (`runtime/project-runtime.ts`), one per selected
+ * project.
  */
 export interface Busy extends Store<boolean> {
   readonly raise: () => void;

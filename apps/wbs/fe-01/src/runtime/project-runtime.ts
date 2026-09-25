@@ -63,7 +63,10 @@ export interface ProjectRuntimeDependencies extends ProjectSource {
  *   once this runtime has been withdrawn;
  * - the refresh owner the writer and the marker gestures compare is `null`
  *   once it has, so a gesture begun after that sends nothing and one begun
- *   before it spends nothing against a replacement;
+ *   before it spends nothing against a replacement. It is the **only** reader
+ *   test either is handed: the feed opens its refresh owner once and never
+ *   renews it, so a second "is the reader still on screen" predicate beside
+ *   this identity would decide nothing it does not;
  * - a reread asked of it after that reads nothing;
  * - its stream tells its presence nothing more, so the roster of a project
  *   that has been left is never changed after it was left.
@@ -191,7 +194,6 @@ export function installProjectRuntime({
           services.calendarMarkersFor({
             projectId,
             readRefreshOwner,
-            isActiveReader: isCurrent,
             // Proof: on 2026-09-24, `() => undefined` here failed `rereads a marker refused because
             // a peer already deleted it`: no toast was there to hold `no longer`.
             announceRefusal: refusals.publish,
@@ -213,7 +215,6 @@ export function installProjectRuntime({
         }): PlanWriter =>
           createPlanWriter({
             readRefreshOwner,
-            isActiveReader: isCurrent,
             rereadResources: reread,
             busy,
             commandsIssued,
@@ -276,7 +277,9 @@ export interface ProjectOwnerDependencies {
 }
 
 /**
- * Builds the owner of one page's selected project.
+ * Builds the owner of a selected project: in the app, one per signed-in
+ * session, which hands it to the project page and retires it before itself
+ * (`sessionProjects` in `session-runtime.ts`).
  *
  * One lifetime slot underneath, so every rule of `lifetime-slot.ts` holds for
  * the project too: withdrawal is synchronous, transitions run one at a time in
@@ -289,8 +292,10 @@ export interface ProjectOwnerDependencies {
  * runtime replaced by another project's is not current even though the slot is
  * live again.
  *
- * Holds nothing until `open` is called, which is what makes it safe to build in
- * a lazy state initializer that Strict Mode may run twice.
+ * Holds nothing until `open` is called, so building one opens and acquires
+ * nothing: a session installed and given back before its page ever opened a
+ * project leaves nothing behind, and neither does a test fixture's discarded
+ * initializer.
  */
 export function createProjectOwner({
   install = installProjectRuntime,

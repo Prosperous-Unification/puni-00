@@ -10,6 +10,7 @@ import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
+import type { ProjectApi } from '@/lib/wbs-api';
 import type { ProjectOwner } from '@/runtime/project-runtime';
 import { createSessionOwner, sessionFor, type SessionOwner } from '@/runtime/session-runtime';
 
@@ -156,6 +157,12 @@ export interface SignedInAppProps {
   onSignedOut: () => void;
   /** Injected in tests; the app lets it default to the real owner. */
   openOwner?: () => SessionOwner;
+  /**
+   * The project page's client, injected in tests so a route can be driven over
+   * a project the test holds; the app passes none, and the page builds the real
+   * one from the session's credential.
+   */
+  projectApi?: ProjectApi;
 }
 
 /**
@@ -188,6 +195,7 @@ export function SignedInApp({
   session,
   onSignedOut,
   openOwner = createSessionOwner,
+  projectApi,
 }: SignedInAppProps): React.JSX.Element {
   const [sessionOwner] = useState(openOwner);
   const sessionState = useSyncExternalStore(sessionOwner.subscribe, sessionOwner.snapshot);
@@ -195,6 +203,9 @@ export function SignedInApp({
     // Proof: on 2026-09-24, opening with an empty credential (g4) failed `builds a password
     // session’s directory from the credential the login answered`: expected [ '' ] to deeply
     // equal [ 'tok' ].
+    // Proof: on 2026-09-25, opening only once per mount (a `useRef` flag, n1) failed `leaves
+    // the session Strict Mode first opened, and opens the project in the one it opens again`:
+    // `Unable to find a label with the text of: Project` — the region stayed loading.
     void sessionOwner.open({ userId: session.user.id, credential: session.token });
   }, [sessionOwner, session]);
   useEffect(
@@ -258,6 +269,7 @@ export function SignedInApp({
         <AppRouter
           session={services}
           token={session.token}
+          projectApi={projectApi}
           presence={
             // The panel is presentational and the roster is the page's, because
             // it arrives on the table's own socket — one connection per browser
@@ -301,6 +313,8 @@ function ProjectRetirementGate({
   // Proof: on 2026-09-24, never drawing a terminal project fault (p1) failed `draws the fatal
   // state in the region’s place when its project cannot be given back outside a log out` with
   // `Error: no fatal state yet`: the directory stayed on screen.
+  // Proof: on 2026-09-25, the same removal (g1) failed `draws the fatal state in the region’s
+  // place when a route change cannot give the project back` with `Error: no fatal state yet`.
   if (projectState.status === 'fatal' && projectState.terminal)
     return <LifetimeFault fault={projectState.fault} />;
   return children;
