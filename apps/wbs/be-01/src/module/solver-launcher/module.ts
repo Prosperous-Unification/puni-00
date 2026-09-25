@@ -18,7 +18,7 @@ import {
  *
  * Only `solverLauncher` is exported. `launcherSeams` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `backend.solver-launcher/launcherSeams` rather than
  * against an anonymous binding. Both seams are registered even when absent,
  * as `undefined`, the way Saved plans registers its optional quota.
@@ -28,8 +28,8 @@ import {
  * and kills it.
  */
 export const solverLauncherModule = DiBag.createBuilder()
-  .register({
-    launcherSeams: DiBag.fromSyncFactory(
+  .withServices({
+    launcherSeams: DiBag.createProvider(
       ({
         probe,
         spawn,
@@ -37,10 +37,11 @@ export const solverLauncherModule = DiBag.createBuilder()
         probe: SolverVersionProbe | undefined;
         spawn: SolverLauncherSpawn | undefined;
       }): SolverLauncherRequirements => ({ probe, spawn }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    solverLauncher: DiBag.fromSyncFactory(
+  .withServices({
+    solverLauncher: DiBag.createProvider(
       ({ launcherSeams }: { launcherSeams: SolverLauncherRequirements }): SolverLauncher => ({
         // Proof (2026-09-23): calling `readInstalledSolverVersion()` without the installed probe
         // left `reads the installed version through the probe installSolverLauncher wires` failing
@@ -51,6 +52,7 @@ export const solverLauncherModule = DiBag.createBuilder()
           readRuntimeSolverVersion(nodeEnv, undefined, launcherSeams.probe),
         spawn: (request) => spawnSolverLauncher(request, launcherSeams.spawn),
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): widening the key tuple to `['solverLauncher', 'launcherSeams']` left the
@@ -61,4 +63,4 @@ export const solverLauncherModule = DiBag.createBuilder()
   // assertions failing (5 pass, 2 fail): `inspectGraph()` reported `launcherSeams` unlabelled, and
   // the missing-requirement message named `launcherSeams` instead of
   // `backend.solver-launcher/launcherSeams`.
-  .buildModule(['solverLauncher'], { label: SOLVER_LAUNCHER_LABEL });
+  .buildModule({ exportedServiceKeys: ['solverLauncher'], moduleLabel: SOLVER_LAUNCHER_LABEL });

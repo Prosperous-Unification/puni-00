@@ -9,3 +9,7 @@ pending planner verification.
 ## Packet 140.3, slice 1 — block rehearsal
 
 Observed 2026-09-25 by the author, running the packet's own blocks.
+
+## Packet 140.3, slice 2 — block rehearsal
+
+Observed 2026-09-25 by the author, running the packet's own blocks.

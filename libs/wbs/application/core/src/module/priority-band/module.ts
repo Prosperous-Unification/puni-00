@@ -12,7 +12,7 @@ import { PriorityBandService, type PriorityBandServiceOptions } from './priority
  *
  * Only `priorityBands` is exported. `priorityBandOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.priority-band/priorityBandOptions` rather than
  * against an anonymous binding. The two stores are required as `projectStore`
  * and `priorityBandStore`, the naming every resource module here shares so
@@ -22,8 +22,8 @@ import { PriorityBandService, type PriorityBandServiceOptions } from './priority
  * stores of one scope, a clock and a broadcaster, and no handle of its own.
  */
 export const priorityBandModule = DiBag.createBuilder()
-  .register({
-    priorityBandOptions: DiBag.fromSyncFactory(
+  .withServices({
+    priorityBandOptions: DiBag.createProvider(
       ({
         projectStore,
         priorityBandStore,
@@ -44,15 +44,17 @@ export const priorityBandModule = DiBag.createBuilder()
         broadcast,
         clock,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    priorityBands: DiBag.fromSyncFactory(
+  .withServices({
+    priorityBands: DiBag.createProvider(
       ({
         priorityBandOptions,
       }: {
         priorityBandOptions: PriorityBandServiceOptions;
       }): PriorityBandService => new PriorityBandService(priorityBandOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['priorityBands', 'priorityBandOptions']`
@@ -63,4 +65,4 @@ export const priorityBandModule = DiBag.createBuilder()
   // assertions failing (3 pass, 2 fail): `inspectGraph()` reported `priorityBandOptions`
   // unlabelled, and the missing-requirement message named `priorityBandOptions` instead of
   // `application.priority-band/priorityBandOptions`.
-  .buildModule(['priorityBands'], { label: PRIORITY_BAND_LABEL });
+  .buildModule({ exportedServiceKeys: ['priorityBands'], moduleLabel: PRIORITY_BAND_LABEL });

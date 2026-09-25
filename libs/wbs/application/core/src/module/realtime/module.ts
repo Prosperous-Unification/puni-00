@@ -26,8 +26,8 @@ import { ReplayOrchestrator, type ReplayOrchestratorOptions } from './replay-orc
  * nothing in this module starts a timer or a connection of its own.
  */
 export const realtimeModule = DiBag.createBuilder()
-  .register({
-    replayBuffer: DiBag.fromSyncFactory(
+  .withServices({
+    replayBuffer: DiBag.createProvider(
       ({
         maxPerSubscription,
         maxAgeMs,
@@ -38,10 +38,11 @@ export const realtimeModule = DiBag.createBuilder()
         clock: Clock;
       }): ReplayBuffer =>
         new ReplayBuffer({ maxPerSubscription, maxAgeMs, now: () => clock.now() }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    broadcasterOptions: DiBag.fromSyncFactory(
+  .withServices({
+    broadcasterOptions: DiBag.createProvider(
       ({
         eventLog,
         clock,
@@ -61,8 +62,9 @@ export const realtimeModule = DiBag.createBuilder()
         buffer: replayBuffer,
         ...(onPushFailed === undefined ? {} : { onPushFailed }),
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
-    replayOptions: DiBag.fromSyncFactory(
+    replayOptions: DiBag.createProvider(
       ({
         eventLog,
         replayBuffer,
@@ -76,16 +78,19 @@ export const realtimeModule = DiBag.createBuilder()
         buffer: replayBuffer,
         ...(maxEvents === undefined ? {} : { maxEvents }),
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    broadcaster: DiBag.fromSyncFactory(
+  .withServices({
+    broadcaster: DiBag.createProvider(
       ({ broadcasterOptions }: { broadcasterOptions: GatewayBroadcasterOptions }) =>
         new GatewayBroadcaster(broadcasterOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
-    replay: DiBag.fromSyncFactory(
+    replay: DiBag.createProvider(
       ({ replayOptions }: { replayOptions: ReplayOrchestratorOptions }) =>
         new ReplayOrchestrator(replayOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): widening the key tuple to
@@ -105,4 +110,7 @@ export const realtimeModule = DiBag.createBuilder()
   // failing (4 pass, 2 fail): `inspectGraph()` reported both `broadcasterOptions` and
   // `replayOptions` unlabelled, and a missing requirement's message named `broadcasterOptions`
   // instead of `application.realtime/broadcasterOptions`.
-  .buildModule(['replayBuffer', 'broadcaster', 'replay'], { label: REALTIME_LABEL });
+  .buildModule({
+    exportedServiceKeys: ['replayBuffer', 'broadcaster', 'replay'],
+    moduleLabel: REALTIME_LABEL,
+  });

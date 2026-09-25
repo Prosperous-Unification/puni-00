@@ -15,7 +15,7 @@ import { CALENDAR_MARKER_LABEL } from './contract';
  *
  * Only `calendarMarkers` is exported. `calendarMarkerOptions` stays private to
  * each installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.calendar-marker/calendarMarkerOptions` rather
  * than against an anonymous binding. The two stores are required as
  * `projectStore` and `calendarMarkerStore` because the host graph's
@@ -27,8 +27,8 @@ import { CALENDAR_MARKER_LABEL } from './contract';
  * stores of one scope, a clock and a broadcaster, and no handle of its own.
  */
 export const calendarMarkerModule = DiBag.createBuilder()
-  .register({
-    calendarMarkerOptions: DiBag.fromSyncFactory(
+  .withServices({
+    calendarMarkerOptions: DiBag.createProvider(
       ({
         projectStore,
         calendarMarkerStore,
@@ -48,15 +48,17 @@ export const calendarMarkerModule = DiBag.createBuilder()
         clock,
         broadcast,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    calendarMarkers: DiBag.fromSyncFactory(
+  .withServices({
+    calendarMarkers: DiBag.createProvider(
       ({
         calendarMarkerOptions,
       }: {
         calendarMarkerOptions: CalendarMarkerServiceOptions;
       }): CalendarMarkerService => new CalendarMarkerService(calendarMarkerOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['calendarMarkers', 'calendarMarkerOptions']`
@@ -67,4 +69,4 @@ export const calendarMarkerModule = DiBag.createBuilder()
   // assertions failing (3 pass, 2 fail): `inspectGraph()` reported `calendarMarkerOptions`
   // unlabelled, and the missing-requirement message named `calendarMarkerOptions` instead of
   // `application.calendar-marker/calendarMarkerOptions`.
-  .buildModule(['calendarMarkers'], { label: CALENDAR_MARKER_LABEL });
+  .buildModule({ exportedServiceKeys: ['calendarMarkers'], moduleLabel: CALENDAR_MARKER_LABEL });

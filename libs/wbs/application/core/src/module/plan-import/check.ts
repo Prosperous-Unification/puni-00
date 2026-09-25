@@ -15,15 +15,21 @@ import { planImportModule } from './module';
  */
 export function installPlanImport(requirements: PlanImportRequirements): PlanImportExports {
   const bag = DiBag.createBuilder()
-    .installModule(planImportModule)
-    .register({
-      clock: DiBag.fromSyncFactory(() => requirements.clock),
-      scheduler: DiBag.fromSyncFactory(() => requirements.scheduler),
-      uow: DiBag.fromSyncFactory(() => requirements.uow),
-      announcements: DiBag.fromSyncFactory(() => requirements.announcements),
-      batchServices: DiBag.fromSyncFactory(() => requirements.batchServices),
+    .withInstalledModules([planImportModule])
+    .withServices({
+      clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      scheduler: DiBag.createProvider(() => requirements.scheduler, {
+        factoryReturnKind: 'sync-value',
+      }),
+      uow: DiBag.createProvider(() => requirements.uow, { factoryReturnKind: 'sync-value' }),
+      announcements: DiBag.createProvider(() => requirements.announcements, {
+        factoryReturnKind: 'sync-value',
+      }),
+      batchServices: DiBag.createProvider(() => requirements.batchServices, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable `exposed` object with `bag` left
   // the installer-surface assertion failing: the received keys included `bag` (5 pass, 1 fail).
   // Proof (2026-09-23): attaching `resolve` to the returned `ImportService` kept the key list

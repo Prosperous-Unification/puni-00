@@ -17,19 +17,35 @@ export function installBoundedReplaySweep(
   requirements: BoundedReplaySweepRequirements,
 ): BoundedReplaySweepExports {
   const bag = DiBag.createBuilder()
-    .installModule(boundedReplaySweepModule)
-    .register({
-      eventLog: DiBag.fromSyncFactory(() => requirements.eventLog),
-      planEvents: DiBag.fromSyncFactory(() => requirements.planEvents),
-      intervals: DiBag.fromSyncFactory(() => requirements.intervals),
-      now: DiBag.fromSyncFactory(() => requirements.now),
-      maxPerSubscription: DiBag.fromSyncFactory(() => requirements.maxPerSubscription),
-      planEventRetentionDays: DiBag.fromSyncFactory(() => requirements.planEventRetentionDays),
-      intervalMs: DiBag.fromSyncFactory(() => requirements.intervalMs),
-      onSweep: DiBag.fromSyncFactory(() => requirements.onSweep),
-      onError: DiBag.fromSyncFactory(() => requirements.onError),
+    .withInstalledModules([boundedReplaySweepModule])
+    .withServices({
+      eventLog: DiBag.createProvider(() => requirements.eventLog, {
+        factoryReturnKind: 'sync-value',
+      }),
+      planEvents: DiBag.createProvider(() => requirements.planEvents, {
+        factoryReturnKind: 'sync-value',
+      }),
+      intervals: DiBag.createProvider(() => requirements.intervals, {
+        factoryReturnKind: 'sync-value',
+      }),
+      now: DiBag.createProvider(() => requirements.now, { factoryReturnKind: 'sync-value' }),
+      maxPerSubscription: DiBag.createProvider(() => requirements.maxPerSubscription, {
+        factoryReturnKind: 'sync-value',
+      }),
+      planEventRetentionDays: DiBag.createProvider(() => requirements.planEventRetentionDays, {
+        factoryReturnKind: 'sync-value',
+      }),
+      intervalMs: DiBag.createProvider(() => requirements.intervalMs, {
+        factoryReturnKind: 'sync-value',
+      }),
+      onSweep: DiBag.createProvider(() => requirements.onSweep, {
+        factoryReturnKind: 'sync-value',
+      }),
+      onError: DiBag.createProvider(() => requirements.onError, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-23): returning `{ retention: bag.resolve('retention'), bag }` left
   // `exposes only the contract exports from its installer` failing on its first assertion —
   // `Object.keys(exposed)` reported `["retention", "bag"]` — 0 pass, 1 fail, 5 filtered out.

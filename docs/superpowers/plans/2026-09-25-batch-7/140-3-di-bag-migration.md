@@ -588,7 +588,7 @@ the network policy denies that request. Nothing else needs network access.
   ```
 
   Expected: `"version": "0.4.0",`, each `status=0`; rehearsed: devsync `25 pass`, core `626 pass`,
-  backend `61 pass`, frontend `Test Files 25 passed (25)` `Tests 222 passed (222)`, typecheck
+  backend `36 pass`, frontend `Test Files 25 passed (25)` `Tests 222 passed (222)`, typecheck
   `Successfully ran target typecheck for 4 projects and 1 task they depend on`. Record each as that
   suite's **N**. The codemod needs 0.4.0 installed: any other version is a stop (section 10).
 
@@ -699,14 +699,14 @@ the network policy denies that request. Nothing else needs network access.
   test -f "$log"
   test "$(tail -n 1 "$log")" != "status=0"
   sed 's/\x1b\[[0-9;]*m//g' "$log" > "$TMPDIR/evidence/red-typecheck.plain.log"
-  grep -oE '^apps/wbs/fe-01/src/runtime/[a-z-]+\.(test\.)?ts:[0-9]+:[0-9]+ - error TS[0-9]+' \
+  grep -oE '^apps/wbs/fe-01/src/runtime/[a-z-]+\.(test\.)?ts\([0-9]+,[0-9]+\): error TS[0-9]+' \
     "$TMPDIR/evidence/red-typecheck.plain.log" | sort -u | tee "$TMPDIR/evidence/red-typecheck.errors.txt"
   test "$(wc -l < "$TMPDIR/evidence/red-typecheck.errors.txt")" -eq 7
   # tsc reports a production file once per tsconfig that includes it; every report must be in the
   # four named files.
-  if grep ' - error TS' "$TMPDIR/evidence/red-typecheck.plain.log" > "$TMPDIR/evidence/red-typecheck.all.txt"; then :; else rc=$?; test "$rc" -eq 1; fi
+  if grep '): error TS' "$TMPDIR/evidence/red-typecheck.plain.log" > "$TMPDIR/evidence/red-typecheck.all.txt"; then :; else rc=$?; test "$rc" -eq 1; fi
   test -s "$TMPDIR/evidence/red-typecheck.all.txt"
-  if outside=$(grep -vE '^apps/wbs/fe-01/src/runtime/(application-runtime|application-runtime\.test|project-runtime|session-runtime)\.ts:' "$TMPDIR/evidence/red-typecheck.all.txt"); then
+  if outside=$(grep -vE '^apps/wbs/fe-01/src/runtime/(application-runtime|application-runtime\.test|project-runtime|session-runtime)\.ts\(' "$TMPDIR/evidence/red-typecheck.all.txt"); then
     printf 'a diagnostic outside the four files: %s\n' "$outside" >&2
     exit 1
   else
@@ -724,7 +724,7 @@ the network policy denies that request. Nothing else needs network access.
   | --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | devsync   | `status=0`, N (25)                                                                   | — the pin and the label cast are already 0.5.0 on both sides                                                                                                                                                                                                                                                                                                                                   |
   | core      | `status=0`, N (626)                                                                  | — the core's production side changes only JSDoc                                                                                                                                                                                                                                                                                                                                                |
-  | backend   | `status=0`, N (61)                                                                   | — the same                                                                                                                                                                                                                                                                                                                                                                                     |
+  | backend   | `status=0`, N (36)                                                                   | — the same                                                                                                                                                                                                                                                                                                                                                                                     |
   | frontend  | `status=1`; rehearsed `14 failed \| 11 passed (25)`, `94 failed \| 130 passed (224)` | `acquireTransactionally` still hands DI Bag the lifetime's `{ timeoutMs }`: 35 failures read `Error: DI_BAG_INVALID_ARGUMENT: invalid close options`, the rest are their downstream (`expected 'fatal' to be 'empty'`, a model property failing after 1 or 2 tests)                                                                                                                            |
   | typecheck | non-zero, `Failed tasks: - wbs-fe-01:typecheck`                                      | seven distinct `TS2345` diagnostics (13 lines: each production file is reported once per tsconfig that includes it), all passing a DI Bag `Container` (or the test's `{ close(options: { waitTimeoutMs }) }` graph) where `ClosableGraph` still wants `{ timeoutMs }`: four in `application-runtime.test.ts`, one each in `application-runtime.ts`, `project-runtime.ts`, `session-runtime.ts` |
 
@@ -753,11 +753,11 @@ the network policy denies that request. Nothing else needs network access.
     sha256sum "$path"
   done < "$TMPDIR/evidence/owned-hashed.txt" > "$TMPDIR/evidence/owned-sha256.txt"
   sha256sum < "$TMPDIR/evidence/owned-sha256.txt" | tee "$TMPDIR/evidence/tree-hash.txt"
-  grep -q '^e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46 ' "$TMPDIR/evidence/tree-hash.txt"
+  grep -q '^858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244 ' "$TMPDIR/evidence/tree-hash.txt"
   ````
 
   Expected: exit 0, `diff` silent (`verify.md` has no entry yet, so the 82 paths are exactly the
-  list), and `e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46  -`. **A different
+  list), and `858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244  -`. **A different
   hash is a stop** (section 10): report `owned-sha256.txt`, and the planner compares it with the
   rehearsal's per-file hashes.
 
@@ -883,7 +883,7 @@ the network policy denies that request. Nothing else needs network access.
   grep -v '^status=' "$TMPDIR/evidence/probe-bun.log"
   ```
 
-  Expected `status=0` everywhere, with devsync, core and backend = **N** (25, 626, 61), frontend
+  Expected `status=0` everywhere, with devsync, core and backend = **N** (25, 626, 36), frontend
   `Test Files 25 passed (25)` and `Tests` = **N + 2** (224: the two budget tests), typecheck
   `Successfully ran target typecheck for 4 projects and 1 task they depend on`, lint `Successfully
 ran target lint for 4 projects`; `Version 7.0.2` and `Version 6.0.3`; both compilers silent; and
@@ -1038,7 +1038,7 @@ in the same commit after section 8.4: `apps/wbs/fe-01/e2e/browser-packages.spec.
   done
   ```
 
-  Expected every suite `status=0` at slice 2's green counts (rehearsed 25, 626, 61, 25·224). **A
+  Expected every suite `status=0` at slice 2's green counts (rehearsed 25, 626, 36, 25·224). **A
   clone whose `node_modules` still holds 0.4.0** (the attempt was resumed without an install) fails
   the first line: run `env -u CLAUDECODE -u AGENT bun install --frozen-lockfile` once, record it,
   and rerun this step. The install must succeed offline from the Bun cache (slice 3 has no
@@ -1099,7 +1099,7 @@ and `verify.md`… and nothing else: **no `Proof:` comment is written or changed
 Each fault's observation goes into `verify.md`, dated with the observed date.
 
 - [ ] 1. Step 0, then the baselines as slice 3 step 1 (the same four suites, `status=0`, rehearsed
-      25, 626, 61, 25·224).
+      25, 626, 36, 25·224).
 - [ ] 2. Section 8.2's offline faults with section 8's procedure (75 records). Rehearsed wall time:
       about 13 minutes; the loop prints one line per fault as it goes.
 - [ ] 3. Apply section 7.6 (the records, task 3.2 ticked).
@@ -1721,7 +1721,7 @@ index 74b6eac5a..ae726b639 100644
 +}
 +
 +/** The wait budget in DI Bag's cancelled-close refusal. */
-+async function budgetOfRefusedClose(closing: Promise<void>): Promise<number> {
++async function budgetOfRefusedClose(closing: Promise<void>): Promise<number | undefined> {
 +  const refusal = await closing.then(
 +    () => new Error('the close was expected to outrun its budget'),
 +    (thrown: unknown) => thrown,
@@ -6139,7 +6139,7 @@ set -euo pipefail
 packet=docs/superpowers/plans/2026-09-25-batch-7/140-3-di-bag-migration.md
 base=e93a564a09c856d8bc2b2c5aa64a588855a3c2f2
 final=9c364d0c8b96dea303880b00890ca50707b173d3
-tree_hash=e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
+tree_hash=858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
 real_base=${REAL_BASE:-}
 test -f "$packet"
 proof_files="apps/wbs/fe-01/src/runtime/application-runtime.ts
@@ -6338,7 +6338,7 @@ mode's own checks, not the dispatch base; the planner reruns it on the reviewed 
 ```text
 fill=0 extracted 7 patches, 169 fault patches
 fill=0 slice 1 applied
-fill=0 slice 2 applied, 82 owned paths, content hash e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
+fill=0 slice 2 applied, 82 owned paths, content hash 858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
 fill=0 slice 3's 10 fault patches and the planner's 4 check
 fill=0 slice 3 applied, slice 4's 81 patches, including six planner-owned boot patches check
 fill=0 slice 4 applied, slice 5's 74 fault patches check
@@ -6347,7 +6347,7 @@ fill=0 slice 5 applied
 fill=0 tree identical to 9c364d0c8b96dea303880b00890ca50707b173d3, the five Proof-site files modulo comments
 fill=1 extracted 7 patches, 169 fault patches
 fill=1 slice 1 applied
-fill=1 slice 2 applied, 82 owned paths, content hash e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
+fill=1 slice 2 applied, 82 owned paths, content hash 858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
 fill=1 slice 3's 10 fault patches and the planner's 4 check
 fill=1 slice 3 applied, slice 4's 81 patches, including six planner-owned boot patches check
 fill=1 slice 4 applied, slice 5's 74 fault patches check
@@ -6356,7 +6356,7 @@ fill=1 slice 5 applied
 fill=1 simulated comments left: 6
 fill=real extracted 7 patches, 169 fault patches
 fill=real slice 1 applied
-fill=real slice 2 applied, 82 owned paths, content hash e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
+fill=real slice 2 applied, 82 owned paths, content hash 858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
 fill=real slice 3's 10 fault patches and the planner's 4 check
 fill=real slice 3 applied, slice 4's 81 patches, including six planner-owned boot patches check
 fill=real slice 4 applied, slice 5's 74 fault patches check
@@ -6401,11 +6401,11 @@ faults ran on slice 2's commit, slice 4's on slice 3's, slice 5's on slice 4's.
 | strict OpenSpec (items · passed · failed)                                    | 115 · 115 · 0    | 116 · 116 · 0 | —                                                      | 116 · 116 · 0                     | 116 · 116 · 0        |
 | devsync pins + labels                                                        | 25 pass          | 25            | 25                                                     | 25                                | 25                   |
 | `wbs-core` (`bun test ./src`)                                                | 626 pass         | 626           | 626                                                    | 626                               | 626                  |
-| backend modules + boot + entrypoint                                          | 61 pass          | 61            | 61                                                     | 61                                | 61                   |
+| backend modules + entrypoint                                                 | 36 pass          | 36            | 36                                                     | 36                                | 36                   |
 | frontend focused (25 files)                                                  | 25 · 222         | same          | 14 failed \| 11 passed · 94 failed \| 130 passed (224) | 25 · 224                          | 25 · 224             |
 | typecheck, 4 projects                                                        | 0                | —             | 1: seven TS2345 in four runtime files                  | 0                                 | 0                    |
 | lint, 4 projects; `wbs-fe-01:typecheck:module`                               | —                | —             | —                                                      | 0 · 0                             | 0 (slice 3)          |
-| content hash of the 82 owned paths                                           | —                | —             | —                                                      | `e80d38d7…`, twice, in two clones | —                    |
+| content hash of the 82 owned paths                                           | —                | —             | —                                                      | `858e7d97…`, twice, in two clones | —                    |
 | registry probe: Bun · `tsc` 7.0.2 · `tsc6` 6.0.3                             | —                | —             | —                                                      | 0 · 0 · 0                         | —                    |
 | the eleven model tests at their seeds                                        | —                | —             | —                                                      | —                                 | 11 · 12 passed       |
 | slice 3 faults (10) · offline slice 4 (75) · planner boot (6) · slice 5 (74) | —                | —             | —                                                      | —                                 | all as tabled        |
@@ -6420,7 +6420,7 @@ faults ran on slice 2's commit, slice 4's on slice 3's, slice 5's on slice 4's.
 **The codemod is deterministic.** It was run in two fresh clones of the base, each with its own
 install: the eight summary lines, the 77 paths and every byte after Prettier were identical, and the
 second clone, taken through 7.2–7.4 from the extracted diffs, equalled the first clone's slice 2
-commit (`git diff --quiet` exit 0) with content hash `e80d38d7…`.
+commit (`git diff --quiet` exit 0) with content hash `858e7d97…`.
 
 The planner-only runs in the rehearsal clone are recorded in `planner.txt`: `tool-devsync:test`
 reported 372 pass and 0 fail; the two whole backend/core targets exited 0; `wbs-fe-01:test`

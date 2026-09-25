@@ -14,7 +14,7 @@ import {
  *
  * Only `commands` is exported. `planCommandOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.plan-commands/planCommandOptions` rather than
  * against an anonymous binding.
  *
@@ -24,8 +24,8 @@ import {
  * inside that batch.
  */
 export const planCommandsModule = DiBag.createBuilder()
-  .register({
-    planCommandOptions: DiBag.fromSyncFactory(
+  .withServices({
+    planCommandOptions: DiBag.createProvider(
       ({
         batchServices,
         publicServices,
@@ -50,15 +50,17 @@ export const planCommandsModule = DiBag.createBuilder()
         // wires` failing (5 pass, 1 fail): it received `[]`.
         announcements,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    commands: DiBag.fromSyncFactory(
+  .withServices({
+    commands: DiBag.createProvider(
       ({
         planCommandOptions,
       }: {
         planCommandOptions: PlanCommandRunnerOptions;
       }): PlanCommandRunner => new PlanCommandRunner(planCommandOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['commands', 'planCommandOptions']` left the
@@ -69,4 +71,4 @@ export const planCommandsModule = DiBag.createBuilder()
   // assertions failing (4 pass, 2 fail): `inspectGraph()` reported `planCommandOptions`
   // unlabelled, and the missing-requirement message named `planCommandOptions` instead of
   // `application.plan-commands/planCommandOptions`.
-  .buildModule(['commands'], { label: PLAN_COMMANDS_LABEL });
+  .buildModule({ exportedServiceKeys: ['commands'], moduleLabel: PLAN_COMMANDS_LABEL });

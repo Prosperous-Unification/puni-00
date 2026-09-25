@@ -11,7 +11,7 @@ import { RetentionTimer, type RetentionTimerOptions, type Swept } from './retent
  *
  * Only `retention` is exported. `retentionOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.bounded-replay-sweep/retentionOptions` rather
  * than against an anonymous binding.
  *
@@ -27,8 +27,8 @@ import { RetentionTimer, type RetentionTimerOptions, type Swept } from './retent
  * this module existed. Its lifetime therefore stays the composition root's.
  */
 export const boundedReplaySweepModule = DiBag.createBuilder()
-  .register({
-    retentionOptions: DiBag.fromSyncFactory(
+  .withServices({
+    retentionOptions: DiBag.createProvider(
       ({
         eventLog,
         planEvents,
@@ -61,12 +61,14 @@ export const boundedReplaySweepModule = DiBag.createBuilder()
         ...(onSweep === undefined ? {} : { onSweep }),
         onError,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    retention: DiBag.fromSyncFactory(
+  .withServices({
+    retention: DiBag.createProvider(
       ({ retentionOptions }: { retentionOptions: RetentionTimerOptions }): RetentionTimer =>
         new RetentionTimer(retentionOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): widening the key tuple to `['retention', 'retentionOptions']` left
@@ -77,4 +79,4 @@ export const boundedReplaySweepModule = DiBag.createBuilder()
   // tests failing (4 pass, 2 fail): `inspectGraph()` reported `retentionOptions` unlabelled, and a
   // missing requirement's message named `retentionOptions` instead of
   // `application.bounded-replay-sweep/retentionOptions`.
-  .buildModule(['retention'], { label: BOUNDED_REPLAY_SWEEP_LABEL });
+  .buildModule({ exportedServiceKeys: ['retention'], moduleLabel: BOUNDED_REPLAY_SWEEP_LABEL });

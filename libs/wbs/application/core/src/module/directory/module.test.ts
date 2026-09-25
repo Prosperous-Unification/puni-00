@@ -26,8 +26,12 @@ function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    directoryStore: DiBag.fromSyncFactory(() => source.stores.directory),
-    broadcast: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+    directoryStore: DiBag.createProvider(() => source.stores.directory, {
+      factoryReturnKind: 'sync-value',
+    }),
+    broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -41,12 +45,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(directoryModule)
-    .register({
+    .withInstalledModules([directoryModule])
+    .withServices({
       ...hostRequirements(),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 0, newId: () => 'unused' })),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Directory module', () => {
   it('names a new team with the clock installDirectory wires', async () => {
@@ -83,14 +89,14 @@ describe('the Directory module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('directoryOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "directoryOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "directoryOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${DIRECTORY_LABEL}/directoryOptions`,
     );
   });
@@ -103,11 +109,11 @@ describe('the Directory module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(directoryModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([directoryModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('directory')).toThrow(
       `Cannot resolve "${DIRECTORY_LABEL}/directoryOptions": dependency "clock" is not registered. Resolution path: directory -> ${DIRECTORY_LABEL}/directoryOptions -> clock.`,

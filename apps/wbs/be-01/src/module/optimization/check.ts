@@ -15,29 +15,59 @@ import { optimizationModule } from './module';
  */
 export function installOptimization(requirements: OptimizationRequirements): OptimizationExports {
   const bag = DiBag.createBuilder()
-    .installModule(optimizationModule)
-    .register({
-      db: DiBag.fromSyncFactory(() => requirements.db),
-      contractVersion: DiBag.fromSyncFactory(() => requirements.contractVersion),
-      solverVersion: DiBag.fromSyncFactory(() => requirements.solverVersion),
-      budgetMs: DiBag.fromSyncFactory(() => requirements.budgetMs),
-      ownerId: DiBag.fromSyncFactory(() => requirements.ownerId),
-      now: DiBag.fromSyncFactory(() => requirements.now),
-      attemptToken: DiBag.fromSyncFactory(() => requirements.attemptToken),
-      inputOf: DiBag.fromSyncFactory(() => requirements.inputOf),
-      enabledOf: DiBag.fromSyncFactory(() => requirements.enabledOf),
-      hashInput: DiBag.fromSyncFactory(() => requirements.hashInput),
-      spawn: DiBag.fromSyncFactory(() => requirements.spawn),
-      runChild: DiBag.fromSyncFactory(() => requirements.runChild),
-      onChildError: DiBag.fromSyncFactory(() => requirements.onChildError),
-      eventLog: DiBag.fromSyncFactory(() => requirements.eventLog),
-      pushRecorded: DiBag.fromSyncFactory(() => requirements.pushRecorded),
-      editDebounceMs: DiBag.fromSyncFactory(() => requirements.editDebounceMs),
-      sleep: DiBag.fromSyncFactory(() => requirements.sleep),
-      setInterval: DiBag.fromSyncFactory(() => requirements.setInterval),
-      clearInterval: DiBag.fromSyncFactory(() => requirements.clearInterval),
+    .withInstalledModules([optimizationModule])
+    .withServices({
+      db: DiBag.createProvider(() => requirements.db, { factoryReturnKind: 'sync-value' }),
+      contractVersion: DiBag.createProvider(() => requirements.contractVersion, {
+        factoryReturnKind: 'sync-value',
+      }),
+      solverVersion: DiBag.createProvider(() => requirements.solverVersion, {
+        factoryReturnKind: 'sync-value',
+      }),
+      budgetMs: DiBag.createProvider(() => requirements.budgetMs, {
+        factoryReturnKind: 'sync-value',
+      }),
+      ownerId: DiBag.createProvider(() => requirements.ownerId, {
+        factoryReturnKind: 'sync-value',
+      }),
+      now: DiBag.createProvider(() => requirements.now, { factoryReturnKind: 'sync-value' }),
+      attemptToken: DiBag.createProvider(() => requirements.attemptToken, {
+        factoryReturnKind: 'sync-value',
+      }),
+      inputOf: DiBag.createProvider(() => requirements.inputOf, {
+        factoryReturnKind: 'sync-value',
+      }),
+      enabledOf: DiBag.createProvider(() => requirements.enabledOf, {
+        factoryReturnKind: 'sync-value',
+      }),
+      hashInput: DiBag.createProvider(() => requirements.hashInput, {
+        factoryReturnKind: 'sync-value',
+      }),
+      spawn: DiBag.createProvider(() => requirements.spawn, { factoryReturnKind: 'sync-value' }),
+      runChild: DiBag.createProvider(() => requirements.runChild, {
+        factoryReturnKind: 'sync-value',
+      }),
+      onChildError: DiBag.createProvider(() => requirements.onChildError, {
+        factoryReturnKind: 'sync-value',
+      }),
+      eventLog: DiBag.createProvider(() => requirements.eventLog, {
+        factoryReturnKind: 'sync-value',
+      }),
+      pushRecorded: DiBag.createProvider(() => requirements.pushRecorded, {
+        factoryReturnKind: 'sync-value',
+      }),
+      editDebounceMs: DiBag.createProvider(() => requirements.editDebounceMs, {
+        factoryReturnKind: 'sync-value',
+      }),
+      sleep: DiBag.createProvider(() => requirements.sleep, { factoryReturnKind: 'sync-value' }),
+      setInterval: DiBag.createProvider(() => requirements.setInterval, {
+        factoryReturnKind: 'sync-value',
+      }),
+      clearInterval: DiBag.createProvider(() => requirements.clearInterval, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (5 pass, 1 fail), with
   // `wbs-be-01:typecheck` at exit 0.

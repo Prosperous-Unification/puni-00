@@ -193,17 +193,22 @@ export function installSessionRuntime({
   budgetMs,
 }: SessionRuntimeDependencies): RetirableRuntime<SessionRuntime> {
   const bag = DiBag.createBuilder()
-    .installModule(directoryManagementModule)
-    .register({
-      directoryApi: DiBag.fromSyncFactory((): DirectoryApi => directoryApi),
-      isActiveReader: DiBag.fromSyncFactory((): (() => boolean) => isCurrent),
+    .withInstalledModules([directoryManagementModule])
+    .withServices({
+      directoryApi: DiBag.createProvider((): DirectoryApi => directoryApi, {
+        factoryReturnKind: 'sync-value',
+      }),
+      isActiveReader: DiBag.createProvider((): (() => boolean) => isCurrent, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .register({
-      projects: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): ProjectOwner =>
-          sessionProjects({ isCurrent, installProject, budgetMs }),
+    .withServices({
+      projects: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          (): ProjectOwner => sessionProjects({ isCurrent, installProject, budgetMs }),
+          { factoryReturnKind: 'sync-value' },
         ),
-        async (projects) => {
+        disposeService: async (projects) => {
           // Proof: on 2026-09-24, deleting this line (m7) failed the model test `keys one runtime
           // by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openProject(0,
           // p1),signInBroken(u2),gesture(0)`: s1 was retired while its project owner was still
@@ -220,9 +225,9 @@ export function installSessionRuntime({
           const left = projects.snapshot();
           if (left.status === 'fatal' && left.terminal) throw new SessionProjectRetirementError();
         },
-      ),
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof: on 2026-09-24, a transaction whose close gives nothing back (m11) failed the model test
   // `keys one runtime by user, …` (seed 20260924) at run 14, `signIn(u1, ''),openProject(0,
   // p1),signInBroken(u2),gesture(0)`: s1 was retired while its project owner was still `live`.

@@ -15,7 +15,7 @@ import { LoginThrottle, type LoginThrottleOptions } from './login-throttle';
  * module seals the two existing collaborators rather than inventing one.
  *
  * `throttleOptions` stays private to each installation, so a host cannot name
- * it — resolving it answers `DI_BAG_MISSING_REGISTRATION`, and a requirement
+ * it — resolving it answers `DI_BAG_UNKNOWN_SERVICE_KEY`, and a requirement
  * the host forgot is reported against `application.authentication/throttleOptions`
  * rather than against an anonymous binding. `authOptions` is also private:
  * it is the one place `account.users` is spread into both `users` and
@@ -29,14 +29,15 @@ import { LoginThrottle, type LoginThrottleOptions } from './login-throttle';
  * `bootBe01` owns the source it borrows.
  */
 export const authenticationModule = DiBag.createBuilder()
-  .register({
-    authOptions: DiBag.fromSyncFactory(
+  .withServices({
+    authOptions: DiBag.createProvider(
       ({ account }: { account: AuthenticationRequirements['account'] }): AuthServiceOptions => ({
         ...account,
         identities: account.users,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
-    throttleOptions: DiBag.fromSyncFactory(
+    throttleOptions: DiBag.createProvider(
       ({
         now,
         maxConcurrentLogins,
@@ -44,16 +45,19 @@ export const authenticationModule = DiBag.createBuilder()
         now: () => number;
         maxConcurrentLogins: number;
       }): LoginThrottleOptions => ({ now, maxConcurrent: maxConcurrentLogins }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    auth: DiBag.fromSyncFactory(
+  .withServices({
+    auth: DiBag.createProvider(
       ({ authOptions }: { authOptions: AuthServiceOptions }): AuthService =>
         new AuthService(authOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
-    loginThrottle: DiBag.fromSyncFactory(
+    loginThrottle: DiBag.createProvider(
       ({ throttleOptions }: { throttleOptions: LoginThrottleOptions }): LoginThrottle =>
         new LoginThrottle(throttleOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): exporting `authOptions` alone made its host resolution return the raw
@@ -64,4 +68,7 @@ export const authenticationModule = DiBag.createBuilder()
   // message lose its label; 6 tests passed and 3 failed while `authOptions` privacy stayed green.
   // Proof (2026-09-23): dropping the label made graph inspection report both private bindings
   // unlabelled and the missing-requirement message name bare `throttleOptions`; 7 passed, 2 failed.
-  .buildModule(['auth', 'loginThrottle'], { label: AUTHENTICATION_LABEL });
+  .buildModule({
+    exportedServiceKeys: ['auth', 'loginThrottle'],
+    moduleLabel: AUTHENTICATION_LABEL,
+  });

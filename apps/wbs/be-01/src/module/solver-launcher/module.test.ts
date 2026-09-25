@@ -36,7 +36,9 @@ const fakeProcess: SolverLauncherProcess = {
 };
 
 const hostRequirements = () => ({
-  probe: DiBag.fromSyncFactory(() => recordingProbe('9.9.9').probe),
+  probe: DiBag.createProvider(() => recordingProbe('9.9.9').probe, {
+    factoryReturnKind: 'sync-value',
+  }),
 });
 
 /**
@@ -49,9 +51,12 @@ const hostRequirements = () => ({
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(solverLauncherModule)
-    .register({ ...hostRequirements(), spawn: DiBag.fromSyncFactory(() => () => fakeProcess) })
-    .build();
+    .withInstalledModules([solverLauncherModule])
+    .withServices({
+      ...hostRequirements(),
+      spawn: DiBag.createProvider(() => () => fakeProcess, { factoryReturnKind: 'sync-value' }),
+    })
+    .buildContainer();
 
 describe('the Solver launcher module', () => {
   it('reads the installed version through the probe installSolverLauncher wires', () => {
@@ -131,14 +136,14 @@ describe('the Solver launcher module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('launcherSeams'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "launcherSeams" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "launcherSeams" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${SOLVER_LAUNCHER_LABEL}/launcherSeams`,
     );
   });
@@ -151,11 +156,11 @@ describe('the Solver launcher module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(solverLauncherModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([solverLauncherModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('solverLauncher')).toThrow(
       `Cannot resolve "${SOLVER_LAUNCHER_LABEL}/launcherSeams": dependency "spawn" is not registered. Resolution path: solverLauncher -> ${SOLVER_LAUNCHER_LABEL}/launcherSeams -> spawn.`,
