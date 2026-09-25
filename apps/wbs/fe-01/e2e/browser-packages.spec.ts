@@ -50,6 +50,10 @@ test('the three libraries run in Chromium from this app’s Vite build', async (
   // Proof: with `import 'di-bag/node';` as the probe's first line this failed on a received
   // `"Error: DI_BAG_INVALID_CONFIGURATION: withConfiguration runtime requires isNativePromise…"`
   // where `[]` was expected. Watched in Chromium, 2026-09-20.
+  // Proof: di-bag 0.5.0 has no `di-bag/node`. On 2026-09-25, the probe given a namespace import
+  // of `node:util/types` and a microtask calling its `isPromise`, after the global was assigned,
+  // failed only here, on a received `"TypeError: he.isPromise is not a function"`; with this
+  // assertion weakened to an array check the same probe passed. Watched in Chromium.
   expect(pageErrors).toEqual([]);
   // Proof: three faults in the probe, one at a time, each failing a different field here:
   // `redact` dropped from the options bag gave `- "disclosesTheSecret": false,` against

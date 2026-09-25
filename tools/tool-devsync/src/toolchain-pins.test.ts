@@ -525,6 +525,9 @@ describe('the owner-maintained libraries', () => {
     const pinned = Object.fromEntries(
       Object.keys(OWNER_PACKAGES).map((name) => [name, manifest.dependencies?.[name]]),
     );
+    // Proof: on 2026-09-25, `"di-bag": "0.4.0"` in package.json failed this test on the di-bag
+    // line alone (19 pass, 1 fail); with this assertion weakened to a type check the whole file
+    // passed.
     expect(pinned).toEqual({ ...OWNER_PACKAGES });
   });
 

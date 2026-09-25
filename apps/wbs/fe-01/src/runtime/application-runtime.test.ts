@@ -85,6 +85,8 @@ async function budgetOfRefusedClose(closing: Promise<void>): Promise<number | un
     () => new Error('the close was expected to outrun its budget'),
     (thrown: unknown) => thrown,
   );
+  // Proof: on 2026-09-25, rejecting the requested number at both close sites made both
+  // budget tests fail; removing this type guard made both pass (14 skipped).
   if (!(refusal instanceof DiBagCloseCancelledError)) throw refusal;
   return refusal.details.waitTimeoutMs;
 }
