@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.module.json",
+  "files": [
+    // The directory resource this module seals as its private binding, its
+    // types, and the fake client its tests build it over: `modules/directory`
+    // has no module of its own to install it.
+    "../directory/contract.ts",
+    "../directory/directory.resource.ts",
+    "../directory/fake-directory-api.ts",
+    // Reached through the directory resource; see `../directory/tsconfig.json`.
+    "../../components/wbs/plan-refusal.ts"
+  ]
+}

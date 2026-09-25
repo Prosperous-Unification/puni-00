@@ -1,5 +1,7 @@
 # Plan commands
 
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-commands","memberships":[{"kind":"path","path":"contract.ts"},{"kind":"path","path":"plan-commands.feature.test.ts"},{"kind":"path","path":"plan-commands.feature.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The project a command is bound to and the route it reaches are documented on PlanCommands and planCommandsFor; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/plan-live.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-estimate-drafts.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-fields.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-structure.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-reference-sets.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/composition.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
 Every request a plan gesture sends to one open project: the edits to its work items, its steps,
 its settings and its schedule, undo and redo, the archival download, and the directory entries a
 picker creates on the way to attaching one.
@@ -41,3 +43,7 @@ as its port; delivery receives `PlanCommands` through the table and never the po
 The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's suite is
 `plan-commands.feature.test.ts`. The behaviour the move preserves is proved by the plan table's
 own suites, which run in the `test` target of the same project.
+
+Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
+extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.

@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.module.json",
+  // The resource words its refusals through `failureText`, which lives beside the
+  // table it was written for: a module reaching delivery, kept visible here
+  // until those words move under `lib/`.
+  "files": ["../../components/wbs/plan-refusal.ts"]
+}

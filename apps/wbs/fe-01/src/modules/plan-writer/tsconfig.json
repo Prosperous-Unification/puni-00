@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.module.json",
+  "files": [
+    // The local write the writer runs a gesture through, which takes its
+    // outcome type from the table's live editing — a `lib/` file reaching
+    // delivery, kept visible here.
+    "../../lib/local-write.ts",
+    "../../components/wbs/cell-navigation.ts",
+    "../../components/wbs/editable-grid.ts",
+    "../../components/wbs/live-editing.ts",
+    // The refusal words a refused gesture is announced in.
+    "../../components/wbs/plan-refusal.ts"
+  ]
+}

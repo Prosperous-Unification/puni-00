@@ -1182,6 +1182,125 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.calendar-markers",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/calendar-markers" },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/components/wbs/wbs-table.tsx"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "28ae8d3249a826f4968d8647f3ddc5e979e7a3a2",
+          "path": "apps/fe-01/src/components/wbs/wbs-table.tsx"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.directory",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/directory" },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/components/directory/directory-page.tsx"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "4228bd0c539b8165daee941c672a6cb62e8a5219",
+          "path": "apps/fe-01/src/components/directory/directory-page.tsx"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.directory-management",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/directory-management" },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/components/directory/directory-page.tsx"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "4228bd0c539b8165daee941c672a6cb62e8a5219",
+          "path": "apps/fe-01/src/components/directory/directory-page.tsx"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.plan-commands",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/plan-commands" },
+      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/wbs-api.ts" },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "4e9b7ea1a042babab25fae9125a6502dbb734c04",
+          "path": "apps/fe-01/src/lib/wbs-api.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.plan-feed",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/plan-feed" },
+      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/plan-refresh.ts" },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "2ec425ba2927d4e8d11e75b5f6b16ac8e7ebd786",
+          "path": "apps/fe-01/src/lib/plan-refresh.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.plan-writer",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/plan-writer" },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/components/wbs/use-plan-read.ts"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "27fd51181d467f5da11d87f95492e92fd0e5a118",
+          "path": "apps/fe-01/src/components/wbs/use-plan-read.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.preferences",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/preferences" },
+      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/remembered.ts" },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "7ec3f1f0e2a46705419cbcd26764a6ced867c5a0",
+          "path": "apps/fe-01/src/lib/remembered.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.project",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/project" },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/components/wbs/project-page.tsx"
+      },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "7b2a79a20c845410e4c8d4454a53263bd619153b",
+          "path": "apps/fe-01/src/components/wbs/project-page.tsx"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

@@ -56,6 +56,14 @@ const pilotPaths = [
   'apps/wbs/be-01/src/module/optimization/README.md',
   'apps/wbs/be-01/src/module/solver-launcher/README.md',
   'apps/wbs/be-01/src/module/solver-supervisor/README.md',
+  'apps/wbs/fe-01/src/modules/calendar-markers/README.md',
+  'apps/wbs/fe-01/src/modules/directory/README.md',
+  'apps/wbs/fe-01/src/modules/directory-management/README.md',
+  'apps/wbs/fe-01/src/modules/plan-commands/README.md',
+  'apps/wbs/fe-01/src/modules/plan-feed/README.md',
+  'apps/wbs/fe-01/src/modules/plan-writer/README.md',
+  'apps/wbs/fe-01/src/modules/preferences/README.md',
+  'apps/wbs/fe-01/src/modules/project/README.md',
   'apps/wiki/cli/README.md',
 ] as const;
 const scratch: string[] = [];
