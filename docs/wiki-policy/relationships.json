@@ -208,6 +208,22 @@
         "cache": true,
         "inputs": ["default", "^production", "{workspaceRoot}/tsconfig.base.json"]
       }
+    },
+    {
+      "factId": "check.fe-01.typecheck-module",
+      "family": "targets",
+      "at": { "kind": "current" },
+      "kind": "nx-target",
+      "project": "wbs-fe-01",
+      "target": "typecheck:module",
+      "expectedConfiguration": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "status=0; for module in apps/wbs/fe-01/src/modules/*/; do echo \"typecheck:module $module\"; bunx tsc -p \"$module\"tsconfig.json --noEmit || status=1; done; exit $status"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
     }
   ],
   "edges": []

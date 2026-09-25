@@ -1,5 +1,7 @@
 # Directory management
 
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.directory-management","memberships":[{"kind":"path","path":"contract.ts"},{"kind":"path","path":"directory-management.feature.test.ts"},{"kind":"path","path":"directory-management.feature.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"view/use-directory-management.ts"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The refusal and completion rules are documented on the feature and its sealed module; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/directory/directory-page.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/session-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
 Everything a person does to the account-wide directory: renaming an entry, adding one of the five
 kinds, making a team for somebody, making a service a team is responsible for, and removing an
 entry once its usage has been seen.
@@ -38,10 +40,12 @@ adapter its one page, `apps/wbs/fe-01/src/components/directory/directory-page.ts
 The page's suite draws the page over a client of its own with
 `apps/wbs/fe-01/src/testing/directory-page-over-client.tsx`.
 
-This module carries no `module-index` block yet; adding one is OpenSpec task 12's.
-
 ## Checks
 
 The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's own suites are
 `directory-management.feature.test.ts` and `module.test.ts`. The behaviour this extraction preserves is proved by
 `apps/wbs/fe-01/src/components/directory/directory-page.test.tsx`, in the `test` target.
+
+Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
+extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.
