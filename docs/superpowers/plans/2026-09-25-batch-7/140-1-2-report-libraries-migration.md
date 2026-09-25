@@ -602,7 +602,8 @@ deletions(-)`: `--frozen-lockfile` refused nothing and rewrote neither file beyo
       symbolic link to this clone's `node_modules`, so it resolves exactly what the repository
       installed and adds nothing to the working tree. **Strip the two-space list indent** before
       running it: an indented `EOF` does not end a heredoc, and bash would swallow the rest of the
-      block. The `test -s` lines catch that:
+      block and exit 0 without running the `test -s` lines. If the block prints no `ok` lines, the
+      indent was not stripped: that is stop 6.
 
   ```sh
   set -euo pipefail
@@ -2602,3 +2603,12 @@ Review 1 (READY AFTER FIXES), every finding applied; the planner's decisions are
 No section 7 diff and no section 8 fault patch changed, so section 9.1's extraction is unchanged
 and the rehearsal stays `rehearse/140-1-2-r1`; only executor blocks and prose changed, and every
 changed block was run again (section 9.3, "Round 2 rerun").
+
+## 17. The dispatch review, disposed
+
+The dispatch review (Opus, on the real base `a7002cfda`: main `e458627fc` plus this packet) ran section
+9.1 in all three modes and every slice's red, green and faults in a fresh clone with its own install,
+and returned DISPATCH. Applied by the planner: slice 2 step 7 no longer claims the `test -s` lines
+catch an unstripped heredoc, because the heredoc swallows them; stop 6 is what catches it. Noted, not
+changed: slices 2 to 4 are launched with the reviewed base and `--require-ancestor` on the previous
+slice's commit, and the slice note names that commit for step 0a, as in batch 6.
