@@ -2427,3 +2427,54 @@ After the `Proof:` comments (two in `tsconfig.module.json`, one in `workspace-in
 Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, the
 whole pilot suite, `check-indexes committed`, `tool-devsync:test` and the host gate — none runs in
 the executor sandbox.
+
+## Packet 050.7l, slice 2 — every frontend module indexed and registered, and task 3 closed
+
+Attempt `050-7-l-isolated-checks-and-architecture.2.20260925T065501Z`, starting at
+`6d6ba8766afa70299b840d04413f531532ffeb71` (slice 1's commit) with an empty status
+(`base.txt`, `status-before.txt`). Run in the executor sandbox with `CLAUDECODE`, `AGENT` and
+`CLAUDE_CODE_ENTRYPOINT` unset.
+
+**Step 0 baselines**, each `status=0`: `wbs-fe-01:typecheck` (`base-typecheck.log`); the legacy pin
+`every legacy source occurrence …` 1 pass (`base-legacy.log`); the sandbox node suite 57 files, 713
+tests (`base-sandbox.log`); the pilot `pins exact pre-index tuples …` test 1 pass, 0 fail
+(`base-pins.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+**Contract.** The requirement "Every frontend module is a registered wiki module" appended; strict
+OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+**Red** (`s2-red-pins.log`), with the eight index blocks, README paragraphs and `pilotPaths` but no
+registration: `status=1`, 0 pass, 1 fail, `error: unknown applicable check in
+apps/wbs/fe-01/src/modules/calendar-markers/README.md: check.fe-01.typecheck-module`.
+
+**Green.** With the fact, eight rows, eight boundaries and task 3 ticked: the `pins …` test 1 pass
+(`s2-green-pins.log`). The legacy pin then failed as expected (`s2-red-legacy.log`, `status=1`,
+`Expected - 3`, `Received + 3`): `historical policy selector or baseline` 71 → 87, `occurrences`
+289 → 305, digest `8d9667b7d195746954849db31d5e6e106858109737d058581c5d33b4e7097d2e` →
+`68a1e15da4a66840c53c9a57c43583e1b303f2115504abc09e8bbe08d7294e02` (the packet's digest, so no
+named digest edit), `unclassified: []`. After re-pinning, each `status=0`: the legacy pin 1 pass
+(`s2-green-legacy.log`); `typecheck` for tool-devsync and twilight-burokrat (`s2-typecheck.log`);
+`twilight-burokrat:lint:source` (`s2-lint-wiki.log`); `tool-devsync:lint` (`s2-lint-devsync.log`);
+`wbs-fe-01:typecheck:module` (`s2-module.log`).
+
+**Faults**, each injected, observed failing, restored and compared byte for byte; the status after
+the loop equalled the green status (`step7.out`, `after-green.txt`, `after-faults.txt`):
+
+| Id   | Status | Observed                                                                                                                                                                       |
+| ---- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `w1` | 1      | `error: unindexed candidate path in apps/wbs/fe-01/src/modules/preferences/README.md: apps/wbs/fe-01/src/modules/preferences/tsconfig.json` (`w1.log`)                         |
+| `w2` | 1      | at `expect(modules.length).toBe(policy.boundaries.length);`, `Expected: 30`, `Received: 29` (`w2.log`)                                                                         |
+| `w3` | 1      | the frozen-revision comparison received one entry, blob `7ec3f1f0e2a46705419cbcd26764a6ced867c5a0`, mode `100644`, the frozen path of `remembered.ts`, against `[]` (`w3.log`) |
+
+**Comments.** The three `Proof:` comments above the first frontend `pilotPaths` entry spell no
+pre-namespacing root: the legacy pin stayed 1 pass (`s2-comments-legacy.log`). The pin's own
+`Proof:` comment above its digest line: 1 pass (`s2-proof-legacy.log`).
+
+**Final**, each `status=0`: `pins …` 1 pass (`s2-final-pins.log`); legacy pin 1 pass
+(`s2-final-legacy.log`); `wbs-fe-01:typecheck` (`s2-final-typecheck.log`); the sandbox node suite
+57 files, 713 tests, unchanged (`s2-final-sandbox.log`). Owned-file Prettier, `nx format:check --all`
+(`s2-format.log`) and strict OpenSpec ran after this entry was written.
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, the
+whole pilot suite, `check-indexes committed`, `tool-devsync:test` and the host gate — none run in
+the executor sandbox.

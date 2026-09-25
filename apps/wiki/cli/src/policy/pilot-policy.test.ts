@@ -56,6 +56,21 @@ const pilotPaths = [
   'apps/wbs/be-01/src/module/optimization/README.md',
   'apps/wbs/be-01/src/module/solver-launcher/README.md',
   'apps/wbs/be-01/src/module/solver-supervisor/README.md',
+  // Proof: leaving `tsconfig.json` out of the preferences index failed the `pins …` test on
+  // `unindexed candidate path in …/modules/preferences/README.md: …/preferences/tsconfig.json`;
+  // dropping the preferences row from `modules.json` with its boundary kept failed it at
+  // `expect(modules.length).toBe(policy.boundaries.length)` with `Expected: 30`, `Received: 29`;
+  // re-pointing the preferences boundary's source selector at the namespaced `remembered.ts`
+  // failed the frozen-revision comparison, which received the frozen `sourceRevision` path of
+  // `remembered.ts` (blob `7ec3f1f0…`) against `[]` (2026-09-25).
+  'apps/wbs/fe-01/src/modules/calendar-markers/README.md',
+  'apps/wbs/fe-01/src/modules/directory/README.md',
+  'apps/wbs/fe-01/src/modules/directory-management/README.md',
+  'apps/wbs/fe-01/src/modules/plan-commands/README.md',
+  'apps/wbs/fe-01/src/modules/plan-feed/README.md',
+  'apps/wbs/fe-01/src/modules/plan-writer/README.md',
+  'apps/wbs/fe-01/src/modules/preferences/README.md',
+  'apps/wbs/fe-01/src/modules/project/README.md',
   'apps/wiki/cli/README.md',
 ] as const;
 const scratch: string[] = [];

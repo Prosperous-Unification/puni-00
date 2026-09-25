@@ -621,7 +621,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 31,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 71,
+      'historical policy selector or baseline': 87,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -850,8 +850,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `apps/be-01/src/service/solver-supervisor-client.ts` they were extracted from; raised
     // `historical policy selector or baseline` from 67 to 71 and occurrences from 285 to 289, no
     // unclassified entries (2026-09-24).
-    digest: '8d9667b7d195746954849db31d5e6e106858109737d058581c5d33b4e7097d2e',
-    occurrences: 289,
+    // Proof: registering the eight frontend modules added each `boundary.frontend.*`'s
+    // `sourceSelector` and one `baselineEntries` path, naming the pre-namespacing file under
+    // `apps/fe-01/` it was extracted from; raised `historical policy selector or baseline` from 71
+    // to 87 and occurrences from 289 to 305, digest `8d9667b7…` to `68a1e15d…`, no unclassified
+    // entries; the `Proof:` comments added in the pilot suite moved nothing (2026-09-25).
+    digest: '68a1e15da4a66840c53c9a57c43583e1b303f2115504abc09e8bbe08d7294e02',
+    occurrences: 305,
     unclassified: [],
   });
 });

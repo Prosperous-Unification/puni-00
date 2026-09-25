@@ -14,7 +14,7 @@
       bag; the installer's close really is the bag's close. Negatives: the label removed;
       a registered cycle; the bag leaked into the returned surface; the close delegation
       replaced by a resolved no-op.
-- [ ] 3. The page's application lifetime is opened through the slot at module load and
+- [x] 3. The page's application lifetime is opened through the slot at module load and
       delivery reads its preferences out of that one graph, with the module's wiki index
       declaring `module.frontend.preferences` and its files.
       Partly moved by 050-7-f1: `lib/theme.ts` reads through
@@ -27,9 +27,11 @@
       and `lib/remembered.ts` resolves the runtime's `preferences` from the slot at
       every call, so `remembered-layout.ts`'s module-scope `storedMermaidSectionMode`
       holds no store. `modules/preferences/composition.ts` and its two tests are
-      deleted. This box stays unchecked for the one outcome still owed: the module's
-      wiki index (`apps/wbs/fe-01/src/modules/preferences/README.md` says it carries
-      no `module-index` block yet, and that adopting one is its own packet).
+      deleted. The one outcome still owed, the module's wiki index, is closed by
+      050-7-l, observed 2026-09-25: `apps/wbs/fe-01/src/modules/preferences/README.md`
+      carries a `module-index` block declaring `module.frontend.preferences` and every
+      file of the module, registered in the content-review pilot beside the other seven
+      frontend modules (task 12).
 - [x] 4. The application bootstrap owns the React root: it builds the runtime before
       `createRoot`, publishes `RememberedPreferences` — the feature facade only, never
       the `Preferences` resource — through one context, and renders the sanitized fatal
@@ -143,5 +145,20 @@
       `src/lib/remembered.ts`'s per-project layout stores — moves behind a feature of
       its own or is recorded as accepted debt with its one caller named. Existing
       trusted pilot mappings are preserved untouched.
+      Moved by 050-7-l, observed 2026-09-25: every directory under
+      `apps/wbs/fe-01/src/modules` has a `tsconfig.json` extending
+      `modules/tsconfig.module.json`, a composite configuration that refuses any file the
+      module reaches beyond the shared list and the files it names, run by the new
+      `typecheck:module` target that `typecheck` depends on; every one already has a
+      `contract.ts`, and now a `module-index` README block registered as
+      `module.frontend.<name>` in `docs/wiki-policy/modules.json` and `policy.json`, whose
+      existing rows are unchanged, with `check.fe-01.typecheck-module` as its applicable
+      check. The `preferences` resource is recorded as accepted debt in the module's
+      README, its one caller `src/lib/remembered.ts` named. This box stays unchecked for
+      the one outcome still owed: a graph check of their own for the six modules that are
+      not sealed DI Bag modules — `calendar-markers`, `directory`, `plan-commands`,
+      `plan-feed`, `plan-writer` and `project` have no `module.ts`, so no graph to verify
+      but the runtime that installs them; `preferences` and `directory-management` verify
+      theirs in `module.test.ts`.
 - [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
