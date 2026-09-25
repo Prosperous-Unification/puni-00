@@ -2396,7 +2396,21 @@ test.describe('the table, measured by a browser', () => {
     await page.getByLabel('New step').fill('Design');
     await page.getByRole('button', { name: 'Add step' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
-    await page.keyboard.press('Escape');
+    // The same race the removals below close, on the way in: the section holds
+    // its write as busy until the whole reread has landed, and the modal
+    // refuses Escape until it lets go, so a single press can land on a
+    // refusal and leave the table hidden behind the dialog.
+    //
+    // Proof: on 2026-09-25, a 3 s hold after `onLanded` in
+    // `useSettingsSection`'s `attempt`, with the single press this replaces,
+    // failed on `expect(locator).toBeVisible() failed … getByRole('button', {
+    // name: 'Unfold Design estimates' }) … element(s) not found`, the
+    // `Project settings` dialog still open in the snapshot. With this loop the
+    // same hold passed.
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }).toPass();
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
 
     const threeSteps = await stepIdsOnScreen();
