@@ -223,10 +223,13 @@ slice's red (section 6).
 
 ## 4. Verified facts
 
-Every number is a fresh observation from this packet's own rehearsals on 2026-09-24 and 2026-09-25 —
-the latest, `rehearse/050-7-m-r3`, cut after round 2's review — on the authoring base `59cfe22a4`,
-packet k's rehearsal tip: batch-6 integration `52876ae12` (main with packets h, G, H, I and j's real
-lane) plus packet i's and packet k's rehearsed diffs. The rehearsal adds two commits over it. That base is **never dispatched**: the dispatch base is planning after
+Every number is a fresh observation from this packet's own rehearsals on 2026-09-24 and 2026-09-25.
+The first three were cut on the authoring base `59cfe22a4`, packet k's rehearsal tip: batch-6
+integration `52876ae12` (main with packets h, G, H, I and j's real lane) plus packet i's and packet
+k's rehearsed diffs; the code diffs of section 7 were cut there. The latest, `rehearse/050-7-m-r4`,
+cut after round 3's review, adds two commits to a **stand-in** for the dispatch base, `081428ed2`
+(section 9.1 names what it holds), because the two README hunks exist only over packet l's text.
+Neither base is **dispatched**: the dispatch base is planning after
 packet i's, packet k's and packet l's real lanes have landed, which differs from it by their executors'
 `Proof:` comments, dated notes and `verify.md` entries, and by packet l's own spec requirement and task
 notes (section 9.1 simulates what it can name and checks the rest against the real base).
@@ -249,13 +252,14 @@ notes (section 9.1 simulates what it can name and checks the rest against the re
 
 ### 4.2 The measured blast radius
 
-`git diff --stat 59cfe22a4 580d8431e`: **19 files changed, 793 insertions(+), 122 deletions(-)**
-(slice 1: 9 files, 95+/94−; slice 2: 10 files, 698+/28−, task 14's two lines included). With
-`verify.md`, which only the executor writes, slice 1 owns 10 paths and slice 2 owns 11 (1 new).
+`git diff --stat 081428ed2 bcccd2b6c`: **21 files changed, 816 insertions(+), 138 deletions(-)**
+(slice 1: 11 files, 107+/103−, the two READMEs included; slice 2: 10 files, 709+/35−, task 14's two
+lines included). With `verify.md`, which only the executor writes, slice 1 owns 12 paths and slice 2
+owns 11 (1 new).
 
 | Tree             | Sandbox node suite | Module set (7 files, serial) | Session set (3 files, serial) | New page file | Adopted set (20 files) | Zoned |
 | ---------------- | ------------------ | ---------------------------- | ----------------------------- | ------------- | ---------------------- | ----- |
-| base `59cfe22a4` | 57·713             | 7·30                         | 3·70                          | —             | 20·1219                | 2·3   |
+| base `081428ed2` | 57·713             | 7·30                         | 3·70                          | —             | 20·1219                | 2·3   |
 | after slice 1    | 57·714             | 7·31                         | —                             | —             | 20·1219                | —     |
 | after slice 2    | 57·714             | 7·31                         | 3·73                          | 1·6           | 20·1219                | 2·3   |
 
@@ -2781,8 +2785,8 @@ No script, no Prettier and no `node_modules` are needed: every change is a diff.
 ````sh
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-m-project-replacement.md
-base=59cfe22a42c5471fa1f3aa714a722faabce9e8d5
-final=934f50194a787104849767332111f81c53f4e6a1
+base=081428ed2c7c7ff6d6f61dc05b8641f19163431d
+final=bcccd2b6cf8ec93149f4d602808795e08048accf
 real_base=${REAL_BASE:-}
 test -f "$packet"
 # Inserts a two-line comment above the Nth line (default 1) whose trimmed text is exactly $2.
@@ -2948,65 +2952,71 @@ done
 ````
 
 Observed on 2026-09-25, after the final Prettier `--check` of this document, with the packet read from
-this working tree and `REAL_BASE=4d14c1d72` — **a stand-in** for the dispatch base, built the way round 1's
-and round 2's reviews built theirs: batch-6 integration `f15971021` (which carries packet k's landed lane,
-`54e428685`, with packets i's and k's executor `Proof:` comments in `app.tsx` and their dated notes), packet
-l's current packet (`b43e8a3b8`, `5750f395f`, `4a75478fa`, `a2159db67`) cherry-picked, packet l's eleven
-section-7 diffs applied by its own extraction with its `<observed-date-l>` notes dated, and this plan
-branch's commits with this document. It is not the reviewed planning base; the planner reruns the mode
-there before the first dispatch:
+this working tree and `REAL_BASE=081428ed2`, the same stand-in as `base`, so `fill=real` here proves the
+mode's own checks and not the dispatch base. The stand-in is built the way the three reviews built
+theirs: batch-6 integration `f15971021` (which carries packet k's landed lane, `54e428685`, with
+packets i's and k's executor `Proof:` comments in `app.tsx` and their dated notes), packet l's five
+packet commits (`b43e8a3b8` through `1e9138a19`) cherry-picked, packet l's eleven section-7 diffs
+applied by its own extraction with its `<observed-date-l>` notes dated 2026-09-25 (`c2feae05d`), and
+this plan branch's commits through `3e8ad6028`, whose diffs, fault patches and slice blocks are this
+document's byte for byte. It is not the reviewed planning base; the planner reruns the mode there before
+the first dispatch:
 
 ```text
 fill=0 extracted=6
 fill=0 fault-patches=13
 fill=0 slice 1 applied, its 3 fault patches check
 fill=0 slice 2 applied, task 14 appended, its 10 fault patches check
-19
-fill=0 tree identical to 934f50194a787104849767332111f81c53f4e6a1
+21
+fill=0 tree identical to bcccd2b6cf8ec93149f4d602808795e08048accf
 fill=1 extracted=6
 fill=1 fault-patches=13
-fill=1 filled-sites=6, packets i and k dated, packet l's three records simulated
+fill=1 filled-sites=6, packet l's four notes moved to another day
 fill=1 slice 1 applied, its 3 fault patches check
 fill=1 slice 2 applied, task 14 appended, its 10 fault patches check
-19
+21
 fill=1 simulated comments left: 6
 fill=real extracted=6
 fill=real fault-patches=13
 fill=real slice 1 applied, its 3 fault patches check
 fill=real slice 2 applied, task 14 appended, its 10 fault patches check
-19
-fill=real changed exactly the nineteen owned paths
+21
+fill=real changed exactly the twenty-one owned paths
 fill=real five test files equal the rehearsal's
 fill=real eleven production files equal the rehearsal's but for comments
-fill=real three records carry exactly this packet's delta
+fill=real five records carry exactly this packet's delta
 ```
 
 `git apply --check` prints nothing on success, which is why the script's own `echo` lines are the
 evidence and why every count is asserted rather than printed. The number printed after slice 2 is the
-paths changed against the base: nineteen — every owned path of the two slices but `verify.md`, which
+paths changed against the base: twenty-one — every owned path of the two slices but `verify.md`, which
 the executor writes. The `fill=0` tree is byte-identical to the rehearsal's final commit (`diff -r`
 printed nothing), which holds the two `<observed-date-m>` placeholders slice 2 step 4 replaces, and task
-14 as its last lines. On the stand-in, task 14 lands after packet l's note on task 13, and every hunk
-applies with offsets only. Prettier strips the single space of a blank context line inside the fenced
+14 as its last lines. On the stand-in, task 14 lands after packet l's note on task 13, and every code
+hunk cut on the authoring base applies with offsets only. Prettier strips the single space of a blank context line inside the fenced
 diffs; `git apply` reads such a line as the blank context line it was, which `fill=0`'s identity proves.
 
 **A failed check stops the run**: the same script with `REAL_BASE` set to this packet's own slice-1
-rehearsal commit `870f1df7e`, a base the diffs cannot fit, exited 1 at the first `git apply --check`
+rehearsal commit `07ddb4781`, a base the diffs cannot fit, exited 1 at the first `git apply --check`
 (`error: patch failed: apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.test.ts:35`).
 
-**Beyond the script, on the same stand-in** — which section 9.1 cannot see, because it applies diffs and
-does not typecheck:
+**Beyond the script, on the same stand-in**, from the `rehearse/050-7-m-r4` runs of section 9.3 — which
+section 9.1 cannot see, because it applies diffs and does not typecheck:
 
 - slice 1's red (`01.diff` alone): `wbs-fe-01:typecheck` `status=130`, `Failed tasks: -
 wbs-fe-01:typecheck:module`, the three per-module `Found … error` lines of section 6, five TS2741 —
   the form step 3 now asserts;
 - slice 2's red (`01`–`04`): `typecheck:module` passes, then `Found 1 error in
 apps/wbs/fe-01/src/app.test.tsx:744`, `status=1`;
+- slice 1's green: the pilot's `pins …` test `1 pass`, `0 fail`; `check-indexes working` exit 0 with
+  the eight `module.frontend.*` indexes; with the plan writer's index made malformed it exited 1,
+  `index metadata malformed at apps/wbs/fe-01/src/modules/plan-writer/README.md: JSON Parse error:
+Expected '}'`;
 - all six diffs and task 14: `wbs-fe-01:typecheck` 0 (with `typecheck:module` over every module
   directory), `wbs-fe-01:lint` 0, `nx format:check --all` 0, strict OpenSpec 114 · 114 · 0 with packet
-  l's requirement beside this one, packet l's `src/delivery-boundaries.test.ts` 1·1 (no route added to
-  or gone from its list of routes owed), the session set with the new page file 4·79, the module set
-  7·31, the sandbox suite 57·714, and the four suites that reach the dependency list 4·167.
+  l's requirement beside this one and `grep -c 'lowers no busy'` 0, packet l's
+  `src/delivery-boundaries.test.ts` 1·1 (no route added to or gone from its list of routes owed), the
+  session set with the new page file 4·79, the sandbox suite 57·714 and the adopted set 20·1219.
 
 Every **intermediate** tree typechecks: `wbs-fe-01:typecheck` exit 0 on both rehearsal commits, each
 committed with the hooks on. Exactly two trees do not: the red checkpoints, each the previous slice's
@@ -3039,7 +3049,15 @@ All on 2026-09-24 and 2026-09-25, by this packet's author. The first rehearsal, 
 byte-identical to the first rehearsal's — each commit made **with the hooks on** (lefthook's wiki,
 secrets, format and lint checks passed): `934f5019` (slice 2: the first's plus the spec reword, the
 task notes and task 14, the dependency list's toast repair and case, and its reread and busy guards
-deleted). Each red was rebuilt from the previous slice's commit plus that slice's test
+deleted). After round 3 both slices were re-cut as `rehearse/050-7-m-r4` on the stand-in
+`081428ed2` (section 9.1), with the hooks on: `07ddb4781` (slice 1, now with the two READMEs) and
+`bcccd2b6c` (slice 2, now with the dependency list's late-answer sentence reworded). Every step 0,
+deletion-evidence, red and green block of section 6 was run there, extracted from this document; step
+0b was run twice into the same `$TMPDIR` and the second extraction was `diff -r`-identical to the first
+(the old `print >> f` form, run twice, made `01.diff` 268 lines instead of 134). The thirteen faults were
+not rerun on `r4`: none reaches a README or the reworded sentence, and every code and test file `r4`
+changes is byte-identical to the one on round 3's review stand-in, where the reviewer ran all thirteen
+with the tabled diagnostics. Each red was rebuilt from the previous slice's commit plus that slice's test
 side only; each fault was injected into the final tree, whose slice-1 files are slice 1's.
 
 | Check                                            | Base `59cfe22a`                               | Slice 1                                                                                                         | Slice 2                                                                                                                            |
@@ -3094,15 +3112,16 @@ page goes` too (`Tests 1 failed | 75 skipped (76)`), packet j's proof of the sam
 The sandbox cannot run these: three tests in two files spawn `bun` from Node, there is no browser, a
 build writes outside the attempt's lane, and devsync writes Git objects.
 
-| Check                                                                                                                                                                                            | Expected, relative to the base                                                                                                | Planner's own rehearsal                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                    | slice 1 **+ 1 test**; slice 2 unchanged                                                                                       | **Not run.** Pending planner verification.                   |
-| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                         | UTC: slice 1 **+ 1 test**, slice 2 **+ 1 file, + 9 tests**. Auckland zoned unchanged                                          | **Not run.** Pending planner verification.                   |
-| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                    | exit 0 after each slice                                                                                                       | **Not run.** Pending planner verification.                   |
-| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                   | unchanged; no project target, no module file, no pre-namespacing path in any owned document                                   | run by `planner-commit.sh` on this packet's own commit only  |
-| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>` | exit 0, unchanged, after slice 2 — every spec that picks a project, switches projects or follows the Directory and Plan links | **Pending planner verification.** Not run in this rehearsal. |
-| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands  | **Pending planner verification.** Not run, not waived.       |
-| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                       | exit 0 on the shared build host                                                                                               | **Not run**; reported as pending, never as passed.           |
+| Check                                                                                                                                                                                                                                                                                 | Expected, relative to the base                                                                                                | Planner's own rehearsal                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test:unit`                                                                                                                                                                                         | slice 1 **+ 1 test**; slice 2 unchanged                                                                                       | **Not run.** Pending planner verification.                   |
+| `NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run wbs-fe-01:test`                                                                                                                                                                                              | UTC: slice 1 **+ 1 test**, slice 2 **+ 1 file, + 9 tests**. Auckland zoned unchanged                                          | **Not run.** Pending planner verification.                   |
+| `(cd apps/wiki/cli && TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts src/policy/pilot-policy.test.ts)` and `bun run apps/wiki/cli/src/cli.ts check-indexes committed . <slice-1 commit>`, after slice 1's commit | the whole pilot suite unchanged; exit 0 and eight `module.frontend.*` indexes                                                 | the `pins …` test and `check-indexes working` only (9.1)     |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:build`                                                                                                                                                                                                                                         | exit 0 after each slice                                                                                                       | **Not run.** Pending planner verification.                   |
+| `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`, with the slice committed or staged                                                                                                                                                        | unchanged; no project target, no module file, no pre-namespacing path in any owned document                                   | run by `planner-commit.sh` on this packet's own commit only  |
+| `CI=1 E2E_PORT_SHIFT=<a multiple of 300 clear of every live run, checked with ss -ltn> NX_DAEMON=false env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT bunx nx run wbs-fe-01:e2e -- <spec>`                                                                                      | exit 0, unchanged, after slice 2 — every spec that picks a project, switches projects or follows the Directory and Plan links | **Pending planner verification.** Not run in this rehearsal. |
+| the same target **unfiltered**, on its own shift, on the final integration commit                                                                                                                                                                                                     | exit 0. The batch README's "Integration verification" requires the whole frontend browser suite once a frontend change lands  | **Pending planner verification.** Not run, not waived.       |
+| `bin/h2puni-gate.sh <sha>`                                                                                                                                                                                                                                                            | exit 0 on the shared build host                                                                                               | **Not run**; reported as pending, never as passed.           |
 
 `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` is not decoration: `CLAUDECODE=1` changes Bun's test
 output and fails thirteen unrelated tests in this repository.
@@ -3120,10 +3139,11 @@ output and fails thirteen unrelated tests in this repository.
 - `run-check.sh`'s summary line greps `error TS` and `Found [0-9]+ error`, which tsc's coloured output
   can split; the `status=` line it also prints is the result, and slice 1's red counts `TS2741` in the
   log directly.
-- The authoring base carries packets i's and k's **rehearsed** diffs and none of packet l's; section 9.1's
-  `fill=real` on the real base is what proves the rest — rehearsed here against a stand-in (section 9.1),
-  and rerun by the planner on the reviewed planning base, with slice 1's red once there too (section 9.1
-  applies diffs; it does not typecheck).
+- The rehearsal's stand-in carries packet l's diffs as its packet spells them, not as its executor and
+  dispatch review will leave them; section 9.1's `fill=real` on the real base is what proves the rest,
+  rerun by the planner on the reviewed planning base, with slice 1's red once there too (section 9.1
+  applies diffs; it does not typecheck). The README hunks carry packet l's index line as context: any
+  change to it fails `fill=real`, which is a re-rehearsal of slice 1.
 
 ## 10. Stop conditions
 
@@ -3298,3 +3318,16 @@ happened.
 | Minor 1 — the scenario covers a dependency list's success                                                                                           | Reworded: "an undo's success or refusal, or a dependency list's refusal".                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Minor 2 — code spans broken across lines in both red expectations                                                                                   | The quoted diagnostics are now in `text` blocks, one per line.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Minor 3 — the recorded stand-in predates packet l's round 2 and integration's move                                                                  | Section 9.1's run is on a stand-in built from integration `f15971021`, packet l's four packet commits and its diffs, and this packet's file.                                                                                                                                                                                                                                                                                                                                                   |
+
+## 18. Round 3, the dispatch review, disposed
+
+| Finding                                                                                                                                    | Disposal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocking 1 — "The table's gestures write through the project's commands" still says the dependency list's late answer lowers no busy state | Applied as prescribed: 7.3's new second hunk (`@@ -490,7 +491,8 @@`) rewords it to "answer announces nothing and lowers only its own runtime's busy state, which nobody draws once it is withdrawn", and the requirement's hunk header is now `@@ -500,6 +502,66 @@`. The 7.3 intro, the Schema row, section 5's spec row and slice 2 step 2 name it; step 2 now asserts `grep -c 'lowers no busy'` is 0. Re-cut in `r4`'s slice 2: 0, strict block 114 · 114 · 0.                                                                                                                                    |
+| Non-blocking — module READMEs go stale after slice 1                                                                                       | This packet owns them: 7.2 ends with hunks to `modules/calendar-markers/README.md` ("What the feature owns": one identity question) and `modules/plan-writer/README.md` (the one question and its three asks; busy lowered however a gesture ended; the index's `invariants` reason). Slice 1 owns 12 paths; section 5's hand-off to packet l is replaced; section 11 narrows packet l's claim; slice 1's green adds the pilot's `pins …` test and `check-indexes working` (eight frontend indexes); `fill=real` treats the READMEs as records (21 owned paths, five records). No membership changes. |
+| Non-blocking — stale sentences                                                                                                             | Section 16's Important 2 disposal now says round 2 deleted the busy and reread guards; section 1 names the deleted guards instead of "two checks"; section 9.1 lists packet l's five commits through `1e9138a19`, and section 17 says four for round 2's stand-in.                                                                                                                                                                                                                                                                                                                                    |
+| Non-blocking — step 0b appends                                                                                                             | The extraction writes with awk's `>`, which empties each file on its first write in the run; the same in section 9.1. Rerun observed identical (section 9.3).                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Non-blocking — `$TMPDIR` under the Claude driver                                                                                           | Unchanged: every block already dies on an unset `TMPDIR` (`${TMPDIR:?}` in 0a), and the evidence path is the planner's check.                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Non-blocking — `Saved lockfile` in 0c                                                                                                      | Not seen: `r4`'s 0c and strict blocks left `bun.lock` and the status clean but for owned paths.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Non-blocking — load sensitivity                                                                                                            | Unchanged: stop condition 11. `r4`'s adopted runs passed 20·1219 at load 4 to 6.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| What the planner must verify                                                                                                               | Unchanged, but slice 1's hand-over is now 12 paths and section 9.1's `fill=real` changes 21.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
