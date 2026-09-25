@@ -1,31 +1,24 @@
 import {
-  type AppexCorjOptions,
-  type CapturedReports,
-  createRedactionPolicy,
+  makeRedactionPolicy,
+  makeReportPair,
+  type PublicReportCorjOptions,
   type RedactionPolicy,
-  toReports,
+  type ReportPair,
 } from 'application-exception';
 
 /**
- * The one options bag every reporting call in this repository shares. It is a module constant
- * because the library caches one report maker per options object; building it per call throws
- * that cache away.
+ * The inspection limits every reporting call in this repository shares, for both reports.
  *
- * `maxReportSize` bounds the whole compact diagnostic report in UTF-8 bytes — `occurrence_id`,
- * `fingerprint`, `context` and `reporting_errors` included. Over budget the library drops
- * `context` whole and records `context_omitted: 'max_size'`, then drops `reporting_errors` and
- * records `reporting_errors_omitted`, and only then trims error content; `occurrence_id`,
- * `fingerprint` and `v` are never trimmed. A context that is merely large is truncated instead,
- * by the library's own 16 KiB context cap, and leaves `context_omitted` absent. `maxDepth` stops
- * the cause walk and marks the deepest child `children_omitted: 'max_depth'`; `maxChildren`
- * marks the root `children_omitted: 'max_children'`. `inspection: 'no-invoke'` is what keeps a
- * throwing getter from running while a failure is being reported: such a property is reported as
- * `'[not-inspected]'`.
+ * The type is the public bag's, the narrower of the two: application-exception refuses a public
+ * `corj` bag that carries anything but `inspection`, `maxDepth`, `maxChildren`, `childrenSources`,
+ * `fingerprintParts` and `onReportingError`, and every one of those is also a diagnostic option.
+ * `maxDepth` stops the cause walk and marks the deepest child `children_omitted: 'max_depth'`;
+ * `maxChildren` marks the root `children_omitted: 'max_children'`. `inspection: 'no-invoke'` is
+ * what keeps a throwing getter from running while a failure is being reported: such a property is
+ * reported as `'[not-inspected]'`. The library snapshots the bag on every call and caches nothing,
+ * so a module constant is a single source of the limits, not a cache key.
  */
-export const FAILURE_REPORT_LIMITS: AppexCorjOptions = {
-  // Proof: removing the byte budget left `truncated` undefined in the
-  // long-Unicode-message test (2026-09-20).
-  maxReportSize: 32_768,
+export const FAILURE_REPORT_LIMITS: PublicReportCorjOptions = {
   // Proof: removing the depth limit left `children_omitted` undefined instead of
   // `max_depth` on the deepest child (2026-09-20).
   maxDepth: 4,
@@ -36,6 +29,19 @@ export const FAILURE_REPORT_LIMITS: AppexCorjOptions = {
   // `error: "Error: ran"` in the getter test (2026-09-20).
   inspection: 'no-invoke',
 };
+
+/**
+ * The whole compact diagnostic report's budget in UTF-8 bytes — `occurrence_id`, `fingerprint`,
+ * `context` and `reporting_errors` included.
+ *
+ * Over budget the library drops `context` whole and records `context_omitted: 'max_size'`, then
+ * drops `reporting_errors` and records `reporting_errors_omitted`, and only then trims error
+ * content; `occurrence_id`, `fingerprint` and `v` are never trimmed. A context that is merely
+ * large is truncated instead, by the library's own 16 KiB context cap, and leaves
+ * `context_omitted` absent. The public report takes no byte budget: application-exception bounds
+ * its message and selected details by its own fixed caps.
+ */
+export const FAILURE_REPORT_MAX_BYTES = 32_768;
 
 /**
  * Property names skipped in both reports, at any depth, whatever their capitalisation.
@@ -79,19 +85,19 @@ const SENSITIVE_KEY_PATTERNS = SENSITIVE_KEYS.map(
 /**
  * A redaction policy over the secrets the calling boundary owns, for both reports of a failure.
  *
- * Build it once at startup and share it: the library caches one report maker per policy. Pass
- * only the secrets the caller actually holds — never a whole configuration, request or
- * environment object, because a secret nobody named cannot be detected. An empty list is correct
- * where the caller owns no secret, and leaves the key rules in force. The policy applies to the
- * public report as well, and it sees only what a kind's disclosure selector returned, so a
- * mistaken selector cannot get past it.
+ * Build it once at startup and share it: compiling the caller's secrets into patterns is work a
+ * report should not repeat. Pass only the secrets the caller actually holds — never a whole
+ * configuration, request or environment object, because a secret nobody named cannot be detected.
+ * An empty list is correct where the caller owns no secret, and leaves the key rules in force. The
+ * policy applies to the public report as well, and it sees only what a kind's disclosure selector
+ * returned, so a mistaken selector cannot get past it.
  *
  * @param secrets Secret values to scrub from messages, stacks, `as_string`, `as_json`, `context`
  *   and `reporting_errors` wherever they appear. Empty strings are ignored.
  * @returns A reusable policy accepted as `redact` by both reports.
  */
 export function createFailureRedaction(secrets: readonly string[]): RedactionPolicy {
-  return createRedactionPolicy({
+  return makeRedactionPolicy({
     // Proof: replacing the key patterns with [] exposed `Bearer live-token` in the
     // capitalisation test (2026-09-20).
     keys: SENSITIVE_KEY_PATTERNS,
@@ -110,7 +116,7 @@ export function createFailureRedaction(secrets: readonly string[]): RedactionPol
  * original failure is unchanged and still the caller's to handle.
  */
 export type FailureReporting =
-  | { readonly reported: true; readonly reports: CapturedReports }
+  | { readonly reported: true; readonly reports: ReportPair }
   | { readonly reported: false; readonly occurrenceId: string; readonly reason: string };
 
 /** Losses in this process, so two of them never share a correlation handle. */
@@ -120,13 +126,14 @@ let unreportedFailures = 0;
  * Report one caught value to both audiences under this repository's limits and the caller's
  * policy, without ever throwing.
  *
- * One `toReports` call resolves the occurrence id once and shares it, so the operator's record
- * and the answer given to a user or an agent correlate even for a thrown primitive. The same
- * policy and the same limits go to both bags, so the public report is redacted too. Reporting can
- * still fail — a revoked `Proxy` as a cause makes the library throw — and a boundary that is
- * already handling a failure must not be handed a second one, so that outcome comes back as
- * `reported: false` with a local handle and a fixed reason. The reporter is not called again, and
- * nothing is read off the caught value afterwards: reading it is what threw.
+ * One `makeReportPair` call resolves the occurrence id once and shares it, so the operator's record
+ * and the answer given to a user or an agent correlate even for a thrown primitive. The same policy
+ * and the same inspection limits go to both bags, so the public report is redacted too; the byte
+ * budget is the diagnostic report's alone. Reporting can still fail — a revoked `Proxy` as a cause
+ * makes the library throw (caught-object-report-json issue 217, still open on 13.0.0) — and a
+ * boundary that is already handling a failure must not be handed a second one, so that outcome
+ * comes back as `reported: false` with a local handle and a fixed reason. The reporter is not
+ * called again, and nothing is read off the caught value afterwards: reading it is what threw.
  *
  * @param caught The value that was thrown. Any value, including primitives, `null` and hostile
  *   objects.
@@ -148,8 +155,12 @@ export function reportFailure(
       // in the public-details test (2026-09-20).
       // Proof: splitting this shared call produced two different `AE_…` ids in the
       // primitive-correlation test (2026-09-20).
-      reports: toReports(caught, {
-        diagnostic: { ...bag, context: options.context },
+      reports: makeReportPair(caught, {
+        diagnostic: {
+          ...bag,
+          maxReportBytes: FAILURE_REPORT_MAX_BYTES,
+          context: options.context,
+        },
         public: bag,
       }),
     };
