@@ -35,6 +35,9 @@ export const LogRecord = type({
   // `err.message must be a string (was missing)` (2026-09-21).
   'err?': [
     {
+      // Proof: on 2026-09-25, narrowing this to the current `corj/v0.15` refused a stored
+      // `corj/v0.14` record and failed "accepts a failure record written before the report format
+      // moved".
       v: '/^corj\\//',
       occurrence_id: 'string',
       'fingerprint?': 'string',

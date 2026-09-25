@@ -158,6 +158,9 @@ export function reportFailure(
       reports: makeReportPair(caught, {
         diagnostic: {
           ...bag,
+          // Proof: on 2026-09-25, dropping this budget left `truncated` undefined in "bounds a
+          // very long Unicode message and marks it truncated", and failed the three other budget
+          // tests.
           maxReportBytes: FAILURE_REPORT_MAX_BYTES,
           context: options.context,
         },
