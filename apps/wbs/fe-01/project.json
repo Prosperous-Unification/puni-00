@@ -72,8 +72,15 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
+      "dependsOn": ["typecheck:module"],
       "options": {
         "command": "bunx tsc --build --force apps/wbs/fe-01/tsconfig.json"
+      }
+    },
+    "typecheck:module": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "status=0; for module in apps/wbs/fe-01/src/modules/*/; do echo \"typecheck:module $module\"; bunx tsc -p \"$module\"tsconfig.json --noEmit || status=1; done; exit $status"
       }
     },
     "serve-local-solver": {

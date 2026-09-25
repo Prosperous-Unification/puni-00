@@ -1,5 +1,7 @@
 # Directory
 
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.directory","memberships":[{"kind":"path","path":"contract.ts"},{"kind":"path","path":"directory.resource.test.ts"},{"kind":"path","path":"directory.resource.ts"},{"kind":"path","path":"fake-directory-api.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The newest-read rule, the write runner and withdrawal are documented on createDirectory; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/modules/directory-management/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/directory-management/directory-management.feature.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/directory-management/module.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
 The account-wide directory this deployment holds: its people, teams, tags, services and work item
 types, the rule for which read may install, and the one way a change to it is run.
 
@@ -39,3 +41,7 @@ The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the modul
 `directory.resource.test.ts`. The behaviour this extraction preserves is proved by
 `apps/wbs/fe-01/src/components/directory/directory-page.test.tsx`, which runs in the `test` target
 of the same project.
+
+Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
+extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.

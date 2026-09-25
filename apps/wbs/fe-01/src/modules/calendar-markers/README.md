@@ -1,5 +1,7 @@
 # Calendar markers
 
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.calendar-markers","memberships":[{"kind":"path","path":"calendar-markers.feature.test.ts"},{"kind":"path","path":"calendar-markers.feature.ts"},{"kind":"path","path":"calendar-markers.resource.test.ts"},{"kind":"path","path":"calendar-markers.resource.ts"},{"kind":"path","path":"composition.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"What the resource and the feature own is documented on createCalendarMarkers and calendarMarkersFor; no invariant spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/composition.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
 The dates a person marks on one project's chart, and the four edits that change them: putting a
 marker on a day, renaming it, recolouring it, and taking it off.
 
@@ -59,3 +61,7 @@ The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the modul
 extraction preserves is proved by `plan-chart-seam.test.tsx`, which drives the real table through
 the four gestures, and by the Gantt panel's own day-sheet suites, which run in the `test` target
 of the same project.
+
+Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
+extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.

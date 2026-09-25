@@ -2372,3 +2372,174 @@ Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
 `wbs-fe-01:build`, `wbs-fe-01:e2e` (the login specs and every spec that clicks
 Log out, then unfiltered on the integration commit), `tool-devsync:test`, and
 the host gate, none of which the executor sandbox can run.
+
+## Packet 050.7l, slice 1 — every frontend module type-checks on its own
+
+Attempt `050-7-l-isolated-checks-and-architecture.1.20260925T064501Z`, starting hash
+`1286e71e5c7b189ccd2bea2c11e570c0782fa5ae` (`base.txt`), clean status before any edit
+(`status-before.txt`, empty). Observed on 2026-09-25 inside the executor sandbox.
+
+Baselines before any edit: `wbs-fe-01:typecheck` status 0 (`base-typecheck.log`); the legacy pin
+`every legacy source occurrence …` 1 pass, 0 fail (`base-legacy.log`); the sandbox node suite 57
+files, 713 tests, status 0 (`base-sandbox.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}` (`openspec-validation.ffxHGh.json`).
+
+Contract first: with the requirement "Each frontend module type-checks on its own" appended, strict
+OpenSpec gave `{"items":114,"passed":114,"failed":0}`, exit 0 (`openspec-validation.ppukr8.json`).
+
+Red, with the `typecheck:module` target and no configuration: status 1 and eight
+`error TS5058: The specified path does not exist: '…/src/modules/<name>/tsconfig.json'.`, one per
+module directory, `directory-management` before `directory` (`s1-red-module.log`). With the nine
+configurations and the inventory unchanged: `pins the complete moved depth-sensitive configuration
+inventory` status 1, 0 pass 1 fail, hunk `@@ -3,69 +3,10 @@`, 59 oracle rows absent from the
+production inventory, every one a `src/modules/…/tsconfig…json` row, the first
+`apps/wbs/fe-01/src/modules/calendar-markers/tsconfig.json␀extends␀../tsconfig.module.json`
+(`s1-red-inventory.log`).
+
+Green, with the inventory walking each project's directories: `typecheck:module` status 0, eight
+modules checked; `wbs-fe-01:typecheck` status 0 (`Successfully ran target typecheck for project
+wbs-fe-01 and 1 task it depends on`); the legacy pin 1 pass; the inventory suite 4 pass, 0 fail;
+`wbs-fe-01:lint`, `tool-devsync:lint` and `tool-devsync:typecheck` status 0; the sandbox node
+suite 57 files, 713 tests, equal to the baseline (`s1-green.out` and the `s1-green-*`, `s1-lint*`,
+`s1-typecheck-devsync` logs).
+
+Faults, each run through `run-fault.sh`, its files restored and compared with `cmp`, and the
+status after all nine identical to the green status (`after-green.txt`, `after-faults.txt`,
+`s1-faults.out`):
+
+| Fault | Injected                                                     | Status | Observed                                                                                                                                         |
+| ----- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `t1`  | `undo` in `plan-commands.feature.ts` loses its bound project | 1      | `plan-commands.feature.ts:14:31 - error TS2554: Expected 1 arguments, but got 0.`                                                                |
+| `t2`  | `plan-commands` imports `../plan-feed/plan-feed.resource`    | 1      | four TS6307, among them `File '…/plan-feed/plan-feed.resource.ts' is not listed within the file list of project '…/plan-commands/tsconfig.json'` |
+| `t2b` | the same import, against the application's own `tsc --build` | 0      | the application's check does not see it                                                                                                          |
+| `t2c` | the same import, against `wbs-fe-01:typecheck`               | 130    | `Tasks not run because their dependencies failed`, `Failed tasks: - wbs-fe-01:typecheck:module`                                                  |
+| `t3`  | `preferences` imports `@/components/ui/button`               | 1      | five TS6307, the one for the importing line naming `components/ui/button.tsx` (the first four name the files `button.tsx` reaches)               |
+| `t4`  | `composite` removed from the base, with `t2`'s import        | 0      | `Successfully ran target typecheck:module for project wbs-fe-01`                                                                                 |
+| `t5`  | `preferences/tsconfig.json` deleted                          | 1      | `error TS5058: The specified path does not exist: '…/preferences/tsconfig.json'.`                                                                |
+| `t6`  | `typecheck`'s `dependsOn` removed, with `t2`'s import        | 0      | `Successfully ran target typecheck for project wbs-fe-01`                                                                                        |
+| `t7`  | the inventory skips directories again                        | 1      | `@@ -3,69 +3,10 @@`, first missing row `-   "apps/wbs/fe-01/src/modules/calendar-markers/tsconfig.json␀extends␀../tsconfig.module.json",`        |
+
+After the `Proof:` comments (two in `tsconfig.module.json`, one in `workspace-inventory.mjs`):
+`typecheck:module`, `wbs-fe-01:typecheck`, the legacy pin (1 pass), the inventory suite (4 pass),
+`tool-devsync:lint`, `wbs-fe-01:lint` and the sandbox node suite (57·713) unchanged, each status 0
+(`s1-final.out`, `s1-final-*` logs).
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, the
+whole pilot suite, `check-indexes committed`, `tool-devsync:test` and the host gate — none runs in
+the executor sandbox.
+
+## Packet 050.7l, slice 2 — every frontend module indexed and registered, and task 3 closed
+
+Attempt `050-7-l-isolated-checks-and-architecture.2.20260925T065501Z`, starting at
+`6d6ba8766afa70299b840d04413f531532ffeb71` (slice 1's commit) with an empty status
+(`base.txt`, `status-before.txt`). Run in the executor sandbox with `CLAUDECODE`, `AGENT` and
+`CLAUDE_CODE_ENTRYPOINT` unset.
+
+**Step 0 baselines**, each `status=0`: `wbs-fe-01:typecheck` (`base-typecheck.log`); the legacy pin
+`every legacy source occurrence …` 1 pass (`base-legacy.log`); the sandbox node suite 57 files, 713
+tests (`base-sandbox.log`); the pilot `pins exact pre-index tuples …` test 1 pass, 0 fail
+(`base-pins.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+**Contract.** The requirement "Every frontend module is a registered wiki module" appended; strict
+OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+**Red** (`s2-red-pins.log`), with the eight index blocks, README paragraphs and `pilotPaths` but no
+registration: `status=1`, 0 pass, 1 fail, `error: unknown applicable check in
+apps/wbs/fe-01/src/modules/calendar-markers/README.md: check.fe-01.typecheck-module`.
+
+**Green.** With the fact, eight rows, eight boundaries and task 3 ticked: the `pins …` test 1 pass
+(`s2-green-pins.log`). The legacy pin then failed as expected (`s2-red-legacy.log`, `status=1`,
+`Expected - 3`, `Received + 3`): `historical policy selector or baseline` 71 → 87, `occurrences`
+289 → 305, digest `8d9667b7d195746954849db31d5e6e106858109737d058581c5d33b4e7097d2e` →
+`68a1e15da4a66840c53c9a57c43583e1b303f2115504abc09e8bbe08d7294e02` (the packet's digest, so no
+named digest edit), `unclassified: []`. After re-pinning, each `status=0`: the legacy pin 1 pass
+(`s2-green-legacy.log`); `typecheck` for tool-devsync and twilight-burokrat (`s2-typecheck.log`);
+`twilight-burokrat:lint:source` (`s2-lint-wiki.log`); `tool-devsync:lint` (`s2-lint-devsync.log`);
+`wbs-fe-01:typecheck:module` (`s2-module.log`).
+
+**Faults**, each injected, observed failing, restored and compared byte for byte; the status after
+the loop equalled the green status (`step7.out`, `after-green.txt`, `after-faults.txt`):
+
+| Id   | Status | Observed                                                                                                                                                                       |
+| ---- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `w1` | 1      | `error: unindexed candidate path in apps/wbs/fe-01/src/modules/preferences/README.md: apps/wbs/fe-01/src/modules/preferences/tsconfig.json` (`w1.log`)                         |
+| `w2` | 1      | at `expect(modules.length).toBe(policy.boundaries.length);`, `Expected: 30`, `Received: 29` (`w2.log`)                                                                         |
+| `w3` | 1      | the frozen-revision comparison received one entry, blob `7ec3f1f0e2a46705419cbcd26764a6ced867c5a0`, mode `100644`, the frozen path of `remembered.ts`, against `[]` (`w3.log`) |
+
+**Comments.** The three `Proof:` comments above the first frontend `pilotPaths` entry spell no
+pre-namespacing root: the legacy pin stayed 1 pass (`s2-comments-legacy.log`). The pin's own
+`Proof:` comment above its digest line: 1 pass (`s2-proof-legacy.log`).
+
+**Final**, each `status=0`: `pins …` 1 pass (`s2-final-pins.log`); legacy pin 1 pass
+(`s2-final-legacy.log`); `wbs-fe-01:typecheck` (`s2-final-typecheck.log`); the sandbox node suite
+57 files, 713 tests, unchanged (`s2-final-sandbox.log`). Owned-file Prettier, `nx format:check --all`
+(`s2-format.log`) and strict OpenSpec ran after this entry was written.
+
+**Pending planner verification:** `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, the
+whole pilot suite, `check-indexes committed`, `tool-devsync:test` and the host gate — none run in
+the executor sandbox.
+
+## Packet 050.7l, slice 3 — delivery reaches no infrastructure but the routes still owed
+
+Attempt `050-7-l-isolated-checks-and-architecture.3.20260925T070441Z`, starting hash
+`85ff1b1ab80abb3b9dd105e0b08d189f301260ad` (slice 2's planner commit), clean status
+(`status-before.txt` empty). Run on 2026-09-25 with `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and
+`AGENT` unset.
+
+Step 0 baselines: `wbs-fe-01:typecheck` status 0 (`base-typecheck.log`); the legacy pin `1 pass`,
+`0 fail` (`base-legacy.log`); the sandbox node suite `57` files, `713` tests, status 0
+(`base-sandbox.log`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`. Step 0b extracted
+11 patches and 33 fault patches.
+
+- Section 7.9 applied; strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+- Section 7.10 applied with an empty ledger. Red (`s3-red.log`): status 1, `Tests 1 failed (1)`,
+  `AssertionError: expected [ …(21) ] to deeply equal []`. The twenty-one received lines, sorted,
+  are identical to section 7.11's ledger entries (`ledger-received.txt` against
+  `ledger-expected.txt`, no difference).
+- Section 7.11 applied; the task 13 note and the lifetime map's update dated `observed 2026-09-25`.
+- Green: `wbs-fe-01:typecheck` status 0 (`s3-typecheck.log`); `wbs-fe-01:lint` status 0
+  (`s3-lint.log`); `delivery-boundaries.test.ts` with `test-tiers.test.ts` `2` files, `6` tests
+  passed (`s3-green.log`); the sandbox node suite `57`·`713`, status 0 (`s3-green-sandbox.log`),
+  unchanged from step 0.
+- Faults, 23 of 23 through `run-fault.sh`, each `status=1` and `Tests 1 failed (1)`, every file
+  restored and compared with `cmp`; `after-faults.txt` equals `after-green.txt`. Received-list
+  changes observed (`…` is `src/components/chrome/page-nav.tsx`):
+  - `d1` `+ …: httpDirectoryApi is a broad HTTP client`
+  - `d2` `+ …: connect is …`, `+ …: httpDirectoryApi is …`
+  - `d3` `+ …: httpDirectoryApi is a broad HTTP client`
+  - `d4` `+ …: DirectoryApi is a broad HTTP client`
+  - `d5` `+ …: localStorage is storage`
+  - `d6` `+ …: getItem is storage`, `+ …: localStorage is storage`
+  - `d7` `+ …: sessionStorage is storage`
+  - `d8` `+ …: WebSocket is a socket`
+  - `d9` `+ …: 'di-bag' is a bag`, `+ …: DiBag is a bag`, `+ …: createBuilder is a bag`
+  - `d10` `+ …: '@/modules/directory/directory.resource' is a resource-service`,
+    `+ …: createDirectory is a resource-service`
+  - `c1` `+ "ProjectRuntime.client is a broad HTTP client"`
+  - `o1` `- "SignedInRegion.projectApi is a broad HTTP client"`
+  - `d11` `+ …: httpDirectoryApi is a broad HTTP client`
+  - `d12` `+ …: localStorage is storage`
+  - `d13` `+ …: localStorage is storage`
+  - `d14` `+ …: DirectoryApi is …`, `+ …: ProjectApi is …`, `+ …: httpDirectoryApi is …`,
+    `+ …: httpProjectApi is …` — three more lines than section 8.3's table predicts; the
+    qualifier-less `typeof import(…)` inside the indexed-access type is judged whole as well.
+  - Planner, 2026-09-25: `d14` does not prove the indexed-access clause. With that clause
+    disabled (`false &&`), `d14` still failed with the same four lines. Its replacement `d14b`,
+    `export type Kept = (typeof window)['localStorage']` in `page-nav.tsx`, passed (status 0)
+    with the clause disabled and failed with it (`+ …: localStorage is storage`). The clause's
+    `Proof:` comment names `d14b`.
+  - `d15`, `d16`, `d17`, `d19`, `d20` each the same four lines: `DirectoryApi`, `ProjectApi`,
+    `httpDirectoryApi`, `httpProjectApi`, each `is a broad HTTP client`.
+  - `d18` `+ …: Storage is storage`
+  - `d21` `+ …: localStorage is storage`, `+ …: sessionStorage is storage`
+- `Proof:` comments written at the sixteen sites section 8.3 names, only comments added; then
+  `s3-final-green` `2`·`6` and `s3-final-sandbox` `57`·`713`, both status 0.
+
+Pending planner verification: `wbs-fe-01:test` (expected UTC + 1 file, + 1 test),
+`wbs-fe-01:test:unit`, `wbs-fe-01:build`, the whole pilot suite, `check-indexes committed`,
+`tool-devsync:test` and the host gate, none of which the executor runs in the sandbox.
+
+After this entry was first written: owned-file Prettier over the five paths left every file
+unchanged and its check passed; `nx format:check --all` status 0 (`s3-format.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}`; `wbs-fe-01:lint` after the `Proof:` comments status 0
+(`s3-final-lint.log`).

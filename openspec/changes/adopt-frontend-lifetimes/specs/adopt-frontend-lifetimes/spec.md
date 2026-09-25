@@ -542,3 +542,84 @@ and store surfaces.
 - **THEN** from the old runtime's withdrawal on, the header's presence slot is
   handed nobody and disconnected, and never the old project's list again, until
   the next project's own stream says who is there
+
+### Requirement: Each frontend module type-checks on its own
+
+fe-01 SHALL give every directory under `src/modules` a type check of its own, run by the
+`typecheck:module` target that `typecheck` depends on. A module's check SHALL compile its own files
+against only the shared outside files every module may reach — the store and channel primitives,
+the HTTP client with its refusal words and refresh routes, and the domain and contracts libraries —
+and the outside files its own configuration names. A module that breaks its own types, or reaches
+any other file, such as a sibling module's private file or a component, SHALL fail its own check,
+and a module directory without a configuration of its own SHALL fail the target.
+
+#### Scenario: A module reaches a sibling's private file
+
+- **WHEN** a file of one module imports a file of another module that its configuration does not
+  name
+- **THEN** `typecheck:module` fails, naming the reached file and the module whose check refused
+  it, while the application's own type check still passes
+
+#### Scenario: A module reaches a component
+
+- **WHEN** a file of a module other than the ones whose configurations name it imports a
+  component
+- **THEN** that module's check fails, naming the component
+
+#### Scenario: A module directory with no check of its own
+
+- **WHEN** a directory under `src/modules` has no `tsconfig.json`
+- **THEN** `typecheck:module` fails, naming the missing configuration, and so does `typecheck`
+
+### Requirement: Every frontend module is a registered wiki module
+
+The README of every directory under fe-01's `src/modules` SHALL carry one `module-index` block
+declaring `module.frontend.<directory>` and naming every file of the directory but the README, with
+the module's own type check as its applicable check. Each SHALL be registered in the wiki's
+content-review pilot as one mapping row and one trusted boundary selecting that directory, bound to
+the file it was extracted from at the pilot's frozen source revision, and every row the pilot
+already held SHALL stay as it was.
+
+#### Scenario: A file added to a module its index does not name
+
+- **WHEN** a file is added to a module directory and the README's index does not name it
+- **THEN** the index check refuses the candidate, naming the README and the file
+
+#### Scenario: A module index the pilot does not map
+
+- **WHEN** a module's README carries an index and the pilot mapping has no row for it
+- **THEN** the pilot's lint refuses the candidate, naming the README
+
+### Requirement: Delivery reaches no infrastructure but the routes still owed
+
+fe-01 SHALL keep an architecture check that judges delivery — every production file under
+`src/components`, `src/app-router.tsx` and each module's `view/` — by symbol identity through the
+TypeScript checker, and the types a context, a route or a runtime hands delivery by their members'
+types. It SHALL refuse any route to a bag, a broad HTTP client, a repository or its port, a
+resource-service, a composition root, a socket or browser storage — whether named, renamed,
+namespaced, re-exported, imported dynamically, keyed by a literal-typed or literal-constrained key,
+destructured or returned by a call — except the routes it records as still owed, each naming the task that owns removing it; a recorded
+route that no longer exists SHALL fail the check as well.
+
+#### Scenario: A new route to a broad client, under any spelling
+
+- **WHEN** a delivery file reaches a broad HTTP client by a named, renamed, namespace, type-only or
+  string-keyed import
+- **THEN** the check fails, naming the file, the symbol reached and what it is
+
+#### Scenario: Storage, a socket or a bag reached from delivery
+
+- **WHEN** a delivery file reads browser storage as a global, a window property or a destructured
+  property, opens a socket, or imports the DI container
+- **THEN** the check fails, naming the file and what it reached
+
+#### Scenario: A context hands delivery a client
+
+- **WHEN** a member of a type delivery is handed by a context, a route or a runtime is typed as a
+  broad client
+- **THEN** the check fails, naming the type and the member
+
+#### Scenario: A route still owed is paid off
+
+- **WHEN** a route the check records as still owed no longer exists
+- **THEN** the check fails until the record is struck

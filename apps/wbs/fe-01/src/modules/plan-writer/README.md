@@ -1,5 +1,7 @@
 # Plan writer
 
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-writer","memberships":[{"kind":"path","path":"busy-store.model.test.ts"},{"kind":"path","path":"busy-store.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"plan-writer.feature.ts"},{"kind":"path","path":"plan-writer.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The reread ledger and the three ownership moments are documented on the writer, and the busy store carries its own model test; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+
 One plan gesture, and what has to be read again once it is over. Every command service in the
 table writes through this module.
 
@@ -41,3 +43,7 @@ gesture sends are not this module's: the table's hooks send them through the pro
 The applicable check is the `test:unit` target declared in `apps/wbs/fe-01/project.json`; the
 module's own suites are `plan-writer.test.ts` and `busy-store.model.test.ts`. The behaviour this extraction preserves is proved by
 the plan table's own suites, which run in the `test` target of the same project.
+
+Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
+extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.

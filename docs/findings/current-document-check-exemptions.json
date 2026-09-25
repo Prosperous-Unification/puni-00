@@ -285,6 +285,11 @@
       "path": "docs/superpowers/plans/2026-09-21-batch-6/040-6-e8-work-item.md",
       "reason": "task packet that seals Work item as a DI Bag module installed per supplied scope and registers it in the wiki pilot; its verified facts, prescribed boundary and task notes cite libs/core/src/service/work-item.service.ts as that module's frozen-revision predecessor",
       "excuses": ["legacy-root"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-batch-6/050-7-l-isolated-checks-and-architecture.md",
+      "reason": "task packet that registers the eight frontend modules in the wiki pilot; its design, prescribed boundaries and fault patches cite each module's frozen-revision predecessor under apps/fe-01/src, where fe-01 lived before namespacing",
+      "excuses": ["legacy-root"]
     }
   ]
 }
