@@ -7,8 +7,8 @@
 | Predecessor | none. Batch 7's other lane, 140.1 (`caught-object-report-json`), touches the root manifest, `bun.lock` and WBS sources; no path of this packet's (section 5)                                                                                                                                                                                                |
 | Advances    | the suite level of the namespace layout, Twilight Burokrat's directory, and a standing check that keeps the retired root out of current files                                                                                                                                                                                                               |
 | Schema      | OpenSpec change `adopt-suite-directory-layout`, `sdd-lean`, created by slice 1: four requirements (a declared suite holds products one directory deeper; a suite product keeps its lint policy beside it; Twilight Burokrat lives in the suite; the retired root survives only in historical records, archived or not), and five tasks ticked by the slices |
-| Base        | revision 2 is rehearsed on `main` at `e93a564a0` (after PR #63), with its own `bun install --frozen-lockfile`; revision 1 was rehearsed on `batch-6/integration` at `ad0451da9` (main after PR #62). The planner reruns section 9.1 with `REAL_BASE=<planning sha>` before dispatch                                                                         |
-| Rehearsal   | `rehearse/suite-move-r2`: slice 1 `10e5681cf`, slices 2 and 3 together `45e59fdf7`, each committed with the hooks on (section 9.3); revision 1's `rehearse/suite-move-r1` stays as it was                                                                                                                                                                   |
+| Base        | revision 3 is rehearsed from `fc5015a9` (`main` at `e93a564a0`, the planner-owned exemption, and the two packet commits), with its own `bun install --frozen-lockfile`. The planner reruns section 9.1 with `REAL_BASE=<planning sha>` before dispatch                                                                                                      |
+| Rehearsal   | `rehearse/suite-move-r3`: slice 1 `574c44de`, slices 2 and 3 together `34bf3814` after the planner-only Proof amendment, each committed with hooks on (sections 9.3–9.4)                                                                                                                                                                                    |
 
 ## 1. Goal, non-goals, and the cut
 
@@ -242,7 +242,7 @@ refuses unless `FILE` holds exactly `COUNT` copies of `OLD`, and `subf` does the
 text read from here-documents. Nothing is matched by a pattern; every edit is a literal the reviewer
 reads in section 7.7. Prettier then formats the touched files. The checked result is the rehearsal:
 section 9.1 replays the script on a fresh extract of the base and proves the tree byte-identical to
-`rehearse/suite-move-r2` (`fill=0`), identical but for dates with the executor's own dates (`fill=1`),
+`rehearse/suite-move-r3` (`fill=0`), identical but for dates with the executor's own dates (`fill=1`),
 and the same delta on the real planning base (`fill=real`). Slice 1 adds code rather than renaming it
 and lands on the base, so it stays four ordinary diffs.
 
@@ -384,7 +384,8 @@ cat > "$TMPDIR/fault.sh" <<'FAULT_SH'
 #!/usr/bin/env bash
 # fault.sh ID DIR COMMAND...: applies $TMPDIR/faults/ID.diff, runs COMMAND in DIR into
 # $TMPDIR/evidence/fault-ID.log, appends its status, reverses the patch and proves every file it
-# touched is back: modified files byte for byte against a saved copy, created files gone.
+# touched is back: modified files copied back byte for byte, created files gone. Rerun the
+# original command green after restoration; a red restored tree is an evidence failure.
 # The command's own status is the evidence, so this script fails only on an evidence fault.
 set -euo pipefail
 id=$1
@@ -409,9 +410,20 @@ log="$TMPDIR/evidence/fault-$id.log"
 if (cd "$dir" && "$@") > "$log" 2>&1; then status=0; else status=$?; fi
 echo "status=$status" >> "$log"
 git apply --unidiff-zero -R "$patch"
-while read -r f; do cmp "$f" "$saved/$f"; done < "$saved.modified"
+while read -r f; do
+  cp "$saved/$f" "$f"
+  cmp "$f" "$saved/$f"
+done < "$saved.modified"
 while read -r f; do test ! -e "$f"; done < "$saved.created"
-echo "fault $id: status=$status, restored"
+green="$TMPDIR/evidence/restored-$id.log"
+if (cd "$dir" && "$@") > "$green" 2>&1; then
+  green_status=0
+else
+  green_status=$?
+fi
+echo "status=$green_status" >> "$green"
+test "$green_status" -eq 0
+echo "fault $id: status=$status, restored and green"
 FAULT_SH
 cat > "$TMPDIR/expect-fault.sh" <<'EXPECT_FAULT'
 #!/usr/bin/env bash
@@ -929,7 +941,7 @@ every context under the moved project changed only its path; **a different recei
 stop**; then `s3-pin: the legacy digest names the moved tree` and `1 pass`.
 
 **Step 6. The faults**, section 8.2: its run block, then its expectation block, which must print
-`slice 3: every fault failed its named case on its own fact, and every clause-off run passed it`.
+`slice 3: every fault met its expected outcome, and every clause-off twin showed its clause alone decides it`.
 
 **Step 7. Proof comments, the dated note and the tasks**, only after step 6 printed its line:
 
@@ -945,7 +957,8 @@ if git grep -n '<observed-date' -- tools apps; then exit 1; else test $? -eq 1; 
 bash "$TMPDIR/tick.sh" 3.1 3.2
 ```
 
-Expected: `inserted 18 proof blocks for s3-`. Rerun step 4's devsync checks, both typechecks and
+Expected: `inserted 17 proof blocks for s3-`. The `planner-selector` Proof is pending planner
+verification after the combined commit. Rerun step 4's devsync checks, both typechecks and
 both lints as `s3-final-*`, and `s3-pin-green`: unchanged.
 
 **Step 8. Record and hand over.** Append this slice's `verify.md` entry, then Prettier over the 50
@@ -979,7 +992,9 @@ directory, never absolute paths. Do not restate an earlier entry.
 
 ### 6.5 Dispatch
 
-One attempt per slice, from the reviewed packet, with no network, driven by a Claude subagent. The
+One attempt per slice, from the reviewed packet, with no network, driven by Codex gpt-6-sol at
+medium reasoning effort in a workspace-write sandbox. Set `EXEC_MODEL=gpt-6-sol` and
+`EXEC_EFFORT=medium` for the launcher's default Codex driver. The
 base of slice 1 is batch 7 planning with this plan branch's commits cherry-picked in order (never
 merge a `plan/*` branch); before the first dispatch the planner runs section 9.1 with
 `REAL_BASE=<reviewed-base-sha>`, whose `fill=real` output is the dispatch evidence. This block holds
@@ -987,22 +1002,22 @@ the only absolute paths in this document.
 
 ```sh
 # Slice 1, from the reviewed base.
-/home/df/wd/puni/puni-plan/exec/run-executor.sh \
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   suite-directory-move 1 <reviewed-base-sha> \
-  --driver claude --batch batch-7 \
+  --batch batch-7 \
   --slice-note 'reviewed base <reviewed-base-sha>' --preserve evidence
 
 # Slice 2, into the same clone once slice 1 is committed; P1 is slice 1's planner commit.
-/home/df/wd/puni/puni-plan/exec/run-executor.sh \
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   suite-directory-move 2 P1 \
-  --driver claude --batch batch-7 \
+  --batch batch-7 \
   --resume --require-ancestor P1 --slice-note 'reviewed base P1' --preserve evidence
 
 # Slice 3, into the same clone once slice 2 is reviewed and staged (no commit); D is the
 # index digest the planner printed after staging.
-/home/df/wd/puni/puni-plan/exec/run-executor.sh \
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   suite-directory-move 3 P1 \
-  --driver claude --batch batch-7 \
+  --batch batch-7 \
   --resume --require-ancestor P1 --slice-note 'reviewed base P1; staged index D' --preserve evidence
 ```
 
@@ -1966,7 +1981,7 @@ so nothing in them expands. The frozen exception's replacement and the name exce
 helper are the `subf` blocks under `# The layout gate`. The dated Proof comments this edit retires are six — the two 2026-09-18 ones in
 `workspace-projects.mjs`, two in `sync.ts`, one in `workspace-projects.test.ts` and one in
 `pilot-policy.test.ts` — each on a line the edit replaces, each observed again as a section 8.3 block
-(`s3-stale`, `s3-exact`/`s3-applied`, `s3-manifest`, `s3-tsconfig`, `s3-row`, `s3-selector`).
+(`s3-stale`, `s3-exact`/`s3-applied`, `s3-manifest`, `s3-tsconfig`, `s3-row`).
 
 #### Script s3-edit
 
@@ -2510,7 +2525,7 @@ echo "slice 1: every fault failed its named case on its own fact"
 | `r1`, `r2`      | omit the two moved `RESTART_PATHS` entries                                                                                                                             | `names every app project.json …` / `names every app tsconfig …` on `Expected to contain: "…/cli/project.json"` / `"…/cli/tsconfig.json"`                                                                                                                                                                                             |
 | `r3`            | omits the moved destination-map row                                                                                                                                    | `pins every product root …` on the extra tuple, and `activates the product axis …` on its companion                                                                                                                                                                                                                                  |
 | `r4`            | pins the pre-move three-deep outDir                                                                                                                                    | `pins the complete moved depth-sensitive configuration inventory` on `value: "../../../dist/apps/wiki/cli"`                                                                                                                                                                                                                          |
-| `r5`            | widens the bootstrap selector to `apps`                                                                                                                                | `the bootstrap policy and mapping select the moved pilot boundaries at HEAD` on `+   "value": "apps",`; on the staged move the group's nx-target case, which reads `HEAD`, is red too (`2 fail`); the planner replays `r5` on the commit, where it fails alone                                                                       |
+| `r5`            | widens the bootstrap selector to `apps`                                                                                                                                | Planner-only after the combined commit: the four-case on-disk group starts green (`4 pass`), only `the bootstrap policy and mapping select the moved pilot boundaries at HEAD` fails on `+   "value": "apps",`, and restored bytes return the group to `4 pass`. The executor reports this proof pending planner verification.       |
 
 #### Fault g1 — a file left under the retired root
 
@@ -2935,11 +2950,6 @@ for id in e1 e2 e3; do bash "$TMPDIR/fault.sh" $id $d $t ./src/namespace-layout.
 for id in r1 r2; do bash "$TMPDIR/fault.sh" $id $d $t ./src/sync.test.ts -t 'RESTART_PATHS coverage'; done
 bash "$TMPDIR/fault.sh" r3 $d $t ./src/workspace-projects.test.ts -t readProjects
 bash "$TMPDIR/fault.sh" r4 $d $t ./src/workspace-inventory.test.ts
-c=apps/twilight-structure/twilight-burokrat/cli
-bash "$TMPDIR/fault.sh" r5 $c env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT \
-  "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules" timeout 900 bun test \
-  --preload ../../../../tools/test/scratch/preload.ts ./src/policy/pilot-policy.test.ts \
-  -t 'on-disk bootstrap policy, mapping and relationship files'
 ```
 
 ```sh
@@ -2982,17 +2992,13 @@ bash "$e" r3 1 ' 2 fail' \
   '(fail) readProjects > activates the product axis of its own directory on every app and library'
 bash "$e" r4 1 ' 1 fail' '(fail) pins the complete moved depth-sensitive configuration inventory' \
   "value: \"../../../dist/apps/wiki/cli\""
-# Two fail: the named case on the widened selector, and the nx-target case, which reads HEAD and
-# is red on the staged move until the planner's commit (section 9.4 replays r5 after it).
-bash "$e" r5 1 ' 2 fail' \
-  '(fail) on-disk bootstrap policy, mapping and relationship files > the bootstrap policy and mapping select the moved pilot boundaries at HEAD' \
-  '+   "value": "apps",'
 echo "slice 3: every fault met its expected outcome, and every clause-off twin showed its clause alone decides it"
 ```
 
 ### 8.3 The Proof comments
 
-Nine blocks are slice 1's and eighteen slice 3's. Each block names its file and either the line it
+Nine blocks are slice 1's, seventeen are slice 3's, and `planner-selector` is inserted by the
+planner after the combined commit and the restored-green `r5` proof. Each block names its file and either the line it
 goes directly above (`anchor:`) or directly below (`after:`), compared with indentation trimmed and required to match exactly one line.
 `insert-proofs.pl` inserts a slice's blocks with the anchor's indentation and the executor's own
 date; the slice's steps say when. Blocks `s1-*` belong to slice 1 and `s3-*` to slice 3.
@@ -3206,7 +3212,7 @@ after: // moved project's actual three-deep outDir (2026-09-16).
 ```
 
 ```proof
-id: s3-selector
+id: planner-selector
 file: apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts
 anchor: expect(wiki?.selector).toEqual({
 // Proof: widening the boundary's selector to `apps` in the real policy file left every
@@ -3252,7 +3258,7 @@ The claim is not "these edits were once correct" but "these patches, scripts, fa
 blocks, as this committed document spells them, reproduce the rehearsal" — on the rehearsal's base,
 with the executor's own dates, and on the real dispatch base. Three modes:
 
-- `fill=0` — the rehearsal base, `main` at `e93a564a0`, dated 2026-09-25 as the rehearsal was: the
+- `fill=0` — the rehearsal base `fc5015a9` (`main` plus the planner-owned exemption and packet commits), dated 2026-09-25 as the rehearsal was: the
   result must be byte-identical to the rehearsal's final commit, but for `verify.md`, which the
   executor writes.
 - `fill=1` — the same base, dated 2026-10-01 and with a simulated executor record appended to
@@ -3266,20 +3272,19 @@ with the executor's own dates, and on the real dispatch base. Three modes:
 
 Every mode follows the planner's flow: slice 1 committed, slice 2 staged and not committed, slices 2
 and 3 committed together. It applies all five patches and three scripts, checks all 35 fault
-patches against the tree their slice leaves, and inserts all 27 Proof blocks. Prettier formats the
-slices' owned files, so the run needs the repository's `node_modules`
-(`NODE_MODULES=<repo>/node_modules`). Run from the plan worktree's root.
+patches against the tree their slice leaves, replays all 35 faults through the restored-green
+helper, and inserts all 27 Proof blocks. Each mode gets a fresh clone and its own frozen Bun
+install; `node_modules` is never linked. Run from the plan worktree's root.
 
 ````sh
 set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 packet=$repo/docs/superpowers/plans/2026-09-25-batch-7/suite-directory-move.md
-base=e93a564a09c856d8bc2b2c5aa64a588855a3c2f2
-final=45e59fdf7f15c80fc08d16953914bae3966fa828
+base=fc5015a906e060473b5b20984d812332c097394c
+final=34bf381498127a29a9773ae072faf978d8a557d5
 real_base=${REAL_BASE:-}
-modules=${NODE_MODULES:?the repository node_modules directory, for Prettier}
+runtime_root=${TMPDIR:?}
 test -f "$packet"
-test -d "$modules"
 git -C "$repo" cat-file -e "$final^{commit}"
 change=openspec/changes/adopt-suite-directory-layout
 commit() { git -c user.email=x@example.invalid -c user.name=x commit -qm "$1"; }
@@ -3300,8 +3305,8 @@ for fill in 0 1 real; do
     if [ -z "$real_base" ]; then echo "fill=real skipped: REAL_BASE unset, not dispatch evidence"; continue; fi
     from=$real_base
   fi
-  work=$(mktemp -d "${TMPDIR:?}/extract-XXXXXX")
-  mkdir -p "$work/tree" "$work/final" "$work/patches" "$work/scripts" "$work/faults"
+  work=$(mktemp -d "$runtime_root/extract-XXXXXX")
+  mkdir -p "$work/final" "$work/actual" "$work/patches" "$work/scripts" "$work/faults" "$work/runtime/evidence"
   awk -v out="$work" '
     /^#### (Patch|Script|Fault) / { kind = $2; id = $3; next }
     kind != "" && /^```(diff|sh)$/ {
@@ -3317,17 +3322,21 @@ for fill in 0 1 real; do
   # The step 0b helpers this run needs, cut from the packet itself.
   awk '/^cat > "\$TMPDIR\/insert-proofs.pl" <</ { on = 1; next } on && /^INSERT_PROOFS$/ { exit } on { print }' "$packet" > "$work/insert-proofs.pl"
   awk '/^cat > "\$TMPDIR\/tick.sh" <</ { on = 1; next } on && /^TICK_SH$/ { exit } on { print }' "$packet" > "$work/tick.sh"
+  awk '/^cat > "\$TMPDIR\/fault.sh" <</ { on = 1; next } on && /^FAULT_SH$/ { exit } on { print }' "$packet" > "$work/runtime/fault.sh"
+  cp -R "$work/faults" "$work/runtime/faults"
   test -s "$work/insert-proofs.pl"
   test -s "$work/tick.sh"
+  test -s "$work/runtime/fault.sh"
   echo "fill=$fill extracted patches=$(find "$work/patches" -name '*.diff' | wc -l) scripts=$(find "$work/scripts" -name '*.sh' | wc -l) faults=$(find "$work/faults" -name '*.diff' | wc -l)"
   test "$(find "$work/faults" -name '*.diff' | wc -l)" -eq 35
-  git -C "$repo" archive "$from" | tar -x -C "$work/tree"
   git -C "$repo" archive "$final" | tar -x -C "$work/final"
+  git clone -q --no-local "$repo" "$work/tree"
   cd "$work/tree"
-  git init -q
-  git add -A
-  commit base
-  ln -s "$modules" node_modules
+  git checkout -q --detach "$from"
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bun install --frozen-lockfile > "$work/install.log" 2>&1
+  test -d node_modules
+  test ! -L node_modules
+  export TMPDIR="$work/runtime"
   # Slice 1: the change as `openspec new change` writes it, the four patches, the proofs, the ticks.
   mkdir -p "$change"
   printf 'schema: sdd-lean\ncreated: %s\n' "$date" > "$change/.openspec.yaml"
@@ -3336,6 +3345,18 @@ for fill in 0 1 real; do
     git apply "$work/patches/$n.diff"
   done
   for id in n1 n2 n3 n6 n4 n5 p1 p2 p3 c1; do git apply --unidiff-zero --check "$work/faults/$id.diff"; done
+  dev=tools/tool-devsync
+  for id in n1 n2 n3 n6 n4 n5; do
+    bash "$TMPDIR/fault.sh" "$id" "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/namespace-layout.test.ts
+    test "$(tail -n 1 "$TMPDIR/evidence/fault-$id.log")" = status=1
+  done
+  for id in p1 p2 p3; do
+    bash "$TMPDIR/fault.sh" "$id" "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/eslint-boundaries.test.ts -t suite
+    test "$(tail -n 1 "$TMPDIR/evidence/fault-$id.log")" = status=1
+  done
+  bash "$TMPDIR/fault.sh" c1 "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/lint-policy-cache.test.ts -t declares
+  test "$(tail -n 1 "$TMPDIR/evidence/fault-c1.log")" = status=1
+  echo "fill=$fill slice 1 faults=10, each restored and green"
   perl "$work/insert-proofs.pl" "$packet" s1- "$date"
   bash "$work/tick.sh" 1.1 1.2
   if [ "$fill" != 0 ]; then printf '\n## Slice 1 — simulated executor record\n\nNot knowable from here.\n' >> "$change/verify.md"; fi
@@ -3343,7 +3364,7 @@ for fill in 0 1 real; do
   git status --porcelain --untracked-files=all | cut -c4- > "$work/owned1.txt"
   test "$(wc -l < "$work/owned1.txt")" -eq 13
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/owned1.txt") > /dev/null
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$work/owned1.txt") > /dev/null
   git add -A
   commit s1
   # Slice 2: the move, staged by the planner and not committed.
@@ -3358,11 +3379,30 @@ for fill in 0 1 real; do
   { git diff --name-only; git ls-files --others --exclude-standard; } | grep -v "^$change/" > "$work/touched.txt"
   test "$(wc -l < "$work/touched.txt")" -eq 50
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/touched.txt") > /dev/null
+  # g2-off and e3 address the pre-format selector lines; format those files after faults.
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(grep -Ev '(retired-roots.test.ts|workspace-projects.mjs)$' "$work/touched.txt") > /dev/null
   bash "$work/scripts/s3-pin.sh"
-  for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off g8 g8-off g9 e1 e2 e3 r1 r2 r3 r4 r5; do
+  for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off g8 g8-off g9 e1 e2 e3 r1 r2 r3 r4; do
     git apply --unidiff-zero --check "$work/faults/$id.diff"
   done
+  for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off g8 g8-off g9; do
+    bash "$TMPDIR/fault.sh" "$id" "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/retired-roots.test.ts
+    expected=1
+    case "$id" in g1-off|g3-off|g4-off|g5-off|g6-off|g8) expected=0 ;; esac
+    test "$(tail -n 1 "$TMPDIR/evidence/fault-$id.log")" = "status=$expected"
+  done
+  for id in e1 e2 e3; do
+    bash "$TMPDIR/fault.sh" "$id" "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/namespace-layout.test.ts
+    test "$(tail -n 1 "$TMPDIR/evidence/fault-$id.log")" = status=1
+  done
+  for id in r1 r2; do
+    bash "$TMPDIR/fault.sh" "$id" "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/sync.test.ts -t 'RESTART_PATHS coverage'
+    test "$(tail -n 1 "$TMPDIR/evidence/fault-$id.log")" = status=1
+  done
+  bash "$TMPDIR/fault.sh" r3 "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/workspace-projects.test.ts -t readProjects
+  bash "$TMPDIR/fault.sh" r4 "$dev" env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts ./src/workspace-inventory.test.ts
+  for id in r3 r4; do test "$(tail -n 1 "$TMPDIR/evidence/fault-$id.log")" = status=1; done
+  echo "fill=$fill slice 3 faults=24, each restored and green"
   perl "$work/insert-proofs.pl" "$packet" s3- "$date"
   pilot=apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts
   test "$(grep -c '<observed-date-s3>' "$pilot")" -eq 1
@@ -3371,14 +3411,28 @@ for fill in 0 1 real; do
   if [ "$fill" != 0 ]; then printf '\n## Slice 3 — simulated executor record\n\nNot knowable from here.\n' >> "$change/verify.md"; fi
   # Slice 3 step 8's Prettier over its 52 owned paths, after the Proof comments.
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/touched.txt") \
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$work/touched.txt") \
     "$change/tasks.md" "$change/verify.md" > /dev/null
   git add -A
   commit s2s3
-  echo "fill=$fill slices 1-3 applied as two commits, all 35 fault patches check"
+  pilot_group='on-disk bootstrap policy, mapping and relationship files'
+  pilot_dir=apps/twilight-structure/twilight-burokrat/cli
+  pilot_cmd=(env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules" timeout 900 bun test --preload ../../../../tools/test/scratch/preload.ts ./src/policy/pilot-policy.test.ts -t "$pilot_group")
+  (cd "$pilot_dir" && "${pilot_cmd[@]}") > "$TMPDIR/evidence/planner-selector-before.log" 2>&1
+  grep -qF ' 4 pass' "$TMPDIR/evidence/planner-selector-before.log"
+  bash "$TMPDIR/fault.sh" r5 "$pilot_dir" "${pilot_cmd[@]}"
+  test "$(tail -n 1 "$TMPDIR/evidence/fault-r5.log")" = status=1
+  grep -qF ' 1 fail' "$TMPDIR/evidence/fault-r5.log"
+  grep -qF '+   "value": "apps",' "$TMPDIR/evidence/fault-r5.log"
+  grep -qF ' 4 pass' "$TMPDIR/evidence/restored-r5.log"
+  perl "$work/insert-proofs.pl" "$packet" planner- "$date"
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write "$pilot_dir/src/policy/pilot-policy.test.ts" > /dev/null
+  git add "$pilot_dir/src/policy/pilot-policy.test.ts"
+  git commit --amend --no-edit -q
+  echo "fill=$fill slices 1-3 applied as two commits, all 35 faults restored and green; planner-selector inserted after r5"
   echo "fill=$fill combined commit renames=$(git diff -M --summary HEAD~1 HEAD | grep -c '^ rename')"
-  rm node_modules
-  if diff -rq --exclude=.git . "$work/final" > "$work/differ.txt"; then :; else test $? -eq 1; fi
+  git archive HEAD | tar -x -C "$work/actual"
+  if (cd "$work/actual" && diff -rq . "$work/final") > "$work/differ.txt"; then :; else test $? -eq 1; fi
   if grep -v "verify.md and" "$work/differ.txt" | grep -v '^Files ' > "$work/only.txt"; then
     if [ "$fill" != real ]; then cat "$work/only.txt" >&2; exit 1; fi
   else test $? -eq 1; fi
@@ -3411,30 +3465,10 @@ for fill in 0 1 real; do
 done
 ````
 
-Observed on 2026-09-25, after the final Prettier `--check` of this document, run from the plan
-worktree with `REAL_BASE=e93a564a0` — the same base as `fill=0`, so `fill=real` here proves the mode's
-own checks, not the dispatch base:
-
-```text
-fill=0 extracted patches=5 scripts=3 faults=35
-fill=0 slice 2 staged renames=127
-fill=0 slices 1-3 applied as two commits, all 35 fault patches check
-fill=0 combined commit renames=126
-fill=0 tree identical to 45e59fdf7f15c80fc08d16953914bae3966fa828 but for the executor-written verify.md
-fill=1 extracted patches=5 scripts=3 faults=35
-fill=1 slice 2 staged renames=127
-fill=1 slices 1-3 applied as two commits, all 35 fault patches check
-fill=1 combined commit renames=126
-fill=1 10 files differ, every one only in dates
-fill=real extracted patches=5 scripts=3 faults=35
-fill=real slice 2 staged renames=127
-fill=real slices 1-3 applied as two commits, all 35 fault patches check
-fill=real combined commit renames=126
-fill=real the same 156 changes as the rehearsal, each the same delta
-```
-
-**A failed check stops the run**: the same script with `REAL_BASE` set to the rehearsal's slice 1
-commit, passed `fill=0` and `fill=1`, which read the rehearsal base, and exited 1 in `fill=real` at patch 03's `git apply --check`, before any tree was compared: `error: patch failed: CONTEXT.md:1222`, `error: CONTEXT.md: patch does not apply`, then `already exists in working directory` for each of the change's four files.
+Revision 3 evidence is recorded after running this block from the committed revision 3 packet,
+with `REAL_BASE` set to `main` plus every plan-branch commit cherry-picked, including the
+planner-owned exemption. The negative uses slice 1's commit as `REAL_BASE` and must stop at patch
+03 before any comparison.
 
 ### 9.2 The strict OpenSpec block, reproduced
 
@@ -3490,42 +3524,52 @@ and `CLAUDE_CODE_ENTRYPOINT`; multi-file runs one file at a time.
 contention…`). A scan of the moved tree for every climb that leaves the project found exactly the
   two; the script moves them and the focused list holds both files. The rerun gave 764·0.
 
-**The rehearsal, `rehearse/suite-move-r2`** on `e93a564a0`, built from this document's patches,
+**The rehearsal, `rehearse/suite-move-r3`** from `fc5015a9`, built from this document's patches,
 scripts, faults and Proof blocks, with the hooks on for both commits:
 
-| Step                   | Slice 1 (`10e5681cf`)                                           | Slice 2 (no commit)                                                   | Slices 2+3 committed together (`45e59fdf7`)                                                                                                                                                                                                                                                                                                                                                                                  |
+| Step                   | Slice 1 (`574c44de`)                                            | Slice 2 (no commit)                                                   | Slices 2+3 committed together (`34bf3814`)                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| start                  | clean at `e93a564a0`                                            | slice 1's commit, clean                                               | slice 1's commit with the move staged: index digest checked, worktree = index, nothing untracked, 127 staged renames into the new root                                                                                                                                                                                                                                                                                       |
+| start                  | clean at `fc5015a9`                                             | slice 1's commit, clean                                               | slice 1's commit with the move staged: index digest checked, worktree = index, nothing untracked, 127 staged renames into the new root                                                                                                                                                                                                                                                                                       |
 | baselines              | layout 19·0, policies 15·0, cache 4·0, legacy 1·0, OpenSpec 115 | `git ls-files apps/wiki` 127                                          | layout 22·1, workspace-projects 15·2, sync 50·2, inventory 3·1, targets 17·2, cache 4·0, legacy 0·1, typecheck `TS6053` `status=1`                                                                                                                                                                                                                                                                                           |
 | contract / red         | OpenSpec 116; layout 20·3, policies 1·2, cache 2·2, typecheck 0 | —                                                                     | retired-roots 1·2, 115 current lines                                                                                                                                                                                                                                                                                                                                                                                         |
 | script                 | —                                                               | `s2-check: 127 files moved, one line changed`                         | `s3-edit: every substitution matched its count`; Prettier reformatted 12 of 50                                                                                                                                                                                                                                                                                                                                               |
 | green                  | layout 23·0, policies 18·0, cache 4·0; typecheck 0, lint 0      | —                                                                     | layout 23·0, workspace-projects 17·0, sync 52·0, inventory 4·0, targets 19·0, cache 4·0, retired-roots 3·0; typecheck (both) 0, lint 0, lint:source 0, build 0; generations 13·0, contracts 16·0, classification 16·0, root-migration 32·0, activation 13·0, gate-entrypoints 57·0, release (policy) 13·0, trusted-policy 55·0, rules 63·0, committed-target-facts 2·0, selectors 19·0, audit 19·0, release (packaging) 10·0 |
 | legacy pin             | red on `551e2a7d…` 308 (recursive 31 → 34), then 1·0            | —                                                                     | red on `c0a77f33…` 308, then 1·0                                                                                                                                                                                                                                                                                                                                                                                             |
 | faults                 | 10 of 10 as section 8.1                                         | —                                                                     | 25 of 25 as section 8.2                                                                                                                                                                                                                                                                                                                                                                                                      |
-| proofs, ticks, records | 9 blocks, tasks 1.1–1.2, Prettier clean, owned 13 = status      | task 2.1; `--write` then `--check`; status 127 ` D`, 127 `??`, 2 ` M` | 18 blocks, tasks 3.1–3.2, `nx format:check --all` 0, OpenSpec 116, owned 52 = changed against the index                                                                                                                                                                                                                                                                                                                      |
+| proofs, ticks, records | 9 blocks, tasks 1.1–1.2, Prettier clean, owned 13 = status      | task 2.1; `--write` then `--check`; status 127 ` D`, 127 `??`, 2 ` M` | 17 executor blocks; `planner-selector` pending planner verification, tasks 3.1–3.2, `nx format:check --all` 0, OpenSpec 116, owned 52 = changed against the index                                                                                                                                                                                                                                                            |
 | commit                 | hooks green                                                     | staged by the planner: 126 renames at 100%, one at 85%                | whole devsync on the staged tree first (382·0), then hooks green                                                                                                                                                                                                                                                                                                                                                             |
 
 ### 9.4 Planner-only, with the expected value
 
 The executor cannot run these: they write Git objects, listen on a port, need the commit, or take
-the host. All were run by the author on the revision 2 rehearsal, on `e93a564a0`; counts are that
-base's.
+the host. The revised gates and `r5` were rerun on revision 3 from `fc5015a9`; broader package and host
+checks remain as recorded for revision 2 and require planner verification on the dispatch result.
 
-| When                | Check                                                                                                                                                                              | Expected                                                                                                                                  | Rehearsed                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| slice 1's commit    | whole `tool-devsync:test` (inside `planner-commit.sh`)                                                                                                                             | base **+7** tests, 0 fail                                                                                                                 | 372 → 379, 0 fail                                                                                                                                                                                                                                                                                                                                                    |
-| after slice 1       | `bun apps/wiki/cli/src/cli.ts check-indexes committed . HEAD`                                                                                                                      | exit 0, the base's index count                                                                                                            | 34                                                                                                                                                                                                                                                                                                                                                                   |
-| after slice 2       | `git add -A`, the rename summary and the index digest (slice 2, "No planner commit")                                                                                               | step 1's N − 1 renames at `(100%)` and `cli/tsconfig.json` at `(85%)`; no commit                                                          | 126 and one; digest recorded into slice 3's note                                                                                                                                                                                                                                                                                                                     |
-| slices 2+3's commit | `planner-commit.sh <clone> "<subject>"` — whole devsync on the staged tree, then the hooks                                                                                         | slice 1's number **+3**, 0 fail; hooks green                                                                                              | 382, 0 fail; hooks green                                                                                                                                                                                                                                                                                                                                             |
-| after the commit    | `git show -M --summary HEAD`, and `git log --follow` on moved files                                                                                                                | N − 1 renames; the one unpaired file named below                                                                                          | 126 renames (98 at 100%); `cli/tsconfig.lib.json` shows as delete and create; `--follow` reaches `cli/src/policy/trust.ts`'s pre-move history                                                                                                                                                                                                                        |
-| after the commit    | the whole pilot suite, `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/policy/pilot-policy.test.ts` in the moved `cli/`, with `TOOL_WIKI_TRUSTED_NODE_MODULES` | the base count, 0 fail — the on-disk group and prose-facts, red on the staged move, go green here                                         | 21 pass, 0 fail                                                                                                                                                                                                                                                                                                                                                      |
-| after the commit    | fault `r5` replayed with `fault.sh`                                                                                                                                                | the named case fails alone on `+   "value": "apps",`                                                                                      | `fault r5c: status=1, restored`; `3 pass`, `1 fail`: only `the bootstrap policy and mapping select the moved pilot boundaries at HEAD`, on `+   "value": "apps",`                                                                                                                                                                                                    |
-| after the commit    | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes committed . HEAD`                                                                                      | exit 0, the same index count; `module.infra.tool-wiki` at `apps/twilight-structure/twilight-burokrat/cli/README.md` with the same members | 34; `apps/twilight-structure/twilight-burokrat/cli/README.md`, 123 members                                                                                                                                                                                                                                                                                           |
-| after the commit    | `twilight-burokrat:test:package`, then `tar -tzf dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz \| sort`                                                                  | exit 0; the listing equals the base's line for line                                                                                       | 44 pass; the same 163 entries as the base listing (taken on `ad0451da9`; PR #63 changed no package file). The bytes differ (SHA-256 `ca3094d2…`): `package-manifest.json`'s source revision and toolkit identity, the bundles' source-path comments, the relocation preparer's default `validator-entry`, and the packed README's runbook link — never a listed path |
-| after the commit    | `twilight-burokrat:build`; `nx show project twilight-burokrat --json`                                                                                                              | exit 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name unchanged                                  | build 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name `twilight-burokrat`                                                                                                                                                                                                                                                  |
-| after the commit    | whole `twilight-burokrat:test`                                                                                                                                                     | the base count, 0 fail but section 10's known flakes                                                                                      | 764 pass, 0 fail (1143 s)                                                                                                                                                                                                                                                                                                                                            |
-| after the commit    | `nx format:check --all`; `run-many -t typecheck lint lint:source -p tool-devsync twilight-burokrat`                                                                                | exit 0                                                                                                                                    | format 0; typecheck 0; lint and lint:source 0                                                                                                                                                                                                                                                                                                                        |
-| before the merge    | `bin/h2puni-gate.sh <sha>` on the shared build host, and CI                                                                                                                        | `h2puni gate: running on <sha>`, exit 0                                                                                                   | not run: the rehearsal is not the dispatch head                                                                                                                                                                                                                                                                                                                      |
+| When                | Check                                                                                                                                                                              | Expected                                                                                                                                                                                                                                              | Rehearsed                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| slice 1's commit    | whole `tool-devsync:test` (inside `planner-commit.sh`)                                                                                                                             | base **+7** tests, 0 fail                                                                                                                                                                                                                             | 372 → 379, 0 fail                                                                                                                                                                                                                                                                                                                                                    |
+| after slice 1       | `bun apps/wiki/cli/src/cli.ts check-indexes committed . HEAD`                                                                                                                      | exit 0, the base's index count                                                                                                                                                                                                                        | 34                                                                                                                                                                                                                                                                                                                                                                   |
+| after slice 2       | `git add -A`, the rename summary and the index digest (slice 2, "No planner commit")                                                                                               | step 1's N − 1 renames at `(100%)` and `cli/tsconfig.json` at `(85%)`; no commit                                                                                                                                                                      | 126 and one; digest recorded into slice 3's note                                                                                                                                                                                                                                                                                                                     |
+| slices 2+3's commit | `planner-commit.sh <clone> "<subject>"` — whole devsync on the staged tree, then the hooks                                                                                         | slice 1's number **+3**, 0 fail; hooks green                                                                                                                                                                                                          | 382, 0 fail; hooks green                                                                                                                                                                                                                                                                                                                                             |
+| after the commit    | `git show -M --summary HEAD`, and `git log --follow` on moved files                                                                                                                | N − 1 renames; the one unpaired file named below                                                                                                                                                                                                      | 126 renames (98 at 100%); `cli/tsconfig.lib.json` shows as delete and create; `--follow` reaches `cli/src/policy/trust.ts`'s pre-move history                                                                                                                                                                                                                        |
+| after the commit    | the whole pilot suite, `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/policy/pilot-policy.test.ts` in the moved `cli/`, with `TOOL_WIKI_TRUSTED_NODE_MODULES` | the base count, 0 fail — the on-disk group and prose-facts, red on the staged move, go green here                                                                                                                                                     | 21 pass, 0 fail                                                                                                                                                                                                                                                                                                                                                      |
+| after the commit    | planner-only `r5`, then `planner-selector` Proof                                                                                                                                   | four-case on-disk group `4 pass` green; `r5` fails only the named selector case on `+   "value": "apps",`; copy back saved bytes and rerun `4 pass`; insert `planner-` with the observed date and amend the unpublished combined commit with hooks on | `4 pass, 0 fail` before; `fault r5: status=1, restored and green`; `3 pass, 1 fail` on the named case only; `4 pass, 0 fail` after; `inserted 1 proof blocks for planner-`; hooks green                                                                                                                                                                              |
+| after the commit    | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes committed . HEAD`                                                                                      | exit 0, the same index count; `module.infra.tool-wiki` at `apps/twilight-structure/twilight-burokrat/cli/README.md` with the same members                                                                                                             | 34; `apps/twilight-structure/twilight-burokrat/cli/README.md`, 123 members                                                                                                                                                                                                                                                                                           |
+| after the commit    | `twilight-burokrat:test:package`, then `tar -tzf dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz \| sort`                                                                  | exit 0; the listing equals the base's line for line                                                                                                                                                                                                   | 44 pass; the same 163 entries as the base listing (taken on `ad0451da9`; PR #63 changed no package file). The bytes differ (SHA-256 `ca3094d2…`): `package-manifest.json`'s source revision and toolkit identity, the bundles' source-path comments, the relocation preparer's default `validator-entry`, and the packed README's runbook link — never a listed path |
+| after the commit    | `twilight-burokrat:build`; `nx show project twilight-burokrat --json`                                                                                                              | exit 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name unchanged                                                                                                                                              | build 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name `twilight-burokrat`                                                                                                                                                                                                                                                  |
+| after the commit    | whole `twilight-burokrat:test`                                                                                                                                                     | the base count, 0 fail but section 10's known flakes                                                                                                                                                                                                  | 764 pass, 0 fail (1143 s)                                                                                                                                                                                                                                                                                                                                            |
+| after the commit    | `nx format:check --all`; `run-many -t typecheck lint lint:source -p tool-devsync twilight-burokrat`                                                                                | exit 0                                                                                                                                                                                                                                                | format 0; typecheck 0; lint and lint:source 0                                                                                                                                                                                                                                                                                                                        |
+| before the merge    | `bin/h2puni-gate.sh <sha>` on the shared build host, and CI                                                                                                                        | `h2puni gate: running on <sha>`, exit 0                                                                                                                                                                                                               | not run: the rehearsal is not the dispatch head                                                                                                                                                                                                                                                                                                                      |
+
+After the combined commit, the planner runs the four-case on-disk group green from the moved
+`cli/` with `TOOL_WIKI_TRUSTED_NODE_MODULES` set to the clone's own `node_modules`. Then run
+`bash "$TMPDIR/fault.sh" r5` with the same command, require only the named selector case to fail
+(`3 pass`, `1 fail`), and inspect `evidence/restored-r5.log` for `4 pass`, `0 fail`. The helper
+reverses the patch, copies saved bytes back, compares them, and reruns the group. Only then run
+`perl "$TMPDIR/insert-proofs.pl" "$packet" planner- "$(date -u +%F)"`; require `inserted 1 proof
+blocks for planner-`, format the pilot test with Prettier `--write` and `--check`, stage it, and
+amend the unpublished combined commit with hooks enabled. The executor records `r5` and this
+Proof as pending planner verification; neither is part of slice 3's 17 Proof insertions.
 
 ### 9.5 What none of this proves
 
@@ -3648,7 +3692,7 @@ Assumptions:
 | a three-mode extraction                                                                                                                                                                                          | section 9.1                                                                                                                                                       |
 | script or diff, chosen and justified                                                                                                                                                                             | section 3.7                                                                                                                                                       |
 | every slice rehearsed, red, green, faults, exact output                                                                                                                                                          | sections 6, 8, 9.3                                                                                                                                                |
-| batch 7 addendum 1 (Opus executor, env, serial Vitest, `--skip-nx-cache`)                                                                                                                                        | section 6: every `bun` and `bunx` runs under `env -u CLAUDECODE -u AGENT`; no Vitest in this packet                                                               |
+| batch 7 addendum 1 (executor environment, serial Vitest, `--skip-nx-cache`)                                                                                                                                      | section 6: every `bun` and `bunx` runs under `env -u CLAUDECODE -u AGENT`; no Vitest in this packet                                                               |
 | 2 (each clause its own negative)                                                                                                                                                                                 | sections 8.1, 8.2                                                                                                                                                 |
 | 3 (index checks are the planner's)                                                                                                                                                                               | section 9.4                                                                                                                                                       |
 | 4 (extraction with `>`)                                                                                                                                                                                          | step 0b and section 9.1 (`printf "" > f`)                                                                                                                         |
@@ -3686,3 +3730,14 @@ the reason — never as passed.
 | Minor 5 — the base's numbers                           | Sections 4, 9.2 and 9.4 name `e93a564a0`'s numbers (OpenSpec 115 → 116, devsync 372 → 379 → 382).                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Minor 6 — stale `eslint.product.mjs` JSDoc             | Listed in section 12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Rebase                                                 | Rehearsed as `rehearse/suite-move-r2` on `e93a564a0` with its own frozen install; section 9.1's base is `e93a564a0`.                                                                                                                                                                                                                                                                                                                                                                                        |
+
+## 17. Review round 2, disposed
+
+| Finding                              | Disposition                                                                                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blocking 1 — planning gate           | Added the exact `legacy-root` entry in a separate planner-owned commit on this plan branch. The rehearsal cherry-picks it with the packet; whole staged devsync reached 379·0 after slice 1 and 382·0 after the combined commit.      |
+| Blocking 2 — fault restoration       | Replaced `fault.sh`'s tail with reverse application, saved-byte copy-back and comparison, created-file absence, and a required green rerun. All 35 r3 faults print `restored and green`.                                              |
+| Blocking 3 — `r5` proof timing       | Moved `r5` and `planner-selector` after the combined commit, left 17 executor Proofs, and made §9.1 insert the planner Proof using each mode's date. The planner requires 4·0 → 3·1 (named case only) → 4·0 and amends with hooks on. |
+| Blocking 4 — success message         | Slice 3 step 6 now requires the sentence printed by §8.2's expectation block.                                                                                                                                                         |
+| PARTLY Minor 2 — clause-off evidence | Retained the exact expected outcomes for `g2-off` and `g7-off`, including their failures, and the `g7` isolation note; the step 6 message now matches the actual echo.                                                                |
+| Dispatch driver                      | Uses the launcher's default Codex driver with `EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium` in a workspace-write sandbox.                                                                                                                 |
