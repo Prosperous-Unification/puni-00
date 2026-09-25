@@ -8,8 +8,8 @@ import { createFailureRedaction, reportFailure } from '@shared/failures';
  * pattern rule. The key rules of `@shared/failures` are still in force — an `authorization`
  * property on a caught fetch failure is skipped whatever this list says.
  *
- * A module constant because the library caches one report maker per policy; building one per
- * caught fault would throw that cache away on the one path that is already in trouble.
+ * A module constant because building a policy is work a caught fault should not repeat on the
+ * one path that is already in trouble.
  */
 const FAULT_REDACTION = createFailureRedaction([]);
 

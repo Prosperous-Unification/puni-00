@@ -117,7 +117,7 @@ describe('createLogger', () => {
 
     const parsed = parseOrThrow(LogRecord, JSON.parse(stream.at(-1)!) as Record<string, unknown>);
     const failure = parsed.err as { occurrence_id: string; fingerprint?: string; v: string };
-    expect(failure.v).toBe('corj/v0.14');
+    expect(failure.v).toBe('corj/v0.15');
     expect(failure.occurrence_id).toMatch(/^AE_/);
     expect(failure.fingerprint).toMatch(/^fp1_/);
     expect(parsed.request_id).toBe('req-9');
@@ -191,6 +191,22 @@ describe('createLogger', () => {
       },
     };
     expect(() => parseOrThrow(LogRecord, publicReport)).toThrow(/\^corj\//);
+  });
+
+  it('accepts a failure record written before the report format moved', () => {
+    const olderRecord = {
+      level: 'error',
+      time: 1,
+      msg: 'operation failed',
+      service: 'be-01',
+      err: {
+        v: 'corj/v0.14',
+        occurrence_id: 'AE_1',
+        fingerprint: 'fp1_00000000000000000000000000000000',
+        stack: ['Error: stored before the move'],
+      },
+    };
+    expect(parseOrThrow(LogRecord, olderRecord).err).toMatchObject({ v: 'corj/v0.14' });
   });
 
   it('refuses a reporting loss that names no reason', () => {

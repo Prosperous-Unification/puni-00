@@ -19,9 +19,9 @@
         "@sinclair/typebox": "^0.34.52",
         "@tanstack/react-router": "^1.170.24",
         "ajv": "8.20.0",
-        "application-exception": "0.5.0",
+        "application-exception": "0.7.0",
         "arktype": "^2.2.3",
-        "caught-object-report-json": "11.0.1",
+        "caught-object-report-json": "13.0.0",
         "di-bag": "0.4.0",
         "drizzle-orm": "1.0.0-rc.4",
         "elysia": "^1.4.30",
@@ -1086,7 +1086,7 @@
 
     "ansi-styles": ["ansi-styles@4.3.0", "", { "dependencies": { "color-convert": "^2.0.1" } }, "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="],
 
-    "application-exception": ["application-exception@0.5.0", "", { "dependencies": { "caught-object-report-json": "^11.0.1", "nanoid": "^3.3.19" } }, "sha512-pjmlVJQd2rNCkrnPJs6deMi8K0ad9qo9SR2/X2fJYudE6yadIBOHZcwPFUFXaRV+0PyiZgvVuiDFsWYWh8iYdQ=="],
+    "application-exception": ["application-exception@0.7.0", "", { "dependencies": { "caught-object-report-json": "^13.0.0", "nanoid": "^3.3.19" } }, "sha512-kxx0XcOZ2wDcW1/G/s9izPg5ESzuD2SzqAdbZ8wCVMibsGd9IRTvFBZYIi1Z3QGMnJJo41IGQ9/3dqJQ9j9RWA=="],
 
     "are-docs-informative": ["are-docs-informative@0.1.1", "", {}, "sha512-sqRsNQBwbKLRX0jV5Cu5uzmtflf892n4Vukz7T659ebL4pz3mpOqCMU7lxMoBTFwnp10E3YB5ZcyHM41W5bcDA=="],
 
@@ -1190,7 +1190,7 @@
 
     "caniuse-lite": ["caniuse-lite@1.0.30001810", "", {}, "sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg=="],
 
-    "caught-object-report-json": ["caught-object-report-json@11.0.1", "", {}, "sha512-95Q1AatJ9MbyboeN3fSXcfc2RAwg22r3LLHODDjiviAI7Myh612Kf0vDGqnMFwNNUWSgzBC+Yz3yvnHtY8qtng=="],
+    "caught-object-report-json": ["caught-object-report-json@13.0.0", "", {}, "sha512-iH0UiWMMlAcNWcCQUFH/fEexacjojkd2eXvVG/czarM7MsFLOKeTcmbZPa6X8aWtJh/EhmvstlKeEjfF5L+hAQ=="],
 
     "ccount": ["ccount@2.0.1", "", {}, "sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg=="],
 

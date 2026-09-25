@@ -75,7 +75,7 @@ test('returns one public disclosure and logs its registered diagnostic occurrenc
   });
   const emitted = parseOrThrow(LogRecord, JSON.parse(lines[0]) as Record<string, unknown>);
   expect(emitted.err).toMatchObject({
-    v: 'corj/v0.14',
+    v: 'corj/v0.15',
     occurrence_id: reporting.reports.diagnostic.occurrence_id,
     fingerprint: reporting.reports.diagnostic.fingerprint,
   });

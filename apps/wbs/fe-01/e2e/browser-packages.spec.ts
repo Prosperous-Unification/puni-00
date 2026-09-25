@@ -63,7 +63,7 @@ test('the three libraries run in Chromium from this app’s Vite build', async (
     correlated: true,
     publicCode: 'PROBE_FAILED',
     disclosesTheSecret: false,
-    reportVersion: 'corj/v0.14',
+    reportVersion: 'corj/v0.15',
   });
 
   // The bounded settle before the request assertion, and the reason it is not

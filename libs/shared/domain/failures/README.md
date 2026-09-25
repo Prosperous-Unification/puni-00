@@ -29,11 +29,14 @@ operation.
 
 ## Landmines
 
-- The options bag and each caller's policy are long-lived values. Rebuilding
-  either per report discards the reporting library's cached report maker.
+- The limits and each caller's policy are long-lived values, built once.
+  application-exception 0.7.0 snapshots its option bags on every call and
+  caches no report maker, so building them once is about doing the work once,
+  not about a cache.
 - Key matching is case-insensitive because HTTP header names arrive with
   varying capitalisation.
-- The report-size limit includes context and reporting errors. Truncation and
+- The report-size limit, `FAILURE_REPORT_MAX_BYTES`, bounds the diagnostic
+  report only, context and reporting errors included. Truncation and
   omission markers are part of the report rather than a second JSON slicing
   pass.
 - Unit and type checks here do not prove browser execution. This library makes

@@ -17,7 +17,7 @@ describe('createFailureSerializer', () => {
     const record = serialize(new Error('db unavailable')) as Record<string, unknown>;
     expect(record['occurrence_id']).toMatch(/^AE_/);
     expect(record['fingerprint']).toMatch(/^fp1_/);
-    expect(record['v']).toBe('corj/v0.14');
+    expect(record['v']).toBe('corj/v0.15');
     expect(JSON.stringify(record)).toContain('db unavailable');
   });
 
@@ -34,7 +34,7 @@ describe('createFailureSerializer', () => {
 
   it('never writes the public report in place of the diagnostic one', () => {
     const record = serialize(new Error('db unavailable')) as Record<string, unknown>;
-    expect(record['v']).toBe('corj/v0.14');
+    expect(record['v']).toBe('corj/v0.15');
     expect(record['code']).toBeUndefined();
     expect(JSON.stringify(record)).not.toContain('Something went wrong');
   });
@@ -79,7 +79,7 @@ describe('createFailureSerializer', () => {
     });
     const record = serialize(hostile) as Record<string, unknown>;
     expect(accessorRuns).toBe(0);
-    expect(record['v']).toBe('corj/v0.14');
+    expect(record['v']).toBe('corj/v0.15');
   });
 
   it('keeps a genuine reporting loss from the shared module', () => {
