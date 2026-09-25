@@ -288,6 +288,18 @@ function filterTags(project, axis) {
 }
 
 /**
+ * Directories under `apps/` that hold the products of one suite instead of being a product
+ * themselves. An application in a suite sits at `apps/<suite>/<product>/<project>`; every other
+ * `apps/<directory>` is a product, with its applications at `apps/<product>/<project>`. A
+ * directory is a suite only by being listed here, so a mistyped product directory is never read
+ * as one. `readProductPolicies` in `product-policies.mjs` reads the same list to find each suite
+ * product's lint policy. Decided in `openspec/changes/adopt-suite-directory-layout`.
+ *
+ * @type {readonly string[]}
+ */
+export const APPLICATION_SUITES = Object.freeze(['twilight-structure']);
+
+/**
  * Application roots whose directory temporarily differs from their product.
  * `apps/wiki/cli` publishes and runs as `twilight-burokrat` but moves to
  * `apps/twilight-burokrat/cli` only after the wiki freeze/adoption tasks
@@ -391,11 +403,27 @@ export function findNamespaceLayoutViolations(projects) {
 
     const segments = project.root.split('/');
     if (project.root.startsWith('apps/')) {
+      // Proof: with `APPLICATION_SUITES.includes(segments[1])` spelled `false`, `accepts a
+      // declared suite product at apps/<suite>/<product>/<project>` received `applications
+      // require apps/<product>/<project>`; with `|| segments.length === 4` added, `keeps an
+      // undeclared directory a product, so four segments there stay malformed` received `[]`
+      // (2026-09-25).
+      const suite = APPLICATION_SUITES.includes(segments[1]) ? segments[1] : undefined;
+      const productAt = suite === undefined ? 1 : 2;
       // Proof: disabling this shape guard made the owning Nx target replace the
       // named malformed-app refusal with misleading derived product/name faults
       // (2026-09-14).
-      if (segments.length !== 3) {
-        violations.push(`${project.root}: applications require apps/<product>/<project>`);
+      // Proof: with this guard skipped inside a suite, `requires exactly
+      // apps/<suite>/<product>/<project> under a declared suite` received the derived product
+      // `cli` and name `cli-undefined`; skipped outside one, `keeps an undeclared directory a
+      // product, so four segments there stay malformed` received `directory product probe-suite
+      // disagrees with product:probe` (2026-09-25).
+      if (segments.length !== productAt + 2) {
+        violations.push(
+          suite === undefined
+            ? `${project.root}: applications require apps/<product>/<project>`
+            : `${project.root}: applications require apps/<suite>/<product>/<project> in suite ${suite}`,
+        );
         continue;
       }
       // Proof: disabling this check made the owning Nx target omit the app's
@@ -414,13 +442,18 @@ export function findNamespaceLayoutViolations(projects) {
       const frozen = Object.hasOwn(FROZEN_APPLICATION_ROOTS, project.root)
         ? FROZEN_APPLICATION_ROOTS[project.root]
         : undefined;
-      const expectedProduct = frozen?.product ?? segments[1];
+      // Proof: with the product read at `segments[1]`, `derives a suite project product and
+      // name from its product directory` lost its `directory product twilight-probe` line
+      // (2026-09-25).
+      const expectedProduct = frozen?.product ?? segments[productAt];
       if (products.length === 1 && products[0] !== `product:${expectedProduct}`) {
         violations.push(
           `${project.root}: directory product ${expectedProduct} disagrees with ${products[0]}`,
         );
       }
-      const expectedName = frozen?.name ?? `${segments[1]}-${segments[2]}`;
+      // Proof: with the name built from `segments[1]` and `segments[2]`, the same case lost its
+      // `project name must be twilight-probe-cli` line (2026-09-25).
+      const expectedName = frozen?.name ?? `${segments[productAt]}-${segments[productAt + 1]}`;
       // Proof: disabling this app-name check made the owning Nx target omit the
       // unqualified be-01 refusal while retaining the library refusal
       // (2026-09-14).

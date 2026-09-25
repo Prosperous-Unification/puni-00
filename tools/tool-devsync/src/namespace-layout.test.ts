@@ -104,6 +104,61 @@ describe('namespace layout validation', () => {
     ]);
   });
 
+  it('accepts a declared suite product at apps/<suite>/<product>/<project>', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/twilight-structure/twilight-probe/cli', 'twilight-probe-cli', [
+          ...tags,
+          'product:twilight-probe',
+        ]),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('derives a suite project product and name from its product directory', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/twilight-structure/twilight-probe/cli', 'twilight-structure-twilight-probe', [
+          ...tags,
+          'product:twilight-structure',
+        ]),
+      ]),
+    ).toEqual([
+      'apps/twilight-structure/twilight-probe/cli: directory product twilight-probe disagrees with product:twilight-structure',
+      'apps/twilight-structure/twilight-probe/cli: project name must be twilight-probe-cli, found twilight-structure-twilight-probe',
+    ]);
+  });
+
+  it('requires exactly apps/<suite>/<product>/<project> under a declared suite', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/twilight-structure/cli', 'twilight-structure-cli', [
+          ...tags,
+          'product:twilight-structure',
+        ]),
+        project('apps/twilight-structure/twilight-probe/cli/nested', 'twilight-probe-cli', [
+          ...tags,
+          'product:twilight-probe',
+        ]),
+      ]),
+    ).toEqual([
+      'apps/twilight-structure/cli: applications require apps/<suite>/<product>/<project> in suite twilight-structure',
+      'apps/twilight-structure/twilight-probe/cli/nested: applications require apps/<suite>/<product>/<project> in suite twilight-structure',
+    ]);
+  });
+
+  it('keeps an undeclared directory a product, so four segments there stay malformed', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/probe-suite/probe/cli', 'probe-cli', [...tags, 'product:probe']),
+      ]),
+    ).toEqual(['apps/probe-suite/probe/cli: applications require apps/<product>/<project>']);
+  });
+
   it('accepts both apps, every library ring directory and product-neutral tools', () => {
     expect(findNamespaceLayoutViolations(VALID_PROJECTS)).toEqual([]);
   });
