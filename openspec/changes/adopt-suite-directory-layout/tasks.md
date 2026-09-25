@@ -10,7 +10,7 @@
 
 ## 2. The move
 
-- [ ] 2.1 `apps/wiki` moves to `apps/twilight-structure/twilight-burokrat` with no content change
+- [x] 2.1 `apps/wiki` moves to `apps/twilight-structure/twilight-burokrat` with no content change
       but the one `extends` line the commit hook needs — test: every moved file byte-identical to
       its source but `cli/tsconfig.json`.
 
