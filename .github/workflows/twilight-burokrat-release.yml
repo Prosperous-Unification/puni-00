@@ -69,7 +69,7 @@ jobs:
             --header "Authorization: Bearer $GH_TOKEN" \
             --header 'X-GitHub-Api-Version: 2022-11-28' \
             "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME")"
-          bun apps/wiki/cli/src/packaging/release-cli.ts github-release-absent --status "$status"
+          bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts github-release-absent --status "$status"
 
       - name: Verify tagged source and packed installation
         run: |
@@ -85,7 +85,7 @@ jobs:
           transfer="$RUNNER_TEMP/twilight-burokrat-release"
           mkdir "$transfer"
           cp dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz "$transfer/"
-          bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
+          bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts prepare \
             --tag "$GITHUB_REF_NAME" \
             --repository "$GITHUB_WORKSPACE" \
             --tarball "$transfer/twilight-burokrat-0.1.0.tgz" \
@@ -123,7 +123,7 @@ jobs:
 
       - name: Verify transferred package
         run: |
-          bun apps/wiki/cli/src/packaging/release-cli.ts verify \
+          bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts verify \
             --tarball "$RUNNER_TEMP/twilight-burokrat-release/twilight-burokrat-0.1.0.tgz" \
             --record "$RUNNER_TEMP/twilight-burokrat-release/release.json" \
             --source-revision "$GITHUB_SHA"
@@ -140,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           record="$RUNNER_TEMP/twilight-burokrat-release/release.json"
-          bun apps/wiki/cli/src/packaging/release-cli.ts verify-registry --record "$record"
+          bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts verify-registry --record "$record"
           consumer="$(mktemp -d)"
           cd "$consumer"
           printf '{"name":"twilight-burokrat-registry-proof","private":true}\n' > package.json

@@ -1222,11 +1222,19 @@ implementation that lacks the behaviour it names.
 _Avoid_: contract tests (alone), shared tests, test harness
 
 **Product**:
-One application family in this repository — WBS is the first — named by a top-level directory,
-a project-name prefix and a `product:` tag that keeps one product's code out of another's.
-`wiki` is the second: one CLI, `apps/wiki/cli`, released separately from the WBS tool.
+One application family in this repository — WBS is the first — named by its directory under
+`apps/` or under a suite's directory, a project-name prefix and a `product:` tag that keeps one
+product's code out of another's.
+Twilight Burokrat is the second: one CLI, `apps/twilight-structure/twilight-burokrat/cli`,
+released separately from the WBS tool.
 Tools belong to no product.
 _Avoid_: app (that is one deployable), workspace, scope (that is an Nx tag axis already in use)
+
+**Suite**:
+A named group of products whose directories sit together under one directory in `apps/`,
+declared as a suite so the directory is not read as a product itself. Twilight Structure is the
+first.
+_Avoid_: product family, umbrella, namespace (for this)
 
 **Composition root**:
 The one place ports are bound to adapters and services are built, in core, called by be-01

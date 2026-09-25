@@ -403,9 +403,9 @@ async function legacySourceOccurrences(): Promise<{
                   : [
                         '.dockerignore',
                         '.github/workflows/ci.yml',
-                        'apps/wiki/cli/src/admission/authority-store.ts',
-                        'apps/wiki/cli/src/admission/claims.ts',
-                        'apps/wiki/cli/src/contracts/records.ts',
+                        'apps/twilight-structure/twilight-burokrat/cli/src/admission/authority-store.ts',
+                        'apps/twilight-structure/twilight-burokrat/cli/src/admission/claims.ts',
+                        'apps/twilight-structure/twilight-burokrat/cli/src/contracts/records.ts',
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
                         'tools/tool-deploy/src/migrations.ts',
@@ -465,7 +465,9 @@ test('current Nx commands select existing qualified projects', async () => {
 });
 
 test('the production index checker resolves current Markdown links and anchors', () => {
-  const cli = fileURLToPath(new URL('../../../apps/wiki/cli/src/cli.ts', import.meta.url));
+  const cli = fileURLToPath(
+    new URL('../../../apps/twilight-structure/twilight-burokrat/cli/src/cli.ts', import.meta.url),
+  );
   const invocation = Bun.spawnSync(
     [process.execPath, 'run', cli, 'check-indexes', 'working', WORKSPACE, 'HEAD'],
     { cwd: WORKSPACE, env: process.env, stdout: 'pipe', stderr: 'pipe' },
@@ -618,7 +620,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // the classified occurrence count and categories remain unchanged (2026-09-19).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 31,
+      'current recursive selector': 34,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 87,
@@ -855,8 +857,16 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `apps/fe-01/` it was extracted from; raised `historical policy selector or baseline` from 71
     // to 87 and occurrences from 289 to 305, digest `8d9667b7…` to `68a1e15d…`, no unclassified
     // entries; the `Proof:` comments added in the pilot suite moved nothing (2026-09-25).
-    digest: '68a1e15da4a66840c53c9a57c43583e1b303f2115504abc09e8bbe08d7294e02',
-    occurrences: 305,
+    // Proof: declaring the suite products' lint policies as Nx lint inputs added one
+    // `current recursive selector` to nx.json and two to lint-policy-cache.test.ts; leaving
+    // `68a1e15d…` at 305 here failed on the observed digest below, recursive selectors 31 to
+    // 34, occurrences 305 to 308, none unclassified (2026-09-25).
+    // Proof: leaving `551e2a7d…` here after Twilight Burokrat moved into the Twilight Structure
+    // suite failed on the observed digest below at the same 308 occurrences and categories:
+    // every context the project carries kept its match and class and changed only the path it
+    // is reported under, none unclassified (2026-09-25).
+    digest: 'c0a77f3355f27bc1e8fa7f23bd427c7b4cc7c068e6f787bb1552364482f28c22',
+    occurrences: 308,
     unclassified: [],
   });
 });

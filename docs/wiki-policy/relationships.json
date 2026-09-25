@@ -154,7 +154,7 @@
           "{workspaceRoot}/.github/workflows/ci.yml",
           "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
           "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
-          "{workspaceRoot}/apps/wiki/consumer/**/*",
+          "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/consumer/**/*",
           "{projectRoot}/package.json",
           "{projectRoot}/NOTICE",
           "{workspaceRoot}/infra/ci/burokrat/**/*",
@@ -162,8 +162,8 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../tools/test/scratch/preload.ts",
-          "cwd": "apps/wiki/cli"
+          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts",
+          "cwd": "apps/twilight-structure/twilight-burokrat/cli"
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -183,7 +183,7 @@
         "cache": false,
         "executor": "nx:run-commands",
         "options": {
-          "command": "bunx eslint apps/wiki/cli/src"
+          "command": "bunx eslint apps/twilight-structure/twilight-burokrat/cli/src"
         },
         "configurations": {},
         "parallelism": true
@@ -201,7 +201,7 @@
       "expectedConfiguration": {
         "executor": "nx:run-commands",
         "options": {
-          "command": "bunx tsc --build --force apps/wiki/cli/tsconfig.json"
+          "command": "bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"
         },
         "configurations": {},
         "parallelism": true,

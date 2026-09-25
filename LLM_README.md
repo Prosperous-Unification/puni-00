@@ -3,7 +3,7 @@
 **puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Burokrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
-`twilight-burokrat` (`apps/wiki/cli`, `product:twilight-burokrat`) is Twilight Burokrat, the separately released rules and module-wiki validator.
+`twilight-burokrat` (`apps/twilight-structure/twilight-burokrat/cli`, `product:twilight-burokrat`) is Twilight Burokrat, the separately released rules and module-wiki validator.
 
 Three facts explain most decisions:
 

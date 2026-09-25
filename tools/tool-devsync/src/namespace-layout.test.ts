@@ -78,30 +78,89 @@ describe('namespace layout validation', () => {
     expect(findStaleLayoutExceptions(projects)).toEqual([]);
   });
 
-  it('excuses only the exact frozen application product and name', () => {
-    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+  it('excuses only the exact root its name exception names', () => {
+    const tags = [
+      'scope:app',
+      'type:app',
+      'runtime:bun',
+      'ring:adapter',
+      'product:twilight-burokrat',
+    ];
     expect(
       findNamespaceLayoutViolations([
-        project('apps/wiki/cli', 'twilight-burokrat', [...tags, 'product:twilight-burokrat']),
+        project('apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat', tags),
       ]),
     ).toEqual([]);
     expect(
       findNamespaceLayoutViolations([
-        project('apps/wiki/cli', 'wiki-cli', [...tags, 'product:wiki']),
-        project('apps/wiki/other', 'twilight-burokrat', [...tags, 'product:twilight-burokrat']),
+        project('apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat-cli', tags),
+        project('apps/twilight-structure/twilight-burokrat/other', 'twilight-burokrat', tags),
       ]),
     ).toEqual([
-      'apps/wiki/cli: directory product twilight-burokrat disagrees with product:wiki',
-      'apps/wiki/cli: project name must be twilight-burokrat, found wiki-cli',
-      'apps/wiki/other: directory product wiki disagrees with product:twilight-burokrat',
-      'apps/wiki/other: project name must be wiki-other, found twilight-burokrat',
+      'apps/twilight-structure/twilight-burokrat/cli: project name must be twilight-burokrat, found twilight-burokrat-cli',
+      'apps/twilight-structure/twilight-burokrat/other: project name must be twilight-burokrat-other, found twilight-burokrat',
     ]);
   });
 
-  it('names a frozen root that no project occupies after the move', () => {
+  it('names a name exception that no project occupies', () => {
     expect(findStaleLayoutExceptions(VALID_PROJECTS)).toEqual([
-      'apps/wiki/cli: frozen layout exception names no project; remove it',
+      'apps/twilight-structure/twilight-burokrat/cli: name exception names no project; remove it',
     ]);
+  });
+
+  it('accepts a declared suite product at apps/<suite>/<product>/<project>', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/twilight-structure/twilight-probe/cli', 'twilight-probe-cli', [
+          ...tags,
+          'product:twilight-probe',
+        ]),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('derives a suite project product and name from its product directory', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/twilight-structure/twilight-probe/cli', 'twilight-structure-twilight-probe', [
+          ...tags,
+          'product:twilight-structure',
+        ]),
+      ]),
+    ).toEqual([
+      'apps/twilight-structure/twilight-probe/cli: directory product twilight-probe disagrees with product:twilight-structure',
+      'apps/twilight-structure/twilight-probe/cli: project name must be twilight-probe-cli, found twilight-structure-twilight-probe',
+    ]);
+  });
+
+  it('requires exactly apps/<suite>/<product>/<project> under a declared suite', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/twilight-structure/cli', 'twilight-structure-cli', [
+          ...tags,
+          'product:twilight-structure',
+        ]),
+        project('apps/twilight-structure/twilight-probe/cli/nested', 'twilight-probe-cli', [
+          ...tags,
+          'product:twilight-probe',
+        ]),
+      ]),
+    ).toEqual([
+      'apps/twilight-structure/cli: applications require apps/<suite>/<product>/<project> in suite twilight-structure',
+      'apps/twilight-structure/twilight-probe/cli/nested: applications require apps/<suite>/<product>/<project> in suite twilight-structure',
+    ]);
+  });
+
+  it('keeps an undeclared directory a product, so four segments there stay malformed', () => {
+    const tags = ['scope:app', 'type:app', 'runtime:bun', 'ring:adapter'];
+    expect(
+      findNamespaceLayoutViolations([
+        project('apps/probe-suite/probe/cli', 'probe-cli', [...tags, 'product:probe']),
+      ]),
+    ).toEqual(['apps/probe-suite/probe/cli: applications require apps/<product>/<project>']);
   });
 
   it('accepts both apps, every library ring directory and product-neutral tools', () => {

@@ -23,7 +23,7 @@ registry version or GitHub release and never rebuilds after transfer.
 
 Before the first tag, administrators must restrict `twilight-burokrat-v*`, create the protected
 environment, verify ownership of the `twilight-burokrat` registry name, and install its
-least-privilege `NPM_TOKEN`. The package carries the MIT License (`apps/wiki/cli/LICENSE`); the release
+least-privilege `NPM_TOKEN`. The package carries the MIT License (`apps/twilight-structure/twilight-burokrat/cli/LICENSE`); the release
 check refuses a manifest marked `UNLICENSED` or a checkout without that file.
 
 To reproduce the prepared artifact without publishing:
@@ -31,7 +31,7 @@ To reproduce the prepared artifact without publishing:
 ```sh
 bun install --frozen-lockfile
 bunx nx run twilight-burokrat:test:package --skip-nx-cache
-bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
+bun apps/twilight-structure/twilight-burokrat/cli/src/packaging/release-cli.ts prepare \
   --tag twilight-burokrat-vX.Y.Z \
   --repository "$PWD" \
   --tarball dist/twilight-burokrat-pack/twilight-burokrat-X.Y.Z.tgz \
@@ -46,7 +46,7 @@ filename, SHA-256 or npm integrity differs from the transfer record.
 
 A consumer then produces its **own** per-commit activation from that toolkit with
 `prepare-activation.mjs`, supplying its policy, mapping, review record and audit strata. The whole
-consumer procedure is `apps/wiki/consumer/README.md`, beside the workflow template it copies.
+consumer procedure is `apps/twilight-structure/twilight-burokrat/consumer/README.md`, beside the workflow template it copies.
 
 ### This repository's own activation
 
@@ -60,7 +60,7 @@ bunx nx run twilight-burokrat:typecheck --skip-nx-cache
 
 An operator, outside the candidate checkout, invokes the trusted review harness for the exact
 frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
-hook, and Nx callers declared by `apps/wiki/cli/README.md`. Retain the real review receipt and
+hook, and Nx callers declared by `apps/twilight-structure/twilight-burokrat/cli/README.md`. Retain the real review receipt and
 journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
 
 Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
@@ -153,7 +153,7 @@ at the old paths. Landing a move takes two steps: activate from the candidate he
    Then, from a clean checkout at that SHA with its lockfile-pinned modules installed:
 
    ```sh
-   bun apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts \
+   bun apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-relocation-activation-cli.ts \
      --candidate-repository <clean checkout whose HEAD is the SHA> \
      --candidate-sha <40-hex candidate SHA> \
      --base-activation <extracted current release>/activation-<base sha> \
