@@ -3466,10 +3466,41 @@ for fill in 0 1 real; do
 done
 ````
 
-Revision 3 evidence is recorded after running this block from the committed revision 3 packet,
-with `REAL_BASE` set to `main` plus every plan-branch commit cherry-picked, including the
-planner-owned exemption. The negative uses slice 1's commit as `REAL_BASE` and must stop at patch
-03 before any comparison.
+Observed on 2026-09-25 from the committed revision 3 packet, with `REAL_BASE` set to `main`
+plus every then-current plan-branch commit cherry-picked, including the planner-owned exemption:
+
+```text
+fill=0 extracted patches=5 scripts=3 faults=35
+fill=0 slice 1 faults=10, each restored and green
+fill=0 slice 2 staged renames=127
+fill=0 slice 3 faults=24, each restored and green
+fill=0 slices 1-3 applied as two commits, all 35 faults restored and green; planner-selector inserted after r5
+fill=0 combined commit renames=126
+fill=0 tree identical to 34bf381498127a29a9773ae072faf978d8a557d5 but for the executor-written verify.md
+fill=1 extracted patches=5 scripts=3 faults=35
+fill=1 slice 1 faults=10, each restored and green
+fill=1 slice 2 staged renames=127
+fill=1 slice 3 faults=24, each restored and green
+fill=1 slices 1-3 applied as two commits, all 35 faults restored and green; planner-selector inserted after r5
+fill=1 combined commit renames=126
+fill=1 10 files differ, every one only in dates
+fill=real extracted patches=5 scripts=3 faults=35
+fill=real slice 1 faults=10, each restored and green
+fill=real slice 2 staged renames=127
+fill=real slice 3 faults=24, each restored and green
+fill=real slices 1-3 applied as two commits, all 35 faults restored and green; planner-selector inserted after r5
+fill=real combined commit renames=126
+fill=real the same 156 changes as the rehearsal, each the same delta
+```
+
+**The negative stopped before comparison.** With `REAL_BASE=574c44de` (the revision 3 slice 1
+commit), `fill=0` and `fill=1` still passed, then `fill=real` exited 1 at patch 03:
+
+```text
+error: patch failed: CONTEXT.md:1222
+error: CONTEXT.md: patch does not apply
+error: openspec/changes/adopt-suite-directory-layout/proposal.md: already exists in working directory
+```
 
 ### 9.2 The strict OpenSpec block, reproduced
 
