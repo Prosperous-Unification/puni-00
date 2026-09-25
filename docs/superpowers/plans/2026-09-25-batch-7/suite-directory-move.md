@@ -1,14 +1,14 @@
 # Suite directory move — Twilight Burokrat into the Twilight Structure suite
 
-|             |                                                                                                                                                                                                                                                                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Work item   | WBS `2fdc7076-5fd3-40cb-9e86-dad9da00574c`, "Suite directory layout": move `apps/wiki` to `apps/twilight-structure/twilight-burokrat` (Dany, 2026-09-23: "create apps/twilight-structure/twilight-burokrat and host everything there")                                                                                                     |
-| Size class  | M — three slices, each one executor attempt; slice 2 is small                                                                                                                                                                                                                                                                              |
-| Predecessor | none. Batch 7's other lane, 140.1 (`caught-object-report-json`), touches the root manifest, `bun.lock` and WBS sources; no path of this packet's (section 5)                                                                                                                                                                               |
-| Advances    | the suite level of the namespace layout, Twilight Burokrat's directory, and a standing check that keeps the retired root out of current files                                                                                                                                                                                              |
-| Schema      | OpenSpec change `adopt-suite-directory-layout`, `sdd-lean`, created by slice 1: four requirements (a declared suite holds products one directory deeper; a suite product keeps its lint policy beside it; Twilight Burokrat lives in the suite; the retired root survives only in historical records), and five tasks ticked by the slices |
-| Base        | authored and rehearsed on `batch-6/integration` at `ad0451da9`, whose tree is `main` after PR #62 (batch 7 addendum, point 8); the planner reruns section 9.1 with `REAL_BASE=<planning sha>` before dispatch                                                                                                                              |
-| Rehearsal   | `rehearse/suite-move-r1`: slice 1 `9704728d6`, slice 2 `b2c009604`, slice 3 `87ee5fc86`, each committed with the hooks on (section 9.3)                                                                                                                                                                                                    |
+|             |                                                                                                                                                                                                                                                                                                                                                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item   | WBS `2fdc7076-5fd3-40cb-9e86-dad9da00574c`, "Suite directory layout": move `apps/wiki` to `apps/twilight-structure/twilight-burokrat` (Dany, 2026-09-23: "create apps/twilight-structure/twilight-burokrat and host everything there")                                                                                                                      |
+| Size class  | M — three slices, each one executor attempt; slice 2 is small and ends without a commit (planner decision D3)                                                                                                                                                                                                                                               |
+| Predecessor | none. Batch 7's other lane, 140.1 (`caught-object-report-json`), touches the root manifest, `bun.lock` and WBS sources; no path of this packet's (section 5)                                                                                                                                                                                                |
+| Advances    | the suite level of the namespace layout, Twilight Burokrat's directory, and a standing check that keeps the retired root out of current files                                                                                                                                                                                                               |
+| Schema      | OpenSpec change `adopt-suite-directory-layout`, `sdd-lean`, created by slice 1: four requirements (a declared suite holds products one directory deeper; a suite product keeps its lint policy beside it; Twilight Burokrat lives in the suite; the retired root survives only in historical records, archived or not), and five tasks ticked by the slices |
+| Base        | revision 2 is rehearsed on `main` at `e93a564a0` (after PR #63), with its own `bun install --frozen-lockfile`; revision 1 was rehearsed on `batch-6/integration` at `ad0451da9` (main after PR #62). The planner reruns section 9.1 with `REAL_BASE=<planning sha>` before dispatch                                                                         |
+| Rehearsal   | `rehearse/suite-move-r2`: slice 1 `10e5681cf`, slices 2 and 3 together `45e59fdf7`, each committed with the hooks on (section 9.3); revision 1's `rehearse/suite-move-r1` stays as it was                                                                                                                                                                   |
 
 ## 1. Goal, non-goals, and the cut
 
@@ -35,8 +35,9 @@ architecture change first and a rename second.
   needs before `trusted-wiki` can certify again is operator work under the activation runbook's
   "Relocation" (section 3.8).
 - No historical record is rewritten: packets, plans and specs under `docs/superpowers`, archived
-  OpenSpec changes, every `verify.md`, finished tasks, dated `Proof:` comments (section 3.2). One
-  exception, a routed link: section 3.2.
+  OpenSpec changes, every `verify.md`, finished tasks, dated `Proof:` comments (section 3.2). Two
+  exceptions: a routed link (section 3.2), and the six dated `Proof:` comments whose checks this
+  packet changes — they are retired with the old lines and observed again (sections 7.7, 8.3).
 
 **The cut.**
 
@@ -45,12 +46,13 @@ architecture change first and a rename second.
    products and refuses a policy in the suite directory itself; Nx declares the suite products'
    policies as lint inputs; the OpenSpec change and the glossary's **Suite**. Nothing moves.
 2. **The move**: `mv apps/wiki apps/twilight-structure/twilight-burokrat` and the one `extends` line
-   the commit hook needs — so that Git records 126 renames at 100% and one at 85%, and every file's
-   history follows it (section 3.4).
+   typed lint needs. It ends **without a commit**: the planner stages it, and slice 3 runs on the
+   staged move (section 3.4).
 3. **Every reference follows**, as one checked substitution script (section 3.7): project
    configuration, sources, the release workflow, the bootstrap policy, mapping and relationship facts,
    devsync pins, current documents; the frozen exception becomes a name exception on the new root; and
-   the retired-root check, red first.
+   the retired-root check, red first. The planner then commits slices 2 and 3 as **one** commit, in
+   which Git still records the 127 files as renames (section 3.4).
 
 ## 2. Read first
 
@@ -68,19 +70,21 @@ architecture change first and a rename second.
 ### 3.1 The measured reference inventory
 
 Measured on `ad0451da9` with the pattern the retired-root check uses, `apps/wiki(?![\w-])`: **102
-tracked files, 917 occurrences** — and three kinds of reference the pattern cannot see.
+tracked files, 917 occurrences** — and three kinds of reference the pattern cannot see. On
+`e93a564a0` it is **103 files, 920**: PR #63 added one packet under `docs/superpowers` (three
+mentions); no other file changed.
 
-| Area                                                 | Files | Occurrences | Disposition                                                                                                                                                                                                                                      |
-| ---------------------------------------------------- | ----: | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `docs/superpowers` — packets, plans, specs           |    49 |         758 | Stay as written (brief). One exception: the routed rules design's one Markdown link, which the devsync link check fails once the target moves; it now points at the new README.                                                                  |
-| `apps/wiki` itself, moved in slice 2                 |    18 |          62 | Follow, but two dated clauses of one `Proof:` comment in `pilot-policy.test.ts` (the 2026-09-16 move) that stay.                                                                                                                                 |
-| `tools/tool-devsync`                                 |     7 |          34 | Follow: the layout rule and its tests, `RESTART_PATHS`, the destination map, the inventory pin, the legacy classifier and the index checker's CLI path. Stay: four dated `Proof:` clauses in the namespacing test and two in the inventory test. |
-| `docs/wiki-policy`                                   |     4 |          11 | Follow: the bootstrap selector, the bootstrap mapping's prefix and index path (and its `mappingVersion` bumps v3 to v4), both relationship files' four facts each.                                                                               |
-| `.github/workflows/twilight-burokrat-release.yml`    |     1 |           4 | Follow: the four `bun apps/wiki/cli/src/packaging/release-cli.ts` steps.                                                                                                                                                                         |
-| Current documents                                    |     6 |          10 | Follow: `LLM_README.md`, `CONTEXT.md`, `docs/twilight-structure/names.md`, the activation runbook (5), the R5 catalogue. Stay: the 2026-09-13 extraction plan's dated status line.                                                               |
-| `openspec/changes`, artifacts other than `verify.md` |     8 |          20 | Follow: `wiki-release`'s normative spec (3, the consumer template path it requires byte identity with) and `twilight-control-plane`'s unfinished task (2). Stay: proposals, finished tasks, designs describing past procedures (15).             |
-| `openspec/changes/*/verify.md`                       |     7 |          16 | Stay: observation records.                                                                                                                                                                                                                       |
-| `openspec/changes/archive`                           |     2 |           2 | Stay: closed.                                                                                                                                                                                                                                    |
+| Area                                                 |   Files | Occurrences | Disposition                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | ------: | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/superpowers` — packets, plans, specs           | 49 (50) |   758 (761) | Stay as written (brief). One exception: the routed rules design's one Markdown link, which the devsync link check fails once the target moves; it now points at the new README.                                                                  |
+| `apps/wiki` itself, moved in slice 2                 |      18 |          62 | Follow, but two dated clauses of one `Proof:` comment in `pilot-policy.test.ts` (the 2026-09-16 move) that stay.                                                                                                                                 |
+| `tools/tool-devsync`                                 |       7 |          34 | Follow: the layout rule and its tests, `RESTART_PATHS`, the destination map, the inventory pin, the legacy classifier and the index checker's CLI path. Stay: four dated `Proof:` clauses in the namespacing test and two in the inventory test. |
+| `docs/wiki-policy`                                   |       4 |          11 | Follow: the bootstrap selector, the bootstrap mapping's prefix and index path (and its `mappingVersion` bumps v3 to v4), both relationship files' four facts each.                                                                               |
+| `.github/workflows/twilight-burokrat-release.yml`    |       1 |           4 | Follow: the four `bun apps/wiki/cli/src/packaging/release-cli.ts` steps.                                                                                                                                                                         |
+| Current documents                                    |       6 |          10 | Follow: `LLM_README.md`, `CONTEXT.md`, `docs/twilight-structure/names.md`, the activation runbook (5), the R5 catalogue. Stay: the 2026-09-13 extraction plan's dated status line.                                                               |
+| `openspec/changes`, artifacts other than `verify.md` |       8 |          20 | Follow: `wiki-release`'s normative spec (3, the consumer template path it requires byte identity with) and `twilight-control-plane`'s unfinished task (2). Stay: proposals, finished tasks, designs describing past procedures (15).             |
+| `openspec/changes/*/verify.md`                       |       7 |          16 | Stay: observation records.                                                                                                                                                                                                                       |
+| `openspec/changes/archive`                           |       2 |           2 | Stay: closed.                                                                                                                                                                                                                                    |
 
 **What the pattern cannot see**, found by breaking the tree and reading what failed (section 9.3):
 
@@ -152,22 +156,28 @@ passing over it silently would be a fence that cannot fail. Slice 3 turns
 `APPLICATION_NAME_EXCEPTIONS` (`'apps/twilight-structure/twilight-burokrat/cli': 'twilight-burokrat'`)
 read through one helper, `excusedName(root)`.
 
-### 3.4 History: a move commit as pure as the hook allows
+### 3.4 History: one commit for the move and its references
 
-A pure `git mv` commit was tried first on the base. The hook refused it: lefthook's `lint` runs typed
-ESLint over the 127 staged files, and with `cli/tsconfig.json` still extending
+A pure `git mv` commit was tried first on the revision 1 base. The hook refused it: lefthook's `lint`
+runs typed ESLint over the 127 staged files, and with `cli/tsconfig.json` still extending
 `../../../tsconfig.base.json` (now `apps/tsconfig.base.json`, absent) it reported
-`✖ 10477 problems (10477 errors, 0 warnings)`. With that one `extends` line changed and nothing else,
-the hook passed (tool-wiki, plaintext-secrets, format, lint). The rehearsed move commit records **126
-renames at 100% and `cli/tsconfig.json` at 85%**, and `git log --follow` on a moved file reaches its
-pre-move history (section 9.3). Slice 2 therefore moves and changes that one line; everything else
-waits for slice 3. Slice 2 also ticks its OpenSpec task and appends its `verify.md` entry — two
-content edits outside the moved tree, which leave the renames themselves pure.
+`✖ 10477 problems (10477 errors, 0 warnings)`. With that one `extends` line changed and nothing else
+the hook passed, and revision 1 committed the move alone: 126 renames at 100% and
+`cli/tsconfig.json` at 85%. That commit was red on purpose until the next, so the planner decided
+(D3) that **no red commit may reach `main`**: slice 2 still does the move alone, as an execution
+step with its own checks, but ends without a commit; the planner stages it (`git add -A`, no commit),
+and slice 3 edits on top of the staged move. The planner's one commit for slices 2 and 3 goes
+through `planner-commit.sh` with whole devsync, no `--skip-devsync`.
 
-The price: the slice 2 commit is red on purpose — `twilight-burokrat:typecheck` fails (`TS6053`) and
-whole devsync fails twelve named tests (section 9.4) until slice 3's commit. The planner commits it
-with `planner-commit.sh … --skip-devsync` and never merges it alone; the three commits reach `main` in
-one merge, and a bisect that lands on it skips it.
+Git still follows the renames in that combined commit, by similarity. On the rehearsal commit
+`45e59fdf7`: `git show -M --summary` records **126 renames** — 98 at 100%, the rest from 99% down to
+`cli/project.json` at 67%, `cli/tsconfig.json` at 64% and `cli/tsconfig.spec.json` at 50% — and one
+pair it no longer matches: `cli/tsconfig.lib.json`, a five-line file whose one meaningful line (its
+`outDir`) the move changes, shows as a delete and a create. `git log --follow` on a moved source file
+reaches its pre-move history (`cli/src/policy/trust.ts`: the combined commit, then `f4934d65d`,
+`6475fdcc4`); on `cli/tsconfig.lib.json` it pairs the new file with an unrelated older file instead,
+so that file's history is read at its old path. Revision 1's separate move commit had paired all 127;
+that is the price of D3.
 
 ### 3.5 OpenSpec: used
 
@@ -175,48 +185,64 @@ R4 requires a change for architecture and deploy safety. A directory move that c
 would be mechanical, but this one changes the namespace layout rule (a new application shape and a
 discovery rule every future suite relies on), adds a standing check, and moves the release workflow's
 executable paths and the trusted bootstrap boundary. So slice 1 creates `adopt-suite-directory-layout`
-(sdd-lean), with its intent (374 words), a delta spec of four requirements with WHEN/THEN scenarios,
-five tasks ticked one slice at a time, and a `verify.md` each slice appends to. Validation goes from
-114 to 115 items. No ADR: a directory layout is reversed by another move, and the decision is Dany's,
+(sdd-lean), with its intent (378 words), a delta spec of four requirements with WHEN/THEN scenarios,
+five tasks ticked one slice at a time, and a `verify.md` each slice appends to. Validation goes up by
+one item (115 → 116 on `e93a564a0`). No ADR: a directory layout is reversed by another move, and the decision is Dany's,
 recorded in the intent. The glossary gains **Suite**, and **Product** names both shapes.
 
 ### 3.6 The retired-root check
 
 `tools/tool-devsync/src/retired-roots.test.ts` scans every path Git tracks or would track
-(`git ls-files --cached --others --exclude-standard`), reading a symbolic link's target rather than
+(`git ls-files --cached --others --exclude-standard`, less `--deleted`, so an unstaged move reads its
+new path only), reading a symbolic link's target rather than
 following it, for both spellings — the path `apps/wiki` (not followed by a word character or `-`) and
 the quoted segments `'apps', 'wiki'` (across lines) — and answers three questions, one per case:
 
-| Case                                                                    | Clause                                       | Fault that only this clause catches                                            |
-| ----------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------ |
-| `no file remains under the retired apps/wiki root`                      | a path under `apps/wiki/`, whatever it holds | `g1`: an untracked `apps/wiki/stray.txt` that names nothing                    |
-| `no current file names the retired apps/wiki root`                      | untracked files are read (`--others`)        | `g2`: a new untracked document naming the root                                 |
-|                                                                         | an unexcused occurrence is reported          | `g3`: the root written into the first line of the tracked `docs/local-dev.md`  |
-|                                                                         | the segment spelling                         | `g4`: a new document holding only `join('apps', 'wiki')`                       |
-| `every excuse for the retired root still matches exactly what it names` | a dated mention holds exactly its count      | `g5`: one more mention in the excused `openspec/changes/wiki-release/tasks.md` |
-|                                                                         | a historical tree still holds something      | `g6`: an added tree `docs/no-such-tree/`                                       |
-| all three                                                               | an unreadable listing throws                 | `g7`: `ls-files` misspelled                                                    |
+| Case                                                                    | Clause                                                      | Fault that only this clause catches                                                                                     |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `no file remains under the retired apps/wiki root`                      | a path under `apps/wiki/`, whatever it holds                | `g1`: an untracked `apps/wiki/stray.txt` that names nothing                                                             |
+| `no current file names the retired apps/wiki root`                      | untracked files are read (`--others`)                       | `g2`: a new untracked document naming the root                                                                          |
+|                                                                         | an unexcused occurrence is reported                         | `g3`: the root written into the first line of the tracked `docs/local-dev.md`                                           |
+|                                                                         | the segment spelling                                        | `g4`: a new document holding only `join('apps', 'wiki')`                                                                |
+| `every excuse for the retired root still matches exactly what it names` | a dated mention holds exactly its count                     | `g5`: one more mention in the excused `openspec/changes/wiki-release/tasks.md`                                          |
+|                                                                         | a historical tree still holds something                     | `g6`: an added tree `docs/no-such-tree/`                                                                                |
+| all three                                                               | an unreadable listing throws                                | `g7`: `ls-files` misspelled                                                                                             |
+| all three                                                               | a tracked file the working tree no longer holds is not read | `g9`: the `g8` move with that filter off                                                                                |
+| all three, green                                                        | an excuse survives its change's archiving (`unarchived`)    | `g8`: `twilight-burokrat-package/proposal.md` moved to `openspec/changes/archive/2026-10-01-twilight-burokrat-package/` |
 
-Each fault has a twin with its clause disabled (`gN-off`), which must **pass** the named case: the
-fault is caught by that clause and no other (batch 7 addendum, point 2). The excuses are three
-historical trees (`docs/superpowers/`, `openspec/changes/archive/`, this change's own directory),
-every change's `verify.md`, and eleven files that mix current text with dated history, each excusing
-an exact count (the check's own file among them, three). A current reference added to one of those
-eleven raises its count and fails the third case. **Known limit:** a root spelled any third way —
+Each fault has a twin with its clause disabled (`gN-off`). For `g1` and `g3`–`g6` the twin passes the
+named case: the fault is caught by that clause and no other (batch 7 addendum, point 2). Three twins
+say more. `g2-off` passes the named case, and the excuse case fails on the check's own untracked file,
+which `--others` also stops seeing. `g7-off` shows that a broken listing is caught a second way too: the
+empty scan leaves every excuse holding 0. What the refusal alone adds is that the leftover and current
+cases do not go green on nothing. `g9` has no twin: it is `g8`'s move with its own clause off. `g8` is
+the reverse shape. The archived move must stay green, and its
+twin, with `unarchived` returning the path unchanged, fails the excuse case on `excuses 2, holds 0`.
+
+The excuses are three historical trees (`docs/superpowers/`, this change's own directory,
+`openspec/changes/archive/` last, so an archived listed change still counts for its own entry), every
+change's `verify.md` whether archived or not, and eleven files that mix current text with dated
+history, each excusing an exact count (the check's own file among them, three). A current reference
+added to one of those eleven raises its count and fails the third case. **Archiving:** every excuse is
+written in the unarchived form, and `unarchived` maps `openspec/changes/archive/<date>-<name>/…` back to
+it, so archiving this change or any listed one moves no count. The delta spec names the root only as
+"the retired root", so the spec the archive syncs into `openspec/specs/` needs no excuse. What still
+needs an edit is a change that rewrites a listed file's mentions, or moves it any other way. The JSDoc
+of `HISTORICAL_TREES` and `DATED_MENTIONS` and section 12 say so. **Known limit:** a root spelled any third way —
 built from variables, split inside one string — is invisible to the text check; the suites that
 resolve such paths are its net (`gate-entrypoints.test.ts` failed nineteen tests on the segment
 spelling before the check read it).
 
 ### 3.7 A script plus a checked result, not a fenced diff
 
-Slice 3 changes 49 files, most of them by one path or one `../`, and it lands on a tree whose slice 1
+Slice 3 changes 50 files, most of them by one path or one `../`, and it lands on a tree whose slice 1
 `Proof:` comments carry the executor's own date. A context diff would fail wherever a hunk's context
 touched such a line. So slice 3 is **one script of exact substitutions**: `sub FILE COUNT OLD NEW`
 refuses unless `FILE` holds exactly `COUNT` copies of `OLD`, and `subf` does the same for multi-line
 text read from here-documents. Nothing is matched by a pattern; every edit is a literal the reviewer
 reads in section 7.7. Prettier then formats the touched files. The checked result is the rehearsal:
 section 9.1 replays the script on a fresh extract of the base and proves the tree byte-identical to
-`rehearse/suite-move-r1` (`fill=0`), identical but for dates with the executor's own dates (`fill=1`),
+`rehearse/suite-move-r2` (`fill=0`), identical but for dates with the executor's own dates (`fill=1`),
 and the same delta on the real planning base (`fill=real`). Slice 1 adds code rather than renaming it
 and lands on the base, so it stays four ordinary diffs.
 
@@ -240,33 +266,35 @@ and lands on the base, so it stays four ordinary diffs.
 
 ## 4. Verified facts
 
-Every fact was read or run on `ad0451da9` on 2026-09-25 unless it names a rehearsal commit.
+Every fact was read or run on `ad0451da9` on 2026-09-25 unless it names a rehearsal commit, and
+rechecked on `e93a564a0`: the line anchors and every fact but the counts in the last three rows hold
+there unchanged (PR #63 touched none of these files); the counts are given for both bases.
 
-| Fact                                                                                                                                                                                                                                                                                                                                                                                      | Where                                                                                                        |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| the layout gate refuses any `apps/` root that is not three segments deep                                                                                                                                                                                                                                                                                                                  | `tools/tool-devsync/workspace-projects.mjs:397` (`segments.length !== 3`)                                    |
-| `apps/wiki/cli` is excused by `FROZEN_APPLICATION_ROOTS` as product and name `twilight-burokrat`, looked up by exact root                                                                                                                                                                                                                                                                 | `workspace-projects.mjs:300`, `:414`                                                                         |
-| `findStaleLayoutExceptions` reports an exception whose root no project occupies                                                                                                                                                                                                                                                                                                           | `workspace-projects.mjs:310`                                                                                 |
-| the gate is enforced by devsync's `namespace-layout.test.ts` alone (`accepts the complete actual workspace after the coordinated move`)                                                                                                                                                                                                                                                   | `tools/tool-devsync/src/namespace-layout.test.ts`                                                            |
-| product lint policies are discovered one level below `apps/` and `libs/`, and a missing policy is the one outcome passed over                                                                                                                                                                                                                                                             | `tools/tool-devsync/product-policies.mjs:5`, `:78`                                                           |
-| Nx's lint cache input for product policies is `{workspaceRoot}/apps/*/eslint.product.mjs`                                                                                                                                                                                                                                                                                                 | `nx.json:48`                                                                                                 |
-| project discovery (`readProjects`) is recursive, so the moved project is found at four segments                                                                                                                                                                                                                                                                                           | `workspace-projects.mjs` `scanDirectory`                                                                     |
-| the dev poller restarts on `apps/wiki/cli/project.json` and `tsconfig.json`, and its test walks apps rather than trusting the list                                                                                                                                                                                                                                                        | `tools/tool-devsync/src/sync.ts:496`, `:509`; `sync.test.ts` "RESTART_PATHS coverage"                        |
-| the legacy-occurrence pin is `68a1e15d…`, 305 occurrences, keyed by path, class and line text; three moved files are named in its classifier                                                                                                                                                                                                                                              | `repo-namespacing-handoff.test.ts:858`, `:406`–`:408`                                                        |
-| the index checker test runs `apps/wiki/cli/src/cli.ts` by a relative URL                                                                                                                                                                                                                                                                                                                  | `repo-namespacing-handoff.test.ts:468`                                                                       |
-| the inventory pins `apps/wiki/cli/tsconfig.lib.json`'s outDir `../../../dist/apps/wiki/cli`                                                                                                                                                                                                                                                                                               | `workspace-inventory.test.ts:241`                                                                            |
-| the bootstrap boundary selects `apps/wiki/cli` with `sourceSelector` `tools/tool-wiki`; its mapping prefix, index path and `mappingVersion` `…-v3`                                                                                                                                                                                                                                        | `docs/wiki-policy/bootstrap-policy.json:744`; `modules.bootstrap.json:4`, `:209`, `:214`                     |
-| both relationship files copy `twilight-burokrat`'s test, lint-source and typecheck targets, cwd and paths included, and a test compares them with `project.json`                                                                                                                                                                                                                          | `relationships.json:157`–`:204`, `relationships.bootstrap.json:129`–`:176`; `committed-target-facts.test.ts` |
-| the pilot pins the selector literally and pins the first refused index, which sorts by path                                                                                                                                                                                                                                                                                               | `pilot-policy.test.ts:971`, `:606`                                                                           |
-| `gate-entrypoints.test.ts` builds the root from quoted segments seven times                                                                                                                                                                                                                                                                                                               | `:29`, `:129`, `:518`, `:1113`, `:1192`, `:1292`, `:1300`                                                    |
-| CI selects the project by name, never by path                                                                                                                                                                                                                                                                                                                                             | `.github/workflows/ci.yml:481`                                                                               |
-| lefthook, `bin/*.sh`, root `package.json`, `tsconfig.base.json`, `.prettierignore` and `.nxignore` name no path under `apps/wiki`                                                                                                                                                                                                                                                         | `git grep` on the base                                                                                       |
-| the package's `files` and `bin` are package-relative; the base tarball has 163 entries, SHA-256 `13500818…`                                                                                                                                                                                                                                                                               | `apps/wiki/cli/package.json`; `test:package` on the base                                                     |
-| the Nx project `twilight-burokrat` has root `apps/wiki/cli` and `sourceRoot` `apps/wiki/cli/src`                                                                                                                                                                                                                                                                                          | `nx show project twilight-burokrat --json`                                                                   |
-| `check-indexes committed . HEAD` lists 34 indexes; Twilight Burokrat's, `module.infra.tool-wiki`, has 123 members                                                                                                                                                                                                                                                                         | run on the base                                                                                              |
-| strict OpenSpec: `{"items":114,"passed":114,"failed":0}`                                                                                                                                                                                                                                                                                                                                  | run on the base                                                                                              |
-| whole `tool-devsync:test` 371 pass; whole `twilight-burokrat:test` 762 pass and 2 fail, both `this test timed out after 5000ms` on a loaded host (`production CLI validation boundary > rejects noncanonical candidate and membership paths`, `relationship extraction production CLI > refuses malformed static Nx project data without running candidate code`); `test:package` 44 pass | run on the base, 2026-09-25                                                                                  |
-| the agent-scalable-wiki "operational freeze" that once deferred this move (`twilight-burokrat-package/design.md`) never happened: tasks 6.1 and 7.5 stay unchecked, and no committed artefact pins the old path beyond what section 3.1 lists                                                                                                                                             | `openspec/changes/agent-scalable-llm-wiki/tasks.md`                                                          |
+| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Where                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| the layout gate refuses any `apps/` root that is not three segments deep                                                                                                                                                                                                                                                                                                                                                                                         | `tools/tool-devsync/workspace-projects.mjs:397` (`segments.length !== 3`)                                    |
+| `apps/wiki/cli` is excused by `FROZEN_APPLICATION_ROOTS` as product and name `twilight-burokrat`, looked up by exact root                                                                                                                                                                                                                                                                                                                                        | `workspace-projects.mjs:300`, `:414`                                                                         |
+| `findStaleLayoutExceptions` reports an exception whose root no project occupies                                                                                                                                                                                                                                                                                                                                                                                  | `workspace-projects.mjs:310`                                                                                 |
+| the gate is enforced by devsync's `namespace-layout.test.ts` alone (`accepts the complete actual workspace after the coordinated move`)                                                                                                                                                                                                                                                                                                                          | `tools/tool-devsync/src/namespace-layout.test.ts`                                                            |
+| product lint policies are discovered one level below `apps/` and `libs/`, and a missing policy is the one outcome passed over                                                                                                                                                                                                                                                                                                                                    | `tools/tool-devsync/product-policies.mjs:5`, `:78`                                                           |
+| Nx's lint cache input for product policies is `{workspaceRoot}/apps/*/eslint.product.mjs`                                                                                                                                                                                                                                                                                                                                                                        | `nx.json:48`                                                                                                 |
+| project discovery (`readProjects`) is recursive, so the moved project is found at four segments                                                                                                                                                                                                                                                                                                                                                                  | `workspace-projects.mjs` `scanDirectory`                                                                     |
+| the dev poller restarts on `apps/wiki/cli/project.json` and `tsconfig.json`, and its test walks apps rather than trusting the list                                                                                                                                                                                                                                                                                                                               | `tools/tool-devsync/src/sync.ts:496`, `:509`; `sync.test.ts` "RESTART_PATHS coverage"                        |
+| the legacy-occurrence pin is `68a1e15d…`, 305 occurrences, keyed by path, class and line text; three moved files are named in its classifier                                                                                                                                                                                                                                                                                                                     | `repo-namespacing-handoff.test.ts:858`, `:406`–`:408`                                                        |
+| the index checker test runs `apps/wiki/cli/src/cli.ts` by a relative URL                                                                                                                                                                                                                                                                                                                                                                                         | `repo-namespacing-handoff.test.ts:468`                                                                       |
+| the inventory pins `apps/wiki/cli/tsconfig.lib.json`'s outDir `../../../dist/apps/wiki/cli`                                                                                                                                                                                                                                                                                                                                                                      | `workspace-inventory.test.ts:241`                                                                            |
+| the bootstrap boundary selects `apps/wiki/cli` with `sourceSelector` `tools/tool-wiki`; its mapping prefix, index path and `mappingVersion` `…-v3`                                                                                                                                                                                                                                                                                                               | `docs/wiki-policy/bootstrap-policy.json:744`; `modules.bootstrap.json:4`, `:209`, `:214`                     |
+| both relationship files copy `twilight-burokrat`'s test, lint-source and typecheck targets, cwd and paths included, and a test compares them with `project.json`                                                                                                                                                                                                                                                                                                 | `relationships.json:157`–`:204`, `relationships.bootstrap.json:129`–`:176`; `committed-target-facts.test.ts` |
+| the pilot pins the selector literally and pins the first refused index, which sorts by path                                                                                                                                                                                                                                                                                                                                                                      | `pilot-policy.test.ts:971`, `:606`                                                                           |
+| `gate-entrypoints.test.ts` builds the root from quoted segments seven times                                                                                                                                                                                                                                                                                                                                                                                      | `:29`, `:129`, `:518`, `:1113`, `:1192`, `:1292`, `:1300`                                                    |
+| CI selects the project by name, never by path                                                                                                                                                                                                                                                                                                                                                                                                                    | `.github/workflows/ci.yml:481`                                                                               |
+| lefthook, `bin/*.sh`, root `package.json`, `tsconfig.base.json`, `.prettierignore` and `.nxignore` name no path under `apps/wiki`                                                                                                                                                                                                                                                                                                                                | `git grep` on the base                                                                                       |
+| the package's `files` and `bin` are package-relative; the base tarball has 163 entries, SHA-256 `13500818…`                                                                                                                                                                                                                                                                                                                                                      | `apps/wiki/cli/package.json`; `test:package` on the base                                                     |
+| the Nx project `twilight-burokrat` has root `apps/wiki/cli` and `sourceRoot` `apps/wiki/cli/src`                                                                                                                                                                                                                                                                                                                                                                 | `nx show project twilight-burokrat --json`                                                                   |
+| `check-indexes committed . HEAD` lists 34 indexes; Twilight Burokrat's, `module.infra.tool-wiki`, has 123 members                                                                                                                                                                                                                                                                                                                                                | run on the base                                                                                              |
+| strict OpenSpec: 114 items on `ad0451da9`, 115 on `e93a564a0`                                                                                                                                                                                                                                                                                                                                                                                                    | run on the base                                                                                              |
+| whole `tool-devsync:test` 371 pass (372 on `e93a564a0`, inferred from slice 1's 379 less its seven cases); whole `twilight-burokrat:test` 762 pass and 2 fail, both `this test timed out after 5000ms` on a loaded host (`production CLI validation boundary > rejects noncanonical candidate and membership paths`, `relationship extraction production CLI > refuses malformed static Nx project data without running candidate code`); `test:package` 44 pass | run on the base, 2026-09-25                                                                                  |
+| the agent-scalable-wiki "operational freeze" that once deferred this move (`twilight-burokrat-package/design.md`) never happened: tasks 6.1 and 7.5 stay unchecked, and no committed artefact pins the old path beyond what section 3.1 lists                                                                                                                                                                                                                    | `openspec/changes/agent-scalable-llm-wiki/tasks.md`                                                          |
 
 ## 5. File plan
 
@@ -279,10 +307,11 @@ Every fact was read or run on `ad0451da9` on 2026-09-25 unless it names a rehear
 
 **Slice 2 owns the move**: every path under `apps/wiki/` (deleted) and under
 `apps/twilight-structure/twilight-burokrat/` (new, the same files; rehearsed 127 each way), plus
-`tasks.md` and `verify.md` of the change.
+`tasks.md` and `verify.md` of the change. It ends without a commit; the planner stages it.
 
 **Slice 3 owns 52 paths**: the 50 the script and patch 05 touch (listed in slice 3, step 3), plus
 `tasks.md` and `verify.md` of the change. One is new: `tools/tool-devsync/src/retired-roots.test.ts`.
+The planner commits slices 2 and 3 as one commit.
 
 Nothing else: not `package.json`, `bun.lock`, `lefthook.yml`, `bin/`, `.github/workflows/ci.yml` or
 `trusted-wiki.yml`, `infra/ci/burokrat/`, `docs/wiki-policy/policy.json` or `modules.json`, and no
@@ -317,7 +346,7 @@ test ! -s "$TMPDIR/evidence/status-before.txt"
 Expected: `base=` the slice note's hash and an **empty** `status-before.txt`.
 
 **0b. Helpers and extraction.** Writes six helpers into `$TMPDIR` and extracts this document's five
-patches (section 7), three scripts (section 7) and 31 fault patches (section 8), each by the heading
+patches (section 7), three scripts (section 7) and 35 fault patches (section 8), each by the heading
 above its block. Every file is written with `>`, so a rerun in the same `$TMPDIR` rewrites it.
 
 ````sh
@@ -478,11 +507,11 @@ r=$(grep -c '^```proof$' "$packet")
 echo "patches=$p scripts=$s faults=$f proofs=$r"
 test "$p" -eq 5
 test "$s" -eq 3
-test "$f" -eq 31
-test "$r" -eq 24
+test "$f" -eq 35
+test "$r" -eq 27
 ````
 
-Expected: `patches=5 scripts=3 faults=31 proofs=24`, exit 0, on a first run and on any rerun.
+Expected: `patches=5 scripts=3 faults=35 proofs=27`, exit 0, on a first run and on any rerun.
 **Applying patch NN** always means exactly this, never a hand edit:
 
 ```sh
@@ -529,21 +558,21 @@ for n in s1-base-layout s1-base-policies s1-base-cache s1-base-legacy; do bash "
 ```
 
 Then the strict OpenSpec block (section 9.2) as `s1-base-openspec`. Rehearsed: layout 19·0, policies
-15·0, cache 4·0, legacy 1·0, OpenSpec `{"items":114,"passed":114,"failed":0}`.
+15·0, cache 4·0, legacy 1·0, OpenSpec `{"items":115,"passed":115,"failed":0}` on `e93a564a0`.
 
 **Step 2. The contract first (R4).** Create the change with the batch README's standard block, then
 apply patch 03 and validate:
 
 ```sh
 set -euo pipefail
-OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change adopt-suite-directory-layout --schema sdd-lean
+env -u CLAUDECODE -u AGENT OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 new change adopt-suite-directory-layout --schema sdd-lean
 grep -n "schema: sdd-lean" openspec/changes/adopt-suite-directory-layout/.openspec.yaml
 git apply --check "$TMPDIR/patches/03.diff"
 git apply "$TMPDIR/patches/03.diff"
 ```
 
 Expected: one `1:schema: sdd-lean` line; then the strict block exits 0 with `passed` = step 1's
-number **plus 1** (rehearsed 114 → 115). Patch 03 also adds **Suite** to `CONTEXT.md` and rewords
+number **plus 1** (rehearsed 115 → 116). Patch 03 also adds **Suite** to `CONTEXT.md` and rewords
 **Product**.
 
 **Step 3. Red.** Apply patch 01 (the three test files), then:
@@ -556,7 +585,7 @@ c="$TMPDIR/run-check.sh"
 bash "$c" s1-red-layout dev ./src/namespace-layout.test.ts
 bash "$c" s1-red-policies dev ./src/eslint-boundaries.test.ts -t suite
 bash "$c" s1-red-cache dev ./src/lint-policy-cache.test.ts
-bash "$c" s1-red-typecheck env NX_DAEMON=false bunx nx run tool-devsync:typecheck --skip-nx-cache
+bash "$c" s1-red-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run tool-devsync:typecheck --skip-nx-cache
 for n in s1-red-layout s1-red-policies s1-red-cache; do bash "$TMPDIR/expect-status.sh" $n 1; done
 bash "$TMPDIR/expect-status.sh" s1-red-typecheck 0
 ```
@@ -566,8 +595,10 @@ Expected, rehearsed: layout `20 pass 3 fail` — `accepts a declared suite produ
 apps/<suite>/<product>/<project> under a declared suite` fail on `applications require
 apps/<product>/<project>`; the fourth new case, `keeps an undeclared directory a product, so four
 segments there stay malformed`, passes on this tree — it is the declared-list clause's oracle, and
-fault `n2` is its red. Policies `0 pass 2 fail` (`Expected: 1 · Received: 0` for the suite policy,
-`Expected: not 0` for the suite-level refusal). Cache `2 pass 2 fail` on the absent
+fault `n2` is its red. Policies `1 pass 2 fail` (`Expected: 1 · Received: 0` for the suite policy,
+`Expected: not 0` for the suite-level refusal); the third new case, `reads a libs directory named
+like a suite as a product`, passes on this tree — the `group !== 'apps'` clause's oracle, and fault `p3`
+is its red. Cache `2 pass 2 fail` on the absent
 `{workspaceRoot}/apps/*/*/eslint.product.mjs`. The tests type-check against the unchanged code:
 typecheck `status=0`.
 
@@ -587,7 +618,7 @@ bash "$TMPDIR/expect-status.sh" s1-pin-red 1
 sed 's/\x1b\[[0-9;]*m//g' "$TMPDIR/evidence/s1-pin-red.log" | grep -F '"digest": "551e2a7d0fb1ed4b5659abee6b00ede7ccf703b9f65f71761b88be12a318eb80"'
 ```
 
-Expected: layout step 1 **+4** (23·0), policies **+2** (17·0), cache unchanged (4·0); the legacy pin
+Expected: layout step 1 **+4** (23·0), policies **+3** (18·0), cache unchanged (4·0); the legacy pin
 fails with the received digest `551e2a7d…` printed, occurrences 305 → 308 and
 `current recursive selector` 31 → 34 — the three new `apps/*/*/` selectors, in `nx.json` and twice in
 `lint-policy-cache.test.ts`; nothing unclassified. **A different received digest is a stop** (section
@@ -596,8 +627,8 @@ with the same command: `status=0`, `1 pass`. Then typecheck and lint, each expec
 
 ```sh
 set -euo pipefail
-bash "$TMPDIR/run-check.sh" s1-typecheck env NX_DAEMON=false bunx nx run tool-devsync:typecheck --skip-nx-cache
-bash "$TMPDIR/run-check.sh" s1-lint env NX_DAEMON=false bunx nx run tool-devsync:lint --skip-nx-cache
+bash "$TMPDIR/run-check.sh" s1-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run tool-devsync:typecheck --skip-nx-cache
+bash "$TMPDIR/run-check.sh" s1-lint env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run tool-devsync:lint --skip-nx-cache
 bash "$TMPDIR/expect-status.sh" s1-typecheck 0
 bash "$TMPDIR/expect-status.sh" s1-lint 0
 ```
@@ -615,7 +646,7 @@ if git grep -n '<observed-date>' -- tools; then exit 1; else test $? -eq 1; fi
 bash "$TMPDIR/tick.sh" 1.1 1.2
 ```
 
-Expected: `inserted 8 proof blocks for s1-`, no placeholder left, tasks 1.1 and 1.2 checked. Rerun
+Expected: `inserted 9 proof blocks for s1-`, no placeholder left, tasks 1.1 and 1.2 checked. Rerun
 step 4's four test checks as `s1-final-*` (same counts) and `s1-lint` as `s1-final-lint`.
 
 **Step 7. Record and hand over.** Append this slice's `verify.md` entry (section 6.4), then:
@@ -630,9 +661,9 @@ printf '%s\n' CONTEXT.md nx.json tools/tool-devsync/product-policies.mjs \
   $o/specs/suite-directory-layout/spec.md $o/tasks.md $o/verify.md > "$TMPDIR/owned.txt"
 test "$(wc -l < "$TMPDIR/owned.txt")" -eq 13
 # shellcheck disable=SC2046 # fixed repository paths without spaces
-GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
+env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/owned.txt")
 # shellcheck disable=SC2046
-GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
+env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --check $(cat "$TMPDIR/owned.txt")
 git status --porcelain --untracked-files=all | cut -c4- | sort > "$TMPDIR/evidence/status-paths.txt"
 sort "$TMPDIR/owned.txt" | diff - "$TMPDIR/evidence/status-paths.txt"
 ```
@@ -684,12 +715,14 @@ Expected: `s2-move: apps/wiki is apps/twilight-structure/twilight-burokrat`, the
 moved, one line changed` (step 1's number). `s2-tsconfig.diff` holds exactly the `extends` line,
 `../../../tsconfig.base.json` → `../../../../tsconfig.base.json`.
 
-**Step 3.** `bash "$TMPDIR/tick.sh" 2.1`, append this slice's `verify.md` entry, then
-`GSETTINGS_BACKEND=memory bunx prettier --check` on the change's `tasks.md` and `verify.md`, and hand
-over:
+**Step 3.** `bash "$TMPDIR/tick.sh" 2.1`, append this slice's `verify.md` entry, format the two
+records and hand over:
 
 ```sh
 set -euo pipefail
+o=openspec/changes/adopt-suite-directory-layout
+env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $o/tasks.md $o/verify.md
+env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --check $o/tasks.md $o/verify.md
 git status --porcelain --untracked-files=all > "$TMPDIR/evidence/status-after.txt"
 n=$(cat "$TMPDIR/evidence/s2-count.txt")
 test "$(grep -c '^ D apps/wiki/' "$TMPDIR/evidence/status-after.txt")" -eq "$n"
@@ -699,16 +732,46 @@ test "$(wc -l < "$TMPDIR/evidence/status-after.txt")" -eq $((2 * n + 2))
 ```
 
 **Nothing else runs in this slice.** Typecheck, lint and the devsync and Twilight Burokrat suites are
-red on this tree by design until slice 3 (section 3.4); running them proves nothing the planner's
-record of the red does not.
+red on this tree until slice 3's edits; running them proves nothing slice 3's step 1 does not record.
 
-Planner commit subject: `refactor(burokrat): move apps/wiki to apps/twilight-structure/twilight-burokrat`,
-committed with `planner-commit.sh <clone> "<subject>" --skip-devsync` after checking the staged rename
-summary (section 9.4).
+**No planner commit** (D3, section 3.4). The planner reviews the hand-over, stages it and records the
+index digest slice 3's note carries:
+
+```sh
+git add -A
+git diff --cached -M --summary | grep -c '(100%)'
+git diff --cached -M --summary | grep -v '(100%)'
+git ls-files -s | sha256sum | cut -c1-64
+```
+
+Rehearsed: `126` renames at 100%, the one line
+` rename apps/{wiki => twilight-structure/twilight-burokrat}/cli/tsconfig.json (85%)`, and the two
+records as ` M`-staged; the digest is the clone's own and goes into slice 3's slice note.
 
 ### Slice 3 — every reference follows
 
-**Step 1.** Step 0, then the baselines, which are **red by design** on the slice 2 commit:
+**Step 1.** Slice 3 starts on slice 1's commit with slice 2's move **staged, not committed**, so it
+replaces step 0a with this check; replace both placeholders from the slice note
+(`reviewed base <sha>; staged index <digest>`):
+
+```sh
+set -euo pipefail
+mkdir -p "${TMPDIR:?}/evidence"
+base=$(git rev-parse HEAD)
+echo "base=$base" | tee "$TMPDIR/evidence/base.txt"
+reviewed=<the SHA named in this attempt's slice note>
+staged=<the index digest named in this attempt's slice note>
+test "$base" = "$reviewed"
+test "$(git ls-files -s | sha256sum | cut -c1-64)" = "$staged"
+git diff --quiet
+git ls-files --others --exclude-standard | tee "$TMPDIR/evidence/untracked-before.txt"
+test ! -s "$TMPDIR/evidence/untracked-before.txt"
+git diff --cached -M --summary | grep -c '^ rename apps/{wiki => twilight-structure/twilight-burokrat}/'
+```
+
+Expected: `base=` the note's hash, an empty `untracked-before.txt`, and the count of staged renames
+into the new root, rehearsed `127`. Then step 0b, and the baselines, which are **red by design** on the
+staged move:
 
 ```sh
 set -uo pipefail
@@ -719,11 +782,13 @@ for f in namespace-layout workspace-projects sync workspace-inventory workspace-
   bash "$c" s3-base-$f dev ./src/$f.test.ts
 done
 bash "$c" s3-base-legacy dev ./src/repo-namespacing-handoff.test.ts -t 'every legacy source occurrence'
-bash "$c" s3-base-typecheck env NX_DAEMON=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache
+bash "$c" s3-base-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache
 ```
 
 Rehearsed: layout 22·1, workspace-projects 15·2, sync 50·2, inventory 3·1, targets 17·2, cache 4·0,
 legacy 0·1, typecheck `status=1` with `error TS6053: File '…/apps/wiki/cli/tsconfig.json' not found`.
+The index already holds the new paths, so path-listing tests (`committed-target-facts.test.ts`, the
+retired-root check) see the moved tree.
 Record each; they are this slice's red. (`set -uo` without `-e`: the reds are expected.)
 
 **Step 2. The check, red first.** Apply patch 05 (the new `retired-roots.test.ts`), then:
@@ -804,8 +869,8 @@ printf '%s\n' \
   > "$TMPDIR/touched.txt"
 test "$(wc -l < "$TMPDIR/touched.txt")" -eq 50
 # shellcheck disable=SC2046 # fixed repository paths without spaces
-GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/touched.txt")
-git status --porcelain --untracked-files=all | cut -c4- | grep -v '^openspec/changes/adopt-suite-directory-layout/' | sort | diff - <(sort "$TMPDIR/touched.txt")
+env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(cat "$TMPDIR/touched.txt")
+{ git diff --name-only; git ls-files --others --exclude-standard; } | grep -v '^openspec/changes/adopt-suite-directory-layout/' | sort | diff - <(sort "$TMPDIR/touched.txt")
 ```
 
 Expected: `s3-edit: every substitution matched its count`; Prettier rewrites twelve of the 50 files
@@ -822,16 +887,14 @@ c="$TMPDIR/run-check.sh"
 for f in namespace-layout workspace-projects sync workspace-inventory workspace-targets lint-policy-cache retired-roots; do
   bash "$c" s3-green-$f dev ./src/$f.test.ts
 done
-bash "$c" s3-green-typecheck env NX_DAEMON=false bunx nx run-many -t typecheck -p tool-devsync twilight-burokrat --skip-nx-cache
-bash "$c" s3-green-lint env NX_DAEMON=false bunx nx run tool-devsync:lint --skip-nx-cache
-bash "$c" s3-green-lint-source env NX_DAEMON=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache
+bash "$c" s3-green-typecheck env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t typecheck -p tool-devsync twilight-burokrat --skip-nx-cache
+bash "$c" s3-green-lint env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run tool-devsync:lint --skip-nx-cache
+bash "$c" s3-green-lint-source env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache
 for f in admission/generations contracts/contracts inventory/classification indexes/root-migration \
   policy/activation policy/gate-entrypoints policy/release policy/trusted-policy rules/rules \
   relationships/committed-target-facts relationships/selectors review/audit packaging/release; do
   bash "$c" "s3-green-bk-${f//\//-}" bk ./src/$f.test.ts
 done
-bash "$c" s3-green-pilot-ondisk bk ./src/policy/pilot-policy.test.ts -t 'on-disk bootstrap policy, mapping and relationship files'
-bash "$c" s3-green-pilot-prose bk ./src/policy/pilot-policy.test.ts -t 'refuses prose facts presented as applicable checks'
 for n in "$TMPDIR"/evidence/s3-green-*.log; do bash "$TMPDIR/expect-status.sh" "$(basename "$n" .log)" 0; done
 ```
 
@@ -840,9 +903,12 @@ under the status wrapper and poll, preamble rule 19). Expected `status=0` everyw
 layout 23·0, workspace-projects 17·0, sync 52·0, inventory 4·0, targets 19·0, cache 4·0,
 retired-roots 3·0; generations 13, contracts 16, classification 16, root-migration 32,
 activation 13, gate-entrypoints 57, release (policy) 13, trusted-policy 55, rules 63,
-committed-target-facts 2, selectors 19, audit 19, release (packaging) 10, each with 0 fail; pilot on-disk group 4·0, prose-facts 1·0. The
-counts equal step 1's plus the three retired-root cases; the Twilight Burokrat files add and lose no
-test.
+committed-target-facts 2, selectors 19, audit 19, release (packaging) 10, each with 0 fail. The counts equal step 1's plus the three
+retired-root cases; the Twilight Burokrat files add and lose no test. The pilot's on-disk group and
+`refuses prose facts presented as applicable checks` read the repository at `HEAD`, which still holds
+the old root until the planner's commit: they are red on the staged move (rehearsed: on-disk 2·2 on
+`boundary.infra.tool-wiki` and `check.wiki-cli.test -> …/cli`, prose-facts on `membership target
+absent: …/cli/src`) and are the planner's, after the commit (section 9.4).
 
 **Step 5. The legacy pin.**
 
@@ -879,27 +945,28 @@ if git grep -n '<observed-date' -- tools apps; then exit 1; else test $? -eq 1; 
 bash "$TMPDIR/tick.sh" 3.1 3.2
 ```
 
-Expected: `inserted 16 proof blocks for s3-`. Rerun step 4's devsync checks, both lints and the two
-pilot filters as `s3-final-*`, and `s3-pin-green`: unchanged.
+Expected: `inserted 18 proof blocks for s3-`. Rerun step 4's devsync checks, both typechecks and
+both lints as `s3-final-*`, and `s3-pin-green`: unchanged.
 
 **Step 8. Record and hand over.** Append this slice's `verify.md` entry, then Prettier over the 50
 touched paths plus `tasks.md` and `verify.md` (`--write`, then `--check`), then:
 
 ```sh
 set -euo pipefail
-bash "$TMPDIR/run-check.sh" s3-format env NX_DAEMON=false bunx nx format:check --all
+bash "$TMPDIR/run-check.sh" s3-format env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx format:check --all
 bash "$TMPDIR/expect-status.sh" s3-format 0
 o=openspec/changes/adopt-suite-directory-layout
 { cat "$TMPDIR/touched.txt"; printf '%s\n' $o/tasks.md $o/verify.md; } | sort > "$TMPDIR/owned.txt"
 test "$(wc -l < "$TMPDIR/owned.txt")" -eq 52
-git status --porcelain --untracked-files=all | cut -c4- | sort | diff "$TMPDIR/owned.txt" -
+{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | diff "$TMPDIR/owned.txt" -
 ```
 
 Then the strict OpenSpec block (`passed` unchanged since slice 1). Expected: format `status=0`; an
-empty `diff`: 51 ` M` paths and one `??`, `tools/tool-devsync/src/retired-roots.test.ts`.
+empty `diff`: 51 paths changed against the index and one untracked,
+`tools/tool-devsync/src/retired-roots.test.ts`. The staged move is the planner's, from slice 2.
 
-Planner commit subject:
-`refactor(burokrat): every current reference follows Twilight Burokrat into the Twilight Structure suite`.
+Planner commit, for slices 2 and 3 together, through `planner-commit.sh` with whole devsync:
+`refactor(burokrat): move Twilight Burokrat into the Twilight Structure suite, every reference with it`.
 
 ### 6.4 Verification record entries
 
@@ -922,24 +989,25 @@ the only absolute paths in this document.
 # Slice 1, from the reviewed base.
 /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   suite-directory-move 1 <reviewed-base-sha> \
-  --driver claude --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
+  --driver claude --batch batch-7 \
   --slice-note 'reviewed base <reviewed-base-sha>' --preserve evidence
 
 # Slice 2, into the same clone once slice 1 is committed; P1 is slice 1's planner commit.
 /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   suite-directory-move 2 P1 \
-  --driver claude --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
+  --driver claude --batch batch-7 \
   --resume --require-ancestor P1 --slice-note 'reviewed base P1' --preserve evidence
 
-# Slice 3, once slice 2 is committed; P2 is slice 2's planner commit.
+# Slice 3, into the same clone once slice 2 is reviewed and staged (no commit); D is the
+# index digest the planner printed after staging.
 /home/df/wd/puni/puni-plan/exec/run-executor.sh \
-  suite-directory-move 3 P2 \
-  --driver claude --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
-  --resume --require-ancestor P2 --slice-note 'reviewed base P2' --preserve evidence
+  suite-directory-move 3 P1 \
+  --driver claude --batch batch-7 \
+  --resume --require-ancestor P1 --slice-note 'reviewed base P1; staged index D' --preserve evidence
 ```
 
-No `--seed`: no slice reads another attempt's evidence. No `--network`. `--batch batch-7` is not in
-the launcher's case list, so `--batch-dir` is required.
+No `--seed`: no slice reads another attempt's evidence. No `--network`. The launcher's `batch-7` case
+names this directory, so no `--batch-dir` is needed.
 
 ## 7. The code
 
@@ -957,7 +1025,7 @@ glob in the cache-input pins.
 
 ```diff
 diff --git a/tools/tool-devsync/src/eslint-boundaries.test.ts b/tools/tool-devsync/src/eslint-boundaries.test.ts
-index 9066f3f65..e5dc93fef 100644
+index 9066f3f65..f11068d19 100644
 --- a/tools/tool-devsync/src/eslint-boundaries.test.ts
 +++ b/tools/tool-devsync/src/eslint-boundaries.test.ts
 @@ -1,11 +1,11 @@
@@ -975,7 +1043,7 @@ index 9066f3f65..e5dc93fef 100644
 
  const workspace = fileURLToPath(new URL('../../..', import.meta.url));
  const lint = new ESLint({ cwd: workspace });
-@@ -341,6 +341,39 @@ describe('product lint policy discovery', () => {
+@@ -341,6 +341,61 @@ describe('product lint policy discovery', () => {
      expect(unreadable.output, unreadable.output).toContain('apps/probe/eslint.product.mjs');
    }, 90_000);
 
@@ -1010,6 +1078,28 @@ index 9066f3f65..e5dc93fef 100644
 +    expect(refused.code, refused.output).not.toBe(0);
 +    expect(refused.output, refused.output).toContain('sits in a suite directory');
 +    expect(refused.output, refused.output).toContain('apps/twilight-structure/eslint.product.mjs');
++  }, 90_000);
++
++  it('reads a libs directory named like a suite as a product', async () => {
++    const fixture = await createPolicyWorkspace();
++    await writeProject(fixture, 'libs/twilight-structure/probe', 'twilight-structure-probe', [
++      'scope:shared',
++      'ring:domain',
++      'runtime:isomorphic',
++      'product:twilight-structure',
++    ]);
++    await writeFile(
++      join(fixture, 'libs/twilight-structure/eslint.product.mjs'),
++      "export default () => [{ files: ['libs/twilight-structure/**/*.ts'], rules: { 'no-restricted-imports': ['error', { paths: ['left-pad'] }] } }];\n",
++    );
++    await writeFile(
++      join(fixture, 'libs/twilight-structure/probe/src/index.ts'),
++      "import 'left-pad';\n",
++    );
++    const applied = await runLint(fixture, 'twilight-structure-probe');
++    expect(applied.code, applied.output).toBe(1);
++    expect(applied.output, applied.output).toContain('no-restricted-imports');
++    expect(applied.output, applied.output).not.toContain('sits in a suite directory');
 +  }, 90_000);
 +
    it('refuses a policy that is not a function and one that returns no array', async () => {
@@ -1399,7 +1489,7 @@ index 63ff61648..852275fa1 100644
  over the SQLite source and by tests over the in-memory one. The batch runner calls its
 diff --git a/openspec/changes/adopt-suite-directory-layout/proposal.md b/openspec/changes/adopt-suite-directory-layout/proposal.md
 new file mode 100644
-index 000000000..795ea6914
+index 000000000..50002eb84
 --- /dev/null
 +++ b/openspec/changes/adopt-suite-directory-layout/proposal.md
 @@ -0,0 +1,71 @@
@@ -1434,7 +1524,7 @@ index 000000000..795ea6914
 +- To: `apps/twilight-structure/twilight-burokrat/{cli,consumer,eslint.product.mjs}`, with every
 +  current reference following it: project configuration, the release workflow, the bootstrap
 +  policy, mapping and relationship facts, devsync pins and current documents. A check keeps the
-+  retired root out of everything but historical records.
++  retired root out of everything but historical records, and survives their archiving.
 +
 +## Non-Goals
 +
@@ -1476,10 +1566,10 @@ index 000000000..795ea6914
 +Burokrat release workflow, `docs/wiki-policy`, current documents.
 diff --git a/openspec/changes/adopt-suite-directory-layout/specs/suite-directory-layout/spec.md b/openspec/changes/adopt-suite-directory-layout/specs/suite-directory-layout/spec.md
 new file mode 100644
-index 000000000..15ebb1c55
+index 000000000..2b181e15c
 --- /dev/null
 +++ b/openspec/changes/adopt-suite-directory-layout/specs/suite-directory-layout/spec.md
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,97 @@
 +## ADDED Requirements
 +
 +### Requirement: A declared suite holds its products one directory deeper
@@ -1549,33 +1639,40 @@ index 000000000..15ebb1c55
 +- **WHEN** the package suite packs the moved project
 +- **THEN** the tarball is `twilight-burokrat-0.1.0.tgz` and lists the same files as before the move
 +
-+### Requirement: The retired apps/wiki root survives only in historical records
++### Requirement: The retired root survives only in historical records
 +
-+Every file the repository tracks or would track SHALL be free of the `apps/wiki` root except the
-+listed historical records and the listed dated proofs, no file SHALL remain under `apps/wiki/`,
-+and every listed excuse SHALL still excuse exactly what it names.
++Every file the repository tracks or would track SHALL be free of the root Twilight Burokrat left
++in this change, in either of its two spellings, except the listed historical records and the
++listed dated proofs; no file SHALL remain under that root; and every listed excuse SHALL still
++excuse exactly what it names, before and after its OpenSpec change is archived.
 +
 +#### Scenario: A current file names the retired root
 +
-+- **WHEN** a current document or source file contains `apps/wiki/`
++- **WHEN** a current document or source file names the retired root, as a path or as quoted
++  segments
 +- **THEN** the check fails naming that file and line
 +
 +#### Scenario: A file is left under the retired root
 +
-+- **WHEN** any file exists under `apps/wiki/`, whatever it contains
++- **WHEN** any file exists under the retired root, whatever it contains
 +- **THEN** the check fails naming that path
 +
 +#### Scenario: An excuse no longer matches
 +
 +- **WHEN** a listed file holds more or fewer occurrences than its excuse counts, or a listed
-+  historical prefix holds none
++  historical tree holds none
 +- **THEN** the check fails naming that excuse
++
++#### Scenario: A listed change is archived
++
++- **WHEN** a change whose file carries a dated excuse moves to `openspec/changes/archive/`
++- **THEN** its excuse still matches and the check stays green
 diff --git a/openspec/changes/adopt-suite-directory-layout/tasks.md b/openspec/changes/adopt-suite-directory-layout/tasks.md
 new file mode 100644
-index 000000000..727947076
+index 000000000..bf3d2dbb2
 --- /dev/null
 +++ b/openspec/changes/adopt-suite-directory-layout/tasks.md
-@@ -0,0 +1,25 @@
+@@ -0,0 +1,26 @@
 +## 1. The suite level
 +
 +- [ ] 1.1 The layout gate reads `APPLICATION_SUITES` and accepts `apps/<suite>/<product>/<project>`
@@ -1589,8 +1686,8 @@ index 000000000..727947076
 +## 2. The move
 +
 +- [ ] 2.1 `apps/wiki` moves to `apps/twilight-structure/twilight-burokrat` with no content change
-+      but the one `extends` line the commit hook needs — test: every moved file byte-identical to
-+      its source but `cli/tsconfig.json`.
++      but the one `extends` line typed lint needs, committed together with slice 3 — test: every
++      moved file byte-identical to its source but `cli/tsconfig.json`.
 +
 +## 3. Every reference follows
 +
@@ -1600,7 +1697,8 @@ index 000000000..727947076
 +      and pilot suites at the committed head; negative: the name exception removed fails the
 +      real-workspace layout case.
 +- [ ] 3.2 The retired-root check — test: `retired-roots.test.ts`; negative: a planted reference,
-+      a planted file and a broken excuse each fail the check on its own clause.
++      a planted file and a broken excuse each fail the check on its own clause, and an archived
++      listed change stays excused.
 diff --git a/openspec/changes/adopt-suite-directory-layout/verify.md b/openspec/changes/adopt-suite-directory-layout/verify.md
 new file mode 100644
 index 000000000..7ee5c9738
@@ -1675,10 +1773,9 @@ echo "s2-move: apps/wiki is apps/twilight-structure/twilight-burokrat"
 ```diff
 diff --git a/tools/tool-devsync/src/retired-roots.test.ts b/tools/tool-devsync/src/retired-roots.test.ts
 new file mode 100644
-index 000000000..d7cee5632
 --- /dev/null
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,180 @@
 +import { lstat, readFile, readlink } from 'node:fs/promises';
 +import { join, relative } from 'node:path';
 +import { fileURLToPath } from 'node:url';
@@ -1703,22 +1800,37 @@ index 000000000..d7cee5632
 +const RETIRED_DIRECTORY = 'apps/wiki/';
 +
 +/**
++ * A path as it reads before its OpenSpec change was archived:
++ * `openspec/changes/archive/<date>-<name>/…` becomes `openspec/changes/<name>/…`. Every excuse
++ * below is written in this form, so archiving a listed change moves none of them.
++ */
++function unarchived(path: string): string {
++  return path.replace(/^openspec\/changes\/archive\/\d{4}-\d{2}-\d{2}-/, 'openspec/changes/');
++}
++
++/**
 + * Trees that record what was done, in the words of the day it was done. Rewriting their paths
-+ * would falsify them, so the retired root may stay there in any number.
++ * would falsify them, so the retired root may stay there in any number. A change is listed by
++ * its unarchived directory and stays excused once archived; its delta spec names no retired
++ * root, so the spec its archive syncs into `openspec/specs/` needs no excuse. The first tree a
++ * path falls under takes the occurrence, so the archive, which holds every archived change,
++ * comes last: an archived listed change still counts for its own entry.
 + */
 +const HISTORICAL_TREES = [
 +  'docs/superpowers/',
-+  'openspec/changes/archive/',
 +  'openspec/changes/adopt-suite-directory-layout/',
++  'openspec/changes/archive/',
 +] as const;
 +
 +/** Every change's verification record: observed commands and output, never current guidance. */
-+const VERIFICATION_RECORD = /^openspec\/changes\/[^/]+\/verify\.md$/;
++const VERIFICATION_RECORD = /^openspec\/changes\/(?:archive\/)?[^/]+\/verify\.md$/;
 +
 +/**
 + * Current files that also keep dated history naming the retired root: a proof observed before
 + * the move, a finished task, a superseded design. Each excuses exactly the occurrences it counts,
-+ * so a current reference added to one of them still fails.
++ * so a current reference added to one of them still fails. A file of an OpenSpec change is listed
++ * by its unarchived path and keeps its excuse when the change is archived; a change that edits a
++ * listed file's mentions, or moves it any other way, updates its count here in the same commit.
 + */
 +const DATED_MENTIONS: readonly (readonly [path: string, occurrences: number])[] = [
 +  ['apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts', 2],
@@ -1744,19 +1856,34 @@ index 000000000..d7cee5632
 +}
 +
 +/**
-+ * Every path Git tracks or would track: the index plus untracked files `.gitignore` admits.
++ * The paths one `git ls-files` invocation lists.
 + *
-+ * @throws When Git cannot list the workspace, or a listed path cannot be read.
++ * @throws When Git cannot list the workspace.
 + */
-+function candidatePaths(): string[] {
-+  const listing = Bun.spawnSync(
-+    ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-+    { cwd: WORKSPACE, stdout: 'pipe', stderr: 'pipe' },
-+  );
++function listPaths(options: readonly string[]): string[] {
++  const listing = Bun.spawnSync(['git', 'ls-files', ...options, '-z'], {
++    cwd: WORKSPACE,
++    stdout: 'pipe',
++    stderr: 'pipe',
++  });
 +  if (listing.exitCode !== 0) {
 +    throw new Error(`cannot list the workspace: ${listing.stderr.toString()}`);
 +  }
-+  return [...new Set(listing.stdout.toString().split('\0').filter(Boolean))].sort();
++  return listing.stdout.toString().split('\0').filter(Boolean);
++}
++
++/**
++ * Every path in the working tree Git tracks or would track: the index plus untracked files
++ * `.gitignore` admits, less tracked files the working tree no longer holds — a move not yet staged
++ * lists its old path as deleted and its new one as untracked.
++ *
++ * @throws When Git cannot list the workspace.
++ */
++function candidatePaths(): string[] {
++  const deleted = new Set(listPaths(['--deleted']));
++  return [...new Set(listPaths(['--cached', '--others', '--exclude-standard']))]
++    .filter((path) => !deleted.has(path))
++    .sort();
 +}
 +
 +/**
@@ -1776,14 +1903,17 @@ index 000000000..d7cee5632
 +  const current: string[] = [];
 +  for (const path of paths) {
 +    const text = await readText(path);
-+    const tree = HISTORICAL_TREES.find((prefix) => path.startsWith(prefix));
++    const excused = unarchived(path);
++    const tree = HISTORICAL_TREES.find(
++      (prefix) => excused.startsWith(prefix) || path.startsWith(prefix),
++    );
 +    const lines: number[] = [];
 +    for (const spelling of RETIRED_ROOT_SPELLINGS) {
 +      for (const match of text.matchAll(spelling)) {
-+        const dated = counted.get(path);
-+        if (tree !== undefined) perTree.set(tree, (perTree.get(tree) ?? 0) + 1);
++        const dated = counted.get(excused);
++        if (dated !== undefined) counted.set(excused, dated + 1);
++        else if (tree !== undefined) perTree.set(tree, (perTree.get(tree) ?? 0) + 1);
 +        else if (VERIFICATION_RECORD.test(path)) continue;
-+        else if (dated !== undefined) counted.set(path, dated + 1);
 +        else lines.push(text.slice(0, match.index).split('\n').length);
 +      }
 +    }
@@ -1832,9 +1962,11 @@ index 000000000..d7cee5632
 
 Read top to bottom, this is the whole of slice 3's edit. `sub` and `subf` refuse unless the file
 holds exactly the counted copies of the literal they replace; the here-documents are single-quoted,
-so nothing in them expands. The frozen exception's replacement, the name exception with its helper,
-and the three Proof blocks it retires (re-observed in section 8.3) are the `subf` blocks under
-`# The layout gate`.
+so nothing in them expands. The frozen exception's replacement and the name exception with its
+helper are the `subf` blocks under `# The layout gate`. The dated Proof comments this edit retires are six — the two 2026-09-18 ones in
+`workspace-projects.mjs`, two in `sync.ts`, one in `workspace-projects.test.ts` and one in
+`pilot-policy.test.ts` — each on a line the edit replaces, each observed again as a section 8.3 block
+(`s3-stale`, `s3-exact`/`s3-applied`, `s3-manifest`, `s3-tsconfig`, `s3-row`, `s3-selector`).
 
 #### Script s3-edit
 
@@ -2132,7 +2264,19 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
 NEW
-sub $P 1 "[root === 'apps/wiki/cli' ? 'product:twilight-burokrat' : \`product:\${root.split('/')[1]}\`]," "[\`product:\${root.split('/')[root.startsWith('apps/twilight-structure/') ? 2 : 1]}\`],"
+sub $P 1 "import { productConstraints, readProjects } from '../workspace-projects.mjs';" "import { APPLICATION_SUITES, productConstraints, readProjects } from '../workspace-projects.mjs';"
+subf $P 1 3<<'OLD' 4<<'NEW'
+      EXPECTED_PRODUCT_PROJECTS.map(([root]) => [
+        root,
+        [root === 'apps/wiki/cli' ? 'product:twilight-burokrat' : `product:${root.split('/')[1]}`],
+      ]),
+OLD
+      EXPECTED_PRODUCT_PROJECTS.map(([root]) => {
+        const segments = root.split('/');
+        const suite = segments[0] === 'apps' && APPLICATION_SUITES.includes(segments[1]);
+        return [root, [`product:${segments[suite ? 2 : 1]}`]];
+      }),
+NEW
 # The pilot: the selector pin moves, its proof is observed again; the first refused index is
 # Twilight Burokrat's own again.
 PP=$C/src/policy/pilot-policy.test.ts
@@ -2196,17 +2340,18 @@ Every patch is zero-context, so a comment of any length above a line does not mo
 
 ### 8.1 Slice 1
 
-| Fault | Clause disabled                                                                       | Named case, and the fact it fails on                                                                                                                                   |
-| ----- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `n1`  | suite recognition (`APPLICATION_SUITES.includes(segments[1])` → `false`)              | `accepts a declared suite product at …` receives `applications require apps/<product>/<project>` (three cases fail: every suite case)                                  |
-| `n2`  | only a declared directory is a suite (`\|\| segments.length === 4` added)             | `keeps an undeclared directory a product, …` receives `[]`; nothing else fails                                                                                         |
-| `n3`  | the shape guard inside a suite (`suite === undefined &&`)                             | `requires exactly apps/<suite>/<product>/<project> …` receives the derived product `cli` and `project name must be cli-undefined, found twilight-structure-cli`        |
-| `n6`  | the shape guard outside a suite (`suite !== undefined &&`)                            | `keeps an undeclared directory a product, …` receives `directory product probe-suite disagrees with product:probe` — a different fact from `n2`'s                      |
-| `n4`  | the product read from the product directory (`segments[1]`)                           | `derives a suite project product and name …` loses its product line; `accepts …` receives `directory product twilight-structure disagrees with product:twilight-probe` |
-| `n5`  | the name built from the product and project directories (`segments[1]`-`segments[2]`) | the same case loses its name line; `accepts …` receives `project name must be twilight-structure-twilight-probe, found twilight-probe-cli`                             |
-| `p1`  | the walk of a suite's products (`for (const product of [])`)                          | `applies a suite product policy at …` sees the lint exit 0 (`Received: 0`); the refusal case passes                                                                    |
-| `p2`  | the suite-level refusal (`if (false)`)                                                | `refuses a policy in a suite directory itself` sees the lint exit 0 (`Expected: not 0`); the walk case passes                                                          |
-| `c1`  | the Nx lint input `{workspaceRoot}/apps/*/*/eslint.product.mjs` removed               | both cache-input cases fail on its absence                                                                                                                             |
+| Fault | Clause disabled                                                                       | Named case, and the fact it fails on                                                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `n1`  | suite recognition (`APPLICATION_SUITES.includes(segments[1])` → `false`)              | `accepts a declared suite product at …` receives `applications require apps/<product>/<project>` (three cases fail: every suite case)                                          |
+| `n2`  | only a declared directory is a suite (`\|\| segments.length === 4` added)             | `keeps an undeclared directory a product, …` receives `[]`; nothing else fails                                                                                                 |
+| `n3`  | the shape guard inside a suite (`suite === undefined &&`)                             | `requires exactly apps/<suite>/<product>/<project> …` receives the derived product `cli` and `project name must be cli-undefined, found twilight-structure-cli`                |
+| `n6`  | the shape guard outside a suite (`suite !== undefined &&`)                            | `keeps an undeclared directory a product, …` receives `directory product probe-suite disagrees with product:probe` — a different fact from `n2`'s                              |
+| `n4`  | the product read from the product directory (`segments[1]`)                           | `derives a suite project product and name …` loses its product line; `accepts …` receives `directory product twilight-structure disagrees with product:twilight-probe`         |
+| `n5`  | the name built from the product and project directories (`segments[1]`-`segments[2]`) | the same case loses its name line; `accepts …` receives `project name must be twilight-structure-twilight-probe, found twilight-probe-cli`                                     |
+| `p1`  | the walk of a suite's products (`for (const product of [])`)                          | `applies a suite product policy at …` sees the lint exit 0 (`Received: 0`); the refusal case passes                                                                            |
+| `p2`  | the suite-level refusal (`if (false)`)                                                | `refuses a policy in a suite directory itself` sees the lint exit 0 (`Expected: not 0`); the walk case passes                                                                  |
+| `p3`  | libs stays out of the suite walk (`group !== 'apps' \|\|` removed)                    | `reads a libs directory named like a suite as a product` sees the lint refuse `libs/twilight-structure/eslint.product.mjs` as sitting in a suite directory; the other two pass |
+| `c1`  | the Nx lint input `{workspaceRoot}/apps/*/*/eslint.product.mjs` removed               | both cache-input cases fail on its absence                                                                                                                                     |
 
 #### Fault n1 — suite recognition off
 
@@ -2288,6 +2433,16 @@ Every patch is zero-context, so a comment of any length above a line does not mo
 +      if (false) {
 ```
 
+#### Fault p3 — a libs directory read as a suite
+
+```diff
+--- a/tools/tool-devsync/product-policies.mjs
++++ b/tools/tool-devsync/product-policies.mjs
+@@ -156 +156 @@
+-      if (group !== 'apps' || !APPLICATION_SUITES.includes(directory)) {
++      if (!APPLICATION_SUITES.includes(directory)) {
+```
+
 #### Fault c1 — suite policy glob not a lint input
 
 ```diff
@@ -2304,7 +2459,7 @@ set -euo pipefail
 d=tools/tool-devsync
 t='env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts'
 for id in n1 n2 n3 n6 n4 n5; do bash "$TMPDIR/fault.sh" $id $d $t ./src/namespace-layout.test.ts; done
-for id in p1 p2; do bash "$TMPDIR/fault.sh" $id $d $t ./src/eslint-boundaries.test.ts -t suite; done
+for id in p1 p2 p3; do bash "$TMPDIR/fault.sh" $id $d $t ./src/eslint-boundaries.test.ts -t suite; done
 bash "$TMPDIR/fault.sh" c1 $d $t ./src/lint-policy-cache.test.ts -t declares
 ```
 
@@ -2328,6 +2483,8 @@ bash "$e" p1 1 ' 1 fail' \
   'Received: 0'
 bash "$e" p2 1 ' 1 fail' '(fail) product lint policy discovery > refuses a policy in a suite directory itself' \
   'Expected: not 0'
+bash "$e" p3 1 ' 1 fail' '(fail) product lint policy discovery > reads a libs directory named like a suite as a product' \
+  'sits in a suite directory'
 bash "$e" c1 1 ' 2 fail' \
   '(fail) production lint policy cache inputs > declares every transitive workspace input read by the generated policy' \
   '(fail) production lint policy cache inputs > declares the discovery module and every product lint policy glob'
@@ -2336,22 +2493,24 @@ echo "slice 1: every fault failed its named case on its own fact"
 
 ### 8.2 Slice 3
 
-| Fault           | What it does                                                                                      | Named case, and the fact                                                                                                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `g1` / `g1-off` | plants an untracked `apps/wiki/stray.txt` naming nothing / and disables the leftover filter       | `no file remains …` fails with `"apps/wiki/stray.txt"` alone / every case passes                                                                                                                                             |
-| `g2` / `g2-off` | plants an untracked document naming the root / and drops `--others`                               | `no current file names …` fails with `"docs/retired-root-probe.md:1"` / that case passes (the excuse case fails on the untracked check file itself, `excuses 3, holds 0`, because an executor's check file is untracked too) |
-| `g3` / `g3-off` | writes the root into tracked `docs/local-dev.md`'s first line / and reports no unexcused line     | `no current file names …` fails with `"docs/local-dev.md:1"` / every case passes                                                                                                                                             |
-| `g4` / `g4-off` | plants a document holding only `join('apps', 'wiki')` / and drops the segment spelling            | `no current file names …` fails with `"docs/retired-root-probe.md:1"` / every case passes                                                                                                                                    |
-| `g5` / `g5-off` | adds one mention to excused `openspec/changes/wiki-release/tasks.md` / and stops comparing counts | `every excuse …` fails with `excuses 4, holds 5` while `no current file …` passes / every case passes                                                                                                                        |
-| `g6` / `g6-off` | adds a historical tree `docs/no-such-tree/` / and stops reporting empty trees                     | `every excuse …` fails with `docs/no-such-tree/: excuses nothing` / every case passes                                                                                                                                        |
-| `g7` / `g7-off` | misspells `ls-files` / and removes the refusal                                                    | all three fail on `cannot list the workspace: git: 'ls-filez' is not a git command` / only the excuse case fails, every excuse holding 0                                                                                     |
-| `e1`            | excuses every root under the product directory instead of the exact one                           | `excuses only the exact root its name exception names` loses the `…/other` name line                                                                                                                                         |
-| `e2`            | drops `excusedName(project.root) ??`                                                              | `accepts the complete actual workspace …` receives `…/cli: project name must be twilight-burokrat-cli, found twilight-burokrat`                                                                                              |
-| `e3`            | the stale-exception filter answers `false`                                                        | `names a name exception that no project occupies` receives `[]`                                                                                                                                                              |
-| `r1`, `r2`      | omit the two moved `RESTART_PATHS` entries                                                        | `names every app project.json …` / `names every app tsconfig …` on `Expected to contain: "…/cli/project.json"` / `"…/cli/tsconfig.json"`                                                                                     |
-| `r3`            | omits the moved destination-map row                                                               | `pins every product root …` on the extra tuple, and `activates the product axis …` on its companion                                                                                                                          |
-| `r4`            | pins the pre-move three-deep outDir                                                               | `pins the complete moved depth-sensitive configuration inventory` on `value: "../../../dist/apps/wiki/cli"`                                                                                                                  |
-| `r5`            | widens the bootstrap selector to `apps`                                                           | `the bootstrap policy and mapping select the moved pilot boundaries at HEAD` on `+   "value": "apps",` alone                                                                                                                 |
+| Fault           | What it does                                                                                                                                                           | Named case, and the fact                                                                                                                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `g1` / `g1-off` | plants an untracked `apps/wiki/stray.txt` naming nothing / and disables the leftover filter                                                                            | `no file remains …` fails with `"apps/wiki/stray.txt"` alone / every case passes                                                                                                                                                                                                                                                     |
+| `g2` / `g2-off` | plants an untracked document naming the root / and drops `--others`                                                                                                    | `no current file names …` fails with `"docs/retired-root-probe.md:1"` / that case passes (the excuse case fails on the untracked check file itself, `excuses 3, holds 0`, because an executor's check file is untracked too)                                                                                                         |
+| `g3` / `g3-off` | writes the root into tracked `docs/local-dev.md`'s first line / and reports no unexcused line                                                                          | `no current file names …` fails with `"docs/local-dev.md:1"` / every case passes                                                                                                                                                                                                                                                     |
+| `g4` / `g4-off` | plants a document holding only `join('apps', 'wiki')` / and drops the segment spelling                                                                                 | `no current file names …` fails with `"docs/retired-root-probe.md:1"` / every case passes                                                                                                                                                                                                                                            |
+| `g5` / `g5-off` | adds one mention to excused `openspec/changes/wiki-release/tasks.md` / and stops comparing counts                                                                      | `every excuse …` fails with `excuses 4, holds 5` while `no current file …` passes / every case passes                                                                                                                                                                                                                                |
+| `g6` / `g6-off` | adds a historical tree `docs/no-such-tree/` / and stops reporting empty trees                                                                                          | `every excuse …` fails with `docs/no-such-tree/: excuses nothing` / every case passes                                                                                                                                                                                                                                                |
+| `g7` / `g7-off` | misspells `ls-files` / and removes the refusal                                                                                                                         | all three fail on `cannot list the workspace: git: 'ls-filez' is not a git command` / the leftover and current cases pass on an empty listing and only the excuse case fails, every excuse holding 0: the empty-tree excuse catches the fault too, and the refusal's own share is that two of three cases do not go green on nothing |
+| `g9`            | the `g8` move with `.filter((path) => !deleted.has(path))` removed                                                                                                     | all three fail on `ENOENT` reading the moved file's old path, still listed by the index                                                                                                                                                                                                                                              |
+| `g8` / `g8-off` | moves `twilight-burokrat-package/proposal.md` into `openspec/changes/archive/2026-10-01-twilight-burokrat-package/` / and makes `unarchived` return the path unchanged | all three **pass** / `every excuse …` fails with `openspec/changes/twilight-burokrat-package/proposal.md: excuses 2, holds 0`                                                                                                                                                                                                        |
+| `e1`            | excuses every root under the product directory instead of the exact one                                                                                                | `excuses only the exact root its name exception names` loses the `…/other` name line                                                                                                                                                                                                                                                 |
+| `e2`            | drops `excusedName(project.root) ??`                                                                                                                                   | `accepts the complete actual workspace …` receives `…/cli: project name must be twilight-burokrat-cli, found twilight-burokrat`                                                                                                                                                                                                      |
+| `e3`            | the stale-exception filter answers `false`                                                                                                                             | `names a name exception that no project occupies` receives `[]`                                                                                                                                                                                                                                                                      |
+| `r1`, `r2`      | omit the two moved `RESTART_PATHS` entries                                                                                                                             | `names every app project.json …` / `names every app tsconfig …` on `Expected to contain: "…/cli/project.json"` / `"…/cli/tsconfig.json"`                                                                                                                                                                                             |
+| `r3`            | omits the moved destination-map row                                                                                                                                    | `pins every product root …` on the extra tuple, and `activates the product axis …` on its companion                                                                                                                                                                                                                                  |
+| `r4`            | pins the pre-move three-deep outDir                                                                                                                                    | `pins the complete moved depth-sensitive configuration inventory` on `value: "../../../dist/apps/wiki/cli"`                                                                                                                                                                                                                          |
+| `r5`            | widens the bootstrap selector to `apps`                                                                                                                                | `the bootstrap policy and mapping select the moved pilot boundaries at HEAD` on `+   "value": "apps",`; on the staged move the group's nx-target case, which reads `HEAD`, is red too (`2 fail`); the planner replays `r5` on the commit, where it fails alone                                                                       |
 
 #### Fault g1 — a file left under the retired root
 
@@ -2371,7 +2530,7 @@ echo "slice 1: every fault failed its named case on its own fact"
 +stray
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -123 +123 @@
+@@ -156 +156 @@
 -    leftovers: paths.filter((path) => path.startsWith(RETIRED_DIRECTORY)),
 +    leftovers: paths.filter(() => false),
 ```
@@ -2394,9 +2553,9 @@ echo "slice 1: every fault failed its named case on its own fact"
 +See `apps/wiki/cli`.
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -72 +72 @@
--    ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-+    ['git', 'ls-files', '--cached', '--exclude-standard', '-z'],
+@@ -106 +106 @@
+-  return [...new Set(listPaths(['--cached', '--others', '--exclude-standard']))]
++  return [...new Set(listPaths(['--cached', '--exclude-standard']))]
 ```
 
 #### Fault g3 — a tracked document naming the root
@@ -2419,7 +2578,7 @@ echo "slice 1: every fault failed its named case on its own fact"
 +# Local Development, formerly under `apps/wiki/cli`
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -106 +106 @@
+@@ -139 +139 @@
 -        else lines.push(text.slice(0, match.index).split('\n').length);
 +        else continue;
 ```
@@ -2466,7 +2625,7 @@ echo "slice 1: every fault failed its named case on its own fact"
 +Ordered slices. Slices 1 and 2 stand alone and land first: they make the existing archive's (`apps/wiki/cli`)
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -117 +117 @@
+@@ -150 +150 @@
 -    ...DATED_MENTIONS.filter(([path, occurrences]) => counted.get(path) !== occurrences).map(
 +    ...DATED_MENTIONS.filter(() => false).map(
 ```
@@ -2476,7 +2635,7 @@ echo "slice 1: every fault failed its named case on its own fact"
 ```diff
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -30 +30 @@
+@@ -44 +44 @@
 -  'openspec/changes/archive/',
 +  'openspec/changes/archive/', 'docs/no-such-tree/',
 ```
@@ -2486,12 +2645,12 @@ echo "slice 1: every fault failed its named case on its own fact"
 ```diff
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -30 +30 @@
+@@ -44 +44 @@
 -  'openspec/changes/archive/',
 +  'openspec/changes/archive/', 'docs/no-such-tree/',
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -114 +114 @@
+@@ -147 +147 @@
 -    ...HISTORICAL_TREES.filter((tree) => perTree.get(tree) === 0).map(
 +    ...HISTORICAL_TREES.filter(() => false).map(
 ```
@@ -2501,9 +2660,9 @@ echo "slice 1: every fault failed its named case on its own fact"
 ```diff
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -72 +72 @@
--    ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-+    ['git', 'ls-filez', '--cached', '--others', '--exclude-standard', '-z'],
+@@ -86 +86 @@
+-  const listing = Bun.spawnSync(['git', 'ls-files', ...options, '-z'], {
++  const listing = Bun.spawnSync(['git', 'ls-filez', ...options, '-z'], {
 ```
 
 #### Fault g7-off — the same, refusal removed
@@ -2511,15 +2670,177 @@ echo "slice 1: every fault failed its named case on its own fact"
 ```diff
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -72 +72 @@
--    ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-+    ['git', 'ls-filez', '--cached', '--others', '--exclude-standard', '-z'],
+@@ -86 +86 @@
+-  const listing = Bun.spawnSync(['git', 'ls-files', ...options, '-z'], {
++  const listing = Bun.spawnSync(['git', 'ls-filez', ...options, '-z'], {
 --- a/tools/tool-devsync/src/retired-roots.test.ts
 +++ b/tools/tool-devsync/src/retired-roots.test.ts
-@@ -75,3 +74,0 @@
+@@ -91,3 +90,0 @@
 -  if (listing.exitCode !== 0) {
 -    throw new Error(`cannot list the workspace: ${listing.stderr.toString()}`);
 -  }
+```
+
+#### Fault g8 — a listed change archived
+
+```diff
+--- a/openspec/changes/twilight-burokrat-package/proposal.md
++++ /dev/null
+@@ -1,20 +0,0 @@
+-# Intent
+-
+-## Problem
+-
+-The reusable repository-admission toolkit is built inside `apps/wiki/cli` and distributed as a bespoke archive. Its executable and trusted assets cannot yet be installed, tested, or released as an independent package.
+-
+-## Desired outcome
+-
+-Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-burokrat` executable, bundled validation/runtime dependencies, immutable toolkit assets, and no lifecycle scripts. Prove the packed tarball in a clean repository outside this checkout, and make the release workflow publish the exact tested tarball.
+-
+-## Non-goals
+-
+-- Moving the package to another Git repository.
+-- Certifying a consumer commit merely by installing a package.
+-- Renaming historical stored activations or evidence.
+-- Publishing without verified registry authority and protected credentials.
+-
+-## Constraints
+-
+-Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+--- /dev/null
++++ b/openspec/changes/archive/2026-10-01-twilight-burokrat-package/proposal.md
+@@ -0,0 +1,20 @@
++# Intent
++
++## Problem
++
++The reusable repository-admission toolkit is built inside `apps/wiki/cli` and distributed as a bespoke archive. Its executable and trusted assets cannot yet be installed, tested, or released as an independent package.
++
++## Desired outcome
++
++Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-burokrat` executable, bundled validation/runtime dependencies, immutable toolkit assets, and no lifecycle scripts. Prove the packed tarball in a clean repository outside this checkout, and make the release workflow publish the exact tested tarball.
++
++## Non-goals
++
++- Moving the package to another Git repository.
++- Certifying a consumer commit merely by installing a package.
++- Renaming historical stored activations or evidence.
++- Publishing without verified registry authority and protected credentials.
++
++## Constraints
++
++Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+```
+
+#### Fault g8-off — the same, archived paths not mapped back
+
+```diff
+--- a/openspec/changes/twilight-burokrat-package/proposal.md
++++ /dev/null
+@@ -1,20 +0,0 @@
+-# Intent
+-
+-## Problem
+-
+-The reusable repository-admission toolkit is built inside `apps/wiki/cli` and distributed as a bespoke archive. Its executable and trusted assets cannot yet be installed, tested, or released as an independent package.
+-
+-## Desired outcome
+-
+-Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-burokrat` executable, bundled validation/runtime dependencies, immutable toolkit assets, and no lifecycle scripts. Prove the packed tarball in a clean repository outside this checkout, and make the release workflow publish the exact tested tarball.
+-
+-## Non-goals
+-
+-- Moving the package to another Git repository.
+-- Certifying a consumer commit merely by installing a package.
+-- Renaming historical stored activations or evidence.
+-- Publishing without verified registry authority and protected credentials.
+-
+-## Constraints
+-
+-Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+--- /dev/null
++++ b/openspec/changes/archive/2026-10-01-twilight-burokrat-package/proposal.md
+@@ -0,0 +1,20 @@
++# Intent
++
++## Problem
++
++The reusable repository-admission toolkit is built inside `apps/wiki/cli` and distributed as a bespoke archive. Its executable and trusted assets cannot yet be installed, tested, or released as an independent package.
++
++## Desired outcome
++
++Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-burokrat` executable, bundled validation/runtime dependencies, immutable toolkit assets, and no lifecycle scripts. Prove the packed tarball in a clean repository outside this checkout, and make the release workflow publish the exact tested tarball.
++
++## Non-goals
++
++- Moving the package to another Git repository.
++- Certifying a consumer commit merely by installing a package.
++- Renaming historical stored activations or evidence.
++- Publishing without verified registry authority and protected credentials.
++
++## Constraints
++
++Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+--- a/tools/tool-devsync/src/retired-roots.test.ts
++++ b/tools/tool-devsync/src/retired-roots.test.ts
+@@ -30 +30 @@
+-  return path.replace(/^openspec\/changes\/archive\/\d{4}-\d{2}-\d{2}-/, 'openspec/changes/');
++  return path;
+```
+
+#### Fault g9 — the same, deleted paths still read
+
+```diff
+--- a/openspec/changes/twilight-burokrat-package/proposal.md
++++ /dev/null
+@@ -1,20 +0,0 @@
+-# Intent
+-
+-## Problem
+-
+-The reusable repository-admission toolkit is built inside `apps/wiki/cli` and distributed as a bespoke archive. Its executable and trusted assets cannot yet be installed, tested, or released as an independent package.
+-
+-## Desired outcome
+-
+-Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-burokrat` executable, bundled validation/runtime dependencies, immutable toolkit assets, and no lifecycle scripts. Prove the packed tarball in a clean repository outside this checkout, and make the release workflow publish the exact tested tarball.
+-
+-## Non-goals
+-
+-- Moving the package to another Git repository.
+-- Certifying a consumer commit merely by installing a package.
+-- Renaming historical stored activations or evidence.
+-- Publishing without verified registry authority and protected credentials.
+-
+-## Constraints
+-
+-Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+--- /dev/null
++++ b/openspec/changes/archive/2026-10-01-twilight-burokrat-package/proposal.md
+@@ -0,0 +1,20 @@
++# Intent
++
++## Problem
++
++The reusable repository-admission toolkit is built inside `apps/wiki/cli` and distributed as a bespoke archive. Its executable and trusted assets cannot yet be installed, tested, or released as an independent package.
++
++## Desired outcome
++
++Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-burokrat` executable, bundled validation/runtime dependencies, immutable toolkit assets, and no lifecycle scripts. Prove the packed tarball in a clean repository outside this checkout, and make the release workflow publish the exact tested tarball.
++
++## Non-goals
++
++- Moving the package to another Git repository.
++- Certifying a consumer commit merely by installing a package.
++- Renaming historical stored activations or evidence.
++- Publishing without verified registry authority and protected credentials.
++
++## Constraints
++
++Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+--- a/tools/tool-devsync/src/retired-roots.test.ts
++++ b/tools/tool-devsync/src/retired-roots.test.ts
+@@ -107 +106,0 @@
+-    .filter((path) => !deleted.has(path))
 ```
 
 #### Fault e1 — name exception widened to the product directory
@@ -2539,7 +2860,7 @@ echo "slice 1: every fault failed its named case on its own fact"
 ```diff
 --- a/tools/tool-devsync/workspace-projects.mjs
 +++ b/tools/tool-devsync/workspace-projects.mjs
-@@ -456 +456 @@
+@@ -458 +458 @@
 -        excusedName(project.root) ?? `${segments[productAt]}-${segments[productAt + 1]}`;
 +        `${segments[productAt]}-${segments[productAt + 1]}`;
 ```
@@ -2607,7 +2928,7 @@ Run, then expect:
 set -euo pipefail
 d=tools/tool-devsync
 t='env -u CLAUDECODE -u AGENT -u CLAUDE_CODE_ENTRYPOINT bun test --preload ../test/scratch/preload.ts'
-for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off; do
+for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off g8 g8-off g9; do
   bash "$TMPDIR/fault.sh" $id $d $t ./src/retired-roots.test.ts
 done
 for id in e1 e2 e3; do bash "$TMPDIR/fault.sh" $id $d $t ./src/namespace-layout.test.ts; done
@@ -2641,6 +2962,9 @@ bash "$e" g6 1 ' 1 fail' "$EXCUSE" 'docs/no-such-tree/: excuses nothing'
 bash "$e" g6-off 0 ' 3 pass'
 bash "$e" g7 1 ' 3 fail' "cannot list the workspace: git: 'ls-filez' is not a git command"
 bash "$e" g7-off 1 ' 1 fail' "$EXCUSE" 'docs/superpowers/: excuses nothing'
+bash "$e" g8 0 ' 3 pass'
+bash "$e" g8-off 1 ' 1 fail' "$EXCUSE" 'openspec/changes/twilight-burokrat-package/proposal.md: excuses 2, holds 0'
+bash "$e" g9 1 ' 3 fail' 'ENOENT' 'openspec/changes/twilight-burokrat-package/proposal.md'
 L='(fail) namespace layout validation >'
 bash "$e" e1 1 ' 1 fail' "$L excuses only the exact root its name exception names" \
   'apps/twilight-structure/twilight-burokrat/other: project name must be twilight-burokrat-other, found twilight-burokrat'
@@ -2658,16 +2982,18 @@ bash "$e" r3 1 ' 2 fail' \
   '(fail) readProjects > activates the product axis of its own directory on every app and library'
 bash "$e" r4 1 ' 1 fail' '(fail) pins the complete moved depth-sensitive configuration inventory' \
   "value: \"../../../dist/apps/wiki/cli\""
-bash "$e" r5 1 ' 1 fail' \
+# Two fail: the named case on the widened selector, and the nx-target case, which reads HEAD and
+# is red on the staged move until the planner's commit (section 9.4 replays r5 after it).
+bash "$e" r5 1 ' 2 fail' \
   '(fail) on-disk bootstrap policy, mapping and relationship files > the bootstrap policy and mapping select the moved pilot boundaries at HEAD' \
   '+   "value": "apps",'
-echo "slice 3: every fault failed its named case on its own fact, and every clause-off run passed it"
+echo "slice 3: every fault met its expected outcome, and every clause-off twin showed its clause alone decides it"
 ```
 
 ### 8.3 The Proof comments
 
-Each block names its file and either the line it goes directly above (`anchor:`) or directly below
-(`after:`), compared with indentation trimmed and required to match exactly one line.
+Nine blocks are slice 1's and eighteen slice 3's. Each block names its file and either the line it
+goes directly above (`anchor:`) or directly below (`after:`), compared with indentation trimmed and required to match exactly one line.
 `insert-proofs.pl` inserts a slice's blocks with the anchor's indentation and the executor's own
 date; the slice's steps say when. Blocks `s1-*` belong to slice 1 and `s3-*` to slice 3.
 
@@ -2727,6 +3053,15 @@ anchor: if (await isPolicyPresent(suitePolicy)) {
 ```
 
 ```proof
+id: s1-libs
+file: tools/tool-devsync/product-policies.mjs
+anchor: if (group !== 'apps' || !APPLICATION_SUITES.includes(directory)) {
+// Proof: with `group !== 'apps' ||` removed, `reads a libs directory named like a suite as a
+// product` saw the lint refuse `libs/twilight-structure/eslint.product.mjs` as sitting in a
+// suite directory (<observed-date>).
+```
+
+```proof
 id: s1-cache
 file: tools/tool-devsync/src/lint-policy-cache.test.ts
 anchor: const inputs = await productionLintInputs();
@@ -2756,7 +3091,7 @@ anchor: leftovers: paths.filter((path) => path.startsWith(RETIRED_DIRECTORY)),
 ```proof
 id: s3-others
 file: tools/tool-devsync/src/retired-roots.test.ts
-anchor: ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+anchor: return [...new Set(listPaths(['--cached', '--others', '--exclude-standard']))]
 // Proof: a new untracked document naming the retired root failed `no current file names …`
 // with its `path:1`; without `--others` that case passed (<observed-date>).
 ```
@@ -2802,8 +3137,9 @@ id: s3-listing
 file: tools/tool-devsync/src/retired-roots.test.ts
 anchor: if (listing.exitCode !== 0) {
 // Proof: with `ls-files` misspelled `ls-filez`, all three cases failed on `cannot list the
-// workspace: git: 'ls-filez' is not a git command`; with this refusal removed as well, only
-// the excuse case failed, on every excuse holding 0 (<observed-date>).
+// workspace: git: 'ls-filez' is not a git command`; with this refusal removed as well, the
+// leftover and current cases passed on an empty listing and only the excuse case failed, every
+// excuse holding 0 — without the refusal two of three cases go green on nothing (<observed-date>).
 ```
 
 ```proof
@@ -2889,16 +3225,36 @@ anchor: digest: 'c0a77f3355f27bc1e8fa7f23bd427c7b4cc7c068e6f787bb1552364482f28c2
 // is reported under, none unclassified (<observed-date>).
 ```
 
+```proof
+id: s3-archive
+file: tools/tool-devsync/src/retired-roots.test.ts
+anchor: return path.replace(/^openspec\/changes\/archive\/\d{4}-\d{2}-\d{2}-/, 'openspec/changes/');
+// Proof: moving `twilight-burokrat-package/proposal.md` to
+// `openspec/changes/archive/2026-10-01-twilight-burokrat-package/` left all three cases green;
+// with this function returning `path` unchanged, `every excuse … still matches …` failed with
+// `…/twilight-burokrat-package/proposal.md: excuses 2, holds 0` (<observed-date>).
+```
+
+```proof
+id: s3-deleted
+file: tools/tool-devsync/src/retired-roots.test.ts
+anchor: .filter((path) => !deleted.has(path))
+// Proof: with this filter removed, the archiving move of `g8` — its old path deleted from the
+// working tree, not yet from the index — failed all three cases on `ENOENT` reading that
+// path (<observed-date>).
+```
+
 ## 9. Verification
 
 ### 9.1 Every patch and script applies, extracted from this document, in slice order
 
 The claim is not "these edits were once correct" but "these patches, scripts, faults and Proof
-blocks, as this committed document spells them, reproduce the rehearsal" — on the authoring base,
+blocks, as this committed document spells them, reproduce the rehearsal" — on the rehearsal's base,
 with the executor's own dates, and on the real dispatch base. Three modes:
 
-- `fill=0` — the authoring base `ad0451da9`, dated 2026-09-25 as the rehearsal was: the result must
-  be byte-identical to the rehearsal's final commit, but for `verify.md`, which the executor writes.
+- `fill=0` — the rehearsal base, `main` at `e93a564a0`, dated 2026-09-25 as the rehearsal was: the
+  result must be byte-identical to the rehearsal's final commit, but for `verify.md`, which the
+  executor writes.
 - `fill=1` — the same base, dated 2026-10-01 and with a simulated executor record appended to
   `verify.md` in slices 1 and 3: every file that differs from the rehearsal must differ only in
   dates (`created:` and parenthesised dates normalised).
@@ -2908,17 +3264,18 @@ with the executor's own dates, and on the real dispatch base. Three modes:
   Unset, the mode prints that it was skipped and proves nothing. A failing `fill=real` is a
   re-rehearsal, never a waiver: a legacy digest another lane moved fails patch 04 here first.
 
-Every mode applies all five patches and three scripts, checks all 31 fault patches against the tree
-their slice leaves, and inserts all 24 Proof blocks. Prettier formats slice 3's touched files, so the
-run needs the repository's `node_modules` (`NODE_MODULES=<repo>/node_modules`). Run from the plan
-worktree's root.
+Every mode follows the planner's flow: slice 1 committed, slice 2 staged and not committed, slices 2
+and 3 committed together. It applies all five patches and three scripts, checks all 35 fault
+patches against the tree their slice leaves, and inserts all 27 Proof blocks. Prettier formats the
+slices' owned files, so the run needs the repository's `node_modules`
+(`NODE_MODULES=<repo>/node_modules`). Run from the plan worktree's root.
 
 ````sh
 set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 packet=$repo/docs/superpowers/plans/2026-09-25-batch-7/suite-directory-move.md
-base=ad0451da9918ce894faea7bcd70eed0fada0b1d3
-final=87ee5fc86e27b2049e66e998e7e8ce89d716e82a
+base=e93a564a09c856d8bc2b2c5aa64a588855a3c2f2
+final=45e59fdf7f15c80fc08d16953914bae3966fa828
 real_base=${REAL_BASE:-}
 modules=${NODE_MODULES:?the repository node_modules directory, for Prettier}
 test -f "$packet"
@@ -2963,7 +3320,7 @@ for fill in 0 1 real; do
   test -s "$work/insert-proofs.pl"
   test -s "$work/tick.sh"
   echo "fill=$fill extracted patches=$(find "$work/patches" -name '*.diff' | wc -l) scripts=$(find "$work/scripts" -name '*.sh' | wc -l) faults=$(find "$work/faults" -name '*.diff' | wc -l)"
-  test "$(find "$work/faults" -name '*.diff' | wc -l)" -eq 31
+  test "$(find "$work/faults" -name '*.diff' | wc -l)" -eq 35
   git -C "$repo" archive "$from" | tar -x -C "$work/tree"
   git -C "$repo" archive "$final" | tar -x -C "$work/final"
   cd "$work/tree"
@@ -2978,7 +3335,7 @@ for fill in 0 1 real; do
     git apply --check "$work/patches/$n.diff"
     git apply "$work/patches/$n.diff"
   done
-  for id in n1 n2 n3 n6 n4 n5 p1 p2 c1; do git apply --unidiff-zero --check "$work/faults/$id.diff"; done
+  for id in n1 n2 n3 n6 n4 n5 p1 p2 p3 c1; do git apply --unidiff-zero --check "$work/faults/$id.diff"; done
   perl "$work/insert-proofs.pl" "$packet" s1- "$date"
   bash "$work/tick.sh" 1.1 1.2
   if [ "$fill" != 0 ]; then printf '\n## Slice 1 — simulated executor record\n\nNot knowable from here.\n' >> "$change/verify.md"; fi
@@ -2986,25 +3343,24 @@ for fill in 0 1 real; do
   git status --porcelain --untracked-files=all | cut -c4- > "$work/owned1.txt"
   test "$(wc -l < "$work/owned1.txt")" -eq 13
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/owned1.txt") > /dev/null
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/owned1.txt") > /dev/null
   git add -A
   commit s1
-  # Slice 2.
+  # Slice 2: the move, staged by the planner and not committed.
   bash "$work/scripts/s2-move.sh"
   bash "$work/tick.sh" 2.1
   git add -A
-  commit s2
-  echo "fill=$fill slice 2 renames=$(git diff -M --summary HEAD~1 HEAD | grep -c '^ rename')"
+  echo "fill=$fill slice 2 staged renames=$(git diff --cached -M --summary | grep -c '^ rename')"
   # Slice 3.
   git apply --check "$work/patches/05.diff"
   git apply "$work/patches/05.diff"
   bash "$work/scripts/s3-edit.sh"
-  git status --porcelain --untracked-files=all | cut -c4- | grep -v "^$change/" > "$work/touched.txt"
+  { git diff --name-only; git ls-files --others --exclude-standard; } | grep -v "^$change/" > "$work/touched.txt"
   test "$(wc -l < "$work/touched.txt")" -eq 50
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/touched.txt") > /dev/null
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/touched.txt") > /dev/null
   bash "$work/scripts/s3-pin.sh"
-  for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off e1 e2 e3 r1 r2 r3 r4 r5; do
+  for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off g8 g8-off g9 e1 e2 e3 r1 r2 r3 r4 r5; do
     git apply --unidiff-zero --check "$work/faults/$id.diff"
   done
   perl "$work/insert-proofs.pl" "$packet" s3- "$date"
@@ -3015,11 +3371,12 @@ for fill in 0 1 real; do
   if [ "$fill" != 0 ]; then printf '\n## Slice 3 — simulated executor record\n\nNot knowable from here.\n' >> "$change/verify.md"; fi
   # Slice 3 step 8's Prettier over its 52 owned paths, after the Proof comments.
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/touched.txt") \
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory ./node_modules/.bin/prettier --write $(cat "$work/touched.txt") \
     "$change/tasks.md" "$change/verify.md" > /dev/null
   git add -A
-  commit s3
-  echo "fill=$fill slices 1-3 applied, all 31 fault patches check"
+  commit s2s3
+  echo "fill=$fill slices 1-3 applied as two commits, all 35 fault patches check"
+  echo "fill=$fill combined commit renames=$(git diff -M --summary HEAD~1 HEAD | grep -c '^ rename')"
   rm node_modules
   if diff -rq --exclude=.git . "$work/final" > "$work/differ.txt"; then :; else test $? -eq 1; fi
   if grep -v "verify.md and" "$work/differ.txt" | grep -v '^Files ' > "$work/only.txt"; then
@@ -3033,7 +3390,7 @@ for fill in 0 1 real; do
     while read -r f; do test "$(dates_of "$f")" = "$(dates_of "$work/final/$f")"; done < "$work/dated.txt"
     echo "fill=1 $(wc -l < "$work/dated.txt") files differ, every one only in dates"
   else
-    git diff -M --name-status HEAD~3 HEAD | grep -v "$change/verify.md" > "$work/changed-real.txt"
+    git diff -M --name-status HEAD~2 HEAD | grep -v "$change/verify.md" > "$work/changed-real.txt"
     git -C "$repo" diff -M --name-status "$base" "$final" | grep -v "$change/verify.md" > "$work/changed-rehearsed.txt"
     diff "$work/changed-rehearsed.txt" "$work/changed-real.txt"
     while IFS=$'\t' read -r kind a b; do
@@ -3055,41 +3412,29 @@ done
 ````
 
 Observed on 2026-09-25, after the final Prettier `--check` of this document, run from the plan
-worktree with `REAL_BASE=ad0451da9` — the same stand-in as `base`, so `fill=real` here proves the
-mode's own checks, not the dispatch base:
+worktree with `REAL_BASE=e93a564a0` — the same base as `fill=0`, so `fill=real` here proves the mode's
+own checks, not the dispatch base:
 
 ```text
-fill=0 extracted patches=5 scripts=3 faults=31
-inserted 8 proof blocks for s1-
-s2-move: apps/wiki is apps/twilight-structure/twilight-burokrat
-fill=0 slice 2 renames=127
-s3-edit: every substitution matched its count
-s3-pin: the legacy digest names the moved tree
-inserted 16 proof blocks for s3-
-fill=0 slices 1-3 applied, all 31 fault patches check
-fill=0 tree identical to 87ee5fc86e27b2049e66e998e7e8ce89d716e82a but for the executor-written verify.md
-fill=1 extracted patches=5 scripts=3 faults=31
-inserted 8 proof blocks for s1-
-s2-move: apps/wiki is apps/twilight-structure/twilight-burokrat
-fill=1 slice 2 renames=127
-s3-edit: every substitution matched its count
-s3-pin: the legacy digest names the moved tree
-inserted 16 proof blocks for s3-
-fill=1 slices 1-3 applied, all 31 fault patches check
+fill=0 extracted patches=5 scripts=3 faults=35
+fill=0 slice 2 staged renames=127
+fill=0 slices 1-3 applied as two commits, all 35 fault patches check
+fill=0 combined commit renames=126
+fill=0 tree identical to 45e59fdf7f15c80fc08d16953914bae3966fa828 but for the executor-written verify.md
+fill=1 extracted patches=5 scripts=3 faults=35
+fill=1 slice 2 staged renames=127
+fill=1 slices 1-3 applied as two commits, all 35 fault patches check
+fill=1 combined commit renames=126
 fill=1 10 files differ, every one only in dates
-fill=real extracted patches=5 scripts=3 faults=31
-inserted 8 proof blocks for s1-
-s2-move: apps/wiki is apps/twilight-structure/twilight-burokrat
-fill=real slice 2 renames=127
-s3-edit: every substitution matched its count
-s3-pin: the legacy digest names the moved tree
-inserted 16 proof blocks for s3-
-fill=real slices 1-3 applied, all 31 fault patches check
+fill=real extracted patches=5 scripts=3 faults=35
+fill=real slice 2 staged renames=127
+fill=real slices 1-3 applied as two commits, all 35 fault patches check
+fill=real combined commit renames=126
 fill=real the same 156 changes as the rehearsal, each the same delta
 ```
 
 **A failed check stops the run**: the same script with `REAL_BASE` set to the rehearsal's slice 1
-commit, a base patch 03 cannot fit, passed `fill=0` and `fill=1`, which read the authoring base, and exited 1 in `fill=real` at patch 03's `git apply --check`, before any tree was compared: `error: patch failed: CONTEXT.md:1222`, `error: CONTEXT.md: patch does not apply`, then `already exists in working directory` for each of the change's four files.
+commit, passed `fill=0` and `fill=1`, which read the rehearsal base, and exited 1 in `fill=real` at patch 03's `git apply --check`, before any tree was compared: `error: patch failed: CONTEXT.md:1222`, `error: CONTEXT.md: patch does not apply`, then `already exists in working directory` for each of the change's four files.
 
 ### 9.2 The strict OpenSpec block, reproduced
 
@@ -3097,7 +3442,7 @@ commit, a base patch 03 cannot fit, passed `fill=0` and `fill=1`, which read the
 set -euo pipefail
 mkdir -p "$TMPDIR/evidence"
 report=$(mktemp "$TMPDIR/evidence/openspec-validation.XXXXXX.json")
-OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
+env -u CLAUDECODE -u AGENT OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$report"
 jq -s -e '
   length == 1 and
   (.[0] | type == "object") and
@@ -3107,112 +3452,101 @@ jq -s -e '
 jq -c '.summary.totals' "$report"
 ```
 
-Expected: one JSON report and exit 0. Rehearsed: 114 on the base, 115 after slice 1's contract step
-and at every later step.
+Expected: one JSON report and exit 0. Rehearsed on `e93a564a0`: **115** before slice 1, **116** after
+slice 1's contract step and at every later step (revision 1, on `ad0451da9`: 114 → 115).
 
 ### 9.3 Commands actually run, and what each reported
 
-All on 2026-09-25 by this packet's author, in a scratch clone of the repository at `ad0451da9`, with
-Bun 1.4.2, Nx and the repository's `node_modules`; Bun without `CLAUDECODE`, `AGENT` and
-`CLAUDE_CODE_ENTRYPOINT`; multi-file runs one file at a time.
+All on 2026-09-25 by this packet's author. **Revision 2** (this document) was rehearsed on `main` at
+`e93a564a0` in a clone with its own `bun install --frozen-lockfile` — no linked `node_modules`, which
+the review found stale for `toolchain-pins` — with Bun 1.4.2 and Nx; Bun without `CLAUDECODE`, `AGENT`
+and `CLAUDE_CODE_ENTRYPOINT`; multi-file runs one file at a time.
 
-**Measurement and design probes** (a first working clone, discarded):
+**Measurement and design probes** (revision 1, on `ad0451da9`):
 
 - A pure `git mv apps/wiki apps/twilight-structure/twilight-burokrat` committed with hooks on:
-  refused, `lint` `✖ 10477 problems (10477 errors, 0 warnings)` (`@typescript-eslint/no-unsafe-*`
-  on types that cannot be resolved: the moved `tsconfig.json` extends a base that is not there). The
-  same move plus the one `extends` line: committed, every hook green.
+  refused, `lint` `✖ 10477 problems (10477 errors, 0 warnings)`. The same move plus the one `extends`
+  line: committed, every hook green (126 renames at 100%, one at 85%). Revision 2 no longer commits
+  the move alone (D3, section 3.4).
 - The first suite message spelled `apps/${suite}/<product>/<project>`; devsync's legacy classifier
-  reported it `UNCLASSIFIED` (a `${…}` root is a legacy selector). Reworded to `applications require
-apps/<suite>/<product>/<project> in suite ${suite}`.
-- The first retired-root check read every listed path as a file and threw `EISDIR` on
-  `.claude/skills/*`, tracked symbolic links to directories; it now reads a link's target. It first
-  started its scan at module load, so a failing listing surfaced as `Unhandled error between tests`
-  with `0 pass 0 fail`; it now scans lazily and all three cases fail on the error.
-- With only the slash spelling checked, `gate-entrypoints.test.ts` failed 19 of 57 tests on
-  `ENOENT … apps/wiki/cli/src/cli.ts` — the seven segment spellings. The script moves them and the
-  check reads that spelling.
-- The pilot's `refuses prose facts presented as applicable checks` then failed on the moved tree:
-  received `… in apps/twilight-structure/twilight-burokrat/cli/README.md: check.wiki-cli.test
-(external-consumer)` — the first offending index in path order is Twilight Burokrat's own again.
-  The script updates the expectation and extends its `Proof:` history.
-- The routed rules design's link `../../../apps/wiki/cli/README.md` failed devsync's
-  `every routed current document resolves its local links and anchors` and
-  `every current document that trips a check carries an exemption for that check`; the script
-  re-points it.
-- Three comments the path substitution pushed past 100 columns are re-wrapped by `subf`.
+  reported it `UNCLASSIFIED`. Reworded.
+- The first retired-root check threw `EISDIR` on tracked directory symlinks (`.claude/skills/*`); it
+  reads a link's target. It first scanned at module load, so a broken listing showed as
+  `Unhandled error between tests` with `0 pass 0 fail`; it now scans lazily. Revision 2 found a third
+  shape: a tracked file deleted from the working tree (an unstaged move) threw `ENOENT`; the listing
+  now drops `--deleted` paths (fault `g9`).
+- With only the slash spelling checked, `gate-entrypoints.test.ts` failed 19 of 57 tests on the seven
+  segment spellings. The pilot's prose-facts case now names Twilight Burokrat's own index first. The
+  routed rules design's link failed devsync's two link checks. Three comments grew past 100 columns.
+  The script handles all of these.
+- **What the whole suite caught.** Revision 1's first slice 3 commit passed every focused check and
+  whole devsync, but whole `twilight-burokrat:test` failed four: two real defects —
+  `contracts.test.ts › pins the unmet source-certification outcome to both real source gates`
+  (`ENOENT …/apps/docs/experiment-evidence/fixed-benchmark-corpus.v1.json`) and
+  `selectors.test.ts › selects one exact occurrence from the real four-table migration`, two root
+  climbs written one `'..'` per line that the one-line searches missed — and two flakes that are
+  section 10's condition 11 (`relationships.test.ts › refuses malformed static Nx project data…` timed
+  out at 5000 ms, as it did on the unmodified base; `claims.db.test.ts › bounds terminal lock
+contention…`). A scan of the moved tree for every climb that leaves the project found exactly the
+  two; the script moves them and the focused list holds both files. The rerun gave 764·0.
 
-**The rehearsal, `rehearse/suite-move-r1`**, built from this document's patches, scripts, faults and
-Proof blocks, one commit per slice, each with the hooks on (tool-wiki, plaintext-secrets, format,
-lint; doc-caps on slice 3):
+**The rehearsal, `rehearse/suite-move-r2`** on `e93a564a0`, built from this document's patches,
+scripts, faults and Proof blocks, with the hooks on for both commits:
 
-| Step                   | Slice 1 (`9704728d6`)                                           | Slice 2 (`b2c009604`)                                        | Slice 3 (`87ee5fc86`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| baselines              | layout 19·0, policies 15·0, cache 4·0, legacy 1·0, OpenSpec 114 | `git ls-files apps/wiki` 127                                 | layout 22·1, workspace-projects 15·2, sync 50·2, inventory 3·1, targets 17·2, cache 4·0, legacy 0·1, typecheck `TS6053` `status=1`                                                                                                                                                                                                                                                                                                                                                       |
-| contract / red         | OpenSpec 115; layout 20·3, policies 0·2, cache 2·2, typecheck 0 | —                                                            | retired-roots 1·2, 115 current lines                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| script                 | —                                                               | `s2-move`, `s2-check: 127 files moved, one line changed`     | `s3-edit: every substitution matched its count`; Prettier reformatted 12 of 50                                                                                                                                                                                                                                                                                                                                                                                                           |
-| green                  | layout 23·0, policies 17·0, cache 4·0; typecheck 0, lint 0      | —                                                            | layout 23·0, workspace-projects 17·0, sync 52·0, inventory 4·0, targets 19·0, cache 4·0, retired-roots 3·0, eslint-boundaries 17·0; typecheck (both) 0, lint 0, lint:source 0, build 0; generations 13·0, contracts 16·0, classification 16·0, root-migration 32·0, activation 13·0, gate-entrypoints 57·0, release (policy) 13·0, trusted-policy 55·0, rules 63·0, committed-target-facts 2·0, selectors 19·0, audit 19·0, release (packaging) 10·0; pilot on-disk 4·0, prose-facts 1·0 |
-| legacy pin             | red on `551e2a7d…` 308 (recursive 31 → 34), then 1·0            | —                                                            | red on `c0a77f33…` 308, then 1·0                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| faults                 | 9 of 9 as section 8.1                                           | —                                                            | 22 of 22 as section 8.2                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| proofs, ticks, records | 8 blocks, tasks 1.1–1.2, Prettier clean, owned 13 = status      | task 2.1; status 127 ` D`, 127 `??`, 2 ` M`                  | 16 blocks, tasks 3.1–3.2, `nx format:check --all` 0, OpenSpec 115, owned 52 = status (51 ` M`, 1 `??`)                                                                                                                                                                                                                                                                                                                                                                                   |
-| commit                 | hooks green                                                     | hooks green; 126 renames at 100%, `cli/tsconfig.json` at 85% | hooks green                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-
-`git log --follow --oneline -- apps/twilight-structure/twilight-burokrat/cli/src/policy/trust.ts` on
-the rehearsal lists the move commit, then `f4934d65d` and `6475fdcc4` — the file's history from
-before the move.
-
-**What the planner's whole-suite run caught.** The first slice 3 rehearsal commit passed every
-focused check above and whole devsync (380), but whole `twilight-burokrat:test` failed two tests
-the focused list did not hold: `strict contract decoders > pins the unmet source-certification
-outcome to both real source gates` (`ENOENT … apps/docs/experiment-evidence/fixed-benchmark-corpus.v1.json`)
-and `declared relationship selectors through the production CLI > selects one exact occurrence from
-the real four-table migration` — two root climbs written one `'..'` per line, which the one-line
-searches had missed. A scan of the moved tree for every climb, single- or multi-line, that leaves
-the project then found exactly those two beyond the script's list. The script now moves them, the
-focused list holds both files, and slice 3 was replayed from the slice 2 commit and committed again
-(the table's slice 3 column). The lesson is kept in section 9.4: the whole suite is the net for any
-path the text cannot name.
+| Step                   | Slice 1 (`10e5681cf`)                                           | Slice 2 (no commit)                                                   | Slices 2+3 committed together (`45e59fdf7`)                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| start                  | clean at `e93a564a0`                                            | slice 1's commit, clean                                               | slice 1's commit with the move staged: index digest checked, worktree = index, nothing untracked, 127 staged renames into the new root                                                                                                                                                                                                                                                                                       |
+| baselines              | layout 19·0, policies 15·0, cache 4·0, legacy 1·0, OpenSpec 115 | `git ls-files apps/wiki` 127                                          | layout 22·1, workspace-projects 15·2, sync 50·2, inventory 3·1, targets 17·2, cache 4·0, legacy 0·1, typecheck `TS6053` `status=1`                                                                                                                                                                                                                                                                                           |
+| contract / red         | OpenSpec 116; layout 20·3, policies 1·2, cache 2·2, typecheck 0 | —                                                                     | retired-roots 1·2, 115 current lines                                                                                                                                                                                                                                                                                                                                                                                         |
+| script                 | —                                                               | `s2-check: 127 files moved, one line changed`                         | `s3-edit: every substitution matched its count`; Prettier reformatted 12 of 50                                                                                                                                                                                                                                                                                                                                               |
+| green                  | layout 23·0, policies 18·0, cache 4·0; typecheck 0, lint 0      | —                                                                     | layout 23·0, workspace-projects 17·0, sync 52·0, inventory 4·0, targets 19·0, cache 4·0, retired-roots 3·0; typecheck (both) 0, lint 0, lint:source 0, build 0; generations 13·0, contracts 16·0, classification 16·0, root-migration 32·0, activation 13·0, gate-entrypoints 57·0, release (policy) 13·0, trusted-policy 55·0, rules 63·0, committed-target-facts 2·0, selectors 19·0, audit 19·0, release (packaging) 10·0 |
+| legacy pin             | red on `551e2a7d…` 308 (recursive 31 → 34), then 1·0            | —                                                                     | red on `c0a77f33…` 308, then 1·0                                                                                                                                                                                                                                                                                                                                                                                             |
+| faults                 | 10 of 10 as section 8.1                                         | —                                                                     | 25 of 25 as section 8.2                                                                                                                                                                                                                                                                                                                                                                                                      |
+| proofs, ticks, records | 9 blocks, tasks 1.1–1.2, Prettier clean, owned 13 = status      | task 2.1; `--write` then `--check`; status 127 ` D`, 127 `??`, 2 ` M` | 18 blocks, tasks 3.1–3.2, `nx format:check --all` 0, OpenSpec 116, owned 52 = changed against the index                                                                                                                                                                                                                                                                                                                      |
+| commit                 | hooks green                                                     | staged by the planner: 126 renames at 100%, one at 85%                | whole devsync on the staged tree first (382·0), then hooks green                                                                                                                                                                                                                                                                                                                                                             |
 
 ### 9.4 Planner-only, with the expected value
 
 The executor cannot run these: they write Git objects, listen on a port, need the commit, or take
-the host. All were run by the author on the rehearsal commits.
+the host. All were run by the author on the revision 2 rehearsal, on `e93a564a0`; counts are that
+base's.
 
-| When                    | Check                                                                                                                                                                              | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Rehearsed                                                                                                                                                                                                                                                                                                 |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| after slice 1           | whole `tool-devsync:test` (inside `planner-commit.sh`)                                                                                                                             | base **+6** tests, 0 fail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 371 → 377, 0 fail                                                                                                                                                                                                                                                                                         |
-| after slice 1           | `bun apps/wiki/cli/src/cli.ts check-indexes committed . HEAD`                                                                                                                      | exit 0, the same index count as the base; `module.infra.tool-wiki` at `apps/wiki/cli/README.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 34; 123 members                                                                                                                                                                                                                                                                                           |
-| before slice 2's commit | `git add -A && git diff --cached -M --summary`                                                                                                                                     | step 1's N − 1 renames at `(100%)`, and `cli/tsconfig.json` at `(85%)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 126 and one                                                                                                                                                                                                                                                                                               |
-| slice 2's commit        | `planner-commit.sh <clone> "<subject>" --skip-devsync`                                                                                                                             | hooks green                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | green; lint about 20 s on 127 files                                                                                                                                                                                                                                                                       |
-| after slice 2           | whole `tool-devsync:test`                                                                                                                                                          | **red by design**: exactly these twelve fail — `names every file a suite reads from outside its own project`, `every current document that trips a check carries an exemption for that check`, `every legacy source occurrence and relevant text family is pinned`, `every routed current document resolves its local links and anchors`, `builds each project’s own solution config, so its tests are compiled too`, `accepts the complete actual workspace after the coordinated move`, `pins the complete moved depth-sensitive configuration inventory`, `activates the product axis of its own directory on every app and library`, `pins every product root and qualified Nx identity in the destination map`, `names every app project.json, which the supervisor reads once at startup`, `names every app tsconfig, which is read once at process start`, `the production index checker resolves current Markdown links and anchors` | 365 pass, those 12 fail                                                                                                                                                                                                                                                                                   |
-| after slice 2           | `twilight-burokrat:typecheck`                                                                                                                                                      | `status=1`, `error TS6053: File '…/apps/wiki/cli/tsconfig.json' not found`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | as expected                                                                                                                                                                                                                                                                                               |
-| after slice 3           | whole `tool-devsync:test` (inside `planner-commit.sh`)                                                                                                                             | slice 1's number **+3**, 0 fail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 377 → 380, 0 fail (the three retired-root cases)                                                                                                                                                                                                                                                          |
-| after slice 3           | the whole pilot suite, `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/policy/pilot-policy.test.ts` in the moved `cli/`, with `TOOL_WIKI_TRUSTED_NODE_MODULES` | base count, 0 fail — `pins exact pre-index tuples and passes observe lint from external trust` fails before the commit on `fact check.wiki-cli.test authority-selector mismatch` (it reads `HEAD`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 21 pass, 0 fail (the base's 21; before the commit the `pins …` case failed as named and `refuses prose facts …` passed)                                                                                                                                                                                   |
-| after slice 3           | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes committed . HEAD`                                                                                      | exit 0, the same index count; `module.infra.tool-wiki` at `apps/twilight-structure/twilight-burokrat/cli/README.md` with the same members                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 34; `apps/twilight-structure/twilight-burokrat/cli/README.md`, 123 members                                                                                                                                                                                                                                |
-| after slice 3           | `twilight-burokrat:test:package`, then `tar -tzf dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz \| sort`                                                                  | exit 0; the listing equals the base's line for line                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 44 pass; the same 163 entries. The bytes differ, SHA-256 `13500818…` → `e58951c9…`: `package-manifest.json`'s source revision and toolkit identity, the bundles' source-path comments and the relocation preparer's default `validator-entry`, and the packed README's runbook link — never a listed path |
-| after slice 3           | `twilight-burokrat:build`; `nx show project twilight-burokrat --json`                                                                                                              | exit 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | build 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `apps/twilight-structure/twilight-burokrat/cli/src`, name and tags unchanged; `nx show projects` lists `twilight-burokrat` once                                                                                             |
-| after slice 3           | whole `twilight-burokrat:test`                                                                                                                                                     | base count, 0 fail but section 10's known timeouts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 764 pass, 0 fail — the base's 764. The first slice 3 commit failed four here: the two one-segment-per-line climbs (section 9.3), one `this test timed out after 5000ms` and `bounds terminal lock contention …` (both section 10, condition 11)                                                           |
-| after slice 3           | `nx format:check --all`; `run-many -t typecheck -p tool-devsync twilight-burokrat`                                                                                                 | exit 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 0; 0                                                                                                                                                                                                                                                                                                      |
-| before the merge        | `bin/h2puni-gate.sh <sha>` on the shared build host, and CI                                                                                                                        | `h2puni gate: running on <sha>`, exit 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | not run: the rehearsal is not the dispatch head                                                                                                                                                                                                                                                           |
+| When                | Check                                                                                                                                                                              | Expected                                                                                                                                  | Rehearsed                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| slice 1's commit    | whole `tool-devsync:test` (inside `planner-commit.sh`)                                                                                                                             | base **+7** tests, 0 fail                                                                                                                 | 372 → 379, 0 fail                                                                                                                                                                                                                                                                                                                                                    |
+| after slice 1       | `bun apps/wiki/cli/src/cli.ts check-indexes committed . HEAD`                                                                                                                      | exit 0, the base's index count                                                                                                            | 34                                                                                                                                                                                                                                                                                                                                                                   |
+| after slice 2       | `git add -A`, the rename summary and the index digest (slice 2, "No planner commit")                                                                                               | step 1's N − 1 renames at `(100%)` and `cli/tsconfig.json` at `(85%)`; no commit                                                          | 126 and one; digest recorded into slice 3's note                                                                                                                                                                                                                                                                                                                     |
+| slices 2+3's commit | `planner-commit.sh <clone> "<subject>"` — whole devsync on the staged tree, then the hooks                                                                                         | slice 1's number **+3**, 0 fail; hooks green                                                                                              | 382, 0 fail; hooks green                                                                                                                                                                                                                                                                                                                                             |
+| after the commit    | `git show -M --summary HEAD`, and `git log --follow` on moved files                                                                                                                | N − 1 renames; the one unpaired file named below                                                                                          | 126 renames (98 at 100%); `cli/tsconfig.lib.json` shows as delete and create; `--follow` reaches `cli/src/policy/trust.ts`'s pre-move history                                                                                                                                                                                                                        |
+| after the commit    | the whole pilot suite, `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/policy/pilot-policy.test.ts` in the moved `cli/`, with `TOOL_WIKI_TRUSTED_NODE_MODULES` | the base count, 0 fail — the on-disk group and prose-facts, red on the staged move, go green here                                         | 21 pass, 0 fail                                                                                                                                                                                                                                                                                                                                                      |
+| after the commit    | fault `r5` replayed with `fault.sh`                                                                                                                                                | the named case fails alone on `+   "value": "apps",`                                                                                      | `fault r5c: status=1, restored`; `3 pass`, `1 fail`: only `the bootstrap policy and mapping select the moved pilot boundaries at HEAD`, on `+   "value": "apps",`                                                                                                                                                                                                    |
+| after the commit    | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes committed . HEAD`                                                                                      | exit 0, the same index count; `module.infra.tool-wiki` at `apps/twilight-structure/twilight-burokrat/cli/README.md` with the same members | 34; `apps/twilight-structure/twilight-burokrat/cli/README.md`, 123 members                                                                                                                                                                                                                                                                                           |
+| after the commit    | `twilight-burokrat:test:package`, then `tar -tzf dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz \| sort`                                                                  | exit 0; the listing equals the base's line for line                                                                                       | 44 pass; the same 163 entries as the base listing (taken on `ad0451da9`; PR #63 changed no package file). The bytes differ (SHA-256 `ca3094d2…`): `package-manifest.json`'s source revision and toolkit identity, the bundles' source-path comments, the relocation preparer's default `validator-entry`, and the packed README's runbook link — never a listed path |
+| after the commit    | `twilight-burokrat:build`; `nx show project twilight-burokrat --json`                                                                                                              | exit 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name unchanged                                  | build 0; `root` `apps/twilight-structure/twilight-burokrat/cli`, `sourceRoot` `…/cli/src`, name `twilight-burokrat`                                                                                                                                                                                                                                                  |
+| after the commit    | whole `twilight-burokrat:test`                                                                                                                                                     | the base count, 0 fail but section 10's known flakes                                                                                      | 764 pass, 0 fail (1143 s)                                                                                                                                                                                                                                                                                                                                            |
+| after the commit    | `nx format:check --all`; `run-many -t typecheck lint lint:source -p tool-devsync twilight-burokrat`                                                                                | exit 0                                                                                                                                    | format 0; typecheck 0; lint and lint:source 0                                                                                                                                                                                                                                                                                                                        |
+| before the merge    | `bin/h2puni-gate.sh <sha>` on the shared build host, and CI                                                                                                                        | `h2puni gate: running on <sha>`, exit 0                                                                                                   | not run: the rehearsal is not the dispatch head                                                                                                                                                                                                                                                                                                                      |
 
 ### 9.5 What none of this proves
 
 - **That `trusted-wiki` certifies the moved tree.** No activation is provisioned, and a relocation
-  activation needs the operator's review record for a real candidate head (section 3.8, 12).
+  activation needs the operator's review record for a real candidate head (sections 3.8, 12).
 - **That the release workflow runs green on GitHub.** Its paths were checked by `release.test.ts`,
   which reads the workflow, and by `release-cli.ts`'s own suites; no tag was pushed.
 - **A third spelling of the root** (section 3.6): the text check reads two; path-building code in any
-  other shape is caught only by the suites that resolve it.
-- **The `twilight-burokrat-release` environment's settings** were taken from the planning notes, not read from
-  GitHub.
-- **The real dispatch base.** Section 9.1's `fill=real` ran against the stand-in only; the planner
+  other shape is caught only by the suites that resolve it — as whole `twilight-burokrat:test` did
+  for the one-segment-per-line climbs.
+- **The `twilight-burokrat-release` environment's settings** were taken from the planning notes, not
+  read from GitHub.
+- **The real dispatch base.** Section 9.1's `fill=real` ran against the rehearsal base; the planner
   reruns it.
 
 ## 10. Stop conditions
 
 Each is false on the rehearsed tree.
 
-1. Step 0a's hash differs from the slice note, or the tree is not clean. Stop.
+1. Step 0a's hash differs from the slice note, or the tree is not clean; in slice 3, the index digest
+   differs from the note, the working tree differs from the index, or anything is untracked. Stop.
 2. A patch's `git apply --check` fails, or `s2-move`, `s3-edit` or `s3-pin` prints `sub: … holds N
 of […], expected M` or fails a `test`. Stop: the base is not the one this packet was cut for.
 3. A red checkpoint is green, or a green one is red, or a count differs from step 1's number by
@@ -3222,7 +3556,7 @@ of […], expected M` or fails a `test`. Stop: the base is not the one this pack
 5. A legacy pin's received digest is not the one the step names (`551e2a7d…` in slice 1,
    `c0a77f33…` in slice 3). Stop: another change moved a legacy context; the planner re-pins.
 6. A fault's expectation block fails: a named case passes, fails on another fact, or a `-off` twin
-   fails its named case. Restore is automatic; rerun that one fault once; if it still differs, stop.
+   does other than section 8 records. Restore is automatic; rerun that one fault once; if it still differs, stop.
 7. `fault.sh` fails after its command ran (a `cmp` differs or a created file remains). Stop and do
    not continue with a touched tree.
 8. `insert-proofs.pl` dies (`anchor matches N lines`), or a placeholder is left. Stop.
@@ -3258,27 +3592,32 @@ After this packet:
 - **The Nx name** `twilight-burokrat` stays through a name exception (section 13, D1).
 - **Stale text the move did not cause**: `authority-store.ts`'s JSDoc link
   `../../../docs/adr/0021-…` already pointed outside the repository's `docs/`; `check.ts`'s
-  `trust.ts:1480` line number was already wrong and is now a file reference.
+  `trust.ts:1480` line number was already wrong and is now a file reference; the moved
+  `eslint.product.mjs`'s JSDoc still says "The wiki product … `wiki-cli`" (the product is Twilight
+  Burokrat, the project `twilight-burokrat`).
+- **Archiving and the retired-root check.** Archiving this change or any change the check lists moves
+  no excuse: excuses are written in the unarchived form, and `unarchived` maps an archived path back
+  (fault `g8`). The delta spec names no retired root, so the synced spec needs no excuse. A change
+  that **edits** a listed file's mentions, or moves a listed file any way but archiving, must update
+  `DATED_MENTIONS` or `HISTORICAL_TREES` in the same commit; both JSDoc blocks say so.
+- **`git log --follow`** on `cli/tsconfig.lib.json` does not reach its pre-move history (section 3.4);
+  read it at its old path, `git log -- apps/wiki/cli/tsconfig.lib.json`.
 - **A second suite** is one entry in `APPLICATION_SUITES`; its products' policies are discovered
   and cached with no further change.
 
-## 13. Planner decisions and assumptions recorded rather than asked
+## 13. Planner decisions and assumptions
 
-**D1 — Nx project name (planner decision).** The suite rule names the project
-`twilight-burokrat-cli`; this packet keeps `twilight-burokrat` through a one-root name exception,
-because renaming touches CI's affected selector, the release workflow, the gate, both relationship
-files and every runbook and packet that runs its targets, and the brief says the name stays unless a
-reason is shown. If the planner wants the rule without exceptions, the rename is its own item.
+Decided by the planner on 2026-09-25, after review round 1:
 
-**D2 — `modules.bootstrap.json` changes.** The planning inventory calls it history not to edit; the pilot
-oracle and the runbook require its prefix, index path and `mappingVersion` to follow the selector
-(section 3.2). The packet edits it.
+**D1 — Nx project name: kept.** `twilight-burokrat` stays through the one-root name exception; a
+rename to `twilight-burokrat-cli` is a separate item.
 
-**D3 — a red intermediate commit.** Slice 2's commit fails devsync and typecheck by design, for a
-pure-rename history (section 3.4). The alternative — move and edit in one commit — also keeps
-`git log --follow` working (Git detects renames with edits), at the cost of one review diff in which
-the renames and the edits mix. The planner may fold slices 2 and 3 into one commit; nothing in
-the packet depends on the split but the history's readability.
+**D2 — `modules.bootstrap.json` changes: accepted.** Prefix, index path and `mappingVersion` v3 → v4
+follow the selector; the planning note that called the file history was wrong.
+
+**D3 — no red commit reaches `main`.** Slice 2 is an execution step that ends without a commit; the
+planner stages it and slices 2 and 3 are committed together, through `planner-commit.sh` with whole
+devsync. Git follows the renames by similarity (section 3.4).
 
 Assumptions:
 
@@ -3301,32 +3640,49 @@ Assumptions:
 | measure every reference: Nx roots and names, `project.json`, tsconfig, globs, lefthook, CI, policy JSON, devsync inventory and pins, `files`/`bin`/build outputs, release workflow and environment, `LLM_README` | section 3.1 (by area, with counts, and the three kinds the text cannot see), section 4, section 3.8                                                               |
 | historical packets stay as written                                                                                                                                                                               | sections 1, 3.2; the check's historical trees                                                                                                                     |
 | npm name and Nx names unchanged unless a reason is shown                                                                                                                                                         | section 3.2; D1                                                                                                                                                   |
-| a pure `git mv` commit first, if the checks allow                                                                                                                                                                | section 3.4: the hook refused the pure move; the move plus one line is slice 2                                                                                    |
+| a pure `git mv` commit first, if the checks allow                                                                                                                                                                | section 3.4: the hook refused the pure move; the move plus one line is slice 2, committed with slice 3 (D3); the renames and the one unpaired file are recorded   |
 | OpenSpec decided and justified                                                                                                                                                                                   | section 3.5                                                                                                                                                       |
-| ordered slices, one planner commit each with its subject                                                                                                                                                         | section 6                                                                                                                                                         |
-| a proof that no path was missed, load-bearing, clause by clause                                                                                                                                                  | sections 3.6, 8.2 (`g1`–`g7` and their `-off` twins); slice 2's `s2-check`                                                                                        |
+| ordered slices, one planner commit each with its subject                                                                                                                                                         | section 6: slice 1 one commit, slices 2 and 3 one commit (D3)                                                                                                     |
+| a proof that no path was missed, load-bearing, clause by clause                                                                                                                                                  | sections 3.6, 8.2 (`g1`–`g9` and their `-off` twins); slice 2's `s2-check`                                                                                        |
 | HEAD-reading checks are the planner's, with expected values                                                                                                                                                      | section 9.4                                                                                                                                                       |
 | a three-mode extraction                                                                                                                                                                                          | section 9.1                                                                                                                                                       |
 | script or diff, chosen and justified                                                                                                                                                                             | section 3.7                                                                                                                                                       |
 | every slice rehearsed, red, green, faults, exact output                                                                                                                                                          | sections 6, 8, 9.3                                                                                                                                                |
-| batch 7 addendum 1 (Opus executor, env, serial Vitest, `--skip-nx-cache`)                                                                                                                                        | section 6 (no Vitest in this packet; Bun and Nx as required)                                                                                                      |
+| batch 7 addendum 1 (Opus executor, env, serial Vitest, `--skip-nx-cache`)                                                                                                                                        | section 6: every `bun` and `bunx` runs under `env -u CLAUDECODE -u AGENT`; no Vitest in this packet                                                               |
 | 2 (each clause its own negative)                                                                                                                                                                                 | sections 8.1, 8.2                                                                                                                                                 |
 | 3 (index checks are the planner's)                                                                                                                                                                               | section 9.4                                                                                                                                                       |
 | 4 (extraction with `>`)                                                                                                                                                                                          | step 0b and section 9.1 (`printf "" > f`)                                                                                                                         |
 | 5 (dates and placeholders)                                                                                                                                                                                       | `<observed-date>` in section 8.3, `<observed-date-s3>` in `s3-edit`; `fill=1`                                                                                     |
 | 7 (the suite move)                                                                                                                                                                                               | the whole packet                                                                                                                                                  |
-| 8 (stand-in base)                                                                                                                                                                                                | header, section 9.1                                                                                                                                               |
+| 8 (stand-in base)                                                                                                                                                                                                | header, section 9.1: rehearsed on `main` at `e93a564a0` (the planner's rebase), revision 1 on `ad0451da9`                                                         |
 | batch 6 addendum 5 (HEAD-reading tests), 9 (form), 11 (one-command `test $?`), 12 (chains stop), 13 (module index), 14 (`./` paths), 19 (grep on missing files)                                                  | sections 6, 9.4; every `bun test` names `./src/…`; every grep of a file follows a `test -f` or reads captured output; the moved module index declares nothing new |
 | public repository: no absolute paths but the dispatch block                                                                                                                                                      | section 6.5 holds the only ones                                                                                                                                   |
 
 ## 15. Ready to commit
 
-| Slice | Paths                                                                                     | Subject                                                                                                   |
-| ----- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 1     | 13 — section 5 (8 modified, 5 new under the change)                                       | `feat(devsync): read apps/<suite>/<product>/<project> for a declared suite`                               |
-| 2     | the move (N deleted, N new, rehearsed 127) and the change's `tasks.md` and `verify.md`    | `refactor(burokrat): move apps/wiki to apps/twilight-structure/twilight-burokrat`                         |
-| 3     | 52 — slice 3 step 3's 50 and the change's `tasks.md` and `verify.md` (51 modified, 1 new) | `refactor(burokrat): every current reference follows Twilight Burokrat into the Twilight Structure suite` |
+| Commit | Paths                                                                                                                          | Subject                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| 1      | slice 1: 13 — section 5 (8 modified, 5 new under the change)                                                                   | `feat(devsync): read apps/<suite>/<product>/<project> for a declared suite`                             |
+| 2      | slice 2's staged move (N renamed, rehearsed 127) and its two records, plus slice 3's 52 (51 modified, 1 new) — one commit (D3) | `refactor(burokrat): move Twilight Burokrat into the Twilight Structure suite, every reference with it` |
 
 After the last commit the host gate runs on the shared build host with the committed hash, and its
 printed running-hash line and exit status are recorded. Anywhere else it is reported as not run, with
 the reason — never as passed.
+
+## 16. Review round 1, disposed
+
+| Finding or decision                                    | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1 — keep the Nx name                                  | Kept: section 13; the name exception is unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D2 — `modules.bootstrap.json` changes                  | Kept as written: section 3.2; the planning note is corrected there.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| D3 — no red commit on `main`                           | Slice 2 ends without a commit, the planner stages it, slice 3 starts from the staged move (its own step 0 checks the index digest), and slices 2 and 3 are one commit through `planner-commit.sh` with whole devsync: sections 1, 3.4, 5, 6, 6.5, 9.1, 9.4, 15. The rehearsal records 126 renames in the combined commit and the one file Git no longer pairs, `cli/tsconfig.lib.json` (section 3.4). Two HEAD-reading pilot checks and `r5`'s clean run move to the planner (sections 6, 8.2, 9.4).        |
+| Important 1 — unfilled placeholders                    | Every value is observed on the revision 2 rehearsal on `e93a564a0`: sections 3.4, 9.1, 9.3, 9.4.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Important 2 — the check breaks on archiving            | Excuses name changes, not archive paths: `unarchived` maps `openspec/changes/archive/<date>-<name>/…` back, the archive tree comes last, `verify.md` matches archived or not, and the delta spec names only "the retired root". Proved by `g8` (archived listed change stays green) and its twin `g8-off`; the obligation left (edits to listed files) is in both JSDoc blocks and section 12. Building `g8` exposed an unstaged-move crash (`ENOENT` on a deleted tracked path), fixed and proved by `g9`. |
+| Important 3 — slice 2 checks without writing           | Slice 2 step 3 runs `prettier --write` then `--check`.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Minor 1 — Proof count                                  | Sections 1 and 7.7 say six, name them, and exempt re-observed proofs.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Minor 2 — echo and `g7`                                | The echo reads "every fault met its expected outcome, and every clause-off twin showed its clause alone decides it"; sections 3.6 and 8.2 say what `g2-off`, `g7-off` and `g8-off` isolate.                                                                                                                                                                                                                                                                                                                 |
+| Minor 3 — `bunx` unwrapped                             | Every `bunx` and every Prettier call runs under `env -u CLAUDECODE -u AGENT`.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Minor 4 — `group !== 'apps'` and the second suite list | Reachable, so kept and proved: new case `reads a libs directory named like a suite as a product`, fault `p3`. The product-axis test imports `APPLICATION_SUITES`.                                                                                                                                                                                                                                                                                                                                           |
+| Minor 5 — the base's numbers                           | Sections 4, 9.2 and 9.4 name `e93a564a0`'s numbers (OpenSpec 115 → 116, devsync 372 → 379 → 382).                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Minor 6 — stale `eslint.product.mjs` JSDoc             | Listed in section 12.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Rebase                                                 | Rehearsed as `rehearse/suite-move-r2` on `e93a564a0` with its own frozen install; section 9.1's base is `e93a564a0`.                                                                                                                                                                                                                                                                                                                                                                                        |
