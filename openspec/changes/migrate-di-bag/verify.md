@@ -276,3 +276,130 @@ Pending planner verification: boot baseline and `bs1`–`bs6` need port binding 
 sandbox; the whole `tool-devsync:test` target and committed index check write Git objects; the
 complete frontend targets include tests that cannot spawn Bun here. The host gate cannot run on
 this machine. Slice 5 owns the pinned model runs and model sabotages.
+
+## Packet 140.3, slice 5 — model seeds and sabotages
+
+Attempt: `140-3-di-bag-migration.5.20260925T221009Z`; observed 2026-09-25 UTC; base=8a8e0118231ff51d0eaedd5fdf14db001610da40.
+The starting tree was clean (`status-before.txt` empty), and the installed di-bag package reported
+`0.5.0`. Step 0 extracted seven section 7 diffs, 169 section 8 mutation patches and 74 slice 5
+records; every named test was found in its file. The strict OpenSpec baseline reported 116 items,
+116 passed and 0 failed (`openspec-base-totals.txt`, status 0).
+
+The eleven model files at their pinned seeds passed: 11 files and 12 tests (`models.log`, status
+0). Their exact file, seed and run-limit lines are in `model-seeds.txt`:
+
+```text
+src/components/wbs/remembered-layout.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/lib/theme.model.test.tsx seed=seed: 20260925  runs=numRuns: 300
+src/modules/channel.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/modules/plan-feed/delivered-plan-store.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/modules/plan-feed/presence-store.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/modules/plan-writer/busy-store.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/runtime/application-bootstrap.model.test.tsx seed=seed: 20260924  runs=numRuns: 300
+src/runtime/lifetime-slot.model.test.ts seed=seed: 20260923  runs=numRuns: 300
+src/runtime/project-runtime.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/runtime/session-exit.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+src/runtime/session-runtime.model.test.ts seed=seed: 20260924  runs=numRuns: 300
+```
+
+Every record below failed its named test with the mutation applied (status 1), then its whole test
+file passed after restoring and byte-comparing every touched file (status 0). Each record has the
+applied patch, failing output, patch-check output, and restored output under its id in the evidence
+directory. `fault-loop.txt` records all 74 outcomes (status 0). The fast-check run and shrink values
+are the observed values from `model-runs.txt`; `example` denotes a deterministic example test.
+The diagnostic is the first cause or assertion reported in the failing output.
+
+- **a-A1:** Property failed after 3 tests; Shrunk 3 time. Observed: Caused by: AssertionError: r4: 1 acquisitions, 0 close attempts, live=null: expected +0 to be 1 // Object.is equality (evidence: `a-A1.diff`, `a-A1.log`, `a-A1-restored.log`).
+- **a-A2:** Property failed after 1 tests; Shrunk 5 time. Observed: Caused by: AssertionError: the latest request did not win: expected 'refused' not to be 'refused' // Object.is equality (evidence: `a-A2.diff`, `a-A2.log`, `a-A2-restored.log`).
+- **a-A3:** Property failed after 4 tests; Shrunk 3 time. Observed: Caused by: AssertionError: r1: 1 acquisitions, 0 close attempts, live=null: expected +0 to be 1 // Object.is equality (evidence: `a-A3.diff`, `a-A3.log`, `a-A3-restored.log`).
+- **a-A4:** Property failed after 9 tests; Shrunk 4 time. Observed: Caused by: AssertionError: r2: 1 acquisitions, 0 close attempts, live=r3: expected +0 to be 1 // Object.is equality (evidence: `a-A4.diff`, `a-A4.log`, `a-A4-restored.log`).
+- **a-A5:** example; -. Observed: AssertionError: expected 1 to be +0 // Object.is equality (evidence: `a-A5.diff`, `a-A5.log`, `a-A5-restored.log`).
+- **a-A6:** example; -. Observed: AssertionError: third accounting: expected +0 to be 1 // Object.is equality (evidence: `a-A6.diff`, `a-A6.log`, `a-A6-restored.log`).
+- **b-ens:** Property failed after 27 tests; Shrunk 2 time. Observed: Caused by: AssertionError: r2 is not live (live=null) but its read did not throw: expected false to be true // Object.is equality (evidence: `b-ens.diff`, `b-ens.log`, `b-ens-restored.log`).
+- **e-5:** Property failed after 5 tests; Shrunk 4 time. Observed: Caused by: AssertionError: the app was drawn while the slot was retiring: expected 'retiring' to be 'live' // Object.is equality (evidence: `e-5.diff`, `e-5.log`, `e-5-restored.log`).
+- **e-13:** Property failed after 175 tests; Shrunk 0 time. Observed: Caused by: AssertionError: a runtime live before a pagehide trigger was still the one live at the end: expected [ { preferences: { …(3) }, …(1) } ] to not include { preferences: { …(3) }, …(1) } (evidence: `e-13.diff`, `e-13.log`, `e-13-restored.log`).
+- **e-14:** Property failed after 3 tests; Shrunk 6 time. Observed: Caused by: AssertionError: the app was drawn while the slot was empty: expected 'empty' to be 'live' // Object.is equality (evidence: `e-14.diff`, `e-14.log`, `e-14-restored.log`).
+- **e-15:** Property failed after 87 tests; Shrunk 4 time. Observed: Caused by: AssertionError: the app was drawn while the slot was fatal: expected 'fatal' to be 'live' // Object.is equality (evidence: `e-15.diff`, `e-15.log`, `e-15-restored.log`).
+- **f1-a:** Property failed after 14 tests; Shrunk 5 time. Observed: Caused by: AssertionError: stored bytes in A: expected undefined to be '"system"' // Object.is equality (evidence: `f1-a.diff`, `f1-a.log`, `f1-a-restored.log`).
+- **f1-b:** Property failed after 14 tests; Shrunk 3 time. Observed: Caused by: AssertionError: persists: expected false to be true // Object.is equality (evidence: `f1-b.diff`, `f1-b.log`, `f1-b-restored.log`).
+- **f1-c:** Property failed after 42 tests; Shrunk 1 time. Observed: Caused by: AssertionError: an ordinary storage failure did not propagate out of the chooser: expected null to be Error: write denied // Object.is equality (evidence: `f1-c.diff`, `f1-c.log`, `f1-c-restored.log`).
+- **f1-d:** Property failed after 1 tests; Shrunk 2 time. Observed: Caused by: PreferenceStoreLifecycleError: the page withdrew this preference store before the access completed (evidence: `f1-d.diff`, `f1-d.log`, `f1-d-restored.log`).
+- **f1-e:** Property failed after 1 tests; Shrunk 4 time. Observed: Caused by: AssertionError: persists: expected true to be false // Object.is equality (evidence: `f1-e.diff`, `f1-e.log`, `f1-e-restored.log`).
+- **f1-f:** Property failed after 9 tests; Shrunk 1 time. Observed: Caused by: Error: the property failed and its teardown refused: Error: retire refused during teardown with: Error: unexpected cleanup corruption | Error: teardown retire refused during teardown with: Error: unexpected cleanup corruption (evidence: `f1-f.diff`, `f1-f.log`, `f1-f-restored.log`).
+- **f1-g:** Property failed after 1 tests; Shrunk 1 time. Observed: Caused by: Error: teardown refused: Error: teardown retire refused during teardown with: Error: unrelated teardown failure (evidence: `f1-g.diff`, `f1-g.log`, `f1-g-restored.log`).
+- **f2-ha:** Property failed after 8 tests; Shrunk 4 time. Observed: Caused by: AssertionError: write(outline): what the handle answered: expected false to deeply equal true (evidence: `f2-ha.diff`, `f2-ha.log`, `f2-ha-restored.log`).
+- **f2-hb:** Property failed after 13 tests; Shrunk 2 time. Observed: Caused by: AssertionError: read: what the handle answered: expected PreferenceStoreLifecycleError: the page w… { kind: '…' } to deeply equal { value: null, persists: false } (evidence: `f2-hb.diff`, `f2-hb.log`, `f2-hb-restored.log`).
+- **f2-hc:** Property failed after 2 tests; Shrunk 1 time. Observed: Caused by: AssertionError: read: what the handle answered: expected { value: null, persists: true } to deeply equal { value: null, persists: false } (evidence: `f2-hc.diff`, `f2-hc.log`, `f2-hc-restored.log`).
+- **f2-hd:** Property failed after 106 tests; Shrunk 2 time. Observed: Caused by: AssertionError: stored bytes in B: expected '7' to be undefined // Object.is equality (evidence: `f2-hd.diff`, `f2-hd.log`, `f2-hd-restored.log`).
+- **f2-he:** Property failed after 18 tests; Shrunk 1 time. Observed: Caused by: AssertionError: write(outline): an ordinary storage failure did not propagate unchanged: expected false to be Error: write denied // Object.is equality (evidence: `f2-he.diff`, `f2-he.log`, `f2-he-restored.log`).
+- **f2-hh:** Property failed after 2 tests; Shrunk 2 time. Observed: Caused by: AssertionError: write(outline) while acquiring: what the handle answered: expected true to deeply equal false (evidence: `f2-hh.diff`, `f2-hh.log`, `f2-hh-restored.log`).
+- **f2-hf:** Property failed after 2 tests; Shrunk 3 time. Observed: Caused by: Error: the property failed and its teardown refused: Error: replace(A) refused during teardown with: Error: unexpected cleanup corruption | Error: teardown retire refused during teardown with: Error: unexpected cleanup corruption (evidence: `f2-hf.diff`, `f2-hf.log`, `f2-hf-restored.log`).
+- **f2-hg:** Property failed after 1 tests; Shrunk 0 time. Observed: Caused by: Error: teardown refused: Error: teardown retire refused during teardown with: Error: unrelated teardown failure (evidence: `f2-hg.diff`, `f2-hg.log`, `f2-hg-restored.log`).
+- **g-c1:** Property failed after 5 tests; Shrunk 5 time. Observed: Caused by: Error: teardown refused: AssertionError: who heard 1, in what order: expected [ { listener: +0, event: 1 }, …(1) ] to deeply equal [ { listener: +0, event: 1 } ] (evidence: `g-c1.diff`, `g-c1.log`, `g-c1-restored.log`).
+- **g-c2:** Property failed after 16 tests; Shrunk 4 time. Observed: Caused by: AssertionError: publish(1) threw with no failing listener: expected AssertionError: listener 1 heard 1 after … { …(4) } to be null (evidence: `g-c2.diff`, `g-c2.log`, `g-c2-restored.log`).
+- **g-c3:** Property failed after 17 tests; Shrunk 1 time. Observed: Caused by: AssertionError: listener 0 was entered re-entrantly: expected 2 to be 1 // Object.is equality (evidence: `g-c3.diff`, `g-c3.log`, `g-c3-restored.log`).
+- **g-c4:** Property failed after 5 tests; Shrunk 5 time. Observed: Caused by: Error: teardown refused: AssertionError: publish(1) did not rethrow the one failure by identity: expected null to be Error: listener 0 refused 1 // Object.is equality (evidence: `g-c4.diff`, `g-c4.log`, `g-c4-restored.log`).
+- **g-c5:** Property failed after 5 tests; Shrunk 4 time. Observed: Caused by: Error: teardown refused: AssertionError: who heard 1, in what order: expected [ { listener: +0, event: 1 } ] to deeply equal [ { listener: +0, event: 1 }, …(1) ] (evidence: `g-c5.diff`, `g-c5.log`, `g-c5-restored.log`).
+- **g-c6:** Property failed after 5 tests; Shrunk 5 time. Observed: Caused by: Error: teardown refused: AssertionError: publish(1) did not aggregate its failures: expected Error: listener 0 refused 1 to be an instance of AggregateError (evidence: `g-c6.diff`, `g-c6.log`, `g-c6-restored.log`).
+- **g-b1:** Property failed after 1 tests; Shrunk 0 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: changes heard by the listener that never leaves: expected 1 to be +0 // Object.is equality (evidence: `g-b1.diff`, `g-b1.log`, `g-b1-restored.log`).
+- **g-b2:** Property failed after 1 tests; Shrunk 1 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: the last value the sentinel read: expected false to be true // Object.is equality (evidence: `g-b2.diff`, `g-b2.log`, `g-b2-restored.log`).
+- **g-b3:** Property failed after 1 tests; Shrunk 2 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: busy: expected true to be false // Object.is equality (evidence: `g-b3.diff`, `g-b3.log`, `g-b3-restored.log`).
+- **g-b4:** Property failed after 2 tests; Shrunk 1 time. Observed: Caused by: AssertionError: raise: busy: expected false to be true // Object.is equality (evidence: `g-b4.diff`, `g-b4.log`, `g-b4-restored.log`).
+- **g-d1:** Property failed after 1 tests; Shrunk 0 time. Observed: Caused by: AssertionError: redeliver: a new snapshot exactly when something changed: expected true to be false // Object.is equality (evidence: `g-d1.diff`, `g-d1.log`, `g-d1-restored.log`).
+- **g-d2:** Property failed after 1 tests; Shrunk 13 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: tree: expected null to be { value: { …(19) }, generation: 1 } // Object.is equality (evidence: `g-d2.diff`, `g-d2.log`, `g-d2-restored.log`).
+- **g-d3:** Property failed after 1 tests; Shrunk 14 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: markers: expected [] to be [] // Object.is equality (evidence: `g-d3.diff`, `g-d3.log`, `g-d3-restored.log`).
+- **g-d4:** Property failed after 5 tests; Shrunk 10 time. Observed: Caused by: AssertionError: redeliver: a new snapshot exactly when something changed: expected true to be false // Object.is equality (evidence: `g-d4.diff`, `g-d4.log`, `g-d4-restored.log`).
+- **g-d5:** Property failed after 1 tests; Shrunk 6 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: steps are not the store’s own: expected true to be false // Object.is equality (evidence: `g-d5.diff`, `g-d5.log`, `g-d5-restored.log`).
+- **g-r1:** Property failed after 1 tests; Shrunk 3 time. Observed: Caused by: AssertionError: users(["lee"]): a new snapshot exactly when something changed: expected true to be false // Object.is equality (evidence: `g-r1.diff`, `g-r1.log`, `g-r1-restored.log`).
+- **g-r2:** Property failed after 1 tests; Shrunk 2 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: users: expected [] to be [] // Object.is equality (evidence: `g-r2.diff`, `g-r2.log`, `g-r2-restored.log`).
+- **g-r3:** Property failed after 1 tests; Shrunk 2 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: users: expected [] to be [] // Object.is equality (evidence: `g-r3.diff`, `g-r3.log`, `g-r3-restored.log`).
+- **g-r4:** Property failed after 1 tests; Shrunk 1 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: users: expected [] to be [] // Object.is equality (evidence: `g-r4.diff`, `g-r4.log`, `g-r4-restored.log`).
+- **i-m1:** Property failed after 3 tests; Shrunk 2 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: the published session is not the user last asked for: expected 'u2' to be 'u1' // Object.is equality (evidence: `i-m1.diff`, `i-m1.log`, `i-m1-restored.log`).
+- **i-m2:** Property failed after 10 tests; Shrunk 6 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: the last user asked for is not the one live: expected 'fatal' to be 'u1' // Object.is equality (evidence: `i-m2.diff`, `i-m2.log`, `i-m2-restored.log`).
+- **i-m3:** Property failed after 2 tests; Shrunk 6 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: s1's directory changed after it was withdrawn: expected false to be true // Object.is equality (evidence: `i-m3.diff`, `i-m3.log`, `i-m3-restored.log`).
+- **i-m4:** Property failed after 2 tests; Shrunk 6 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: s1's directory changed after it was withdrawn: expected false to be true // Object.is equality (evidence: `i-m4.diff`, `i-m4.log`, `i-m4-restored.log`).
+- **i-m5:** Property failed after 1 tests; Shrunk 5 time. Observed: Caused by: AssertionError: gesture: withdrawn s1 sent a request: expected 1 to be +0 // Object.is equality (evidence: `i-m5.diff`, `i-m5.log`, `i-m5-restored.log`).
+- **i-m6:** Property failed after 1 tests; Shrunk 5 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: signOut settled before s1's retirement had run: expected false to be true // Object.is equality (evidence: `i-m6.diff`, `i-m6.log`, `i-m6-restored.log`).
+- **i-m7:** Property failed after 14 tests; Shrunk 7 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live' // Object.is equality (evidence: `i-m7.diff`, `i-m7.log`, `i-m7-restored.log`).
+- **i-m8:** Property failed after 14 tests; Shrunk 5 time. Observed: Caused by: AssertionError: signInBroken(u2): a project is still current after its session was withdrawn: expected [ 's1.p1' ] to deeply equal [] (evidence: `i-m8.diff`, `i-m8.log`, `i-m8-restored.log`).
+- **i-m9:** Property failed after 3 tests; Shrunk 11 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live' // Object.is equality (evidence: `i-m9.diff`, `i-m9.log`, `i-m9-restored.log`).
+- **i-m10:** Property failed after 2 tests; Shrunk 6 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: more than one session says it is current: expected [ 's1', 's2' ] to have a length of 1 but got 2 (evidence: `i-m10.diff`, `i-m10.log`, `i-m10-restored.log`).
+- **i-m11:** Property failed after 14 tests; Shrunk 7 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: s1 was retired while its project owner still held one: expected 'live' not to be 'live' // Object.is equality (evidence: `i-m11.diff`, `i-m11.log`, `i-m11-restored.log`).
+- **i-m12:** Property failed after 2 tests; Shrunk 4 time. Observed: Caused by: Error: teardown refused: Error: a session transition was refused by the slot itself (evidence: `i-m12.diff`, `i-m12.log`, `i-m12-restored.log`).
+- **j-m1:** Property failed after 2 tests; Shrunk 2 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2 (evidence: `j-m1.diff`, `j-m1.log`, `j-m1-restored.log`).
+- **j-m2:** Property failed after 2 tests; Shrunk 7 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: r1's delivered plan changed after it was withdrawn: expected false to be true // Object.is equality (evidence: `j-m2.diff`, `j-m2.log`, `j-m2-restored.log`).
+- **j-m3:** Property failed after 6 tests; Shrunk 5 time. Observed: Caused by: AssertionError: reread: withdrawn r2 sent a request: expected 1 to be +0 // Object.is equality (evidence: `j-m3.diff`, `j-m3.log`, `j-m3-restored.log`).
+- **j-m4:** Property failed after 2 tests; Shrunk 5 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: r1's feed closed 2 times, live=false: expected 2 to be 1 // Object.is equality (evidence: `j-m4.diff`, `j-m4.log`, `j-m4-restored.log`).
+- **j-m5:** Property failed after 2 tests; Shrunk 5 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: r1's feed closed 0 times, live=false: expected +0 to be 1 // Object.is equality (evidence: `j-m5.diff`, `j-m5.log`, `j-m5-restored.log`).
+- **j-m6:** Property failed after 2 tests; Shrunk 2 time. Observed: Caused by: AssertionError: mark: withdrawn r1 sent a request: expected 1 to be +0 // Object.is equality (evidence: `j-m6.diff`, `j-m6.log`, `j-m6-restored.log`).
+- **j-m7:** Property failed after 3 tests; Shrunk 7 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: r2's presence changed after it was withdrawn: expected false to be true // Object.is equality (evidence: `j-m7.diff`, `j-m7.log`, `j-m7-restored.log`).
+- **j-m8:** Property failed after 6 tests; Shrunk 5 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: r2's presence changed after it was withdrawn: expected false to be true // Object.is equality (evidence: `j-m8.diff`, `j-m8.log`, `j-m8-restored.log`).
+- **j-m9:** Property failed after 2 tests; Shrunk 1 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: more than one runtime says it is current: expected [ 'r1', 'r2' ] to have a length of 1 but got 2 (evidence: `j-m9.diff`, `j-m9.log`, `j-m9-restored.log`).
+- **j-m10:** Property failed after 3 tests; Shrunk 6 time. Observed: Caused by: Error: teardown refused: Error: a project transition was refused by the slot itself (evidence: `j-m10.diff`, `j-m10.log`, `j-m10-restored.log`).
+- **k-x1:** Property failed after 18 tests; Shrunk 10 time. Observed: Caused by: AssertionError: read: withdrawn s1 sent a request: expected 5 to be +0 // Object.is equality (evidence: `k-x1.diff`, `k-x1.log`, `k-x1-restored.log`).
+- **k-x2:** Property failed after 50 tests; Shrunk 6 time. Observed: Caused by: Error: the property failed and its teardown refused: Error: s1 was given back before its project s1.p1.settles (evidence: `k-x2.diff`, `k-x2.log`, `k-x2-restored.log`).
+- **k-x3:** Property failed after 59 tests; Shrunk 9 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: teardown: s1.p1.settles's plan changed after its session s1 was withdrawn: expected false to be true // Object.is equality (evidence: `k-x3.diff`, `k-x3.log`, `k-x3-restored.log`).
+- **k-x4:** Property failed after 75 tests; Shrunk 6 time. Observed: Caused by: Error: teardown refused: AssertionError: teardown: leave never settled: expected false to be true // Object.is equality (evidence: `k-x4.diff`, `k-x4.log`, `k-x4-restored.log`).
+- **k-x5:** Property failed after 3 tests; Shrunk 7 time. Observed: Caused by: Error: teardown refused: AssertionError: logOut#1 settled signed-out before s1 was given back: expected false to be true // Object.is equality (evidence: `k-x5.diff`, `k-x5.log`, `k-x5-restored.log`).
+- **k-x6:** Property failed after 58 tests; Shrunk 5 time. Observed: Caused by: Error: the property failed and its teardown refused: AssertionError: logOut#1 settled signed-out before s1 was given back: expected false to be true // Object.is equality (evidence: `k-x6.diff`, `k-x6.log`, `k-x6-restored.log`).
+- **k-x7:** Property failed after 43 tests; Shrunk 4 time. Observed: Caused by: Error: teardown refused: AssertionError: logOut#1 settled signed-out though a sign-in was asked for while it retired: expected true to be false // Object.is equality (evidence: `k-x7.diff`, `k-x7.log`, `k-x7-restored.log`).
+
+The same mutations also failed these related tests; their names are in
+`model-extra-failures.txt`:
+
+- a-A2 | FAIL src/runtime/lifetime-slot.model.test.ts > the ownership rule, under generated interleavings > acquire, then retire a live runtime, then settled: the captured handle refuses afterward
+- a-A5 | FAIL src/runtime/lifetime-slot.test.ts > one lifetime’s ownership > leaves exactly one runtime live when two replacements arrive together
+- a-A6 | FAIL src/runtime/lifetime-slot.test.ts > one lifetime’s ownership > withdraws the old runtime before its disposal starts, then publishes the replacement
+- b-ens | FAIL src/runtime/lifetime-slot.model.test.ts > the ownership rule, under generated interleavings > holds every invariant it claims
+
+Section 7.7 was applied to tick task 3.3 (patch dry-run and apply status 0). The four-project
+`typecheck` and `lint` checks passed, as did the application `build` check (`s5-typecheck.log`,
+`s5-lint.log`, `s5-build.log`; each status 0). Prettier write and check over the two owned paths
+passed (`s5-prettier-write.log`, `s5-prettier-check.log`; status 0, all files in style). The strict
+OpenSpec validation reported 116 items, 116 passed and 0 failed (`openspec-s5-totals.txt`, status
+0). The repository-wide format check passed (`s5-format-check.log`, status 0). The hand-over
+compared the changed-path list with the two owned paths (`status-after.txt`, status 0).
+
+Pending planner verification: the whole `tool-devsync:test` target and committed index check need
+Git writes; the complete frontend targets contain Bun child-process tests unavailable in this
+sandbox. The host gate cannot run on this machine. The planner also owns final integration checks.
