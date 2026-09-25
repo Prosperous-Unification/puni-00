@@ -56,10 +56,15 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    directory: DiBag.fromSyncFactory(() => source.stores.directory),
-    markers: DiBag.fromSyncFactory(() => ({
-      list: () => Promise.resolve({ ok: true as const, value: [] }),
-    })),
+    directory: DiBag.createProvider(() => source.stores.directory, {
+      factoryReturnKind: 'sync-value',
+    }),
+    markers: DiBag.createProvider(
+      () => ({
+        list: () => Promise.resolve({ ok: true as const, value: [] }),
+      }),
+      { factoryReturnKind: 'sync-value' },
+    ),
   };
 };
 
@@ -73,9 +78,12 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(planDocumentModule)
-    .register({ ...hostRequirements(), clock: DiBag.fromSyncFactory(() => ({ now: () => 0 })) })
-    .build();
+    .withInstalledModules([planDocumentModule])
+    .withServices({
+      ...hostRequirements(),
+      clock: DiBag.createProvider(() => ({ now: () => 0 }), { factoryReturnKind: 'sync-value' }),
+    })
+    .buildContainer();
 
 describe('the Plan document module', () => {
   it('exports a project with its markers over the graph installPlanDocument wires', async () => {
@@ -117,14 +125,14 @@ describe('the Plan document module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('planDocumentOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "planDocumentOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "planDocumentOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${PLAN_DOCUMENT_LABEL}/planDocumentOptions`,
     );
   });
@@ -137,11 +145,11 @@ describe('the Plan document module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(planDocumentModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([planDocumentModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('planDocuments')).toThrow(
       `Cannot resolve "${PLAN_DOCUMENT_LABEL}/planDocumentOptions": dependency "clock" is not registered. Resolution path: planDocuments -> ${PLAN_DOCUMENT_LABEL}/planDocumentOptions -> clock.`,

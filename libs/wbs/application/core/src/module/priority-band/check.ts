@@ -15,14 +15,20 @@ import { priorityBandModule } from './module';
  */
 export function installPriorityBand(requirements: PriorityBandRequirements): PriorityBandExports {
   const bag = DiBag.createBuilder()
-    .installModule(priorityBandModule)
-    .register({
-      projectStore: DiBag.fromSyncFactory(() => requirements.projects),
-      priorityBandStore: DiBag.fromSyncFactory(() => requirements.bands),
-      broadcast: DiBag.fromSyncFactory(() => requirements.broadcast),
-      clock: DiBag.fromSyncFactory(() => requirements.clock),
+    .withInstalledModules([priorityBandModule])
+    .withServices({
+      projectStore: DiBag.createProvider(() => requirements.projects, {
+        factoryReturnKind: 'sync-value',
+      }),
+      priorityBandStore: DiBag.createProvider(() => requirements.bands, {
+        factoryReturnKind: 'sync-value',
+      }),
+      broadcast: DiBag.createProvider(() => requirements.broadcast, {
+        factoryReturnKind: 'sync-value',
+      }),
+      clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (4 pass, 1 fail), with
   // `wbs-core:typecheck` at exit 0.

@@ -193,21 +193,26 @@ describe("the page's bootstrap, under generated interleavings", () => {
             return () => {
               const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
               const bag = DiBag.createBuilder()
-                .register({
-                  owned: DiBag.withDisposal(
-                    DiBag.fromSyncFactory((): ApplicationServices => installed.services),
-                    async () => {
+                .withServices({
+                  owned: DiBag.providerWithDisposal({
+                    provider: DiBag.createProvider((): ApplicationServices => installed.services, {
+                      factoryReturnKind: 'sync-value',
+                    }),
+                    disposeService: async () => {
                       if (disposal === 'never') return new Promise<void>(() => undefined);
                       await scheduler.schedule(
                         Promise.reject(new Error('the page runtime refused to dispose')),
                         'dispose the page runtime',
                       );
                     },
-                  ),
+                  }),
                 })
-                .build();
+                .buildContainer();
               const services = bag.resolve('owned');
-              return { services, close: (options) => bag.close(options) };
+              return {
+                services,
+                close: (options) => bag.close({ waitTimeoutMs: options.timeoutMs }),
+              };
             };
           };
 

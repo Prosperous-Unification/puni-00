@@ -14,12 +14,14 @@ import { directoryManagementModule } from './module';
  */
 const hostOver = (api: ReturnType<typeof fakeDirectoryApi>, isActiveReader = () => true) =>
   DiBag.createBuilder()
-    .installModule(directoryManagementModule)
-    .register({
-      directoryApi: DiBag.fromSyncFactory(() => api),
-      isActiveReader: DiBag.fromSyncFactory((): (() => boolean) => isActiveReader),
+    .withInstalledModules([directoryManagementModule])
+    .withServices({
+      directoryApi: DiBag.createProvider(() => api, { factoryReturnKind: 'sync-value' }),
+      isActiveReader: DiBag.createProvider((): (() => boolean) => isActiveReader, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the directory-management module', () => {
   it('publishes the directory’s gestures over the client its host supplied', async () => {
@@ -37,16 +39,18 @@ describe('the directory-management module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('directory'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "directory" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "directory" is not registered.');
   });
 
   it('names itself when a host omits the client', () => {
     const partial = DiBag.createBuilder()
-      .installModule(directoryManagementModule)
-      .register({
-        isActiveReader: DiBag.fromSyncFactory((): (() => boolean) => () => true),
-      }) as unknown as { build: () => { resolve: (key: string) => unknown } };
-    const host = partial.build();
+      .withInstalledModules([directoryManagementModule])
+      .withServices({
+        isActiveReader: DiBag.createProvider((): (() => boolean) => () => true, {
+          factoryReturnKind: 'sync-value',
+        }),
+      }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('directoryManagement')).toThrow(
       `Cannot resolve "${DIRECTORY_MANAGEMENT_LABEL}/directory": dependency "directoryApi" is not registered.`,

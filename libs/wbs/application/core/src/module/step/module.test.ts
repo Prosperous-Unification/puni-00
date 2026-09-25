@@ -35,9 +35,13 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.fromSyncFactory(() => source.stores.projects),
-    stepStore: DiBag.fromSyncFactory(() => source.stores.steps),
-    broadcast: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+    projectStore: DiBag.createProvider(() => source.stores.projects, {
+      factoryReturnKind: 'sync-value',
+    }),
+    stepStore: DiBag.createProvider(() => source.stores.steps, { factoryReturnKind: 'sync-value' }),
+    broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -51,12 +55,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(stepModule)
-    .register({
+    .withInstalledModules([stepModule])
+    .withServices({
       ...hostRequirements(),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 0, newId: () => 'unused' })),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Step module', () => {
   it('announces an added step through the broadcaster installStep wires', async () => {
@@ -94,14 +100,14 @@ describe('the Step module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('stepOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "stepOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "stepOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${STEP_LABEL}/stepOptions`,
     );
   });
@@ -114,11 +120,11 @@ describe('the Step module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(stepModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([stepModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('steps')).toThrow(
       `Cannot resolve "${STEP_LABEL}/stepOptions": dependency "clock" is not registered. Resolution path: steps -> ${STEP_LABEL}/stepOptions -> clock.`,

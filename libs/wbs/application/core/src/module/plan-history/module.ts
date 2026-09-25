@@ -10,7 +10,7 @@ import { HistoryService, type HistoryServiceOptions } from './plan-history.featu
  *
  * Only `history` is exported. `historySettings` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is reported
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is reported
  * against `application.plan-history/historySettings` rather than against an
  * anonymous binding.
  *
@@ -20,8 +20,8 @@ import { HistoryService, type HistoryServiceOptions } from './plan-history.featu
  * the source it borrows.
  */
 export const planHistoryModule = DiBag.createBuilder()
-  .register({
-    historySettings: DiBag.fromSyncFactory(
+  .withServices({
+    historySettings: DiBag.createProvider(
       ({
         projectStore,
         planEventStore,
@@ -29,16 +29,18 @@ export const planHistoryModule = DiBag.createBuilder()
         projectStore: ProjectStore;
         planEventStore: PlanEventStore;
       }): HistoryServiceOptions => ({ projects: projectStore, events: planEventStore }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    history: DiBag.fromSyncFactory(
+  .withServices({
+    history: DiBag.createProvider(
       ({ historySettings }: { historySettings: HistoryServiceOptions }): HistoryService =>
         new HistoryService(historySettings),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof: on 2026-09-22, exporting `historySettings` made the private-binding
   // test report "Received function did not throw" (3 pass, 3 fail).
   // Proof: on 2026-09-22, dropping the label made the graph omit
   // `application.plan-history/historySettings` (4 pass, 2 fail).
-  .buildModule(['history'], { label: PLAN_HISTORY_LABEL });
+  .buildModule({ exportedServiceKeys: ['history'], moduleLabel: PLAN_HISTORY_LABEL });

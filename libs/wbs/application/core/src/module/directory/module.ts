@@ -11,7 +11,7 @@ import { DirectoryService, type DirectoryServiceOptions } from './directory.reso
  *
  * Only `directory` is exported. `directoryOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.directory/directoryOptions` rather than
  * against an anonymous binding. The store is required as `directoryStore`
  * because the host graph's `directory` key is this module's export.
@@ -20,8 +20,8 @@ import { DirectoryService, type DirectoryServiceOptions } from './directory.reso
  * store of one scope, a clock and a broadcaster, and no handle of its own.
  */
 export const directoryModule = DiBag.createBuilder()
-  .register({
-    directoryOptions: DiBag.fromSyncFactory(
+  .withServices({
+    directoryOptions: DiBag.createProvider(
       ({
         directoryStore,
         broadcast,
@@ -34,12 +34,14 @@ export const directoryModule = DiBag.createBuilder()
         // instead of the supplied clock left `names a new team with the clock installDirectory
         // wires` failing (4 pass, 1 fail): the team's id read "unsupplied".
       }): DirectoryServiceOptions => ({ directory: directoryStore, broadcast, clock }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    directory: DiBag.fromSyncFactory(
+  .withServices({
+    directory: DiBag.createProvider(
       ({ directoryOptions }: { directoryOptions: DirectoryServiceOptions }): DirectoryService =>
         new DirectoryService(directoryOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['directory', 'directoryOptions']` left the
@@ -50,4 +52,4 @@ export const directoryModule = DiBag.createBuilder()
   // failing (3 pass, 2 fail): `inspectGraph()` reported `directoryOptions` unlabelled, and the
   // missing-requirement message named `directoryOptions` instead of
   // `application.directory/directoryOptions`.
-  .buildModule(['directory'], { label: DIRECTORY_LABEL });
+  .buildModule({ exportedServiceKeys: ['directory'], moduleLabel: DIRECTORY_LABEL });

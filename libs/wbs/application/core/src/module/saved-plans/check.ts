@@ -15,17 +15,21 @@ import { savedPlansModule } from './module';
  */
 export function installSavedPlans(requirements: SavedPlansRequirements): SavedPlansExports {
   const bag = DiBag.createBuilder()
-    .installModule(savedPlansModule)
-    .register({
-      digest: DiBag.fromSyncFactory(() => requirements.digest),
-      capture: DiBag.fromSyncFactory(() => requirements.capture),
-      plans: DiBag.fromSyncFactory(() => requirements.plans),
-      scheduler: DiBag.fromSyncFactory(() => requirements.scheduler),
-      newId: DiBag.fromSyncFactory(() => requirements.newId),
-      now: DiBag.fromSyncFactory(() => requirements.now),
-      quota: DiBag.fromSyncFactory(() => requirements.quota),
+    .withInstalledModules([savedPlansModule])
+    .withServices({
+      digest: DiBag.createProvider(() => requirements.digest, { factoryReturnKind: 'sync-value' }),
+      capture: DiBag.createProvider(() => requirements.capture, {
+        factoryReturnKind: 'sync-value',
+      }),
+      plans: DiBag.createProvider(() => requirements.plans, { factoryReturnKind: 'sync-value' }),
+      scheduler: DiBag.createProvider(() => requirements.scheduler, {
+        factoryReturnKind: 'sync-value',
+      }),
+      newId: DiBag.createProvider(() => requirements.newId, { factoryReturnKind: 'sync-value' }),
+      now: DiBag.createProvider(() => requirements.now, { factoryReturnKind: 'sync-value' }),
+      quota: DiBag.createProvider(() => requirements.quota, { factoryReturnKind: 'sync-value' }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable `exposed` object with `bag` left
   // the installer-surface assertion failing: the received keys included `bag` (6 pass, 1 fail),
   // with `wbs-core:typecheck` at exit 0.

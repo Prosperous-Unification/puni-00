@@ -35,9 +35,15 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.fromSyncFactory(() => source.stores.projects),
-    calendarMarkerStore: DiBag.fromSyncFactory(() => source.stores.calendarMarkers),
-    broadcast: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+    projectStore: DiBag.createProvider(() => source.stores.projects, {
+      factoryReturnKind: 'sync-value',
+    }),
+    calendarMarkerStore: DiBag.createProvider(() => source.stores.calendarMarkers, {
+      factoryReturnKind: 'sync-value',
+    }),
+    broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -51,12 +57,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(calendarMarkerModule)
-    .register({
+    .withInstalledModules([calendarMarkerModule])
+    .withServices({
       ...hostRequirements(),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 0, newId: () => 'unused' })),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Calendar marker module', () => {
   it('announces a created marker through the broadcaster installCalendarMarker wires', async () => {
@@ -107,14 +115,14 @@ describe('the Calendar marker module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('calendarMarkerOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "calendarMarkerOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "calendarMarkerOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${CALENDAR_MARKER_LABEL}/calendarMarkerOptions`,
     );
   });
@@ -127,11 +135,11 @@ describe('the Calendar marker module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(calendarMarkerModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([calendarMarkerModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('calendarMarkers')).toThrow(
       `Cannot resolve "${CALENDAR_MARKER_LABEL}/calendarMarkerOptions": dependency "clock" is not registered. Resolution path: calendarMarkers -> ${CALENDAR_MARKER_LABEL}/calendarMarkerOptions -> clock.`,

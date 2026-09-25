@@ -15,13 +15,17 @@ import { directoryModule } from './module';
  */
 export function installDirectory(requirements: DirectoryRequirements): DirectoryExports {
   const bag = DiBag.createBuilder()
-    .installModule(directoryModule)
-    .register({
-      directoryStore: DiBag.fromSyncFactory(() => requirements.directory),
-      broadcast: DiBag.fromSyncFactory(() => requirements.broadcast),
-      clock: DiBag.fromSyncFactory(() => requirements.clock),
+    .withInstalledModules([directoryModule])
+    .withServices({
+      directoryStore: DiBag.createProvider(() => requirements.directory, {
+        factoryReturnKind: 'sync-value',
+      }),
+      broadcast: DiBag.createProvider(() => requirements.broadcast, {
+        factoryReturnKind: 'sync-value',
+      }),
+      clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (4 pass, 1 fail), with
   // `wbs-core:typecheck` at exit 0.

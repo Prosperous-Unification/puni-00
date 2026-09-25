@@ -1,4 +1,4 @@
-import { DiBag } from 'di-bag';
+import { DiBag, DiBagCloseCancelledError } from 'di-bag';
 import { describe, expect, it } from 'vitest';
 
 import { fakeBrowserStorage } from '@/modules/preferences/fake-browser-storage';
@@ -21,7 +21,7 @@ import {
 /** What a half-finished read of a real graph did, for the transaction assertions. */
 interface HalfGraph {
   readonly read: () => { readonly first: string; readonly second: string };
-  readonly graph: { readonly close: (options: { timeoutMs: number }) => Promise<void> };
+  readonly graph: { readonly close: (options: { waitTimeoutMs: number }) => Promise<void> };
   readonly disposals: () => readonly string[];
 }
 
@@ -36,24 +36,60 @@ interface HalfGraph {
 function halfAcquiring(): HalfGraph {
   const disposals: string[] = [];
   const bag = DiBag.createBuilder()
-    .register({
-      first: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): string => 'the resource it took'),
-        async () => {
+    .withServices({
+      first: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider((): string => 'the resource it took', {
+          factoryReturnKind: 'sync-value',
+        }),
+        disposeService: async () => {
           disposals.push('first');
           await Promise.resolve();
         },
-      ),
-      second: DiBag.fromSyncFactory((): string => {
-        throw new Error('alice@example.com could not be composed');
       }),
+      second: DiBag.createProvider(
+        (): string => {
+          throw new Error('alice@example.com could not be composed');
+        },
+        { factoryReturnKind: 'sync-value' },
+      ),
     })
-    .build();
+    .buildContainer();
   return {
     graph: bag,
     disposals: () => disposals,
     read: () => ({ first: bag.resolve('first'), second: bag.resolve('second') }),
   };
+}
+
+/**
+ * A real DI Bag graph whose one owned service never finishes disposing.
+ *
+ * Only DI Bag's own wait budget can end a close of it, so the budget the
+ * transaction handed DI Bag is what the refusal reports: the one place the
+ * slot's `timeoutMs` becomes the library's `waitTimeoutMs`.
+ */
+function neverDisposing() {
+  return DiBag.createBuilder()
+    .withServices({
+      owned: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider((): string => 'held', { factoryReturnKind: 'sync-value' }),
+        disposeService: () => new Promise<void>(() => undefined),
+      }),
+    })
+    .buildContainer();
+}
+
+/** The wait budget in DI Bag's cancelled-close refusal. */
+async function budgetOfRefusedClose(closing: Promise<void>): Promise<number | undefined> {
+  const refusal = await closing.then(
+    () => new Error('the close was expected to outrun its budget'),
+    (thrown: unknown) => thrown,
+  );
+  // Proof: on 2026-09-25, bypassing both DI Bag closes with numeric rejections
+  // failed both budget tests with `Unknown Error: 25` and `Unknown Error: 30`;
+  // with this error-type check disabled, both tests passed.
+  if (!(refusal instanceof DiBagCloseCancelledError)) throw refusal;
+  return refusal.details.waitTimeoutMs;
 }
 
 describe('the page’s runtime, installed transactionally', () => {
@@ -114,6 +150,34 @@ describe('the page’s runtime, installed transactionally', () => {
     expect(half.disposals()).toEqual([]);
     await (refusal as PartialAcquisitionError).release({ timeoutMs: 50 });
     expect(half.disposals()).toEqual(['first']);
+  });
+
+  it('hands DI Bag the budget of a runtime’s own close', async () => {
+    const graph = neverDisposing();
+    const runtime = acquireTransactionally(graph, () => ({ owned: graph.resolve('owned') }));
+
+    expect(await budgetOfRefusedClose(runtime.close({ timeoutMs: 25 }))).toBe(25);
+  });
+
+  it('hands DI Bag the budget of a half-finished read’s release', async () => {
+    const graph = neverDisposing();
+
+    const refusal = ((): unknown => {
+      try {
+        acquireTransactionally(graph, () => {
+          graph.resolve('owned');
+          throw new Error('the second resource refused');
+        });
+      } catch (thrown: unknown) {
+        return thrown;
+      }
+      throw new Error('the half-finished read was expected to throw');
+    })();
+
+    expect(refusal).toBeInstanceOf(PartialAcquisitionError);
+    expect(
+      await budgetOfRefusedClose((refusal as PartialAcquisitionError).release({ timeoutMs: 30 })),
+    ).toBe(30);
   });
 
   it('carries the original failure as the cause of a refused installation', () => {

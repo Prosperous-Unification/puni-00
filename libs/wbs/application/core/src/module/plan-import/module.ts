@@ -12,7 +12,7 @@ import { ImportService, type ImportServiceOptions } from './plan-import.feature'
  *
  * Only `imports` is exported. `importOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is reported
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is reported
  * against `application.plan-import/importOptions` rather than against an
  * anonymous binding.
  *
@@ -22,8 +22,8 @@ import { ImportService, type ImportServiceOptions } from './plan-import.feature'
  * exactly as `bootBe01` owns the source it borrows.
  */
 export const planImportModule = DiBag.createBuilder()
-  .register({
-    importOptions: DiBag.fromSyncFactory(
+  .withServices({
+    importOptions: DiBag.createProvider(
       ({
         clock,
         scheduler,
@@ -37,12 +37,14 @@ export const planImportModule = DiBag.createBuilder()
         announcements: Broadcaster;
         batchServices: ImportServiceOptions['batchServices'];
       }): ImportServiceOptions => ({ clock, scheduler, uow, announcements, batchServices }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    imports: DiBag.fromSyncFactory(
+  .withServices({
+    imports: DiBag.createProvider(
       ({ importOptions }: { importOptions: ImportServiceOptions }): ImportService =>
         new ImportService(importOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-23): widening the key tuple to `['imports', 'importOptions']` left the
@@ -53,4 +55,4 @@ export const planImportModule = DiBag.createBuilder()
   // assertions failing (4 pass, 2 fail): `inspectGraph()` reported `importOptions` unlabelled,
   // and the missing-requirement message named `importOptions` instead of
   // `application.plan-import/importOptions`.
-  .buildModule(['imports'], { label: PLAN_IMPORT_LABEL });
+  .buildModule({ exportedServiceKeys: ['imports'], moduleLabel: PLAN_IMPORT_LABEL });
