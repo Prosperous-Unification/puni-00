@@ -12,6 +12,29 @@
 
 **Status:** Proposed plan, requested on 2026-09-17; implementation has not started. “All projects” means complete coverage by role, including explicit dispositions where a package does not apply. User scope amendment: do not adopt DI Bag in the React frontend for now; retain frontend reporting work. Other proposed designs remain subject to review.
 
+## Amendment, 2026-09-25: di-bag moved to 0.5.0
+
+Work item 140.3 (OpenSpec change `migrate-di-bag`) moved `di-bag` from 0.4.0 to 0.5.0. Where this
+and the amendments below disagree, this one holds.
+
+- **Renamed API, moved by the library's codemod.** `register` is `withServices`,
+  `installModule(m)` is `withInstalledModules([m])`, `buildModule({ exports, label })` is
+  `buildModule({ exportedServiceKeys, moduleLabel })`, `build` is `buildContainer`,
+  `buildAndStart(keys)` is `buildContainer().ensureServicesReady(keys)`, `fromSyncFactory(f)` is
+  `createProvider(f, { factoryReturnKind: 'sync-value' })`, `withDisposal(p, d)` is
+  `providerWithDisposal({ provider, disposeService })`, and `inspectGraph()` is
+  `graphSnapshot()`, whose bindings name `serviceKeys` and `bindingLabel`.
+- **One entry point.** `di-bag/node` is gone; the browser rules below hold with `di-bag` alone.
+- **Close options.** `close({ waitTimeoutMs, abortSignal })`. The lifetime slot keeps its own
+  `timeoutMs`; `acquireTransactionally` is the one place that hands it to DI Bag, and a test
+  proves the budget arrives. A 0.4.0 option is refused with `DI_BAG_INVALID_ARGUMENT`.
+- **Codes and errors.** A key nobody registered answers `DI_BAG_UNKNOWN_SERVICE_KEY` (was
+  `DI_BAG_MISSING_REGISTRATION`); a failed disposal is `DiBagDisposalError` with
+  `DI_BAG_DISPOSAL_FAILED`; `DiBagCloseCancelledError` keeps its class and carries
+  `disposalPromise`. Messages end with a link to the library's errors page.
+- **Labels are still write-only.** 0.5.0 exposes a module's label only as the prefix of its
+  private bindings' names, so the label check's known limit stands (WBS 040.13).
+
 ## Amendment, 2026-09-25: the report libraries moved together
 
 Work item 140.1–140.2 (OpenSpec change `migrate-report-libraries`) moved

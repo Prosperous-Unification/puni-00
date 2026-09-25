@@ -21,9 +21,9 @@ contract's services.
 
 ### Requirement: A module's label names its private bindings in failures
 
-Every sealed module SHALL be built with a `label` that is its module identifier with only the
+Every sealed module SHALL be built with a `moduleLabel` that is its module identifier with only the
 `module.` prefix dropped, so that its private bindings appear as `<label>/<key>` in DI failure
-messages and in `inspectGraph()`. A module that lives in a library SHALL be identified as
+messages and in `graphSnapshot()`. A module that lives in a library SHALL be identified as
 `module.<ring>.<name>`; a module that lives under an app SHALL be identified as
 `module.<runtime>.<name>`, where the runtime is `backend`, `frontend`, `gateway` or `mcp` by the app
 it lives under. The nine existing identifiers SHALL NOT change.
