@@ -17,10 +17,16 @@ import { GANTT_DETAIL_KEY } from './preference-keys';
  */
 const hostOver = (store: ReturnType<typeof fakeBrowserStorage>) =>
   DiBag.createBuilder()
-    .installModule(preferencesModule)
-    .register({ browserStore: DiBag.fromSyncFactory(() => store) })
-    .register({ isLive: DiBag.fromSyncFactory((): (() => boolean) => () => true) })
-    .build();
+    .withInstalledModules([preferencesModule])
+    .withServices({
+      browserStore: DiBag.createProvider(() => store, { factoryReturnKind: 'sync-value' }),
+    })
+    .withServices({
+      isLive: DiBag.createProvider((): (() => boolean) => () => true, {
+        factoryReturnKind: 'sync-value',
+      }),
+    })
+    .buildContainer();
 
 describe('the preferences module', () => {
   it('publishes the answers delivery asks for, over the store its host supplied', () => {
@@ -37,13 +43,13 @@ describe('the preferences module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('preferencesStore'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "preferencesStore" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "preferencesStore" is not registered.');
   });
 
   it('labels its owned store with the module name', () => {
     const host = hostOver(fakeBrowserStorage());
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${PREFERENCES_LABEL}/preferencesStore`,
     );
   });
@@ -59,10 +65,10 @@ describe('the preferences module', () => {
    * which module asked, because `browserStore` alone would not.
    */
   it('names itself when a host omits the browser store', () => {
-    const partial = DiBag.createBuilder().installModule(preferencesModule) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+    const partial = DiBag.createBuilder().withInstalledModules([preferencesModule]) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('preferences')).toThrow(
       `Cannot resolve "${PREFERENCES_LABEL}/preferencesStore": dependency "browserStore" is not registered. Resolution path: preferences -> ${PREFERENCES_LABEL}/preferencesStore -> browserStore.`,
@@ -88,7 +94,7 @@ describe('the preferences module', () => {
 
     expect(naming('preferencesStore')).not.toContain(PREFERENCES_LABEL);
     expect(naming('nothing-of-the-kind')).not.toContain(PREFERENCES_LABEL);
-    expect(naming('preferencesStore')).toContain('DI_BAG_MISSING_REGISTRATION');
+    expect(naming('preferencesStore')).toContain('DI_BAG_UNKNOWN_SERVICE_KEY');
   });
 
   /**
@@ -120,7 +126,7 @@ describe('the preferences module', () => {
     const host = hostOver(fakeBrowserStorage());
     const remembered = host.resolve('remembered');
 
-    await host.close({ timeoutMs: 50 });
+    await host.close({ waitTimeoutMs: 50 });
 
     expect(() => {
       remembered.ganttDetail.write(true);

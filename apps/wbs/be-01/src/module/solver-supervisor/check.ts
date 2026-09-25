@@ -17,15 +17,23 @@ export function installSolverSupervisor(
   requirements: SolverSupervisorRequirements,
 ): SolverSupervisorExports {
   const bag = DiBag.createBuilder()
-    .installModule(solverSupervisorModule)
-    .register({
-      unix: DiBag.fromSyncFactory(() => requirements.unix),
-      callerId: DiBag.fromSyncFactory(() => requirements.callerId),
-      searchWorkers: DiBag.fromSyncFactory(() => requirements.searchWorkers),
-      memoryLimitMb: DiBag.fromSyncFactory(() => requirements.memoryLimitMb),
-      connect: DiBag.fromSyncFactory(() => requirements.connect),
+    .withInstalledModules([solverSupervisorModule])
+    .withServices({
+      unix: DiBag.createProvider(() => requirements.unix, { factoryReturnKind: 'sync-value' }),
+      callerId: DiBag.createProvider(() => requirements.callerId, {
+        factoryReturnKind: 'sync-value',
+      }),
+      searchWorkers: DiBag.createProvider(() => requirements.searchWorkers, {
+        factoryReturnKind: 'sync-value',
+      }),
+      memoryLimitMb: DiBag.createProvider(() => requirements.memoryLimitMb, {
+        factoryReturnKind: 'sync-value',
+      }),
+      connect: DiBag.createProvider(() => requirements.connect, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (4 pass, 1 fail), with
   // `wbs-be-01:typecheck` at exit 0.

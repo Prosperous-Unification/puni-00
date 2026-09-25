@@ -34,9 +34,14 @@ export interface ApplicationServices {
   readonly remembered: RememberedPreferences;
 }
 
-/** What a built graph owes a transaction: one bounded close for everything it took. */
+/**
+ * What a built graph owes a transaction: one bounded close for everything it took.
+ *
+ * DI Bag names the bound `waitTimeoutMs`; the lifetime slot's own contract keeps
+ * `timeoutMs`, and {@link acquireTransactionally} is the one place that translates.
+ */
 interface ClosableGraph {
-  readonly close: (options: { timeoutMs: number }) => Promise<void>;
+  readonly close: (options: { waitTimeoutMs: number }) => Promise<void>;
 }
 
 /**
@@ -64,13 +69,18 @@ export function acquireTransactionally<S>(
   try {
     // Proof: on 2026-09-22, a resolved no-op close left the store readable after
     // 'revokes the store it owns when the installation closes' (3 failed, 39 passed).
-    return { services: read(), close: (options) => graph.close(options) };
+    return {
+      services: read(),
+      close: (options) => graph.close({ waitTimeoutMs: options.timeoutMs }),
+    };
   } catch (failure) {
     // Proof: on 2026-09-22, rethrowing this unwrapped made 'releases everything a
     // half-finished read acquired' receive Error instead of PartialAcquisitionError.
     // Proof: on 2026-09-22, a resolved no-op release made that test record []
     // instead of ['first']; the graph's disposer never ran (1 failed, 41 passed).
-    throw new PartialAcquisitionError(failure, (options) => graph.close(options));
+    throw new PartialAcquisitionError(failure, (options) =>
+      graph.close({ waitTimeoutMs: options.timeoutMs }),
+    );
   }
 }
 
@@ -110,10 +120,16 @@ export function installApplicationRuntime(
 ): RetirableRuntime<ApplicationServices> {
   const isLive = dependencies.isLive ?? (() => true);
   const bag = DiBag.createBuilder()
-    .installModule(preferencesModule)
-    .register({ browserStore: DiBag.fromSyncFactory(() => dependencies.openStore()) })
-    .register({ isLive: DiBag.fromSyncFactory(() => isLive) })
-    .build();
+    .withInstalledModules([preferencesModule])
+    .withServices({
+      browserStore: DiBag.createProvider(() => dependencies.openStore(), {
+        factoryReturnKind: 'sync-value',
+      }),
+    })
+    .withServices({
+      isLive: DiBag.createProvider(() => isLive, { factoryReturnKind: 'sync-value' }),
+    })
+    .buildContainer();
   // Proof: on 2026-09-22, returning the bag made this surface enumerate
   // ['preferences', 'remembered', 'bag'] (1 failed, 41 passed).
   // Proof: on 2026-09-22, hanging `resolve` beneath `preferences` made the

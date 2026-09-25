@@ -599,15 +599,19 @@ describe('log out', () => {
     requestsSent();
     const events: string[] = [];
     const socket = DiBag.createBuilder()
-      .register({
-        socket: DiBag.withDisposal(
-          DiBag.fromSyncFactory((): string => 'open'),
-          () => new Promise<void>(() => undefined),
-        ),
+      .withServices({
+        socket: DiBag.providerWithDisposal({
+          provider: DiBag.createProvider((): string => 'open', { factoryReturnKind: 'sync-value' }),
+          disposeService: () => new Promise<void>(() => undefined),
+        }),
       })
-      .build();
+      .buildContainer();
     socket.resolve('socket');
-    const owner = recordingOwner(events, (options) => socket.close(options), 50);
+    const owner = recordingOwner(
+      events,
+      (options) => socket.close({ waitTimeoutMs: options.timeoutMs }),
+      50,
+    );
     await signedInWithProject(owner, () => events.push('signed out'));
 
     logOut();

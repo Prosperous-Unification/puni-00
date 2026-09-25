@@ -12,7 +12,7 @@ import { ProjectService, type ProjectServiceOptions } from './project.resource';
  *
  * Only `projects` is exported. `projectOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.project/projectOptions` rather than against
  * an anonymous binding. The store is required as `projectStore` because the
  * host graph's `projects` key is this module's export. `optimizerAvailable`
@@ -25,8 +25,8 @@ import { ProjectService, type ProjectServiceOptions } from './project.resource';
  * own.
  */
 export const projectModule = DiBag.createBuilder()
-  .register({
-    projectOptions: DiBag.fromSyncFactory(
+  .withServices({
+    projectOptions: DiBag.createProvider(
       ({
         projectStore,
         clock,
@@ -46,12 +46,14 @@ export const projectModule = DiBag.createBuilder()
         // (4 pass, 1 fail): the update answered `optimizer_unavailable`.
         optimizerAvailable,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    projects: DiBag.fromSyncFactory(
+  .withServices({
+    projects: DiBag.createProvider(
       ({ projectOptions }: { projectOptions: ProjectServiceOptions }): ProjectService =>
         new ProjectService(projectOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['projects', 'projectOptions']` left the
@@ -62,4 +64,4 @@ export const projectModule = DiBag.createBuilder()
   // failing (3 pass, 2 fail): `inspectGraph()` reported `projectOptions` unlabelled, and the
   // missing-requirement message named `projectOptions` instead of
   // `application.project/projectOptions`.
-  .buildModule(['projects'], { label: PROJECT_LABEL });
+  .buildModule({ exportedServiceKeys: ['projects'], moduleLabel: PROJECT_LABEL });

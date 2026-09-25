@@ -12,7 +12,7 @@ import { createDirectoryManagement } from './directory-management.feature';
  * allowed to see, over a directory resource no host can name.
  *
  * `directory` stays private, so rule K2 holds by construction: resolving it
- * from a host answers `DI_BAG_MISSING_REGISTRATION`, and the page reaches the
+ * from a host answers `DI_BAG_UNKNOWN_SERVICE_KEY`, and the page reaches the
  * snapshot, the reads and the writes only through {@link DirectoryManagement}.
  * Its two host requirements are named in `DirectoryManagementRequirements`; a
  * host that forgets one is told which module asked, under
@@ -23,8 +23,8 @@ import { createDirectoryManagement } from './directory-management.feature';
  * it — nothing sent, nothing shown — the instant its session is.
  */
 export const directoryManagementModule = DiBag.createBuilder()
-  .register({
-    directory: DiBag.fromSyncFactory(
+  .withServices({
+    directory: DiBag.createProvider(
       ({
         directoryApi,
         isActiveReader,
@@ -32,16 +32,21 @@ export const directoryManagementModule = DiBag.createBuilder()
         directoryApi: DirectoryApi;
         isActiveReader: () => boolean;
       }): DirectoryResource => createDirectory(directoryApi, isActiveReader),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    directoryManagement: DiBag.fromSyncFactory(
+  .withServices({
+    directoryManagement: DiBag.createProvider(
       ({ directory }: { directory: DirectoryResource }): DirectoryManagement =>
         createDirectoryManagement(directory),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof: on 2026-09-24, building the module without its label (l1) failed `names itself when a
   // host omits the client`: the message was `DI_BAG_MISSING_DEPENDENCY: Cannot res…`, naming no
   // module. Exporting `directory` beside the feature (l2) failed `keeps its directory resource out
   // of a host graph`: `expected [Function] to throw an error`, the resource resolved from the host.
-  .buildModule(['directoryManagement'], { label: DIRECTORY_MANAGEMENT_LABEL });
+  .buildModule({
+    exportedServiceKeys: ['directoryManagement'],
+    moduleLabel: DIRECTORY_MANAGEMENT_LABEL,
+  });

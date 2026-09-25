@@ -15,17 +15,27 @@ import { realtimeModule } from './module';
  */
 export function installRealtime(requirements: RealtimeRequirements): RealtimeExports {
   const bag = DiBag.createBuilder()
-    .installModule(realtimeModule)
-    .register({
-      eventLog: DiBag.fromSyncFactory(() => requirements.eventLog),
-      clock: DiBag.fromSyncFactory(() => requirements.clock),
-      push: DiBag.fromSyncFactory(() => requirements.push),
-      maxPerSubscription: DiBag.fromSyncFactory(() => requirements.maxPerSubscription),
-      maxAgeMs: DiBag.fromSyncFactory(() => requirements.maxAgeMs),
-      maxEvents: DiBag.fromSyncFactory(() => requirements.maxEvents),
-      onPushFailed: DiBag.fromSyncFactory(() => requirements.onPushFailed),
+    .withInstalledModules([realtimeModule])
+    .withServices({
+      eventLog: DiBag.createProvider(() => requirements.eventLog, {
+        factoryReturnKind: 'sync-value',
+      }),
+      clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      push: DiBag.createProvider(() => requirements.push, { factoryReturnKind: 'sync-value' }),
+      maxPerSubscription: DiBag.createProvider(() => requirements.maxPerSubscription, {
+        factoryReturnKind: 'sync-value',
+      }),
+      maxAgeMs: DiBag.createProvider(() => requirements.maxAgeMs, {
+        factoryReturnKind: 'sync-value',
+      }),
+      maxEvents: DiBag.createProvider(() => requirements.maxEvents, {
+        factoryReturnKind: 'sync-value',
+      }),
+      onPushFailed: DiBag.createProvider(() => requirements.onPushFailed, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-23): building `const exposed = { replayBuffer: ..., broadcaster: ...,
   // replay: ..., bag }` and returning it (structurally assignable to `RealtimeExports`, so
   // `wbs-core:typecheck` still exits 0) left `exposes only the contract exports from its

@@ -23,7 +23,7 @@ import { WorkItemService, type WorkItemServiceOptions } from './work-item.resour
  *
  * Only `workItems` is exported. `workItemOptions` stays private to each
  * installation, so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.work-item/workItemOptions` rather than against
  * an anonymous binding. Every store is required under a `<name>Store` host key
  * because five of them (`workItems`, `projects`, `directory`, `capacity`,
@@ -35,8 +35,8 @@ import { WorkItemService, type WorkItemServiceOptions } from './work-item.resour
  * of its own.
  */
 export const workItemModule = DiBag.createBuilder()
-  .register({
-    workItemOptions: DiBag.fromSyncFactory(
+  .withServices({
+    workItemOptions: DiBag.createProvider(
       ({
         workItemStore,
         projectStore,
@@ -90,12 +90,14 @@ export const workItemModule = DiBag.createBuilder()
         scheduler,
         clock,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    workItems: DiBag.fromSyncFactory(
+  .withServices({
+    workItems: DiBag.createProvider(
       ({ workItemOptions }: { workItemOptions: WorkItemServiceOptions }): WorkItemService =>
         new WorkItemService(workItemOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['workItems', 'workItemOptions']` left the
@@ -106,4 +108,4 @@ export const workItemModule = DiBag.createBuilder()
   // failing (3 pass, 2 fail): `inspectGraph()` reported `workItemOptions` unlabelled, and the
   // missing-requirement message named `workItemOptions` instead of
   // `application.work-item/workItemOptions`.
-  .buildModule(['workItems'], { label: WORK_ITEM_LABEL });
+  .buildModule({ exportedServiceKeys: ['workItems'], moduleLabel: WORK_ITEM_LABEL });

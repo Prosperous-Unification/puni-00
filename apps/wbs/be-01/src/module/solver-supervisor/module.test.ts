@@ -83,10 +83,14 @@ function recordingConnector(): {
 }
 
 const hostRequirements = () => ({
-  unix: DiBag.fromSyncFactory(() => '/run/wbs-solver/supervisor.sock'),
-  callerId: DiBag.fromSyncFactory(() => 'a'.repeat(12)),
-  searchWorkers: DiBag.fromSyncFactory(() => 2),
-  connect: DiBag.fromSyncFactory(() => recordingConnector().connect),
+  unix: DiBag.createProvider(() => '/run/wbs-solver/supervisor.sock', {
+    factoryReturnKind: 'sync-value',
+  }),
+  callerId: DiBag.createProvider(() => 'a'.repeat(12), { factoryReturnKind: 'sync-value' }),
+  searchWorkers: DiBag.createProvider(() => 2, { factoryReturnKind: 'sync-value' }),
+  connect: DiBag.createProvider(() => recordingConnector().connect, {
+    factoryReturnKind: 'sync-value',
+  }),
 });
 
 /**
@@ -99,9 +103,12 @@ const hostRequirements = () => ({
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(solverSupervisorModule)
-    .register({ ...hostRequirements(), memoryLimitMb: DiBag.fromSyncFactory(() => 512) })
-    .build();
+    .withInstalledModules([solverSupervisorModule])
+    .withServices({
+      ...hostRequirements(),
+      memoryLimitMb: DiBag.createProvider(() => 512, { factoryReturnKind: 'sync-value' }),
+    })
+    .buildContainer();
 
 describe('the Solver supervisor module', () => {
   it('hands the reserved attempt to the connector installSolverSupervisor wires', async () => {
@@ -160,14 +167,14 @@ describe('the Solver supervisor module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('supervisorOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "supervisorOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "supervisorOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${SOLVER_SUPERVISOR_LABEL}/supervisorOptions`,
     );
   });
@@ -180,11 +187,11 @@ describe('the Solver supervisor module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(solverSupervisorModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([solverSupervisorModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('spawner')).toThrow(
       `Cannot resolve "${SOLVER_SUPERVISOR_LABEL}/supervisorOptions": dependency "memoryLimitMb" is not registered. Resolution path: spawner -> ${SOLVER_SUPERVISOR_LABEL}/supervisorOptions -> memoryLimitMb.`,

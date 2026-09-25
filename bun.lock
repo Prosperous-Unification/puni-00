@@ -22,7 +22,7 @@
         "application-exception": "0.7.0",
         "arktype": "^2.2.3",
         "caught-object-report-json": "13.0.0",
-        "di-bag": "0.4.0",
+        "di-bag": "0.5.0",
         "drizzle-orm": "1.0.0-rc.4",
         "elysia": "^1.4.30",
         "jose": "^6.2.12",
@@ -1400,7 +1400,7 @@
 
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
 
-    "di-bag": ["di-bag@0.4.0", "", {}, "sha512-nkM7sossJKvxw6cLsuEuYXDxg+S63AQD8TUMqElfSdiOG5WLVDvd0aZgk7l7+24xefGYXFqqoXbpBoN38gjOLw=="],
+    "di-bag": ["di-bag@0.5.0", "", {}, "sha512-Pk1yvfJpWTTv/IcDKnu8m7FX9Ovu8Do2cJsFcR8V0lvfVAyuZjP/7YYXW/VdynQUcLVaGPPNaEpQGJdCPXQxXw=="],
 
     "doctrine": ["doctrine@2.1.0", "", { "dependencies": { "esutils": "^2.0.2" } }, "sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw=="],
 

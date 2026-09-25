@@ -36,9 +36,15 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.fromSyncFactory(() => source.stores.projects),
-    capacityStore: DiBag.fromSyncFactory(() => source.stores.capacity),
-    broadcast: DiBag.fromSyncFactory(() => recordingBroadcaster()),
+    projectStore: DiBag.createProvider(() => source.stores.projects, {
+      factoryReturnKind: 'sync-value',
+    }),
+    capacityStore: DiBag.createProvider(() => source.stores.capacity, {
+      factoryReturnKind: 'sync-value',
+    }),
+    broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -52,12 +58,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(capacityModule)
-    .register({
+    .withInstalledModules([capacityModule])
+    .withServices({
       ...hostRequirements(),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 0, newId: () => 'unused' })),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Capacity module', () => {
   it('announces a capacity write through the broadcaster installCapacity wires', async () => {
@@ -94,14 +102,14 @@ describe('the Capacity module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('capacityOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "capacityOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "capacityOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${CAPACITY_LABEL}/capacityOptions`,
     );
   });
@@ -114,11 +122,11 @@ describe('the Capacity module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(capacityModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([capacityModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('capacity')).toThrow(
       `Cannot resolve "${CAPACITY_LABEL}/capacityOptions": dependency "clock" is not registered. Resolution path: capacity -> ${CAPACITY_LABEL}/capacityOptions -> clock.`,

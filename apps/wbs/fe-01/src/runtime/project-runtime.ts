@@ -52,7 +52,7 @@ export interface ProjectRuntimeDependencies extends ProjectSource {
  * table's effect used to start it.
  *
  * **The feed is the graph's one owned disposable**, given back through
- * `DiBag.withDisposal` when the runtime's close runs: its refresh owner is
+ * `DiBag.providerWithDisposal` when the runtime's close runs: its refresh owner is
  * disposed and its stream unsubscribed then, once. The stores and channels hold
  * nothing that needs giving back.
  *
@@ -119,16 +119,24 @@ export function installProjectRuntime({
             baseline,
           );
   const bag = DiBag.createBuilder()
-    .register({
-      plan: DiBag.fromSyncFactory((): DeliveredPlanStore => createDeliveredPlan()),
-      busy: DiBag.fromSyncFactory((): Busy => createBusy()),
-      refusals: DiBag.fromSyncFactory((): Channel<PlanRefusal> => createChannel<PlanRefusal>()),
-      commandsIssued: DiBag.fromSyncFactory((): Channel<undefined> => createChannel<undefined>()),
-      presence: DiBag.fromSyncFactory((): PresenceStore => createPresence()),
+    .withServices({
+      plan: DiBag.createProvider((): DeliveredPlanStore => createDeliveredPlan(), {
+        factoryReturnKind: 'sync-value',
+      }),
+      busy: DiBag.createProvider((): Busy => createBusy(), { factoryReturnKind: 'sync-value' }),
+      refusals: DiBag.createProvider((): Channel<PlanRefusal> => createChannel<PlanRefusal>(), {
+        factoryReturnKind: 'sync-value',
+      }),
+      commandsIssued: DiBag.createProvider((): Channel<undefined> => createChannel<undefined>(), {
+        factoryReturnKind: 'sync-value',
+      }),
+      presence: DiBag.createProvider((): PresenceStore => createPresence(), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .register({
-      feed: DiBag.withDisposal(
-        DiBag.fromSyncFactory(
+    .withServices({
+      feed: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
           ({
             plan,
             presence,
@@ -149,8 +157,9 @@ export function installProjectRuntime({
               plan,
               refusals,
             }),
+          { factoryReturnKind: 'sync-value' },
         ),
-        (feed) => {
+        disposeService: (feed) => {
           // Proof: on 2026-09-24, closing the feed a second time here (m4) failed `keeps one
           // runtime current, and nothing of a withdrawn one reaches anybody` at run 2, shrunk 5
           // times to open(p1),leave,reenter(p1): "teardown: r1's feed closed 2 times, live=false:
@@ -158,10 +167,10 @@ export function installProjectRuntime({
           // same sequence: "teardown: r1's feed closed 0 times, live=false: expected +0 to be 1".
           feed.close();
         },
-      ),
+      }),
     })
-    .register({
-      readRefreshOwner: DiBag.fromSyncFactory(
+    .withServices({
+      readRefreshOwner: DiBag.createProvider(
         ({ feed }: { feed: PlanFeed }) =>
           () =>
             // Proof: on 2026-09-24, handing out `feed.owner` regardless here (m6) failed `keeps one
@@ -169,8 +178,9 @@ export function installProjectRuntime({
             // times to reenter(p1),open(p1),mark(0): "mark: withdrawn r1 sent a request: expected 1
             // to be +0".
             isCurrent() ? feed.owner : null,
+        { factoryReturnKind: 'sync-value' },
       ),
-      reread: DiBag.fromSyncFactory(
+      reread: DiBag.createProvider(
         ({ feed }: { feed: PlanFeed }) =>
           async (resources: readonly RefreshResource[]): Promise<void> => {
             // Proof: on 2026-09-24, removing this line (m3) failed `keeps one runtime current, and
@@ -180,10 +190,11 @@ export function installProjectRuntime({
             if (!isCurrent()) return;
             await feed.rereadResources(resources);
           },
+        { factoryReturnKind: 'sync-value' },
       ),
     })
-    .register({
-      markers: DiBag.fromSyncFactory(
+    .withServices({
+      markers: DiBag.createProvider(
         ({
           readRefreshOwner,
           refusals,
@@ -198,8 +209,9 @@ export function installProjectRuntime({
             // a peer already deleted it`: no toast was there to hold `no longer`.
             announceRefusal: refusals.publish,
           }),
+        { factoryReturnKind: 'sync-value' },
       ),
-      writer: DiBag.fromSyncFactory(
+      writer: DiBag.createProvider(
         ({
           readRefreshOwner,
           reread,
@@ -220,10 +232,13 @@ export function installProjectRuntime({
             commandsIssued,
             refusals,
           }),
+        { factoryReturnKind: 'sync-value' },
       ),
-      commands: DiBag.fromSyncFactory((): PlanCommands => services.planCommandsFor(projectId)),
+      commands: DiBag.createProvider((): PlanCommands => services.planCommandsFor(projectId), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof: on 2026-09-24, publishing the feed beside these keys (k1) failed `publishes the
   // project’s feature and store surfaces, and nothing else`: "expected [ 'busy', 'commands', …(10)
   // ] to deeply equal [ 'busy', 'commands', …(9) ]". Handing the transaction a close that gives

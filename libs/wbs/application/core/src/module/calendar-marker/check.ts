@@ -17,14 +17,20 @@ export function installCalendarMarker(
   requirements: CalendarMarkerRequirements,
 ): CalendarMarkerExports {
   const bag = DiBag.createBuilder()
-    .installModule(calendarMarkerModule)
-    .register({
-      projectStore: DiBag.fromSyncFactory(() => requirements.projects),
-      calendarMarkerStore: DiBag.fromSyncFactory(() => requirements.markers),
-      clock: DiBag.fromSyncFactory(() => requirements.clock),
-      broadcast: DiBag.fromSyncFactory(() => requirements.broadcast),
+    .withInstalledModules([calendarMarkerModule])
+    .withServices({
+      projectStore: DiBag.createProvider(() => requirements.projects, {
+        factoryReturnKind: 'sync-value',
+      }),
+      calendarMarkerStore: DiBag.createProvider(() => requirements.markers, {
+        factoryReturnKind: 'sync-value',
+      }),
+      clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      broadcast: DiBag.createProvider(() => requirements.broadcast, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (4 pass, 1 fail), with
   // `wbs-core:typecheck` at exit 0.

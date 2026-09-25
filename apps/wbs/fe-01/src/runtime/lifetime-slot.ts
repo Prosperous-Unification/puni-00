@@ -162,7 +162,7 @@ function lateCleanupOf(refusal: unknown): Promise<void> | null {
   if (!(refusal instanceof DiBagCloseCancelledError)) return null;
   // Proof: on 2026-09-22, returning null made 'fails the transition when the retirement
   // outruns its budget, and keeps watching the disposal' receive null instead of a Promise.
-  return refusal.cleanupPromise;
+  return refusal.disposalPromise;
 }
 
 /** What one queued transition was asked for; a tagged request, never a nullable builder. */

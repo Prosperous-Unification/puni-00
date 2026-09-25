@@ -48,20 +48,32 @@ async function seeded() {
 const hostRequirements = () => {
   const { stores } = openMemorySource();
   return {
-    workItemStore: DiBag.fromSyncFactory(() => stores.workItems),
-    projectStore: DiBag.fromSyncFactory(() => stores.projects),
-    estimateStore: DiBag.fromSyncFactory(() => stores.estimates),
-    actualStore: DiBag.fromSyncFactory(() => stores.actuals),
-    measureStore: DiBag.fromSyncFactory(() => stores.measures),
-    progressStore: DiBag.fromSyncFactory(() => stores.progress),
-    directoryStore: DiBag.fromSyncFactory(() => stores.directory),
-    capacityStore: DiBag.fromSyncFactory(() => stores.capacity),
-    priorityBandStore: DiBag.fromSyncFactory(() => stores.priorityBands),
-    dependencyStore: DiBag.fromSyncFactory(() => stores.dependencies),
-    subtreeStore: DiBag.fromSyncFactory(() => stores.subtrees),
-    journalStore: DiBag.fromSyncFactory(() => stores.journal),
-    broadcast: DiBag.fromSyncFactory(() => recordingBroadcaster()),
-    scheduler: DiBag.fromSyncFactory(() => fastScheduler),
+    workItemStore: DiBag.createProvider(() => stores.workItems, {
+      factoryReturnKind: 'sync-value',
+    }),
+    projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
+    estimateStore: DiBag.createProvider(() => stores.estimates, {
+      factoryReturnKind: 'sync-value',
+    }),
+    actualStore: DiBag.createProvider(() => stores.actuals, { factoryReturnKind: 'sync-value' }),
+    measureStore: DiBag.createProvider(() => stores.measures, { factoryReturnKind: 'sync-value' }),
+    progressStore: DiBag.createProvider(() => stores.progress, { factoryReturnKind: 'sync-value' }),
+    directoryStore: DiBag.createProvider(() => stores.directory, {
+      factoryReturnKind: 'sync-value',
+    }),
+    capacityStore: DiBag.createProvider(() => stores.capacity, { factoryReturnKind: 'sync-value' }),
+    priorityBandStore: DiBag.createProvider(() => stores.priorityBands, {
+      factoryReturnKind: 'sync-value',
+    }),
+    dependencyStore: DiBag.createProvider(() => stores.dependencies, {
+      factoryReturnKind: 'sync-value',
+    }),
+    subtreeStore: DiBag.createProvider(() => stores.subtrees, { factoryReturnKind: 'sync-value' }),
+    journalStore: DiBag.createProvider(() => stores.journal, { factoryReturnKind: 'sync-value' }),
+    broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
+    scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
   };
 };
 
@@ -75,12 +87,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(workItemModule)
-    .register({
+    .withInstalledModules([workItemModule])
+    .withServices({
       ...hostRequirements(),
-      clock: DiBag.fromSyncFactory(() => clockOf({ now: () => 0, newId: () => 'unused' })),
+      clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Work item module', () => {
   it('announces a created work item through the broadcaster installWorkItem wires', async () => {
@@ -123,14 +137,14 @@ describe('the Work item module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('workItemOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "workItemOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "workItemOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${WORK_ITEM_LABEL}/workItemOptions`,
     );
   });
@@ -143,11 +157,11 @@ describe('the Work item module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(workItemModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([workItemModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('workItems')).toThrow(
       `Cannot resolve "${WORK_ITEM_LABEL}/workItemOptions": dependency "clock" is not registered. Resolution path: workItems -> ${WORK_ITEM_LABEL}/workItemOptions -> clock.`,

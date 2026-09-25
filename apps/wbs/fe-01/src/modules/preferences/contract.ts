@@ -174,7 +174,7 @@ export type IsRuntimeLive = () => boolean;
  * dependency the same way it declares `preferencesStore`): a host that omits
  * `isLive` gets `DI_BAG_MISSING_DEPENDENCY: Cannot resolve "preferences":
  * dependency "isLive" is not registered.` — not a silent default, and not the
- * `DI_BAG_MISSING_REGISTRATION` code, which is what resolving a name nobody
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` code, which is what resolving a name nobody
  * ever registered (`preferencesStore` itself, from outside the module)
  * answers instead; see `module.ts`'s own JSDoc for that distinct case.
  * `createPreferences`'s own always-`true` default (`preferences.resource.ts`)

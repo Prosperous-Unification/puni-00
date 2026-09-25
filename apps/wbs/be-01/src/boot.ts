@@ -87,53 +87,63 @@ export async function bootBe01(
 ): Promise<RunningBe> {
   const state = { migrationsApplied: false };
   const bag = await DiBag.createBuilder()
-    .register({
+    .withServices({
       // One connection for the process, opened through `openDrizzle` so the
       // per-connection pragmas (WAL, busy_timeout) are set and asserted.
       // Proof: on 2026-09-20, dropping this disposal made the occupied-port
       // test report `Expected: 1`, `Received: 0` source closes (0 pass, 1 fail).
-      source: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): OwnedSource => dependencies.openSource({ dbPath: opts.dbPath })),
+      source: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          (): OwnedSource => dependencies.openSource({ dbPath: opts.dbPath }),
+          { factoryReturnKind: 'sync-value' },
+        ),
         // Proof: on 2026-09-20, swallowing this refusal produced no cleanup
         // error: expected `DiBagCleanupError`, received `undefined`.
-        (source) => source.close(),
-      ),
-      services: DiBag.fromSyncFactory(({ source }: { source: OwnedSource }): BeServices =>
-        buildServices({
-          source,
-          logger: opts.logger,
-          jwtKey: opts.jwtKey,
-          gwUrl: opts.gwUrl,
-          internalAuthSecret: opts.internalAuthSecret,
-          pushFetch: globalThis.fetch,
-          oidc:
-            opts.oidc === undefined ? undefined : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
-          passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
-          localIdentity: opts.localIdentity,
-          optimizer: opts.optimizer,
-        }),
+        disposeService: (source) => source.close(),
+      }),
+      services: DiBag.createProvider(
+        ({ source }: { source: OwnedSource }): BeServices =>
+          buildServices({
+            source,
+            logger: opts.logger,
+            jwtKey: opts.jwtKey,
+            gwUrl: opts.gwUrl,
+            internalAuthSecret: opts.internalAuthSecret,
+            pushFetch: globalThis.fetch,
+            oidc:
+              opts.oidc === undefined
+                ? undefined
+                : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
+            passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
+            localIdentity: opts.localIdentity,
+            optimizer: opts.optimizer,
+          }),
+        { factoryReturnKind: 'sync-value' },
       ),
       // Registered rather than started beside `listen`: a timer nobody stops
       // outlives the file it sweeps, so what starts it is now what the bag can
       // stop, and it stops before the source closes because it depends on it.
-      retention: DiBag.withDisposal(
-        DiBag.fromSyncFactory(({ services }: { services: BeServices }): BeServices['retention'] => {
-          services.retention.start();
-          return services.retention;
-        }),
+      retention: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          ({ services }: { services: BeServices }): BeServices['retention'] => {
+            services.retention.start();
+            return services.retention;
+          },
+          { factoryReturnKind: 'sync-value' },
+        ),
         // Proof: on 2026-09-20, dropping this disposal made the refused-release
         // test report `Expected: false`, `Received: true` for timer activity.
-        (retention) => retention.stop(),
-      ),
+        disposeService: (retention) => retention.stop(),
+      }),
       // The listener is the last thing acquired and the first thing released.
-      // `withDisposal` owns the app this returns; the pushed disposers own what
+      // `providerWithDisposal` owns the app this returns; the pushed disposers own what
       // the factory took on the way, so a failure between `listen` and the
       // optimizer releases both at once instead of leaving a bound socket.
-      // Pushed disposers run last first, after the `withDisposal` one: app.stop,
+      // Pushed disposers run last first, after the `providerWithDisposal` one: app.stop,
       // optimizer.stop, retention.stop, source.close — the order this process
       // has always shut down in.
-      server: DiBag.withDisposal(
-        DiBag.fromSyncFactory(
+      server: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
           (
             {
               source,
@@ -194,7 +204,7 @@ export async function bootBe01(
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something
-            // to give back. On the clean path the `withDisposal` below stops the
+            // to give back. On the clean path the `providerWithDisposal` below stops the
             // app and this sees `service-disposed` and does nothing.
             // Proof: on 2026-09-20, deleting this push made startup rollback
             // report `Expected: true`, `Received: false` for a refused port.
@@ -247,18 +257,19 @@ export async function bootBe01(
             if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
             return app;
           },
-          { context: 'acquisition' },
+          { factoryReturnKind: 'sync-value', factoryReceivesContext: true },
         ),
         // A block body, not `(app) => app.stop()`: Elysia's `stop()` resolves to
         // the application, and a disposer must resolve to nothing.
         // Proof: on 2026-09-20, replacing `app.stop()` with a resolved promise
         // made source close observe `Expected: true`, `Received: false`.
-        async (app) => {
+        disposeService: async (app) => {
           await app.stop();
         },
-      ),
+      }),
     })
-    .buildAndStart(['server']);
+    .buildContainer()
+    .ensureServicesReady(['server']);
 
   const services = bag.resolve('services');
   const app = bag.resolve('server');
@@ -275,7 +286,7 @@ export async function bootBe01(
      * `optimizerRunning: true` and `retentionRunning: true` at source close
      * (0 pass, 1 fail, 14 filtered, 1 assertion).
      *
-     * A disposer that rejects makes this reject with `DiBagCleanupError`, whose
+     * A disposer that rejects makes this reject with `DiBagDisposalError`, whose
      * `failures` name the resource; every other release is still attempted.
      * Repeated calls do not rerun disposers. They replay the first close's
      * outcome, including its cleanup error.

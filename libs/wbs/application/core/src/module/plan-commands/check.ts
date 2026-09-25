@@ -15,14 +15,20 @@ import { planCommandsModule } from './module';
  */
 export function installPlanCommands(requirements: PlanCommandsRequirements): PlanCommandsExports {
   const bag = DiBag.createBuilder()
-    .installModule(planCommandsModule)
-    .register({
-      batchServices: DiBag.fromSyncFactory(() => requirements.batchServices),
-      publicServices: DiBag.fromSyncFactory(() => requirements.publicServices),
-      uow: DiBag.fromSyncFactory(() => requirements.uow),
-      announcements: DiBag.fromSyncFactory(() => requirements.announcements),
+    .withInstalledModules([planCommandsModule])
+    .withServices({
+      batchServices: DiBag.createProvider(() => requirements.batchServices, {
+        factoryReturnKind: 'sync-value',
+      }),
+      publicServices: DiBag.createProvider(() => requirements.publicServices, {
+        factoryReturnKind: 'sync-value',
+      }),
+      uow: DiBag.createProvider(() => requirements.uow, { factoryReturnKind: 'sync-value' }),
+      announcements: DiBag.createProvider(() => requirements.announcements, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (5 pass, 1 fail), with
   // `wbs-core:typecheck` at exit 0.

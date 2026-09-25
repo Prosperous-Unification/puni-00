@@ -12,7 +12,7 @@ import { StepService, type StepServiceOptions } from './step.resource';
  *
  * Only `steps` is exported. `stepOptions` stays private to each installation,
  * so a host cannot name it — resolving it answers
- * `DI_BAG_MISSING_REGISTRATION` — and a requirement the host forgot is
+ * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.step/stepOptions` rather than against an
  * anonymous binding. The two stores are required as `projectStore` and
  * `stepStore` because the host graph's `steps` key is this module's export.
@@ -21,8 +21,8 @@ import { StepService, type StepServiceOptions } from './step.resource';
  * one scope, a clock and a broadcaster, and no handle of its own.
  */
 export const stepModule = DiBag.createBuilder()
-  .register({
-    stepOptions: DiBag.fromSyncFactory(
+  .withServices({
+    stepOptions: DiBag.createProvider(
       ({
         projectStore,
         stepStore,
@@ -43,12 +43,14 @@ export const stepModule = DiBag.createBuilder()
         broadcast,
         clock,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    steps: DiBag.fromSyncFactory(
+  .withServices({
+    steps: DiBag.createProvider(
       ({ stepOptions }: { stepOptions: StepServiceOptions }): StepService =>
         new StepService(stepOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['steps', 'stepOptions']` left the
@@ -59,4 +61,4 @@ export const stepModule = DiBag.createBuilder()
   // failing (3 pass, 2 fail): `inspectGraph()` reported `stepOptions` unlabelled, and the
   // missing-requirement message named `stepOptions` instead of
   // `application.step/stepOptions`.
-  .buildModule(['steps'], { label: STEP_LABEL });
+  .buildModule({ exportedServiceKeys: ['steps'], moduleLabel: STEP_LABEL });

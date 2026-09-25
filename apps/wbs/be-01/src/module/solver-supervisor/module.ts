@@ -16,7 +16,7 @@ import {
  * `connectSolverSupervisor` stays a TypeScript diagnostic and test surface of
  * `solver-supervisor.repository.ts`, not a second DI service.
  * `supervisorOptions` stays private to each installation, so a host cannot
- * name it — resolving it answers `DI_BAG_MISSING_REGISTRATION` — and a
+ * name it — resolving it answers `DI_BAG_UNKNOWN_SERVICE_KEY` — and a
  * requirement the host forgot is reported against
  * `backend.solver-supervisor/supervisorOptions` rather than against an
  * anonymous binding. The optional connector is registered even when absent,
@@ -26,8 +26,8 @@ import {
  * coordinator's lifecycle, which drains, kills and awaits it.
  */
 export const solverSupervisorModule = DiBag.createBuilder()
-  .register({
-    supervisorOptions: DiBag.fromSyncFactory(
+  .withServices({
+    supervisorOptions: DiBag.createProvider(
       ({
         unix,
         callerId,
@@ -50,15 +50,17 @@ export const solverSupervisorModule = DiBag.createBuilder()
         memoryLimitMb,
         connect,
       }),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
-  .register({
-    spawner: DiBag.fromSyncFactory(
+  .withServices({
+    spawner: DiBag.createProvider(
       ({
         supervisorOptions,
       }: {
         supervisorOptions: SolverSupervisorSpawnerOptions;
       }): ReservedSpawner => solverSupervisorSpawner(supervisorOptions),
+      { factoryReturnKind: 'sync-value' },
     ),
   })
   // Proof (2026-09-24): widening the key tuple to `['spawner', 'supervisorOptions']` left the
@@ -69,4 +71,4 @@ export const solverSupervisorModule = DiBag.createBuilder()
   // assertions failing (3 pass, 2 fail): `inspectGraph()` reported `supervisorOptions`
   // unlabelled, and the missing-requirement message named `supervisorOptions` instead of
   // `backend.solver-supervisor/supervisorOptions`.
-  .buildModule(['spawner'], { label: SOLVER_SUPERVISOR_LABEL });
+  .buildModule({ exportedServiceKeys: ['spawner'], moduleLabel: SOLVER_SUPERVISOR_LABEL });

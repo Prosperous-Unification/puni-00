@@ -22,12 +22,16 @@ const requirements = () => ({
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(planHistoryModule)
-    .register({
-      projectStore: DiBag.fromSyncFactory(() => inMemoryProjects()),
-      planEventStore: DiBag.fromSyncFactory(() => inMemoryPlanEvents()),
+    .withInstalledModules([planHistoryModule])
+    .withServices({
+      projectStore: DiBag.createProvider(() => inMemoryProjects(), {
+        factoryReturnKind: 'sync-value',
+      }),
+      planEventStore: DiBag.createProvider(() => inMemoryPlanEvents(), {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Plan history module', () => {
   it('answers not_found for a project nothing holds', async () => {
@@ -74,14 +78,14 @@ describe('the Plan history module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('historySettings'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "historySettings" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "historySettings" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${PLAN_HISTORY_LABEL}/historySettings`,
     );
   });
@@ -95,11 +99,15 @@ describe('the Plan history module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(planHistoryModule)
-      .register({ projectStore: DiBag.fromSyncFactory(() => inMemoryProjects()) }) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([planHistoryModule])
+      .withServices({
+        projectStore: DiBag.createProvider(() => inMemoryProjects(), {
+          factoryReturnKind: 'sync-value',
+        }),
+      }) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('history')).toThrow(
       `Cannot resolve "${PLAN_HISTORY_LABEL}/historySettings": dependency "planEventStore" is not registered. Resolution path: history -> ${PLAN_HISTORY_LABEL}/historySettings -> planEventStore.`,

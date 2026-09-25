@@ -155,13 +155,13 @@ function acquireOver(world: HandleWorld, target: StoreName, disposal: Disposal) 
     const hanging =
       disposal === 'never'
         ? DiBag.createBuilder()
-            .register({
-              held: DiBag.withDisposal(
-                DiBag.fromSyncFactory(() => target),
-                async () => new Promise<void>(() => undefined),
-              ),
+            .withServices({
+              held: DiBag.providerWithDisposal({
+                provider: DiBag.createProvider(() => target, { factoryReturnKind: 'sync-value' }),
+                disposeService: async () => new Promise<void>(() => undefined),
+              }),
             })
-            .build()
+            .buildContainer()
         : null;
     hanging?.resolve('held');
     return {
@@ -169,7 +169,7 @@ function acquireOver(world: HandleWorld, target: StoreName, disposal: Disposal) 
       close: async (options: { timeoutMs: number }) => {
         await world.gate.wait();
         await world.scheduler.schedule(Promise.resolve(), `dispose ${target}`);
-        if (hanging !== null) await hanging.close(options);
+        if (hanging !== null) await hanging.close({ waitTimeoutMs: options.timeoutMs });
         await installed.close(options);
       },
     };
@@ -262,7 +262,7 @@ function isDisposalExpiry(refusal: unknown): refusal is DiBagCloseCancelledError
     // it failed some other way: Error: unexpected cleanup corruption`.
     refusal instanceof DiBagCloseCancelledError &&
     refusal.reason === 'timeout' &&
-    refusal.cleanupPromise instanceof Promise
+    refusal.disposalPromise instanceof Promise
   );
 }
 
