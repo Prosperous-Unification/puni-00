@@ -70,3 +70,50 @@ been revoked` (`probe-*.log`).
   five Bun projects; `wbs-fe-01:test` and `wbs-fe-01:test:unit`; the Chromium `wbs-fe-01:e2e`
   run of `browser-packages.spec.ts` and `fault-boundary.spec.ts`; the repository-wide format
   check. The host gate was not run.
+
+## Packet 140.1–140.2, slice 3 — the new negatives
+
+- Attempt `140-1-2-report-libraries-migration.3.20260925T115420Z`, observed 2026-09-25, starting
+  hash `493bf7a10cfcf66460e2bacb1684238bf40f71d7` (`base.txt`); `status-before.txt` empty.
+- Step 0b: `patches=5`, `mutations=13`, exit 0. Step 0c strict OpenSpec baseline: exit 0,
+  `{"items":115,"passed":115,"failed":0}` (`openspec-base-totals.txt`), so O = 115.
+- Step 1, no nested copy under `application-exception`, installed `"version": "13.0.0",`; no
+  install was needed. Baselines, each `status=0`: pins 20 pass, failures 20, observability 29,
+  backend 5, gateway 5, MCP 4, frontend `Test Files 7 passed (7)` `Tests 288 passed (288)`
+  (`base-*.log`, `step1.out`).
+- Step 2, the installed-tree block, exit 0 (`tree-block.out`): the Bun cache's
+  `caught-object-report-json@13.0.0@@@1/package.json` said `"version": "13.0.0",` before and after
+  (`cache-before.txt`, `cache-after.txt`); the installed manifest's link count was 2 before the
+  `sed -i` (`manifest-links-before.txt`) and 1 after it; `p1=1 p1c=0 p2=1 p2c=0`.
+  - `p1`, a copy nested under `application-exception/node_modules`: 19 pass 1 fail, only
+    `installs one copy of the report library, the one application-exception loads`, `Expected:
+"<clone>/node_modules/caught-object-report-json/package.json"`, `Received:
+"<clone>/node_modules/application-exception/node_modules/caught-object-report-json/package.json"`;
+    the lock-key test passed (`p1.log`).
+  - `p1c`, the same copy with the same-file assertion weakened to a type check: 20 pass 0 fail
+    (`p1c.log`).
+  - `p2`, the installed manifest's version edited to `12.9.9`: 19 pass 1 fail, the same test,
+    `Expected: "13.0.0"` `Received: "12.9.9"`; the lock-key test passed (`p2.log`).
+  - `p2c`, the same edit with the version assertion weakened: 20 pass 0 fail (`p2c.log`).
+  - Restored: nested copy moved aside under the temporary root, both files copied back and
+    compared; green rerun 20 pass 0 fail (`p-green.log`).
+- Step 2, the git faults (`git-faults.out`), exit 0: each filter `1 matched`.
+  - `b1`, `maxReportBytes` removed from the diagnostic bag: the named test 0 pass 1 fail,
+    `Expected: true` `Received: undefined`; the whole directory 16 pass 4 fail (that test, `drops
+the context whole when the report is over budget`, `drops the reporting errors after the
+context when both cannot fit`, `both reports validate against the installed schemas after
+redaction and truncation`) (`b1.log`, `b1.all.log`); restored, `cmp` clean, green 1 pass.
+  - `s1`, the schema's `v` narrowed to `/^corj\/v0\.15$/`: the named test 0 pass 1 fail,
+    `ValidationError: … err.v must be matched by ^corj/v0\.15$ (was "corj/v0.14")`; the whole
+    directory 28 pass 1 fail, `refuses a public report where the schema expects a failure record`
+    still passing (`s1.log`, `s1.all.log`); restored, `cmp` clean, green 1 pass.
+- `Proof:` comments written after all six runs, dated 2026-09-25, above the two pins assertions,
+  `maxReportBytes: FAILURE_REPORT_MAX_BYTES,` and the schema's `v` rule. Section 7.4 applied
+  (task 3.1 ticked).
+- Step 4 (`final-*.log`, `s3-*.log`, `step4.out`), each `status=0`: pins 20, failures 20,
+  observability 29, backend 5, gateway 5, MCP 4, frontend 7·288; lint `Successfully ran target
+lint for 3 projects`, typecheck `Successfully ran target typecheck for 3 projects`, both with
+  `--skip-nx-cache`.
+- Pending planner verification: staging and committing the five paths with the hooks on; the
+  whole `tool-devsync:test` target (unchanged from slice 2); `check-indexes`; the repository-wide
+  format check. The host gate was not run.

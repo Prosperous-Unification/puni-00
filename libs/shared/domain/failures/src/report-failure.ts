@@ -158,6 +158,10 @@ export function reportFailure(
       reports: makeReportPair(caught, {
         diagnostic: {
           ...bag,
+          // Proof: on 2026-09-25, removing this budget failed "bounds a very long Unicode
+          // message and marks it truncated" with `Expected: true`, `Received: undefined`,
+          // and the three other budget tests, while "bounds the whole report and refuses
+          // to run the caught value" passed.
           maxReportBytes: FAILURE_REPORT_MAX_BYTES,
           context: options.context,
         },

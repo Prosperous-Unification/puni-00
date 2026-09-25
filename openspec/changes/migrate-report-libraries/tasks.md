@@ -13,7 +13,7 @@
 
 ## 3. Negatives
 
-- [ ] 3.1 Prove the one-copy check, the moved byte budget and the log schema's acceptance of an
+- [x] 3.1 Prove the one-copy check, the moved byte budget and the log schema's acceptance of an
       older record — test: the named tests; negative: a copy nested under application-exception,
       the installed copy's version edited, the byte budget dropped from the diagnostic bag, and
       the schema narrowed to the current version, each also run with its clause disabled

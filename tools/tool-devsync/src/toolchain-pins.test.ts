@@ -562,8 +562,16 @@ describe('the owner-maintained libraries', () => {
     const rootCopy = fromRoot.resolve('caught-object-report-json/package.json');
     const fromApplicationException = createRequire(fromRoot.resolve('application-exception'));
     const loadedCopy = fromApplicationException.resolve('caught-object-report-json/package.json');
+    // Proof: on 2026-09-25, a copy of the report library nested under application-exception
+    // failed this test on the two resolutions,
+    // `node_modules/application-exception/node_modules/…` received where the root copy was
+    // expected, while the lock-key test beside it passed; with this assertion weakened to a type
+    // check the same nested copy passed the whole suite.
     expect(loadedCopy).toBe(rootCopy);
     const { version } = fromRoot(rootCopy) as { version: string };
+    // Proof: on 2026-09-25, the installed copy's `package.json` edited to `"version": "12.9.9"`
+    // failed this test with `Expected: "13.0.0"`, `Received: "12.9.9"` while the lock-key test
+    // passed; with this assertion weakened to a type check the same edit passed the whole suite.
     expect(version).toBe(OWNER_PACKAGES['caught-object-report-json']);
   });
 });
