@@ -12,7 +12,7 @@
 
 ## 3. Negatives
 
-- [ ] 3.1 Prove the budget translation and the browser entry point — test: the named tests;
+- [x] 3.1 Prove the budget translation and the browser entry point — test: the named tests;
       negative: each close site's budget altered and the probe given a Node built-in, each also
       run with its clause disabled
 - [ ] 3.2 Observe again, on 0.5.0, the recorded faults whose outcome passes through the library —

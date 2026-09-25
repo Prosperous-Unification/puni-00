@@ -47,6 +47,9 @@ describe('the three libraries in a browser build', () => {
     async () => {
       // Proof: importing `di-bag/node` in the probe failed here on 2026-09-20 with
       // `expected [ 'node:util/types' ] to deeply equal []`.
+      // Proof: di-bag 0.5.0 has no `di-bag/node`. On 2026-09-25, `import 'node:util/types';` as
+      // the probe's first line failed here with the same message; with this assertion weakened to
+      // an array check the same probe passed all three cases.
       expect((await theBundle()).externalizedForBrowser).toEqual([]);
     },
     BUILD_BUDGET_MS,
