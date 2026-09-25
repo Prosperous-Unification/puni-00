@@ -1181,6 +1181,7 @@ export function WbsTable({
       pushToast,
       busy: busyWrites,
       commands,
+      isCurrent: project.isCurrent,
       refreshOrMarkStale,
       setDepPicker,
       run,

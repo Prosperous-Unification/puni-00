@@ -1,6 +1,7 @@
 import type * as Router from '@tanstack/react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DiBag } from 'di-bag';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as Api from '@/lib/api';
@@ -672,6 +673,193 @@ describe('log out', () => {
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
       });
+    },
+  );
+});
+
+/**
+ * Task 11 through the router and the region: a route change gives the page's
+ * project back once and keeps the session, a project that cannot be given back
+ * there is drawn as the fatal state in the region's place, and Strict Mode's
+ * re-entry into the region replaces the session before any project is opened.
+ */
+describe('the selected project, through the router', () => {
+  const KAT = { id: 'u1', username: 'kat', scopes: ['read', 'write'] as ('read' | 'write')[] };
+
+  /**
+   * An owner over fake clients that records, in order, every session and project
+   * runtime it builds and gives back; a project's close ends as `closeProject`
+   * says.
+   */
+  const recordingOwner = (
+    events: string[],
+    closeProject: () => Promise<void> = () => Promise.resolve(),
+  ): SessionOwner =>
+    createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      install: (dependencies) => {
+        const installed = installSessionRuntime(dependencies);
+        events.push('session built');
+        return {
+          services: installed.services,
+          close: async (options) => {
+            await installed.close(options);
+            events.push('session given back');
+          },
+        };
+      },
+      installProject: (dependencies) => {
+        const installed = installProjectRuntime(dependencies);
+        events.push(`project ${dependencies.projectId} built`);
+        return {
+          services: installed.services,
+          close: async (options) => {
+            await installed.close(options);
+            await closeProject();
+            events.push(`project ${dependencies.projectId} given back`);
+          },
+        };
+      },
+      budgetMs: 1_000,
+    });
+
+  /** The region at `path`, over one project the case holds. */
+  const regionAt = (path: string, owner: SessionOwner) => {
+    window.history.replaceState({}, '', path);
+    // Every request the shelf and the socket make answers empty: none of them is what these cases count.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const collection = url.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(new Response(JSON.stringify({ [collection]: [] }), { status: 200 }));
+      }),
+    );
+    return (
+      <ApplicationServicesProvider slot={servicesSlot}>
+        <ThemeProvider>
+          <SignedInApp
+            session={{ token: '', user: KAT }}
+            onSignedOut={() => undefined}
+            openOwner={() => owner}
+            projectApi={fakeProjectApi()}
+          />
+        </ThemeProvider>
+      </ApplicationServicesProvider>
+    );
+  };
+
+  const pickProject = async (id: string) => {
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    fireEvent.focus(screen.getByLabelText('Project'));
+    await waitFor(() => {
+      expect(document.getElementById(`project-option-${id}`)).not.toBeNull();
+    });
+    const option = document.getElementById(`project-option-${id}`);
+    if (option === null) throw new Error(`no option for ${id}`);
+    fireEvent.click(option);
+  };
+
+  const liveSession = (owner: SessionOwner) => {
+    const state = owner.snapshot();
+    if (state.status !== 'live') throw new Error(`no session is published: ${state.status}`);
+    return state.services;
+  };
+
+  itDom(
+    'gives the project back once when its route goes, keeps the session, and opens a new runtime on return',
+    async () => {
+      const events: string[] = [];
+      const owner = recordingOwner(events);
+      render(regionAt('/', owner));
+      await pickProject('p1');
+      await waitFor(() => {
+        expect(events).toContain('project p1 built');
+      });
+      const session = liveSession(owner);
+
+      fireEvent.click(screen.getByRole('link', { name: 'Directory' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
+      });
+      await waitFor(() => {
+        expect(events).toContain('project p1 given back');
+      });
+      expect(liveSession(owner)).toBe(session);
+      expect(session.projects.snapshot().status).toBe('empty');
+
+      fireEvent.click(screen.getByRole('link', { name: 'Plan' }));
+
+      await waitFor(() => {
+        expect(events.filter((event) => event === 'project p1 built')).toHaveLength(2);
+      });
+      expect(events).toEqual([
+        'session built',
+        'project p1 built',
+        'project p1 given back',
+        'project p1 built',
+      ]);
+      expect(liveSession(owner)).toBe(session);
+    },
+  );
+
+  itDom(
+    'draws the fatal state in the region’s place when a route change cannot give the project back',
+    async () => {
+      const events: string[] = [];
+      const owner = recordingOwner(events, () =>
+        Promise.reject(new Error('alice@example.com: the socket would not close')),
+      );
+      render(regionAt('/', owner));
+      await pickProject('p1');
+      await waitFor(() => {
+        expect(events).toContain('project p1 built');
+      });
+
+      fireEvent.click(screen.getByRole('link', { name: 'Directory' }));
+
+      const fault = await waitFor(() => {
+        const shown = document.querySelector('[data-lifetime-fault]');
+        if (shown === null) throw new Error('no fatal state yet');
+        return shown;
+      });
+      expect(fault.textContent).not.toContain('alice@example.com');
+      expect(screen.queryByRole('heading', { name: 'Directory' })).toBeNull();
+      expect(screen.queryByRole('navigation', { name: 'Pages' })).toBeNull();
+      expect(owner.snapshot().status).toBe('live');
+      expect(events).toEqual(['session built', 'project p1 built']);
+    },
+  );
+
+  /**
+   * Strict Mode mounts the region, runs its cleanup — the session left — and
+   * mounts it again. The first request is overtaken by that leave before it is
+   * built, so it builds nothing, and the region is drawn, and its project
+   * opened, from the one runtime the second mount asked for.
+   */
+  itDom(
+    'leaves the session Strict Mode first opened, and opens the project in the one it opens again',
+    async () => {
+      const events: string[] = [];
+      const owner = recordingOwner(events);
+      const traced: SessionOwner = {
+        ...owner,
+        leave: () => {
+          events.push('session left');
+          return owner.leave();
+        },
+      };
+      render(<StrictMode>{regionAt('/', traced)}</StrictMode>);
+      await pickProject('p1');
+      await waitFor(() => {
+        expect(events).toContain('project p1 built');
+      });
+
+      expect(events).toEqual(['session left', 'session built', 'project p1 built']);
+      const opened = liveSession(owner).projects.snapshot();
+      expect(opened.status === 'live' ? opened.services.projectId : opened.status).toBe('p1');
     },
   );
 });
