@@ -1,6 +1,6 @@
 # Plan writer
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-writer","memberships":[{"kind":"path","path":"busy-store.model.test.ts"},{"kind":"path","path":"busy-store.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"plan-writer.feature.ts"},{"kind":"path","path":"plan-writer.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The reread ledger and the three ownership moments are documented on the writer, and the busy store carries its own model test; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.plan-writer","memberships":[{"kind":"path","path":"busy-store.model.test.ts"},{"kind":"path","path":"busy-store.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"plan-writer.feature.ts"},{"kind":"path","path":"plan-writer.test.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."},{"section":"invariants","reason":"The reread ledger and the refresh owner's identity check are documented on the writer, and the busy store carries its own model test; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/use-plan-read.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/modules/project/contract.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/project-runtime.ts"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
 
 One plan gesture, and what has to be read again once it is over. Every command service in the
 table writes through this module.
@@ -15,11 +15,13 @@ handed, and it holds no transport of its own.
 - The ledger of the gesture's completed requests, and therefore the reread set a landing earns.
 - Which resources a refusal earns instead: the completed prefix normally, everything when the
   failure is ambiguous, when the target has gone, or when be-01 could not read the request.
-- Whether the gesture still belongs to the reader on screen, at each of the three moments that
-  question has a different answer.
-- Raising and clearing the shared busy state, and the outcome the caller acts on. The state
+- Whether the gesture still belongs to the reader on screen: the refresh owner it began under is
+  still the one answered, asked when a request is refused, when the gesture lands and after its
+  covering read.
+- Raising and clearing the project's busy state, and the outcome the caller acts on. The state
   itself is `busy-store.ts`, a plain store the table selects from; the writer is handed only its
-  `raise` and `lower`, and lowers only while its reader is still on screen.
+  `raise` and `lower`, and lowers however the gesture ended: the state is one project runtime's
+  own, so a gesture whose reader has left lowers only a state nobody draws.
 - Saying that a command was issued, and announcing a refusal, each through a `Publisher` of a
   project channel (`modules/channel.ts`). The table listens; the writer never learns who does.
 

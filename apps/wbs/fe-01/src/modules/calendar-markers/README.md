@@ -27,10 +27,11 @@ TypeScript and import no React, which is rule F1 of the code organization design
 
 ## What the feature owns
 
-Whether the write still belongs to whoever asked for it, at the two moments that question has
-different answers: the refresh owner being replaced under it, and the screen leaving the project
-or the API it was opened for. A refusal is said and the markers are read again only while both
-hold. A refused write rereads as an accepted one does, because the marker it named may have gone.
+Whether the write still belongs to whoever asked for it: the refresh owner it started against is
+still the one answered. An owner replaced under it and a reader withdrawn from the project or the
+API it was opened for both fail that, because the host answers no owner from the withdrawal on. A
+refusal is said and the markers are read again only while it holds. A refused write rereads as an
+accepted one does, because the marker it named may have gone.
 
 ## What neither owns
 

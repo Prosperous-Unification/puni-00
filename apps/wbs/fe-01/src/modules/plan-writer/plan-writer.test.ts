@@ -44,7 +44,6 @@ function recordingHost(): {
     busyChanges,
     host: {
       readRefreshOwner: () => owner,
-      isActiveReader: () => true,
       rereadResources: (resources) => {
         rereads.push(resources);
         return Promise.resolve();
@@ -84,7 +83,6 @@ describe('the plan writer', () => {
     let owner = fakeFeedOwner();
     const writer = createPlanWriter({
       readRefreshOwner: () => owner,
-      isActiveReader: () => true,
       rereadResources: (resources) => {
         rereads.push(resources);
         return Promise.resolve();
@@ -124,26 +122,45 @@ describe('the plan writer', () => {
     expect(said).toEqual(['command issued', 'request sent']);
   });
 
-  it('leaves the project busy when its reader left before the answer arrived', async () => {
+  it('refuses, rereads nothing and still lowers busy when its reader left before the answer', async () => {
     const recorded = recordingHost();
     const busy = createBusy();
-    let reading = true;
-    const writer = createPlanWriter({
-      ...recorded.host,
-      isActiveReader: () => reading,
-      busy,
-    });
+    let owner: PlanRefresh | null = fakeFeedOwner();
+    const writer = createPlanWriter({ ...recorded.host, readRefreshOwner: () => owner, busy });
 
-    await writer.run(async (write) => {
+    const outcome = await writer.run(async (write) => {
       await write.perform(['tree'], () => {
-        // Another API replaced this reader's while the request was in flight,
-        // and that reader raised busy for a gesture of its own.
-        reading = false;
+        // The reader's runtime was withdrawn while the request was in flight:
+        // from then on it answers no refresh owner at all.
+        owner = null;
         return Promise.resolve('renamed');
       });
     });
 
-    expect(busy.snapshot()).toBe(true);
+    expect(outcome).toBe('refused');
     expect(recorded.rereads).toEqual([]);
+    expect(busy.snapshot()).toBe(false);
+  });
+
+  it('refuses a gesture whose reader left during its covering read', async () => {
+    const recorded = recordingHost();
+    let owner: PlanRefresh | null = fakeFeedOwner();
+    const writer = createPlanWriter({
+      ...recorded.host,
+      readRefreshOwner: () => owner,
+      rereadResources: (resources) => {
+        recorded.rereads.push(resources);
+        // Withdrawn while its covering read was reading.
+        owner = null;
+        return Promise.resolve();
+      },
+    });
+
+    const outcome = await writer.run(async (write) => {
+      await write.perform(['tree'], () => Promise.resolve('renamed'));
+    });
+
+    expect(outcome).toBe('refused');
+    expect(recorded.rereads).toEqual([['tree']]);
   });
 });
