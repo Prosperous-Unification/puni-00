@@ -15,7 +15,7 @@
 - [x] 3.1 Prove the budget translation and the browser entry point — test: the named tests;
       negative: each close site's budget altered and the probe given a Node built-in, each also
       run with its clause disabled
-- [ ] 3.2 Observe again, on 0.5.0, the recorded faults whose outcome passes through the library —
+- [x] 3.2 Observe again, on 0.5.0, the recorded faults whose outcome passes through the library —
       test: each proof's named test; negative: each proof's own fault
 - [ ] 3.3 Rerun every fast-check model test at its pinned seed and observe again every recorded
       model sabotage at its recorded run — test: the model suites; negative: each sabotage

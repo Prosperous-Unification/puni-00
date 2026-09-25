@@ -104,6 +104,11 @@ or `@wbs/runtime-portable directly` form is skipped until forwarding rows are co
 against the library's index; the kind rules own the wording. The frontend's
 `apps/wbs/fe-01/src/modules` is outside this change and carries no index block yet.
 
+Amended 2026-09-25 by `migrate-di-bag`: di-bag 0.5.0 still exposes a label only as that prefix —
+`buildModule`'s `moduleLabel` (0.4.0's `label`) is write-only, held in a private `WeakMap` — so the
+first limit stands, tracked as WBS 040.13; `inspectGraph()` is now `graphSnapshot()`, whose private
+bindings carry an empty `serviceKeys` and a `bindingLabel`.
+
 ## Layering debt ledger
 
 Task 7.4, per module: the obligations sealing leaves open, each stated in that module's
