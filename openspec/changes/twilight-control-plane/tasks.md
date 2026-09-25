@@ -83,8 +83,8 @@ one key space; Executable restore compatibility (A39, A47).
 
 **Owns:** new `apps/twilight-dash/cli/project.json`,
 `apps/twilight-dash/cli/src/compile.ts`,
-`apps/wiki/cli/src/scenarios/validate-scenarios.ts`,
-`apps/wiki/cli/src/scenarios/validate-scenarios.test.ts`, the
+`apps/twilight-structure/twilight-burokrat/cli/src/scenarios/validate-scenarios.ts`,
+`apps/twilight-structure/twilight-burokrat/cli/src/scenarios/validate-scenarios.test.ts`, the
 `twilight-burokrat:scenario-check` Nx target, its required CI invocation,
 `registered:repository-gate`, `registered:browser-gate` and
 `registered:scenario-coverage`,

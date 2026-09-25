@@ -1,7 +1,7 @@
 # Twilight Burokrat rules design
 
 Status: proposed design, 2026-09-19. Nothing here is implemented. It extends the existing
-[Twilight Burokrat package](../../../apps/wiki/cli/README.md) from a wiki ledger validator
+[Twilight Burokrat package](../../../apps/twilight-structure/twilight-burokrat/cli/README.md) from a wiki ledger validator
 into the single static judge of every rule in the repository. Names follow
 [names and boundaries](../../twilight-structure/names.md). The rules it must judge first come
 from the [code organization design](2026-09-19-code-organization-design.md).
