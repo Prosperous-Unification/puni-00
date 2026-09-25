@@ -3331,6 +3331,7 @@ for fill in 0 1 real; do
   test "$(find "$work/faults" -name '*.diff' | wc -l)" -eq 35
   git -C "$repo" archive "$final" | tar -x -C "$work/final"
   git clone -q --no-local "$repo" "$work/tree"
+  git -C "$work/tree" fetch -q "$repo" "$from" "$final"
   cd "$work/tree"
   git checkout -q --detach "$from"
   env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bun install --frozen-lockfile > "$work/install.log" 2>&1
