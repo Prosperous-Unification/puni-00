@@ -2463,6 +2463,21 @@ app's Vite build, `reportVersion: 'corj/v0.15'`, and the root fault boundary —
 `wbs-fe-01:test:unit --skip-nx-cache` exited 0 with `Test Files 59 passed (59)`, `Tests 737 passed
 (737)`. The planner still runs both on the dispatch base (section 9.4).
 
+**Round 2 rerun (2026-09-25, after review 1).** Every `sh` block of sections 6 and 8, extracted
+again from this revision (the list indent stripped), ran end to end in a third fresh clone cut from
+this plan branch's review-1 commit, with its own install: slices 1 to 4 in order, each committed
+with the hooks on (`b88eb23db`, `eed9409d2`, `dc19fe1a5`, `1a1327874`, local only). Every block
+exited 0 with the outputs sections 6 and 8 state — the same baselines, red, green, probe lines,
+`p1=1 p1c=0 p2=1 p2c=0`, `b1`, `s1` and `r1`–`r9` counts as above — and the final tree differs from
+`3075cd97a` only in this document and the `verify.md` entries. The guarded section 8.1 block,
+rehearsed first on its own: the Bun cache's
+`caught-object-report-json@13.0.0@@@1/package.json` said `"version": "13.0.0",` before and after
+(checked by the block and again by hand), the installed manifest's link count was 2 before the
+`sed -i` and 1 after it. Its `trap` was rehearsed with a corrupted `p2c.diff`: the block exited 1 at
+that `git apply`, after the `sed -i`, and left the test file clean, the installed manifest at
+13.0.0 and no nested copy. With the test file dirtied first, the block exited 1 at `git diff
+--quiet` before saving anything.
+
 ### 9.4 Planner-only, with the expected relative delta
 
 | Check                                                                                                                                                                               | Why the planner's                                                                              | Expected                                                                                                    |
