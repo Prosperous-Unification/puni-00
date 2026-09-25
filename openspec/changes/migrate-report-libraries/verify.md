@@ -117,3 +117,41 @@ lint for 3 projects`, typecheck `Successfully ran target typecheck for 3 project
 - Pending planner verification: staging and committing the five paths with the hooks on; the
   whole `tool-devsync:test` target (unchanged from slice 2); `check-indexes`; the repository-wide
   format check. The host gate was not run.
+
+## Packet 140.1–140.2, slice 4 — the old proofs, observed again, and the records
+
+- Attempt `140-1-2-report-libraries-migration.4.20260925T115949Z`, observed 2026-09-25, starting
+  hash `5258d95049a60703c230a189aee6c949786a0177` (`base.txt`); `status-before.txt` empty.
+- Step 0b: `patches=5`, `mutations=13`, exit 0. Step 0c strict OpenSpec baseline: exit 0,
+  `{"items":115,"passed":115,"failed":0}` (`openspec-base-totals.txt`), so O = 115.
+- Step 1, `shared-failures` baseline: 20 pass 0 fail, `status=0` (`base-failures.log`).
+- Step 2, before the loop: each of the nine fault patches applied to a scratch copy of
+  `report-failure.ts` edits the line its row names, below slice 3's four-line `Proof:` comment
+  (`r7` at the `catch`, `r8` at `public: bag,`, `r9` at the `makeReportPair(` call and its closing
+  `}),`). Every filter `1 matched` (`filters.txt`). The loop exited 0 (`faults-summary.txt`); each
+  fault restored, `cmp` clean, and its named test rerun green (`<id>.green.log`). Named test
+  `0 pass 1 fail` each (`<id>.log`); whole directory (`<id>.all.log`):
+  - `r1`, key rules from plain strings: `- "Authorization": "[redacted]"` against
+    `+ "Authorization": "Bearer live-token"`; 19 pass 1 fail.
+  - `r2`, `keys: []`: `Authorization` and `password` both unredacted; 17 pass 3 fail (also `an
+empty secret list leaves the key rules in force`, `reports a cause chain by path and redacts a
+key nested inside it`).
+  - `r3`, `patterns: []`: `Expected: "Error: token was [redacted]"` `Received: "Error: token was
+hunter2"`; 16 pass 4 fail.
+  - `r4`, `maxDepth` removed: `Expected: "max_depth"` `Received: undefined`; 18 pass 2 fail.
+  - `r5`, `maxChildren` removed: `Expected: "max_children"` `Received: undefined`; 18 pass 2 fail.
+  - `r6`, `inspection: 'no-invoke'` removed: `toBeUndefined()` received a row with
+    `reportKey: "as_json"`, `error: "Error: ran"`; 18 pass 2 fail.
+  - `r7`, the catch rethrows: `TypeError: Array.isArray cannot be called on a Proxy that has been
+revoked`; 18 pass 2 fail (also `two losses in one process do not share a handle`).
+  - `r8`, the public bag without `redact`: `- "user": "[redacted]"` against
+    `+ "user": "alice@example.com"`; 19 pass 1 fail.
+  - `r9`, the public report from a second `makeReportPair` call: `Expected:
+"AE_50DYBNWKVA7MVRGPC8AWCTTJYN"` `Received: "AE_H5Y3MRS6ZG1201WANDPHSVTS0F"`; 19 pass 1 fail.
+- No `Proof:` comment written or changed. Section 7.5 applied: the adoption plan's 2026-09-25
+  amendment, the dated sentence in `adopt-failure-reporting/design.md`, task 3.2 ticked.
+- Step 4, strict OpenSpec: exit 0, `{"items":115,"passed":115,"failed":0}`
+  (`openspec-s4-totals.txt`), O unchanged.
+- Pending planner verification: staging and committing the four paths with the hooks on; the
+  whole `tool-devsync:test` target; `check-indexes`; the repository-wide format check. The host
+  gate was not run.
