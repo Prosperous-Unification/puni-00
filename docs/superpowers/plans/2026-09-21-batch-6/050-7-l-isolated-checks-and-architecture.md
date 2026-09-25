@@ -1,13 +1,13 @@
 # 050.7 l — isolated module checks, wiki indexes, and the architecture checks
 
-|             |                                                                                                                                                                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **sixteenth packet**                                                                                                                                                                      |
-| Size class  | M — three slices, each one executor attempt                                                                                                                                                                                                                                          |
-| Predecessor | 050.7k (`050-7-k-log-out.md`, beside this packet once it lands), itself after 050.7i (`050-7-i-session-runtime.md`). Neither has landed; both touch files this packet only reads, and section 9.1 proves every hunk here against their comment sites.                                |
-| Advances    | OpenSpec tasks **12** and **13** of `adopt-frontend-lifetimes` — each moved, **neither ticked** (section 3.5 names the sentence each still owes and its owner) — and task **3**, **ticked** in slice 2: its last open sentence, the preferences module's wiki index, is closed here. |
-| Revision    | Second: the round-1 review applied — the delivery check resolves keys by type and judges `export *` (five new negatives), the legacy digest's keying rule, the lanes with packet m, eight minors.                                                                                    |
-| Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Three requirements appended to its delta spec, one per slice; tasks 3, 12 and 13 get dated notes; one dated update to the lifetime map.                                                                              |
+|             |                                                                                                                                                                                                                                                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work item   | 050.7 "Three lifetimes with DI Bag and the runtime owner: application, session, project" — **sixteenth packet**                                                                                                                                                                                                                                            |
+| Size class  | M — three slices, each one executor attempt                                                                                                                                                                                                                                                                                                                |
+| Predecessor | 050.7k (`050-7-k-log-out.md`), itself after 050.7i (`050-7-i-session-runtime.md`). Both lanes are reviewed and landed on the batch-6 integration branch (packet i also on planning); both touch files this packet only reads, and section 9.1's `real` mode proves this packet on them.                                                                    |
+| Advances    | OpenSpec tasks **12** and **13** of `adopt-frontend-lifetimes` — each moved, **neither ticked** (section 3.5 names the sentence each still owes and its owner) — and task **3**, **ticked** in slice 2: its last open sentence, the preferences module's wiki index, is closed here.                                                                       |
+| Revision    | Third: the round-2 review applied — namespace objects that escape whole, `export * as`, and call results by their type are judged (three new negatives, one more owed route), l dispatches before m, four minors. Second: the round-1 review — keys read by their type, `export *` judged (five negatives), the legacy digest's keying rule, seven minors. |
+| Schema      | OpenSpec change `adopt-frontend-lifetimes`, already `sdd-lean`. Three requirements appended to its delta spec, one per slice; tasks 3, 12 and 13 get dated notes; one dated update to the lifetime map.                                                                                                                                                    |
 
 ## 1. Goal, non-goals, and the cut
 
@@ -35,7 +35,7 @@ fail loudly and each watched failing:
    destructured property of delivery by the **declarations it resolves to**, never its spelling, and
    the four types a context, a route or a runtime hands delivery by their members' types. It refuses
    a bag, a broad HTTP client, a repository or its port, a resource-service, a composition root, a
-   socket and browser storage — except twenty routes recorded as still owed, each naming its owner,
+   socket and browser storage — except twenty-one routes recorded as still owed, each naming its owner,
    and a recorded route that has gone fails it too, so the record only shrinks.
 
 **Non-goals.**
@@ -232,19 +232,21 @@ everything, and `src/lib` mixes adapters with hooks; neither is delivery here (s
 A symbol is infrastructure when any symbol of its alias chain is forbidden, is declared in a
 forbidden file, or is a member of a forbidden interface, class or type literal — which is how
 `localStorage.getItem` and `window.sessionStorage` are caught without naming them. Each delivery file
-is walked for six kinds of node, each a route clause with its own observed negative (section 8.3).
+is walked for seven kinds of node, each a route clause with its own observed negative (section 8.3).
 Every key is read by its **literal type**, not its spelling — `'x'`, a `const` holding `'x'` and a
 union of literals all name the same members — and a route is labelled by the name the key resolved
 to:
 
-| Clause                                                            | Catches                                                                 | Negative                           |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------- |
-| a module specifier (import, export, `import()`, `import(…)` type) | a forbidden **file** reached by path: a resource, a bag                 | `d9`, `d10`                        |
-| an identifier                                                     | named, renamed, type-only-namespace, global and member uses             | `d1`, `d2`, `d4`, `d6`, `d7`, `d8` |
-| an element access, by its key's type                              | `wbs['httpDirectoryApi']`, `wbs[key]`, `window[key]` with a `const` key | `d3`, `d11`, `d12`                 |
-| an indexed-access type, by its key's type                         | `(typeof import('@/lib/wbs-api'))['httpDirectoryApi']`                  | `d14`                              |
-| a destructured property, by its name or its computed key's type   | `const { localStorage } = window`, `const { [key]: kept } = window`     | `d5`, `d13`                        |
-| a bare `export * from …`, by every export of the module it names  | a delivery file re-exporting the whole client module                    | `d15`                              |
+| Clause                                                            | Catches                                                                                            | Negative                           |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| a module specifier (import, export, `import()`, `import(…)` type) | a forbidden **file** reached by path: a resource, a bag                                            | `d9`, `d10`                        |
+| an identifier                                                     | named, renamed, type-only-namespace, global and member uses                                        | `d1`, `d2`, `d4`, `d6`, `d7`, `d8` |
+| an identifier naming a namespace object that escapes whole        | `export { wbs }`, `export default wbs`, `Object.values(wbs)`: every export of the module is judged | `d17`                              |
+| a call, by the type it returns                                    | a generic `pick<K extends keyof typeof wbs>(key)`, `Reflect.get(wbs, …)`                           | `d18`                              |
+| an element access, by its key's type                              | `wbs['httpDirectoryApi']`, `wbs[key]`, `window[key]` with a `const` key                            | `d3`, `d11`, `d12`                 |
+| an indexed-access type, by its key's type                         | `(typeof import('@/lib/wbs-api'))['httpDirectoryApi']`                                             | `d14`                              |
+| a destructured property, by its name or its computed key's type   | `const { localStorage } = window`, `const { [key]: kept } = window`                                | `d5`, `d13`                        |
+| `export * from …` or `export * as ns from …`, by every export     | a delivery file re-exporting the whole client module                                               | `d15`, `d16`                       |
 
 The key-typed clauses are load-bearing: the first version of this check read only a literal key's
 spelling, and `d11` to `d15` each **passed** it with `wbs-fe-01:typecheck` and `lint` green (the
@@ -253,6 +255,17 @@ passes, and with the binding clause removed `d5` passes (section 9.3). The **con
 `ApplicationServices`, `SessionRuntime`, `ProjectRuntime`, `SignedInRegion` — are judged by each
 member's declared type and its union members (`c1`). The **ledger** `OWED` is compared as a whole,
 so a route that goes away fails the check until it is struck (`o1`).
+
+The round-2 review found the namespace object escaping whole — `export * as`, `export { wbs }`,
+`export default wbs`, `Object.entries(wbs)` — and a key typed by a type parameter or reached through
+`Reflect.get` passing the second version with typecheck and lint green. `d16` to `d18` each
+**passed** that version (observed here). The namespace clause skips an identifier that is only the
+object of a property or element access, a qualified name, a namespace import or a `typeof` query,
+where the member reached is judged by its own clause. The call clause judges the symbol of every
+union part of a call's type; it records one more owed route, `project-page.tsx`'s
+`subscribeToProject(…)` result, `ProjectStream`, beside the page's other socket routes. Removing the
+call clause lets `d18` through; removing both the namespace clause and the `export * as` widening
+lets `d16` through, and the namespace clause alone is what catches `d17`.
 
 ### 3.4 Decisions
 
@@ -266,7 +279,7 @@ so a route that goes away fails the check until it is struck (`o1`).
    page, because a boundary without a source selector would need a baseline at the frozen revision,
    and `apps/wbs/fe-01/src/modules` did not exist then.
 4. **A ledger, not a tick.** Task 13's check lands refusing everything its requirement refuses, with
-   the twenty routes that exist today written down by owner; the alternative — a check that waits for
+   the twenty-one routes that exist today written down by owner; the alternative — a check that waits for
    the catalog facade — is a check nobody runs until then.
 5. **Teach the inventory to read nested configurations**, rather than move the module
    configurations to the project root: the design puts `tsconfig.json` in the module directory, and a
@@ -300,7 +313,9 @@ so a route that goes away fails the check until it is struck (`o1`).
   `SignedInRegion.token` and `ProjectPageProps.token`; the check refuses the factories that consume a
   credential, not the string. Stated in the task note; a branded credential type would close it, and
   it belongs to the catalog facade's change.
-- **Not claimed:** that delivery reaches nothing through `src/lib` hooks, which are not classified;
+- **Not claimed:** that delivery reaches nothing through `src/lib` hooks, which are not classified, or
+  through a value typed `any` or loaded with `require(…)` (typecheck and lint refuse those, section
+  9.5);
   that a context member is judged below its own declared type — the context clause is one member
   deep, so a member typed `Pick<ProjectApi, …>`, `Readonly<ProjectApi>`, `() => ProjectApi`,
   `Promise<ProjectApi>`, `readonly ProjectApi[]` or `{ readonly client: ProjectApi }` is **not**
@@ -336,12 +351,12 @@ lanes have landed, which differs from it by their executors' `Proof:` comments, 
 | A composite program refuses an unlisted reached file with TS6307 and may not set `noEmit` (TS6304); `${configDir}` resolves to the extending configuration's directory    | rehearsed, section 9.3                                                          |
 | At `7851161bf…` fe-01 was `apps/fe-01`, with no `src/modules`; each predecessor in section 3.2 exists there                                                               | `git ls-tree -r 7851161bf96312750d07b933ca5d42b75ce575c7`                       |
 | The pilot mapping has 22 rows and 22 boundaries; `relationships.json` has no fe-01 fact                                                                                   | `docs/wiki-policy/*.json`                                                       |
-| Delivery reaches infrastructure by twenty routes today (section 3.5)                                                                                                      | slice 3's red, section 6                                                        |
+| Delivery reaches infrastructure by twenty-one routes today (section 3.5)                                                                                                  | slice 3's red, section 6                                                        |
 | `readDepthSensitiveConfigPaths` reads configuration files at each project's root only; its oracle walks every directory                                                   | `tools/tool-devsync/workspace-inventory.mjs`, `src/workspace-inventory.test.ts` |
 
 ### 4.2 The measured blast radius
 
-`git diff --stat 59cfe22a4 be1812257`: **28 files changed, 1089 insertions(+), 29 deletions(-)** — 10
+`git diff --stat 59cfe22a4 7d782cc5f`: **28 files changed, 1125 insertions(+), 29 deletions(-)** — 10
 new — and `verify.md`, which only the executor writes, makes 29 distinct owned paths: slice 1 owns 13
 (9 new), slice 2 owns 16, slice 3 owns 5 (1 new).
 
@@ -526,10 +541,10 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 27
+test "$count" -eq 30
 ````
 
-Expected: `patches=11`, `mutations=27`, exit 0. **Applying section 7.N** below always means exactly
+Expected: `patches=11`, `mutations=30`, exit 0. **Applying section 7.N** below always means exactly
 this, never a hand edit:
 
 ```sh
@@ -594,7 +609,7 @@ git status --porcelain --untracked-files=all > "$TMPDIR/evidence/after-faults.tx
 diff "$TMPDIR/evidence/after-green.txt" "$TMPDIR/evidence/after-faults.txt"
 ````
 
-Expected: 36 lines for slice 1, 12 for slice 2, 68 for slice 3; then one line per fault, each
+Expected: 36 lines for slice 1, 12 for slice 2, 80 for slice 3; then one line per fault, each
 `<id> | status=<n> | <text>` as the slice's table gives it, and exit 0; the final `diff` prints
 nothing — every injected file was restored byte for byte. (`after-green.txt` is written by the
 slice's green checkpoint.) The loop stops at the first fault that does not behave as recorded,
@@ -879,12 +894,12 @@ Owns (5 paths): `spec.md`, `verify.md`, `tasks.md`,
   cd apps/wbs/fe-01
   bash "$TMPDIR/run-check.sh" s3-red env TZ=UTC bunx vitest run src/delivery-boundaries.test.ts
   bash "$TMPDIR/expect-status.sh" s3-red 1
-  grep -F "expected [ …(20) ] to deeply equal []" "$TMPDIR/evidence/s3-red.log"
+  grep -F "expected [ …(21) ] to deeply equal []" "$TMPDIR/evidence/s3-red.log"
   ```
 
-  Expected, and rehearsed exactly: `status=1`, `Tests 1 failed (1)`, `AssertionError: expected [ …(20)
-] to deeply equal []`, and the twenty received lines are exactly section 7.11's ledger entries — ten
-  broad-client routes of the catalog and import, five of the project runtime's source, four of the
+  Expected, and rehearsed exactly: `status=1`, `Tests 1 failed (1)`, `AssertionError: expected [ …(21)
+] to deeply equal []`, and the twenty-one received lines are exactly section 7.11's ledger entries — ten
+  broad-client routes of the catalog and import, six of the project runtime's source, four of the
   saved-plan shelf, and `ApplicationServices.preferences is a resource-service`. Compare them line by
   line; a different set is a stop.
 
@@ -925,7 +940,7 @@ Owns (5 paths): `spec.md`, `verify.md`, `tasks.md`,
   Expected `status=0` everywhere: 2 files, 6 tests (the check and the tier guard's five, which keeps
   the new suite out of the node tier: it names `WebSocket`); sandbox unchanged from step 0.
 
-- [ ] 6. The seventeen faults of section 8.3 with the fault procedure (`section=8.3`), then the `Proof:`
+- [ ] 6. The twenty faults of section 8.3 with the fault procedure (`section=8.3`), then the `Proof:`
       comments in `delivery-boundaries.test.ts` at the sites its table names.
 - [ ] 7. Rerun `s3-final-green` (step 5's Vitest command) and the sandbox: unchanged.
 - [ ] 8. `verify.md` entry. Then owned-file Prettier over the five paths, `nx format:check --all`
@@ -1005,12 +1020,14 @@ only absolute paths in this document.
   --preserve evidence
 ```
 
-**Lanes with packet m.** Packet m's rehearsal also modifies `spec.md`, `tasks.md` and the lifetime
-map, which this packet's 7.1, 7.5, 7.7, 7.9 and 7.11 patch by context (7.1 appends after the spec's
-last scenario, 7.11 after packet h's map update). All eleven diffs still apply on m's rehearsal tree
-today, but **whichever of l and m lands second reruns its section 9.1 `real` mode with `REAL_BASE`
-on the other's real lane before its dispatch**; m keeps off tasks 3, 12 and 13 and the map paragraph
-after h's.
+**Lanes with packet m — l dispatches first.** Packet m's rehearsal also modifies `spec.md`,
+`tasks.md` and the lifetime map, which this packet's 7.1, 7.5, 7.7, 7.9 and 7.11 patch by context, and
+since m's current rehearsal appends its task 14 directly after task 13 in `tasks.md`, 7.11's
+`tasks.md` hunk does not apply on it (`patch failed: …tasks.md:162`, the round-2 review). The planner
+decided the order: **this packet lands before m**, so its hunks stay as they are against the real
+base, and m's packet rebases its task-14 append onto this packet's real lane — m appends by script
+after the file's last line, so task 14 follows this packet's task-13 note. Before m's dispatch, m's
+section 9.1 `real` mode runs on this packet's real lane.
 
 No `--seed`: no slice reads another attempt's evidence. No `--network`: nothing reaches a host; the
 pilot suite clones the local repository only. `--slice-note` is the only channel by which the
@@ -2056,7 +2073,7 @@ index e428a2591..a957f9df4 100644
 
 ```diff
 diff --git a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
-index 0465493f3..60176de36 100644
+index 0465493f3..d73c44bd6 100644
 --- a/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
 +++ b/openspec/changes/adopt-frontend-lifetimes/specs/adopt-frontend-lifetimes/spec.md
 @@ -589,3 +589,36 @@ already held SHALL stay as it was.
@@ -2070,8 +2087,8 @@ index 0465493f3..60176de36 100644
 +`src/components`, `src/app-router.tsx` and each module's `view/` — by symbol identity through the
 +TypeScript checker, and the types a context, a route or a runtime hands delivery by their members'
 +types. It SHALL refuse any route to a bag, a broad HTTP client, a repository or its port, a
-+resource-service, a composition root, a socket or browser storage, however the use is spelled,
-+except the routes it records as still owed, each naming the task that owns removing it; a recorded
++resource-service, a composition root, a socket or browser storage — whether named, renamed,
++namespaced, re-exported, keyed by a literal-typed key, destructured or returned by a call — except the routes it records as still owed, each naming the task that owns removing it; a recorded
 +route that no longer exists SHALL fail the check as well.
 +
 +#### Scenario: A new route to a broad client, under any spelling
@@ -2103,10 +2120,10 @@ index 0465493f3..60176de36 100644
 ```diff
 diff --git a/apps/wbs/fe-01/src/delivery-boundaries.test.ts b/apps/wbs/fe-01/src/delivery-boundaries.test.ts
 new file mode 100644
-index 000000000..c37ee3ad8
+index 000000000..e234b1de6
 --- /dev/null
 +++ b/apps/wbs/fe-01/src/delivery-boundaries.test.ts
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,414 @@
 +import { readdirSync } from 'node:fs';
 +import { join, relative } from 'node:path';
 +
@@ -2381,9 +2398,11 @@ index 000000000..c37ee3ad8
 +
 +/**
 + * The routes by which delivery reaches infrastructure, one per file and symbol, each labelled by
-+ * the name it resolved to. Five kinds of node are judged: a module specifier, an identifier, an
-+ * element access or indexed-access type by its key's literal type, a destructured property by its
-+ * name or its computed key's literal type, and a bare `export *` by every export it re-exports.
++ * the name it resolved to. Seven kinds of node are judged: a module specifier; an identifier, and
++ * when it names a namespace object that escapes whole, every export of that module; a call, by the
++ * type of what it returns; an element access or indexed-access type by its key's literal type; a
++ * destructured property by its name or its computed key's literal type; and an `export *` or
++ * `export * as` by every export it re-exports.
 + */
 +function deliveryRoutes(judge: Judge, files: readonly string[]): readonly string[] {
 +  const { checker, program, infrastructure } = judge;
@@ -2412,7 +2431,36 @@ index 000000000..c37ee3ad8
 +          declared === undefined ? undefined : forbiddenFile(underRepository(declared));
 +        if (byFile !== undefined) routes.add(`${path}: ${specifier.getText()} is ${byFile}`);
 +      }
-+      if (ts.isIdentifier(node)) judgeSymbol(checker.getSymbolAtLocation(node), node.text);
++      if (ts.isIdentifier(node)) {
++        const symbol = checker.getSymbolAtLocation(node);
++        judgeSymbol(symbol, node.text);
++        // A namespace object that escapes whole (passed, returned, exported) carries every export.
++        const end = symbol === undefined ? undefined : aliasChain(checker, symbol).at(-1);
++        const parent = node.parent;
++        const accessed =
++          (ts.isPropertyAccessExpression(parent) && parent.expression === node) ||
++          (ts.isElementAccessExpression(parent) && parent.expression === node) ||
++          ts.isQualifiedName(parent) ||
++          ts.isNamespaceImport(parent) ||
++          ts.isTypeQueryNode(parent);
++        if (
++          !accessed &&
++          end !== undefined &&
++          end.declarations?.some((each) => ts.isSourceFile(each)) === true
++        ) {
++          for (const exported of checker.getExportsOfModule(end))
++            judgeSymbol(exported, exported.name);
++        }
++      }
++      if (ts.isCallExpression(node)) {
++        // What a call hands back, judged by its type: a generic getter or `Reflect.get` names no symbol.
++        const type = checker.getTypeAtLocation(node);
++        for (const part of type.isUnion() ? type.types : [type]) {
++          for (const symbol of [part.aliasSymbol, part.getSymbol()]) {
++            if (symbol !== undefined) judgeSymbol(symbol, symbol.name);
++          }
++        }
++      }
 +      if (ts.isElementAccessExpression(node)) {
 +        for (const property of propertiesOf(node.expression, node.argumentExpression)) {
 +          judgeSymbol(property, property.name);
@@ -2433,7 +2481,10 @@ index 000000000..c37ee3ad8
 +            : [];
 +        for (const name of names) judgeSymbol(bound.getProperty(name), name);
 +      }
-+      if (ts.isExportDeclaration(node) && node.exportClause === undefined) {
++      if (
++        ts.isExportDeclaration(node) &&
++        (node.exportClause === undefined || ts.isNamespaceExport(node.exportClause))
++      ) {
 +        const specifier = node.moduleSpecifier;
 +        const moduleSymbol =
 +          specifier === undefined ? undefined : checker.getSymbolAtLocation(specifier);
@@ -2495,7 +2546,7 @@ index 000000000..c37ee3ad8
 diff --git a/apps/wbs/fe-01/src/delivery-boundaries.test.ts b/apps/wbs/fe-01/src/delivery-boundaries.test.ts
 --- a/apps/wbs/fe-01/src/delivery-boundaries.test.ts
 +++ b/apps/wbs/fe-01/src/delivery-boundaries.test.ts
-@@ -138,7 +138,32 @@
+@@ -138,7 +138,33 @@
   * task that owns removing it. The check refuses any route not listed here, and
   * any route listed here that no longer exists, so this list only shrinks.
   */
@@ -2515,6 +2566,7 @@ diff --git a/apps/wbs/fe-01/src/delivery-boundaries.test.ts b/apps/wbs/fe-01/src
 +  // The project runtime's source, which the page still builds: task 13's remainder.
 +  "src/components/wbs/project-page.tsx: '@/lib/project-stream' is a socket",
 +  "src/components/wbs/project-page.tsx: '@/modules/project/composition' is a composition root",
++  'src/components/wbs/project-page.tsx: ProjectStream is a socket',
 +  'src/components/wbs/project-page.tsx: ProjectStreamDeps is a socket',
 +  'src/components/wbs/project-page.tsx: projectServicesOver is a composition root',
 +  'src/components/wbs/project-page.tsx: subscribeToProject is a socket',
@@ -2543,22 +2595,23 @@ index 87f9872b0..e5ad93c4a 100644
 
  Routine consequences already fixed by the accepted design:
 diff --git a/openspec/changes/adopt-frontend-lifetimes/tasks.md b/openspec/changes/adopt-frontend-lifetimes/tasks.md
-index 50b1dfc90..aad5e4fd9 100644
+index 50b1dfc90..48cb7545f 100644
 --- a/openspec/changes/adopt-frontend-lifetimes/tasks.md
 +++ b/openspec/changes/adopt-frontend-lifetimes/tasks.md
-@@ -162,3 +162,20 @@
+@@ -162,3 +162,21 @@
        theirs in `module.test.ts`.
  - [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
        bag, credential, broad client, repository or resource in delivery.
 +      Moved by 050-7-l, observed <observed-date-l>: `apps/wbs/fe-01/src/delivery-boundaries.test.ts`
-+      resolves every identifier, module specifier, bare `export *`, element access and
-+      indexed-access type (by the key's literal type) and destructured property of delivery
-+      — `src/components`, `src/app-router.tsx` and each module's `view/` — through the
-+      TypeScript checker, and refuses any that is a bag, a
++      resolves every identifier (and every export of a namespace object that escapes whole),
++      module specifier, `export *` and `export * as`, call result by its type, element access
++      and indexed-access type (by the key's literal type) and destructured property of
++      delivery — `src/components`, `src/app-router.tsx` and each module's `view/` — through
++      the TypeScript checker, and refuses any that is a bag, a
 +      broad HTTP client, a repository or its port, a resource-service, a composition root,
 +      a socket or browser storage, and any member of `ApplicationServices`,
 +      `SessionRuntime`, `ProjectRuntime` or `SignedInRegion` typed as one. It refuses every
-+      route but twenty recorded as still owed, and a recorded route that has gone. This
++      route but twenty-one recorded as still owed, and a recorded route that has gone. This
 +      box stays unchecked for those routes: the project catalog and the archival import on
 +      `ProjectApi` in `ProjectPage`, `usePlanImport` and the router's region, with the
 +      header token `httpProjectApi` is built from, and the project runtime's source — the
@@ -2959,32 +3012,47 @@ d15
 delivery
 1
 "src/components/chrome/page-nav.tsx: httpProjectApi is a broad HTTP client",
+d16
+delivery
+1
+"src/components/chrome/page-nav.tsx: httpProjectApi is a broad HTTP client",
+d17
+delivery
+1
+"src/components/chrome/page-nav.tsx: httpProjectApi is a broad HTTP client",
+d18
+delivery
+1
+"src/components/chrome/page-nav.tsx: httpDirectoryApi is a broad HTTP client",
 ```
 
 Each is `status=1`, `Tests 1 failed (1)`, the received list gaining (or, for `o1`, losing) the lines
 below:
 
-| Id    | Bypass class                                                                   | Observed lines                                                                                                      | Comment above                                                                                  |
-| ----- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `d1`  | named import of a client factory                                               | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `file: 'src/lib/wbs-api.ts',`                                                                  |
-| `d2`  | renamed import, `httpDirectoryApi as connect`                                  | `+ …: connect is …`, `+ …: httpDirectoryApi is …`                                                                   | the same                                                                                       |
-| `d3`  | namespace import, string-keyed `wbs['httpDirectoryApi']`                       | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) {` |
-| `d4`  | `import type * as wbs`, `wbs.DirectoryApi`                                     | `+ …: DirectoryApi is a broad HTTP client`                                                                          | `file: 'src/lib/wbs-api.ts',` (with `d1`)                                                      |
-| `d5`  | shorthand destructuring, `const { localStorage } = window`                     | `+ …: localStorage is storage`                                                                                      | `if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {`                   |
-| `d6`  | the global, `localStorage.getItem('kept')`                                     | `+ …: getItem is storage`, `+ …: localStorage is storage`                                                           | `'localStorage',` in `FORBIDDEN_GLOBALS`                                                       |
-| `d7`  | a window property, `window.sessionStorage`                                     | `+ …: sessionStorage is storage` — a member of `WindowSessionStorage`                                               | `'WindowSessionStorage',`                                                                      |
-| `d8`  | `new WebSocket(…)`                                                             | `+ …: WebSocket is a socket`                                                                                        | `{ names: ['WebSocket'], is: 'a socket' },`                                                    |
-| `d9`  | `import { DiBag } from 'di-bag'`                                               | `+ …: 'di-bag' is a bag`, `+ …: DiBag is a bag`, `+ …: createBuilder is a bag`                                      | `if (/(^\|\/)node_modules\/di-bag\//.test(path)) return 'a bag';`                              |
-| `d10` | a resource file by path                                                        | `+ …: '@/modules/directory/directory.resource' is a resource-service`, `+ …: createDirectory is a resource-service` | `if (/^apps\/wbs\/fe-01\/src\/modules\/[^/]+\/[^/]+\.resource\.ts$/.test(path)) {`             |
-| `c1`  | `ProjectRuntime` gains `readonly client: ProjectApi;`                          | `+ "ProjectRuntime.client is a broad HTTP client"`                                                                  | `{ file: 'src/modules/project/contract.ts', name: 'ProjectRuntime' },`                         |
-| `o1`  | a route paid off: `projectApi?: undefined;`                                    | `- "SignedInRegion.projectApi is a broad HTTP client"` — and the ledger fails until it is struck                    | `const OWED: readonly string[] = [`                                                            |
-| `d11` | `const key = 'httpDirectoryApi'`, then `wbs[key]` on a namespace import        | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isElementAccessExpression(node)) {` (with `d3`)                                        |
-| `d12` | `const key = 'localStorage'`, then `window[key]`                               | `+ …: localStorage is storage`                                                                                      | the same (with `d3`, `d11`)                                                                    |
-| `d13` | a computed destructuring, `const { [key]: kept } = window`                     | `+ …: localStorage is storage`                                                                                      | `if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {` (with `d5`)       |
-| `d14` | an indexed-access type, `(typeof import('@/lib/wbs-api'))['httpDirectoryApi']` | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isIndexedAccessTypeNode(node)) {`                                                      |
-| `d15` | `export * from '@/lib/wbs-api'` in a delivery file                             | `+ …: DirectoryApi is …`, `+ …: ProjectApi is …`, `+ …: httpDirectoryApi is …`, `+ …: httpProjectApi is …`          | `if (ts.isExportDeclaration(node) && node.exportClause === undefined) {`                       |
+| Id    | Bypass class                                                                              | Observed lines                                                                                                      | Comment above                                                                                 |
+| ----- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `d1`  | named import of a client factory                                                          | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `file: 'src/lib/wbs-api.ts',`                                                                 |
+| `d2`  | renamed import, `httpDirectoryApi as connect`                                             | `+ …: connect is …`, `+ …: httpDirectoryApi is …`                                                                   | the same                                                                                      |
+| `d3`  | namespace import, string-keyed `wbs['httpDirectoryApi']`                                  | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isElementAccessExpression(node)) {`                                                   |
+| `d4`  | `import type * as wbs`, `wbs.DirectoryApi`                                                | `+ …: DirectoryApi is a broad HTTP client`                                                                          | `file: 'src/lib/wbs-api.ts',` (with `d1`)                                                     |
+| `d5`  | shorthand destructuring, `const { localStorage } = window`                                | `+ …: localStorage is storage`                                                                                      | `if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {`                  |
+| `d6`  | the global, `localStorage.getItem('kept')`                                                | `+ …: getItem is storage`, `+ …: localStorage is storage`                                                           | `'localStorage',` in `FORBIDDEN_GLOBALS`                                                      |
+| `d7`  | a window property, `window.sessionStorage`                                                | `+ …: sessionStorage is storage` — a member of `WindowSessionStorage`                                               | `'WindowSessionStorage',`                                                                     |
+| `d8`  | `new WebSocket(…)`                                                                        | `+ …: WebSocket is a socket`                                                                                        | `{ names: ['WebSocket'], is: 'a socket' },`                                                   |
+| `d9`  | `import { DiBag } from 'di-bag'`                                                          | `+ …: 'di-bag' is a bag`, `+ …: DiBag is a bag`, `+ …: createBuilder is a bag`                                      | `if (/(^\|\/)node_modules\/di-bag\//.test(path)) return 'a bag';`                             |
+| `d10` | a resource file by path                                                                   | `+ …: '@/modules/directory/directory.resource' is a resource-service`, `+ …: createDirectory is a resource-service` | `if (/^apps\/wbs\/fe-01\/src\/modules\/[^/]+\/[^/]+\.resource\.ts$/.test(path)) {`            |
+| `c1`  | `ProjectRuntime` gains `readonly client: ProjectApi;`                                     | `+ "ProjectRuntime.client is a broad HTTP client"`                                                                  | `{ file: 'src/modules/project/contract.ts', name: 'ProjectRuntime' },`                        |
+| `o1`  | a route paid off: `projectApi?: undefined;`                                               | `- "SignedInRegion.projectApi is a broad HTTP client"` — and the ledger fails until it is struck                    | `const OWED: readonly string[] = [`                                                           |
+| `d11` | `const key = 'httpDirectoryApi'`, then `wbs[key]` on a namespace import                   | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isElementAccessExpression(node)) {` (with `d3`)                                       |
+| `d12` | `const key = 'localStorage'`, then `window[key]`                                          | `+ …: localStorage is storage`                                                                                      | the same (with `d3`, `d11`)                                                                   |
+| `d13` | a computed destructuring, `const { [key]: kept } = window`                                | `+ …: localStorage is storage`                                                                                      | `if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {` (with `d5`)      |
+| `d14` | an indexed-access type, `(typeof import('@/lib/wbs-api'))['httpDirectoryApi']`            | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isIndexedAccessTypeNode(node)) {`                                                     |
+| `d15` | `export * from '@/lib/wbs-api'` in a delivery file                                        | `+ …: DirectoryApi is …`, `+ …: ProjectApi is …`, `+ …: httpDirectoryApi is …`, `+ …: httpProjectApi is …`          | `if (ts.isExportDeclaration(node) && node.exportClause === undefined) {`                      |
+| `d16` | `export * as wbs from '@/lib/wbs-api'`                                                    | `+ …: DirectoryApi is …`, `+ …: ProjectApi is …`, `+ …: httpDirectoryApi is …`, `+ …: httpProjectApi is …`          | `(node.exportClause === undefined \|\| ts.isNamespaceExport(node.exportClause))` (with `d15`) |
+| `d17` | `import * as wbs …; export { wbs };` — the namespace object escaping whole                | the same four lines                                                                                                 | `!accessed &&`                                                                                |
+| `d18` | a generic `pick<K extends keyof typeof wbs>(key: K)` called as `pick('httpDirectoryApi')` | `+ …: httpDirectoryApi is a broad HTTP client`                                                                      | `if (ts.isCallExpression(node)) {`                                                            |
 
-`d11` to `d15` each **passed** the first version of this check, which read a key's spelling (observed
+`d11` to `d15` each **passed** the first version of this check, and `d16` to `d18` the second, which read a key's spelling (observed
 here and by the round-1 review, `status=0` with typecheck and lint green); each is a bypass class the
 key-typed clauses close.
 
@@ -3256,6 +3324,51 @@ index b044a3c4f..895e46758 100644
 +export * from '@/lib/wbs-api';
 ```
 
+#### Proof d16 — a client module re-exported as a namespace
+
+```diff
+diff --git a/apps/wbs/fe-01/src/components/chrome/page-nav.tsx b/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
+index b044a3c4f..bc186cbad 100644
+--- a/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
++++ b/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
+@@ -50,3 +50,4 @@ export function PageNav() {
+     </nav>
+   );
+ }
++export * as wbs from '@/lib/wbs-api';
+```
+
+#### Proof d17 — a namespace object escaping whole
+
+```diff
+diff --git a/apps/wbs/fe-01/src/components/chrome/page-nav.tsx b/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
+index b044a3c4f..bd5989cb7 100644
+--- a/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
++++ b/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
+@@ -50,3 +50,5 @@ export function PageNav() {
+     </nav>
+   );
+ }
++import * as wbs from '@/lib/wbs-api';
++export { wbs };
+```
+
+#### Proof d18 — a client factory returned by a generic getter
+
+```diff
+diff --git a/apps/wbs/fe-01/src/components/chrome/page-nav.tsx b/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
+index b044a3c4f..f8ad505c1 100644
+--- a/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
++++ b/apps/wbs/fe-01/src/components/chrome/page-nav.tsx
+@@ -50,3 +50,6 @@ export function PageNav() {
+     </nav>
+   );
+ }
++import * as wbs from '@/lib/wbs-api';
++const pick = <K extends keyof typeof wbs>(key: K): (typeof wbs)[K] => wbs[key];
++export const client = pick('httpDirectoryApi');
+```
+
 ## 9. Verification
 
 ### 9.1 Every fenced diff applies, extracted from this document, in slice order
@@ -3285,7 +3398,7 @@ No script, no Prettier and no `node_modules` are needed: every change is a diff.
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-21-batch-6/050-7-l-isolated-checks-and-architecture.md
 base=59cfe22a42c5471fa1f3aa714a722faabce9e8d5
-final=be181225721966963290f00efdfa2bd993a09811
+final=7d782cc5fa6d03348d46214b723590bf0c85e0e3
 real_base=${REAL_BASE:-}
 test -f "$packet"
 # Inserts a two-line comment above the Nth line (default 1) whose trimmed text is exactly $2.
@@ -3349,7 +3462,7 @@ for fill in 0 1 real; do
   ' "$packet"
   count=$(find "$work/mutations" -name '*.diff' | wc -l)
   echo "fill=$fill fault-patches=$count"
-  test "$count" -eq 27
+  test "$count" -eq 30
   git archive "$from" | tar -x -C "$work/tree"
   fe="$work/tree/apps/wbs/fe-01"
   if [ "$fill" = 1 ]; then
@@ -3402,8 +3515,8 @@ for fill in 0 1 real; do
     echo "fill=1 slice 2's two notes dated"
   fi
   apply_patches 09 10 11
-  check_faults d1 d2 d3 d4 d5 d6 d7 d8 d9 d10 c1 o1 d11 d12 d13 d14 d15
-  echo "fill=$fill slice 3 applied, its 17 fault patches check"
+  check_faults d1 d2 d3 d4 d5 d6 d7 d8 d9 d10 c1 o1 d11 d12 d13 d14 d15 d16 d17 d18
+  echo "fill=$fill slice 3 applied, its 20 fault patches check"
   git -C "$work/tree" status --porcelain --untracked-files=all | wc -l
   mkdir "$work/final"
   git archive "$final" | tar -x -C "$work/final"
@@ -3429,32 +3542,32 @@ done
 ````
 
 Observed on 2026-09-25, after the final Prettier `--check` of this revision, in a scratch clone with
-`REAL_BASE=b018a5874` — the real dispatch base as it stands: packet k's real lane head `54e428685`
-(which carries packet i's real lane), this packet's first commit `b43e8a3b8` cherry-picked, and this
-revision laid over it as one scratch commit (on no branch):
+`REAL_BASE=934636b4f` — the real dispatch base as it stands: batch-6 integration `58c338072` (main
+with packets i's and k's real lanes merged), this packet's first two commits `b43e8a3b8` and
+`5750f395f` cherry-picked, and this revision laid over them as one scratch commit (on no branch):
 
 ```text
 fill=0 extracted=11
-fill=0 fault-patches=27
+fill=0 fault-patches=30
 fill=0 slice 1 applied, its 7 fault patches check
 fill=0 slice 2 applied, its 3 fault patches check
-fill=0 slice 3 applied, its 17 fault patches check
+fill=0 slice 3 applied, its 20 fault patches check
 28
-fill=0 tree identical to be181225721966963290f00efdfa2bd993a09811
+fill=0 tree identical to 7d782cc5fa6d03348d46214b723590bf0c85e0e3
 fill=1 extracted=11
-fill=1 fault-patches=27
+fill=1 fault-patches=30
 fill=1 filled-sites=22, packets i's and k's notes dated
 fill=1 slice 1 applied, its 7 fault patches check
 fill=1 slice 2 applied, its 3 fault patches check
 fill=1 slice 2's two notes dated
-fill=1 slice 3 applied, its 17 fault patches check
+fill=1 slice 3 applied, its 20 fault patches check
 28
 fill=1 simulated comments left: 22
 fill=real extracted=11
-fill=real fault-patches=27
+fill=real fault-patches=30
 fill=real slice 1 applied, its 7 fault patches check
 fill=real slice 2 applied, its 3 fault patches check
-fill=real slice 3 applied, its 17 fault patches check
+fill=real slice 3 applied, its 20 fault patches check
 28
 fill=real changed exactly the 28 owned paths
 fill=real every owned path equals the rehearsal's, the two notes but for dates
@@ -3462,7 +3575,8 @@ fill=real every owned path equals the rehearsal's, the two notes but for dates
 
 On that base slice 2's legacy red was `71 → 87`, `289 → 305` and the digest
 `68a1e15da4a66840c53c9a57c43583e1b303f2115504abc09e8bbe08d7294e02`, exactly section 7.8's, which
-then passed unedited. Packet m's lane is not in it (section 6, Dispatch).
+then passed unedited. Packet m's lane is not in it: this packet dispatches first (section 6,
+Dispatch).
 
 `git apply --check` prints nothing on success, which is why the script's own `echo` lines are the
 evidence and why every count is asserted rather than printed. The number printed after slice 3 is
@@ -3498,10 +3612,12 @@ Expected: one JSON report, exit 0. `failed` that is `false` rather than `0` is r
 All on 2026-09-24, by this packet's author, on the throwaway branch `rehearse/050-7-l` cut at the
 authoring base `59cfe22a`, each slice committed **with the hooks on** (lefthook's wiki, secrets,
 format and lint checks passed for all three): `b316bdcb` (slice 1), `0bd1bd3e` (slice 2) and
-`be181225` (slice 3), the final tree section 9.1 compares against. This is the second rehearsal,
-`rehearse/050-7-l-r2`, cut on 2026-09-25 after the round-1 review: its slices 1 and 2 are the first
-rehearsal's (`rehearse/050-7-l`, `02b1d077`, `993a7ba3`, `dbc63953`, kept) byte for byte, and its
-slice 3 carries the key-typed clauses, the port bundles and the lifetime map's credential sentence. Each red was observed on the
+`7d782cc5` (slice 3), the final tree section 9.1 compares against. This is the third rehearsal,
+`rehearse/050-7-l-r3`, cut on 2026-09-25 after the round-2 review from the second's slice 2: its
+slices 1 and 2 are the first rehearsal's (`rehearse/050-7-l`, `02b1d077`, `993a7ba3`, `dbc63953`,
+kept) byte for byte; the second rehearsal (`rehearse/050-7-l-r2`, slice 3 `be181225`, kept) added
+the key-typed clauses, the port bundles and the lifetime map's credential sentence; this one adds
+the namespace-escape and call-result clauses, `export * as`, and the twenty-first owed route. Each red was observed on the
 previous slice's commit plus that slice's contract and test side only; each fault was run through
 `run-fault.sh` on the final tree, where each file it touches is as its slice left it.
 
@@ -3515,8 +3631,8 @@ previous slice's commit plus that slice's contract and test side only; each faul
 | whole pilot suite                                           | —               | —                                  | 21 pass, 0 fail (398 s)                          | —                              |
 | legacy pin                                                  | 1 pass (289)    | 1 pass (289)                       | red `71→87`, `289→305`; green 1 pass             | 1 pass                         |
 | `typecheck` tool-devsync + twilight-burokrat; `lint:source` | —               | —                                  | 0; 0                                             | —                              |
-| `delivery-boundaries` + tier guard                          | —               | —                                  | —                                                | red `…(20)` vs `[]`; green 2·6 |
-| faults observed, files restored and compared                | —               | 9 of 9                             | 3 of 3                                           | 17 of 17                       |
+| `delivery-boundaries` + tier guard                          | —               | —                                  | —                                                | red `…(21)` vs `[]`; green 2·6 |
+| faults observed, files restored and compared                | —               | 9 of 9                             | 3 of 3                                           | 20 of 20                       |
 | strict OpenSpec                                             | 114 · 114 · 0   | 114 · 114 · 0                      | 114 · 114 · 0                                    | 114 · 114 · 0                  |
 
 On the final tree the planner-only runs of section 9.4 gave: `tool-devsync:test` `371 pass`, `0 fail` (26 files);
@@ -3540,8 +3656,12 @@ window`) is caught by the identifier clause alone. Both clauses are the only wit
 - Faults `t1` to `t6` ran against the slice-1 tree before slice 2 existed, and again on the final
   tree through `run-fault.sh`, with the same statuses and lines.
 - This document's own step 0b and fault procedure, extracted from the committed text, reran all
-  twenty-nine observations on the final tree of the second rehearsal: every one as its record says,
+  thirty-two observations on the final tree of the third rehearsal: every one as its record says,
   and `git status` identical before and after.
+- `d16` to `d18` against the second rehearsal's check (`be181225`'s `delivery-boundaries.test.ts`):
+  each `status=0`. With the call clause removed `d18` no longer names `httpDirectoryApi`; with the
+  namespace clause removed `d17` passes; with that clause and the `export * as` widening both removed
+  `d16` passes.
 - `d11` to `d15` against the first rehearsal's check (`dbc63953`'s `delivery-boundaries.test.ts`):
   each `status=0` — the bypasses the round-1 review found, reproduced before the fix.
 - The round-1 review also observed, on its own scratch tree, that `import('@/lib/wbs-api').then(m =>
@@ -3577,10 +3697,12 @@ output and fails thirteen unrelated tests in this repository.
 - **The pilot does not require registration.** A module dropped from both `modules.json` and
   `policy.json` goes unnoticed (section 3.2) until WBS `021844c4`'s check.
 - **The architecture check does not follow a string** (the credential), does not classify `src/lib`,
-  and judges context types one member deep. It does not see `Reflect.get(window, 'localStorage')`
-  (the result is `unknown`, and no symbol is named) or a `require(…)`, which `wbs-fe-01:typecheck`
-  (TS2591) and `lint` (`no-require-imports`, `no-unsafe-*`) refuse instead — both observed by the
-  round-1 review.
+  and judges context types one member deep. A value reached through `Reflect.get` or a type
+  parameter is caught where a call returns it (the call clause, `d18`), because the library types
+  `Reflect.get` precisely; a value whose type names no forbidden symbol — a client laundered through
+  an unforbidden wrapper type in `src/lib`, or an `any` — is not. A `require(…)` is not seen either;
+  `wbs-fe-01:typecheck` (TS2591) and `lint` (`no-require-imports`, `no-unsafe-*`) refuse it instead,
+  observed by the round-1 review.
 - **Lint types module files against the module's composite program** (section 3.1): eslint ignores
   the TS6307 errors that program carries; `typecheck:module` is what reports them.
 - **No browser ran**: nothing reader-visible changed, and the planner's unfiltered Chromium run is
@@ -3598,7 +3720,7 @@ Each is false on the rehearsal tree, checked on 2026-09-24.
    shape.
 4. A baseline (step 0c, or slice 2's `base-pins`) exits non-zero. Stop, except for the known cases in 11.
 5. A red checkpoint shows **no** failure, or different diagnostics than section 6 names — for slice
-   3, a received list other than section 7.10's twenty entries.
+   3, a received list other than section 7.11's twenty-one entries.
 6. A green run differs from its step-0 number by anything but the slice's own additions.
 7. A fault's runner does not end as its record says, after the one redo preamble rule 20 allows.
 8. The strict OpenSpec block exits non-zero, or `passed` falls below step 0's number.
@@ -3669,7 +3791,7 @@ Each is false on the rehearsal tree, checked on 2026-09-24.
 
 | Requirement                                                                                                                                                                     | Where this packet meets it                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| every new check has a production-path negative rehearsed red with a `Proof:` comment                                                                                            | section 8: twenty-nine observations over twenty-seven fault patches, each with its comment site                                     |
+| every new check has a production-path negative rehearsed red with a `Proof:` comment                                                                                            | section 8: thirty-two observations over thirty fault patches, each with its comment site                                            |
 | checks resolve by symbol identity, never by import-string regex                                                                                                                 | section 3.3; the only path tests are on **declaration files** the checker resolved to, never on specifier text                      |
 | the wiki registration follows the backend pilot: a block naming every non-README file, rows and boundaries, `check-indexes committed` clean, pins re-pinned after observed reds | section 3.2; slice 2's reds (`pins …`, legacy); `check-indexes committed` is the planner's (9.4)                                    |
 | if the frontend cannot be registered without a structural change, say what blocks it                                                                                            | nothing blocks it: each module has a frozen-revision predecessor (section 3.2)                                                      |
@@ -3686,28 +3808,28 @@ Each is false on the rehearsal tree, checked on 2026-09-24.
 
 ### 14.2 The batch-6 addendum's twenty points
 
-| Point                       | Assessment                                                                                                                                                                                                                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1. Reproduced red           | Met for all three slices, each rebuilt from the previous slice plus its test side, diagnostics pasted (section 6).                                                                                                                                                                                     |
-| 2. Typecheck and lint       | Met: native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on.                                                                                                                                                                                                        |
-| 3. Path counts              | Met: each hand-over lists its exact paths (13, 16, 5); the planner's own commit adds this document and one exemption entry.                                                                                                                                                                            |
-| 4. Failure-visible commands | Met: every check records its own status; the fault harness judges status and text after restoring.                                                                                                                                                                                                     |
-| 5. HEAD-reading tests       | Met: the pilot suite clones `HEAD` and overlays `pilotPaths`, which is why the READMEs join it before they are committed; the whole suite and `check-indexes committed` run after the planner's commit.                                                                                                |
-| 6. Sandbox constraints      | Met: whole targets, build, devsync, the whole pilot suite, `check-indexes` and Chromium are the planner's (section 9.4).                                                                                                                                                                               |
-| 7. Known race               | Met: the host-load timeouts named, one rerun, no repair authority (section 10.11).                                                                                                                                                                                                                     |
-| 8. Names                    | Met: `module.frontend.<name>`, `boundary.frontend.<name>`, `check.fe-01.typecheck-module`; no product name.                                                                                                                                                                                            |
-| 9. Packet form and evidence | Met: three slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed lines; the unprovable named.                                                                                                                                    |
-| 10. Pins                    | Met: no dependency pin touched; the two test pins moved only after their observed reds.                                                                                                                                                                                                                |
-| 11. Pipeline exit handling  | Met: every `\|\| test $? -eq 1` follows one command.                                                                                                                                                                                                                                                   |
-| 12. Planner chaining        | Met: section 9.1 stops at the first failed check.                                                                                                                                                                                                                                                      |
-| 13. Module index            | Met: every file of every module directory is in its index, `tsconfig.json` included; `w1` proves a missing one is refused.                                                                                                                                                                             |
-| 14. Bun directory filters   | Met: `bun test ./tools/…` with `./`; the pilot runs from `apps/wiki/cli` on a named file.                                                                                                                                                                                                              |
-| 15. Interleaving property   | N/A: no concurrent or lifecycle code changes.                                                                                                                                                                                                                                                          |
-| 16. Model-based remedy      | N/A: likewise.                                                                                                                                                                                                                                                                                         |
-| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                                                                                                                                     |
-| 18. Symbol-based checks     | Met: `TypeChecker` identity (`getSymbolAtLocation`, `getAliasedSymbol`, `getExportsOfModule`) to the declaring symbol or file; one watched negative per route clause and bypass class (`d1`–`d15`, `c1`, `o1`); keys read by their literal type; the key-typed and binding clauses shown load-bearing. |
-| 19. Missing-file grep       | Met: every grep over a file follows a `test -f`, reads a log the same block wrote, or is inside the harness after a status check.                                                                                                                                                                      |
-| 20. Honest limits           | Met: sections 3.5 and 9.5 — the credential, `src/lib`, one-member context types, per-list isolation, the unrequired registration.                                                                                                                                                                      |
+| Point                       | Assessment                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Reproduced red           | Met for all three slices, each rebuilt from the previous slice plus its test side, diagnostics pasted (section 6).                                                                                                                                                                                                                        |
+| 2. Typecheck and lint       | Met: native per slice, exit 0 on each rehearsed commit, every slice committed with lefthook on.                                                                                                                                                                                                                                           |
+| 3. Path counts              | Met: each hand-over lists its exact paths (13, 16, 5); the planner's own commit adds this document and one exemption entry.                                                                                                                                                                                                               |
+| 4. Failure-visible commands | Met: every check records its own status; the fault harness judges status and text after restoring.                                                                                                                                                                                                                                        |
+| 5. HEAD-reading tests       | Met: the pilot suite clones `HEAD` and overlays `pilotPaths`, which is why the READMEs join it before they are committed; the whole suite and `check-indexes committed` run after the planner's commit.                                                                                                                                   |
+| 6. Sandbox constraints      | Met: whole targets, build, devsync, the whole pilot suite, `check-indexes` and Chromium are the planner's (section 9.4).                                                                                                                                                                                                                  |
+| 7. Known race               | Met: the host-load timeouts named, one rerun, no repair authority (section 10.11).                                                                                                                                                                                                                                                        |
+| 8. Names                    | Met: `module.frontend.<name>`, `boundary.frontend.<name>`, `check.fe-01.typecheck-module`; no product name.                                                                                                                                                                                                                               |
+| 9. Packet form and evidence | Met: three slices, each ending in a planner commit with its exact subject; relative baselines; production-path negatives with observed lines; the unprovable named.                                                                                                                                                                       |
+| 10. Pins                    | Met: no dependency pin touched; the two test pins moved only after their observed reds.                                                                                                                                                                                                                                                   |
+| 11. Pipeline exit handling  | Met: every `\|\| test $? -eq 1` follows one command.                                                                                                                                                                                                                                                                                      |
+| 12. Planner chaining        | Met: section 9.1 stops at the first failed check.                                                                                                                                                                                                                                                                                         |
+| 13. Module index            | Met: every file of every module directory is in its index, `tsconfig.json` included; `w1` proves a missing one is refused.                                                                                                                                                                                                                |
+| 14. Bun directory filters   | Met: `bun test ./tools/…` with `./`; the pilot runs from `apps/wiki/cli` on a named file.                                                                                                                                                                                                                                                 |
+| 15. Interleaving property   | N/A: no concurrent or lifecycle code changes.                                                                                                                                                                                                                                                                                             |
+| 16. Model-based remedy      | N/A: likewise.                                                                                                                                                                                                                                                                                                                            |
+| 17. Seeded evidence         | N/A: no slice reads an earlier attempt's evidence.                                                                                                                                                                                                                                                                                        |
+| 18. Symbol-based checks     | Met: `TypeChecker` identity (`getSymbolAtLocation`, `getAliasedSymbol`, `getExportsOfModule`) to the declaring symbol or file; one watched negative per route clause and bypass class (`d1`–`d18`, `c1`, `o1`), `export * as ns` among them; keys read by their literal type, call results by their type; each clause shown load-bearing. |
+| 19. Missing-file grep       | Met: every grep over a file follows a `test -f`, reads a log the same block wrote, or is inside the harness after a status check.                                                                                                                                                                                                         |
+| 20. Honest limits           | Met: sections 3.5 and 9.5 — the credential, `src/lib` and its wrappers, one-member context types, `any` and `require`, per-list isolation, the unrequired registration; the spec names the spellings the check keeps rather than all spellings.                                                                                           |
 
 ## 15. Ready to commit
 
