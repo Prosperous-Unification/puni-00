@@ -192,6 +192,7 @@ describe('production lint policy cache inputs', () => {
       '{workspaceRoot}/tools/tool-devsync/product-policies.mjs',
       '{workspaceRoot}/tools/tool-devsync/workspace-projects.mjs',
       '{workspaceRoot}/apps/*/eslint.product.mjs',
+      '{workspaceRoot}/apps/*/*/eslint.product.mjs',
       '{workspaceRoot}/libs/*/eslint.product.mjs',
       '{workspaceRoot}/apps/**/project.json',
       '{workspaceRoot}/libs/**/project.json',
@@ -200,7 +201,7 @@ describe('production lint policy cache inputs', () => {
     ]);
   });
 
-  it('declares the discovery module and both product lint policy globs', async () => {
+  it('declares the discovery module and every product lint policy glob', async () => {
     // A product policy the root config discovers, and the module that discovers it, are read
     // at every lint, so a lint cached before either changed is a lint run against a fence that
     // no longer exists.
@@ -209,8 +210,11 @@ describe('production lint policy cache inputs', () => {
     // `[existing outputs match the cache]` after `apps/wbs/eslint.product.mjs` changed.
     // Proof: with the discovery module entry removed, this case failed on the absent
     // `{workspaceRoot}/tools/tool-devsync/product-policies.mjs` (2026-09-15).
+    // Proof: with the suite products' glob removed from nx.json, this case and the exact
+    // inventory above both failed on its absence (2026-09-25).
     const inputs = await productionLintInputs();
     expect(inputs).toContain('{workspaceRoot}/apps/*/eslint.product.mjs');
+    expect(inputs).toContain('{workspaceRoot}/apps/*/*/eslint.product.mjs');
     expect(inputs).toContain('{workspaceRoot}/libs/*/eslint.product.mjs');
     expect(inputs).toContain('{workspaceRoot}/tools/tool-devsync/product-policies.mjs');
   });
