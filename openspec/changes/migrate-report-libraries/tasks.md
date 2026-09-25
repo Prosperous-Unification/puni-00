@@ -17,5 +17,5 @@
       older record — test: the named tests; negative: a copy nested under application-exception,
       the installed copy's version edited, the byte budget dropped from the diagnostic bag, and
       the schema narrowed to the current version, each also run with its clause disabled
-- [ ] 3.2 Observe again, on the new versions, every fault the `@shared/failures` proofs name —
+- [x] 3.2 Observe again, on the new versions, every fault the `@shared/failures` proofs name —
       test: the named `report-failure.test.ts` cases; negative: each proof's own fault

@@ -12,6 +12,28 @@
 
 **Status:** Proposed plan, requested on 2026-09-17; implementation has not started. “All projects” means complete coverage by role, including explicit dispositions where a package does not apply. User scope amendment: do not adopt DI Bag in the React frontend for now; retain frontend reporting work. Other proposed designs remain subject to review.
 
+## Amendment, 2026-09-25: the report libraries moved together
+
+Work item 140.1–140.2 (OpenSpec change `migrate-report-libraries`) moved
+`caught-object-report-json` from 11.0.1 to 13.0.0 and `application-exception` from 0.5.0 to
+0.7.0 in one step. Where this and the 2026-09-19 amendment below disagree, this one holds.
+
+- **The two move together or not at all.** application-exception 0.5.0 depends on the report
+  library at `^11.0.1`, 0.6.0 at `^12.0.0`, 0.7.0 at `^13.0.0`. Moving the report library alone
+  installed a nested 11.0.1 copy under application-exception. The pins suite now proves that the
+  root and application-exception resolve one installed copy.
+- **Renamed API.** `toReports` is `makeReportPair`, `createRedactionPolicy` is
+  `makeRedactionPolicy`, `CapturedReports` is `ReportPair`, a public policy's `details` is
+  `detailsSelector`, and a redaction context's `key` is `reportKey`. The byte budget left the
+  `corj` bag: it is the diagnostic bag's top-level `maxReportBytes`
+  (`FAILURE_REPORT_MAX_BYTES`), and the public bag takes none.
+- **No maker cache.** application-exception 0.7.0 snapshots its option bags on every call.
+  "Build options once" still holds, but no longer because of a cache.
+- **Report format `corj/v0.15`.** Reporting-error rows name `reportKey` and `sourceProperty`.
+  Fingerprints are unchanged, and the log schema accepts records of any `corj/` version.
+- **The wrapper is still required.** A revoked Proxy as a cause still makes reporting throw on
+  13.0.0; the report library's issue 217 is open.
+
 ## Amendment, 2026-09-19: read before executing
 
 This plan was written against older package versions and an older scope. It is kept as the

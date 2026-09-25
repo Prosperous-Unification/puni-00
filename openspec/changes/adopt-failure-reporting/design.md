@@ -12,6 +12,8 @@ The three installed reporting libraries already produce diagnostic and public re
 
 The report options and each caller's redaction policy are constants. The library caches one report maker per options object and policy, so rebuilding either for every call discards that cache.
 
+Amended 2026-09-25 by `migrate-report-libraries`: application-exception 0.7.0 caches no report maker and snapshots its option bags on every call. The options and the policy stay constants, as the single source of the limits and a policy compiled once.
+
 `SENSITIVE_KEYS` remains a readable string list, but the builder compiles every name into an anchored case-insensitive pattern. Measured string-key matching is case-sensitive while HTTP header names arrive capitalised; anchoring prevents a sensitive name from matching an unrelated substring.
 
 The loss branch creates a local `UNREPORTED_<n>` correlation handle instead of reading an occurrence identifier from the caught value. Reading the hostile value is what can make reporting throw, and separate losses must remain distinguishable.
