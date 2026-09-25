@@ -135,8 +135,26 @@
       project switch. This box stays unchecked for the one outcome still owed:
       saved plans, whose shelf keeps its own keyed watch and has no feature facade
       yet — the lifetime map's saved-plans prerequisite.
-- [ ] 11. Project switch, route unmount and Strict Mode re-entry each replace all
+- [x] 11. Project switch, route unmount and Strict Mode re-entry each replace all
       project ownership; a stale completion changes nothing.
+      Closed by 050-7-m, observed <observed-date-m>: a switch withdraws the old
+      runtime in the page's own effect, and the page draws no table and hands the
+      header nobody until the next is live, so every runtime is drawn in a table of
+      its own and the table carries no key. An undo or a dependency list answered in
+      a project the reader has left says nothing into the page's toasts, which
+      outlive the table; the dependency list now asks its runtime's `isCurrent`
+      rather than a ref to the commands a gone table last rendered with, which let a
+      left project's refusal through (`components/wbs/project-replacement.test.tsx`).
+      Following the directory link gives the project back once through the page's
+      cleanup and keeps the session; a project that cannot be given back there is
+      drawn as the fatal state in the region's place; Strict Mode's re-entry into the
+      region leaves the session it first asked for, and into the page opens nothing,
+      the page mounting with nothing selected (`app.test.tsx`). The writer's and the
+      marker gestures' second reader predicate is gone: the refresh owner's identity,
+      `null` from the withdrawal on, answers everything it did. The saved-plan
+      shelf's watch is not the runtime's yet and stays task 10's. Page hide's own
+      session retirement, which the application's retirement does not yet await, is
+      task 14's.
 - [ ] 12. Each module has its own isolated type check and its graph check, and every
       module directory carries a validated wiki index and a `contract.ts`. The
       preferences module's public `preferences` resource — kept only for
@@ -145,3 +163,5 @@
       trusted pilot mappings are preserved untouched.
 - [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
+- [ ] 14. On page hide the application's retirement awaits the session's and fails when
+      it fails (WBS 4334fc49-e143-4671-af58-28cfd5f35423); see 050-7-m section 12.

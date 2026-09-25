@@ -447,7 +447,8 @@ stores and listen to the channels, and what a reader sees SHALL NOT change.
 - **WHEN** a gesture starts, is refused, or the feed's first read is refused
 - **THEN** the table hears that a command was issued before any request is sent,
   says each refusal once in the toast stack it was given, and a gesture whose
-  reader has left lowers no busy state and announces nothing
+  reader has left announces nothing and lowers only its own runtime's busy
+  state, which nobody draws once it is withdrawn
 
 #### Scenario: The table selects the delivered plan and settles what changed
 
@@ -499,6 +500,66 @@ route's own promise. What a reader sees SHALL NOT change.
 - **THEN** the table keeps its services, its feed and its socket across the
   same client, a new client replaces all three, and the table is never handed
   the client itself
+
+### Requirement: Every trigger gives a project back whole, and a late answer changes nothing
+
+fe-01 SHALL give the selected project's runtime back in full, through the one
+project owner the session hands the project page, whenever the page moves to
+another project or leaves its route, and whenever Strict Mode re-enters the
+signed-in region; nothing a left project still has on its way — an undo's
+answer, a refusal, a stream frame — SHALL change what the page shows
+afterwards. While a left project is being given back the page SHALL draw no
+table and hand the header's presence slot nobody, disconnected, and each
+project runtime SHALL be drawn in a table of its own. A route change SHALL
+keep the session runtime, and a project it cannot give back SHALL be drawn as
+the sanitized fatal state in the signed-in region's place. The page mounts with
+nothing selected, so Strict Mode's re-entry into the page opens nothing; its
+re-entry into the signed-in region SHALL leave the session it first asked for,
+and the page SHALL open its project in the one runtime asked for afterwards.
+
+#### Scenario: An undo or a dependency list answered after its project was left
+
+- **WHEN** an undo or a typed dependency list is asked of one project, another
+  project is selected, and then an undo's success or refusal, or a dependency
+  list's refusal, arrives
+- **THEN** the page shows no toast for it, and the next project's undo stays
+  available
+
+#### Scenario: The interval while a left project lets go
+
+- **WHEN** another project is selected while the left project's retirement has
+  not finished, and the left project's stream still says who is here
+- **THEN** no table is drawn and the header is handed nobody, disconnected; and
+  once the retirement has run the next project is drawn in a new table and the
+  left project's stream has been closed once
+
+#### Scenario: The project page under Strict Mode
+
+- **WHEN** the project page is drawn under Strict Mode, a project is picked and
+  then another, and the page goes
+- **THEN** exactly one runtime is built for each pick, and each is given back
+  once, its stream closed once
+
+#### Scenario: The project's route is left and entered again
+
+- **WHEN** a project is open on the project page and the reader follows the
+  link to the directory, and then back
+- **THEN** the project is given back once, the session runtime is the same one
+  throughout, and a new project runtime is opened on the return
+
+#### Scenario: A route change that cannot give the project back
+
+- **WHEN** the reader leaves the project's route and the project's close refuses
+- **THEN** the signed-in region is replaced by the sanitized fatal state, the
+  session stays published, and nothing is given back twice
+
+#### Scenario: The signed-in region under Strict Mode
+
+- **WHEN** the signed-in region is drawn under Strict Mode and a project is then
+  picked
+- **THEN** the session Strict Mode's first mount asked for is left before it is
+  built and builds nothing, and the project is opened in the one session
+  runtime built afterwards
 
 ### Requirement: One project runtime owns the selected project's plan services
 

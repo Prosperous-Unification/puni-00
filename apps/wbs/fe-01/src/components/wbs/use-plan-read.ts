@@ -611,8 +611,9 @@ export function usePlanRead({
   const stepStack = useCallback(
     async (direction: 'undo' | 'redo') => {
       // The runtime this step was asked of, and not whoever is on screen when its
-      // answer arrives: a project this reader has left says nothing and lowers
-      // nothing in the one that replaced it.
+      // answer arrives. The toasts are the page's and outlive this table, so a
+      // project this reader has left must say nothing into them: the page would
+      // show it over the project that replaced it.
       const isCurrent = project.isCurrent;
       busyWrites.raise();
       try {
@@ -650,7 +651,9 @@ export function usePlanRead({
         }
         await refreshOrMarkStale();
       } finally {
-        if (isCurrent()) busyWrites.lower();
+        // Lowered whoever is reading now: this busy state is the runtime's own,
+        // so a project this reader has left lowers only a busy nobody draws.
+        busyWrites.lower();
       }
     },
     [busyWrites, commands, project, pushToast, refreshOrMarkStale],
