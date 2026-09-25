@@ -73,3 +73,46 @@ write Git objects; the complete frontend targets include tests that cannot spawn
 sandbox. The host gate cannot run on this machine. Slice 3 owns fault injection for the two new
 budget tests and the browser entry point; slice 4 owns the recorded example faults; slice 5 owns
 the model sabotages.
+
+## Packet 140.3, slice 3 — budget, browser and pin negatives
+
+Observed 2026-09-26 in attempt `140-3-di-bag-migration.3.20260925T214115Z`, starting at
+`6ef4a8688bb1d33cec34321679ac61a5774153e6`.
+
+- Starting tree: reviewed hash matched and `status-before.txt` was empty (status 0). Packet
+  extraction produced seven code patches and 169 fault patches; strict OpenSpec baseline was
+  116 passed, zero failed (`base.txt`, `openspec-base-totals.txt`; status 0). Installed `di-bag`
+  was 0.5.0, so no reinstall was needed.
+- Focused baseline: devsync/core/backend passed 25/626/36 tests; frontend passed 25 files and
+  224 tests (`base-*.log`; all status 0).
+- `t1` changed the runtime close budget to `timeoutMs + 1`: the named test failed with
+  `expected 26 to be 25`; `t1c` weakened that assertion and passed 16 tests. `t2` changed the
+  half-finished read's release budget: the named test failed with `expected 31 to be 30`;
+  `t2c` passed 16 tests. `t3` bypassed DI Bag with numeric rejections: both budget tests failed
+  with `Unknown Error: 25` and `Unknown Error: 30`; `t3c`, with the error-type check disabled,
+  passed both selected tests. Every restored run was green and each restored file compared
+  byte-for-byte with its saved version (`t*.diff`, `t*.log`, `t*-restored.log`; fault statuses 1,
+  twins and restorations 0).
+- `b1` imported `node:util/types` into the browser probe: the named test failed with
+  `expected [ 'node:util/types' ] to deeply equal []`; `b1c` weakened only that assertion and
+  passed all three tests. `p1` pinned the manifest to 0.4.0: the named test failed on
+  `expect(received).toEqual(expected)`; `p1c` weakened only that assertion and passed all 20
+  tests. Both restorations compared byte-for-byte and passed (`b1*.diff`, `b1*.log`,
+  `p1*.diff`, `p1*.log`, corresponding `*-restored.log`; fault statuses 1, twins and
+  restorations 0). `fault-loop.txt` lists all ten records.
+- Section 7.5 applied and task 3.1 was ticked (status 0). Focused final suites stayed at
+  devsync/core/backend 25/626/36 and frontend 25 files, 224 tests (`final-*.log`; all status
+  0). Lint and typecheck of `wbs-fe-01` and `tool-devsync` passed (`s3-lint.log`,
+  `s3-typecheck.log`; status 0). Their builds and dependencies passed (`s3-build.log`; status
+  0). Prettier write and check on the six owned paths exited 0; the repository-wide format
+  check exited 0 (`s3-format.log`).
+- Strict OpenSpec validation after the task tick and evidence entry stayed at 116 passed,
+  zero failed (`openspec-s3-totals.txt`; status 0). The final repository-wide format check
+  exited 0 (`s3-format-final.log`), `git diff --check` exited 0, and the owned-path hand-over
+  diff was empty (`status-after.txt`, `status-paths.txt`, `owned-sorted.txt`; status 0).
+
+Pending planner verification: the Chromium faults `e1`, `e1c`, `e2`, `e2c` and their two
+`Proof:` comments, the whole `tool-devsync:test` target, the committed index check, complete
+frontend targets, and the host gate. The first two checks write Git objects; the complete
+frontend targets include Node-spawned Bun tests the sandbox refuses; Chromium and the host gate
+run outside this attempt.

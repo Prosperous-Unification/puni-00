@@ -71,6 +71,9 @@ export function acquireTransactionally<S>(
     // 'revokes the store it owns when the installation closes' (3 failed, 39 passed).
     return {
       services: read(),
+      // Proof: on 2026-09-25, handing DI Bag `options.timeoutMs + 1` here failed
+      // 'hands DI Bag the budget of a runtime’s own close' with `expected 26 to be 25`;
+      // with that assertion weakened to a type check, the same fault passed the file.
       close: (options) => graph.close({ waitTimeoutMs: options.timeoutMs }),
     };
   } catch (failure) {
@@ -79,6 +82,9 @@ export function acquireTransactionally<S>(
     // Proof: on 2026-09-22, a resolved no-op release made that test record []
     // instead of ['first']; the graph's disposer never ran (1 failed, 41 passed).
     throw new PartialAcquisitionError(failure, (options) =>
+      // Proof: on 2026-09-25, handing DI Bag `options.timeoutMs + 1` here failed
+      // 'hands DI Bag the budget of a half-finished read’s release' with `expected 31 to be 30`;
+      // with that assertion weakened to a type check, the same fault passed the file.
       graph.close({ waitTimeoutMs: options.timeoutMs }),
     );
   }
