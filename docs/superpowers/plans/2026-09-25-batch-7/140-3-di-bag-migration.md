@@ -3,12 +3,12 @@
 |             |                                                                                                                                                                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Work item   | 140.3 "di-bag 0.4.0 to 0.5.0 (breaking)" (WBS `163e836d-0c1d-47b0-ae0e-2f82b1b2a6d1`). WBS 040.13 "di-bag label surface" (`cc9361f6-c33f-4838-9567-bedab0bd3fca`) is **taken out of this item by the planner on 2026-09-25** (section 1.1) |
-| Size class  | L — five slices, each one executor attempt, plus one planner-only Chromium block                                                                                                                                                           |
+| Size class  | L — five slices, each one executor attempt, plus planner-only Chromium and boot fault checks                                                                                                                                               |
 | Moves       | `di-bag` 0.4.0 → **0.5.0** (published 2026-09-25 17:07 UTC), in one lockfile edit. `application-exception` 0.7.0 and `caught-object-report-json` 13.0.0 stay.                                                                              |
 | Method      | The library's own codemod, `di-bag-codemod@0.1.0`, run by the executor through `bunx`, then a fenced residual diff, then a content hash of every owned path that must equal the rehearsal's (planner decision, 2026-09-25)                 |
 | Schema      | New OpenSpec change `migrate-di-bag` (`sdd-lean`): one new capability, `di-bag-library`, two requirements and four scenarios; four tasks, each ticked by the slice that meets it                                                           |
 | Authored on | Base `e93a564a0` (main after PR #63). The planner reruns section 9.1 with `REAL_BASE=<planning sha>` before the first dispatch.                                                                                                            |
-| Rehearsal   | `rehearse/140-3-r1`: `a0f8b9cef` (slice 1), `83ebf251f` (slice 2), `709f4346b` (slice 3), `fcb45dbf5` (slice 4), `9c364d0c8` (slice 5), each committed with the hooks on.                                                                  |
+| Rehearsal   | `rehearse/140-3-r2`: `353d08b1c` (slice 1), `fa2a3911f` (slice 2), `0bc6a477a` (slice 3), `ce4e3daf9` (slice 4), `d80b3be56` (slice 5), each committed with hooks on.                                                                      |
 
 ## 1. Goal, non-goals, and the cut
 
@@ -74,8 +74,8 @@ limit's wording in `module-labels.test.ts` (section 7.4) and the design's dated 
 3. **The new negatives** — the budget translation's two sites, the browser entry point, the moved
    pin; each clause with its clause-disabled twin. The planner adds the two Chromium faults
    (section 8.4) to the same commit.
-4. **The recorded example faults, observed again, and the records** — 77 faults whose outcome is
-   decided by the library (module sealing and labels, the boot graph's disposal, the preferences
+4. **The recorded example faults, observed again, and the records** — 81 fault patches whose outcome is decided by the library: 75 socket-free executor
+   records and six planner-only boot records (module sealing and labels, the boot graph's disposal, the preferences
    module, the transaction, the lifetime slot's disposal refusals, the label check, the compile
    negative, the delivery boundary's bag rule), then the dated amendments.
 5. **The model tests** — all eleven at their pinned seeds, then every recorded model sabotage (74)
@@ -89,7 +89,7 @@ limit's wording in `module-labels.test.ts` (section 7.4) and the design's dated 
 | `docs/superpowers/plans/2026-09-19-batch-1/README.md`                                              | "Execution contract" and "Standard blocks every packet uses".                                                |
 | `docs/superpowers/plans/2026-09-25-batch-7/140-1-2-report-libraries-migration.md`                  | The migration packet this one follows in shape; its section 8.1 is the standard for touching `node_modules`. |
 | `openspec/changes/adopt-di-composition/{design.md,specs/di-composition/spec.md}`                   | The sealed-module contract every backend and core module keeps; slice 4 amends two library names in it.      |
-| `openspec/changes/adopt-frontend-lifetimes/{design.md,specs/adopt-frontend-lifetimes/spec.md}`     | The lifetime contract the frontend runtimes keep; none of its requirements changes.                          |
+| `openspec/changes/adopt-frontend-lifetimes/{proposal.md,specs/adopt-frontend-lifetimes/spec.md}`   | The lifetime contract the frontend runtimes keep; none of its requirements changes.                          |
 | `apps/wbs/fe-01/src/runtime/lifetime-slot.ts`, `apps/wbs/fe-01/src/runtime/application-runtime.ts` | The slot's close budget and the one transaction that owns a built graph.                                     |
 | `tools/tool-devsync/src/module-labels.test.ts`, `tools/tool-devsync/src/toolchain-pins.test.ts`    | The label check and the pins this packet keeps.                                                              |
 
@@ -168,9 +168,9 @@ forever or expire at once — so slice 2 adds two tests against a real graph who
 settles, where only DI Bag's own wait can end the close: `hands DI Bag the budget of a runtime’s own
 close` and `hands DI Bag the budget of a half-finished read’s release`. Each asserts the refusal is
 `DiBagCloseCancelledError` whose `details.waitTimeoutMs` is the budget handed in. Slice 3 proves
-each site with its own fault and its clause-disabled twin (`t1`, `t1c`, `t2`, `t2c`).
+each site with its own fault and its clause-disabled twin (`t1`, `t1c`, `t2`, `t2c`, `t3`, `t3c`).
 
-The 15 test-side sites that close a DI Bag container directly with a lifetime's options get the same
+The 14 test-file sites and one probe that close a DI Bag container directly with a lifetime's options get the same
 translation inline (section 7.3). Rehearsed red without it: 35 failures read `Error:
 DI_BAG_INVALID_ARGUMENT: invalid close options`.
 
@@ -362,7 +362,7 @@ test "$last" = "status=$2"
 EOF
 cat > "$TMPDIR/suites.sh" <<'EOF'
 #!/usr/bin/env bash
-# Runs the four focused suites this packet reads, each into its own evidence log named
+# Runs the four socket-free focused suites this packet reads, each into its own evidence log named
 # <prefix>-<suite>, and prints one summary line per suite. Statuses are asserted by the caller.
 set -euo pipefail
 prefix=$1
@@ -373,7 +373,7 @@ bash "$run" "$prefix-devsync" env -u CLAUDECODE -u AGENT bash -c \
 bash "$run" "$prefix-core" env -u CLAUDECODE -u AGENT bash -c \
   'cd libs/wbs/application/core && bun test ./src'
 bash "$run" "$prefix-backend" env -u CLAUDECODE -u AGENT bash -c \
-  'cd apps/wbs/be-01 && bun test ./src/module ./src/boot.db.test.ts ./src/production-entrypoint.test.ts'
+  'cd apps/wbs/be-01 && bun test ./src/module ./src/production-entrypoint.test.ts'
 bash "$run" "$prefix-frontend" env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT TZ=UTC bash -c \
   'cd apps/wbs/fe-01 && bunx vitest run --no-file-parallelism --maxWorkers=1 browser-packages.test.ts src/app.test.tsx src/delivery-boundaries.test.ts src/index-bootstrap.test.ts src/components/wbs/remembered-layout.model.test.ts src/lib/theme.model.test.tsx src/lib/theme.test.tsx src/modules/directory-management/directory-management.feature.test.ts src/modules/directory-management/module.test.ts src/modules/preferences/browser-storage.repository.test.ts src/modules/preferences/module.test.ts src/modules/preferences/preferences.feature.test.ts src/modules/preferences/preferences.resource.test.ts src/runtime/application-bootstrap.model.test.tsx src/runtime/application-bootstrap.strictmode.test.tsx src/runtime/application-bootstrap.test.tsx src/runtime/application-runtime.test.ts src/runtime/application-services-context.test.tsx src/runtime/lifetime-slot.model.test.ts src/runtime/lifetime-slot.test.ts src/runtime/project-runtime.model.test.ts src/runtime/project-runtime.test.ts src/runtime/session-exit.model.test.ts src/runtime/session-runtime.model.test.ts src/runtime/session-runtime.test.ts'
 EOF
@@ -414,6 +414,7 @@ run_file() {
     bun) (cd "$dir" && env -u CLAUDECODE -u AGENT bun test "./$file") ;;
     bun-devsync) (cd "$dir" && env -u CLAUDECODE -u AGENT bun test --preload ../test/scratch/preload.ts "./$file") ;;
     vitest) (cd "$dir" && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 "$file") ;;
+    vitest-budget) (cd "$dir" && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 "$file" -t 'hands DI Bag the budget') ;;
     tsc-core) env -u CLAUDECODE -u AGENT bunx tsc --build --force libs/wbs/application/core/tsconfig.json ;;
     *) echo "unknown runner $runner" >&2; return 2 ;;
   esac
@@ -430,6 +431,7 @@ while IFS= read -r id && IFS= read -r expect && IFS= read -r runner && IFS= read
     mkdir -p "$TMPDIR/passing/$id/$(dirname "$path")"
     cp "$path" "$TMPDIR/passing/$id/$path"
   done
+  cp "$patch" "$TMPDIR/evidence/$id.diff"
   git apply --unidiff-zero --check "$patch" < /dev/null
   git apply --unidiff-zero "$patch" < /dev/null
   if run_file "$runner" "$dir" "$file" > "$TMPDIR/evidence/$id.log" 2>&1 < /dev/null
@@ -439,6 +441,9 @@ while IFS= read -r id && IFS= read -r expect && IFS= read -r runner && IFS= read
     cp "$TMPDIR/passing/$id/$path" "$path"
     cmp "$path" "$TMPDIR/passing/$id/$path"
   done
+  if run_file "$runner" "$dir" "$file" > "$TMPDIR/evidence/$id-restored.log" 2>&1 < /dev/null; then restored=0; else restored=$?; fi
+  echo "status=$restored" >> "$TMPDIR/evidence/$id-restored.log"
+  test "$restored" -eq 0
   plain=$(sed 's/\x1b\[[0-9;]*m//g' "$TMPDIR/evidence/$id.log")
   if [ "$expect" = fail ]; then
     # tsc reports diagnostics with exit 2; the test runners with exit 1.
@@ -480,11 +485,11 @@ awk -v out="$TMPDIR/mutations" '
 ' "$packet"
 count=$(find "$TMPDIR/mutations" -name '*.diff' | wc -l)
 echo "mutations=$count"
-test "$count" -eq 167
+test "$count" -eq 169
 bash -n "$TMPDIR/fault-loop.sh"
 ````
 
-Expected: `patches=7`, `mutations=167`, exit 0, on a first run and on any rerun in the
+Expected: `patches=7`, `mutations=169`, exit 0, on a first run and on any rerun in the
 same `$TMPDIR`. **Applying section 7.N** always means exactly this, never a hand edit:
 
 ```sh
@@ -584,7 +589,7 @@ the network policy denies that request. Nothing else needs network access.
   ```
 
   Expected: `"version": "0.4.0",`, each `status=0`; rehearsed: devsync `25 pass`, core `626 pass`,
-  backend `61 pass`, frontend `Test Files 25 passed (25)` `Tests 222 passed (222)`, typecheck
+  backend `36 pass`, frontend `Test Files 25 passed (25)` `Tests 222 passed (222)`, typecheck
   `Successfully ran target typecheck for 4 projects and 1 task they depend on`. Record each as that
   suite's **N**. The codemod needs 0.4.0 installed: any other version is a stop (section 10).
 
@@ -695,14 +700,14 @@ the network policy denies that request. Nothing else needs network access.
   test -f "$log"
   test "$(tail -n 1 "$log")" != "status=0"
   sed 's/\x1b\[[0-9;]*m//g' "$log" > "$TMPDIR/evidence/red-typecheck.plain.log"
-  grep -oE '^apps/wbs/fe-01/src/runtime/[a-z-]+\.(test\.)?ts:[0-9]+:[0-9]+ - error TS[0-9]+' \
+  grep -oE '^apps/wbs/fe-01/src/runtime/[a-z-]+\.(test\.)?ts\([0-9]+,[0-9]+\): error TS[0-9]+' \
     "$TMPDIR/evidence/red-typecheck.plain.log" | sort -u | tee "$TMPDIR/evidence/red-typecheck.errors.txt"
   test "$(wc -l < "$TMPDIR/evidence/red-typecheck.errors.txt")" -eq 7
   # tsc reports a production file once per tsconfig that includes it; every report must be in the
   # four named files.
-  if grep ' - error TS' "$TMPDIR/evidence/red-typecheck.plain.log" > "$TMPDIR/evidence/red-typecheck.all.txt"; then :; else rc=$?; test "$rc" -eq 1; fi
+  if grep '): error TS' "$TMPDIR/evidence/red-typecheck.plain.log" > "$TMPDIR/evidence/red-typecheck.all.txt"; then :; else rc=$?; test "$rc" -eq 1; fi
   test -s "$TMPDIR/evidence/red-typecheck.all.txt"
-  if outside=$(grep -vE '^apps/wbs/fe-01/src/runtime/(application-runtime|application-runtime\.test|project-runtime|session-runtime)\.ts:' "$TMPDIR/evidence/red-typecheck.all.txt"); then
+  if outside=$(grep -vE '^apps/wbs/fe-01/src/runtime/(application-runtime|application-runtime\.test|project-runtime|session-runtime)\.ts\(' "$TMPDIR/evidence/red-typecheck.all.txt"); then
     printf 'a diagnostic outside the four files: %s\n' "$outside" >&2
     exit 1
   else
@@ -720,7 +725,7 @@ the network policy denies that request. Nothing else needs network access.
   | --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | devsync   | `status=0`, N (25)                                                                   | — the pin and the label cast are already 0.5.0 on both sides                                                                                                                                                                                                                                                                                                                                   |
   | core      | `status=0`, N (626)                                                                  | — the core's production side changes only JSDoc                                                                                                                                                                                                                                                                                                                                                |
-  | backend   | `status=0`, N (61)                                                                   | — the same                                                                                                                                                                                                                                                                                                                                                                                     |
+  | backend   | `status=0`, N (36)                                                                   | — the same                                                                                                                                                                                                                                                                                                                                                                                     |
   | frontend  | `status=1`; rehearsed `14 failed \| 11 passed (25)`, `94 failed \| 130 passed (224)` | `acquireTransactionally` still hands DI Bag the lifetime's `{ timeoutMs }`: 35 failures read `Error: DI_BAG_INVALID_ARGUMENT: invalid close options`, the rest are their downstream (`expected 'fatal' to be 'empty'`, a model property failing after 1 or 2 tests)                                                                                                                            |
   | typecheck | non-zero, `Failed tasks: - wbs-fe-01:typecheck`                                      | seven distinct `TS2345` diagnostics (13 lines: each production file is reported once per tsconfig that includes it), all passing a DI Bag `Container` (or the test's `{ close(options: { waitTimeoutMs }) }` graph) where `ClosableGraph` still wants `{ timeoutMs }`: four in `application-runtime.test.ts`, one each in `application-runtime.ts`, `project-runtime.ts`, `session-runtime.ts` |
 
@@ -749,11 +754,11 @@ the network policy denies that request. Nothing else needs network access.
     sha256sum "$path"
   done < "$TMPDIR/evidence/owned-hashed.txt" > "$TMPDIR/evidence/owned-sha256.txt"
   sha256sum < "$TMPDIR/evidence/owned-sha256.txt" | tee "$TMPDIR/evidence/tree-hash.txt"
-  grep -q '^e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46 ' "$TMPDIR/evidence/tree-hash.txt"
+  grep -q '^858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244 ' "$TMPDIR/evidence/tree-hash.txt"
   ````
 
   Expected: exit 0, `diff` silent (`verify.md` has no entry yet, so the 82 paths are exactly the
-  list), and `e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46  -`. **A different
+  list), and `858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244  -`. **A different
   hash is a stop** (section 10): report `owned-sha256.txt`, and the planner compares it with the
   rehearsal's per-file hashes.
 
@@ -879,7 +884,7 @@ the network policy denies that request. Nothing else needs network access.
   grep -v '^status=' "$TMPDIR/evidence/probe-bun.log"
   ```
 
-  Expected `status=0` everywhere, with devsync, core and backend = **N** (25, 626, 61), frontend
+  Expected `status=0` everywhere, with devsync, core and backend = **N** (25, 626, 36), frontend
   `Test Files 25 passed (25)` and `Tests` = **N + 2** (224: the two budget tests), typecheck
   `Successfully ran target typecheck for 4 projects and 1 task they depend on`, lint `Successfully
 ran target lint for 4 projects`; `Version 7.0.2` and `Version 6.0.3`; both compilers silent; and
@@ -1017,9 +1022,10 @@ tools/tool-devsync/src/toolchain-pins.test.ts
 
 ### Slice 3 — the new negatives
 
-Owns (5 paths): `apps/wbs/fe-01/src/runtime/application-runtime.ts`,
+Owns (6 paths): `apps/wbs/fe-01/src/runtime/application-runtime.ts`,
+`apps/wbs/fe-01/src/runtime/application-runtime.test.ts`,
 `apps/wbs/fe-01/browser-packages.test.ts`, `tools/tool-devsync/src/toolchain-pins.test.ts` (all
-three `Proof:` comments only), and the change's `tasks.md` and `verify.md`. The planner adds two more
+four `Proof:` comments only), and the change's `tasks.md` and `verify.md`. The planner adds two more
 in the same commit after section 8.4: `apps/wbs/fe-01/e2e/browser-packages.spec.ts` and
 `apps/wbs/fe-01/e2e/fault-boundary.spec.ts` (`Proof:` comments only).
 
@@ -1034,7 +1040,7 @@ in the same commit after section 8.4: `apps/wbs/fe-01/e2e/browser-packages.spec.
   done
   ```
 
-  Expected every suite `status=0` at slice 2's green counts (rehearsed 25, 626, 61, 25·224). **A
+  Expected every suite `status=0` at slice 2's green counts (rehearsed 25, 626, 36, 25·224). **A
   clone whose `node_modules` still holds 0.4.0** (the attempt was resumed without an install) fails
   the first line: run `env -u CLAUDECODE -u AGENT bun install --frozen-lockfile` once, record it,
   and rerun this step. The install must succeed offline from the Bun cache (slice 3 has no
@@ -1066,6 +1072,7 @@ in the same commit after section 8.4: `apps/wbs/fe-01/e2e/browser-packages.spec.
   printf '%s\n' \
     apps/wbs/fe-01/browser-packages.test.ts \
     apps/wbs/fe-01/src/runtime/application-runtime.ts \
+    apps/wbs/fe-01/src/runtime/application-runtime.test.ts \
     openspec/changes/migrate-di-bag/tasks.md \
     openspec/changes/migrate-di-bag/verify.md \
     tools/tool-devsync/src/toolchain-pins.test.ts \
@@ -1080,7 +1087,7 @@ in the same commit after section 8.4: `apps/wbs/fe-01/e2e/browser-packages.spec.
   diff "$TMPDIR/evidence/owned-sorted.txt" "$TMPDIR/evidence/status-paths.txt"
   ```
 
-  Expected: five ` M` paths, the `diff` silent.
+  Expected: six ` M` paths, the `diff` silent.
 
 Planner, before committing: section 8.4 in Chromium, then its two `Proof:` comments, then
 `prettier --check` on the two spec files. Planner commit subject:
@@ -1095,8 +1102,8 @@ and `verify.md`… and nothing else: **no `Proof:` comment is written or changed
 Each fault's observation goes into `verify.md`, dated with the observed date.
 
 - [ ] 1. Step 0, then the baselines as slice 3 step 1 (the same four suites, `status=0`, rehearsed
-      25, 626, 61, 25·224).
-- [ ] 2. Section 8.2's faults with section 8's procedure (81 records). Rehearsed wall time:
+      25, 626, 36, 25·224).
+- [ ] 2. Section 8.2's offline faults with section 8's procedure (75 records). Rehearsed wall time:
       about 13 minutes; the loop prints one line per fault as it goes.
 - [ ] 3. Apply section 7.6 (the records, task 3.2 ticked).
 - [ ] 4. The strict OpenSpec block (named `openspec-s4`): `items` = **O**, all passed.
@@ -1196,7 +1203,7 @@ directory, never absolute paths. Dates are the executor's own observed dates.
 
 ### Dispatch
 
-One attempt per slice, from the reviewed packet, driven by a Claude subagent. The base of slice 1
+One attempt per slice, from the reviewed packet, driven by Codex gpt-6-sol at medium effort in a workspace-write sandbox. The base of slice 1
 is planning with this plan branch's commits since `e93a564a0` **cherry-picked in order** (never
 the rehearsal branch). Before the first dispatch the planner runs section 9.1's script with
 `REAL_BASE=<reviewed-base-sha>`; its `fill=real` output is the dispatch evidence. This block holds
@@ -1204,23 +1211,53 @@ the only absolute paths in this document.
 
 ```sh
 # Slice 1, from the reviewed base.
-/home/df/wd/puni/puni-plan/exec/run-executor.sh \
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
+  /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   140-3-di-bag-migration 1 <reviewed-base-sha> \
-  --driver claude \
+  --driver codex \
   --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
   --slice-note 'reviewed base <reviewed-base-sha>' \
   --preserve evidence
 
 # Slice 2, into the same clone once slice 1 is committed as P1. Network for the registry only.
-/home/df/wd/puni/puni-plan/exec/run-executor.sh \
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
+  /home/df/wd/puni/puni-plan/exec/run-executor.sh \
   140-3-di-bag-migration 2 P1 \
-  --driver claude \
+  --driver codex \
   --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
   --resume --require-ancestor P1 --network \
   --slice-note 'reviewed base P1' \
   --preserve evidence
 
-# Slices 3, 4 and 5 the same way from P2, P3 and P4, without --network.
+# Slice 3, from P2. The planner runs Chromium afterward, before committing P3.
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
+  /home/df/wd/puni/puni-plan/exec/run-executor.sh \
+  140-3-di-bag-migration 3 P2 \
+  --driver codex \
+  --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
+  --resume --require-ancestor P2 \
+  --slice-note 'reviewed base P2' \
+  --preserve evidence
+
+# Slice 4, from P3. The planner runs the boot checks in §9.4 before committing P4.
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
+  /home/df/wd/puni/puni-plan/exec/run-executor.sh \
+  140-3-di-bag-migration 4 P3 \
+  --driver codex \
+  --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
+  --resume --require-ancestor P3 \
+  --slice-note 'reviewed base P3' \
+  --preserve evidence
+
+# Slice 5, from P4.
+EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
+  /home/df/wd/puni/puni-plan/exec/run-executor.sh \
+  140-3-di-bag-migration 5 P4 \
+  --driver codex \
+  --batch batch-7 --batch-dir docs/superpowers/plans/2026-09-25-batch-7 \
+  --resume --require-ancestor P4 \
+  --slice-note 'reviewed base P4' \
+  --preserve evidence
 ```
 
 **A `fill=real` failure is a planner stop**, never a waiver: rebase the rehearsal on the new base
@@ -1442,7 +1479,7 @@ index 150f2683d..6b09f1f0b 100644
 ### 7.3 The residual, test side — slice 2 step 6
 
 What the codemod leaves in tests (section 3.2): the 22 `DI_BAG_MISSING_REGISTRATION` assertions,
-the 22 `partial.build()` casts and the label check's cast, the 15 non-literal closes, the pin, the
+the 20 `partial.build()` casts and the label check's cast, the 14 test-file non-literal closes and one probe close, the pin, the
 `HalfGraph` type, the label check's JSDoc, and the two new budget tests with their helpers.
 
 ```diff
@@ -1714,13 +1751,13 @@ index 74b6eac5a..ae726b639 100644
 +    .buildContainer();
 +}
 +
-+/** The wait budget a refused close reports, or the refusal itself when it is not DI Bag's. */
-+async function budgetOfRefusedClose(closing: Promise<void>): Promise<unknown> {
++/** The wait budget in DI Bag's cancelled-close refusal. */
++async function budgetOfRefusedClose(closing: Promise<void>): Promise<number | undefined> {
 +  const refusal = await closing.then(
 +    () => new Error('the close was expected to outrun its budget'),
 +    (thrown: unknown) => thrown,
 +  );
-+  if (!(refusal instanceof DiBagCloseCancelledError)) return refusal;
++  if (!(refusal instanceof DiBagCloseCancelledError)) throw refusal;
 +  return refusal.details.waitTimeoutMs;
 +}
 +
@@ -2826,7 +2863,7 @@ index 50e8c82f4..b76db9219 100644
 
 Every fault below was injected for real in the rehearsal on 2026-09-25, on the rehearsal commit of
 the slice before the one that owns it, the whole test file run, the file restored and compared,
-before the next fault. The executor repeats each; in slice 3 it writes a `Proof:` comment **only
+before the next fault. The assigned executor or planner repeats each; in slice 3 it writes a `Proof:` comment **only
 after observing its own failure**, dated with its own observed date (`date -u +%F`), and it runs
 **all** of a slice's faults first and writes its comments afterwards, so every fault patch still
 applies. Slices 4 and 5 write no comment: their observations go into `verify.md`.
@@ -2838,10 +2875,10 @@ here sits in a file no earlier slice of this packet edits, so N holds on the rev
 9.1's `fill=1` proves it).
 
 **Each slice's faults are records of six lines** — id; `fail` or `pass`; the runner (`bun`,
-`bun-devsync`, `vitest` or `tsc-core`); the directory the test runs in; the test file, relative to
+`bun-devsync`, `vitest`, `vitest-budget` or `tsc-core`); the directory the test runs in; the test file, relative to
 that directory; the named test (for `tsc-core`, a diagnostic substring; for a `pass` twin, `-`) — in
 the first `text` block of that slice's subsection. A `fail` record requires exit 1 (2 for `tsc-core`)
-and the named test among the failures; a `pass` record is a clause-disabled twin and requires exit 0.
+and the named test among the failures; `vitest-budget` runs only the two named budget tests; a `pass` record is a clause-disabled twin and requires exit 0.
 Extract them:
 
 ````sh
@@ -2860,7 +2897,7 @@ test $(( $(wc -l < "$TMPDIR/proofs.txt") % 6 )) -eq 0
 echo "records=$(( $(wc -l < "$TMPDIR/proofs.txt") / 6 ))"
 ````
 
-Expected: `records=8` for slice 3, `records=81` for slice 4, `records=74` for slice 5.
+Expected: `records=10` for slice 3, `records=75` for slice 4, `records=74` for slice 5.
 
 **First, prove every named test exists** in its file, so no record can pass vacuously:
 
@@ -2916,6 +2953,18 @@ vitest
 apps/wbs/fe-01
 src/runtime/application-runtime.test.ts
 -
+t3
+fail
+vitest-budget
+apps/wbs/fe-01
+src/runtime/application-runtime.test.ts
+hands DI Bag the budget of a runtime’s own close
+t3c
+pass
+vitest-budget
+apps/wbs/fe-01
+src/runtime/application-runtime.test.ts
+-
 b1
 fail
 vitest
@@ -2942,7 +2991,7 @@ src/toolchain-pins.test.ts
 -
 ```
 
-Rehearsed on `83ebf251f` (slice 2), 2026-09-25:
+Rehearsed on `fa2a3911f` (slice 2), 2026-09-25:
 
 | Id    | Fault                                                                 | Expect | Whole file                   | Observed                                                          |
 | ----- | --------------------------------------------------------------------- | ------ | ---------------------------- | ----------------------------------------------------------------- |
@@ -2950,6 +2999,8 @@ Rehearsed on `83ebf251f` (slice 2), 2026-09-25:
 | `t1c` | `t1`, with that test's `toBe(25)` weakened to `toBeTypeOf('number')`  | pass   | `16 passed (16)`             | no other clause catches the fault                                 |
 | `t2`  | the partial release hands DI Bag `options.timeoutMs + 1`              | fail   | `1 failed \| 15 passed (16)` | AssertionError: expected 31 to be 30                              |
 | `t2c` | `t2`, with that test's `toBe(30)` weakened to `toBeTypeOf('number')`  | pass   | `16 passed (16)`             | no other clause catches the fault                                 |
+| `t3`  | both close calls reject the numeric budget directly                   | fail   | `2 failed, 14 skipped (16)`  | rejection is not a DI Bag close cancellation                      |
+| `t3c` | `t3` with the error-type check removed                                | pass   | `2 passed, 14 skipped (16)`  | the type check alone rejects the bypass                           |
 | `b1`  | `import 'node:util/types';` as the browser probe's first line         | fail   | `1 failed \| 2 passed (3)`   | AssertionError: expected [ 'node:util/types' ] to deeply equal [] |
 | `b1c` | `b1`, with that assertion weakened to `toBeInstanceOf(Array)`         | pass   | `3 passed (3)`               | no other clause catches the fault                                 |
 | `p1`  | `package.json` pins `"di-bag": "0.4.0"`                               | fail   | `19 pass`, `1 fail`          | error: expect(received).toEqual(expected)                         |
@@ -2962,6 +3013,7 @@ with the observed date, naming the fault and the fact observed, and the twin's o
 | ---------- | ---------------------------------------------------------------------------------------------------- |
 | `t1`/`t1c` | `close: (options) => graph.close({ waitTimeoutMs: options.timeoutMs }),` in `acquireTransactionally` |
 | `t2`/`t2c` | `graph.close({ waitTimeoutMs: options.timeoutMs }),` inside `new PartialAcquisitionError(…)`         |
+| `t3`/`t3c` | `if (!(refusal instanceof DiBagCloseCancelledError)) throw refusal;` in the test helper              |
 | `b1`/`b1c` | `expect((await theBundle()).externalizedForBrowser).toEqual([]);`, below the 2026-09-20 comment      |
 | `p1`/`p1c` | `expect(pinned).toEqual({ ...OWNER_PACKAGES });`                                                     |
 
@@ -3029,6 +3081,47 @@ diff --git a/apps/wbs/fe-01/src/runtime/application-runtime.test.ts b/apps/wbs/f
 +    ).toBeTypeOf('number');
 ```
 
+#### Proof t3
+
+The production bypass below rejects with the requested number without calling DI Bag at either
+close site. Both budget tests must fail because the refusal is not a
+`DiBagCloseCancelledError`.
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/application-runtime.ts b/apps/wbs/fe-01/src/runtime/application-runtime.ts
+--- a/apps/wbs/fe-01/src/runtime/application-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/application-runtime.ts
+@@ -74,1 +74,1 @@
+-      close: (options) => graph.close({ waitTimeoutMs: options.timeoutMs }),
++      close: (options) => Promise.reject(options.timeoutMs),
+@@ -82,1 +82,1 @@
+-      graph.close({ waitTimeoutMs: options.timeoutMs }),
++      Promise.reject(options.timeoutMs),
+```
+
+#### Proof t3c
+
+The same bypass with the helper's error-type check removed must pass both tests, isolating
+that check as the reason the negative fails.
+
+```diff
+diff --git a/apps/wbs/fe-01/src/runtime/application-runtime.ts b/apps/wbs/fe-01/src/runtime/application-runtime.ts
+--- a/apps/wbs/fe-01/src/runtime/application-runtime.ts
++++ b/apps/wbs/fe-01/src/runtime/application-runtime.ts
+@@ -74,1 +74,1 @@
+-      close: (options) => graph.close({ waitTimeoutMs: options.timeoutMs }),
++      close: (options) => Promise.reject(options.timeoutMs),
+@@ -82,1 +82,1 @@
+-      graph.close({ waitTimeoutMs: options.timeoutMs }),
++      Promise.reject(options.timeoutMs),
+diff --git a/apps/wbs/fe-01/src/runtime/application-runtime.test.ts b/apps/wbs/fe-01/src/runtime/application-runtime.test.ts
+--- a/apps/wbs/fe-01/src/runtime/application-runtime.test.ts
++++ b/apps/wbs/fe-01/src/runtime/application-runtime.test.ts
+@@ -88,1 +88,1 @@
+-  if (!(refusal instanceof DiBagCloseCancelledError)) throw refusal;
++  if (!(refusal instanceof DiBagCloseCancelledError)) return Number(refusal);
+```
+
 #### Proof b1
 
 ```diff
@@ -3087,7 +3180,7 @@ diff --git a/tools/tool-devsync/src/toolchain-pins.test.ts b/tools/tool-devsync/
 
 What is in, and why: the two sealing facts of every one of the 20 modules (`w-*`: a private key
 exported; `l-*`: the label dropped), the same label fault against the label check for the 18 it reads
-(`g-*`); the boot graph's disposal and edges (`bs1`–`bs6`); the preferences module's disposal and
+(`g-*`); the boot graph's disposal and edges (`bs1`–`bs6`, assigned to the planner); the preferences module's disposal and
 resolution order (`pf1`, `pf2`); the transaction (`ar1`–`ar3`); the lifetime slot's reading of DI
 Bag's close refusal (`ls1`–`ls3`); the label check's own two (`ml1`, `ml2`); the one compile negative
 of a module fixture (`ts1`, `ts2`); the delivery rule that `di-bag` is a bag (`d9`); and the four owner
@@ -3097,7 +3190,7 @@ repository's own with no library call deciding the outcome (the installers' enum
 every `check.ts`, a module's service wiring, the owners' generation fences) — the green suites of
 slice 2 carry them unchanged. Model sabotages are section 8.3's.
 
-The records for `$TMPDIR/proofs.txt`:
+The 75 offline executor records for `$TMPDIR/proofs.txt`:
 
 ```text
 w-auth
@@ -3448,42 +3541,6 @@ vitest
 apps/wbs/fe-01
 src/modules/preferences/module.test.ts
 labels its owned store with the module name
-bs1
-fail
-bun
-apps/wbs/be-01
-src/boot.db.test.ts
-releases the source when the port it was given is already taken
-bs2
-fail
-bun
-apps/wbs/be-01
-src/boot.db.test.ts
-refuses to report a clean stop when a release is refused
-bs3
-fail
-bun
-apps/wbs/be-01
-src/boot.db.test.ts
-refuses to report a clean stop when a release is refused
-bs4
-fail
-bun
-apps/wbs/be-01
-src/boot.db.test.ts
-starts the retention timer
-bs5
-fail
-bun
-apps/wbs/be-01
-src/boot.db.test.ts
-releases the source and the port when a step after the listener fails
-bs6
-fail
-bun
-apps/wbs/be-01
-src/boot.db.test.ts
-stops accepting before it closes the source it opened
 pf1
 fail
 vitest
@@ -3588,7 +3645,7 @@ src/runtime/session-runtime.test.ts
 settles a half-built session that cannot be released, and leaves the owner terminally fatal
 ```
 
-Rehearsed on `709f4346b` (slice 3), 2026-09-25, every record `status=1` (`status=2` for `ts1`,
+Rehearsed on `0bc6a477a` (slice 3), 2026-09-25, every record `status=1` (`status=2` for `ts1`,
 `ts2`), restored and `cmp`-identical:
 
 | Id          | Fault                                                                                       | Named test                                                                                   | Whole file                   | Observed                                                                                                                                               |
@@ -3661,7 +3718,7 @@ Rehearsed on `709f4346b` (slice 3), 2026-09-25, every record `status=1` (`status
 | `pf2`       | `preferences/module.ts`: `isLive` destructured before `preferencesStore`                    | names itself when a host omits the browser store                                             | `1 failed \| 7 passed (8)`   | AssertionError: expected [Function] to throw error including 'Cannot resolve "frontend.preferences/…' but got 'DI_BAG_MISSING_DEPENDENCY: Cannot res…' |
 | `ar1`       | `acquireTransactionally`: `close: () => Promise.resolve()`                                  | revokes the store it owns when the installation closes                                       | `5 failed \| 11 passed (16)` | AssertionError: expected [Function] to throw an error                                                                                                  |
 | `ar2`       | `acquireTransactionally`: the failure rethrown unwrapped                                    | releases everything a half-finished read acquired                                            | `5 failed \| 11 passed (16)` | AssertionError: expected Error: alice@example.com could not be com… to be an instance of PartialAcquisitionError                                       |
-| `ar3`       | `acquireTransactionally`: the partial release → `Promise.resolve()`                         | releases everything a half-finished read acquired                                            | `2 failed \| 14 passed (16)` | AssertionError: expected [] to deeply equal [ 'first' ]                                                                                                |
+| `ar3`       | `acquireTransactionally`: the partial release → `Promise.resolve()`                         | releases everything a half-finished read acquired                                            | `2 failed, 14 skipped (16)`  | AssertionError: expected [] to deeply equal [ 'first' ]                                                                                                |
 | `ls1`       | `lifetime-slot.ts`'s `lateCleanupOf` returns `null`                                         | fails the transition when the retirement outruns its budget, and keeps watching the disposal | `4 failed \| 20 passed (24)` | AssertionError: expected null to be an instance of Promise                                                                                             |
 | `ls2`       | `lifetime-slot.ts`: the late disposal's settled branch observes nothing                     | observes a late disposal that finishes after the wait expired, without publishing anything   | `2 failed \| 22 passed (24)` | AssertionError: expected 'pending' to be 'settled'                                                                                                     |
 | `ls3`       | `lifetime-slot.ts`: the release refusal swallowed (`void releaseRefusal;`)                  | is terminal when the half-finished construction cannot be released                           | `2 failed \| 22 passed (24)` | AssertionError: expected [Function] to throw error including 'DI_BAG_DISPOSAL_FAILED' but got 'the lifetime could not be built, and …'                 |
@@ -5023,7 +5080,7 @@ src/runtime/session-exit.model.test.ts
 retires the project and then the session, sends nothing, and settles within the budget — signed out only when both let go
 ```
 
-Rehearsed on `fcb45dbf5` (slice 4) with di-bag 0.5.0, 2026-09-25, every record `status=1`. "Run ·
+Rehearsed on `ce4e3daf9` (slice 4) with di-bag 0.5.0, 2026-09-25, every record `status=1`. "Run ·
 shrunk" is fast-check's own `Property failed after N tests` and `Shrunk N time(s)`; "recorded" is the
 run the originating packet or `verify.md` wrote; "0.4.0" is the same patch run on the base
 `e93a564a0` with di-bag 0.4.0 installed, where it applies (the four faults inside a model test file
@@ -5966,7 +6023,7 @@ and runs `prettier --check` on both specs. Pick a free `E2E_PORT_SHIFT` (the reh
 set -euo pipefail
 cat > "$TMPDIR/chromium-faults.sh" <<'EOF'
 #!/usr/bin/env bash
-# Planner-only: the Chromium faults of section 8.3, each saved, applied, run, restored and compared
+# Planner-only: the Chromium faults of section 8.4, each saved, applied, run, restored and compared
 # before its status is asserted. Arguments: the E2E port shift, then "<id>:<spec>:<fail|pass>"...
 set -euo pipefail
 shift_by=$1
@@ -5981,6 +6038,7 @@ for record in "$@"; do
     mkdir -p "$TMPDIR/passing/$id/$(dirname "$path")"
     cp "$path" "$TMPDIR/passing/$id/$path"
   done
+  cp "$patch" "$TMPDIR/evidence/$id.diff"
   git apply --unidiff-zero "$patch" < /dev/null
   if env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT CI=1 E2E_PORT_SHIFT="$shift_by" NX_DAEMON=false \
     bunx nx run wbs-fe-01:e2e --skip-nx-cache -- "e2e/$spec" > "$TMPDIR/evidence/$id.log" 2>&1 < /dev/null
@@ -5989,6 +6047,11 @@ for record in "$@"; do
     cp "$TMPDIR/passing/$id/$path" "$path"
     cmp "$path" "$TMPDIR/passing/$id/$path"
   done
+  if env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT CI=1 E2E_PORT_SHIFT="$shift_by" NX_DAEMON=false \
+    bunx nx run wbs-fe-01:e2e --skip-nx-cache -- "e2e/$spec" > "$TMPDIR/evidence/$id-restored.log" 2>&1 < /dev/null
+  then restored=0; else restored=$?; fi
+  printf 'status=%s\n' "$restored" >> "$TMPDIR/evidence/$id-restored.log"
+  test "$restored" -eq 0
   if [ "$expect" = fail ]; then test "$status" -ne 0; else test "$status" -eq 0; fi
   printf '%s | %s | status=%s\n' "$id" "$expect" "$status"
 done
@@ -5998,7 +6061,7 @@ bash "$TMPDIR/chromium-faults.sh" 3000 \
   e2:fault-boundary.spec.ts:fail e2c:fault-boundary.spec.ts:pass | tee "$TMPDIR/evidence/chromium-loop.txt"
 ```
 
-Expected, rehearsed on `83ebf251f` plus slice 3's executor comments, 2026-09-25: `e1 | fail |
+Expected, rehearsed on `fa2a3911f` plus slice 3's executor comments, 2026-09-25: `e1 | fail |
 status=1`, `e1c | pass | status=0`, `e2 | fail | status=1`, `e2c | pass | status=0`, exit 0. The two
 failures, each `1 failed`:
 
@@ -6106,12 +6169,13 @@ host that ran slice 2 or this script once). Each mode takes about three minutes.
 set -euo pipefail
 packet=docs/superpowers/plans/2026-09-25-batch-7/140-3-di-bag-migration.md
 base=e93a564a09c856d8bc2b2c5aa64a588855a3c2f2
-final=9c364d0c8b96dea303880b00890ca50707b173d3
-tree_hash=e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
+final=d80b3be5613918755ad4be28e526dfd90ca3fe33
+tree_hash=858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
 real_base=${REAL_BASE:-}
 test -f "$packet"
 proof_files="apps/wbs/fe-01/src/runtime/application-runtime.ts
   apps/wbs/fe-01/browser-packages.test.ts
+  apps/wbs/fe-01/src/runtime/application-runtime.test.ts
   tools/tool-devsync/src/toolchain-pins.test.ts
   apps/wbs/fe-01/e2e/browser-packages.spec.ts
   apps/wbs/fe-01/e2e/fault-boundary.spec.ts"
@@ -6180,8 +6244,8 @@ for fill in 0 1 real; do
     capture && /^```$/ { capture=0; next }
     capture { print > f }
   ' "$packet"
-  test "$(find "$work/mutations" -name '*.diff' | wc -l)" -eq 167
-  echo "fill=$fill extracted 7 patches, 167 fault patches"
+  test "$(find "$work/mutations" -name '*.diff' | wc -l)" -eq 169
+  echo "fill=$fill extracted 7 patches, 169 fault patches"
   git archive "$from" | tar -x -C "$work/tree"
   git -C "$work/tree" init -q
   git -C "$work/tree" add -A
@@ -6231,22 +6295,23 @@ for fill in 0 1 real; do
   if [ "$fill" = 1 ]; then append_entry 2; fi
   # shellcheck disable=SC2046
   check_faults $(ids_of 8.1) e1 e1c e2 e2c
-  echo "fill=$fill slice 3's 8 fault patches and the planner's 4 check"
+  echo "fill=$fill slice 3's 10 fault patches and the planner's 4 check"
   # Slice 3: the executor's and the planner's comments, then 05.
   if [ "$fill" = 1 ]; then
     fill_above "$work/tree/apps/wbs/fe-01/src/runtime/application-runtime.ts" 'close: (options) => graph.close({ waitTimeoutMs: options.timeoutMs }),'
     fill_above "$work/tree/apps/wbs/fe-01/src/runtime/application-runtime.ts" 'graph.close({ waitTimeoutMs: options.timeoutMs }),'
+    fill_above "$work/tree/apps/wbs/fe-01/src/runtime/application-runtime.test.ts" 'if (!(refusal instanceof DiBagCloseCancelledError)) throw refusal;'
     fill_above "$work/tree/apps/wbs/fe-01/browser-packages.test.ts" 'expect((await theBundle()).externalizedForBrowser).toEqual([]);'
     fill_above "$work/tree/tools/tool-devsync/src/toolchain-pins.test.ts" 'expect(pinned).toEqual({ ...OWNER_PACKAGES });'
     fill_above "$work/tree/apps/wbs/fe-01/e2e/browser-packages.spec.ts" 'expect(pageErrors).toEqual([]);'
     fill_above "$work/tree/apps/wbs/fe-01/e2e/fault-boundary.spec.ts" 'expect(pageErrors).toEqual([]);'
-    test "$(grep -rc 'Proof: simulated' "$work/tree/apps" "$work/tree/tools" | awk -F: '{ s += $2 } END { print s }')" -eq 6
+    test "$(grep -rc 'Proof: simulated' "$work/tree/apps" "$work/tree/tools" | awk -F: '{ s += $2 } END { print s }')" -eq 7
   fi
   apply_patch 05
   if [ "$fill" = 1 ]; then append_entry 3; fi
   # shellcheck disable=SC2046
-  check_faults $(ids_of 8.2)
-  echo "fill=$fill slice 3 applied, slice 4's $(ids_of 8.2 | wc -l) fault patches check"
+  check_faults $(ids_of 8.2) bs1 bs2 bs3 bs4 bs5 bs6
+  echo "fill=$fill slice 3 applied, slice 4's 75 offline and 6 planner boot fault patches check"
   apply_patch 06
   if [ "$fill" = 1 ]; then append_entry 4; fi
   # shellcheck disable=SC2046
@@ -6260,18 +6325,20 @@ for fill in 0 1 real; do
   cat "$work/changed-tracked.txt" "$work/changed.txt" | sort -u > "$work/changed-all.txt"
   wc -l < "$work/changed-all.txt"
   git archive "$final" | tar -x -C "$work/final"
+  rm "$work/final/$packet" # the rehearsal alone carried a local copy of this packet
   if [ "$fill" = 0 ]; then
+    cp "$work/final/openspec/changes/migrate-di-bag/verify.md" "$work/tree/openspec/changes/migrate-di-bag/verify.md" # observed entries vary by executor
     for f in $proof_files; do
       test "$(code_of "$work/tree/$f")" = "$(code_of "$work/final/$f")"
       cp "$work/final/$f" "$work/tree/$f"
     done
     diff -r --exclude=.git --exclude=node_modules "$work/tree" "$work/final"
-    echo "fill=0 tree identical to $final, the five Proof-site files modulo comments"
+    echo "fill=0 tree identical to $final, the six Proof-site files modulo comments and generated verification entries"
   elif [ "$fill" = 1 ]; then
     echo "fill=1 simulated comments left: $(grep -rc 'Proof: simulated' "$work/tree/apps" "$work/tree/tools" | awk -F: '{ s += $2 } END { print s }')"
   else
     # Three files change only by slice 3's comments, which no diff carries.
-    git diff --name-only "$base" "$final" | sort > "$work/rehearsed-all.txt"
+    git diff --name-only "$base" "$final" -- . ":(exclude)$packet" | sort > "$work/rehearsed-all.txt"
     printf '%s\n' apps/wbs/fe-01/browser-packages.test.ts apps/wbs/fe-01/e2e/browser-packages.spec.ts \
       apps/wbs/fe-01/e2e/fault-boundary.spec.ts | sort > "$work/comment-only.txt"
     comm -23 "$work/rehearsed-all.txt" "$work/comment-only.txt" > "$work/owned-all.txt"
@@ -6289,7 +6356,7 @@ for fill in 0 1 real; do
           test -n "$mine"
           test "$landed" = "$mine"
           ;;
-        openspec/changes/migrate-di-bag/.openspec.yaml) ;;
+        openspec/changes/migrate-di-bag/.openspec.yaml | openspec/changes/migrate-di-bag/verify.md) ;;
         *.ts | *.tsx) test "$(code_of "$work/tree/$f")" = "$(code_of "$work/final/$f")" ;;
         *) cmp "$work/tree/$f" "$work/final/$f" ;;
       esac
@@ -6304,29 +6371,29 @@ from this working tree and `REAL_BASE=e93a564a0`, the same base — so `fill=rea
 mode's own checks, not the dispatch base; the planner reruns it on the reviewed base:
 
 ```text
-fill=0 extracted 7 patches, 167 fault patches
+fill=0 extracted 7 patches, 169 fault patches
 fill=0 slice 1 applied
-fill=0 slice 2 applied, 82 owned paths, content hash e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
-fill=0 slice 3's 8 fault patches and the planner's 4 check
-fill=0 slice 3 applied, slice 4's 81 fault patches check
+fill=0 slice 2 applied, 82 owned paths, content hash 858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
+fill=0 slice 3's 10 fault patches and the planner's 4 check
+fill=0 slice 3 applied, slice 4's 75 offline and 6 planner boot fault patches check
 fill=0 slice 4 applied, slice 5's 74 fault patches check
 fill=0 slice 5 applied
 89
-fill=0 tree identical to 9c364d0c8b96dea303880b00890ca50707b173d3, the five Proof-site files modulo comments
-fill=1 extracted 7 patches, 167 fault patches
+fill=0 tree identical to d80b3be5613918755ad4be28e526dfd90ca3fe33, the six Proof-site files modulo comments and generated verification entries
+fill=1 extracted 7 patches, 169 fault patches
 fill=1 slice 1 applied
-fill=1 slice 2 applied, 82 owned paths, content hash e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
-fill=1 slice 3's 8 fault patches and the planner's 4 check
-fill=1 slice 3 applied, slice 4's 81 fault patches check
+fill=1 slice 2 applied, 82 owned paths, content hash 858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
+fill=1 slice 3's 10 fault patches and the planner's 4 check
+fill=1 slice 3 applied, slice 4's 75 offline and 6 planner boot fault patches check
 fill=1 slice 4 applied, slice 5's 74 fault patches check
 fill=1 slice 5 applied
 92
-fill=1 simulated comments left: 6
-fill=real extracted 7 patches, 167 fault patches
+fill=1 simulated comments left: 7
+fill=real extracted 7 patches, 169 fault patches
 fill=real slice 1 applied
-fill=real slice 2 applied, 82 owned paths, content hash e80d38d714be97fc5b698cfeb6fb16fddc7eff44aa6c5567b877166a828c4f46
-fill=real slice 3's 8 fault patches and the planner's 4 check
-fill=real slice 3 applied, slice 4's 81 fault patches check
+fill=real slice 2 applied, 82 owned paths, content hash 858e7d973fdbdc3fac6823dd87184e68a7b221d7b32bd8da3e22e3f6e1460244
+fill=real slice 3's 10 fault patches and the planner's 4 check
+fill=real slice 3 applied, slice 4's 75 offline and 6 planner boot fault patches check
 fill=real slice 4 applied, slice 5's 74 fault patches check
 fill=real slice 5 applied
 89
@@ -6359,38 +6426,39 @@ after each slice.
 ### 9.3 Commands actually run, and what each reported
 
 All on 2026-09-25, by this packet's author, in a scratch clone of `e93a564a0` with its own
-`bun install --frozen-lockfile`, each slice committed on `rehearse/140-3-r1` with the hooks on
-(lefthook's tool-wiki, secrets, format and lint passed): `a0f8b9cef` (slice 1), `83ebf251f` (slice 2), `709f4346b` (slice 3), `fcb45dbf5` (slice 4), `9c364d0c8` (slice 5). Slice 2's red was the
+`bun install --frozen-lockfile`, each slice committed on `rehearse/140-3-r2` with the hooks on
+(lefthook's tool-wiki, secrets, format and lint passed): `353d08b1c` (slice 1), `fa2a3911f` (slice 2), `0bc6a477a` (slice 3), `ce4e3daf9` (slice 4), `d80b3be56` (slice 5). Slice 2's red was the
 slice-1 commit plus the codemod, 7.2, the install, Prettier and 7.3; its green 7.4 on top. Slice 3's
 faults ran on slice 2's commit, slice 4's on slice 3's, slice 5's on slice 4's.
 
-| Check                                                  | Base `e93a564a0` | After slice 1 | Slice 2 red                                            | After slice 2                     | After slices 3–5     |
-| ------------------------------------------------------ | ---------------- | ------------- | ------------------------------------------------------ | --------------------------------- | -------------------- |
-| strict OpenSpec (items · passed · failed)              | 115 · 115 · 0    | 116 · 116 · 0 | —                                                      | 116 · 116 · 0                     | 116 · 116 · 0        |
-| devsync pins + labels                                  | 25 pass          | 25            | 25                                                     | 25                                | 25                   |
-| `wbs-core` (`bun test ./src`)                          | 626 pass         | 626           | 626                                                    | 626                               | 626                  |
-| backend modules + boot + entrypoint                    | 61 pass          | 61            | 61                                                     | 61                                | 61                   |
-| frontend focused (25 files)                            | 25 · 222         | same          | 14 failed \| 11 passed · 94 failed \| 130 passed (224) | 25 · 224                          | 25 · 224             |
-| typecheck, 4 projects                                  | 0                | —             | 1: seven TS2345 in four runtime files                  | 0                                 | 0                    |
-| lint, 4 projects; `wbs-fe-01:typecheck:module`         | —                | —             | —                                                      | 0 · 0                             | 0 (slice 3)          |
-| content hash of the 82 owned paths                     | —                | —             | —                                                      | `e80d38d7…`, twice, in two clones | —                    |
-| registry probe: Bun · `tsc` 7.0.2 · `tsc6` 6.0.3       | —                | —             | —                                                      | 0 · 0 · 0                         | —                    |
-| the eleven model tests at their seeds                  | —                | —             | —                                                      | —                                 | 11 · 12 passed       |
-| slice 3 faults (8) · slice 4 (81) · slice 5 (74)       | —                | —             | —                                                      | —                                 | all as tabled        |
-| Chromium faults `e1`, `e1c`, `e2`, `e2c`               | —                | —             | —                                                      | —                                 | 1 · 0 · 1 · 0        |
-| model sabotages on the base with 0.4.0 (69 comparable) | same run numbers | —             | —                                                      | —                                 | —                    |
-| Planner-only `tool-devsync:test`                       | —                | —             | —                                                      | 372 pass, 0 fail                  | 372 pass, 0 fail     |
-| Planner-only `wbs-core` + `wbs-be-01` whole targets    | —                | —             | —                                                      | —                                 | status 0             |
-| Planner-only `wbs-fe-01:test` / `test:unit`            | —                | —             | —                                                      | —                                 | 3,107 + 3 / 739 pass |
-| Planner-only selected Chromium E2E                     | —                | —             | —                                                      | —                                 | 3 pass               |
-| Planner-only `nx format:check --all`                   | —                | —             | —                                                      | —                                 | status 0             |
+| Check                                                                        | Base `e93a564a0` | After slice 1 | Slice 2 red                                            | After slice 2                     | After slices 3–5           |
+| ---------------------------------------------------------------------------- | ---------------- | ------------- | ------------------------------------------------------ | --------------------------------- | -------------------------- |
+| strict OpenSpec (items · passed · failed)                                    | 115 · 115 · 0    | 116 · 116 · 0 | —                                                      | 116 · 116 · 0                     | 116 · 116 · 0              |
+| devsync pins + labels                                                        | 25 pass          | 25            | 25                                                     | 25                                | 25                         |
+| `wbs-core` (`bun test ./src`)                                                | 626 pass         | 626           | 626                                                    | 626                               | 626                        |
+| backend modules + entrypoint                                                 | 36 pass          | 36            | 36                                                     | 36                                | 36                         |
+| frontend focused (25 files)                                                  | 25 · 222         | same          | 14 failed \| 11 passed · 94 failed \| 130 passed (224) | 25 · 224                          | 25 · 224                   |
+| typecheck, 4 projects                                                        | 0                | —             | 1: seven TS2345 in four runtime files                  | 0                                 | 0                          |
+| lint, 4 projects; `wbs-fe-01:typecheck:module`                               | —                | —             | —                                                      | 0 · 0                             | 0 (slice 3)                |
+| content hash of the 82 owned paths                                           | —                | —             | —                                                      | `858e7d97…`, rehearsal and replay | —                          |
+| registry probe: Bun · `tsc` 7.0.2 · `tsc6` 6.0.3                             | —                | —             | —                                                      | 0 · 0 · 0                         | —                          |
+| the eleven model tests at their seeds                                        | —                | —             | —                                                      | —                                 | 11 · 12 passed             |
+| slice 3 faults (10) · offline slice 4 (75) · planner boot (6) · slice 5 (74) | —                | —             | —                                                      | —                                 | all as tabled              |
+| Planner boot baseline, `bs1`–`bs6`, restored (r2)                            | —                | —             | —                                                      | —                                 | 25 pass; 6 faults; 25 pass |
+| Chromium faults `e1`, `e1c`, `e2`, `e2c`                                     | —                | —             | —                                                      | —                                 | 1 · 0 · 1 · 0              |
+| model sabotages on the base with 0.4.0 (69 comparable)                       | same run numbers | —             | —                                                      | —                                 | —                          |
+| Planner-only `tool-devsync:test` (r1 only)                                   | —                | —             | —                                                      | 372 pass, 0 fail                  | 372 pass, 0 fail           |
+| Planner-only `wbs-core` + `wbs-be-01` whole targets (r1 only)                | —                | —             | —                                                      | —                                 | status 0                   |
+| Planner-only `wbs-fe-01:test` / `test:unit` (r1 only)                        | —                | —             | —                                                      | —                                 | 3,107 + 3 / 739 pass       |
+| Planner-only selected Chromium E2E (r1 only)                                 | —                | —             | —                                                      | —                                 | 3 pass                     |
+| Planner-only `nx format:check --all` (r1 only)                               | —                | —             | —                                                      | —                                 | status 0                   |
 
 **The codemod is deterministic.** It was run in two fresh clones of the base, each with its own
 install: the eight summary lines, the 77 paths and every byte after Prettier were identical, and the
 second clone, taken through 7.2–7.4 from the extracted diffs, equalled the first clone's slice 2
-commit (`git diff --quiet` exit 0) with content hash `e80d38d7…`.
+commit (`git diff --quiet` exit 0) with content hash `858e7d97…`.
 
-The planner-only runs in the rehearsal clone are recorded in `planner.txt`: `tool-devsync:test`
+The earlier r1 rehearsal's planner-only runs are recorded in its `planner.txt`; those whole targets were not repeated for r2: `tool-devsync:test`
 reported 372 pass and 0 fail; the two whole backend/core targets exited 0; `wbs-fe-01:test`
 reported 148 files and 3,107 tests plus 2 files and 3 Bun-spawn tests; `test:unit` reported 59
 files and 739 tests; the selected Chromium run reported 3 passed; and `nx format:check --all`
@@ -6400,16 +6468,80 @@ The full h2puni gate and the index check after each executor commit remain plann
 
 ### 9.4 Planner-only, with the expected relative delta
 
+The backend boot file binds a port. After slice 4's offline records and before its commit, the
+planner runs the boot baseline and the six boot faults in the same installed clone with network
+permission. The six records are kept here, outside the executor's `proofs.txt`:
+
+```sh
+set -euo pipefail
+mkdir -p "$TMPDIR/evidence" "$TMPDIR/passing"
+bash "$TMPDIR/run-check.sh" planner-boot-baseline env -u CLAUDECODE -u AGENT bash -c \
+  'cd apps/wbs/be-01 && bun test ./src/boot.db.test.ts'
+bash "$TMPDIR/expect-status.sh" planner-boot-baseline 0
+cat > "$TMPDIR/boot-proofs.txt" <<'EOF'
+bs1
+fail
+bun
+apps/wbs/be-01
+src/boot.db.test.ts
+releases the source when the port it was given is already taken
+bs2
+fail
+bun
+apps/wbs/be-01
+src/boot.db.test.ts
+refuses to report a clean stop when a release is refused
+bs3
+fail
+bun
+apps/wbs/be-01
+src/boot.db.test.ts
+refuses to report a clean stop when a release is refused
+bs4
+fail
+bun
+apps/wbs/be-01
+src/boot.db.test.ts
+starts the retention timer
+bs5
+fail
+bun
+apps/wbs/be-01
+src/boot.db.test.ts
+releases the source and the port when a step after the listener fails
+bs6
+fail
+bun
+apps/wbs/be-01
+src/boot.db.test.ts
+stops accepting before it closes the source it opened
+EOF
+test "$(( $(wc -l < "$TMPDIR/boot-proofs.txt") / 6 ))" -eq 6
+bash "$TMPDIR/fault-loop.sh" "$TMPDIR/boot-proofs.txt" | tee "$TMPDIR/evidence/planner-boot-fault-loop.txt"
+bash "$TMPDIR/run-check.sh" planner-boot-restored env -u CLAUDECODE -u AGENT bash -c \
+  'cd apps/wbs/be-01 && bun test ./src/boot.db.test.ts'
+bash "$TMPDIR/expect-status.sh" planner-boot-restored 0
+```
+
+Observed rehearsal values: baseline and restored file `25 pass`, `0 fail`; `bs1` `18 pass`,
+`7 fail`; `bs2` `24 pass`, `1 fail`; `bs3` `20 pass`, `5 fail`; `bs4`, `bs5`, and `bs6`
+each `24 pass`, `1 fail`. The loop requires every fault to exit 1 and its named test to fail,
+then requires a separate green restored run for each fault. Planner records these seven statuses
+in `verify.md` before slice 4 is committed.
+
 | Check                                                                                                                                    | Why the planner's                                           | Expected                                                                                               |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Section 9.4 boot baseline and `bs1`–`bs6`, before the slice 4 commit                                                                     | Port binding needs network permission                       | Baseline `25 pass`; failures and restored greens as recorded above                                     |
 | Section 8.4, the four Chromium faults, on the executor's slice 3 clone, then the two `Proof:` comments                                   | Chromium                                                    | `e1` and `e2` fail on `pageErrors` with a `TypeError` naming `isPromise`; `e1c`, `e2c` pass            |
 | `env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run tool-devsync:test --skip-nx-cache`, after each slice's commit                    | Its namespacing test writes Git objects                     | Base count, unchanged after every slice; rehearsed `372 pass`, `0 fail` on the base, slice 2 and final |
-| `check-indexes committed . <commit>` after each commit                                                                                   | Writes Git objects (batch-7 addendum, point 3)              | exit 0; no module index is touched                                                                     |
+| `env -u CLAUDECODE -u AGENT bun apps/wiki/cli/src/cli.ts check-indexes committed . <commit>` after each commit                           | Writes Git objects (batch-7 addendum, point 3)              | exit 0; no module index is touched                                                                     |
 | `env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx run-many -t test -p wbs-core wbs-be-01 --skip-nx-cache`                              | Whole targets, outside the focused files                    | exit 0                                                                                                 |
 | `wbs-fe-01:test` and `wbs-fe-01:test:unit`, `--skip-nx-cache`                                                                            | Three tests spawn `bun` from Node                           | exit 0; test count base + 2                                                                            |
 | `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u AGENT CI=1 E2E_PORT_SHIFT=<n> NX_DAEMON=false bunx nx run wbs-fe-01:e2e --skip-nx-cache` | Chromium; the lifetime and fault probes bundle di-bag 0.5.0 | exit 0                                                                                                 |
 | `env -u CLAUDECODE -u AGENT NX_DAEMON=false bunx nx format:check --all`                                                                  | Repository-wide                                             | exit 0                                                                                                 |
 | `bin/h2puni-gate.sh <sha>` on the batch's integration commit                                                                             | The host gate; it installs from the new lockfile            | exit 0                                                                                                 |
+
+If the suite directory move lands first, use that packet's moved wiki CLI entry point for the same `check-indexes committed` subcommand.
 
 **Never install through a linked `node_modules`: it is shared with other lanes.** Run the planner
 checks in the executor's clone, which has its own install. A worktree whose `node_modules` still
@@ -6501,7 +6633,7 @@ Every path not in section 5. In particular: `application-exception` and
   typecheck and lint (2); hand-over lists scoped to owned paths (3); every verification keeps its
   exit status (4); no staged rename (5); `bun test ./dir` paths (14); the fast-check model tests
   rerun at their seeds and every recorded sabotage rerun (15, 16); grep checks gated (19).
-- **Batch-7 addendum:** Opus executor and the `env -u` forms (1); each new clause its own negative,
+- **Batch-7 addendum:** Codex gpt-6-sol medium executor in a workspace-write sandbox and the `env -u` forms (1); each new clause its own negative,
   the clause-disabled twins `t1c`, `t2c`, `b1c`, `p1c`, `e1c`, `e2c` (2); index checks the planner's
   (3); `>` in every extraction (4); observed dates are the executor's and `fill=1` varies them (5);
   the pin moves here, as the planner allowed for this item (6); base named (8).
@@ -6512,7 +6644,7 @@ Every path not in section 5. In particular: `application-exception` and
 | ----- | ------------------------------------------------------------------------------------------- | ----- |
 | 1     | `docs(openspec): intent and spec for moving di-bag to 0.5.0`                                | 5     |
 | 2     | `build(deps): move di-bag to 0.5.0 through its codemod and a residual edit`                 | 83    |
-| 3     | `test(runtime): prove the close budget reaches di-bag and the browser entry holds on 0.5.0` | 5 + 2 |
+| 3     | `test(runtime): prove the close budget reaches di-bag and the browser entry holds on 0.5.0` | 6 + 2 |
 | 4     | `docs(plans): record the di-bag move and observe its recorded faults again on 0.5.0`        | 5     |
 | 5     | `test(frontend): observe every model sabotage again on di-bag 0.5.0`                        | 2     |
 
@@ -6528,3 +6660,13 @@ The author stopped before writing this packet and reported that 0.5.0 exposes no
 | 3. Pin, codemod output and residual in one slice, one green commit; proofs after                                                                                                                                                                   | Slice 2; slices 3–5                                                                                                                                                                                                                                           |
 | 4. New faults for the three `di-bag/node` proofs, each with a clause-isolating twin; Chromium the planner's, observed by the author; every model test at its seed and every recorded sabotage with its run number; the `@ts-expect-error` fixtures | `b1`/`b1c` (slice 3), `e1`/`e1c`, `e2`/`e2c` (section 8.4, observed by the author in Chromium); slice 5 and section 8.3 (74 sabotages, run numbers, and the same patches on 0.4.0); `ts1`, `ts2` and the finding that no `check.ts` carries one (section 4.1) |
 | 5. A new `sdd-lean` change, `migrate-di-bag`                                                                                                                                                                                                       | Section 3.5, 7.1                                                                                                                                                                                                                                              |
+
+## 17. Review 1 dispositions
+
+- Critical 1: Dispatch selects Codex gpt-6-sol medium in a workspace-write sandbox; only slice 2 requests network.
+- Critical 2: the socket-using boot baseline and `bs1`–`bs6` run at the planner checkpoint in §9.4; offline suites and records exclude them.
+- Important 1: §2 names the existing frontend lifetime proposal and specification.
+- Important 2: the budget helper throws every unrelated refusal and returns only the DI Bag wait budget; `t3` and `t3c` observe the numeric bypass and its clause-isolating twin.
+- Important 3: both fault helpers preserve applied patches in `evidence` and require separate restored-green logs.
+- Minor 1: inventory states 81 slice 4 patches, 20 `partial.build()` calls, and 14 test-file plus one probe closes.
+- Minor 2: §9.4 invokes the index check through the Bun wiki CLI.
