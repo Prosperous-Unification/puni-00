@@ -400,8 +400,9 @@ describe('product lint policy discovery', () => {
     const fixture = await createPolicyWorkspace();
     const policy = join(fixture, 'apps/probe/eslint.product.mjs');
 
-    // The shape W6's `apps/wiki/eslint.product.mjs` must not ship: the array a reader would
-    // reach for first, which the root config cannot hand the shared constants to.
+    // The shape Twilight Burokrat's `apps/twilight-structure/twilight-burokrat/eslint.product.mjs`
+    // must not ship: the array a reader would reach for first, which the root config cannot hand
+    // the shared constants to.
     await writeFile(policy, 'export default [];\n');
     const notAFunction = await runLint(fixture, 'probe-app');
     // Proof: with the `typeof loaded.default !== 'function'` check removed from
