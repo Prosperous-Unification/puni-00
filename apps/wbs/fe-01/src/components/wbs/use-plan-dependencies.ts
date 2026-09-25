@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { StepView } from '@/lib/wbs-api';
@@ -27,6 +27,7 @@ export function usePlanDependencies({
   pushToast,
   busy,
   commands,
+  isCurrent,
   refreshOrMarkStale,
   setDepPicker,
   run,
@@ -36,6 +37,17 @@ export function usePlanDependencies({
   pushToast: (toast: Toast) => void;
   busy: BusyWrites;
   commands: PlanCommands;
+  /**
+   * Whether the project runtime these commands belong to is still the one its
+   * owner publishes — the runtime's own `isCurrent`, closed over by each gesture
+   * and asked when its refusals are to be said. Not a ref to the commands the
+   * table last rendered with: that stays true for ever once the table is gone,
+   * and the toasts are the page's and outlive it, so a left project's refusal
+   * reached them over the next one. Only the toast asks it: the reread goes to
+   * the runtime, which refuses it once withdrawn, and the busy state is the
+   * runtime's own.
+   */
+  isCurrent: () => boolean;
   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
@@ -43,9 +55,6 @@ export function usePlanDependencies({
   run: RunPlanWrite;
   steps: StepView[];
 }) {
-  const activeCommands = useRef(commands);
-  activeCommands.current = commands;
-
   /**
    * The callbacks the cells use, read through a ref rather than closed over.
    *
@@ -121,11 +130,6 @@ export function usePlanDependencies({
       // chips and the reasons have to survive. This loop therefore collects
       // every answer before choosing its aggregate recovery scope.
       void (async () => {
-        const owner = commands;
-        // Proof: on 2026-09-24, `() => true` here failed `keeps an old dependency-list refusal
-        // out of its busy API replacement` on `toHaveAttribute("aria-busy", "true")`: the old
-        // client's answer lowered the replacement's busy state.
-        const isCurrent = () => activeCommands.current === owner;
         busy.raise();
         const refused: string[] = [];
         let ambiguous = false;
@@ -153,13 +157,13 @@ export function usePlanDependencies({
           // Never rejects: a failed reread raises the banner and returns, so
           // the refusals below are still reported. The two are different facts
           // and a reader who saw only one of them would be misled either way.
-          if (isCurrent()) await refreshOrMarkStale(ambiguous ? undefined : 'tree');
+          // Asked of this list's own runtime, which reads nothing once it has
+          // been withdrawn.
+          await refreshOrMarkStale(ambiguous ? undefined : 'tree');
         } finally {
-          // Proof: clearing without the API-owner guard released a replacement
-          // rename while it was still pending. Watched in `keeps an old
-          // dependency-list refusal out of its busy API replacement`,
-          // 2026-09-14.
-          if (isCurrent()) busy.lower();
+          // Lowered however the list ended: this busy state is the runtime's
+          // own, so a project the reader has left lowers only a busy nobody draws.
+          busy.lower();
         }
         const problems = [
           notThere,
@@ -173,11 +177,14 @@ export function usePlanDependencies({
         // The refusal belongs to the commands that sent it — this client and
         // this project — not merely the project id a replacement client may
         // also serve.
+        // Proof: on 2026-09-25, dropping `isCurrent() &&` here put `These were refused: …`
+        // over the next project in `says nothing in the next project when a dependency list
+        // asked of the last one is refused`: expected [ Array(1) ] to deeply equal [].
         if (isCurrent() && problems.length > 0)
           pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [activeCommands, busy, commands, flat, pushToast, refreshOrMarkStale],
+    [busy, commands, flat, isCurrent, pushToast, refreshOrMarkStale],
   );
 
   /**

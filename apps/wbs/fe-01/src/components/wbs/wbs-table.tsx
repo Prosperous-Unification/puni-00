@@ -1181,6 +1181,10 @@ export function WbsTable({
       pushToast,
       busy: busyWrites,
       commands,
+      // Proof: on 2026-09-25, `isCurrent: () => true` here failed `says nothing in the next
+      // project when a dependency list asked of the last one is refused`: expected
+      // [ Array(1) ] to deeply equal [].
+      isCurrent: project.isCurrent,
       refreshOrMarkStale,
       setDepPicker,
       run,

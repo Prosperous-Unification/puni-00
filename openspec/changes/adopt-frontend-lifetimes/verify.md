@@ -2543,3 +2543,138 @@ After this entry was first written: owned-file Prettier over the five paths left
 unchanged and its check passed; `nx format:check --all` status 0 (`s3-format.log`); strict OpenSpec
 `{"items":114,"passed":114,"failed":0}`; `wbs-fe-01:lint` after the `Proof:` comments status 0
 (`s3-final-lint.log`).
+
+## Packet 050.7m, slice 1 — the refresh owner's identity is the only reader test
+
+Attempt `050-7-m-project-replacement.1.20260925T085125Z`, observed 2026-09-25, starting hash
+`1e230a9841c68728dfe36aab04f8682a63571b0e` with an empty working tree (`base.txt`,
+`status-before.txt`). Every Vitest command ran with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT`
+unset, serially; every Nx command with `NX_DAEMON=false`. Evidence file names below are relative to
+the attempt's evidence directory.
+
+### Baselines (step 0)
+
+| Check                                      | Status | Files · tests |
+| ------------------------------------------ | ------ | ------------- |
+| sandbox node suite (`base-sandbox.log`)    | 0      | 57 · 713      |
+| module set, serial (`base-modules.log`)    | 0      | 7 · 30        |
+| session set, serial (`base-session.log`)   | 0      | 3 · 70        |
+| zoned, Pacific/Auckland (`base-zoned.log`) | 0      | 2 · 3         |
+| strict OpenSpec (`openspec-base.*.json`)   | 0      | 114 · 114 · 0 |
+
+### Deletion evidence
+
+`s1-u12.log`: on the unchanged tree, both `isActiveReader: isCurrent,` wirings in
+`runtime/project-runtime.ts` replaced by `isActiveReader: () => true,` (`u12.patch`); the adopted
+set, the project runtime's example and model suites and `app.test.tsx` gave `status=0`,
+`Test Files 23 passed (23)`, `Tests 1244 passed (1244)`. The file was restored and `cmp`-identical.
+The predicate decided nothing any production-path suite observes, so it is deleted.
+
+### Red checkpoint (test side only)
+
+- `s1-red-typecheck.log`: `wbs-fe-01:typecheck` `status=130`; `typecheck:module` failed first and
+  Nx did not run `wbs-fe-01:typecheck`. Five TS2741 diagnostics, `Property 'isActiveReader' is
+missing`, for `CalendarMarkersHost` (two, `calendar-markers.feature.test.ts:80` and `:175`),
+  `PlanWriterHost` (two, `plan-writer.test.ts:45` and `:84`) and `CalendarMarkersReader` (one,
+  `composition.test.ts:68`).
+- `s1-red-vitest.log`: `status=1`, `Tests 9 failed | 7 passed (16)`, all nine
+  `TypeError: isActiveReader is not a function`.
+
+### Green checkpoint
+
+| Check                                                                                                                       | Status | Result                   |
+| --------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------ |
+| `wbs-fe-01:typecheck`, with `typecheck:module` (`s1-green-typecheck.log`; uncached rerun `s1-green-typecheck-uncached.log`) | 0, 0   | both tasks succeeded     |
+| wiki pilot `pins …` test (`s1-green-pins.log`)                                                                              | 0      | `1 pass`, `0 fail`       |
+| module set (`s1-green-modules.log`)                                                                                         | 0      | 7 · 31 (step 0 plus 1)   |
+| test tiers (`s1-green-tiers.log`)                                                                                           | 0      | 1 · 5                    |
+| sandbox node suite (`s1-green-sandbox.log`)                                                                                 | 0      | 57 · 714 (step 0 plus 1) |
+| adopted set, serial (`s1-green-adopted.log`)                                                                                | 0      | 20 · 1219                |
+| `wbs-fe-01:lint` (`s1-lint.log`; uncached rerun `s1-lint-uncached.log`)                                                     | 0, 0   | no finding               |
+
+### Proofs
+
+Each fault was injected with `git apply --unidiff-zero`, its named test watched failing, the file
+restored and `cmp`-identical, and the test rerun green (`<id>.patch`, `<id>.log`,
+`<id>.green.log`). Every filter matched exactly one test.
+
+| Id   | Fault                                                 | Named test                                                                                                  | Observed                                                                                                        |
+| ---- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `w1` | the writer's check after its covering read removed    | `plan-table.test.tsx` › `abandons queued adds when unmounted during their covering read`                    | `Tests 1 failed \| 46 skipped (47)`; `expected [ …(2) ] to deeply equal [ [ 'p1', { parentId: null, …(2) } ] ]` |
+| `w2` | the writer's `isCurrent` reduced to `owner !== null`  | `plan-writer.test.ts` › `refuses a completed gesture whose feed owner was replaced under it`                | `Tests 1 failed \| 4 skipped (5)`; `expected 'landed' to be 'refused'`                                          |
+| `c1` | the marker gestures' `isCurrent` answering always yes | `calendar-markers.feature.test.ts` › `says nothing and rereads nothing once the reader has left the screen` | `Tests 1 failed \| 6 skipped (7)`; `expected [ Error: marker_not_found ] to deeply equal []`                    |
+
+The `Proof:` comments were written after all three observations.
+
+### Final reruns
+
+`s1-final-modules.log` 7 · 31, `s1-final-sandbox.log` 57 · 714, `s1-final-session.log` 3 · 70 and
+`s1-final-zoned.log` 2 · 3, each `status=0`: session set and zoned unchanged from step 0.
+
+After the `Proof:` comments and owned-file Prettier: `wbs-fe-01:lint` uncached (`s1-final-lint.log`),
+`wbs-fe-01:typecheck` uncached (`s1-final-typecheck.log`) and `nx format:check --all`
+(`s1-format-check.log`) each `status=0`; strict OpenSpec after this entry was written
+(`openspec-final.out`) `{"items":114,"passed":114,"failed":0}`, equal to step 0.
+
+### Pending planner verification
+
+`wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, `wbs-fe-01:e2e`, `tool-devsync:test`,
+the whole wiki pilot suite, `check-indexes committed` after the commit, and the host gate
+`bin/h2puni-gate.sh`: none was run in this attempt.
+
+## Packet 050.7m, slice 2 — a project given back whole, through the page, the router and Strict Mode
+
+Attempt `050-7-m-project-replacement.2.20260925T091513Z`, observed 2026-09-25, starting at
+`6496d801f8ab08d4271a68faddeee2d3539686df` with an empty `git status` (`base.txt`,
+`status-before.txt`). Step 0b extracted `patches=6` and `mutations=13`. Every log below is in the
+attempt's evidence directory under the named check.
+
+Step 0 baselines, each `status=0`: sandbox node suite 57 files · 714 tests (`base-sandbox`), module
+set 7 · 31 (`base-modules`), session set 3 · 70 (`base-session`), zoned Auckland 2 · 3
+(`base-zoned`); strict OpenSpec `{"items":114,"passed":114,"failed":0}`.
+
+Contract first: section 7.3 applied; strict OpenSpec again `{"items":114,"passed":114,"failed":0}`,
+and `grep -c 'lowers no busy'` over the spec prints 0.
+
+Red, after section 7.4 only:
+
+- `s2-red-typecheck`: `status=1`; `typecheck:module` passed first, then one TS2322 at
+  `apps/wbs/fe-01/src/app.test.tsx:744` — the props object with `projectApi` is not assignable to
+  `IntrinsicAttributes & SignedInAppProps` — and `Found 1 error in apps/wbs/fe-01/src/app.test.tsx:744`.
+- `s2-red-vitest`: `status=1`, `Tests 4 failed | 22 passed (26)`: the three region cases on
+  `AssertionError: expected null not to be null`, and `says nothing in the next project when a
+dependency list asked of the last one is refused` on `AssertionError: expected [ Array(1) ] to
+deeply equal []`. The other five page cases passed.
+
+Green, after sections 7.5 and 7.6, task 14 appended and both notes dated: `s2-green-typecheck`
+`status=0` (uncached, `typecheck:module` then `typecheck`); `s2-format` (`nx format:check --all`)
+`status=0`; `s2-green-session` 4 · 79 (step 0 plus one file and nine tests); `s2-green-zoned` 2 · 3;
+`s2-green-sandbox` 57 · 714; `s2-green-adopted` 20 · 1219. `s2-lint` (uncached) `status=0`.
+
+Every proof filter selected exactly one test (`s2-filters.log`). Each fault was injected with
+`git apply --unidiff-zero`, its named test run, the file restored and compared with `cmp`, and the
+test rerun green (`<id>.patch`, `<id>.log`, `<id>.green.log`); each exited 1:
+
+| Fault | Named test                                                                                              | Observed                                                                                                                              |
+| ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `s1`  | `says nothing in the next project when an undo asked of the last one succeeds`                          | `1 failed \| 5 skipped (6)`; `expected [ 'Undid: rename “Strip”' ] to deeply equal []`                                                |
+| `s2`  | `says nothing in the next project when an undo asked of the last one is refused`                        | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                               |
+| `d1`  | `says nothing in the next project when a dependency list asked of the last one is refused`              | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                               |
+| `d2`  | `says nothing in the next project when a dependency list asked of the last one is refused`              | `1 failed \| 5 skipped (6)`; `expected [ Array(1) ] to deeply equal []`                                                               |
+| `h1`  | `draws no table and hands the header nobody while the last project lets go`                             | `1 failed \| 5 skipped (6)`; `expected { users: [ 'kat', 'lee' ], …(1) } to deeply equal { users: [], connected: false }`             |
+| `t1`  | `draws the next project in a table of its own`                                                          | `1 failed \| 5 skipped (6)`; `expected <table data-grid="true" …(2)>…(3)</table> not to be <table data-grid="true" …(2)>…(3)</table>` |
+| `m1`  | `opens one runtime per pick under Strict Mode, and gives each back once`                                | `1 failed \| 5 skipped (6)`; `expected 'live' to be 'empty'`                                                                          |
+| `r1`  | `gives the project back once when its route goes, keeps the session, and opens a new runtime on return` | `1 failed \| 19 skipped (20)`; `expected [ 'session built', 'project p1 built' ] to include 'project p1 given back'`                  |
+| `g1`  | `draws the fatal state in the region’s place when a route change cannot give the project back`          | `1 failed \| 19 skipped (20)`; `Error: no fatal state yet`                                                                            |
+| `n1`  | `leaves the session Strict Mode first opened, and opens the project in the one it opens again`          | `1 failed \| 19 skipped (20)`; `TestingLibraryElementError: Unable to find a label with the text of: Project`                         |
+
+The `Proof:` comments were written after all ten were observed. Final reruns: `s2-final-session`
+4 · 79 and `s2-final-sandbox` 57 · 714, both `status=0`.
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`,
+`wbs-fe-01:e2e` (every spec that picks or switches a project or follows the Directory and Plan
+links, and the unfiltered suite), `tool-devsync:test` and the host gate. None ran in this attempt.
+
+After the `Proof:` comments and this entry, owned-file Prettier `--write` then `--check` printed
+`All matched files use Prettier code style!`; `s2-format-after` (`nx format:check --all`),
+`s2-lint-after` and `s2-typecheck-after` (both uncached) each `status=0`.

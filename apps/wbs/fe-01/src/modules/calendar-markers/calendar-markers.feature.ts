@@ -8,14 +8,14 @@ import type { CalendarMarkerEdit, CalendarMarkers, CalendarMarkersHost } from '.
  * The **feature**-service delivery sees (rule K2), and the only place that
  * knows **who** a write belongs to. Every gesture is the same three acts — send
  * it, say what was refused, read the dirtied resources again — and the two
- * guards below are what keep a departed reader out of all three.
+ * guards below, both over the refresh owner's identity, are what keep a departed
+ * reader out of all three.
  */
 // @capability plan-refresh
 export function createCalendarMarkers({
   projectId,
   api,
   readRefreshOwner,
-  isActiveReader,
   announceRefusal,
 }: CalendarMarkersHost): CalendarMarkers {
   const writes = createCalendarMarkerWrites({ projectId, api });
@@ -25,13 +25,14 @@ export function createCalendarMarkers({
     if (owner === null) return;
     /**
      * Still this reader's write: the owner it started against is still the one
-     * installed, and the screen still holds the project and API it opened.
-     * Both, because they fail at different moments — the owner is replaced by
-     * an effect, the project and API by a render before it.
+     * answered. A reader replaced and a reader withdrawn both fail it, because
+     * the host answers `null` from the withdrawal on — see
+     * {@link CalendarMarkersHost.readRefreshOwner}.
      */
     // Proof: on 2026-09-21, omitting the owner comparison made the replaced-owner test announce marker_not_found.
-    // Proof: on 2026-09-21, omitting the active-reader comparison made the left-screen test announce marker_not_found.
-    const isCurrent = (): boolean => readRefreshOwner() === owner && isActiveReader();
+    // Proof: on 2026-09-25, answering always yes here failed `says nothing and rereads nothing once
+    // the reader has left the screen` on `expected [ Error: marker_not_found ] to deeply equal []`.
+    const isCurrent = (): boolean => readRefreshOwner() === owner;
     try {
       await writes.send(edit);
     } catch (cause) {
