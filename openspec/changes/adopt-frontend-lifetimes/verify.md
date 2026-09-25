@@ -2372,3 +2372,58 @@ Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`,
 `wbs-fe-01:build`, `wbs-fe-01:e2e` (the login specs and every spec that clicks
 Log out, then unfiltered on the integration commit), `tool-devsync:test`, and
 the host gate, none of which the executor sandbox can run.
+
+## Packet 050.7l, slice 1 — every frontend module type-checks on its own
+
+Attempt `050-7-l-isolated-checks-and-architecture.1.20260925T064501Z`, starting hash
+`1286e71e5c7b189ccd2bea2c11e570c0782fa5ae` (`base.txt`), clean status before any edit
+(`status-before.txt`, empty). Observed on 2026-09-25 inside the executor sandbox.
+
+Baselines before any edit: `wbs-fe-01:typecheck` status 0 (`base-typecheck.log`); the legacy pin
+`every legacy source occurrence …` 1 pass, 0 fail (`base-legacy.log`); the sandbox node suite 57
+files, 713 tests, status 0 (`base-sandbox.log`); strict OpenSpec
+`{"items":114,"passed":114,"failed":0}` (`openspec-validation.ffxHGh.json`).
+
+Contract first: with the requirement "Each frontend module type-checks on its own" appended, strict
+OpenSpec gave `{"items":114,"passed":114,"failed":0}`, exit 0 (`openspec-validation.ppukr8.json`).
+
+Red, with the `typecheck:module` target and no configuration: status 1 and eight
+`error TS5058: The specified path does not exist: '…/src/modules/<name>/tsconfig.json'.`, one per
+module directory, `directory-management` before `directory` (`s1-red-module.log`). With the nine
+configurations and the inventory unchanged: `pins the complete moved depth-sensitive configuration
+inventory` status 1, 0 pass 1 fail, hunk `@@ -3,69 +3,10 @@`, 59 oracle rows absent from the
+production inventory, every one a `src/modules/…/tsconfig…json` row, the first
+`apps/wbs/fe-01/src/modules/calendar-markers/tsconfig.json␀extends␀../tsconfig.module.json`
+(`s1-red-inventory.log`).
+
+Green, with the inventory walking each project's directories: `typecheck:module` status 0, eight
+modules checked; `wbs-fe-01:typecheck` status 0 (`Successfully ran target typecheck for project
+wbs-fe-01 and 1 task it depends on`); the legacy pin 1 pass; the inventory suite 4 pass, 0 fail;
+`wbs-fe-01:lint`, `tool-devsync:lint` and `tool-devsync:typecheck` status 0; the sandbox node
+suite 57 files, 713 tests, equal to the baseline (`s1-green.out` and the `s1-green-*`, `s1-lint*`,
+`s1-typecheck-devsync` logs).
+
+Faults, each run through `run-fault.sh`, its files restored and compared with `cmp`, and the
+status after all nine identical to the green status (`after-green.txt`, `after-faults.txt`,
+`s1-faults.out`):
+
+| Fault | Injected                                                     | Status | Observed                                                                                                                                         |
+| ----- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `t1`  | `undo` in `plan-commands.feature.ts` loses its bound project | 1      | `plan-commands.feature.ts:14:31 - error TS2554: Expected 1 arguments, but got 0.`                                                                |
+| `t2`  | `plan-commands` imports `../plan-feed/plan-feed.resource`    | 1      | four TS6307, among them `File '…/plan-feed/plan-feed.resource.ts' is not listed within the file list of project '…/plan-commands/tsconfig.json'` |
+| `t2b` | the same import, against the application's own `tsc --build` | 0      | the application's check does not see it                                                                                                          |
+| `t2c` | the same import, against `wbs-fe-01:typecheck`               | 130    | `Tasks not run because their dependencies failed`, `Failed tasks: - wbs-fe-01:typecheck:module`                                                  |
+| `t3`  | `preferences` imports `@/components/ui/button`               | 1      | five TS6307, the one for the importing line naming `components/ui/button.tsx` (the first four name the files `button.tsx` reaches)               |
+| `t4`  | `composite` removed from the base, with `t2`'s import        | 0      | `Successfully ran target typecheck:module for project wbs-fe-01`                                                                                 |
+| `t5`  | `preferences/tsconfig.json` deleted                          | 1      | `error TS5058: The specified path does not exist: '…/preferences/tsconfig.json'.`                                                                |
+| `t6`  | `typecheck`'s `dependsOn` removed, with `t2`'s import        | 0      | `Successfully ran target typecheck for project wbs-fe-01`                                                                                        |
+| `t7`  | the inventory skips directories again                        | 1      | `@@ -3,69 +3,10 @@`, first missing row `-   "apps/wbs/fe-01/src/modules/calendar-markers/tsconfig.json␀extends␀../tsconfig.module.json",`        |
+
+After the `Proof:` comments (two in `tsconfig.module.json`, one in `workspace-inventory.mjs`):
+`typecheck:module`, `wbs-fe-01:typecheck`, the legacy pin (1 pass), the inventory suite (4 pass),
+`tool-devsync:lint`, `wbs-fe-01:lint` and the sandbox node suite (57·713) unchanged, each status 0
+(`s1-final.out`, `s1-final-*` logs).
+
+Pending planner verification: `wbs-fe-01:test`, `wbs-fe-01:test:unit`, `wbs-fe-01:build`, the
+whole pilot suite, `check-indexes committed`, `tool-devsync:test` and the host gate — none runs in
+the executor sandbox.

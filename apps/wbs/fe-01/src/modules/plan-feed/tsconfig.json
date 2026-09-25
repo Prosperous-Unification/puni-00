@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.module.json",
+  "files": [
+    // The stream adapter the feed's resource opens, and the session shape it
+    // is typed against.
+    "../../lib/api.ts",
+    "../../lib/project-stream.ts",
+    // Test support the module's suites build their clients and views from.
+    "../../testing/fake-project-api.ts",
+    "../../testing/refusing-api.ts",
+    "../../testing/views.ts"
+  ]
+}

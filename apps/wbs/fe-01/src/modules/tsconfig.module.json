@@ -1,0 +1,60 @@
+{
+  // The isolated type check of one frontend module, run for every module
+  // directory by `typecheck:module` in `apps/wbs/fe-01/project.json`, which
+  // `typecheck` depends on. Each module's own `tsconfig.json` extends this and
+  // names in `files` only what its directory reaches beyond the shared list
+  // below.
+  //
+  // `composite` is what makes the check isolated rather than merely small: a
+  // composite program refuses, with TS6307, every file it reaches that its
+  // configuration does not list. So `include` is the whole outside world every
+  // module may type-check against — the two shared store primitives, the HTTP
+  // client and its refusal words under `lib/`, the refresh routes, and the
+  // domain and contracts libraries — and a module that reaches anything else,
+  // such as a sibling module's private file or a component, fails its own
+  // check. `emitDeclarationOnly` and `outDir` exist because a composite project
+  // may not disable declaration emit; the target passes `--noEmit`.
+  // Proof: on 2026-09-25, breaking a module's own types (`undo` in
+  // plan-commands.feature.ts called without its project) failed
+  // `typecheck:module` with `error TS2554: Expected 1 arguments, but got 0.`;
+  // deleting preferences/tsconfig.json failed it with `error TS5058: The
+  // specified path does not exist`; a sibling's private import failed
+  // `wbs-fe-01:typecheck` with `Tasks not run because their dependencies
+  // failed` naming `wbs-fe-01:typecheck:module`, and with `typecheck`'s
+  // `dependsOn` removed the same import passed it (`Successfully ran target
+  // typecheck for project wbs-fe-01`).
+  "extends": "../../tsconfig.spec.json",
+  "compilerOptions": {
+    // Proof: on 2026-09-25, plan-commands importing
+    // `../plan-feed/plan-feed.resource` failed `typecheck:module` with four
+    // TS6307, among them `File '…/plan-feed/plan-feed.resource.ts' is not
+    // listed within the file list of project '…/plan-commands/tsconfig.json'`,
+    // while the application's own `tsc --build` passed it (status 0);
+    // preferences importing `@/components/ui/button` failed it with five
+    // TS6307, one naming `components/ui/button.tsx`; and with `composite`
+    // removed the sibling import passed `typecheck:module`.
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "../../../../../dist/out-tsc/fe-01-modules"
+  },
+  "include": [
+    "${configDir}/**/*.ts",
+    "${configDir}/**/*.tsx",
+    "channel.ts",
+    "store.ts",
+    "../lib/http.ts",
+    "../lib/plan-refresh.ts",
+    "../lib/refusal.ts",
+    "../lib/wbs-api.ts",
+    "../../../../../libs/shared/domain/validation/src/**/*.ts",
+    "../../../../../libs/wbs/domain/contracts/src/**/*.ts",
+    "../../../../../libs/wbs/domain/domain/src/**/*.ts",
+    "../../../../../libs/wbs/domain/validation/src/index.ts"
+  ],
+  "exclude": [
+    "../../../../../libs/shared/domain/validation/src/**/*.test.ts",
+    "../../../../../libs/wbs/domain/contracts/src/**/*.test.ts",
+    "../../../../../libs/wbs/domain/domain/src/**/*.test.ts"
+  ]
+}
