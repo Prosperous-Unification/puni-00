@@ -3380,8 +3380,8 @@ for fill in 0 1 real; do
   { git diff --name-only; git ls-files --others --exclude-standard; } | grep -v "^$change/" > "$work/touched.txt"
   test "$(wc -l < "$work/touched.txt")" -eq 50
   # shellcheck disable=SC2046 # fixed repository paths without spaces
-  # g2-off and e3 address the pre-format selector lines; format those files after faults.
-  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(grep -Ev '(retired-roots.test.ts|workspace-projects.mjs)$' "$work/touched.txt") > /dev/null
+  # g2-off addresses the pre-format selector line in the new check; format it after faults.
+  env -u CLAUDECODE -u AGENT GSETTINGS_BACKEND=memory bunx prettier --write $(grep -v '/retired-roots.test.ts$' "$work/touched.txt") > /dev/null
   bash "$work/scripts/s3-pin.sh"
   for id in g1 g1-off g2 g2-off g3 g3-off g4 g4-off g5 g5-off g6 g6-off g7 g7-off g8 g8-off g9 e1 e2 e3 r1 r2 r3 r4; do
     git apply --unidiff-zero --check "$work/faults/$id.diff"
