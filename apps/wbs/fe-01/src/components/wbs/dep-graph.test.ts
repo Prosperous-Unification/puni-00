@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { type EdgeRefusal, type GraphRow, indexDepGraph, refusalFor } from './dep-graph';
+import {
+  type EdgeRefusal,
+  type GraphRow,
+  indexDepGraph,
+  moveRefusalFor,
+  refusalFor,
+} from './dep-graph';
 
 /** A project as these tests describe one: a tree, and the edges written over it. */
 const project = (
@@ -273,5 +279,51 @@ describe('indexDepGraph', () => {
     expect(refusalFor(indexDepGraph(rows), { predecessorId: 'after', successorId: 'loose' })).toBe(
       null,
     );
+  });
+});
+
+describe('moveRefusalFor — be-01 canReparent, predicted', () => {
+  it('refuses a new parent the row has an edge with, either way round', () => {
+    const rows = project(
+      [
+        ['strip', null],
+        ['sand', null],
+      ],
+      [['strip', 'sand']],
+    );
+    expect(moveRefusalFor(rows, 'sand', 'strip')).toBe('ancestor');
+    expect(moveRefusalFor(rows, 'strip', 'sand')).toBe('ancestor');
+  });
+
+  it('refuses a move whose expanded graph loops', () => {
+    // rel waits for sand, sand for strip, strip for paint: under rel, paint
+    // inherits rel's wait for sand — be-01's mounted `cycle` case.
+    const rows = project(
+      [
+        ['rel', null],
+        ['ship', 'rel'],
+        ['sand', null],
+        ['strip', null],
+        ['paint', null],
+      ],
+      [
+        ['sand', 'rel'],
+        ['strip', 'sand'],
+        ['paint', 'strip'],
+      ],
+    );
+    expect(moveRefusalFor(rows, 'paint', 'rel')).toBe('cycle');
+  });
+
+  it('takes a move that leaves every edge valid', () => {
+    const rows = project(
+      [
+        ['strip', null],
+        ['sand', null],
+        ['paint', null],
+      ],
+      [['strip', 'sand']],
+    );
+    expect(moveRefusalFor(rows, 'sand', 'paint')).toBeNull();
   });
 });

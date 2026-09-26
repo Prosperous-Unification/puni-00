@@ -2362,6 +2362,25 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     });
   });
 
+  itDom('opens the Move under… picker from a card, offering the other rows', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByRole('article', { name: 'Work item 020' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 020' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move under…' }));
+
+    const picker = await screen.findByRole('dialog', { name: 'Move 020 under…' });
+    expect(
+      within(picker)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['010', 'Cancel']);
+  });
+
   itDom('deletes a row through the table’s own handler', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
@@ -2399,11 +2418,12 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       expect(items.map((item) => item.textContent)).toEqual([
         'Set status to Done',
         'Add child',
+        'Move under…',
         'Duplicate',
         'Unfreeze',
         'Delete',
       ]);
-      expect(items[4]).toHaveAttribute(
+      expect(items[5]).toHaveAttribute(
         'data-fact',
         'Frozen — unfreeze this row before deleting it',
       );
@@ -2623,6 +2643,7 @@ describe('a card given no sentence for its start', () => {
 const doNothingActions = (): CardRowActionHandlers => ({
   duplicate: () => undefined,
   addChild: () => undefined,
+  moveUnder: () => undefined,
   unfreeze: () => undefined,
   remove: () => undefined,
   markDone: () => undefined,
@@ -2643,6 +2664,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Set status to Done',
       'Add child',
+      'Move under…',
       'Duplicate',
       'Delete',
     ]);
@@ -2655,12 +2677,13 @@ describe('the ⋯ row-actions menu on a card', () => {
     expect(items.map((item) => item.textContent)).toEqual([
       'Set status to Done',
       'Add child',
+      'Move under…',
       'Duplicate',
       'Unfreeze',
       'Delete',
     ]);
-    expect(items[4]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
-    expect(items[4]).toHaveAttribute('aria-disabled', 'true');
+    expect(items[5]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
+    expect(items[5]).toHaveAttribute('aria-disabled', 'true');
   });
 
   itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {

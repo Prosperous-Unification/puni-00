@@ -177,3 +177,32 @@ export function refusalFor(graph: DepGraph, edge: Edge): EdgeRefusal | null {
 
   return null;
 }
+
+/**
+ * Why be-01 would refuse moving `id` beneath `parentId` for the dependencies
+ * already drawn, or `null` when it would take the move.
+ *
+ * A port of be-01's `canReparent`, so a drag or the Move under… picker can say
+ * no before sending: every written edge is asked again of the moved tree, an
+ * edge between a row and its own ancestor or descendant answers `ancestor`, and
+ * an expanded graph that cannot be ordered answers `cycle`. be-01 still decides.
+ */
+export function moveRefusalFor(
+  rows: readonly GraphRow[],
+  id: string,
+  parentId: string | null,
+): 'ancestor' | 'cycle' | null {
+  const moved = rows.map((row) => (row.id === id ? { ...row, parentId } : row));
+  const graph = indexDepGraph(moved);
+  for (const row of moved) {
+    for (const predecessorId of row.dependsOn) {
+      if (
+        isWithin(graph.parentOf, row.id, predecessorId) ||
+        isWithin(graph.parentOf, predecessorId, row.id)
+      ) {
+        return 'ancestor';
+      }
+    }
+  }
+  return canOrder(graph.leafIds, graph.leafEdges) ? null : 'cycle';
+}

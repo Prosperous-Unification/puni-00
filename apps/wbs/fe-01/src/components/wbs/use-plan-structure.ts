@@ -1,15 +1,16 @@
 import { type ExpandedState } from '@tanstack/react-table';
 import type * as React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 
-import { type DropRefusal, type DropZone, planMove } from './drag-drop';
+import { type DropHint, type DropRefusal, type DropZone, planMove } from './drag-drop';
 import type { CellAttacher } from './editable-grid';
 import type { FocusIntent } from './live-editing';
 import { type CommitOutcome, unsent } from './live-editing';
 import { normalizeNewlines, splitNameCell } from './name-notes';
+import { failureText } from './plan-refusal';
 import { type Toast } from './toasts';
 import { type TreeRow } from './wbs-rows';
 
@@ -31,7 +32,7 @@ export function usePlanStructureEffects({
 }: {
   setDragging: React.Dispatch<React.SetStateAction<string | null>>;
   pushToast: (toast: Toast) => void;
-  setDropHint: React.Dispatch<React.SetStateAction<{ rowId: string; zone: DropZone } | null>>;
+  setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
   workItems: TreeRow[];
   focusIntent: React.RefObject<FocusIntent>;
   gridElement: React.RefObject<HTMLElement | null>;
@@ -192,6 +193,7 @@ export function usePlanStructure({
   pushToast,
   setExpanded,
   revealRow,
+  hoverOpened,
   run,
   commands,
   focusIntent,
@@ -199,12 +201,14 @@ export function usePlanStructure({
 }: {
   dragging: string | null;
   setDragging: React.Dispatch<React.SetStateAction<string | null>>;
-  setDropHint: React.Dispatch<React.SetStateAction<{ rowId: string; zone: DropZone } | null>>;
+  setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
   flat: TreeRow[];
   pushToast: (toast: Toast) => void;
   setExpanded: React.Dispatch<React.SetStateAction<ExpandedState>>;
   /** Keeps a row just made on screen through the filter that is on; see `narrowTree`. */
   revealRow: (rowId: string) => void;
+  /** The parents a held drag hover opened; see {@link useHoverExpansion}. */
+  hoverOpened: HoverOpened;
   run: RunPlanWrite;
   commands: PlanCommands;
   focusIntent: React.RefObject<FocusIntent>;
@@ -236,14 +240,47 @@ export function usePlanStructure({
         return;
       }
 
+      // What this gesture opened: the parents a held hover opened, and the
+      // target itself when the drop opens it. Kept on a landed move and closed
+      // again on a refused one, so a refusal leaves the plan as it was drawn.
+      const opened = [
+        ...hoverOpened.keep(),
+        ...(zone === 'into' && !targetShowsChildren ? [targetId] : []),
+      ];
       if (zone === 'into') setExpanded((current) => expandBranch(current, targetId));
-      void run((write) =>
-        write.perform(['tree'], () =>
-          commands.moveWorkItem(draggedId, plan.parentId, plan.afterId),
-        ),
-      );
+      void (async () => {
+        const outcome = await run((write) =>
+          write.perform(['tree'], () =>
+            inMoveWords(commands.moveWorkItem(draggedId, plan.parentId, plan.afterId)),
+          ),
+        );
+        // Proof: this restore removed, `explains a refused move and closes the
+        // parent the gesture opened` failed with 010.1 still on screen.
+        // Watched 2026-09-27.
+        if (outcome === 'refused') hoverOpened.restore(opened);
+      })();
     },
-    [commands, dragging, flat, pushToast, run, setDragging, setDropHint, setExpanded],
+    [commands, dragging, flat, hoverOpened, pushToast, run, setDragging, setDropHint, setExpanded],
+  );
+
+  /**
+   * The Move under… picker's choice: `row` becomes the last child of
+   * `parentId`, which is then opened so the row is still on screen. The same
+   * one move command a drag sends, so one undo puts it back.
+   */
+  const moveUnder = useCallback(
+    (row: TreeRow, parentId: string) =>
+      run(async (write) => {
+        const lastChild = flat
+          .filter((each) => each.parentId === parentId && each.id !== row.id)
+          .at(-1);
+        await write.perform(['tree'], () =>
+          inMoveWords(commands.moveWorkItem(row.id, parentId, lastChild?.id ?? null)),
+        );
+        setExpanded((current) => collectPath(flat, parentId).reduce(expandBranch, current));
+        focusIntent.current.wants({ rowId: row.id, columnId: 'name' });
+      }),
+    [commands, flat, focusIntent, run, setExpanded],
   );
 
   const addSibling = useCallback(
@@ -533,6 +570,7 @@ export function usePlanStructure({
   );
   return {
     dropOn,
+    moveUnder,
     addSibling,
     addChild,
     indent,
@@ -554,7 +592,109 @@ export function usePlanStructure({
 export const REFUSAL_MESSAGES: Partial<Record<DropRefusal, string>> = {
   cycle: 'A row cannot be moved inside itself.',
   not_found: 'That row is no longer here — the table has been refreshed.',
+  dependency_ancestor:
+    'That row cannot go there: it would sit inside a row it depends on, or one that depends on it.',
+  dependency_cycle: 'That row cannot go there: its dependencies would make a loop.',
 };
+
+/**
+ * A move request whose `ancestor` and `cycle` refusals are re-worded as the
+ * move's own (`move_ancestor`, `move_cycle` in `PLAN_REFUSALS`).
+ *
+ * be-01 spells a move refused by a dependency with the same two words it uses
+ * for a refused dependency, and the table's shared sentences for those words
+ * are about adding an edge — which is not what the reader just did.
+ */
+async function inMoveWords<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request;
+  } catch (thrown: unknown) {
+    const code = failureText(thrown, '');
+    if (code === 'ancestor' || code === 'cycle') throw new Error(`move_${code}`, { cause: thrown });
+    throw thrown;
+  }
+}
+
+/** How long a drag must hold over a collapsed parent's middle before it opens. */
+export const HOVER_OPEN_MS = 600;
+
+/** The parents a drag hover opened, handed from {@link useHoverExpansion} to the drop. */
+export interface HoverOpened {
+  /** Takes the opened ids for a drop, so the drag's end no longer closes them. */
+  keep: () => string[];
+  /** Closes `rowIds` again — a refused drop's way of putting the plan back. */
+  restore: (rowIds: readonly string[]) => void;
+}
+
+/**
+ * Opens a collapsed parent held under a drag's middle zone for
+ * {@link HOVER_OPEN_MS}, and closes whatever it opened when the drag ends
+ * without a drop that kept it.
+ *
+ * The timer is keyed on the target id alone, so a dragover repeating on the
+ * same row does not restart it and moving to another row or zone clears it.
+ * `opensOnHover` is read through a ref for the same reason: its identity
+ * changes with every expansion, and the wait must not.
+ */
+export function useHoverExpansion({
+  dragging,
+  dropHint,
+  opensOnHover,
+  setExpanded,
+}: {
+  dragging: string | null;
+  dropHint: DropHint | null;
+  opensOnHover: (rowId: string) => boolean;
+  setExpanded: React.Dispatch<React.SetStateAction<ExpandedState>>;
+}): HoverOpened {
+  const opened = useRef<string[]>([]);
+  const opens = useRef(opensOnHover);
+  opens.current = opensOnHover;
+  const target = dragging !== null && dropHint?.zone === 'into' ? dropHint.rowId : null;
+
+  useEffect(() => {
+    if (target === null || !opens.current(target)) return;
+    const timer = setTimeout(() => {
+      opened.current.push(target);
+      setExpanded((current) => expandBranch(current, target));
+    }, HOVER_OPEN_MS);
+    // Proof: this clear removed, `does not open a parent the pointer left
+    // before the wait ran out` failed with 010.1 opened behind the pointer.
+    // Watched 2026-09-27.
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [target, setExpanded]);
+
+  const restore = useCallback(
+    (rowIds: readonly string[]) => {
+      if (rowIds.length === 0) return;
+      setExpanded((current) => rowIds.reduce(collapseBranch, current));
+    },
+    [setExpanded],
+  );
+
+  // A drag that ends with nothing having kept what it opened — abandoned,
+  // cancelled by a peer's edit, or dropped where nothing moves — closes it.
+  // Proof: this effect removed, `closes the parent it opened when the drag is
+  // abandoned` failed with 010.1 still on screen. Watched 2026-09-27.
+  useEffect(() => {
+    if (dragging !== null) return;
+    restore(opened.current.splice(0));
+  }, [dragging, restore]);
+
+  const keep = useCallback(() => opened.current.splice(0), []);
+  return useMemo(() => ({ keep, restore }), [keep, restore]);
+}
+
+/**
+ * Closes `rowId` in a record expansion. `true` — every branch open — has no
+ * per-row key to take away, and a hover only ever opens a row under a record.
+ */
+export function collapseBranch(current: ExpandedState, rowId: string): ExpandedState {
+  if (current === true) return current;
+  return Object.fromEntries(Object.entries(current).filter(([id]) => id !== rowId));
+}
 
 /**
  * Opens `rowId`, whatever shape the expansion state is currently in.
@@ -596,6 +736,6 @@ export function collectPath(flat: readonly TreeRow[], rowId: string): string[] {
 export function usePlanDragState() {
   const [dragging, setDragging] = useState<string | null>(null);
 
-  const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
+  const [dropHint, setDropHint] = useState<DropHint | null>(null);
   return { dragging, setDragging, dropHint, setDropHint };
 }
