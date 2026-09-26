@@ -941,10 +941,6 @@ describe('one cell for the whole trio', () => {
     // assertions below are satisfied before the round trip and say nothing
     // until it has happened.
     //
-    // The rule reversed on 2026-09-20: the result is drawn and the repeated
-    // trio is what goes quiet. Proof: dropping `trioRepeatsResult ?
-    // 'transparent' :` from the box's rest arm made this fail on `expected
-    // 'var(--muted-foreground)' to be 'transparent'`. Watched 2026-09-20.
     await oneRow();
 
     typeCombined('010', '5');
@@ -953,8 +949,8 @@ describe('one cell for the whole trio', () => {
       expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
     });
     expect(combinedCell('010').value).toBe('5');
-    expect(foldedFinal('010')?.textContent).toBe('5');
-    expect(combinedCell('010').style.color).toBe('transparent');
+    expect(combinedCell('010').style.color).toBe('var(--muted-foreground)');
+    expect(foldedFinal('010')).toBeNull();
   });
 
   itDom('keeps the stored figure beside a cell holding a refused entry', async () => {
@@ -1370,7 +1366,7 @@ describe('one cell for the whole trio', () => {
     expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
   });
 
-  itDom('hides a parent’s rolled-up trio when it repeats the result', async () => {
+  itDom('shows a parent’s rolled-up trio once when it equals the result', async () => {
     const api = await oneRow();
     pressNewItem('010');
     await waitFor(() => {
@@ -1384,14 +1380,11 @@ describe('one cell for the whole trio', () => {
       expect(api.rows.find((row) => row.id === 'w2')?.estimates['step-dev']).toBeDefined();
     });
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('5');
+      expect(rolledTrio('010')?.textContent).toBe('5');
     });
-
-    // Proof: dropping `trioRepeatsResult ? 'transparent' :` from the
-    // rolled-up span made this fail on `expected 'var(--muted-foreground)'
-    // to be 'transparent'`. Watched 2026-09-20.
     expect(rolledTrio('010')?.textContent).toBe('5');
-    expect(rolledTrio('010')?.style.color).toBe('transparent');
+    expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
+    expect(foldedFinal('010')).toBeNull();
   });
 
   itDom('draws the result in the row’s own type, with tabular numerals', async () => {
