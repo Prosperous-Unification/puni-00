@@ -14,7 +14,7 @@ No lag, start-to-finish relationships, split work, cycles or simultaneous-start/
 
 ## Constraints
 
-Archive `add-step-finish-start-dependencies` first, so the named MODIFIED requirements in this packet exist in the main specs. This change depends on that stage: it uses that change's endpoint model, typed table, commands, import and snapshot formats, graph expansion and FS UI. With paths relative to `openspec/changes/`, its exact MODIFIED bases are `Dependencies constrain scheduled slices` and `Explicit dependencies are editable from the table and chart` (`add-step-finish-start-dependencies/specs/wbs-domain/spec.md:3,55`), `Solver edges represent the expanded authored graph` (`add-step-finish-start-dependencies/specs/scheduler-optimization/spec.md:3`), `Typed dependencies have distinct undoable commands` (`add-step-finish-start-dependencies/specs/plan-command-registry/spec.md:3`), `Plan transfer preserves typed and legacy dependencies` (`add-step-finish-start-dependencies/specs/plan-import/spec.md:3`), `Working plans expose committed typed dependency mutations` (`add-step-finish-start-dependencies/specs/live-plan-snapshot/spec.md:3`), and `Saved plans retain typed dependency history` (`add-step-finish-start-dependencies/specs/saved-plans/spec.md:3`). Unknown slices remain zero schedule duration while their placeholders remain visible. A Fast deadline miss is not proof of infeasibility, and a solver timeout without a solution is unknown.
+Archive `address-step-nodes` and then `add-step-finish-start-dependencies` first, so the named MODIFIED requirements in this packet exist in the main specs. This change depends on that stage: it uses their step-node endpoint model (whole, node, descendant-step), typed table, commands, import and snapshot formats, graph expansion and FS UI. With paths relative to `openspec/changes/`, its exact MODIFIED bases are `Dependencies constrain scheduled slices` and `Explicit dependencies are editable from the table and chart` (`add-step-finish-start-dependencies/specs/wbs-domain/spec.md:3,79`), `Solver edges represent the expanded authored graph` (`add-step-finish-start-dependencies/specs/scheduler-optimization/spec.md:3`), `Typed dependencies have distinct undoable commands` (`add-step-finish-start-dependencies/specs/plan-command-registry/spec.md:3`), `Plan transfer preserves typed and legacy dependencies` (`add-step-finish-start-dependencies/specs/plan-import/spec.md:3`), `Working plans expose committed typed dependency mutations` (`add-step-finish-start-dependencies/specs/live-plan-snapshot/spec.md:3`), and `Saved plans retain typed dependency history` (`add-step-finish-start-dependencies/specs/saved-plans/spec.md:3`). Unknown slices remain zero schedule duration while their placeholders remain visible. A Fast deadline miss is not proof of infeasibility, and a solver timeout without a solution is unknown.
 
 ## Capabilities
 
@@ -30,7 +30,7 @@ Archive `add-step-finish-start-dependencies` first, so the named MODIFIED requir
 
 ## Domain Terms
 
-Relationship type is defined in `CONTEXT.md`.
+Relationship type, Step node and Step graph are defined in `CONTEXT.md`.
 
 ## Decisions Recorded
 

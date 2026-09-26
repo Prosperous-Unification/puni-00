@@ -18,3 +18,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 - **Pending R5 proof:** Clamp a negative FF weight or use chronological replay; Fast golden/float test must fail. Restore and record output.
 - **Pending R5 proof:** Attach an SS/FF arrow to the wrong boundary; geometry/accessibility test must fail. Restore and record output.
 - **Pending:** Format, lint, typecheck, build, OpenSpec validation and applicable h2puni gate. All implementation checks remain unverified at spec time.
+
+## Rebase note
+
+2026-09-27 (WBS 010.4.11.1): endpoints and whole-endpoint boundaries rebased on `address-step-nodes` (sources and sinks of the step graph; the step-order chain gives the same first and last nodes as before). The spec-time commands above predate the rebase; the rebase validation output is in the PR.

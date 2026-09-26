@@ -19,3 +19,9 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 - **Pending:** Format, lint, typecheck, build, OpenSpec validation and applicable h2puni gate. All implementation checks remain unverified at spec time.
 
 - **Pending R5 proof:** Bypass the combined-graph check on a mounted legacy write or B.Dev estimate clearing; the cycle-refusal test must fail. Restore and record observed output.
+- **Pending R5 proof:** Skip the hand-down endpoint remap; the mounted node-endpoint hand-down test must fail. Restore and record observed output.
+- **Pending R5 proof:** Preselect the predecessor step by name or substitute a different step when it is missing; the step-cell picker test must fail. Restore and record observed output.
+
+## Rebase note
+
+2026-09-27 (WBS 010.4.11.1): endpoints, validation, picker defaults and lifecycle rebased on `address-step-nodes`. The spec-time commands above predate the rebase; the rebase's validation output is in the PR.

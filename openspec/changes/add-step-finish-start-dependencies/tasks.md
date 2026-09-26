@@ -1,8 +1,14 @@
-## 1. Expand and validate the authored graph
+## 1. Resolve endpoints on the step-node graph
 
-- [ ] 1.1 Red: whole/step, parent Cartesian and synthetic-slice graph cases, including a self-slice refusal.
-- [ ] 1.2 Implement one shared expansion and combined-graph cycle check.
+- [ ] 1.1 Red: `resolveStepNodeGraph` cases for whole/node/descendant-step endpoints, each default mapping (Whole→Whole last→first, node→whole, whole→node), parent Cartesian, stepless work-item boundary and `authored` provenance with relationship ID, including a self-node refusal.
+- [ ] 1.2 Add authored edges to the `address-step-nodes` seam and one combined-graph cycle check.
 - [ ] 1.3 Negative proof: omit one expanded parent pair; watch the graph refusal test fail, restore, add adjacent `Proof:`.
+
+## 1a. Carry node endpoints through structural edits
+
+- [ ] 1a.1 Red: mounted hand-down and hand-up remap node endpoints with undo restoring them; an edit with no unambiguous mapping is refused naming the relationships; a deleted work item's typed links go in the same undo entry.
+- [ ] 1a.2 Apply the journaled step node mapping to typed endpoints inside the structural transaction.
+- [ ] 1a.3 Negative proof: skip the endpoint remap; watch the hand-down test fail, restore, add adjacent `Proof:`.
 
 ## 2. Guard every graph-changing write
 
@@ -12,13 +18,13 @@
 
 ## 3. Persist typed links and guard migration rollback
 
-- [ ] 3.1 Red: typed-row validation, uniqueness, absent/unreadable migration state and rollback refusal with rows present.
+- [ ] 3.1 Red: typed-row validation of scope/step pairing, leaf-only node and parent-only descendant-step endpoints, scope-encoded uniqueness, absent/unreadable migration state and rollback refusal with rows present.
 - [ ] 3.2 Add the typed table in additive `migration.sql` beside `down.sql`, and guard rollback with the recovery command.
 - [ ] 3.3 Negative proof: bypass the typed-row rollback guard; watch production-path refusal fail, restore, add adjacent `Proof:`.
 
 ## 4. Expose typed commands through HTTP and MCP
 
-- [ ] 4.1 Red: mounted add/update/remove and old `addDependency` compatibility, invalid references and duplicate/cycle 4xx.
+- [ ] 4.1 Red: mounted add/update/remove with step node ID endpoints and old `addDependency` compatibility, invalid references and duplicate/cycle 4xx.
 - [ ] 4.2 Implement typed discriminators and regenerate HTTP/OpenAPI/MCP contracts, retaining old request shapes.
 - [ ] 4.3 Negative proof: remove old-command compatibility or typed input validation; watch mounted tests fail, restore, add adjacent `Proof:`.
 
@@ -72,7 +78,7 @@
 
 ## 10. Expose editing and graph geometry
 
-- [ ] 10.1 Red: one-click default, Customize without write, keyboard/mobile and refused picker choices.
+- [ ] 10.1 Red: one-click default, same-step preselection from a step cell (unavailable when the predecessor lacks it), step-reference chips and descendant-step chip spelling, Customize without write, keyboard/mobile and refused picker choices.
 - [ ] 10.2 Implement picker, chip, card and accessible edit flow.
 - [ ] 10.3 Negative proof: write on Customize activation; watch the no-write test fail, restore, add adjacent `Proof:`.
 - [ ] 10.4 Red: selected FS ticks, unknown placeholder and collapsed-parent proxy geometry.

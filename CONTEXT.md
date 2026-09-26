@@ -124,7 +124,48 @@ _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 **Step**:
 A named kind of work a project estimates separately, unique by name within it. Every
 project starts with `Dev` and `QA`, and may then be given others, renamed or emptied.
+Carries a **step code**. A definition, not an occurrence: its work within one leaf is a
+**step node**.
 _Avoid_: discipline, type, category
+
+**Step code**:
+A step's short, immutable, project-unique name for references — `dev`, `qa`, `review`:
+a lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name
+when the step is created; renaming the step keeps it. Codes shaped `s<digits>` or
+`s<digits>-…` are reserved for ordinal aliases.
+_Avoid_: slug, step key, step id (which is the stored identity)
+
+**Step node**:
+One leaf work item's occurrence of one project step — the addressable unit that carries
+that pair's estimate, actual, measures, progress, assignment and dependencies. It exists
+for every leaf and step whether or not anything is stored for it. Not a work item: no
+tree position, title, type or number of its own. A parent has no step nodes.
+_Avoid_: sub-item, step item, task, cell (which is only its table drawing)
+
+**Step node ID**:
+A step node's stable identity: a versioned encoding of its work item's ID and its step's
+ID. Unchanged by renumbering, reparenting while it stays a leaf, step rename or step
+reorder; a deleted and recreated step yields new step node IDs.
+_Avoid_: step reference (which is the readable, changeable spelling)
+
+**Step reference**:
+A step node's readable spelling: work item number, a dot, step code — `010.dev`,
+`020.2.review`. Changes when the work item is renumbered; stable once its number is
+frozen. Input may also spell the step by displayed ordinal, `010.s1-dev`, which must
+agree with the code and is never stored.
+_Avoid_: node id, path, `010.s1-dev` as the canonical form
+
+**Step graph**:
+The ordering edges between one leaf's step nodes that come from the project's steps rather
+than from an authored dependency — today, finish-to-start in step order. Its edges are
+**workflow** edges, told apart from **authored** and **legacy** ones.
+_Avoid_: internal dependencies, step chain (which is today's only shape of it), workflow (the future configurable definition)
+
+**Work-item boundary**:
+The single zero-time scheduling point a leaf has in a project with no steps, so whole-scope
+dependencies still have something to join. Never a step node and never addressable by a
+step reference.
+_Avoid_: synthetic step, null step node
 
 **Step order**:
 The order a project works its steps in — `Dev` before `QA` before whatever was added
@@ -163,9 +204,14 @@ _Avoid_: component, system, area, service team
 
 **Work item type**:
 A word for what a work item **is** — `epic`, `story`, `spike` — named globally and unique
-across the directory. Unlike a Tag it does not inherit at all
-(`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`): a row's types are the row's
-own, and an ancestor's say nothing about it.
+across the directory. A work item carries at most one; none is allowed. Unlike a Tag it does
+not inherit at all (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`): a row's
+type is the row's own, and an ancestor's says nothing about it.
+
+**Type conflict**:
+A work item still carrying several types from before a work item took at most one. Shown
+with all of them, flagged, until somebody picks one; never resolved by choosing for them.
+_Avoid_: legacy types, multi-type
 _Avoid_: kind, category, issue type, tag
 
 **Team set**:
@@ -434,9 +480,10 @@ Legacy dependencies use project Dependency reach; typed dependencies name their 
 _Avoid_: link, blocker, edge (outside the graph code)
 
 **Dependency endpoint**:
-One side of a typed dependency: a work item with either whole scope or one selected project step.
-A parent endpoint expands to every descendant leaf; a dependency constrains each selected
-predecessor/successor leaf pair. A selected step resolves to that leaf's named slice.
+One side of a typed dependency, in one of three scopes: **whole** (a work item, leaf or
+parent), **node** (one leaf's step node) or **descendant-step** (one project step within
+every leaf beneath a parent). Whole and descendant-step scopes are selectors that resolve to
+step nodes; a dependency constrains each resolved predecessor/successor pair.
 _Avoid_: anchor (for an explicit endpoint), bar end
 
 **Relationship type**:
@@ -458,7 +505,7 @@ sent by a client. `whole-item` unless the project says otherwise.
 _Avoid_: dependency mode, wait rule, link type
 
 **Slice**:
-One leaf work item's work for one step — the unit a schedule is computed in. A leaf in a
+A step node as the scheduler sees it — the unit a schedule is computed in. A leaf in a
 project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
