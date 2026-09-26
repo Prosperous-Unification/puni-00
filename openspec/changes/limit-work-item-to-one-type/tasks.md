@@ -1,14 +1,14 @@
 ## 1. Refuse several types at the command boundary
 
-- [ ] 1.1 Red: mounted create, patch and batch over HTTP and MCP with two `typeIds` or `typeRefs` return `work_item_takes_one_type` and write nothing; zero and one still replace.
+- [ ] 1.1 Red: mounted patch and batch over HTTP and MCP with two `typeIds` or `typeRefs` return `work_item_takes_one_type` and write nothing; zero and one still replace; two successive single-type patches in one batch leave the second. Work-item creation takes no types today and is out of scope.
 - [ ] 1.2 Lower the type list limit to one with the new refusal in the command normalizers and regenerate OpenAPI and MCP schemas.
 - [ ] 1.3 Negative proof: restore the limit of ten; watch the mounted refusal fail, restore, add adjacent `Proof:`.
 
 ## 2. Hold the invariant inside the write transaction
 
-- [ ] 2.1 Red: a batch whose earlier command types a work item and whose later command adds a second type is refused atomically; undo/redo restore exact sets including a conflict; a service-level write bypassing the normalizer is refused.
+- [ ] 2.1 Red: a service-level authored write with two types, bypassing the normalizer, is refused; a batch containing it is refused atomically; undo/redo restore exact sets including a conflict; no authored command reaches the restoration path.
 - [ ] 2.2 Check the resulting type set in the work-item service transaction, not only at the HTTP boundary.
-- [ ] 2.3 Negative proof: remove the transactional check; watch the service-level refusal fail, restore, add adjacent `Proof:`.
+- [ ] 2.3 Negative proofs: remove the transactional check; route an authored patch through the restoration path. Watch the service-level refusal and the authored-path test fail, restore, add adjacent `Proof:`.
 
 ## 3. Read a type conflict without choosing
 

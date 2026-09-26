@@ -24,4 +24,4 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 
 ## Rebase note
 
-2026-09-27 (WBS 010.4.11.1): endpoints, validation, picker defaults and lifecycle rebased on `address-step-nodes`. The spec-time commands above predate the rebase; the rebase's validation output is in the PR.
+2026-09-27 (WBS 010.4.11.1): endpoints, validation, picker defaults and lifecycle rebased on `address-step-nodes`. Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026-09-27, after the Astra high review fixes on branch `batch-9/step-nodes-spec`, reported 129 items, 129 passed, 0 failed; this change was valid. File-scoped `bunx prettier --check` on every touched file reported all files use Prettier style. No application behavior is verified by this packet; the h2puni gate result is recorded in the PR.

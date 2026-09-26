@@ -96,7 +96,7 @@ The domain SHALL resolve one step-node graph whose nodes are step node IDs or wo
 
 ### Requirement: Step nodes follow leafhood through structural edits
 
-When a leaf gains its first child, its step nodes' facts SHALL move to the child's nodes for the same steps, and when a parent loses its last child the reverse SHALL hold, both within the structural edit's transaction. Each such edit SHALL journal the mapping from old to new step node IDs so undo and redo restore the exact nodes. Deleting a step SHALL remove its step nodes with the step's existing usage refusal. Deleting a leaf SHALL remove its step nodes.
+When a leaf gains its first child, each of its step nodes SHALL map one-to-one to the child's node for the same step, and that node's estimate, actual, measures, progress and assignment SHALL move with it within the create's transaction; the edit SHALL journal the mapping so undo and redo restore the exact step node IDs and facts. Moving a leaf SHALL keep its step node IDs while it stays a leaf. Deleting a work item SHALL remove the step nodes in its subtree; when that leaves a parent childless, the existing fold of facts onto the parent SHALL continue and SHALL NOT be a step node mapping. A parent left childless by a move SHALL gain step nodes holding whatever facts the existing rules leave it. Deleting a step SHALL remove its step nodes with the step's existing usage refusal.
 
 #### Scenario: Hand-down moves a node's facts
 
@@ -104,6 +104,12 @@ When a leaf gains its first child, its step nodes' facts SHALL move to the child
 - **WHEN** 010 gains its first child 010.1
 - **THEN** 010.1's Dev node holds that estimate and progress and 010 has no step nodes
 - **AND** undo restores them on 010's original Dev node ID
+
+#### Scenario: Hand-down moves an assignment
+
+- **GIVEN** leaf 010 with Ann assigned on its Dev node
+- **WHEN** 010 gains its first child 010.1
+- **THEN** Ann is assigned on 010.1's Dev node and undo restores her on 010's Dev node
 
 ### Requirement: A step cell names its step node
 

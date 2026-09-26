@@ -10,7 +10,7 @@ Source memo: `puni-plan/wbs-feedback-2026-09-26/step-nodes/design.md` (Astra, 20
 
 Additive migration: `ALTER TABLE step ADD COLUMN code TEXT` (nullable, so the lint's NOT NULL-without-DEFAULT rule is respected) and a partial unique index on `(project_id, code) WHERE code IS NOT NULL`. `down.sql` drops the index and the column. Old binaries ignore the column; an old writer's new step has `code IS NULL`.
 
-Codes are derived in TypeScript, not SQL: lowercase the name, collapse every run of characters outside `[a-z0-9]` to `-`, trim hyphens, prefix `step-` when the result does not start with a letter or is reserved (`^s[0-9]+(-|$)`), truncate to 32, and add `-2`, `-3`… in step order on collision. One function (`suggestStepCode`) serves creation, legacy import and backfill.
+Codes are derived in TypeScript, not SQL: lowercase the name, collapse every run of characters outside `[a-z0-9]` to `-`, trim hyphens, prefix `step-` when the result does not start with a letter or is reserved (`^s[0-9]+(-|$)`), and on collision add `-2`, `-3`… in step order, truncating the stem so stem plus suffix stays within 32 characters. One function (`suggestStepCode`) serves creation, legacy import and backfill.
 
 Backfill is a CLI beside the migration CLIs (`backfill-step-codes-cli.ts`), run by the swap after the old colour is drained, and idempotent: it codes only `code IS NULL` rows. Until then the store reads a null code as the modeled `uncoded` state, which the contract carries as a visible union member rather than an optional string. A failed backfill fails the swap loudly with its manual command; it does not leave the swap reporting success.
 
@@ -24,7 +24,7 @@ Backfill is a CLI beside the migration CLIs (`backfill-step-codes-cli.ts`), run 
 
 ## Lifecycle
 
-Hand-down and hand-up already move estimates, actuals, measures, progress and assignments inside the structural transaction (`compensating.ts`). They now also return the `StepNodeRef` mapping, which the journal records so undo restores the original IDs. Concrete dependency endpoints do not exist yet; the dependency change remaps them through the same mapping.
+First-child creation already moves estimates, actuals, progress and measures to the new child (`work-item.resource.ts` create) and journals them, but journals `assignments: []` and does not move assignments. This change moves assignments too, journals them, and returns the one-to-one `StepNodeRef` mapping, which the journal records so undo restores the original IDs. Deleting a parent's last child keeps today's fold of totals onto the parent (`remove`); that is an aggregation, not a node mapping, and carries no identity. Moves keep a leaf's node IDs. Concrete dependency endpoints do not exist yet; the dependency change remaps them through the hand-down mapping and specifies deletion.
 
 ## UI
 

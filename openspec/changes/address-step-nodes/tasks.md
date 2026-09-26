@@ -1,12 +1,12 @@
 ## 1. Name step nodes in the domain
 
-- [ ] 1.1 Red: domain tests for `StepNodeRef`, the `sn1` encoding and parse refusals (unknown prefix, arity, parent, cross-project), and leaf node enumeration including a stepless project.
+- [ ] 1.1 Red: domain tests for `StepNodeRef`, the `sn1` encoding and leaf node enumeration including a stepless project; mounted refusals for unknown prefix, arity, unknown work item or step, parent and a step node ID from another project.
 - [ ] 1.2 Implement the value, codec and enumeration with JSDoc on each symbol.
-- [ ] 1.3 Negative proof: let the parser accept a parent work item; watch the parent-refusal test fail, restore, add adjacent `Proof:`.
+- [ ] 1.3 Negative proofs: accept a parent work item; skip the same-project check; accept an unknown step ID. Watch each mounted refusal fail, restore, add adjacent `Proof:`.
 
 ## 2. Store and suggest step codes
 
-- [ ] 2.1 Red: `suggestStepCode` cases (punctuation, leading digit, reserved `s2-…`, collision suffix, 32-char cap), step create/rename keeping the code, reserved and duplicate refusals through the mounted route.
+- [ ] 2.1 Red: `suggestStepCode` cases (punctuation, leading digit, reserved `s2-…`, collision suffix, repeated collisions on a 32-character stem), step create/rename keeping the code, reserved and duplicate refusals through the mounted route.
 - [ ] 2.2 Add additive `migration.sql` beside `down.sql`, the store column and partial unique index, and the uncoded union in contracts.
 - [ ] 2.3 Negative proof: drop the reserved-code check; watch the mounted refusal fail, restore, add adjacent `Proof:`. Run migration lint, apply and rollback.
 
@@ -36,15 +36,15 @@
 
 ## 7. Journal node mappings on hand-down and hand-up
 
-- [ ] 7.1 Red: mounted first-child and last-child edits move node facts and undo/redo restore the original step node IDs.
-- [ ] 7.2 Return and journal the mapping from the structural transaction.
-- [ ] 7.3 Negative proof: omit the mapping from the journal; watch the undo identity test fail, restore, add adjacent `Proof:`.
+- [ ] 7.1 Red: mounted first-child create moves every node fact including the assignment, and undo/redo restore the original step node IDs; a move keeps node IDs; last-child deletion keeps today's fold.
+- [ ] 7.2 Move and journal assignments on hand-down; return and journal the mapping from the create transaction.
+- [ ] 7.3 Negative proofs: omit the mapping from the journal; skip the assignment move. Watch the undo identity and assignment hand-down tests fail, restore, add adjacent `Proof:`.
 
 ## 8. Carry codes through plan documents
 
-- [ ] 8.1 Red: code round trip, earlier-version import suggesting codes, duplicate/reserved refusal, project copy.
+- [ ] 8.1 Red: code round trip, earlier-version import suggesting codes, missing/malformed/reserved/duplicate refusal, export refused while a step is uncoded, project copy.
 - [ ] 8.2 Allocate the next document version with the dependency and allowance changes; implement converters.
-- [ ] 8.3 Negative proof: accept a duplicate code; watch the import refusal fail, restore, add adjacent `Proof:`.
+- [ ] 8.3 Negative proofs: accept a duplicate code; accept a reserved code; export with an uncoded step. Watch each refusal fail, restore, add adjacent `Proof:`.
 
 ## 9. Name the node in the step cell
 

@@ -2,7 +2,7 @@
 
 ### Requirement: A work item carries at most one type
 
-A work item SHALL carry zero or one work item type. Every write that sets a work item's types SHALL replace them with at most one, checked in the same transaction as the write. A work item that already carries several types SHALL read as a type conflict showing all of them, SHALL keep them until a write replaces them with zero or one, and SHALL accept edits to its other fields unchanged. No read, migration or background process SHALL choose one of a conflict's types. Types SHALL NOT inherit, and filtering by a type SHALL match a conflicted work item carrying it.
+A work item SHALL carry zero or one work item type. Every authored write that sets a work item's types SHALL replace them with at most one, checked in the same transaction as the write. Undo/redo restoration and copying SHALL reproduce the exact stored set and SHALL NOT be reachable from an authored command. A work item that already carries several types SHALL read as a type conflict showing all of them, SHALL keep them until a write replaces them with zero or one, and SHALL accept edits to its other fields unchanged. No read, migration or background process SHALL choose one of a conflict's types. Types SHALL NOT inherit, and filtering by a type SHALL match a conflicted work item carrying it.
 
 #### Scenario: Choosing a second type replaces the first
 
