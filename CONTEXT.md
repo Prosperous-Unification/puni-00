@@ -297,7 +297,7 @@ _Avoid_: quick entry, inline estimate, compact form
 **Final days**:
 One step's single number of days for one work item — the project's estimate method applied
 to its **estimate** and charged at the project's **estimate rounding**. Shown beside the
-**trio shorthand** it came from, summed across steps into the work item's total days, and
+**trio shorthand** when the two differ, summed across steps into the work item's total days, and
 summed across descendants for a work item with children.
 _Avoid_: PERT number, computed figure, effective estimate
 
@@ -559,16 +559,16 @@ numbers it carries stay the engine's.
 _Avoid_: segment, block, task bar
 
 **Assumed duration**:
-The two workdays a schedule gives a slice nobody has estimated, so that unsized work is
-work of unknown length rather than no work. One constant, shared by the engine and the
-drawing. It is never an estimate: nothing is written, the days column and the roll-up stay
-blank, and the readiness badge still counts the gap.
+The drawing-only span, currently two workdays, shown for a slice nobody has estimated.
+It contributes no scheduling duration or resource demand. It is never an estimate:
+nothing is written, the days column and the roll-up stay blank, and the readiness badge
+still counts the gap.
 _Avoid_: default duration, placeholder estimate, assumed estimate
 
 **Assumed span**:
-How a slice on its assumed duration is painted: a dotted translucent bar with a `?`, so
-that the width reads as a guess. The width itself is the schedule's — what the bar adds is
-the saying.
+How an unestimated slice is painted: a dotted translucent bar with a `?`, drawn across
+the **assumed duration** from its scheduled start. Its width is a visual placeholder,
+not the slice's scheduled duration.
 _Avoid_: ghost bar, placeholder bar
 
 **Done bar**:

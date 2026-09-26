@@ -7,13 +7,13 @@ On a large plan, repeated estimate trios form a wall of slashes while the derive
 **Folded estimate reading**
 
 - From: The typed trio is strongest, and a different result appears as a muted, separator-prefixed annotation.
-- To: Every estimated folded step shows its result at the row's own type and foreground with tabular numerals and no separator; the trio is smaller and muted at rest, then returns to full strength on focus.
+- To: An estimated folded step shows its result when it differs from the trio, at the row's own type and foreground with tabular numerals and no separator; the trio is smaller and muted at rest, then returns to full strength on focus.
 - Impact: Non-breaking visual change for people reading or editing the WBS table.
 
 **Repeated and rolled-up readings**
 
 - From: A flat trio suppresses its result, and a parent's rolled-up trio retains the current emphasis.
-- To: A flat trio keeps the result visible and hides the repeated trio text at rest; parent cells use the same quiet-trio, strong-result hierarchy as leaves.
+- To: A flat trio remains visibly readable at rest and suppresses the duplicate result; parent cells show an equal rolled-up trio once.
 - Impact: Non-breaking visual change to folded leaf and parent cells.
 
 ## Non-Goals
