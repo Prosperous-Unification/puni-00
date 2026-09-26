@@ -15,13 +15,18 @@ Observed, all under `env -u CLAUDECODE` on the workstation:
 - Solver boundary: `durationUnits` and `buildSolverRequest` give a null estimate zero units at every width. `canonical-schedule-input.test.ts` asserts that null and explicit zero place alike, report apart and hash apart. `test_model.py` gained `test_an_unknown_predecessor_is_a_node_and_adds_no_delay`; the solver-py suite ran 214 tests OK with `/home/df/wd/puni/puni-plan/venv-solver-py`.
 - Gantt: `gantt-geometry.test.ts` and `gantt-panel.test.tsx` ran 382 pass in Vitest (UTC). The unknown bar is drawn two workdays wide from a `3 → 3` payload, two unknown slices at one instant remain two bars with their own step names, the parent bracket ends at the scheduled finish while the horizon reaches the placeholder, and the accessible name says `Not estimated — drawn as 2 days, excluded from the schedule`.
 
+## Review follow-up
+
+Astra (gpt-6-astra, high) found no Critical issues and two Important ones, both fixed. First, two unknown slices at one instant drew exactly over each other. `withPlaceholderLanes` now splits any overlapping row cluster that holds an unknown bar into lanes. Only the drawing moves: dates, brackets and arrows are read before the split. Second, `e2e/gantt.spec.ts` still asserted that the successor is drawn after the unknown predecessor. It is now `starts a successor beside the predecessor nobody estimated`. Two fixtures used unestimated rows to create schedule order, `arrange-by-schedule.test.ts` and `work-item.db.test.ts`'s tied-position case, and they now estimate their leaves.
+
 ## R5 proofs, watched 2026-09-27
 
 - `durationOf` answering `ASSUMED_SLICE_WORKDAYS` for null days: `reproduces every stored schedule value for value` and the deadline-empty byte check failed (`unestimated-middle` `b` 2 → 4, `c` from 4, and both new unknown cases). `buildSolverRequest > computes durations as Fast does` failed on the unknown slice's units. Both live-plan capture tests and 7 of the 9 `schedule-unestimated.test.ts` cases also failed. Restored.
 - `days: slice.days ?? 0` in `canonicalScheduleInput`: `days null against days zero, which place alike and report apart` failed on equal canonical strings. Restored.
 - `drawnSpan` computed as `slice.earliestFinish - slice.earliestStart`: `the drawing is not the schedule` failed on `expected +0 to be 2`, with three sibling geometry tests and the horizon test (`expected 3 to be 5`). Restored.
+- `bars: withPlaceholderLanes(bars)` replaced by `bars: [...bars]`: `keeps simultaneous unknown slices as separate bars at one scheduled instant` and `draws unknown slices at one instant in separate lanes of their row` failed. Restored.
 - `, excluded from the schedule` removed from `barFacts`: `the bar still says it is a guess` and `draws a slice nobody estimated, with the detail off and with it on` failed. Restored.
 
 ## Not run here
 
-Browser (Playwright `pixels`) and the full host gate are left to CI and `remote-gate.sh`, and their results are in the PR. The archive-time constraints in `proposal.md` (restore the archived assumed-duration requirements, archive `dual-optimized-scheduler` first) are archive work and were not done in this change.
+Browser (Playwright `pixels`) runs in CI, and the rewritten browser case's negative was not watched in a browser. The host gate runs on the batch integration branch. `saved-plan-busy.db.test.ts` and `saved-plan-concurrency.db.test.ts` fail on this workstation on clean `main` as well, so they are an environment issue unrelated to this change. The archive-time constraints in `proposal.md` (restore the archived assumed-duration requirements, archive `dual-optimized-scheduler` first) are archive work and were not done in this change.
