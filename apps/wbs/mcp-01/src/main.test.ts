@@ -222,7 +222,7 @@ test('starts without a Basic secret and writes OAuth and startup facts through t
 });
 
 /** Starts the production composition around `oauth` and connects a client whose MCP session is live. */
-async function composedSessionClient(oauth: ReturnType<typeof oauthFixture>): Promise<{
+async function connectSessionClient(oauth: ReturnType<typeof oauthFixture>): Promise<{
   readonly client: Client;
   readonly lines: string[];
   readonly failureCalls: () => { fields: LogFields; message: string }[];
@@ -292,7 +292,7 @@ test.each([
     },
   },
 ])('reports a failed $failingStep once through the production reporter', async ({ oauth }) => {
-  const { client, lines, failureCalls } = await composedSessionClient(oauth);
+  const { client, lines, failureCalls } = await connectSessionClient(oauth);
 
   const toolResponse = await client.callTool({ name: READ.name, arguments: { id: 'p-1' } });
 

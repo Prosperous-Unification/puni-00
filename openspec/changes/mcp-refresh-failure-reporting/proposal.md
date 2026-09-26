@@ -31,8 +31,8 @@ text is the raw failure message.
 
 ## Non-Goals
 
-- Upstream refresh failures that `refreshSession` already maps to the edge-gate outcome
-  (provider unreachable, lease timeout) keep that modeled outcome.
+- Transient provider refresh outcomes (provider unreachable, lease lost or timed out) keep the
+  modeled edge-gate outcome; only store failures inside the refresh stop being mapped to it.
 - The HTTP pre-call path (`callerSessionFor`) and the OAuth endpoints are unchanged.
 - No new operator record for a modeled session end.
 

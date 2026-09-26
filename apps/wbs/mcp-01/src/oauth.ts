@@ -49,6 +49,12 @@ const MAX_REAUTH_MARKERS = 1_000;
 /** The provider cannot or will not refresh this family, which is already revoked. */
 class UpstreamRefreshRefused extends SessionRefreshRefused {}
 
+/**
+ * The provider refresh could not be completed now (provider unreachable, lease lost or timed
+ * out, family changed while waiting); the family is kept and the caller may retry.
+ */
+class UpstreamRefreshUnavailable extends Error {}
+
 type CallbackError =
   | 'access_denied'
   | 'invalid_request'
@@ -273,7 +279,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
    *
    * @throws {SessionRefreshRefused} when the session is missing, expired or revoked, or the
    *   provider refuses (the family is then revoked): the caller ends the session.
-   * @throws {EdgeGate} when the provider refresh could not be completed; the session is kept.
+   * @throws {EdgeGate} when the provider refresh is unavailable now; the session is kept.
    * Anything else, such as the session store throwing, propagates unchanged as unexpected.
    */
   async refreshSession(mcpSessionId: string): Promise<string> {
@@ -285,8 +291,13 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     try {
       return (await this.refreshUpstreamIfNeeded(family, true)).upstreamAccessToken;
     } catch (cause) {
-      if (cause instanceof UpstreamRefreshRefused) throw cause;
-      throw new EdgeGate('The identity provider is temporarily unavailable. Retry this tool call.');
+      // Proof: on 2026-09-27, mapping every non-refused failure to EdgeGate here failed `rejects a
+      // tool-call refresh with a store failure during the lease, not an edge outcome`.
+      if (cause instanceof UpstreamRefreshUnavailable)
+        throw new EdgeGate(
+          'The identity provider is temporarily unavailable. Retry this tool call.',
+        );
+      throw cause;
     }
   }
 
@@ -769,8 +780,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       if (leased === null) {
         await Bun.sleep(25);
         const current = this.store.family(family.familyId);
-        if (current === null) throw new Error('MCP refresh family disappeared');
-        if (current.revokedAt !== null) throw new Error('MCP refresh family was revoked');
+        if (current === null)
+          throw new UpstreamRefreshUnavailable('MCP refresh family disappeared');
+        if (current.revokedAt !== null)
+          throw new UpstreamRefreshUnavailable('MCP refresh family was revoked');
         if (
           current.leaseOwner === null &&
           current.upstreamRefreshedAt !== family.upstreamRefreshedAt
@@ -800,7 +813,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           );
         }
         this.store.releaseRefreshLease(family.familyId, owner, tokens?.refreshToken);
-        throw new Error('upstream refresh could not be completed', { cause });
+        // Proof: on 2026-09-27, throwing a plain Error here failed `keeps a transient provider
+        // refresh failure an edge-gate outcome of a tool-call refresh`.
+        throw new UpstreamRefreshUnavailable('upstream refresh could not be completed', { cause });
       }
       if (
         !this.store.finishRefreshLease(
@@ -812,12 +827,13 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           this.now(),
         )
       )
-        throw new Error('upstream refresh lease was lost');
+        throw new UpstreamRefreshUnavailable('upstream refresh lease was lost');
       const current = this.store.family(family.familyId);
-      if (current === null) throw new Error('upstream refresh family disappeared');
+      if (current === null)
+        throw new UpstreamRefreshUnavailable('upstream refresh family disappeared');
       return current;
     }
-    throw new Error('timed out waiting for the upstream refresh lease');
+    throw new UpstreamRefreshUnavailable('timed out waiting for the upstream refresh lease');
   }
 
   private async revoke(request: Request): Promise<Response> {

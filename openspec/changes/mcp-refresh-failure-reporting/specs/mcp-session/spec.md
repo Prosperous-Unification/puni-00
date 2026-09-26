@@ -4,8 +4,10 @@
 
 A tool-call session refresh SHALL reject with a session refusal when the session is missing,
 expired or revoked or the provider refuses the refresh, SHALL reject with the edge-gate outcome
-when the provider refresh could not be completed, and SHALL propagate any other failure
-unchanged. Only a session refusal SHALL end the MCP session.
+when the provider refresh is unavailable now (provider unreachable, refresh lease lost or timed
+out), and SHALL propagate any other failure, such as the session store throwing, unchanged. Of
+the refresh rejections, only a session refusal SHALL end the MCP session; a second be-01
+credential rejection after a successful refresh still ends it.
 
 #### Scenario: refresh of an ended session
 
@@ -16,3 +18,13 @@ unchanged. Only a session refusal SHALL end the MCP session.
 
 - **WHEN** the session store throws while a tool call's refresh reads the family
 - **THEN** the refresh rejects with that same failure and the session is kept
+
+#### Scenario: store failure while leasing the provider refresh
+
+- **WHEN** the session store throws while a tool call's refresh takes the upstream refresh lease
+- **THEN** the refresh rejects with that same failure, not the edge-gate outcome
+
+#### Scenario: provider unreachable during refresh
+
+- **WHEN** the provider refresh fails transiently
+- **THEN** the refresh rejects with the edge-gate outcome and the session is kept

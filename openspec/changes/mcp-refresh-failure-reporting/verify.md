@@ -20,6 +20,10 @@ that rejects instead of failing the protocol call` with `MCP error -32603` carry
 - `oauth.ts`: a plain `Error` for the missing family, or `UpstreamRefreshRefused` extending
   `Error`, each failed `refuses a tool-call refresh of an ended or unrefreshable session as a
 session outcome` on `toBeInstanceOf(SessionRefreshRefused)`.
+- `oauth.ts` refresh catch: mapping every non-refused failure to `EdgeGate` failed `rejects a
+tool-call refresh with a store failure during the lease, not an edge outcome`; throwing a plain
+  `Error` for an incomplete provider refresh failed `keeps a transient provider refresh failure an
+edge-gate outcome of a tool-call refresh`.
 - `main.test.ts`: against the previous `server.ts`, the lookup case wrote no operator record and
   the session-end case rejected with `MCP error -32603` carrying the unredacted Basic credential.
 

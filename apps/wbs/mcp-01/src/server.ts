@@ -226,7 +226,7 @@ export function createServer(deps: ServerDeps): Server {
             // Proof: on 2026-09-27, awaiting endSession outside this try failed `reports a session
             // end that rejects instead of failing the protocol call`: the client rejected with
             // `MCP error -32603` carrying the store's own message, and nothing was reported.
-            return reportedFailure(tool.name, endCause);
+            return reportToolFailure(tool.name, endCause);
           }
           return asCallToolResult(
             errorText(
@@ -246,11 +246,14 @@ export function createServer(deps: ServerDeps): Server {
       if (cause instanceof ToolInputRefused) {
         return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
       }
-      return reportedFailure(tool.name, cause);
+      return reportToolFailure(tool.name, cause);
     }
   });
 
-  function reportedFailure(toolName: string, caught: unknown): ReturnType<typeof asCallToolResult> {
+  function reportToolFailure(
+    toolName: string,
+    caught: unknown,
+  ): ReturnType<typeof asCallToolResult> {
     // Proof: on 2026-09-21, replacing this call with a fabricated disclosure left the linked
     // SDK reporter count at zero; invoking it twice made the production exact-one count two.
     const disclosure = reportUnexpectedToolFailure(caught);
