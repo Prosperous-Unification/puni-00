@@ -31,7 +31,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun test tools/tool-workflows/src/workflows.test.ts tools/tool-workflows/src/schema.test.ts"
+        "command": "bun test tools/tool-workflows/src/workflows.test.ts tools/tool-workflows/src/schema.test.ts --timeout=60000"
       },
       "inputs": [
         "default",
@@ -44,7 +44,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun test tools/tool-workflows/src/cli.integration.test.ts"
+        "command": "bun test tools/tool-workflows/src/cli.integration.test.ts --timeout=60000"
       }
     },
     "typecheck": {

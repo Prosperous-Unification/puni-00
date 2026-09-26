@@ -57,7 +57,7 @@
         "{workspaceRoot}/deploy/k8s/wbs/overlays/dev/**/*"
       ],
       "options": {
-        "command": "bun test --preload ../test/scratch/preload.ts",
+        "command": "bun test --preload ../test/scratch/preload.ts --timeout=30000",
         "cwd": "tools/tool-devsync"
       }
     },
