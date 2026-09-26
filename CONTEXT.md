@@ -660,8 +660,10 @@ _Avoid_: parent bar, group bar, rollup bar
 
 **Arrow route**:
 The corners a dependency arrow is drawn through, from the selected predecessor boundary to the
-selected successor boundary — finish→start for FS, start→start for SS, finish→finish for FF: horizontal and vertical runs only, arriving from the left so the head
-points right. Chosen against the bars the panel is drawing — it passes through no bar's
+selected successor boundary — finish→start for FS, start→start for SS, finish→finish for FF: horizontal and vertical runs only.
+The head arrives from outside the bar at that boundary: from the left, pointing right, at a
+start (FS, SS); from the right, pointing left, at a finish (FF), through a gutter right of the
+finishes. Chosen against the bars the panel is drawing — it passes through no bar's
 interior, the two it joins included — and not merely from the two ends.
 _Avoid_: elbow, path, polyline
 
