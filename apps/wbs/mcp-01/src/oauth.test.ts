@@ -1097,6 +1097,12 @@ describe('InMemoryMcpOAuth', () => {
       .toString('base64');
     expect(() =>
       mcpOAuthFromEnv(CONFIG, {
+        MCP_SIGNING_KEY_CURRENT: signing,
+        MCP_STORE_PATH: '/tmp/mcp-missing-store-key.sqlite',
+      }),
+    ).toThrow(/MCP_STORE_KEY_CURRENT/);
+    expect(() =>
+      mcpOAuthFromEnv(CONFIG, {
         MCP_ACCESS_TOKEN_TTL: '3600',
         MCP_SIGNING_KEY_CURRENT: signing,
         MCP_STORE_KEY_CURRENT: Buffer.alloc(32, 1).toString('base64'),

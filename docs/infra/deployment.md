@@ -71,6 +71,12 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   `podReplacementPolicy: Failed`, and a crashed run reuses the Job it already created. After
   a migration, the coordinator checks the applied set against the captured plan, not against
   Job completion.
+- **MCP sessions.** `wbs-mcp` is one `Recreate` replica with its own retained PVC at
+  `/var/lib/wbs-mcp`; its current store and signing keys come from `wbs/wbs-mcp-secrets`.
+  Previous keys are optional rotation slots. The production overlay declares that Secret
+  in `externally-provided.json`: the operator must provision it through the production SOPS
+  secret source before rollout. The declaration contains no key material and does not create
+  the Secret. The local k3d lab creates throwaway keys once per cluster at runtime.
 - **Lease.** The holder is `<transaction>#<process>`. The Lease is renewed before every step
   and on a heartbeat, and lapses after 20 s (local) or 120 s (staging/prod) without renewal.
   A second coordinator is refused while the holder is live. A restarted coordinator waits

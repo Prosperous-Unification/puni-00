@@ -46,3 +46,8 @@ patches:
       - op: replace
         path: /spec/storageClassName
         value: puni-local
+  - target: { kind: PersistentVolumeClaim, name: wbs-mcp }
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: puni-local
