@@ -1016,10 +1016,10 @@ test.describe('the chart, after the browser has scaled it', () => {
     // starts where the unknown predecessor stands, and the placeholders still
     // reach past that start: drawn, but not waited for.
     //
-    // The injected fault for this claim — `durationOf` answering
-    // `ASSUMED_SLICE_WORKDAYS` for null days — was watched red in the Bun and
-    // jsdom suites (the change's verify.md), not in a browser: this case was
-    // rewritten from the one that asserted the opposite delay.
+    // Proof: `durationOf` answering 2 for null days in
+    // `libs/wbs/domain/domain/src/schedule.ts` failed this on `the successor
+    // waits for a placeholder nobody estimated: Expected: < 1 / Received: 112`;
+    // watched in local Chromium 2026-09-27.
     const standsAt = Math.min(...drawn.predecessor.map((bar) => bar.left));
     const drawnUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
     expect(
@@ -1337,24 +1337,19 @@ test.describe('the chart under a plan being edited', () => {
     // PERT. The dependent `010.2` follows — its own not-before still names day
     // 4, and the dependency out-floors it.
     //
-    // **It follows to day 12, not day 10, and the two workdays between are the
-    // whole of what `dep-reach-whole-item` and `assumed-duration-schedules`
-    // compose to.** Under the anchor rule `010.2` waited for `010.1`'s first
-    // *estimated* slice — its `Dev`, finishing at 10. Under `whole-item`, now
-    // the default, it waits for the whole work item, and `010.1`'s last slice
-    // is a `QA` nobody estimated, which since `assumed-duration-schedules`
-    // takes two workdays rather than none. So `010.1` is 0→10 then 10→12, and
-    // `010.2` is 12→16. Measured on the merged tree rather than re-derived:
-    // every bar's `data-start`/`data-finish` read out of the page, 2026-08-30.
+    // It follows to day 10, the end of the whole of `010.1` under the
+    // `whole-item` default: `010.1`'s last slice is a `QA` nobody estimated,
+    // which takes no schedule time (WBS 010.4.4) and stands at 10→10 while
+    // its placeholder is drawn two workdays wide. So `010.2` is 10→14.
     const estimate = page.getByLabel('Dev estimate for 010.1');
     await estimate.fill('8/10/12');
     const savedEstimate = savedCommand(page, 'setEstimate');
     await estimate.blur();
     await savedEstimate;
     await expect(firstBar).toHaveAttribute('data-finish', '10');
-    // `010.1`'s own assumed `QA`, which is the slice the dependency now reaches.
-    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="12"]')).toBeVisible();
-    await expect(page.locator('[data-gantt-bar][data-start="12"][data-finish="16"]')).toBeVisible();
+    // `010.1`'s own unestimated `QA`, which is the slice the dependency reaches.
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="10"]')).toBeVisible();
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="14"]')).toBeVisible();
 
     // A not-before edit past everything else moves the row's bar to the day it
     // names: 2026-09-07 is workday 20 of a plan starting Monday 2026-08-10.
