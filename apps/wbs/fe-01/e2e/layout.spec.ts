@@ -2244,9 +2244,12 @@ test.describe('the table, measured by a browser', () => {
     await page.keyboard.press('ArrowDown');
 
     await expect(page.getByRole('menu')).toBeVisible();
-    // Status first, Duplicate, Delete last — the order `status-from-the-menu`
-    // settled; the walk wraps at either end.
+    // Status first, Add child, Duplicate, Delete last — the order
+    // `status-from-the-menu` settled with `add-child-and-quiet-expansion`'s
+    // item after the status; the walk wraps at either end.
     expect(await focusedText()).toBe('Set status to Done');
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedText()).toBe('Add child');
     await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Duplicate');
     await page.keyboard.press('ArrowDown');
@@ -2292,7 +2295,8 @@ test.describe('the table, measured by a browser', () => {
     // copy's Name, which the table asks for once be-01 has taken the copy.
     await actions.focus();
     await page.keyboard.press('Enter');
-    // Down past the status entry to Duplicate, then take it.
+    // Down past the status entry and Add child to Duplicate, then take it.
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Name of 020')).toHaveValue(
