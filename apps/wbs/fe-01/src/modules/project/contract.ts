@@ -1,5 +1,13 @@
+import type { PlanDocumentRequest } from '@wbs/contracts';
+
 import type { RefreshResource } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
+import type {
+  CreatedProject,
+  PlanImportSummary,
+  ProjectApi,
+  ProjectListEntry,
+} from '@/lib/wbs-api';
 import type {
   CalendarMarkerRefusal,
   CalendarMarkers,
@@ -125,4 +133,41 @@ export interface ProjectRuntime {
   readonly markers: CalendarMarkers;
   readonly writer: PlanWriter;
   readonly commands: PlanCommands;
+}
+
+/**
+ * The project catalog's private repository port: the five catalog routes of the
+ * session's one project client, and no plan route.
+ */
+export type ProjectCatalogRoutes = Pick<
+  ProjectApi,
+  'listProjects' | 'createProject' | 'openProject' | 'renameProject' | 'importPlan'
+>;
+
+/**
+ * The projects the signed-in account can see, as the project page names them —
+ * a feature-service (rule K2), published by the session runtime.
+ *
+ * Declared here rather than as a slice of `ProjectApi`, so that a page holding
+ * it holds no member of the broad client. Every member asks the session first:
+ * once the session has been withdrawn it sends nothing and rejects with
+ * {@link CatalogWithdrawnError}, which the page draws like any other failure.
+ */
+export interface ProjectCatalog {
+  /** Every project, in this account's own order, as be-01 sorts it. */
+  readonly list: () => Promise<ProjectListEntry[]>;
+  readonly create: (name: string) => Promise<CreatedProject>;
+  /** Records this account as having opened the project, which is what sorts the list. */
+  readonly markOpened: (projectId: string) => Promise<void>;
+  readonly rename: (projectId: string, name: string) => Promise<void>;
+  /** Restores one archival document as a new project. */
+  readonly importPlan: (document: PlanDocumentRequest) => Promise<PlanImportSummary>;
+}
+
+/** A catalog request asked of a session that has already been withdrawn. */
+export class CatalogWithdrawnError extends Error {
+  constructor() {
+    super('session_withdrawn');
+    this.name = 'CatalogWithdrawnError';
+  }
 }
