@@ -16,6 +16,7 @@ import {
   applicationServicesStateFor,
   useApplicationServicesReader,
   useApplicationServicesState,
+  useRetirementJoin,
 } from './application-services-context';
 import { createLifetimeSlot, type LifetimeSlot, TransitionSupersededError } from './lifetime-slot';
 
@@ -512,4 +513,52 @@ describe('the context, under generated interleavings', () => {
     },
     60_000,
   );
+});
+
+describe('useRetirementJoin', () => {
+  function wrapperFor(slot: LifetimeSlot<ApplicationServices>) {
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <ApplicationServicesProvider slot={slot}>{children}</ApplicationServicesProvider>;
+    }
+    return Wrapper;
+  }
+
+  itDom('hands a retirement to the live application, whose retirement waits for it', async () => {
+    const slot = liveSlot();
+    await Promise.resolve();
+    const { result: hook } = renderHook(useRetirementJoin, { wrapper: wrapperFor(slot) });
+    const seen: string[] = [];
+    let giveBack: () => void = () => undefined;
+
+    hook.current(
+      new Promise<void>((resolve) => {
+        giveBack = () => {
+          seen.push('given back');
+          resolve();
+        };
+      }),
+    );
+    const retiring = slot.retire().then(() => seen.push('application retired'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    giveBack();
+    await act(async () => {
+      await retiring;
+    });
+
+    expect(seen).toEqual(['given back', 'application retired']);
+  });
+
+  itDom('refuses a retirement once the application is no longer live', async () => {
+    const slot = liveSlot();
+    await Promise.resolve();
+    const { result: hook } = renderHook(useRetirementJoin, { wrapper: wrapperFor(slot) });
+    const join = hook.current;
+    await act(async () => {
+      await slot.retire();
+    });
+
+    expect(() => {
+      join(Promise.resolve());
+    }).toThrow('a retirement was handed to an application that is empty');
+  });
 });

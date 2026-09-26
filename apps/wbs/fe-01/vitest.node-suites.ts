@@ -89,6 +89,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/runtime/lifetime-slot.test.ts',
   'src/runtime/project-runtime.model.test.ts',
   'src/runtime/project-runtime.test.ts',
+  'src/runtime/retirement-join.test.ts',
   'src/runtime/session-exit.model.test.ts',
   'src/runtime/session-runtime.model.test.ts',
   'src/runtime/session-runtime.test.ts',

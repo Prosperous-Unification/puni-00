@@ -108,11 +108,12 @@ function isPersistedPageShow(event: Event): event is Event & { readonly persiste
  * to observe; DI Bag's own disposers never run, and nothing here can make that
  * promise for a process that no longer exists. A `pagehide` the browser does not
  * follow with a same-tab `pageshow` is retirement with no later rejoin, which is
- * exactly ordinary navigation or a closed tab and needs none. **What restoration
- * does not itself prove**: this packet's own root-invalidation fix makes `App`'s
- * mount effects rerun, which is what re-fetches the signed-in identity — but the
- * session, catalog and project runtimes those effects reach into are later
- * packets' own scope, not proved complete here.
+ * exactly ordinary navigation or a closed tab and needs none. The root is taken
+ * down before the retirement starts, so the signed-in region's cleanup hands the
+ * session it starts giving back to the still-live application
+ * (`ApplicationServices.retirements`), and the application's retirement — which
+ * a restoration's rebuild queues behind — waits for that session and fails,
+ * drawn as the fatal page, when it failed or outran the budget.
  *
  * @throws when the slot refuses without becoming fatal, which its own contract
  * makes impossible: an unreachable union reaches nobody silently.
@@ -317,6 +318,11 @@ export async function bootstrapApplication(
     // Proof: on 2026-09-23, dropping this call left the mounted tree in place
     // across a persisted restore, so `App`'s own mount effect (an
     // empty-dependency `useEffect`) never reran on rebuild.
+    // Before the retirement, and that order is load-bearing: the tree's cleanups
+    // run while the application is still live, so the signed-in region hands it
+    // the session it starts giving back, and the retirement below waits for it.
+    // Proof: on 2026-09-27, retiring first (b1) failed `takes the root down while the
+    // application is live, and retires it after` on `expected 'empty' to be 'retiring'`.
     invalidateRoot();
     startRetirement();
   };
