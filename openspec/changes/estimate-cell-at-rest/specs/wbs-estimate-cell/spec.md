@@ -2,11 +2,11 @@
 
 ### Requirement: The result is the folded step cell's main reading
 
-Whenever a folded step has an estimate, the cell SHALL draw the result at the row's own type and foreground, with tabular numerals and no leading separator.
+Whenever a folded step has an estimate whose result differs from its trio, the cell SHALL draw the result at the row's own type and foreground, with tabular numerals and no leading separator. An equal trio follows the single-reading requirement below.
 
 #### Scenario: An estimated folded step is read at a glance
 
-- **WHEN** a step with an estimate is folded
+- **WHEN** a step with an estimate whose result differs from its trio is folded
 - **THEN** its result is drawn at the row's own type and foreground
 - **THEN** its result uses tabular numerals and has no leading separator
 
@@ -28,19 +28,19 @@ The typed trio SHALL be smaller and muted at rest and SHALL return to the row's 
 
 ### Requirement: A flat trio is not said twice
 
-When a trio's text equals its result, the trio's text SHALL be hidden at rest, the result SHALL still be drawn, and the trio value SHALL remain in its box. This rule SHALL apply to a parent's rolled-up trio as well as a leaf's box.
+When a trio's text equals its result, the trio SHALL remain visibly readable at rest and the duplicate result SHALL be suppressed. This rule SHALL apply to a parent's rolled-up trio as well as a leaf's box.
 
 #### Scenario: A leaf has a flat trio
 
 - **WHEN** a folded leaf's trio text equals its result and the cell is at rest
-- **THEN** the result is drawn and the repeated trio text is hidden
-- **THEN** the trio value remains in the input box
+- **THEN** the trio value remains visibly readable in the input box
+- **THEN** no duplicate result span is drawn
 
 #### Scenario: A parent has a flat rolled-up trio
 
 - **WHEN** a folded parent's rolled-up trio text equals its result
-- **THEN** the result is drawn and the repeated rolled-up trio text is hidden
-- **THEN** the rolled-up trio value remains in its trio span
+- **THEN** the rolled-up trio value remains visibly readable in its trio span
+- **THEN** no duplicate result span is drawn
 
 ### Requirement: A parent's rolled-up cell reads like its leaves
 

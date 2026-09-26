@@ -1,3 +1,5 @@
+> Historical evidence for the earlier transparent equal-trio behavior appears below. That behavior is superseded by `keep-single-estimate-visible`; its pending visible-input and no-duplicate proofs are the acceptance oracle.
+
 ## Commands
 
 ### Slice 0 — baseline
