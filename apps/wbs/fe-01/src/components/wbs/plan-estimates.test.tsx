@@ -1431,9 +1431,16 @@ describe('one cell for the whole trio', () => {
   itDom('leaves an unestimated folded cell empty', async () => {
     await oneRow();
 
-    // Proof: dropping `final !== ''` from `showsResult` made this fail on
-    // `expected <span …(2)></span> to be null`. Watched 2026-09-20.
     expect(combinedCell('010').value).toBe('');
+    expect(foldedFinal('010')).toBeNull();
+
+    // A refused entry is the case where the box says something and the row
+    // still has no figure, so only `final !== ''` keeps an empty span off it:
+    // the empty box above already equals the empty figure.
+    // Proof: dropping `final !== ''` from `showsResult` made this fail on
+    // `expected <span …(2)></span> to be null`. Watched 2026-09-27.
+    const cell = typeCombined('010', '9/9/');
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
     expect(foldedFinal('010')).toBeNull();
   });
 

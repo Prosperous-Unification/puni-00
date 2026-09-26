@@ -43,3 +43,7 @@ Astra (gpt-6-astra, high) found that a saved flat `5` lost its result once the b
 The initial `bunx nx run wbs-fe-01:test --args=...` sent the file argument only to the zoned half of the two-command target, so it was interrupted and a direct focused Vitest run was used for the red/green cycle. A later full Nx invocation first reported a recursive invocation before running tests; `bunx nx reset` cleared its interrupted invocation state, and the full target then passed.
 
 The h2puni gate does not apply on this host (`hostname` returned `pop-os`). No full repository gate was run here.
+
+## Review round 2 — 2026-09-27
+
+Astra found the `final !== ''` proof no longer breakable: an empty box equals an empty figure, so `final !== shown` alone kept the span off. `leaves an unestimated folded cell empty` now also types a refused `9/9/` into the unestimated cell and asserts no final span. With `final !== ''` removed, that test alone failed on `expected <span …(2)></span> to be null` (1 failed, 74 passed); restored, 75 passed.
