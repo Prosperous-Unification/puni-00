@@ -26,7 +26,7 @@ import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
 import { type FamilyRecord, McpRefreshFamilyCorrupt, McpSessionStore } from './session-store';
-import { EdgeGate } from './wbs-client';
+import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
@@ -44,7 +44,10 @@ const MAX_REDIRECT_URIS = 10;
 const MAX_REDIRECT_URI_BYTES = 512;
 const MAX_REAUTH_MARKERS = 1_000;
 
-class UpstreamRefreshRefused extends Error {}
+// Proof: on 2026-09-27, extending Error instead failed `refuses a tool-call refresh of an ended or
+// unrefreshable session as a session outcome` on its first toBeInstanceOf.
+/** The provider cannot or will not refresh this family, which is already revoked. */
+class UpstreamRefreshRefused extends SessionRefreshRefused {}
 
 type CallbackError =
   | 'access_denied'
@@ -265,9 +268,20 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     return (await this.callerSessionFor(token)).upstreamToken;
   }
 
+  /**
+   * Refreshes the provider token of a tool call's session after be-01 rejected it.
+   *
+   * @throws {SessionRefreshRefused} when the session is missing, expired or revoked, or the
+   *   provider refuses (the family is then revoked): the caller ends the session.
+   * @throws {EdgeGate} when the provider refresh could not be completed; the session is kept.
+   * Anything else, such as the session store throwing, propagates unchanged as unexpected.
+   */
   async refreshSession(mcpSessionId: string): Promise<string> {
     const family = this.store.familyForSession(mcpSessionId, this.now());
-    if (family === null) throw new Error('MCP OAuth session is missing, expired, or revoked');
+    // Proof: on 2026-09-27, throwing a plain Error here failed `refuses a tool-call refresh of an
+    // ended or unrefreshable session as a session outcome` on its second toBeInstanceOf.
+    if (family === null)
+      throw new SessionRefreshRefused('MCP OAuth session is missing, expired, or revoked');
     try {
       return (await this.refreshUpstreamIfNeeded(family, true)).upstreamAccessToken;
     } catch (cause) {

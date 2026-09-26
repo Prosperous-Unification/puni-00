@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
+import { createHash, generateKeyPairSync, type KeyObject, randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, rmdirSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,7 @@ import type { McpConfig } from './config';
 import { mcpHttpResponse } from './http';
 import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import { McpSessionStore } from './session-store';
+import { SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -1241,6 +1242,45 @@ describe('InMemoryMcpOAuth', () => {
     expect((await request())?.status).toBe(503);
     expect((await request())?.status).toBe(200);
     expect(refreshCalls).toBe(2);
+  });
+
+  it('refuses a tool-call refresh of an ended or unrefreshable session as a session outcome', async () => {
+    const { oauth } = fixture();
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+
+    // The login's token set has no provider refresh token, so the provider cannot be asked.
+    const unrefreshable = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((caught: unknown) => caught);
+    expect(unrefreshable).toBeInstanceOf(SessionRefreshRefused);
+    const ended = await oauth.refreshSession(mcpSessionId).catch((caught: unknown) => caught);
+    expect(ended).toBeInstanceOf(SessionRefreshRefused);
+  });
+
+  it('rejects a tool-call refresh with the store failure itself, not a session outcome', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const failure = new Error('SQLITE_IOERR while reading the family');
+    const { oauth } = fixture({ store });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+    store.familyForSession = () => {
+      throw failure;
+    };
+
+    const caught = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((rejection: unknown) => rejection);
+
+    expect(caught).toBe(failure);
   });
 
   // Break caught: replacing the original standalone JWKS verifier with only
