@@ -119,7 +119,7 @@ solver runtime has been transferred to another node.
 A release descriptor is the immutable unit staging proves and production promotes. It holds the
 source SHA, one digest-pinned image per tier, the `ci` run whose `gate` and `pixels` jobs passed
 on that SHA, and the P5 package and activation identities. The staging candidate is Dagger's
-`dist/tool-dagger/release.json` (`be`, `gw`, `fe`) plus an `mcp` entry of the same shape; every
+`dist/tool-dagger/release.json` (`be`, `gw`, `fe`, `mcp`); every
 entry's `sha` must equal the source. Dagger labels each image `WBS_SHA`, and `descriptor-cli`
 (staging seal, prod re-check) and `deploy:k3s` read that label by digest from the registry and
 require the source commit, so the digests themselves, not a claim about them, are bound to the
