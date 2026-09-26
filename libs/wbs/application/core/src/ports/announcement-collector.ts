@@ -1,9 +1,4 @@
-import type { Broadcaster, ProjectEvent } from '../ports/project-event';
-
-// Compatibility exports: the event contracts moved to the neutral port and keep
-// their `@wbs/core/service/broadcast` names while importers name the port.
-export type { Broadcaster, ProjectEvent } from '../ports/project-event';
-export { subscriptionFor } from '../ports/project-event';
+import type { Broadcaster, ProjectEvent } from './project-event';
 
 /** One announcement waiting for its batch to commit and let go of the lock. */
 export interface HeldAnnouncement {

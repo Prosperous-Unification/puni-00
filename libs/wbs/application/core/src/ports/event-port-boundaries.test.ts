@@ -8,8 +8,6 @@ const coreRoot = fileURLToPath(new URL('../..', import.meta.url));
 const coreSource = `${coreRoot}src/`;
 const configPath = `${coreRoot}tsconfig.lib.json`;
 const portHome = 'ports/project-event.ts';
-const collectorHome = 'service/broadcast.ts';
-const barrelHome = 'index.ts';
 
 function underSrc(fileName: string): string {
   return fileName.startsWith(coreSource) ? fileName.slice(coreSource.length) : fileName;
@@ -220,14 +218,16 @@ function contractUses(paths: readonly string[]): ContractUse {
           const chain = aliasChain(checker, moduleSymbol);
           const end = chain[chain.length - 1] ?? moduleSymbol;
           const from = declarationFiles(end)[0];
-          // The compatibility barrel is the one permitted wildcard: `index.ts` re-exports the
-          // collector's file, which re-exports the contracts, and that is what keeps every
-          // `@wbs/core` name working while the collector lives there.
-          // Proof: deleting this `permitted` clause made the rule report
+          // No wildcard is permitted: the announcement collector lives beside the port in
+          // `ports/announcement-collector.ts` and re-exports none of its contracts, so the barrel
+          // reaches them only from the port itself.
+          // Proof: with the collector still in `service/broadcast.ts`, whose compatibility re-exports
+          // the barrel's `export *` passed on, this rule reported
           // `index.ts: './service/broadcast' hands out the contracts from service/broadcast.ts`,
-          // 0 pass and 1 fail (2026-09-22).
-          const permitted = path === barrelHome && from === collectorHome;
-          if (!permitted && from !== portHome && handsOutContract(end, new Set())) {
+          // 0 pass and 1 fail (2026-09-27). Restoring those re-exports in the collector's new home
+          // reported `index.ts: './ports/announcement-collector' hands out the contracts from
+          // ports/announcement-collector.ts`, 0 pass and 1 fail (2026-09-27).
+          if (from !== portHome && handsOutContract(end, new Set())) {
             reached.push(`${path}: ${exposed.getText()} hands out the contracts from ${from}`);
           }
         }

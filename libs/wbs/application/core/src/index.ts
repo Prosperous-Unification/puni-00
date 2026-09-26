@@ -95,7 +95,7 @@ export * from './service/assumed-assignee';
 export * from './service/auth.service';
 // Compatibility export: the event contracts keep their barrel names from the
 // neutral port, and `AnnouncementCollector` still lives here.
-export * from './service/broadcast';
+export * from './ports/announcement-collector';
 export * from './service/calendar-marker.service';
 export * from './service/capacity.service';
 export * from './service/clean-name';

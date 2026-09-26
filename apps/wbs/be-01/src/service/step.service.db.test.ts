@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Broadcaster } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -34,7 +35,6 @@ import { testClock } from '../testing/clock-fixture';
 import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import type { Broadcaster } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { fastScheduler } from './optimizer-wiring';
 import { ProjectService } from './project.service';
