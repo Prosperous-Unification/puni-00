@@ -434,6 +434,25 @@ describe('one project’s saved plans', () => {
     expect(held.sent).toEqual([]);
   });
 
+  it('reads nothing when refreshed once its runtime is withdrawn', async () => {
+    const held = heldRoutes();
+    let current = true;
+    const { savedPlans } = openSavedPlans({
+      projectId: 'p1',
+      routes: held.routes,
+      isCurrent: () => current,
+    });
+    await settled();
+    await listReply([ROW]).then(held.reads[0]);
+    await settled();
+
+    current = false;
+    savedPlans.refresh();
+    await settled();
+
+    expect(held.sent).toEqual(['list:p1']);
+  });
+
   it('asks each request of its own project while current', async () => {
     const held = heldRoutes();
     const { savedPlans } = openSavedPlans({

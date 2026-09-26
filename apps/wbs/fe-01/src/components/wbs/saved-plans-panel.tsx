@@ -368,6 +368,11 @@ export function SavedPlansPanel({
           </p>
         )}
       </div>
+      {/*
+        Proof: on 2026-09-27, handing the list the retained rows in place of a failed read (s5)
+        failed `keeps an open comparison when a background shelf read fails` with `Unable to find an
+        accessible element with the role "alert"`.
+      */}
       <SavedPlanList state={shelfState} onRename={rename} />
       {/*
         `status` and not `alert`, for the same reason the save line is: a refused

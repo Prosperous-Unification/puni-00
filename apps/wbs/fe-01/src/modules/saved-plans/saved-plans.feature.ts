@@ -180,9 +180,9 @@ export function watchShelf(
  * `isCurrent` is asked synchronously when anything happens. After the runtime
  * is withdrawn the shelf does not change again — a read the old project still
  * had in flight lands nowhere — and every request rejects with
- * {@link SavedPlansWithdrawnError} and sends nothing. A broadcast that arrives
- * between the withdrawal and the close may still read once; its answer is
- * dropped by the same guard.
+ * {@link SavedPlansWithdrawnError} and sends nothing, and a refresh reads
+ * nothing. A broadcast that arrives between the withdrawal and the close may
+ * still read once; its answer is dropped by the same guard.
  */
 export function openSavedPlans({
   projectId,
@@ -206,7 +206,12 @@ export function openSavedPlans({
     isCurrent() ? send() : Promise.reject(new SavedPlansWithdrawnError());
   const savedPlans: SavedPlans = {
     shelf: { subscribe: (onChange) => changes.subscribe(onChange), snapshot: () => current },
-    refresh: watch.refresh,
+    refresh: () => {
+      // Proof: on 2026-09-27, refreshing regardless here (s4) failed `reads nothing when refreshed
+      // once its runtime is withdrawn` on `expected [ 'list:p1', 'list:p1' ] to deeply equal
+      // [ 'list:p1' ]`.
+      if (isCurrent()) watch.refresh();
+    },
     save: () => whileCurrent(() => routes.save(projectId)),
     rename: (savedPlanId, name) => whileCurrent(() => routes.rename(savedPlanId, name)),
     compare: (left, right) => whileCurrent(() => routes.compare(projectId, left, right)),

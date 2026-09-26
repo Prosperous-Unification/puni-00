@@ -264,9 +264,11 @@ describe('the saved-plans panel', () => {
     wiring.broadcast();
     await flush();
 
-    // The failure IS reported — `SavedPlanList` renders `shelf.state` itself.
-    // What survives is the comparison beside it, and both picker selections.
+    // The failure IS reported — `SavedPlanList` renders the runtime's shelf
+    // itself. What survives is the comparison beside it, and both picker
+    // selections.
     expect(list).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('alert').textContent).toBe('Saved plans could not be read (boom).');
     expect(screen.getByText('No differences.')).toBeTruthy();
     const leftPicker: HTMLSelectElement = screen.getByLabelText(/Compare/);
     const rightPicker: HTMLSelectElement = screen.getByLabelText(/^with/);

@@ -35,14 +35,15 @@ browser is the project composition root's (`modules/project/composition.ts`,
 
 ## Relationships
 
-There is no `module.ts`: nothing in this application is composed through DI Bag yet. The project
-runtime installs the saved plans in its own graph through `ProjectServices.savedPlansFor`, and
-delivery receives `SavedPlans` through `ProjectRuntime` and never the port.
+There is no `module.ts`: this module is not a sealed DI Bag module of its own. The project runtime's
+DI Bag graph installs it, through `ProjectServices.savedPlansFor`, beside the feed, and delivery
+receives `SavedPlans` through `ProjectRuntime` and never the port.
 
 ## Checks
 
-The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`; the module's suite is
-`saved-plans.feature.test.ts`. The shelf's life with its project is proved by
+The applicable target is `test` in `apps/wbs/fe-01/project.json`, which runs the module's suite,
+`saved-plans.feature.test.ts`, under jsdom: the tier rule reads its prose mentions of the OpenAPI
+document as DOM evidence, so it is not among `test:unit`'s node suites. The shelf's life with its project is proved by
 `runtime/project-runtime.test.ts` and `components/wbs/project-replacement.test.tsx`, which run in
 the `test` target of the same project.
 
