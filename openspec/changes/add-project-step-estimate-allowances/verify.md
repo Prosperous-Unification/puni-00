@@ -15,10 +15,12 @@ The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --js
 - **Pending:** Mounted step API and migration tests for default zero, two-decimal range, malformed values, overflow, additive apply and paired rollback.
 - **Pending:** Fast and optimized goldens for pre-rounding allowance, parent sum without second uplift, null versus explicit zero, width conversion, cache invalidation and independent publication.
 - **Pending:** Settings component, broadcast, one-command undo and stale undo after conflict or deletion.
-- **Pending:** New/legacy import, export, whole-project copy, child hand-down, subtree duplicate, frozen snapshot and MCP contract round trips.
+- **Pending:** New/legacy import, export, whole-project copy, child hand-down, subtree duplicate, frozen saved-plan and MCP contract round trips.
 - **Pending R5 proof:** Bypass nonzero-allowance rollback refusal in the production rollback path; a mounted rollback test must fail, then restore and record output.
 - **Pending R5 proof:** Remove percent validation; mounted invalid-input test must fail. Restore and add adjacent Proof: comment with observed failure.
 - **Pending R5 proof:** Round before uplift or apply allowance twice to a parent; arithmetic goldens must fail. Restore and record output.
 - **Pending R5 proof:** Accept stale undo or omit cache invalidation; the concurrent-edit or schedule test must fail. Restore and record output.
-- **Pending R5 proof:** Drop allowance from export or let a live edit change a saved snapshot; round-trip or snapshot test must fail. Restore and record output.
+- **Pending R5 proof:** Drop allowance from export or let a live edit change a saved plan; round-trip or saved-plan test must fail. Restore and record output.
 - **Pending:** Format, lint, typecheck, build, migration lint/rollback and host gate. No application behavior has been verified at spec time.
+
+- **Pending R5 proof:** Return pre-edit working-plan allowance to a later batch command; the mounted batch visibility test must fail. Restore and record observed output.

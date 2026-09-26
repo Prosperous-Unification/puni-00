@@ -12,9 +12,9 @@
 
 ## 2. Guard every graph-changing write
 
-- [ ] 2.1 Red: mounted legacy and typed writes, reparent, step reorder/delete and estimate-driven legacy-anchor change, each with an atomic cycle refusal.
+- [ ] 2.1 Red: mounted legacy and typed writes, reparent, step reorder/delete, project `depReach` update and estimate-driven legacy-anchor change, each with an atomic cycle refusal.
 - [ ] 2.2 Call the shared graph check on each resulting state before persistence.
-- [ ] 2.3 Negative proof: bypass the legacy-write or estimate-edit guard; watch its mounted refusal fail, restore, add adjacent `Proof:`.
+- [ ] 2.3 Negative proof: bypass the legacy-write, project-update or estimate-edit graph guard separately; watch each mounted refusal fail, restore, add adjacent `Proof:` comments.
 
 ## 3. Persist typed links and guard migration rollback
 

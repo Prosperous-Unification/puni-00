@@ -44,7 +44,7 @@ Legacy dependencies SHALL continue to use the project's dynamic `depReach`, incl
 
 ### Requirement: Authored dependencies form an acyclic step-node graph
 
-The system SHALL validate the resolved step-node graph, including workflow and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-node pairs and any selector expansion producing one, without silently omitting pairs. A valid step-node DAG SHALL NOT be refused merely because work-item IDs appear cyclic. Deleting a step referenced by a node or descendant-step endpoint SHALL be refused until its typed dependencies are removed or reassigned. When a leaf with node endpoints gains its first child, those endpoints SHALL move with the hand-down's step node mapping in the same transaction. Deleting a work item SHALL remove, in the same undoable entry, the typed relationships whose node or descendant-step endpoints lie in the deleted subtree; hand-up of facts SHALL carry no endpoints. A move or deletion that would leave a descendant-step endpoint naming a leaf SHALL be refused naming the affected dependencies. No structural edit SHALL broaden or narrow an endpoint's scope.
+The system SHALL validate the resolved step-node graph, including workflow and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; project `depReach` changes; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-node pairs and any selector expansion producing one, without silently omitting pairs. A valid step-node DAG SHALL NOT be refused merely because work-item IDs appear cyclic. Deleting a step referenced by a node or descendant-step endpoint SHALL be refused until its typed dependencies are removed or reassigned. When a leaf with node endpoints gains its first child, those endpoints SHALL move with the hand-down's step node mapping in the same transaction. Deleting a work item SHALL remove, in the same undoable entry, the typed relationships whose node or descendant-step endpoints lie in the deleted subtree; hand-up of facts SHALL carry no endpoints. A move or deletion that would leave a descendant-step endpoint naming a leaf SHALL be refused naming the affected dependencies. No structural edit SHALL broaden or narrow an endpoint's scope.
 
 #### Scenario: Apparent work-item cycle is a valid step-node DAG
 
@@ -63,6 +63,12 @@ The system SHALL validate the resolved step-node graph, including workflow and l
 - **GIVEN** typed `A.qa` → `B.qa` and legacy B → A with `anchor-slice` reach currently anchored at B.Dev
 - **WHEN** B.Dev's estimate is cleared so B.QA becomes the legacy anchor
 - **THEN** the combined-graph cycle is refused atomically and the estimate and anchor stay unchanged
+
+#### Scenario: Changing dependency reach closes a cycle
+
+- **GIVEN** typed `A.qa` → `B.qa` and legacy B → A with `anchor-slice` reach anchored at B.Dev
+- **WHEN** a mounted project update changes `depReach` to `whole-item`
+- **THEN** the resulting combined-graph cycle is refused atomically and `depReach` and links stay unchanged
 
 #### Scenario: A legacy write bypasses a typed edge
 

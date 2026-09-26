@@ -14,13 +14,25 @@ An omitted OAuth scope SHALL remain `wbs:read`. A client that imports or changes
 
 - **GIVEN** an ordinary user with granted read/write scopes and an owned disposable project
 - **WHEN** the access token expires and a valid refresh grant succeeds
-- **THEN** a reversible write succeeds as that user and a write to a restricted foreign-owned project is refused
+- **THEN** a reversible write succeeds as that user and a write to a restricted project created by another member of the grant-bound organization is refused
 
-#### Scenario: An unrestricted project remains collaborative
+#### Scenario: Same-organization collaboration
 
-- **GIVEN** an authenticated user with granted read/write scopes and a foreign-owned unrestricted project
+- **GIVEN** a current member or admin with granted read/write scopes and another creator's unrestricted project in the grant-bound organization
 - **WHEN** the user invokes a permitted write tool
 - **THEN** the write succeeds under the project authorization rule
+
+#### Scenario: Role, tenant and stewardship refusals
+
+- **GIVEN** a viewer, a member of another organization and a member facing a restricted project created by someone else, each with granted read/write scopes
+- **WHEN** each invokes a write tool
+- **THEN** the viewer and restricted-project caller receive 403, and the cross-organization caller receives 404
+
+#### Scenario: Super-admin recovery
+
+- **GIVEN** a current super-admin with granted read/write scopes and a restricted project in the grant-bound organization
+- **WHEN** they invoke a permitted write tool through the audited recovery override
+- **THEN** the write succeeds and the original creator remains recorded
 
 #### Scenario: Revocation ends access
 

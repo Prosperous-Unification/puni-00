@@ -24,7 +24,8 @@ Parents sum adjusted leaves without a second allowance. An additive migration mu
 - wbs-estimate-cell: base and charged figures remain distinguishable.
 - plan-command-registry: undoable step-policy update.
 - plan-import: versioned import/export of step allowance.
-- live-plan-snapshot: frozen step policy.
+- live-plan-snapshot: later commands in a batch observe an admitted step-policy edit; a refused edit leaves no trace.
+- saved-plans: saved plans freeze each step's allowance and charged readings as history.
 - scheduler-optimization: adjusted effort parity for the same input and validation of a given placement; different valid placements may have different dates.
 
 ## Domain Terms

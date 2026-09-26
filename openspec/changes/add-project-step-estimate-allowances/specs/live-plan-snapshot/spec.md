@@ -1,11 +1,17 @@
 ## ADDED Requirements
 
-### Requirement: A saved plan freezes project-step policy
+### Requirement: Working-plan commands observe project-step allowance edits
 
-A saved plan or snapshot SHALL include the allowance of each captured project step and its charged estimate readings. Later edits to the live project-step policy SHALL not change the saved plan's figures. Snapshot and archive format versions SHALL distinguish records with allowances from legacy records converted to zero.
+An admitted project-step allowance edit SHALL update the working-plan state read by later commands in the same batch. A refused edit SHALL leave that state and the persisted policy unchanged. The working-plan read SHALL expose the current allowance and charged estimate readings after a committed edit.
 
-#### Scenario: A later setting edit does not rewrite history
+#### Scenario: A later command reads the edited allowance
 
-- **GIVEN** a snapshot saved when QA allowance was 30%
-- **WHEN** the live project's QA allowance becomes 50%
-- **THEN** the saved plan still reads 30% and its original charged estimates
+- **GIVEN** a batch changes QA allowance from 30% to 50% and then reads or uses QA charged effort
+- **WHEN** the second command executes
+- **THEN** it observes the 50% policy and corresponding charged effort
+
+#### Scenario: A refused edit does not leak into later state
+
+- **GIVEN** a batch attempts an invalid allowance edit
+- **WHEN** the edit is refused
+- **THEN** neither persisted policy nor retained working-plan state exposes that edit

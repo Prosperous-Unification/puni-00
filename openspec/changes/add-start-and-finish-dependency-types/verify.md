@@ -8,7 +8,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 
 - **Pending:** Stage A migration pair present and its typed table accepts SS/FF with endpoint/type uniqueness; verify no further schema migration is needed, or ship an additive migration.sql beside down.sql.
 - **Pending:** Mounted command/MCP, undo/redo, import/export and frozen snapshot round trips for SS/FF; unsupported type and stale history refusals.
-- **Pending:** Shared expanded graph, parent SS/FF Cartesian pairs, valid negative FF weight, zero-duration unknown endpoints, floors/deadlines and resource occupancy in Fast and CP-SAT.
+- **Pending:** Project `depReach` update atomicity with typed SS/FF and legacy links; shared expanded graph, parent SS/FF Cartesian pairs, valid negative FF weight, zero-duration unknown endpoints, floors/deadlines and resource occupancy in Fast and CP-SAT.
 - **Pending:** Q=48 FF counterexample, independently recomputed W_FF, quantized baseline feasibility, real materialization validation and cache/contract version retirement.
 - **Pending:** Fast replay, latest dates, float and critical path with a longer FF successor starting earlier, plus truthful Fast deadline-miss and solver-timeout states.
 - **Pending:** Picker/browser and Gantt geometry for type labels, SS/FF anchor sides, unknown ticks, collapsed proxies and keyboard/mobile access.

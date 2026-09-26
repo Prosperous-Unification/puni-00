@@ -10,7 +10,7 @@ The public `/mcp` URL is configured, but production ingress does not route OAuth
 
 ## Non-Goals
 
-No personal access tokens, broad callback wildcard, default write grant, client-specific import guide or commitment to the current identity provider. The identity vendor may change to WorkOS with organizations; this contract stays IdP-agnostic.
+No personal access tokens, broad callback wildcard, default write grant, client-specific import guide or commitment to the current identity provider. Auth0 remains the identity provider, and WBS owns organizations; this OAuth contract stays independent of the identity provider.
 
 ## Constraints
 
