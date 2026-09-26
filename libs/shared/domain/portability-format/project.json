@@ -1,0 +1,28 @@
+{
+  "name": "shared-portability-format",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/domain/portability-format",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:format", "runtime:isomorphic", "ring:domain", "product:shared"],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": [],
+      "aliases": ["@shared/portability-format"]
+    }
+  },
+  "targets": {
+    "test": {
+      "command": "bun test libs/shared/domain/portability-format"
+    },
+    "lint": {
+      "command": "bunx eslint libs/shared/domain/portability-format && bunx prettier --check libs/shared/domain/portability-format"
+    },
+    "typecheck": {
+      "command": "bunx tsc -p libs/shared/domain/portability-format/tsconfig.json"
+    },
+    "build": {
+      "command": "bun build libs/shared/domain/portability-format/index.ts --target=bun --outdir=dist/libs/shared/domain/portability-format"
+    }
+  }
+}

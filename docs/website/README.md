@@ -5,7 +5,7 @@ The website introduces Prosperous Unification's software services and turns a vi
 ## Repositories
 
 - [puni-00](https://github.com/Prosperous-Unification/puni-00): public projects and the current management tooling.
-- [puni-pr-00](https://github.com/Prosperous-Unification/puni-pr-00): private companion, created and verified private on 2026-09-27. The shared baseline and portability checks are planned, not implemented.
+- [puni-pr-00](https://github.com/Prosperous-Unification/puni-pr-00): private companion, created and verified private on 2026-09-27. A first shared baseline projection and explicit project-transfer command are implemented; see [portability and verified limits](../workspace/portability.md). The complete governance and release setup remains in the implementation roadmap.
 - `puni-pr-00/apps/website/site`: destination for the licensed Astro/Novaform website. The existing empty `puni-site` repository is left unchanged.
 - `apps/website/fe-01`, `apps/website/be-01` and `libs/website/`: proposed app, API and library paths, kept identical across public and private workspaces.
 
