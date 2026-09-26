@@ -546,7 +546,7 @@ describe('rule policy boundary', () => {
     // Proof: the h2puni gate on fd0a777c timed this test out at 5025.16ms under Bun's 5-second
     // default (2026-09-20): it runs the production CLI five times in sequence, which fits locally
     // and not on a loaded build host.
-  }, 20_000);
+  }, 45_000);
 });
 
 describe('ratchet mode', () => {
@@ -775,7 +775,7 @@ describe('F7 the size ratchet', () => {
     });
     expect(stderrOf(repeatedPins)).toContain('unique pinned paths');
     expect(repeatedPins.exitCode).toBe(1);
-  }, 20_000);
+  }, 45_000);
 
   test('refuses F7 when the policy states no size ceilings', () => {
     const { repository, revision } = createSizedCandidate({ 'src/small.ts': 10 });
@@ -784,7 +784,7 @@ describe('F7 the size ratchet', () => {
       'rule F7 needs policy.sizeCeilings, which the rule policy omits',
     );
     expect(invocation.exitCode).toBe(1);
-  }, 15_000);
+  }, 30_000);
 });
 
 describe('kind resolution', () => {
@@ -1189,7 +1189,7 @@ describe('K2, K5, K6 and F1', () => {
       });
       expect(verdictOf(invocation).unevaluated).toEqual([]);
     }
-  }, 30_000);
+  }, 60_000);
 
   test('names a service that imports a scoped React package', () => {
     const policyPath = writeRulePolicy(everyRuleObserving, {
@@ -1431,7 +1431,7 @@ describe('check production CLI', () => {
     expect(badRule.exitCode).toBe(1);
     // Three sequential production CLI runs took 3394.94ms in the same h2puni gate run, too close
     // to Bun's 5-second default to leave to the host's load.
-  }, 15_000);
+  }, 30_000);
 });
 
 describe('explain with a rule policy', () => {

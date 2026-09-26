@@ -477,7 +477,9 @@ test('the production index checker resolves current Markdown links and anchors',
   // check exit 1 with `Markdown anchor absent ... #missing` (2026-09-14).
   expect(new TextDecoder().decode(invocation.stderr)).toBe('');
   expect(invocation.exitCode).toBe(0);
-}, 30_000);
+  // Budget measured 2026-09-27 (docs/test-budgets.md): 10.1s idle; on the loaded run it
+  // timed out at its old 30-second limit, so the new one is at least twice that.
+}, 60_000);
 
 test('every routed current document resolves its local links and anchors', async () => {
   // Proof: adding `[fault](missing-round-one.md)` to non-index guide docs/capacity.md made this

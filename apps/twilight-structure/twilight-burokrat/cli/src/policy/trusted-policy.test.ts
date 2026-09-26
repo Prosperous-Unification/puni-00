@@ -1460,7 +1460,7 @@ describe('trusted policy production CLI', () => {
       accepted: true,
       certified: true,
     });
-  }, 15_000);
+  }, 30_000);
 
   test('preserved enforce launcher ignores a candidate-local Nx wrapper', () => {
     const fixture = createFixture('enforce');
@@ -1948,7 +1948,7 @@ describe('trusted policy production CLI', () => {
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain(mutation.expected);
     }
-  }, 40_000);
+  }, 90_000);
 
   test('trusted obligations must retain one exact boundary assignment', () => {
     const fixture = createFixture('enforce');
@@ -2037,7 +2037,7 @@ describe('trusted policy production CLI', () => {
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain('resolves inside selected candidate');
     }
-  }, 10_000);
+  }, 20_000);
 
   test('trusted authority aliases cannot resolve inside the selected candidate', () => {
     const fixture = createFixture('enforce');

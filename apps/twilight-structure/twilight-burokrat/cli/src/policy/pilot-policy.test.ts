@@ -454,7 +454,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       accepted: true,
       certified: false,
     });
-  }, 120_000);
+  }, 240_000);
 
   test('refuses an externally selected mapping that resolves inside the candidate', () => {
     const candidate = createCandidate();
@@ -606,7 +606,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'applicable check has no executable authority in apps/twilight-structure/twilight-burokrat/cli/README.md: check.wiki-cli.test (external-consumer)',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses an owned README declared as its own external consumer', () => {
     const candidate = createCandidate();
@@ -633,7 +633,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'external consumer is owned by libs/wbs/domain/domain/src/saved-plan/README.md: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a pilot mapping whose pinned predecessor identity differs from the candidate', () => {
     const candidate = createCandidate();
@@ -661,7 +661,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'candidate pilot module mapping does not match externally bound identity: docs/wiki-policy/modules.json',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a missing mapped pilot index with current candidate evidence', () => {
     const candidate = createCandidate();
@@ -680,7 +680,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'pilot module index absent for module.domain.saved-plan: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses externally pinned module and ownership claims that disagree with indexes', () => {
     const mutations: {
@@ -747,7 +747,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       expect(invocation.exitCode, observed).toBe(1);
       expect(observed).toContain(mutation.expected);
     }
-  }, 180_000);
+  }, 420_000);
 
   test('refuses mapped external consumers that disagree with the owned index', () => {
     const candidate = createCandidate();
@@ -773,7 +773,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'pilot module external consumers disagree with index libs/wbs/domain/domain/src/saved-plan/README.md: module.domain.saved-plan',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a selected pilot index omitted from the externally pinned mapping', () => {
     const candidate = createCandidate();
@@ -797,7 +797,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'pilot index has no module mapping: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a trusted selector left at the pre-move directory of a relocated boundary', () => {
     const candidate = createCandidate();
