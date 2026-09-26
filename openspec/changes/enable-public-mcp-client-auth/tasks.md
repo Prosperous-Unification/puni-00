@@ -12,11 +12,11 @@
 
 ## 3. Prove write and renewal
 
-- [ ] 3.1 Add failing mounted tests for read-only default, explicit read/write request, granted-scope narrowing, foreign-project denial, refresh/replay and revocation.
+- [ ] 3.1 Add failing mounted tests for read-only default, explicit read/write request, granted-scope narrowing, restricted foreign-owned project denial and unrestricted foreign-owned project success, refresh/replay and revocation.
 - [ ] 3.2 Repair any contract gaps without coupling to an IdP. Keep the 3600-second default until a live refresh trace justifies change.
 - [ ] 3.3 Inject omitted write check and bypassed revocation; watch negatives fail, restore and add Proof: comments.
 
 ## 4. Verify the public URL
 
-- [ ] 4.1 Run HTTPS smoke against the deployed public URL: discovery, DCR, ordinary-user sign-in, owned-project read and reversible write, foreign-project refusal, expiration, refresh and revoked-token denial. Record exact callback, client version, scopes and evidence without secrets.
+- [ ] 4.1 Run HTTPS smoke against the deployed public URL: discovery, DCR, ordinary-user sign-in, owned-project read and reversible write, restricted foreign-owned project refusal and unrestricted foreign-owned project write success, expiration, refresh and revoked-token denial. Record exact callback, client version, scopes and evidence without secrets.
 - [ ] 4.2 Run focused tests, format, lint, typecheck, OpenSpec validation and applicable host gate; record outcomes in verify.md. Do not mark live acceptance from local tests alone.

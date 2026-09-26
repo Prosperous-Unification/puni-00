@@ -2,14 +2,14 @@
 
 ### Requirement: Fast and optimized scheduling use charged effort
 
-Fast and optimized scheduling SHALL consume charged per-step effort after project-step allowance and project rounding, then convert it to elapsed duration using the slice's resource width. They SHALL agree on feasibility and published effort/dates. An allowance edit SHALL invalidate stale optimized cache entries. Unknown steps SHALL remain zero-duration schedule nodes even if their Gantt placeholder has a visual span.
+Fast and optimized scheduling SHALL consume charged per-step effort after project-step allowance and project rounding, then convert it to elapsed duration using the slice's resource width. They SHALL compute identical charged effort from the same inputs. Each SHALL validate a given schedule against the same effort, dependency, resource and deadline constraints; either may publish a different valid placement or date. A Fast deadline miss SHALL not imply global infeasibility. An allowance edit SHALL invalidate stale optimized cache entries. Unknown steps SHALL remain zero-duration schedule nodes even if their Gantt placeholder has a visual span.
 
 #### Scenario: Both schedulers charge QA once
 
 - **GIVEN** a QA base of 2 days, a 30% allowance, ceiling rounding and a valid assignee width
 - **WHEN** Fast and optimized schedules are produced
 - **THEN** both use 3 charged effort days before width conversion
-- **AND** their published dates agree under the same constraints
+- **AND** each validates the same given placement against the same constraints, even if their independently chosen dates differ
 
 #### Scenario: A policy edit invalidates optimization
 

@@ -14,7 +14,7 @@ The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --js
 
 - **Pending:** Rendered production ingress and mounted discovery tests for both protected-resource URLs and authorization-server metadata; public HTTPS response/status/content-type/issuer proof.
 - **Pending:** Mounted DCR, authorization and token cases for exact hosted and arbitrary-port loopback redirects; reject lookalikes, changed hosted path/query/port, credentials, fragments and redirect substitution.
-- **Pending:** Read-only default, explicit `wbs:read wbs:write` request and grant, owned-project write, foreign-project refusal, token expiry, actual refresh, replay and revocation tests.
+- **Pending:** Read-only default, explicit `wbs:read wbs:write` request and grant, owned-project write, restricted foreign-owned project refusal and unrestricted foreign-owned project success, token expiry, actual refresh, replay and revocation tests.
 - **Pending R5 proof:** Remove a discovery route; ingress test must fail on frontend fallback. Restore and record output.
 - **Pending R5 proof:** Accept a host suffix or swap grant redirect; mounted negative must fail. Restore and add adjacent Proof: comments.
 - **Pending R5 proof:** Bypass write-scope or revocation check; mounted write/revocation tests must fail. Restore and record output.

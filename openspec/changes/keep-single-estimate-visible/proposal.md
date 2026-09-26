@@ -14,7 +14,7 @@ No change to parsing, estimate storage, arithmetic, three-box editing, incomplet
 
 ## Constraints
 
-The existing estimate-cell-at-rest delta is the active wbs-estimate-cell base in this checkout; there is no main spec for that capability. Its conflicting flat-trio requirement is amended in place. The new delta modifies that requirement.
+Archive `estimate-cell-at-rest` first, so its `A flat trio is not said twice` and `The result is the folded step cell's main reading` requirements at `openspec/changes/estimate-cell-at-rest/specs/wbs-estimate-cell/spec.md:29,3` exist in the main spec before this MODIFIED delta is archived. Its conflicting requirement is amended in place for implementation consistency.
 
 ## Capabilities
 

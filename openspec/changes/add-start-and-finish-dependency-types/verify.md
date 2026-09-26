@@ -12,6 +12,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 - **Pending:** Q=48 FF counterexample, independently recomputed W_FF, quantized baseline feasibility, real materialization validation and cache/contract version retirement.
 - **Pending:** Fast replay, latest dates, float and critical path with a longer FF successor starting earlier, plus truthful Fast deadline-miss and solver-timeout states.
 - **Pending:** Picker/browser and Gantt geometry for type labels, SS/FF anchor sides, unknown ticks, collapsed proxies and keyboard/mobile access.
+- **Pending R5 proof:** Bypass the production code-rollback guard with stored SS/FF records; the swap refusal test must fail, then restore and record output.
 - **Pending R5 proof:** Lower or forge W_FF; independent production-path validation must fail. Restore and add an adjacent `Proof:` comment naming the observed failure.
 - **Pending R5 proof:** Skip materialized real FF comparison; the rounding counterexample must fail its publication test. Restore and record output.
 - **Pending R5 proof:** Clamp a negative FF weight or use chronological replay; Fast golden/float test must fail. Restore and record output.

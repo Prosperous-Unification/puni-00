@@ -1,11 +1,17 @@
 ## MODIFIED Requirements
 
-### Requirement: Live documents and saved snapshots carry typed relationships
+### Requirement: Working plans expose committed typed dependency mutations
 
-Live documents, saved plans and snapshots SHALL carry SS and FF relationship types with their endpoint scopes and stable identities. Restoring a snapshot SHALL preserve the captured type and SHALL validate its expanded graph before publication.
+A working plan SHALL include legacy and typed dependencies distinctly after each successful mutation in its admitted batch. A retained read after a typed edit SHALL see its stable ID, endpoint scopes, step IDs and FS, SS or FF type; a refused mutation SHALL not change the working plan.
 
-#### Scenario: Snapshot retains finish coordination
+#### Scenario: An FF edit is visible to a later command
 
-- **GIVEN** a saved plan with A Whole → B QA FF
-- **WHEN** the live relationship is changed to FS
-- **THEN** the saved plan still records FF and restores FF when selected
+- **GIVEN** an admitted batch with an FF typed dependency edit
+- **WHEN** a later command reads the working plan
+- **THEN** it sees the committed FF relationship and endpoint label
+
+#### Scenario: A refused edit leaves the working plan unchanged
+
+- **GIVEN** an SS or FF edit that would close a slice cycle
+- **WHEN** validation refuses the command
+- **THEN** a retained read sees the preceding dependency set

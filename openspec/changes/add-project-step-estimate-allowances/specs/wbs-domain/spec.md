@@ -27,6 +27,13 @@ For each estimated leaf step, charged days SHALL equal project rounding of the p
 - **WHEN** charged effort is computed
 - **THEN** the before-rounding value is 2.6 days and charged effort is 3 days
 
+#### Scenario: Rounding the base first gives the wrong charge
+
+- **GIVEN** QA base estimate 1.1 days, QA allowance 30% and project ceiling rounding
+- **WHEN** charged effort is computed
+- **THEN** the before-rounding value is 1.43 days and charged effort is 2 days
+- **AND** rounding the base to 2 before allowance would incorrectly produce 3 days
+
 #### Scenario: A parent does not double-charge
 
 - **GIVEN** two leaf QA estimates each charged 3 days under a 30% step allowance

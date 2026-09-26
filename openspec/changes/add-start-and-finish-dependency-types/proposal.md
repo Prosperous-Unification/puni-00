@@ -1,6 +1,6 @@
 ## Why
 
-FS alone cannot express “start once another step starts” or “finish no earlier than another step finishes.” Modeling those as FS would delay work unnecessarily. FF also exposes a rounding gap between fractional Fast time and integer CP-SAT time.
+FS cannot express start or finish coordination without unnecessary delay. FF exposes a gap between fractional Fast time and integer CP-SAT time.
 
 ## What Changes
 
@@ -14,7 +14,7 @@ No lag, start-to-finish relationships, split work, cycles or simultaneous-start/
 
 ## Constraints
 
-This change depends on `add-step-finish-start-dependencies`: it uses that change's endpoint model, typed table, commands, import and snapshot formats, graph expansion and FS UI. Unknown slices remain zero schedule duration while their placeholders remain visible. A Fast deadline miss is not proof of infeasibility, and a solver timeout without a solution is unknown.
+Archive `add-step-finish-start-dependencies` first, so the named MODIFIED requirements in this packet exist in the main specs. This change depends on that stage: it uses that change's endpoint model, typed table, commands, import and snapshot formats, graph expansion and FS UI. With paths relative to `openspec/changes/`, its exact MODIFIED bases are `Dependencies constrain scheduled slices` and `Explicit dependencies are editable from the table and chart` (`add-step-finish-start-dependencies/specs/wbs-domain/spec.md:3,55`), `Solver edges represent the expanded authored graph` (`add-step-finish-start-dependencies/specs/scheduler-optimization/spec.md:3`), `Typed dependencies have distinct undoable commands` (`add-step-finish-start-dependencies/specs/plan-command-registry/spec.md:3`), `Plan transfer preserves typed and legacy dependencies` (`add-step-finish-start-dependencies/specs/plan-import/spec.md:3`), `Working plans expose committed typed dependency mutations` (`add-step-finish-start-dependencies/specs/live-plan-snapshot/spec.md:3`), and `Saved plans retain typed dependency history` (`add-step-finish-start-dependencies/specs/saved-plans/spec.md:3`). Unknown slices remain zero schedule duration while their placeholders remain visible. A Fast deadline miss is not proof of infeasibility, and a solver timeout without a solution is unknown.
 
 ## Capabilities
 
@@ -23,7 +23,9 @@ This change depends on `add-step-finish-start-dependencies`: it uses that change
 - wbs-domain: SS/FF relationship semantics, validation and presentation.
 - plan-command-registry: SS/FF typed commands and history.
 - plan-import: versioned type preservation.
-- live-plan-snapshot: SS/FF snapshot fidelity.
+- live-plan-snapshot: working-plan visibility for SS/FF mutations.
+- saved-plans: historical SS/FF read/display fidelity.
+- deployment-pipeline: compatible-reader rollout and code rollback refusal.
 - scheduler-optimization: weighted bounds, quantization, replay, float and output validation.
 
 ## Domain Terms
@@ -36,4 +38,4 @@ SS and FF are lower-bound inequalities. FF uses the stronger quantized start bou
 
 ## Impact
 
-No second table or migration is expected after Stage A's additive `migration.sql`/`down.sql` pair; the stored type field and uniqueness key already admit SS/FF. This stage changes scheduler wire/schema, cache contract, validators, Fast replay and float, frontend editor/arrows, and focused tests.
+Compatible SS/FF readers must precede SS/FF writes, and code rollback to an FS-only binary must refuse while SS/FF rows exist. Stage A's additive migration pair is expected to support SS/FF. This stage changes scheduler contracts, Fast analysis, UI and tests.

@@ -2,7 +2,7 @@
 
 ### Requirement: Solver edges represent the expanded authored graph
 
-The versioned solver wire SHALL carry relationship type and derived FF start weight for every expanded edge. For real durations, FS SHALL require `S_b >= S_a + d_a`, SS `S_b >= S_a`, and FF `S_b >= S_a + d_a − d_b`; negative FF weights SHALL remain valid. With Q=48 and integer durations `D_i=ceil(Q×d_i)` for positive slices or zero for unknown/zero slices, CP-SAT SHALL enforce FS finish→start, SS start→start, and FF finish→finish plus `S_b >= S_a + W_FF`, where `W_FF=max(D_a−D_b, ceil(Q×(d_a−d_b)))`. The independent validator SHALL recompute W_FF from canonical real durations, reject a mismatched wire value and recheck all relationship boundaries on materialized real offsets before publication. The quantized baseline SHALL satisfy the same active constraints and deadlines before it bounds an objective.
+The scheduler input hash SHALL distinguish typed endpoint/type relationships from legacy `depReach` links. Shared expansion SHALL emit every selected leaf pair and internal step-order edge; Fast and CP-SAT SHALL enforce all resolved edges, including edges entering later successor steps. Zero-duration unknown slices SHALL remain precedence nodes without resource demand. A contract-version bump SHALL retire stale optimized rows. The versioned solver wire SHALL carry relationship type and derived FF start weight for every expanded edge. For real durations, FS SHALL require `S_b >= S_a + d_a`, SS `S_b >= S_a`, and FF `S_b >= S_a + d_a − d_b`; negative FF weights SHALL remain valid. With Q=48 and integer durations `D_i=ceil(Q×d_i)` for positive slices or zero for unknown/zero slices, CP-SAT SHALL enforce FS finish→start, SS start→start, and FF finish→finish plus `S_b >= S_a + W_FF`, where `W_FF=max(D_a−D_b, ceil(Q×(d_a−d_b)))`. The independent validator SHALL recompute W_FF from canonical real durations, reject a mismatched wire value and recheck all relationship boundaries on materialized real offsets before publication. The quantized baseline SHALL satisfy the same active constraints and deadlines before it bounds an objective.
 
 #### Scenario: Rounded FF would violate real finish order
 
@@ -22,6 +22,8 @@ The versioned solver wire SHALL carry relationship type and derived FF start wei
 - **GIVEN** an FF dependency into an unestimated slice
 - **WHEN** either scheduler checks the edge
 - **THEN** the successor's real start and finish are equal and no visual placeholder time enters the constraint
+
+## ADDED Requirements
 
 ### Requirement: Fast replay and float support weighted relationships
 

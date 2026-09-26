@@ -20,6 +20,40 @@ _Avoid_: session, token chain
 The short exclusive claim one mcp-01 process holds while replacing a refresh family's provider credential. It prevents concurrent tool calls from refreshing the same provider token twice.
 _Avoid_: lock, refresh mutex
 
+### Organization access
+
+**Organization**:
+The ownership and access boundary for WBS projects and shared resources. A user may belong to more than one organization.
+_Avoid_: tenant, workspace, account
+
+**Membership**:
+One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
+_Avoid_: team membership, IdP group
+
+**Role**:
+The level of authority a membership grants within its organization: super-admin, admin, member or viewer.
+_Avoid_: scope, group
+
+**Super-admin**:
+The organization role responsible for ownership and security decisions within that organization.
+_Avoid_: platform administrator, root user
+
+**Verified domain**:
+An exact email domain whose controller has proved ownership and which is associated with one organization.
+_Avoid_: company domain, claimed email suffix
+
+**Join request**:
+An authenticated user's request to become a member of an organization; it grants no access by itself.
+_Avoid_: automatic enrollment, JIT membership
+
+**Invitation**:
+An offer to a specific email address to join an organization with a specified role.
+_Avoid_: join request, signup link
+
+**Legacy organization**:
+The single organization that receives WBS content and users from before organization ownership was introduced.
+_Avoid_: default tenant, personal organization
+
 ### WBS
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
@@ -288,6 +322,14 @@ _Avoid_: subtitle, caption, details
 Three durations in days — optimistic, realistic, pessimistic — held for one work item and
 one step. A work item with children has no estimates of its own.
 _Avoid_: points, effort, sizing
+
+**Project-step allowance**:
+The percentage on a project step that increases each estimate for that step before rounding, without changing its optimistic, realistic or pessimistic values.
+_Avoid_: contingency estimate, per-work-item allowance
+
+**Charged estimate**:
+The rounded effort for an estimated leaf step after its project-step allowance is applied.
+_Avoid_: base estimate, raw estimate
 
 **Trio shorthand**:
 One estimate written as one value — `2/3/8`, or `5` meaning all three are five. What a

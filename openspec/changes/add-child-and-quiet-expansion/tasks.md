@@ -10,7 +10,13 @@
 - [ ] 2.2 Make flat-plan toolbar actions disabled or inert without a hint, preserving filtering behavior and nested-plan expansion.
 - [ ] 2.3 Inject the old unconditional empty-map write; watch the first-child/remount test fail, restore, and add an adjacent Proof: comment.
 
-## 3. Make drag into a parent legible and recoverable
+## 3. Guard authoritative moves
+
+- [ ] 3.1 Add a failing mounted move-command test that bypasses the drag UI and reparents across a dependency-invalid boundary; assert modeled conflict and unchanged tree.
+- [ ] 3.2 Validate the resulting dependency graph in the backend move command before persistence, including concurrent tree edits.
+- [ ] 3.3 Bypass the backend graph guard; watch the mounted negative fail, restore and add an adjacent `Proof:` comment.
+
+## 4. Make drag into a parent legible and recoverable
 
 - [ ] 3.1 Add failing drag-zone tests for middle-to-last-child, tinted target and indented “Move under 010 · Release” cue, edge insertion lines and stable target while the layout opens.
 - [ ] 3.2 Add failing timer tests: valid collapsed parent opens after about 600ms; exit/cancel clears the timer and restores transient expansion; success retains expansion. Implement with the existing top/middle/bottom planner.

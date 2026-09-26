@@ -35,4 +35,4 @@ None.
 
 ## Impact
 
-WBS frontend menus, expansion state, drag cues, move picker and focused tests; existing create/move and undo contracts are reused. No migration.
+WBS frontend menus, expansion state, drag cues, move picker and focused tests, plus backend move validation against the dependency graph. Existing create/move and undo contracts are reused. No migration.

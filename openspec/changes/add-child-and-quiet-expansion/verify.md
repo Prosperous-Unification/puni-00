@@ -18,6 +18,7 @@ The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --js
 - **Pending R5 proof:** Remove the successful-create ancestor expansion; a collapsed-branch child visibility test must fail. Restore and add an adjacent Proof: comment naming the observed failure.
 - **Pending R5 proof:** Reintroduce the unconditional empty-map write on flat-plan Collapse all; the first-child/remount test must fail. Restore and record its output.
 - **Pending R5 proof:** Break first-child hand-down or single undo; a production-path create test must fail. Restore and record its output.
+- **Pending R5 proof:** Bypass backend graph validation on a mounted direct move request; dependency-invalid reparenting must fail its refusal test. Restore and record output.
 - **Pending:** Drag middle-zone last-child placement, “Move under …” cue, edge insertion lines, ~600ms valid-parent hover opening, stable target, cancellation restoration and successful-drop retention.
 - **Pending:** Refusal and concurrency cases: self/descendant, dependency-invalid reparenting, changed tree, server refusal with restored preview and explanation, frozen-number labels and one move undo.
 - **Pending:** Keyboard/mobile arbitrary-parent Move under… picker and existing Alt+Right/Alt+Left navigation.

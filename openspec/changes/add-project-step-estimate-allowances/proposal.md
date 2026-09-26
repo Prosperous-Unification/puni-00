@@ -14,7 +14,7 @@ No per-work-item override, derived step estimate, percentage-complete tracking o
 
 ## Constraints
 
-Parents sum adjusted leaves without a second allowance. An additive migration must ship with a matching down.sql. Compatible readers must precede nonzero writes; rollback cannot silently discard nonzero policy. Existing unestimated slices have zero scheduling duration even when the Gantt draws a placeholder.
+Parents sum adjusted leaves without a second allowance. An additive migration must ship with a matching down.sql. Compatible readers must precede nonzero writes; rollback cannot silently discard nonzero policy. Archive `unestimated-steps-take-no-schedule-time` first; unknown slices then have zero scheduling duration even when the Gantt draws a placeholder.
 
 ## Capabilities
 
@@ -25,7 +25,7 @@ Parents sum adjusted leaves without a second allowance. An additive migration mu
 - plan-command-registry: undoable step-policy update.
 - plan-import: versioned import/export of step allowance.
 - live-plan-snapshot: frozen step policy.
-- scheduler-optimization: adjusted effort parity.
+- scheduler-optimization: adjusted effort parity for the same input and validation of a given placement; different valid placements may have different dates.
 
 ## Domain Terms
 

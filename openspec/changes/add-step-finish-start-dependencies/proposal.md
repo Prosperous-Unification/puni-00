@@ -5,7 +5,7 @@ Work-item dependencies wait at a project-wide reach point, so a planner cannot e
 ## What Changes
 
 - Add explicit whole-work-item or selected-step endpoints and finish-to-start (FS) relationships. Parent endpoints constrain all descendant leaves.
-- Preserve existing project-reach dependencies until a planner edits one. Add typed persistence, commands, history, duplication, import/export, saved plans, snapshots and MCP support.
+- Preserve existing project-reach dependencies until a planner edits one. Validate legacy writes, estimate-driven anchor changes and structural/history mutations against the combined graph. Add typed persistence, commands, history, duplication, import/export, saved plans, snapshots and MCP support.
 - Schedule the same expanded slice relationships in Fast and optimized CP-SAT. Add a compact picker with one-click Whole→Whole FS, endpoint customization, accessible chips and step-boundary Gantt arrows.
 
 ## Non-Goals
@@ -14,7 +14,7 @@ SS, FF, start-to-finish, lag, split work and arbitrary cyclic relationships are 
 
 ## Constraints
 
-Unestimated slices have zero schedule duration although their chart placeholders remain visible. Existing `depReach`, especially dynamic `anchor-slice`, retains its meaning for legacy links. The migration is additive and ships with `down.sql`; compatible readers precede typed writes. A rollback that would hide typed links must refuse and give an explicit recovery path.
+Archive `unestimated-steps-take-no-schedule-time` first; its zero-duration unknown-slice semantics are required for this stage. Unestimated slices have zero schedule duration although their chart placeholders remain visible. Existing `depReach`, especially dynamic `anchor-slice`, retains its meaning for legacy links. The migration is additive and ships with `down.sql`; compatible readers precede typed writes. A rollback that would hide typed links must refuse and give an explicit recovery path.
 
 ## Capabilities
 
@@ -23,7 +23,8 @@ Unestimated slices have zero schedule duration although their chart placeholders
 - wbs-domain: typed endpoint FS semantics, validation and editing.
 - plan-command-registry: typed mutations and legacy command compatibility.
 - plan-import: versioned dependency import/export and duplication.
-- live-plan-snapshot: frozen typed links and live publication.
+- live-plan-snapshot: working-plan visibility after typed mutations.
+- saved-plans: historical capture and read/display of typed links.
 - scheduler-optimization: expanded FS edges and independent validation.
 
 ## Domain Terms

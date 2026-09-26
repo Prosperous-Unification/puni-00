@@ -1,17 +1,17 @@
 ## ADDED Requirements
 
-### Requirement: Live documents and saved snapshots carry typed relationships
+### Requirement: Working plans expose committed typed dependency mutations
 
-Live plan documents SHALL publish legacy and typed dependencies distinctly after committed writes. Saved plans and snapshots SHALL freeze each typed relationship's ID, endpoint scopes, step IDs and FS type together with the tree and project steps needed to interpret it. Later edits to live steps or parentage SHALL not silently change a saved snapshot's meaning; restoring one SHALL validate references and graph integrity atomically.
+A working plan SHALL include legacy and typed dependencies distinctly after each successful mutation in its admitted batch. A retained read after a typed edit SHALL see its stable ID, endpoint scopes, step IDs and FS type; a refused mutation SHALL not change the working plan.
 
-#### Scenario: Later step reorder does not reinterpret a snapshot
+#### Scenario: A typed edit is visible to a later batch command
 
-- **GIVEN** a saved plan with a dependency on a named step
-- **WHEN** live project steps are reordered
-- **THEN** the saved dependency still points to the captured step identity
+- **GIVEN** an admitted batch with a typed dependency edit
+- **WHEN** a later command reads the working plan
+- **THEN** it sees the committed relationship state and endpoint label
 
-#### Scenario: Live dependency edit is announced
+#### Scenario: A refused edit leaves the working plan unchanged
 
-- **GIVEN** two subscribed clients
-- **WHEN** one updates a typed dependency
-- **THEN** the other receives the committed relationship state and can render its new endpoint label
+- **GIVEN** a typed edit that would close a slice cycle
+- **WHEN** validation refuses the command
+- **THEN** a retained read sees the preceding dependency set

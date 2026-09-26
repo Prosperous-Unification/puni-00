@@ -15,7 +15,7 @@
 
 - [ ] 3.1 Update unit assertions and Chromium pins, and add flat, parent, empty, unfolded, and result-style tests.
 - [ ] 3.2 Observe the prescribed red run before production rendering changes.
-- [ ] 3.3 Draw every folded estimate result without a separator and hide repeated trios at rest.
+- [ ] 3.3 Draw differing folded estimate results without a separator. Superseded: hiding repeated trios at rest was rejected; implement the visible equal-trio rule in `keep-single-estimate-visible` instead.
 - [ ] 3.4 Run focused tests, typecheck, lint, negative proofs N5 through N8d, and formatting checks.
 
 ## 4. Measure the quiet trio under the dark palette

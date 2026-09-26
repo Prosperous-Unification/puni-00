@@ -14,7 +14,7 @@ No change to estimate entry, the configured assumed visual span, dependency reac
 
 ## Constraints
 
-The archived assumed-duration-schedules delta is the only available wbs-domain base in this checkout; no main wbs-domain spec exists. Its scheduling rule must be removed, while its not-an-estimate rule remains and is modified for a drawing-only assumption. The active dual-optimized-scheduler delta is the solver base.
+Before archiving this change, restore/sync the already archived `2026-08-30-assumed-duration-schedules` requirements at `openspec/changes/archive/2026-08-30-assumed-duration-schedules/specs/wbs-domain/spec.md:3,39` into `openspec/specs/wbs-domain/spec.md`; verify both `An unestimated slice takes an assumed duration in the schedule` and `An assumed duration is not an estimate` exist there as REMOVED/MODIFIED targets. Archive `dual-optimized-scheduler` first so `Every duration crossing the solver boundary is computed by the caller` at `openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md:343` exists before this scheduler MODIFIED delta is archived. The assumption becomes drawing-only.
 
 ## Capabilities
 

@@ -7,7 +7,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 ## Planned checks — pending implementation
 
 - **Pending:** Migration lint, apply and rollback with an empty typed table; production rollback guard refusal when typed rows exist, plus explicit recovery command. Check absent versus unreadable trusted migration state separately.
-- **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting and step reorder.
+- **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, estimate-driven dynamic-anchor change and history replay.
 - **Pending:** Mounted HTTP/MCP old-client compatibility and typed add/edit/remove, duplicate and invalid-reference 4xx, batch atomicity, stale undo/redo.
 - **Pending:** Versioned export/import, whole-project copy, subtree duplication and frozen saved plan/snapshot round trips, including malformed new-format rejection.
 - **Pending:** Fast and CP-SAT golden corpus, canonical hash/cache retirement, independent materialized FS validation and unknown zero-duration predecessor.
@@ -17,3 +17,5 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 - **Pending R5 proof:** Pin legacy anchor or substitute visual placeholder duration; a production-path scheduling test must fail. Restore and record output.
 - **Pending R5 proof:** Accept a dangling step or stale undo; mounted refusal test must fail. Restore and record output.
 - **Pending:** Format, lint, typecheck, build, OpenSpec validation and applicable h2puni gate. All implementation checks remain unverified at spec time.
+
+- **Pending R5 proof:** Bypass the combined-graph check on a mounted legacy write or B.Dev estimate clearing; the cycle-refusal test must fail. Restore and record observed output.

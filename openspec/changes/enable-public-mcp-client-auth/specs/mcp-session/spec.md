@@ -14,7 +14,13 @@ An omitted OAuth scope SHALL remain `wbs:read`. A client that imports or changes
 
 - **GIVEN** an ordinary user with granted read/write scopes and an owned disposable project
 - **WHEN** the access token expires and a valid refresh grant succeeds
-- **THEN** a reversible write succeeds as that user and a foreign-project write is refused
+- **THEN** a reversible write succeeds as that user and a write to a restricted foreign-owned project is refused
+
+#### Scenario: An unrestricted project remains collaborative
+
+- **GIVEN** an authenticated user with granted read/write scopes and a foreign-owned unrestricted project
+- **WHEN** the user invokes a permitted write tool
+- **THEN** the write succeeds under the project authorization rule
 
 #### Scenario: Revocation ends access
 

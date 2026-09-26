@@ -7,7 +7,7 @@
 ## 2. Charge estimates once
 
 - [ ] 2.1 Add failing arithmetic golden cases for pre-rounding uplift, two steps, parent roll-up, unknown versus explicit zero, width conversion and overflow.
-- [ ] 2.2 Derive charged effort at the shared slice seam and update Fast, optimized request/hash/cache and independent publication checks; invalidate cached schedules after policy edits.
+- [ ] 2.2 Derive charged effort at the shared slice seam and update Fast, optimized request/hash/cache and independent publication checks; invalidate cached schedules after policy edits. Bump `SCHEDULER_CONTRACT_VERSION`, regenerate versioned corpora and prove prior cached rows cannot publish.
 - [ ] 2.3 Inject round-before-uplift and parent double-uplift faults; watch goldens fail, restore and add adjacent Proof: comments.
 
 ## 3. Make policy editable and undoable
