@@ -4,6 +4,23 @@
 
 The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --json exited 0: 126 passed, 0 failed. This change was valid without issues. File-scoped bunx prettier --check exited 0 for the four packet files.
 
+## Slice 1 — WBS 010.4.2 (tasks 1–3), 2026-09-27
+
+Focused runs, each through the project's own runner (`env -u CLAUDECODE` for Bun):
+
+- `TZ=UTC bunx vitest run src/components/wbs/plan-structure.test.tsx src/components/wbs/plan-cards.test.tsx` in fe-01: 159 passed. New cases: `adding a child from the row menu` (leaf, parent last-child order, collapsed frozen parent, first child after Collapse all, refused create) and the card's `adds a child through the table’s own handler and opens it into view`. Every pre-existing menu inventory now lists `Add child` after the status entries.
+- `plan-filter.test.tsx`: `keeps a flat plan out of collapsed-all, so its first child arrives open` asserts the saved `wbs.expanded.p1` value is unchanged after each flat-plan control, no toast and no `data-fact` on either control; `shows the first child of a flat plan after Collapse all and a remount`. Both failed before the guard (`expected '{}' to be 'true'`, `expected [ '010' ]`).
+- `bun test src/controller/work-item.controller.test.ts -t "break an existing dependency"` in be-01: 3 passed — a direct `moveWorkItem` under its own predecessor answers 409 `ancestor`, one whose expanded graph loops answers 409 `cycle`, both with the parent map unchanged; a valid move still answers 200. Before the guard both negatives answered 200.
+
+Witnessed R5 faults, each restored afterwards and named by an adjacent `Proof:` comment:
+
+- `addChild`'s `setExpanded` removed: three child-visibility cases (two table, one card) failed with the new row absent.
+- Flat-plan guard removed from Collapse all: both flat-plan cases failed as above.
+- Backend `canReparent` return disabled: both mounted negatives failed on `Received: 200`. Its ancestor loop skipped alone: the `ancestor` case failed on `"error": "cycle"`.
+- First-child hand-down (`estimates.moveAll`) skipped: be-01 `hands the estimates back up when it undoes the first child that took them` failed. Add child sends exactly one `createWorkItem({ parentId, afterId, name: '' })` and no other write, so the hand-down and the single undo entry are that command's.
+
+Assumptions: flat-plan controls are inert rather than disabled, keeping their existing `Close every branch`/`Open every branch` hover words and adding no message. The concurrent-edit half of 3.2 rests on the batch runner's write lock: the guard reads rows and edges inside the same locked write. Filtering's forced expansion is untouched, and its existing tests remain the evidence.
+
 ## Planned commands — pending implementation
 
 - `bun run test:unit` and `bun run e2e` for affected behavior, plus focused component tests through the frontend's configured runner.
