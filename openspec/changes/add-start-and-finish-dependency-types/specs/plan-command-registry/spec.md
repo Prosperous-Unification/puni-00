@@ -2,11 +2,11 @@
 
 ### Requirement: Typed dependencies have distinct undoable commands
 
-The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` and `removeTypedDependency` with explicit endpoints, FS, SS or FF type, and stable relationship identity for updates/removals. Existing `addDependency` and `removeDependency` shapes and legacy project-reach semantics SHALL remain callable through HTTP and MCP. A successful typed edit SHALL be one journaled command; undo/redo SHALL restore its exact identity, endpoints and type or refuse stale/conflicting state. Batch validation SHALL include preceding commands in the same batch and return modeled 4xx refusals for invalid references, unsupported types, duplicates or cycles; refusal SHALL leave the batch atomic. Uniqueness SHALL include both endpoints and type.
+The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` and `removeTypedDependency` with explicit endpoints (whole, step node ID, batch-local node or descendant-step), FS, SS or FF type, and stable relationship identity for updates/removals. Existing `addDependency` and `removeDependency` shapes and legacy project-reach semantics SHALL remain callable through HTTP and MCP. A successful typed edit SHALL be one journaled command; undo/redo SHALL restore its exact identity, endpoints and type or refuse stale/conflicting state. Batch validation SHALL include preceding commands in the same batch and return modeled 4xx refusals for invalid references, unsupported types, duplicates or cycles; refusal SHALL leave the batch atomic. Uniqueness SHALL include both endpoints and type.
 
 #### Scenario: Two types share endpoints
 
-- **GIVEN** an FS typed relationship between A.Dev and B.Dev
+- **GIVEN** an FS typed relationship between nodes `A.dev` and `B.dev`
 - **WHEN** an SS relationship with the same endpoints is added
 - **THEN** both identities are retained; a duplicate SS is refused
 
@@ -31,5 +31,5 @@ The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` 
 #### Scenario: A later batch command closes a cycle
 
 - **GIVEN** an SS or FF dependency added earlier in a command batch
-- **WHEN** a later legacy or typed command would close a slice cycle
+- **WHEN** a later legacy or typed command would close a step-node cycle
 - **THEN** the entire batch is refused atomically with the offending command identified
