@@ -10,18 +10,18 @@ current/previous logs if a rollout fails. Production declares an operator-provid
 the SOPS ciphertext and credentials remain deployment inputs, not committed test values.
 The production MCP Dockerfile is now an admitted Dagger tier and the F8 lab builds it.
 
-| Command                                                                 | Observed result                                                                                                                                                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bunx nx run tool-deploy:test --skip-nx-cache`                          | exit 0, 262 pass, 0 fail                                                                                                                                                                                                                                                                                                                        |
-| `bunx nx run tool-dagger:test --skip-nx-cache`                          | exit 0, 64 pass, 0 fail                                                                                                                                                                                                                                                                                                                         |
-| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                           | exit 0, 165 pass, 0 fail                                                                                                                                                                                                                                                                                                                        |
-| `PUNI_TOOL_CACHE=/tmp/puni-tools bunx nx run tool-fleet:check`          | exit 0, including its dependent tests and rendered manifest checks                                                                                                                                                                                                                                                                              |
-| `bunx nx run tool-deploy:lint`                                          | exit 0                                                                                                                                                                                                                                                                                                                                          |
-| `bunx nx run tool-dagger:lint`; `bunx nx run tool-dagger:typecheck`     | exit 0 for both                                                                                                                                                                                                                                                                                                                                 |
-| `bunx nx run tool-deploy:typecheck`; `bunx nx run wbs-mcp-01:typecheck` | exit 0 for both                                                                                                                                                                                                                                                                                                                                 |
-| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                | exit 0, 106/106 change items and 12/12 specs                                                                                                                                                                                                                                                                                                    |
-| `bunx prettier --check` on the touched files                            | exit 0                                                                                                                                                                                                                                                                                                                                          |
-| `bunx nx run tool-deploy:test:k3s`                                      | first attempt stopped before startup: `k3d` absent from PATH. After installing locked k3d v5.9.0 and using locked kubectl, the retry reached `docker build` and failed because buildx could not write `/home/df/.docker/buildx/activity` (`read-only file system`). The lab cleaned up its cluster and registry. No Docker workaround was used. |
+| Command                                                                 | Observed result                                                                                                            |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run tool-deploy:test --skip-nx-cache`                          | exit 0, 262 pass, 0 fail                                                                                                   |
+| `bunx nx run tool-dagger:test --skip-nx-cache`                          | exit 0, 64 pass, 0 fail                                                                                                    |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                           | exit 0, 165 pass, 0 fail                                                                                                   |
+| `PUNI_TOOL_CACHE=/tmp/puni-tools bunx nx run tool-fleet:check`          | exit 0, including its dependent tests and rendered manifest checks                                                         |
+| `bunx nx run tool-deploy:lint`                                          | exit 0                                                                                                                     |
+| `bunx nx run tool-dagger:lint`; `bunx nx run tool-dagger:typecheck`     | exit 0 for both                                                                                                            |
+| `bunx nx run tool-deploy:typecheck`; `bunx nx run wbs-mcp-01:typecheck` | exit 0 for both                                                                                                            |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                | exit 0, 106/106 change items and 12/12 specs                                                                               |
+| `bunx prettier --check` on the touched files                            | exit 0                                                                                                                     |
+| `bunx nx run tool-deploy:test:k3s` (sandbox)                            | stopped at `docker build`: buildx could not write `/home/df/.docker/buildx/activity` (read-only). See the live runs below. |
 
 R5 proofs: `mcp-manifest.test.ts` first failed because `mcp-storage.yaml` did not exist. After
 implementation, deleting the production manifest's `MCP_STORE_KEY_CURRENT` Secret ref made
@@ -35,10 +35,38 @@ restoring the refusal passed. Adjacent `Proof:` comments mark the changed safety
 Routing the Dagger `mcp` tier to the gateway image made `names the MCP release image by its own
 tier` fail; restoring the mapping passed.
 
-Still unverified: a live missing-key pod exit/log, OAuth session persistence over a real pod
-replacement, the production SOPS Secret provision, and a production MCP image publish. The lab has
-a store checksum check across a pod replacement, but Docker prevented it from running here.
-The orchestrator can run `K3D=/tmp/puni-tools/k3d-v5.9.0/k3d KUBECTL=/tmp/puni-tools/kubectl-v1.36.4/kubectl bunx nx run tool-deploy:test:k3s` in a writable Docker environment.
+### Live k3d rehearsal (2026-09-27, writable Docker host)
+
+`K3D=/tmp/puni-tools/k3d-v5.9.0/k3d KUBECTL=/tmp/puni-tools/kubectl-v1.36.4/kubectl env -u CLAUDECODE bunx nx run tool-deploy:test:k3s`:
+
+- Run 1, `de637fc6` (author's code): exit 0, all assertions passed. Its store check hashed
+  `sessions.sqlite` before and after a restart. Review found that a fresh store with the same
+  schema could pass it, so it did not prove persistence.
+- Run 3, `d1e4ac07`: exit 0, 38 assertions passed. The cluster and registry were deleted afterwards. The MCP lines were:
+  - `assert ok: MCP OAuth session survives a pod replacement`. The lab writes an encrypted
+    session family through the pod's `McpSessionStore`, using the pod's `MCP_STORE_PATH` and
+    Secret key, restarts the Deployment, then decrypts it again in the new pod.
+  - `MCP without a store key: pod wbs-mcp-7cc9cdc5c-cjbbg exited 1; log: … error:
+MCP_STORE_KEY_CURRENT is required`, then `assert ok: MCP pod without a store key exits
+non-zero and names the key in its log`.
+  - `assert ok: MCP OAuth session survives a failed rollout and key restore`.
+- The redacted run logs contain no key material. The only long base64-like strings are
+  hexadecimal image and snapshot digests.
+
+Negatives on the kept run 2 cluster (`lab.ts --keep`, same code; deleted afterwards):
+
+- **MCP session persistence negative.** Before the fault, reading the lab session returned
+  `f8-lab-upstream-token`. After the `mcp-store` PVC volume was replaced with an `emptyDir`
+  and the rollout finished, the same read returned `missing`.
+- **Key deleted from the Secret.** Removing `MCP_STORE_KEY_CURRENT` from `wbs-mcp-secrets`
+  stopped the pod at `CreateContainerConfigError`: `couldn't find key MCP_STORE_KEY_CURRENT
+in Secret wbs/wbs-mcp-secrets`. The process never started, so the lab blanks the value to
+  observe the app's own refusal.
+
+Still unverified: provisioning the production SOPS Secret, and publishing and pulling a
+production MCP image with Dagger. The prod `externally-provided.json` for `wbs-mcp-secrets`
+declares the Secret only. No validator reads it; the platform Secret closure covers
+`infra/platform/secrets/<cluster>` only.
 
 Astra review advised required current and optional previous key refs, runtime lab generation
 through stdin, an external declaration until genuine SOPS ciphertext exists, and bounded

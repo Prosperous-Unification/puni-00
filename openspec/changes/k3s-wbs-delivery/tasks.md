@@ -25,12 +25,13 @@
   - [x] Flux suspend/resume against a live source: `Kustomization wbs` over a Git smart-HTTP
         repository in the k3d cutover and release rehearsals (verify.md, `d2f2ad4a`).
   - [ ] RWOP decision on the real Hetzner CSI driver and OIDC smoke. Prepared: prod overlay on
-        `hcloud-volumes` (RWO); next: a staging PVC with `ReadWriteOncePod` and a second pod
+        `puni-retain` (RWO); next: a staging PVC with `ReadWriteOncePod` and a second pod
         on another node, then an anonymous `GET /api/projects` expecting 401 on staging.
   - [ ] P0 MCP persistence: retained PVC, `Recreate`, Secret current/previous refs, runtime lab
-        keys and bounded rollout diagnostics are implemented locally. Still prove a real k3d
-        restart preserves an OAuth session and that missing key exits with a named pod log;
-        provision the production SOPS Secret and prove a Dagger MCP publish before staging.
+        keys and bounded rollout diagnostics. The k3d lab proves that an OAuth session survives
+        a restart, and that a missing store key makes the pod exit with a log naming the key
+        (verify.md, 2026-09-27). Before staging: provision the production SOPS Secret and
+        prove a Dagger MCP publish.
 - [ ] F11 — Wire package admission, immutable image promotion, CI/CD separation, staging proof, and the concrete production cutover plan per [F11](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f11--wire-cicd-and-stage-the-production-cutover).
   - [x] `tool-fleet:check`: schema, strict YAML, Ansible syntax and real hcloud inventory
         plugin against a fixture API, kustomize and helm rendering, shellcheck, actionlint,
