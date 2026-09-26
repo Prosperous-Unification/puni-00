@@ -73,6 +73,10 @@ test('the root fault boundary discloses a public report and nothing raw', async 
   // worse than none.
   // Proof: prepending `import 'di-bag/node'` to `fault-disclosure.ts` made this case
   // receive `DI_BAG_INVALID_CONFIGURATION` in `pageErrors` (N16, 2026-09-21).
+  // Proof: di-bag 0.5.0 has no `di-bag/node`. On 2026-09-26, `fault-disclosure.ts` given a
+  // namespace import of `node:util/types` and a microtask calling its `isPromise` failed only here,
+  // on a received `"TypeError: ge.isPromise is not a function"`; with this assertion weakened to
+  // an array check the same fault passed. Watched in Chromium.
   expect(pageErrors).toEqual([]);
   // Proof: falling back to the caught Error's message made this assertion receive
   // `The app stopped: saving plan p-7 for alice@example.com failed` (N18, 2026-09-21).

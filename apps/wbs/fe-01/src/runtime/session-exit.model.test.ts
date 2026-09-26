@@ -158,13 +158,13 @@ function track(world: ExitWorld, what: string, running: Promise<unknown>): void 
 /** A socket whose own disposal never settles, inside a graph with a bounded close. */
 function socketThatNeverCloses() {
   const socket = DiBag.createBuilder()
-    .register({
-      socket: DiBag.withDisposal(
-        DiBag.fromSyncFactory((): string => 'open'),
-        () => new Promise<void>(() => undefined),
-      ),
+    .withServices({
+      socket: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider((): string => 'open', { factoryReturnKind: 'sync-value' }),
+        disposeService: () => new Promise<void>(() => undefined),
+      }),
     })
-    .build();
+    .buildContainer();
   socket.resolve('socket');
   return socket;
 }
@@ -664,7 +664,9 @@ describe('log out, against a reference model', () => {
                             throw new Error(`${project.name}'s socket would not close`);
                           }
                           if (project.mode === 'hangs')
-                            await socketThatNeverCloses().close(options);
+                            await socketThatNeverCloses().close({
+                              waitTimeoutMs: options.timeoutMs,
+                            });
                         } catch (refusal: unknown) {
                           if (refusal instanceof DiBagCloseCancelledError)
                             reached.projectTimedOut += 1;

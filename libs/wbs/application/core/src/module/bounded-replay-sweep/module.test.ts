@@ -55,19 +55,23 @@ const requirements = () => ({
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(boundedReplaySweepModule)
-    .register({
-      eventLog: DiBag.fromSyncFactory(() => inMemoryEventLog()),
-      planEvents: DiBag.fromSyncFactory(() => inMemoryPlanEvents()),
-      intervals: DiBag.fromSyncFactory((): Intervals => noopIntervals),
-      now: DiBag.fromSyncFactory(() => () => 0),
-      maxPerSubscription: DiBag.fromSyncFactory(() => 10),
-      planEventRetentionDays: DiBag.fromSyncFactory(() => 365),
-      intervalMs: DiBag.fromSyncFactory(() => 1_000),
-      onSweep: DiBag.fromSyncFactory(() => undefined),
-      onError: DiBag.fromSyncFactory(() => () => undefined),
+    .withInstalledModules([boundedReplaySweepModule])
+    .withServices({
+      eventLog: DiBag.createProvider(() => inMemoryEventLog(), { factoryReturnKind: 'sync-value' }),
+      planEvents: DiBag.createProvider(() => inMemoryPlanEvents(), {
+        factoryReturnKind: 'sync-value',
+      }),
+      intervals: DiBag.createProvider((): Intervals => noopIntervals, {
+        factoryReturnKind: 'sync-value',
+      }),
+      now: DiBag.createProvider(() => () => 0, { factoryReturnKind: 'sync-value' }),
+      maxPerSubscription: DiBag.createProvider(() => 10, { factoryReturnKind: 'sync-value' }),
+      planEventRetentionDays: DiBag.createProvider(() => 365, { factoryReturnKind: 'sync-value' }),
+      intervalMs: DiBag.createProvider(() => 1_000, { factoryReturnKind: 'sync-value' }),
+      onSweep: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+      onError: DiBag.createProvider(() => () => undefined, { factoryReturnKind: 'sync-value' }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Bounded replay sweep module', () => {
   it('builds a timer that is not running until started', () => {
@@ -118,14 +122,14 @@ describe('the Bounded replay sweep module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('retentionOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "retentionOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "retentionOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${BOUNDED_REPLAY_SWEEP_LABEL}/retentionOptions`,
     );
   });
@@ -138,20 +142,26 @@ describe('the Bounded replay sweep module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(boundedReplaySweepModule)
-      .register({
-        eventLog: DiBag.fromSyncFactory(() => inMemoryEventLog()),
-        intervals: DiBag.fromSyncFactory((): Intervals => noopIntervals),
-        now: DiBag.fromSyncFactory(() => () => 0),
-        maxPerSubscription: DiBag.fromSyncFactory(() => 10),
-        planEventRetentionDays: DiBag.fromSyncFactory(() => 365),
-        intervalMs: DiBag.fromSyncFactory(() => 1_000),
-        onSweep: DiBag.fromSyncFactory(() => undefined),
-        onError: DiBag.fromSyncFactory(() => () => undefined),
+      .withInstalledModules([boundedReplaySweepModule])
+      .withServices({
+        eventLog: DiBag.createProvider(() => inMemoryEventLog(), {
+          factoryReturnKind: 'sync-value',
+        }),
+        intervals: DiBag.createProvider((): Intervals => noopIntervals, {
+          factoryReturnKind: 'sync-value',
+        }),
+        now: DiBag.createProvider(() => () => 0, { factoryReturnKind: 'sync-value' }),
+        maxPerSubscription: DiBag.createProvider(() => 10, { factoryReturnKind: 'sync-value' }),
+        planEventRetentionDays: DiBag.createProvider(() => 365, {
+          factoryReturnKind: 'sync-value',
+        }),
+        intervalMs: DiBag.createProvider(() => 1_000, { factoryReturnKind: 'sync-value' }),
+        onSweep: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+        onError: DiBag.createProvider(() => () => undefined, { factoryReturnKind: 'sync-value' }),
       }) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('retention')).toThrow(
       `Cannot resolve "${BOUNDED_REPLAY_SWEEP_LABEL}/retentionOptions": dependency "planEvents" is not registered. Resolution path: retention -> ${BOUNDED_REPLAY_SWEEP_LABEL}/retentionOptions -> planEvents.`,

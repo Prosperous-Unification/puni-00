@@ -60,13 +60,17 @@ const requirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(authenticationModule)
-    .register({
-      account: DiBag.fromSyncFactory(() => requirements().account),
-      now: DiBag.fromSyncFactory(() => requirements().now),
-      maxConcurrentLogins: DiBag.fromSyncFactory(() => requirements().maxConcurrentLogins),
+    .withInstalledModules([authenticationModule])
+    .withServices({
+      account: DiBag.createProvider(() => requirements().account, {
+        factoryReturnKind: 'sync-value',
+      }),
+      now: DiBag.createProvider(() => requirements().now, { factoryReturnKind: 'sync-value' }),
+      maxConcurrentLogins: DiBag.createProvider(() => requirements().maxConcurrentLogins, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 /**
  * Compile-negative: the map's own "verifier-without-identity-store is
@@ -174,7 +178,7 @@ describe('the Authentication module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('authOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "authOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "authOptions" is not registered.');
   });
 
   /** A host that installs the module cannot name what the module did not export. */
@@ -183,14 +187,14 @@ describe('the Authentication module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('throttleOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "throttleOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "throttleOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    const labels = host.inspectGraph().bindings.map((binding) => binding.label);
+    const labels = host.graphSnapshot().bindings.map((binding) => binding.bindingLabel);
 
     expect(labels).toContain(`${AUTHENTICATION_LABEL}/authOptions`);
     expect(labels).toContain(`${AUTHENTICATION_LABEL}/throttleOptions`);
@@ -204,14 +208,16 @@ describe('the Authentication module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(authenticationModule)
-      .register({
-        account: DiBag.fromSyncFactory(() => requirements().account),
-        now: DiBag.fromSyncFactory(() => requirements().now),
+      .withInstalledModules([authenticationModule])
+      .withServices({
+        account: DiBag.createProvider(() => requirements().account, {
+          factoryReturnKind: 'sync-value',
+        }),
+        now: DiBag.createProvider(() => requirements().now, { factoryReturnKind: 'sync-value' }),
       }) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('loginThrottle')).toThrow(
       `Cannot resolve "${AUTHENTICATION_LABEL}/throttleOptions": dependency "maxConcurrentLogins" is not registered. Resolution path: loginThrottle -> ${AUTHENTICATION_LABEL}/throttleOptions -> maxConcurrentLogins.`,

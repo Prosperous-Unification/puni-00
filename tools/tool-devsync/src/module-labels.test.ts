@@ -102,15 +102,16 @@ async function exportedValues(path: string): Promise<readonly unknown[]> {
  * The labels di-bag gives the private bindings of one installation of the module `module.ts`
  * exports, read from the running library rather than from any spelling in the source.
  *
- * Exported bindings keep their bare key and carry their public names in `keys`, so only a binding
- * with no key is read: an exported key that merely contains a slash cannot pass for a label. The
+ * Exported bindings keep their bare key and carry their public names in `serviceKeys`, so only a
+ * binding with no key is read: an exported key that merely contains a slash cannot pass for a label. The
  * label is observable only this way, so every sealed module keeps at least one private binding by
  * convention; one that exports every binding is refused as sealing none.
  *
- * Known limit: di-bag 0.4.0 exposes a label only as the prefix of private binding names, so a
- * module that drops its label and either spells `<label>/<key>` into a private key or installs an
- * inner module sealed under that label reads as labelled. Closing that needs a label the library
- * exposes itself, which is the di-bag migration's (packet D's route 1).
+ * Known limit: di-bag exposes a label only as the prefix of private binding names — 0.5.0 keeps
+ * `moduleLabel` write-only, held in a private `WeakMap` — so a module that drops its label and
+ * either spells `<label>/<key>` into a private key or installs an inner module sealed under that
+ * label reads as labelled. Closing that needs a label accessor the library does not have yet (WBS
+ * 040.13, left open by the 0.5.0 migration).
  *
  * @throws When `module.ts` exports anything but exactly one value, or when di-bag refuses it as a
  *   module.
@@ -126,13 +127,17 @@ async function privateBindingLabels(directory: string): Promise<readonly string[
   // The host below supplies none of the module's requirements, which the type checker refuses;
   // the runtime still builds the graph, and describing it resolves nothing.
   const builder = DiBag.createBuilder() as unknown as {
-    installModule: (module: unknown) => { build: () => { inspectGraph: () => GraphSnapshot } };
+    withInstalledModules: (modules: readonly unknown[]) => {
+      buildContainer: () => { graphSnapshot: () => GraphSnapshot };
+    };
   };
-  const graph = builder.installModule(values[0]).build().inspectGraph();
+  const graph = builder.withInstalledModules([values[0]]).buildContainer().graphSnapshot();
   // Proof (2026-09-24): reading no binding as private reported every one of the eighteen modules
   // as `seals no private binding` in "seals every module under the label its location implies"
   // (4 pass, 1 fail).
-  return graph.bindings.filter((binding) => binding.keys.length === 0).map(({ label }) => label);
+  return graph.bindings
+    .filter((binding) => binding.serviceKeys.length === 0)
+    .map((binding) => binding.bindingLabel);
 }
 
 /**

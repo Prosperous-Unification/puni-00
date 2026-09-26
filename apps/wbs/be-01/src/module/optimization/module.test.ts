@@ -61,24 +61,38 @@ function requirements(): OptimizationRequirements {
 const hostRequirements = () => {
   const supplied = requirements();
   return {
-    db: DiBag.fromSyncFactory(() => supplied.db),
-    contractVersion: DiBag.fromSyncFactory(() => supplied.contractVersion),
-    solverVersion: DiBag.fromSyncFactory(() => supplied.solverVersion),
-    budgetMs: DiBag.fromSyncFactory(() => supplied.budgetMs),
-    ownerId: DiBag.fromSyncFactory(() => supplied.ownerId),
-    now: DiBag.fromSyncFactory(() => supplied.now),
-    attemptToken: DiBag.fromSyncFactory(() => supplied.attemptToken),
-    inputOf: DiBag.fromSyncFactory(() => supplied.inputOf),
-    enabledOf: DiBag.fromSyncFactory(() => supplied.enabledOf),
-    hashInput: DiBag.fromSyncFactory(() => supplied.hashInput),
-    spawn: DiBag.fromSyncFactory(() => supplied.spawn),
-    runChild: DiBag.fromSyncFactory(() => supplied.runChild),
-    eventLog: DiBag.fromSyncFactory(() => supplied.eventLog),
-    pushRecorded: DiBag.fromSyncFactory(() => supplied.pushRecorded),
-    editDebounceMs: DiBag.fromSyncFactory(() => supplied.editDebounceMs),
-    sleep: DiBag.fromSyncFactory(() => supplied.sleep),
-    setInterval: DiBag.fromSyncFactory(() => supplied.setInterval),
-    clearInterval: DiBag.fromSyncFactory(() => supplied.clearInterval),
+    db: DiBag.createProvider(() => supplied.db, { factoryReturnKind: 'sync-value' }),
+    contractVersion: DiBag.createProvider(() => supplied.contractVersion, {
+      factoryReturnKind: 'sync-value',
+    }),
+    solverVersion: DiBag.createProvider(() => supplied.solverVersion, {
+      factoryReturnKind: 'sync-value',
+    }),
+    budgetMs: DiBag.createProvider(() => supplied.budgetMs, { factoryReturnKind: 'sync-value' }),
+    ownerId: DiBag.createProvider(() => supplied.ownerId, { factoryReturnKind: 'sync-value' }),
+    now: DiBag.createProvider(() => supplied.now, { factoryReturnKind: 'sync-value' }),
+    attemptToken: DiBag.createProvider(() => supplied.attemptToken, {
+      factoryReturnKind: 'sync-value',
+    }),
+    inputOf: DiBag.createProvider(() => supplied.inputOf, { factoryReturnKind: 'sync-value' }),
+    enabledOf: DiBag.createProvider(() => supplied.enabledOf, { factoryReturnKind: 'sync-value' }),
+    hashInput: DiBag.createProvider(() => supplied.hashInput, { factoryReturnKind: 'sync-value' }),
+    spawn: DiBag.createProvider(() => supplied.spawn, { factoryReturnKind: 'sync-value' }),
+    runChild: DiBag.createProvider(() => supplied.runChild, { factoryReturnKind: 'sync-value' }),
+    eventLog: DiBag.createProvider(() => supplied.eventLog, { factoryReturnKind: 'sync-value' }),
+    pushRecorded: DiBag.createProvider(() => supplied.pushRecorded, {
+      factoryReturnKind: 'sync-value',
+    }),
+    editDebounceMs: DiBag.createProvider(() => supplied.editDebounceMs, {
+      factoryReturnKind: 'sync-value',
+    }),
+    sleep: DiBag.createProvider(() => supplied.sleep, { factoryReturnKind: 'sync-value' }),
+    setInterval: DiBag.createProvider(() => supplied.setInterval, {
+      factoryReturnKind: 'sync-value',
+    }),
+    clearInterval: DiBag.createProvider(() => supplied.clearInterval, {
+      factoryReturnKind: 'sync-value',
+    }),
   };
 };
 
@@ -92,12 +106,14 @@ const hostRequirements = () => {
  */
 const completeHost = () =>
   DiBag.createBuilder()
-    .installModule(optimizationModule)
-    .register({
+    .withInstalledModules([optimizationModule])
+    .withServices({
       ...hostRequirements(),
-      onChildError: DiBag.fromSyncFactory(() => requirements().onChildError),
+      onChildError: DiBag.createProvider(() => requirements().onChildError, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
-    .build();
+    .buildContainer();
 
 describe('the Optimization module', () => {
   it('reads an idle plan under the identity installOptimization wires', () => {
@@ -180,14 +196,14 @@ describe('the Optimization module', () => {
 
     expect(() =>
       (host as unknown as { resolve: (key: string) => unknown }).resolve('optimizationOptions'),
-    ).toThrow('DI_BAG_MISSING_REGISTRATION: Service "optimizationOptions" is not registered.');
+    ).toThrow('DI_BAG_UNKNOWN_SERVICE_KEY: Service "optimizationOptions" is not registered.');
   });
 
   /** The label is what makes a private binding identifiable in any graph report. */
   it('labels its private bindings with the module name', () => {
     const host = completeHost();
 
-    expect(host.inspectGraph().bindings.map((binding) => binding.label)).toContain(
+    expect(host.graphSnapshot().bindings.map((binding) => binding.bindingLabel)).toContain(
       `${OPTIMIZATION_LABEL}/optimizationOptions`,
     );
   });
@@ -200,11 +216,11 @@ describe('the Optimization module', () => {
    */
   it('names itself when a host omits a requirement', () => {
     const partial = DiBag.createBuilder()
-      .installModule(optimizationModule)
-      .register(hostRequirements()) as unknown as {
-      build: () => { resolve: (key: string) => unknown };
+      .withInstalledModules([optimizationModule])
+      .withServices(hostRequirements()) as unknown as {
+      buildContainer: () => { resolve: (key: string) => unknown };
     };
-    const host = partial.build();
+    const host = partial.buildContainer();
 
     expect(() => host.resolve('optimizer')).toThrow(
       `Cannot resolve "${OPTIMIZATION_LABEL}/optimizationOptions": dependency "onChildError" is not registered. Resolution path: optimizer -> ${OPTIMIZATION_LABEL}/optimizationOptions -> onChildError.`,

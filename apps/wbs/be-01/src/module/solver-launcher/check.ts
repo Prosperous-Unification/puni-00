@@ -17,12 +17,12 @@ export function installSolverLauncher(
   requirements: SolverLauncherRequirements,
 ): SolverLauncherExports {
   const bag = DiBag.createBuilder()
-    .installModule(solverLauncherModule)
-    .register({
-      probe: DiBag.fromSyncFactory(() => requirements.probe),
-      spawn: DiBag.fromSyncFactory(() => requirements.spawn),
+    .withInstalledModules([solverLauncherModule])
+    .withServices({
+      probe: DiBag.createProvider(() => requirements.probe, { factoryReturnKind: 'sync-value' }),
+      spawn: DiBag.createProvider(() => requirements.spawn, { factoryReturnKind: 'sync-value' }),
     })
-    .build();
+    .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable `exposed` object with `bag` left the
   // installer-surface assertion failing: the received keys included `bag` (6 pass, 1 fail), with
   // `wbs-be-01:typecheck` at exit 0.

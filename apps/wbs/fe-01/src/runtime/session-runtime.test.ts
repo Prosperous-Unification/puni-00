@@ -265,16 +265,18 @@ describe('log out', () => {
     try {
       let letGo: () => void = () => undefined;
       const socket = DiBag.createBuilder()
-        .register({
-          socket: DiBag.withDisposal(
-            DiBag.fromSyncFactory((): string => 'open'),
-            () =>
+        .withServices({
+          socket: DiBag.providerWithDisposal({
+            provider: DiBag.createProvider((): string => 'open', {
+              factoryReturnKind: 'sync-value',
+            }),
+            disposeService: () =>
               new Promise<void>((resolve) => {
                 letGo = resolve;
               }),
-          ),
+          }),
         })
-        .build();
+        .buildContainer();
       socket.resolve('socket');
       const owner = createSessionOwner({
         clientFor: () => fakeDirectoryApi(),
@@ -284,7 +286,7 @@ describe('log out', () => {
             services: installed.services,
             close: async (options) => {
               await installed.close(options);
-              await socket.close(options);
+              await socket.close({ waitTimeoutMs: options.timeoutMs });
             },
           };
         },
