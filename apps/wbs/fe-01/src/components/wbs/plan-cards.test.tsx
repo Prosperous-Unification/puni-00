@@ -2340,6 +2340,28 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await screen.findByRole('article', { name: 'Work item 020' });
   });
 
+  itDom('adds a child through the table’s own handler and opens it into view', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: 'w1' });
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByRole('article', { name: 'Work item 020' });
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse 010' }));
+    expect(screen.queryByRole('article', { name: 'Work item 020' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add child' }));
+
+    await screen.findByRole('article', { name: 'Work item 030' });
+    expect(creates).toEqual([{ parentId: 'w1', afterId: 'w2', name: '' }]);
+    expect(screen.getByRole('article', { name: 'Work item 020' })).toBeDefined();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 030'));
+    });
+  });
+
   itDom('deletes a row through the table’s own handler', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
@@ -2376,11 +2398,12 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual([
         'Set status to Done',
+        'Add child',
         'Duplicate',
         'Unfreeze',
         'Delete',
       ]);
-      expect(items[3]).toHaveAttribute(
+      expect(items[4]).toHaveAttribute(
         'data-fact',
         'Frozen — unfreeze this row before deleting it',
       );
@@ -2599,6 +2622,7 @@ describe('a card given no sentence for its start', () => {
 
 const doNothingActions = (): CardRowActionHandlers => ({
   duplicate: () => undefined,
+  addChild: () => undefined,
   unfreeze: () => undefined,
   remove: () => undefined,
   markDone: () => undefined,
@@ -2618,6 +2642,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Set status to Done',
+      'Add child',
       'Duplicate',
       'Delete',
     ]);
@@ -2629,12 +2654,13 @@ describe('the ⋯ row-actions menu on a card', () => {
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
       'Set status to Done',
+      'Add child',
       'Duplicate',
       'Unfreeze',
       'Delete',
     ]);
-    expect(items[3]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
-    expect(items[3]).toHaveAttribute('aria-disabled', 'true');
+    expect(items[4]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
+    expect(items[4]).toHaveAttribute('aria-disabled', 'true');
   });
 
   itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {

@@ -1139,6 +1139,7 @@ export function WbsTable({
   const {
     dropOn,
     addSibling,
+    addChild,
     indent,
     outdent,
     moveAmongSiblings,
@@ -1452,6 +1453,7 @@ export function WbsTable({
     commands,
     run,
     duplicateRow,
+    addChild,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -2392,6 +2394,9 @@ export function WbsTable({
                 busy,
                 duplicate: (rowId) => {
                   void duplicateRow(rowId);
+                },
+                addChild: (row) => {
+                  void addChild(row);
                 },
                 unfreeze: (rowId) => {
                   void run((write) =>

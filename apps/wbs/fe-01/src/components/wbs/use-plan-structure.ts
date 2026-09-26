@@ -259,6 +259,38 @@ export function usePlanStructure({
   );
 
   /**
+   * Add child: one new last child under `parent`, opened into view with the
+   * caret in its Name.
+   *
+   * One create and nothing else, so be-01's first-child hand-down of a leaf's
+   * estimates and its single journal entry — one undo — are the command's own.
+   * The branch is opened only after be-01 took the create: under a remembered
+   * expansion record an absent key reads as closed, so a leaf that just became
+   * a parent would otherwise hide the row the caret is sent to. A refusal
+   * opens nothing and leaves the focus where the menu returned it.
+   */
+  const addChild = useCallback(
+    (parent: TreeRow) =>
+      run(async (write) => {
+        const created = await write.perform(['tree'], () =>
+          commands.createWorkItem({
+            parentId: parent.id,
+            afterId: parent.subRows.at(-1)?.id ?? null,
+            name: '',
+          }),
+        );
+        // Proof: this line removed, `opens a collapsed frozen parent so the new
+        // child is visible`, `opens a collapsed leaf’s first child after an
+        // earlier Collapse all` and the card's `adds a child through the
+        // table’s own handler and opens it into view` failed with the new row
+        // absent from the screen. Watched 2026-09-27.
+        setExpanded((current) => pathTo(flat, parent.id).reduce(expandBranch, current));
+        focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
+      }),
+    [commands, flat, focusIntent, run, setExpanded],
+  );
+
+  /**
    * Indent: the row becomes the last child of the sibling above it.
    *
    * `landOn` is the column the focus should come back to. It defaults to the
@@ -494,6 +526,7 @@ export function usePlanStructure({
   return {
     dropOn,
     addSibling,
+    addChild,
     indent,
     outdent,
     moveAmongSiblings,
@@ -525,6 +558,24 @@ export const REFUSAL_MESSAGES: Partial<Record<DropRefusal, string>> = {
 export function expandBranch(current: ExpandedState, rowId: string): ExpandedState {
   if (current === true) return true;
   return { ...current, [rowId]: true };
+}
+
+/**
+ * `rowId` and each of its ancestors, read off the parent links of `flat`.
+ *
+ * Throws on a parent link to a row `flat` does not hold: the tree on screen
+ * is one read, so a dangling link is a broken payload, not a state to open.
+ */
+export function pathTo(flat: readonly TreeRow[], rowId: string): string[] {
+  const byId = new Map(flat.map((row) => [row.id, row]));
+  const path: string[] = [];
+  for (let at: string | null = rowId; at !== null;) {
+    const row = byId.get(at);
+    if (row === undefined) throw new Error(`row ${at} is not in the tree on screen`);
+    path.push(row.id);
+    at = row.parentId;
+  }
+  return path;
 }
 
 /**

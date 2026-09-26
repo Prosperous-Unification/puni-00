@@ -281,6 +281,104 @@ describe('duplicating a branch', () => {
   });
 });
 
+describe('adding a child from the row menu', () => {
+  /** `010 Strip` with `010.1 Sockets` under it, and `020 Sand`, already on screen. */
+  async function shownBranch(api: ProjectApi, shown: ProjectApi = api): Promise<void> {
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(shown)} />);
+    await screen.findByLabelText('Name of 020');
+  }
+
+  itDom('makes a leaf a parent with one create and lands the caret in the child', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    });
+    // One request, so be-01's first-child hand-down and its one journal entry
+    // — one undo — are the create's own, not a client's sequence of writes.
+    expect(creates).toEqual([{ parentId: 'w3', afterId: null, name: '' }]);
+    expect(moves).toEqual([]);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020.1'));
+    });
+  });
+
+  itDom('adds the last child of a parent', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+
+    takeRowAction('010', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    expect(creates).toEqual([{ parentId: 'w1', afterId: 'w2', name: '' }]);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+    });
+  });
+
+  itDom('opens a collapsed frozen parent so the new child is visible', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    takeFreezeAction('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+    click('Collapse all');
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+
+    takeRowAction('010', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+    });
+  });
+
+  itDom('opens a collapsed leaf’s first child after an earlier Collapse all', async () => {
+    // Collapse all on a nested plan writes a record, and in a record an absent
+    // key reads as closed — so a leaf that becomes a parent arrives shut
+    // unless the create opens it.
+    const api = fakeApi();
+    await shownBranch(api);
+    click('Collapse all');
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '020.1']);
+    });
+  });
+
+  itDom('says why a child was refused, adds nothing and leaves the focus alone', async () => {
+    const api = fakeApi();
+    await shownBranch(api, {
+      ...api,
+      createWorkItem: () => Promise.reject(new Error('frozen')),
+    });
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('That change could not be completed (frozen).');
+    });
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for 020' }));
+  });
+});
+
 describe('the row actions menu', () => {
   /** Three root rows, named, already on screen. */
   async function threeRows(api: ProjectApi): Promise<void> {
@@ -299,6 +397,7 @@ describe('the row actions menu', () => {
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Set status to Done',
+      'Add child',
       'Duplicate',
       'Delete',
     ]);
