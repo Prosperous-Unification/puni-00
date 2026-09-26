@@ -270,7 +270,7 @@ async function images(port: number, sourceSha: string): Promise<LabImages> {
   if (!local) {
     await build('wbs-be-01:f8-v1', 'apps/wbs/be-01/Dockerfile', ROOT);
     await build('wbs-gw-01:f8-v1', 'apps/wbs/gw-01/Dockerfile', ROOT);
-    await build('wbs-mcp-01:f8-v1', 'deploy/k8s/wbs/lab/mcp-01.Dockerfile', ROOT);
+    await build('wbs-mcp-01:f8-v1', 'apps/wbs/mcp-01/Dockerfile', ROOT);
     await build('wbs-fe-01:f8-v1', 'apps/wbs/fe-01/Dockerfile', ROOT);
   }
   const lab = join(ROOT, 'deploy/k8s/wbs/lab');
