@@ -22,6 +22,22 @@ After sign-in, a user without membership SHALL establish a verified email before
 - **WHEN** they create an organization
 - **THEN** the organization and their super-admin membership commit together
 
+### Requirement: Password-only accounts can establish verified email without changing identity
+
+An existing first-party username/password account without verified email SHALL retain its local WBS user ID and password sign-in. Its authenticated owner SHALL be offered a rendered path to add an email, receive a single-use expiring verification challenge at that address, and confirm possession before any organization creation, invitation acceptance or join request. Alternatively, the owner MAY link an Auth0 identity through a fresh authenticated Auth0 flow whose verified email is established by Auth0; WBS SHALL bind its verified issuer/subject to the same local user ID only after proving control of both sessions. Matching email alone SHALL never merge accounts. Expired, replayed, mismatched or unverified proofs and issuer/subject collisions SHALL refuse linking and onboarding without changing the local ID or granting membership. Lost delivery, expired challenge, collision and query failure SHALL have distinct rendered recovery or support paths.
+
+#### Scenario: Password account verifies an address
+
+- **GIVEN** a password-only account with local user ID U and no verified email
+- **WHEN** U confirms a fresh single-use challenge sent to its new address
+- **THEN** U keeps the same local ID and may continue onboarding with that verified address
+
+#### Scenario: Auth0 link collision
+
+- **GIVEN** a password-only account U and an Auth0 issuer/subject already mapped to V
+- **WHEN** U attempts to link that Auth0 identity, even if their emails match
+- **THEN** linking and onboarding are refused without merging U and V or changing either ID
+
 ### Requirement: Invitations are bound and single use
 
 An authorized administrator SHALL create a revocable invitation for one normalized verified recipient email, organization and permitted role with an expiry. Only the matching currently verified email SHALL accept it. Acceptance SHALL consume the invitation and create or retain one membership atomically; expiry, revocation, concurrent acceptance and replay MUST be refused. Admins SHALL only invite viewer or member; super-admins SHALL also invite admin. An invitation SHALL NOT directly grant super-admin.

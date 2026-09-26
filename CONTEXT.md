@@ -143,9 +143,9 @@ the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
-The people and service teams every project draws from — one list for the whole
-deployment, readable and writable by any signed-in account. Not a per-project list, and
-not an account on this tool.
+The people and service teams projects in one organization draw from — one list scoped to
+that organization. Current members may read it; current member, admin and super-admin roles
+may edit it. It is not a per-project list or an account on this tool.
 _Avoid_: roster, address book, org chart, users
 
 **Service team**:
@@ -303,8 +303,9 @@ itself.
 _Avoid_: plus, add affordance, new button, opener
 
 **Project owner**:
-The account that created a project and the only one that may edit it while it is
-restricted. An account, never a person from the directory.
+The account that created a project and retains stewardship of a restricted project within
+its organization. A current creator-member may edit it; a current super-admin may make an
+audited recovery edit. An account, never a person from the directory.
 _Avoid_: author, creator, user
 
 **Project entry**:
@@ -658,9 +659,11 @@ never a sum, exactly as the projection is.
 _Avoid_: parent bar, group bar, rollup bar
 
 **Arrow route**:
-The corners a dependency arrow is drawn through, from the predecessor's anchor to the
-successor's start: horizontal and vertical runs only, arriving from the left so the head
-points right. Chosen against the bars the panel is drawing — it passes through no bar's
+The corners a dependency arrow is drawn through, from the selected predecessor boundary to the
+selected successor boundary — finish→start for FS, start→start for SS, finish→finish for FF: horizontal and vertical runs only.
+The head arrives from outside the bar at that boundary: from the left, pointing right, at a
+start (FS, SS); from the right, pointing left, at a finish (FF), through a gutter right of the
+finishes. Chosen against the bars the panel is drawing — it passes through no bar's
 interior, the two it joins included — and not merely from the two ends.
 _Avoid_: elbow, path, polyline
 
@@ -1065,8 +1068,9 @@ one excludes other processes, the other orders this one's own writers.
 _Avoid_: using this name for the coordinator
 
 **Restricted project**:
-A project only its owner may edit. Every authenticated account may still read it; an
-unrestricted project may be edited by any of them.
+A project readable by current members of its organization but ordinarily editable only by
+its creator while that creator remains a member. A current super-admin may make an audited
+recovery edit; an unrestricted project is editable by current members, admins and super-admins.
 _Avoid_: private, locked project
 
 **External ref**:

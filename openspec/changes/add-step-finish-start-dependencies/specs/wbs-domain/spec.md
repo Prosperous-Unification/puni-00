@@ -26,7 +26,7 @@ Legacy dependencies SHALL continue to use the project's dynamic `depReach`, incl
 
 ### Requirement: Authored dependencies form an acyclic slice graph
 
-The system SHALL validate the expanded authored graph, including internal step order and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-slice pairs and any parent expansion producing one, without silently omitting pairs. Deleting a referenced step SHALL be refused until its typed dependencies are removed or reassigned. A valid slice DAG SHALL NOT be refused merely because work-item IDs appear cyclic.
+The system SHALL validate the expanded authored graph, including internal step order and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; project `depReach` changes; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-slice pairs and any parent expansion producing one, without silently omitting pairs. Deleting a referenced step SHALL be refused until its typed dependencies are removed or reassigned. A valid slice DAG SHALL NOT be refused merely because work-item IDs appear cyclic.
 
 #### Scenario: Apparent work-item cycle is a valid slice DAG
 
@@ -45,6 +45,12 @@ The system SHALL validate the expanded authored graph, including internal step o
 - **GIVEN** typed A.QA → B.QA and legacy B → A with `anchor-slice` reach currently anchored at B.Dev
 - **WHEN** B.Dev's estimate is cleared so B.QA becomes the legacy anchor
 - **THEN** the combined-graph cycle is refused atomically and the estimate and anchor stay unchanged
+
+#### Scenario: Changing dependency reach closes a cycle
+
+- **GIVEN** typed A.QA → B.QA and legacy B → A with `anchor-slice` reach anchored at B.Dev
+- **WHEN** a mounted project update changes `depReach` to `whole-item`
+- **THEN** the resulting combined-graph cycle is refused atomically and `depReach` and links stay unchanged
 
 #### Scenario: A legacy write bypasses a typed edge
 

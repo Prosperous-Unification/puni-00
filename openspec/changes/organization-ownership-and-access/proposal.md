@@ -17,7 +17,7 @@ Social login with Google, GitHub or Apple; Auth0 email code or email/password lo
 
 ## Constraints
 
-Auth0 remains the identity provider; WBS owns organization policy and stores stable issuer/subject mappings. Existing first-party password and development identity paths must pass the same authorization boundary. Blue/green processes share SQLite: schema expansion is additive, each migration has `migration.sql` and `down.sql`, and organization-unaware releases must never receive traffic after tenancy activation. Public-domain refusal, invitation-only matching, and one legacy organization owned by Dany are product-owner defaults recorded here as assumptions for review.
+Auth0 remains the identity provider; WBS owns organization policy and stores stable issuer/subject mappings. Existing first-party password accounts must acquire a verified email through a single-use address challenge or explicitly link a verified Auth0 identity after proving both sessions, preserving local user IDs. Development identity paths must pass the same authorization boundary. Blue/green processes share SQLite: schema expansion is additive, each migration has `migration.sql` and `down.sql`, and organization-unaware releases must never receive traffic after tenancy activation. Public-domain refusal, invitation-only matching, and one legacy organization owned by Dany are product-owner defaults recorded here as assumptions for review.
 
 ## Capabilities
 
@@ -40,4 +40,4 @@ None; the product owner fixed the identity and organization boundaries for this 
 
 ## Impact
 
-WBS contracts, storage, be-01, gw-01, mcp-01, fe-01, shared authorization, SQLite migrations and deployment rollback checks.
+WBS contracts, storage, be-01, gw-01, mcp-01, fe-01, shared authorization, paired WBS and MCP SQLite migrations and deployment rollback checks.

@@ -5,7 +5,7 @@ This is a spec-time plan. No application code, migration SQL, negative fault inj
 ## Structural validation
 
 - Spec-time `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0: 127 items passed, 0 failed; this change had no issues. Other existing items emitted non-failing information and warnings.
-- File-scoped `bunx prettier --write` followed by `bunx prettier --check` exited 0 for `CONTEXT.md` and all ten change files. Recheck after any further edits.
+- Round-2 `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0: 127 passed, 0 failed; 27 informational archive-prerequisite notices and one unrelated `dev-deploy` purpose warning. `bunx prettier --write` and `bunx prettier --check` on all changed files, `git diff --check`, and the seven reviewed proposal intent counts (maximum 314 words) exited 0.
 
 ## Task completion and delta sync
 
@@ -31,16 +31,22 @@ This is a spec-time plan. No application code, migration SQL, negative fault inj
 | MCP current membership                       | Remove per-call check                                            | Removed-member live-token tool test           | Pending         |
 | Rollback activation fence                    | Bypass durable marker check                                      | Actual swap-abort rollback test               | Pending         |
 
+Additional production-path negatives are required separately for project, directory, step/allowance/schedule, dependency/batch, import/copy, and saved-plan/history/event authorization; each boundary must fail its own mounted foreign-resource fixture when its predicate is removed. Password-account email verification must fail when an unverified address is accepted; Auth0 linking must fail when email alone merges two local IDs. Domain checks must distinguish missing, unreadable and malformed policy, day-7 retained-proof success, day-14 suspension with retained owner, rotation and suspended-to-verified recovery. MCP cutover must refuse an active or restartable old writer before epoch advancement and fail old access, code and refresh use after restart, unbound direct-token fallback and a refresh-retry that loses delegation. Activation state must distinguish absent, unreadable and malformed marker/epoch, and the actual swap must refuse both WBS and MCP-store down migrations after activation. Record the observed command, injected fault and failed assertion for every task-specified guard; these are pending until implementation.
+
 Every implemented guard needs an adjacent `Proof:` comment naming its injected fault and observed test. Test absence and unreadability separately wherever a policy file or trusted state distinguishes them. A command exit code alone does not prove the intended effect.
 
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
-- Migration lint and paired rollback: pending; no SQL exists in this packet.
+- Migration lint and paired WBS/MCP-store rollback: pending; no SQL exists in this packet.
 - `bunx nx format:check --all` and `bunx nx run-many -t test lint typecheck build`: pending.
 - `bin/h2puni-gate.sh <sha>`: pending a committed implementation SHA; record its printed running SHA and full outcome.
-- Implementation commit range, clean worktree and push status: pending; this spec packet is intentionally uncommitted.
+- Implementation commit range and host gate: pending; this packet contains no application code or migration SQL.
 
 ## Decision
 
 Implementation verification is pending. Do not mark the change complete or archive it from this spec-time record.
+
+## Astra consultation
+
+The requested `codex exec -m gpt-6-astra -c model_reasoning_effort=high --skip-git-repo-check` review of the MCP epoch cutover was attempted during this spec pass. It exited 1 with model refresh and workspace routing connection failures; no answer was returned. The mixed-version writer gap was closed by requiring old mcp-01 processes to drain and be fenced from restart before epoch advancement, with a planned production-path overlap test.
