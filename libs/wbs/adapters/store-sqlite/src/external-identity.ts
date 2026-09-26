@@ -32,9 +32,10 @@ export class ExternalIdentityRepository {
    *
    * Insert-or-ignore then read back, in one transaction: the unique index
    * decides a race, and the read tells the loser who won. Email plays no part,
-   * so two accounts are never merged because their addresses match.
+   * so two accounts are never merged because their addresses match. The
+   * index's proof is beside it in `20260927120000_add_organization_records`.
    */
-  async map(
+  async mapIdentity(
     mapping: IssuerSubject & { readonly id: string; readonly userId: string },
     stamp: WriteStamp,
   ): Promise<IdentityMapping> {

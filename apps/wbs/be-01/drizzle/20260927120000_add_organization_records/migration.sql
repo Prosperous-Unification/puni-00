@@ -13,6 +13,9 @@
 -- columns. A user may hold several identities (the later provider swap), but a
 -- verified `(issuer, subject)` belongs to exactly one local user, and that
 -- uniqueness is what refuses merging two accounts on email alone.
+-- Proof: the unique index made plain failed both mapping cases in
+-- `organization-records.db.test.ts` with `ON CONFLICT clause does not match any PRIMARY KEY or
+-- UNIQUE constraint`. Observed 2026-09-27.
 CREATE TABLE `external_identity` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL REFERENCES `users`(`id`),
@@ -29,6 +32,8 @@ CREATE INDEX `external_identity_user` ON `external_identity` (`user_id`);
 --> statement-breakpoint
 -- `legacy` marks the one organization that receives every record written
 -- before tenancy; the partial unique index is what makes "one" true.
+-- Proof: `organization_one_legacy` made non-unique failed `organization-records.db.test.ts` `refuses a row
+-- that breaks organization_one_legacy`. Observed 2026-09-27.
 CREATE TABLE `organization` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -57,6 +62,9 @@ CREATE INDEX `organization_membership_user` ON `organization_membership` (`user_
 -- Only the token's digest is stored. `role` excludes `super_admin`: an
 -- invitation never grants ownership. `consumed_at` and `revoked_at` are the
 -- single-use and revocation states the accepting transaction checks.
+-- Proof: removing the expiry check, or reducing the consumption check to
+-- `CHECK (1)`, failed its own `refuses a row that breaks …` case in
+-- `organization-records.db.test.ts`. Observed 2026-09-27.
 CREATE TABLE `organization_invitation` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL REFERENCES `organization`(`id`),
@@ -85,6 +93,11 @@ CREATE INDEX `organization_invitation_organization` ON `organization_invitation`
 -- request's own organization, and the status check keeps each state's
 -- resolution columns honest (SQLite passes a CHECK that yields NULL, hence the
 -- explicit IS NULL tests).
+-- Proof, each fault alone, observed 2026-09-27 in `organization-records.db.test.ts`: the
+-- composite key made single-column failed `refuses a join request pointing at
+-- another organization's invitation`; `one_pending` made non-unique and the
+-- pending arm without `resolved_at IS NULL` each failed its `refuses a row
+-- that breaks …` case.
 CREATE TABLE `organization_join_request` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL REFERENCES `organization`(`id`),
@@ -113,6 +126,11 @@ CREATE UNIQUE INDEX `organization_join_request_one_pending` ON `organization_joi
 -- `challenge_*` is the 24-hour initial or rotation challenge; `proof_digest` is
 -- the retained ownership proof promoted on success, and `previous_proof_*` the
 -- bounded overlap a rotation allows.
+-- Proof, each fault alone, observed 2026-09-27 in `organization-records.db.test.ts`: the owner
+-- index made non-partial and non-unique failed `lets exactly one organization
+-- own a verified domain` (`Received: "verified"`); dropping the challenge-pair
+-- or previous-proof-pair check, or short-circuiting the owned-proof check,
+-- failed its `refuses a row that breaks …` case.
 CREATE TABLE `organization_domain_claim` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL REFERENCES `organization`(`id`),

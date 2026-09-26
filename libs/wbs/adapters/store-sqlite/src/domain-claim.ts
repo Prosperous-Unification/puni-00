@@ -28,7 +28,7 @@ export class DomainClaimRepository {
   ) {}
 
   /** Records a pending claim. A pending claim reserves nothing. */
-  async open(claim: OpenedDomainClaim, stamp: WriteStamp): Promise<void> {
+  async openClaim(claim: OpenedDomainClaim, stamp: WriteStamp): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db
@@ -47,8 +47,12 @@ export class DomainClaimRepository {
    * (`stale`). The partial unique index `organization_domain_claim_owner`
    * decides a concurrent race: the loser's update violates it and answers
    * `taken`.
+   *
+   * Proof: dropping either the digest or the expiry predicate failed `refuses
+   * promotion with a stale or expired challenge` (`Received: "verified"`).
+   * Observed 2026-09-27.
    */
-  async promote(
+  async promoteClaim(
     claimId: string,
     observedDigest: string,
     stamp: WriteStamp,
@@ -85,7 +89,7 @@ export class DomainClaimRepository {
   }
 
   /** The organization owning `domain` as verified or suspended, or null. */
-  async ownerOf(domain: string): Promise<string | null> {
+  async findOwner(domain: string): Promise<string | null> {
     await Promise.resolve();
     const row = this.db
       .select({ organizationId: organizationDomainClaim.organizationId })

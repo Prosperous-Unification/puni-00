@@ -69,17 +69,17 @@ afterEach(() => {
 
 describe('ExternalIdentityRepository', () => {
   it('maps a verified issuer/subject to one local user and refuses a second user', async () => {
-    // Proof: with `external_identity_issuer_subject` made a plain index in the
-    // migration, this case and the next failed on `SQLiteError: ON CONFLICT
-    // clause does not match any PRIMARY KEY or UNIQUE constraint` — the
-    // repository cannot map at all without the uniqueness. Observed 2026-09-27.
     const identities = new ExternalIdentityRepository(connection.db, OPEN);
     const pair = { issuer: 'https://tenant.auth0.com/', subject: 'auth0|1' };
 
-    expect(await identities.map({ id: 'x1', userId: 'u-a', ...pair }, stamp('u-a'))).toEqual({
+    expect(
+      await identities.mapIdentity({ id: 'x1', userId: 'u-a', ...pair }, stamp('u-a')),
+    ).toEqual({
       kind: 'mapped',
     });
-    expect(await identities.map({ id: 'x2', userId: 'u-b', ...pair }, stamp('u-b'))).toEqual({
+    expect(
+      await identities.mapIdentity({ id: 'x2', userId: 'u-b', ...pair }, stamp('u-b')),
+    ).toEqual({
       kind: 'collision',
       userId: 'u-a',
     });
@@ -89,9 +89,11 @@ describe('ExternalIdentityRepository', () => {
   it('treats remapping the same pair to the same user as already mapped', async () => {
     const identities = new ExternalIdentityRepository(connection.db, OPEN);
     const pair = { issuer: 'https://tenant.auth0.com/', subject: 'auth0|2' };
-    await identities.map({ id: 'x1', userId: 'u-a', ...pair }, stamp('u-a'));
+    await identities.mapIdentity({ id: 'x1', userId: 'u-a', ...pair }, stamp('u-a'));
 
-    expect(await identities.map({ id: 'x2', userId: 'u-a', ...pair }, stamp('u-a'))).toEqual({
+    expect(
+      await identities.mapIdentity({ id: 'x2', userId: 'u-a', ...pair }, stamp('u-a')),
+    ).toEqual({
       kind: 'mapped',
     });
   });
@@ -118,13 +120,37 @@ describe('OrganizationRepository', () => {
     ]);
   });
 
-  it('refuses concurrent creation by one user, leaving exactly one organization', async () => {
-    // Two connections, as blue and green would hold. The immediate transaction
-    // re-reads membership after taking the write lock, so the loser sees the
-    // winner's row.
-    // Proof: with `if (held.n > 0) return 'already-member'` removed from
-    // `createForUnaffiliatedUser`, this case failed on the `toEqual` of the two
-    // outcomes (both `created`). Observed 2026-09-27.
+  it('leaves no organization behind when the first membership cannot be written', async () => {
+    const organizations = new OrganizationRepository(connection.db, OPEN);
+
+    let refusal: unknown;
+    try {
+      await organizations.createForUnaffiliatedUser(
+        { id: 'org-x', name: 'X' },
+        'no-such-user',
+        stamp('u-a'),
+      );
+    } catch (err) {
+      refusal = err;
+    }
+    expect(messagesOf(refusal).join(' ')).toContain('FOREIGN KEY constraint failed');
+    const db = openDatabase(path);
+    try {
+      expect(db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM organization').get()?.n).toBe(
+        0,
+      );
+    } finally {
+      db.close();
+    }
+  });
+
+  it('refuses a second creation by one user across two connections', async () => {
+    // Two connections, as blue and green would hold. bun:sqlite runs each
+    // transaction to completion synchronously, so these serialize rather than
+    // interleave: this watches the recheck, not lock contention. Contention
+    // cannot create a duplicate either way — a deferred loser would fail its
+    // lock upgrade with SQLITE_BUSY — and `immediate` turns that error into
+    // the modeled refusal. The cross-process onboarding race is task 4.3's.
     const other = openConnection(path);
     try {
       const outcomes = await Promise.all([
@@ -154,9 +180,6 @@ describe('OrganizationRepository', () => {
   });
 
   it('refuses demoting or removing the final super-admin and keeps the role', async () => {
-    // Proof: with `guardFinalSuperAdmin` returning null instead of reading the
-    // remaining super-admin count, this case failed on
-    // `Expected: "last-super-admin"`, `Received: "changed"`. Observed 2026-09-27.
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
 
@@ -197,7 +220,7 @@ describe('DomainClaimRepository', () => {
       ['c-a', 'org-a', 'u-a'],
       ['c-b', 'org-b', 'u-b'],
     ] as const)
-      await claims.open(
+      await claims.openClaim(
         { id, organizationId, domain, challengeDigest: `digest-${id}`, challengeExpiresAt: 1000 },
         stamp(by),
       );
@@ -205,22 +228,19 @@ describe('DomainClaimRepository', () => {
   }
 
   it('lets exactly one organization own a verified domain', async () => {
-    // Proof: with `organization_domain_claim_owner` made a plain non-partial
-    // index in the migration, this case failed on `Expected: "taken"`,
-    // `Received: "verified"`. Observed 2026-09-27.
     const claims = await twoOrganizationsClaiming('example.org');
 
-    expect(await claims.promote('c-a', 'digest-c-a', stamp('u-a', 20))).toBe('verified');
-    expect(await claims.promote('c-b', 'digest-c-b', stamp('u-b', 20))).toBe('taken');
-    expect(await claims.ownerOf('example.org')).toBe('org-a');
+    expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 20))).toBe('verified');
+    expect(await claims.promoteClaim('c-b', 'digest-c-b', stamp('u-b', 20))).toBe('taken');
+    expect(await claims.findOwner('example.org')).toBe('org-a');
   });
 
   it('refuses promotion with a stale or expired challenge', async () => {
     const claims = await twoOrganizationsClaiming('example.org');
 
-    expect(await claims.promote('c-a', 'digest-old', stamp('u-a', 20))).toBe('stale');
-    expect(await claims.promote('c-a', 'digest-c-a', stamp('u-a', 1000))).toBe('stale');
-    expect(await claims.ownerOf('example.org')).toBeNull();
+    expect(await claims.promoteClaim('c-a', 'digest-old', stamp('u-a', 20))).toBe('stale');
+    expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 1000))).toBe('stale');
+    expect(await claims.findOwner('example.org')).toBeNull();
   });
 });
 
@@ -235,9 +255,6 @@ describe('20260927120000_add_organization_records', () => {
         `INSERT INTO organization_invitation (id, organization_id, recipient_email, role, token_digest, expires_at, created_at)
          VALUES ('inv-b', 'org-b', 'x@example.org', 'member', 'd', 5, 1)`,
       );
-      // Proof: with the composite foreign key replaced by a single-column
-      // reference to `organization_invitation(id)`, this case failed on
-      // `Received function did not throw`. Observed 2026-09-27.
       expect(() =>
         db.run(
           `INSERT INTO organization_join_request (id, organization_id, user_id, email, status, resolved_at, resolved_by, invitation_id, created_at)
@@ -248,6 +265,75 @@ describe('20260927120000_add_organization_records', () => {
       db.close();
     }
   });
+
+  /**
+   * Each constraint the migration adds, refused through the migrated database.
+   * One row per constraint, so removing any one of them fails exactly its row.
+   */
+  const refusals: readonly { constraint: string; setup: readonly string[]; write: string }[] = [
+    {
+      constraint: 'organization_one_legacy',
+      setup: ["INSERT INTO organization (id, name, legacy, created_at) VALUES ('l1', 'L', 1, 1)"],
+      write: "INSERT INTO organization (id, name, legacy, created_at) VALUES ('l2', 'L', 1, 1)",
+    },
+    {
+      constraint: 'organization_invitation expiry',
+      setup: [],
+      write: `INSERT INTO organization_invitation (id, organization_id, recipient_email, role, token_digest, expires_at, created_at)
+              VALUES ('inv', 'org-a', 'x@example.org', 'member', 'd', 1, 1)`,
+    },
+    {
+      constraint: 'organization_invitation consumption',
+      setup: [],
+      write: `INSERT INTO organization_invitation (id, organization_id, recipient_email, role, token_digest, expires_at, consumed_at, created_at)
+              VALUES ('inv', 'org-a', 'x@example.org', 'member', 'd', 5, 2, 1)`,
+    },
+    {
+      constraint: 'organization_join_request_one_pending',
+      setup: [
+        `INSERT INTO organization_join_request (id, organization_id, user_id, email, status, created_at)
+         VALUES ('jr1', 'org-a', 'u-c', 'c@example.org', 'pending', 1)`,
+      ],
+      write: `INSERT INTO organization_join_request (id, organization_id, user_id, email, status, created_at)
+              VALUES ('jr2', 'org-a', 'u-c', 'c@example.org', 'pending', 1)`,
+    },
+    {
+      constraint: 'organization_join_request resolution',
+      setup: [],
+      write: `INSERT INTO organization_join_request (id, organization_id, user_id, email, status, resolved_at, created_at)
+              VALUES ('jr', 'org-a', 'u-c', 'c@example.org', 'pending', 2, 1)`,
+    },
+    {
+      constraint: 'organization_domain_claim challenge pair',
+      setup: [],
+      write: `INSERT INTO organization_domain_claim (id, organization_id, domain, status, challenge_digest, created_at)
+              VALUES ('c', 'org-a', 'example.org', 'pending', 'd', 1)`,
+    },
+    {
+      constraint: 'organization_domain_claim previous proof pair',
+      setup: [],
+      write: `INSERT INTO organization_domain_claim (id, organization_id, domain, status, previous_proof_digest, created_at)
+              VALUES ('c', 'org-a', 'example.org', 'pending', 'd', 1)`,
+    },
+    {
+      constraint: 'organization_domain_claim owned proof',
+      setup: [],
+      write: `INSERT INTO organization_domain_claim (id, organization_id, domain, status, created_at)
+              VALUES ('c', 'org-a', 'example.org', 'verified', 1)`,
+    },
+  ];
+
+  for (const refusal of refusals)
+    it(`refuses a row that breaks ${refusal.constraint}`, () => {
+      const db = openDatabase(path);
+      try {
+        db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+        for (const statement of refusal.setup) db.run(statement);
+        expect(() => db.run(refusal.write)).toThrow(/constraint failed/);
+      } finally {
+        db.close();
+      }
+    });
 
   it('refuses an invitation that offers super-admin', () => {
     const db = openDatabase(path);

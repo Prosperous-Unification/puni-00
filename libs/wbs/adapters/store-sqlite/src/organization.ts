@@ -41,6 +41,12 @@ export class OrganizationRepository {
    * The refusal is the onboarding rule (only a user with no membership reaches
    * creation) made atomic: two concurrent submissions by one user produce one
    * organization, not two. Creation claims no domain.
+   *
+   * Proof, each fault alone, observed 2026-09-27 in
+   * `organization-records.db.test.ts`: the recheck removed failed `refuses a
+   * second creation by one user across two connections`; the transaction
+   * replaced by running its body on `this.db` failed `leaves no organization
+   * behind when the first membership cannot be written` (`Received: 1`).
    */
   async createForUnaffiliatedUser(
     created: { readonly id: string; readonly name: string },
@@ -166,6 +172,10 @@ function membershipOf(organizationId: string, userId: string) {
  * Ordinary administration only. External deprovisioning of a departing owner
  * needs a separate audited recovery path (design.md, "Ownership and roles")
  * and must not go through here.
+ *
+ * Proof: returning null instead of reading the remaining count failed
+ * `refuses demoting or removing the final super-admin and keeps the role`
+ * (`Received: "changed"`). Observed 2026-09-27.
  */
 function guardFinalSuperAdmin(
   tx: Transaction,

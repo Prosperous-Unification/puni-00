@@ -2644,6 +2644,10 @@ export const organizationJoinRequest = sqliteTable(
     ...auditColumnsBesidesCreatedAt(),
   },
   (t) => [
+    check(
+      'organization_join_request_status',
+      sql`${t.status} IN ('pending', 'approved', 'denied')`,
+    ),
     uniqueIndex('organization_join_request_one_pending')
       .on(t.organizationId, t.userId)
       .where(sql`${t.status} = 'pending'`),
@@ -2651,6 +2655,12 @@ export const organizationJoinRequest = sqliteTable(
       columns: [t.organizationId, t.invitationId],
       foreignColumns: [organizationInvitation.organizationId, organizationInvitation.id],
     }),
+    check(
+      'organization_join_request_resolution',
+      sql`(${t.status} = 'pending' AND ${t.resolvedAt} IS NULL AND ${t.resolvedBy} IS NULL AND ${t.invitationId} IS NULL)
+        OR (${t.status} = 'approved' AND ${t.resolvedAt} IS NOT NULL AND ${t.resolvedBy} IS NOT NULL AND ${t.invitationId} IS NOT NULL)
+        OR (${t.status} = 'denied' AND ${t.resolvedAt} IS NOT NULL AND ${t.resolvedBy} IS NOT NULL AND ${t.invitationId} IS NULL)`,
+    ),
   ],
 );
 
@@ -2685,6 +2695,22 @@ export const organizationDomainClaim = sqliteTable(
     uniqueIndex('organization_domain_claim_owner')
       .on(t.domain)
       .where(sql`${t.status} IN ('verified', 'suspended')`),
+    check(
+      'organization_domain_claim_status',
+      sql`${t.status} IN ('pending', 'verified', 'suspended')`,
+    ),
+    check(
+      'organization_domain_claim_challenge',
+      sql`(${t.challengeDigest} IS NULL) = (${t.challengeExpiresAt} IS NULL)`,
+    ),
+    check(
+      'organization_domain_claim_previous_proof',
+      sql`(${t.previousProofDigest} IS NULL) = (${t.previousProofValidUntil} IS NULL)`,
+    ),
+    check(
+      'organization_domain_claim_owned_proof',
+      sql`${t.status} = 'pending' OR (${t.lastSuccessAt} IS NOT NULL AND (${t.proofDigest} IS NOT NULL OR ${t.previousProofDigest} IS NOT NULL))`,
+    ),
   ],
 );
 
