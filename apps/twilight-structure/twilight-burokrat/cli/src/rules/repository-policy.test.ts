@@ -99,6 +99,10 @@ const classifiedCandidate = {
   'src/app.test.ts': 'export {};\n',
   'openspec/specs/x/spec.md': '# Spec\n',
   'db/migrations/0001/migration.sql': 'select 1;\n',
+  'src/fixtures/sample.json': '{}\n',
+  'src/generated/api.ts': 'export {};\n',
+  'src/vendor/lib.js': 'export {};\n',
+  'empty/.gitkeep': '',
 };
 
 describe('the repository rule policy', () => {
