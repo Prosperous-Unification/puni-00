@@ -542,10 +542,12 @@ describe('starting a QEMU lab machine', () => {
   it('waits for a daemon that writes its owned pid after the start command returns', async () => {
     const { machine } = await machineFixture();
     let daemon: ReturnType<typeof spawnMachineProcess> | undefined;
+    let pidWritten: Promise<number> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const run: RunQemuCommand = (_executable, arguments_) => {
-      setTimeout(() => {
+      timer = setTimeout(() => {
         daemon = spawnMachineProcess(arguments_);
-        void Bun.write(join(machine.directory, 'qemu.pid'), `${String(daemon.pid)}\n`);
+        pidWritten = Bun.write(join(machine.directory, 'qemu.pid'), `${String(daemon.pid)}\n`);
       }, 300);
       return exited('', []);
     };
@@ -555,8 +557,42 @@ describe('starting a QEMU lab machine', () => {
       await startQemuMachine(machine, '/qemu', run, 5000);
       expect(await ownedQemuPid(machine)).toBe(daemon?.pid);
     } finally {
+      clearTimeout(timer);
+      await pidWritten;
       daemon?.kill();
+      await daemon?.exited;
     }
+  });
+
+  it('refuses a pid file whose daemon already exited, at the bound', async () => {
+    const { machine, pidPath } = await machineFixture();
+    const run: RunQemuCommand = async (_executable, arguments_) => {
+      const daemon = spawnMachineProcess(arguments_);
+      await writeFile(pidPath, `${String(daemon.pid)}\n`);
+      daemon.kill();
+      await daemon.exited;
+      return exited('', []);
+    };
+    // Proof: with ownedQemuPid accepting a pid whose /proc entry is gone, this start resolved
+    // instead of refusing (2026-09-27).
+    expect((await refusal(startQemuMachine(machine, '/qemu', run, 400))).message).toBe(
+      'QEMU machine puni-vm-start-server-1 start did not happen within 400ms',
+    );
+  });
+
+  it('refuses an unreadable pid file at once instead of waiting it out', async () => {
+    const { machine, pidPath } = await machineFixture();
+    const run: RunQemuCommand = async () => {
+      await mkdir(pidPath);
+      return exited('', []);
+    };
+    const started = performance.now();
+    // Proof: with readPid treating every read error as an absent file, this refused only at the
+    // 5000ms bound with the deadline message instead (2026-09-27).
+    expect((await refusal(startQemuMachine(machine, '/qemu', run, 5000))).message).toMatch(
+      /Cannot read QEMU lab pid file .*qemu\.pid/,
+    );
+    expect(performance.now() - started).toBeLessThan(5000);
   });
 
   it('refuses when no pid file appears within the bound', async () => {
