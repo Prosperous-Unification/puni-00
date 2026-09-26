@@ -146,25 +146,28 @@ export function createEstimatesColumns({
           // repeating it would be the fold's own reading with nothing
           // folded.
           const atRest = unfolded ? final : stored;
-          // The result is what this cell is read for, so it is drawn whenever the
-          // step has one — and only while the step is folded, because an unfolded
-          // cell **is** the figure (`atRest`) and a span beside it would be the
-          // same number twice. That `!unfolded` is the whole of the guard: with it
-          // dropped, `draws no result beside an unfolded step’s own figure` fails
-          // on `expected <span …(2)></span> to be null` — a folded-final span
-          // standing beside the unfolded row's own figure. Watched 2026-09-20.
+          // What the cell already reads without a result span: the box's own
+          // text on a folded leaf (a refused draft included), and `atRest`
+          // everywhere else — a folded parent's roll-up, or an unfolded
+          // step's figure, which is `final` itself.
+          const shown = shorthand ? foldedReading(reading, step.id).combinedValue : atRest;
+          // The result is drawn only where it says something the cell does not
+          // already read. That one comparison covers every case: an unfolded
+          // cell reads `final` as `atRest`; a flat `5` in the box, or an equal
+          // roll-up, reads it as the trio; a row with no estimate has neither a
+          // trio nor a figure because be-01 computes `finalDays` from
+          // `estimates` in the same call (see `WorkItemRow.finalDays`), so
+          // `final !== ''` keeps an empty span off it.
           //
-          // `final !== ''` and not a second test beside it: a row with no estimate
-          // has neither a trio nor a figure — be-01 computes `finalDays` from
-          // `estimates` in the same call, see `WorkItemRow.finalDays` — so the two
-          // are absent together and one condition is all there is to say.
-          //
-          // A flat trio prints as `5` and its figure is `5` under every estimate
-          // method. Until 2026-09-20 the figure was suppressed there; now the
-          // figure is the main reading, so it is the repeated **trio** that goes
-          // quiet, below, and a cell still never reads `5 5`.
-          const showsResult = !unfolded && final !== '';
-          const trioRepeatsResult = showsResult && final === atRest;
+          // Proof: with `final !== shown` removed, six tests failed, among them
+          // `says a flat trio once`, `shows a parent’s rolled-up trio once when
+          // it equals the result` and `draws no result beside an unfolded
+          // step’s own figure`, each on `expected <span …(2)></span> to be
+          // null`. With `atRest` compared in place
+          // of `shown`, `keeps a flat estimate’s figure beside a cell holding a
+          // refused entry` failed on `expected undefined to be '5'`. Watched
+          // 2026-09-27.
+          const showsResult = final !== '' && final !== shown;
           // Nobody on this step and exactly one person on another: they are
           // assumed to be doing this step too. The same rule the unfolded
           // column has, in the cell that is always on screen — which is the
@@ -437,7 +440,10 @@ export function createEstimatesColumns({
                       : {
                           fontSize: QUIET_TRIO_PX,
                           fontWeight: 400,
-                          color: trioRepeatsResult ? 'transparent' : 'var(--muted-foreground)',
+                          // Proof: restoring transparent ink for an equal trio made
+                          // `says a flat trio once` fail on `expected 'transparent'
+                          // to be 'var(--muted-foreground)'`. Watched 2026-09-27.
+                          color: 'var(--muted-foreground)',
                           // The trio is what yields when all three do not fit, and it yields
                           // **visibly**: `20/24/30` beside `24.3` on a staffed row has 16px more
                           // trio than box, and without this the box cut `20/24` off mid-glyph and
@@ -532,14 +538,18 @@ export function createEstimatesColumns({
                     // 2026-09-20.
                     fontSize: QUIET_TRIO_PX,
                     fontWeight: 400,
-                    color: trioRepeatsResult ? 'transparent' : 'var(--muted-foreground)',
+                    // Proof: restoring transparent ink for an equal roll-up made
+                    // `shows a parent’s rolled-up trio once when it equals the result`
+                    // fail on `expected 'transparent' to be 'var(--muted-foreground)'`.
+                    // Watched 2026-09-27.
+                    color: 'var(--muted-foreground)',
                   }}
                 >
                   {atRest}
                 </span>
               )}
               {showsResult && (
-                // The step's result, and the cell's main reading since 2026-09-20: the
+                // A distinct step result, and the cell's main reading: the
                 // row's own type and foreground, which it takes by **declaring neither**
                 // and inheriting from the wrapper — so a complaint recolours it for free
                 // — and tabular numerals, so results line up down a column and can be
