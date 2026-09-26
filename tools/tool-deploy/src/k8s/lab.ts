@@ -69,26 +69,135 @@ export function assertSecretApplied(
   }
 }
 
-/** Create throwaway lab credentials through stdin, without putting values in argv or errors. */
-async function createMcpSecret(): Promise<string[]> {
-  const storeKey = randomBytes(32).toString('base64');
-  const signingKey = generateKeyPairSync('rsa', { modulusLength: 2048 })
-    .privateKey.export({ format: 'der', type: 'pkcs8' })
-    .toString('base64');
+/** Apply `wbs-mcp-secrets` through stdin, without putting values in argv or errors. */
+async function applyMcpSecret(
+  keys: Readonly<Record<string, string>>,
+  secrets: readonly string[],
+): Promise<void> {
   const secret = {
     apiVersion: 'v1',
     kind: 'Secret',
     metadata: { name: 'wbs-mcp-secrets', namespace: 'wbs' },
     type: 'Opaque',
-    stringData: { MCP_STORE_KEY_CURRENT: storeKey, MCP_SIGNING_KEY_CURRENT: signingKey },
+    stringData: keys,
   };
   const applied = await run(
     [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT, 'apply', '-f', '-'],
     JSON.stringify(secret),
     30_000,
   );
-  assertSecretApplied(applied, [storeKey, signingKey]);
-  return [storeKey, signingKey];
+  assertSecretApplied(applied, secrets);
+}
+
+interface McpLabKeys {
+  readonly store: string;
+  readonly signing: string;
+}
+
+/** Throwaway lab credentials; they exist only in this process and the lab cluster. */
+async function createMcpSecret(): Promise<McpLabKeys> {
+  const keys = {
+    store: randomBytes(32).toString('base64'),
+    signing: generateKeyPairSync('rsa', { modulusLength: 2048 })
+      .privateKey.export({ format: 'der', type: 'pkcs8' })
+      .toString('base64'),
+  };
+  await applyMcpSecret(
+    { MCP_STORE_KEY_CURRENT: keys.store, MCP_SIGNING_KEY_CURRENT: keys.signing },
+    [keys.store, keys.signing],
+  );
+  return keys;
+}
+
+const LAB_SESSION = 'f8-lab-session';
+const LAB_UPSTREAM = 'f8-lab-upstream-token';
+
+/**
+ * Run a script against the live pod's `McpSessionStore`, opened with that pod's own
+ * `MCP_STORE_PATH` and `MCP_STORE_KEY_CURRENT`, so the proof covers the PVC and the Secret.
+ */
+async function mcpStoreScript(body: string): Promise<string> {
+  const script = `import { McpSessionStore } from '/app/apps/wbs/mcp-01/src/session-store.ts';
+const path = process.env.MCP_STORE_PATH;
+const key = process.env.MCP_STORE_KEY_CURRENT;
+if (!path || !key) throw new Error('MCP store env is missing in the pod');
+const store = new McpSessionStore(path, [Buffer.from(key, 'base64')]);
+try { ${body} } finally { store.close(); }`;
+  return (
+    await k(['-n', 'wbs', 'exec', 'deployment/wbs-mcp', '-c', 'mcp', '--', 'bun', '--eval', script])
+  ).trim();
+}
+
+/** Write one encrypted OAuth session family into the running pod's store. */
+async function writeLabSession(): Promise<void> {
+  await mcpStoreScript(`const later = Date.now() + 3_600_000;
+store.createFamily({ familyId: 'f8-lab-family', clientId: 'f8-lab-client', subject: 'f8-lab',
+  scope: 'wbs:read', upstreamAccessToken: '${LAB_UPSTREAM}', upstreamExpiresAt: later,
+  idleExpiresAt: later, absoluteExpiresAt: later }, '${LAB_SESSION}', later, 'f8-lab-refresh');`);
+}
+
+/** The decrypted upstream token of the lab session, or `missing` when the store lost it. */
+async function readLabSession(): Promise<string> {
+  return mcpStoreScript(
+    `console.log(store.familyForSession('${LAB_SESSION}', Date.now())?.upstreamAccessToken ?? 'missing');`,
+  );
+}
+
+async function restartMcp(): Promise<void> {
+  await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
+  await k(['-n', 'wbs', 'rollout', 'status', 'deployment/wbs-mcp', '--timeout=300s']);
+}
+
+/**
+ * Blank the current store key, observe the replacement pod exit non-zero with a log naming
+ * the key, then restore the keys and roll back to a serving pod.
+ */
+async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
+  const secrets = [keys.store, keys.signing];
+  await applyMcpSecret(
+    { MCP_STORE_KEY_CURRENT: '', MCP_SIGNING_KEY_CURRENT: keys.signing },
+    secrets,
+  );
+  await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
+  const deadline = Date.now() + 180_000;
+  let exited: { pod: string; exitCode: string } | null = null;
+  while (exited === null) {
+    if (Date.now() > deadline) throw new Error('MCP pod without a store key did not exit in 180 s');
+    await Bun.sleep(2_000);
+    const pods: (string | undefined)[][] = (
+      await k([
+        '-n',
+        'wbs',
+        'get',
+        'pods',
+        '-l',
+        'app.kubernetes.io/name=wbs-mcp',
+        '-o',
+        'jsonpath={range .items[*]}{.metadata.name} {.status.containerStatuses[0].lastState.terminated.exitCode}{"\\n"}{end}',
+      ])
+    )
+      .trim()
+      .split('\n')
+      .map((line) => line.trim().split(' '));
+    const [pod, exitCode] = pods.find(([, code]) => code !== undefined && code !== '') ?? [];
+    if (pod !== undefined && exitCode !== undefined) exited = { pod, exitCode };
+  }
+  const logs = redactDiagnostic(
+    await k(['-n', 'wbs', 'logs', exited.pod, '-c', 'mcp', '--previous', '--tail=40']),
+    secrets,
+  );
+  log(`MCP without a store key: pod ${exited.pod} exited ${exited.exitCode}; log: ${logs}`);
+  // Blank rather than delete: deleting the key from the Secret stops at kubelet
+  // CreateContainerConfigError before the process runs (observed on the kept lab, 2026-09-27).
+  assert(
+    exited.exitCode !== '0' && logs.includes('MCP_STORE_KEY_CURRENT is required'),
+    'MCP pod without a store key exits non-zero and names the key in its log',
+  );
+  await applyMcpSecret(
+    { MCP_STORE_KEY_CURRENT: keys.store, MCP_SIGNING_KEY_CURRENT: keys.signing },
+    secrets,
+  );
+  await restartMcp();
 }
 
 /** A rollout failure keeps its original error; diagnostics are bounded and Secret-redacted. */
@@ -580,14 +689,14 @@ async function main(): Promise<void> {
   const sourceSha = (await sh(['git', '-C', ROOT, 'rev-parse', 'HEAD'])).trim();
   log(`source ${sourceSha}; state ${state}`);
   const port = await up();
-  let mcpSecrets: string[] = [];
+  let mcpKeys: McpLabKeys | null = null;
   try {
     const labImages = await images(port, sourceSha);
     writeFileSync(join(state, 'images.json'), JSON.stringify(labImages, null, 2));
     log(`images ${JSON.stringify(labImages)}`);
     const { v1, v2, broken, v3 } = labImages;
     await platform();
-    mcpSecrets = await createMcpSecret();
+    mcpKeys = await createMcpSecret();
     const uid = (
       await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
     ).trim();
@@ -609,35 +718,19 @@ async function main(): Promise<void> {
     // Bootstrap is not a release: seed F6's list with the one v1 digest it runs.
     await approve([v1.images.backend]);
     await bootstrap(v1, settings);
-    const mcpStoreBefore = (
-      await k([
-        '-n',
-        'wbs',
-        'exec',
-        'deployment/wbs-mcp',
-        '-c',
-        'mcp',
-        '--',
-        'sha256sum',
-        '/var/lib/wbs-mcp/sessions.sqlite',
-      ])
-    ).trim();
-    await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
-    await k(['-n', 'wbs', 'rollout', 'status', 'deployment/wbs-mcp', '--timeout=300s']);
-    const mcpStoreAfter = (
-      await k([
-        '-n',
-        'wbs',
-        'exec',
-        'deployment/wbs-mcp',
-        '-c',
-        'mcp',
-        '--',
-        'sha256sum',
-        '/var/lib/wbs-mcp/sessions.sqlite',
-      ])
-    ).trim();
-    assert(mcpStoreBefore === mcpStoreAfter, 'MCP store survives a pod replacement');
+    await writeLabSession();
+    await restartMcp();
+    // Proof: swapping the wbs-mcp PVC volume for an emptyDir made this read return `missing`
+    // on 2026-09-27 (verify.md, "MCP session persistence negative").
+    assert(
+      (await readLabSession()) === LAB_UPSTREAM,
+      'MCP OAuth session survives a pod replacement',
+    );
+    await proveMissingMcpKeyExits(mcpKeys);
+    assert(
+      (await readLabSession()) === LAB_UPSTREAM,
+      'MCP OAuth session survives a failed rollout and key restore',
+    );
     await insertProject('f8-row-before');
     assert((await projectNames()).includes('f8-row-before'), 'row inserted through the v1 API');
 
@@ -831,11 +924,14 @@ async function main(): Promise<void> {
     );
     log('all lab assertions passed');
   } catch (cause) {
-    if (mcpSecrets.length > 0) {
+    if (mcpKeys !== null) {
       try {
-        await diagnoseMcp(mcpSecrets);
-      } catch {
-        log('MCP diagnostic unavailable; preserving the rollout failure');
+        await diagnoseMcp([mcpKeys.store, mcpKeys.signing]);
+      } catch (diagnosticFailure) {
+        // Diagnostics are best-effort context; the rollout failure below is the result.
+        log(
+          `MCP diagnostic unavailable (${redactDiagnostic(String(diagnosticFailure), [mcpKeys.store, mcpKeys.signing])}); preserving the rollout failure`,
+        );
       }
     }
     throw cause;
