@@ -35,6 +35,16 @@ and the amendments below disagree, this one holds.
 - **Labels are still write-only.** 0.5.0 exposes a module's label only as the prefix of its
   private bindings' names, so the label check's known limit stands (WBS 040.13).
 
+## Amendment, 2026-09-26: di-bag exposes the label
+
+Work item 040.13 (WBS `cc9361f6`, OpenSpec change `di-bag-label-surface`) moves `di-bag`
+to 0.5.1. A sealed module now exposes its exact label through the read-only `moduleLabel`
+getter. The label-agreement check reads that getter on each scanned module; its former
+private-binding-prefix inference and at-least-one-private-binding convention are retired.
+Container-only inspection uses `moduleInstallations` and each binding's
+`moduleInstallationId` to identify origins, including unlabelled wrappers and slash-containing
+keys. Capacity's own privacy tests still enforce Capacity's private contract.
+
 ## Amendment, 2026-09-25: the report libraries moved together
 
 Work item 140.1–140.2 (OpenSpec change `migrate-report-libraries`) moved

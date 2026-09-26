@@ -502,8 +502,10 @@ describe('the CI gate scope', () => {
  * lockfile can say. That the copies a duplicate would produce are actually one module at
  * runtime is a different claim, proved by the resolution probe in the task's verification.
  */
+// Proof (2026-09-26): reverting the manifest's di-bag pin to 0.5.0 failed the exact-pin test
+// with expected 0.5.1 and received 0.5.0; changing this expectation to 0.5.0 made it pass.
 const OWNER_PACKAGES = {
-  'di-bag': '0.5.0',
+  'di-bag': '0.5.1',
   'application-exception': '0.7.0',
   'caught-object-report-json': '13.0.0',
 } as const;
