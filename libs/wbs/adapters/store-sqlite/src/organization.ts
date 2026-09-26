@@ -1,0 +1,196 @@
+import type { WriteStamp } from '@wbs/core';
+import type { OrganizationRole } from '@wbs/domain';
+import { and, count, eq, ne } from 'drizzle-orm';
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
+
+import { auditOnCreate, auditOnUpdate } from './audit';
+import type { Gate } from './gate';
+import { organization, organizationMembership } from './schema';
+
+/** One of a user's current memberships. */
+export interface Membership {
+  readonly organizationId: string;
+  readonly role: OrganizationRole;
+}
+
+/** Why a membership change was refused, or that it happened. */
+export type MembershipChange = 'changed' | 'not-member' | 'last-super-admin';
+export type MembershipRemoval = 'removed' | 'not-member' | 'last-super-admin';
+
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * Organizations and their current memberships. Inert until the onboarding and
+ * role slices (tasks 3.7, 4.3) put a service boundary in front of it; this
+ * class decides only what the database must decide atomically, not who may ask.
+ *
+ * Every write is an immediate transaction: SQLite's write lock is taken before
+ * the reads a guard depends on, so blue and green cannot both pass the same
+ * check.
+ */
+export class OrganizationRepository {
+  constructor(
+    private readonly db: SQLiteBunDatabase,
+    private readonly gate: Gate,
+  ) {}
+
+  /**
+   * Creates an organization with `userId` as its first super-admin, refusing a
+   * user who already belongs to one.
+   *
+   * The refusal is the onboarding rule (only a user with no membership reaches
+   * creation) made atomic: two concurrent submissions by one user produce one
+   * organization, not two. Creation claims no domain.
+   */
+  async createForUnaffiliatedUser(
+    created: { readonly id: string; readonly name: string },
+    userId: string,
+    stamp: WriteStamp,
+  ): Promise<'created' | 'already-member'> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          const held = tx
+            .select({ n: count() })
+            .from(organizationMembership)
+            .where(eq(organizationMembership.userId, userId))
+            .get();
+          if (held === undefined) throw new Error('membership count returned no row');
+          if (held.n > 0) return 'already-member';
+          tx.insert(organization)
+            .values({ ...created, legacy: false, ...auditOnCreate(stamp) })
+            .run();
+          tx.insert(organizationMembership)
+            .values({
+              organizationId: created.id,
+              userId,
+              role: 'super_admin',
+              ...auditOnCreate(stamp),
+            })
+            .run();
+          return 'created';
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
+
+  /**
+   * Adds a membership. The only caller-facing path to membership will be
+   * invitation acceptance (task 4.4); this exists for that transaction and for
+   * the legacy backfill.
+   */
+  async addMember(
+    organizationId: string,
+    userId: string,
+    role: OrganizationRole,
+    stamp: WriteStamp,
+  ): Promise<void> {
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      this.db
+        .insert(organizationMembership)
+        .values({ organizationId, userId, role, ...auditOnCreate(stamp) })
+        .run();
+    });
+  }
+
+  /** Changes a member's role unless that would leave the organization without a super-admin. */
+  async changeRole(
+    organizationId: string,
+    userId: string,
+    role: OrganizationRole,
+    stamp: WriteStamp,
+  ): Promise<MembershipChange> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          const refusal = guardFinalSuperAdmin(tx, organizationId, userId, role);
+          if (refusal !== null) return refusal;
+          tx.update(organizationMembership)
+            .set({ role, ...auditOnUpdate(stamp) })
+            .where(membershipOf(organizationId, userId))
+            .run();
+          return 'changed';
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
+
+  /** Removes a membership unless it is the organization's final super-admin. */
+  async removeMember(organizationId: string, userId: string): Promise<MembershipRemoval> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          const refusal = guardFinalSuperAdmin(tx, organizationId, userId, null);
+          if (refusal !== null) return refusal;
+          tx.delete(organizationMembership).where(membershipOf(organizationId, userId)).run();
+          return 'removed';
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
+
+  /** A user's current memberships, ordered by organization id. */
+  async listMemberships(userId: string): Promise<Membership[]> {
+    await Promise.resolve();
+    return this.db
+      .select({
+        organizationId: organizationMembership.organizationId,
+        role: organizationMembership.role,
+      })
+      .from(organizationMembership)
+      .where(eq(organizationMembership.userId, userId))
+      .orderBy(organizationMembership.organizationId)
+      .all();
+  }
+}
+
+function membershipOf(organizationId: string, userId: string) {
+  return and(
+    eq(organizationMembership.organizationId, organizationId),
+    eq(organizationMembership.userId, userId),
+  );
+}
+
+/**
+ * Refuses an ordinary change that would leave no super-admin: `role` is the
+ * member's new role, or null for removal. Runs inside the caller's immediate
+ * transaction, so the count it reads is the count the write commits against.
+ *
+ * Ordinary administration only. External deprovisioning of a departing owner
+ * needs a separate audited recovery path (design.md, "Ownership and roles")
+ * and must not go through here.
+ */
+function guardFinalSuperAdmin(
+  tx: Transaction,
+  organizationId: string,
+  userId: string,
+  role: OrganizationRole | null,
+): 'not-member' | 'last-super-admin' | null {
+  const current = tx
+    .select({ role: organizationMembership.role })
+    .from(organizationMembership)
+    .where(membershipOf(organizationId, userId))
+    .get();
+  if (current === undefined) return 'not-member';
+  if (current.role !== 'super_admin' || role === 'super_admin') return null;
+  const others = tx
+    .select({ n: count() })
+    .from(organizationMembership)
+    .where(
+      and(
+        eq(organizationMembership.organizationId, organizationId),
+        eq(organizationMembership.role, 'super_admin'),
+        ne(organizationMembership.userId, userId),
+      ),
+    )
+    .get();
+  if (others === undefined) throw new Error('super-admin count returned no row');
+  return others.n === 0 ? 'last-super-admin' : null;
+}

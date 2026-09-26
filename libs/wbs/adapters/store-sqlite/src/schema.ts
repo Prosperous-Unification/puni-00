@@ -1,5 +1,9 @@
 import {
+  DOMAIN_CLAIM_STATUSES,
+  INVITABLE_ROLES,
+  JOIN_REQUEST_STATUSES,
   MEASURE_METRICS,
+  ORGANIZATION_ROLES,
   PERSON_KINDS,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
@@ -8,12 +12,14 @@ import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
   check,
+  foreignKey,
   index,
   integer,
   primaryKey,
   real,
   sqliteTable,
   text,
+  unique,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
@@ -2496,3 +2502,190 @@ export const calendarMarker = sqliteTable(
 );
 
 export type CalendarMarkerRow = typeof calendarMarker.$inferSelect;
+
+/**
+ * The organization records of `organization-ownership-and-access`, added by
+ * `20260927120000_add_organization_records`. Inert until tenancy activation:
+ * no route reads them yet, and the migration's comments say why each
+ * constraint exists.
+ */
+export {
+  DOMAIN_CLAIM_STATUSES,
+  type DomainClaimStatus,
+  INVITABLE_ROLES,
+  type InvitableRole,
+  JOIN_REQUEST_STATUSES,
+  type JoinRequestStatus,
+  ORGANIZATION_ROLES,
+  type OrganizationRole,
+} from '@wbs/domain';
+
+/**
+ * A verified `(issuer, subject)` and the one local user it proves. The unique
+ * index is what refuses mapping a pair to a second user, so accounts are never
+ * merged on email alone.
+ */
+export const externalIdentity = sqliteTable(
+  'external_identity',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    issuer: text('issuer').notNull(),
+    subject: text('subject').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('external_identity_issuer_subject').on(t.issuer, t.subject),
+    index('external_identity_user').on(t.userId),
+  ],
+);
+
+export type ExternalIdentityRow = typeof externalIdentity.$inferSelect;
+
+/** The ownership and authorization boundary; `legacy` marks the single pre-tenancy one. */
+export const organization = sqliteTable(
+  'organization',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    legacy: integer('legacy', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_one_legacy')
+      .on(t.legacy)
+      .where(sql`${t.legacy} = 1`),
+    check('organization_legacy', sql`${t.legacy} IN (0, 1)`),
+  ],
+);
+
+export type OrganizationRow = typeof organization.$inferSelect;
+
+/** Current membership, the only organization authority; removal deletes the row. */
+export const organizationMembership = sqliteTable(
+  'organization_membership',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    role: text('role', { enum: ORGANIZATION_ROLES }).notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.userId] }),
+    index('organization_membership_user').on(t.userId),
+    check(
+      'organization_membership_role',
+      sql`${t.role} IN ('super_admin', 'admin', 'member', 'viewer')`,
+    ),
+  ],
+);
+
+export type OrganizationMembershipRow = typeof organizationMembership.$inferSelect;
+
+/** An addressed, expiring, revocable, single-use offer; only the token digest is stored. */
+export const organizationInvitation = sqliteTable(
+  'organization_invitation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    recipientEmail: text('recipient_email').notNull(),
+    role: text('role', { enum: INVITABLE_ROLES }).notNull(),
+    tokenDigest: text('token_digest').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    revokedAt: integer('revoked_at'),
+    consumedAt: integer('consumed_at'),
+    consumedBy: text('consumed_by').references(() => users.id),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_invitation_token_digest').on(t.tokenDigest),
+    index('organization_invitation_organization').on(t.organizationId),
+    unique('organization_invitation_in_organization').on(t.organizationId, t.id),
+    check('organization_invitation_role', sql`${t.role} IN ('admin', 'member', 'viewer')`),
+    check('organization_invitation_expiry', sql`${t.expiresAt} > ${t.createdAt}`),
+    check(
+      'organization_invitation_consumption',
+      sql`(${t.consumedAt} IS NULL) = (${t.consumedBy} IS NULL)`,
+    ),
+  ],
+);
+
+export type OrganizationInvitationRow = typeof organizationInvitation.$inferSelect;
+
+/** A request that grants nothing; approval issues one invitation in the same organization. */
+export const organizationJoinRequest = sqliteTable(
+  'organization_join_request',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    email: text('email').notNull(),
+    status: text('status', { enum: JOIN_REQUEST_STATUSES }).notNull(),
+    resolvedAt: integer('resolved_at'),
+    resolvedBy: text('resolved_by').references(() => users.id),
+    invitationId: text('invitation_id'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_join_request_one_pending')
+      .on(t.organizationId, t.userId)
+      .where(sql`${t.status} = 'pending'`),
+    foreignKey({
+      columns: [t.organizationId, t.invitationId],
+      foreignColumns: [organizationInvitation.organizationId, organizationInvitation.id],
+    }),
+  ],
+);
+
+export type OrganizationJoinRequestRow = typeof organizationJoinRequest.$inferSelect;
+
+/**
+ * One organization's claim on one exact domain. The partial unique index on
+ * `verified` and `suspended` rows is the single owner; pending claims reserve
+ * nothing.
+ */
+export const organizationDomainClaim = sqliteTable(
+  'organization_domain_claim',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    domain: text('domain').notNull(),
+    status: text('status', { enum: DOMAIN_CLAIM_STATUSES }).notNull(),
+    challengeDigest: text('challenge_digest'),
+    challengeExpiresAt: integer('challenge_expires_at'),
+    proofDigest: text('proof_digest'),
+    previousProofDigest: text('previous_proof_digest'),
+    previousProofValidUntil: integer('previous_proof_valid_until'),
+    lastSuccessAt: integer('last_success_at'),
+    lastCheckedAt: integer('last_checked_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_domain_claim_per_organization').on(t.organizationId, t.domain),
+    uniqueIndex('organization_domain_claim_owner')
+      .on(t.domain)
+      .where(sql`${t.status} IN ('verified', 'suspended')`),
+  ],
+);
+
+export type OrganizationDomainClaimRow = typeof organizationDomainClaim.$inferSelect;
