@@ -1,36 +1,41 @@
+# Production placement, from the read-only host probe of 2026-09-27 (Twilight Dash WBS 070.1/070.2).
+# Enrollment runbook, operator inputs and rollback: docs/infra/enroll-h4claw-h3mon.md.
+#
+# - h4claw (8 cores, 15 GiB, private 10.1.0.4) is the single platform k3s server.
+# - h3mon (4 cores, 7.6 GiB, private 10.1.0.2) joins as an agent with the observability
+#   capability only; its Docker-run Victoria, Grafana and MLflow stay outside k3s and running.
+# - h2puni (private 10.1.0.3) stays outside k3s: it is live production, the build box, the
+#   registry and the host-wide gate, and a join would share its memory and firewall with k3s
+#   without the lock-aware cordon that WBS 070.3 requires first.
+# - h1claw is in no cluster: it holds the operator credentials and the backup puller and must
+#   not build or run workloads.
+#
+# Each `operator-input:` machine ID is unresolved: the operator reads /etc/machine-id with the
+# preflight play and commits it; every tool-fleet operation on such a node refuses until then.
+# The workers cluster has no host yet, so it stays `bootstrap: required` with no nodes.
 schemaVersion: 1
-revision: production-inputs-pending-v1
+revision: production-h4claw-h3mon-v1
 clusters:
   - id: platform
     purpose: platform
-    apiEndpoint: https://platform.example.invalid:6443
+    apiEndpoint: https://10.1.0.4:6443
     controlPlane: single
-    bootstrap: complete
+    bootstrap: required
     requiredCapabilities: { product: 1, ingress: 1, observability: 1 }
   - id: workers
     purpose: workers
     apiEndpoint: https://workers.example.invalid:6443
     controlPlane: single
-    bootstrap: complete
+    bootstrap: required
     requiredCapabilities: { execution: 2 }
 nodes:
-  - id: platform-pending
+  - id: h4claw
     cluster: platform
-    capabilities: [control-plane, product, ingress, observability]
+    capabilities: [control-plane, product, ingress]
     lifecycle: present
-    provider: { kind: ssh, machineId: pending-platform-machine-id, address: 192.0.2.10 }
-  - id: workers-server-pending
-    cluster: workers
-    capabilities: [control-plane]
+    provider: { kind: ssh, machineId: 'operator-input:h4claw /etc/machine-id', address: 10.1.0.4 }
+  - id: h3mon
+    cluster: platform
+    capabilities: [observability]
     lifecycle: present
-    provider: { kind: ssh, machineId: pending-workers-server-id, address: 192.0.2.20 }
-  - id: workers-agent-a-pending
-    cluster: workers
-    capabilities: [execution]
-    lifecycle: present
-    provider: { kind: ssh, machineId: pending-workers-agent-a-id, address: 192.0.2.21 }
-  - id: workers-agent-b-pending
-    cluster: workers
-    capabilities: [execution]
-    lifecycle: present
-    provider: { kind: ssh, machineId: pending-workers-agent-b-id, address: 192.0.2.22 }
+    provider: { kind: ssh, machineId: 'operator-input:h3mon /etc/machine-id', address: 10.1.0.2 }
