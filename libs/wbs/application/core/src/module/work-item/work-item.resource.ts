@@ -91,7 +91,7 @@ import {
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
-import { canDepend } from '../../service/dependency';
+import { canDepend, canReparent } from '../../service/dependency';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import {
   type Days,
@@ -1963,6 +1963,9 @@ export class WorkItemService {
         : (await this.opts.measures.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // Proof: the estimates' `moveAll` skipped, be-01's `hands the estimates
+    // back up when it undoes the first child that took them` failed — the
+    // path the row menu's Add child takes. Watched 2026-09-27.
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
@@ -2193,6 +2196,17 @@ export class WorkItemService {
     if (input.parentId !== null && isWithin(parentIndexOf(rows), input.parentId, id)) {
       return { ok: false, reason: 'cycle' };
     }
+
+    // The dependencies already drawn must survive the new parent. Decided
+    // here, on rows and edges read inside this write's lock, because the drag
+    // preview is a client's guess and a direct command skips it entirely.
+    const edges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const broken = canReparent(rows, edges, id, input.parentId);
+    // Proof: this return disabled, the mounted `answers 409 ancestor for a move
+    // under its own predecessor…` and `answers 409 cycle for a move whose
+    // expanded graph loops…` both failed on `Received: 200` — the direct
+    // command reparented. Watched 2026-09-27.
+    if (broken !== null) return { ok: false, reason: broken };
 
     // Where it was, read before it leaves: the sibling it sat directly after,
     // or null when it was first. That is the shape `move` takes, so the
