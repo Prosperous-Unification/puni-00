@@ -13,8 +13,35 @@ import { dirname, join, resolve } from 'node:path';
 
 type Fields = Record<string, unknown>;
 const targets = ['test', 'lint', 'typecheck', 'build'];
-const sharedPackages = ['nx', 'typescript', 'bun-types', 'prettier'];
+const sharedPackages = [
+  'nx',
+  'typescript',
+  'bun-types',
+  'prettier',
+  'eslint',
+  '@eslint/js',
+  'typescript-eslint',
+];
 const compilerKeys = ['strict', 'target', 'module', 'moduleResolution'];
+// Proof: omitting the ESLint config entry let sync accept a source missing that required file.
+const portableFiles = [
+  'tools/workspace/portability.ts',
+  'tools/workspace/portability.test.ts',
+  'tools/workspace/project.json',
+  'tools/workspace/tsconfig.json',
+  'tools/workspace/eslint.portable.mjs',
+  'tools/workspace/prettier.portable.json',
+];
+
+function readPortableFiles(root: string): Record<string, Buffer> {
+  const files: Record<string, Buffer> = {};
+  for (const path of portableFiles) {
+    const location = join(root, path);
+    if (!lstatSync(location).isFile()) throw new Error(`Portable file must be regular: ${path}`);
+    files[path] = readFileSync(location);
+  }
+  return files;
+}
 
 function requireRecord(value: unknown, label: string): Fields {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -88,7 +115,11 @@ function readBaseline(root: string): Fields {
     if (options[key] === undefined) throw new Error(`Missing compiler option: ${key}`);
     compiler[key] = options[key];
   }
-  return { version: 1, packageManager, pins, semantics, compiler };
+  const files: Record<string, string> = {};
+  for (const [path, content] of Object.entries(readPortableFiles(root))) {
+    files[path] = createHash('sha256').update(content).digest('hex');
+  }
+  return { version: 1, packageManager, pins, semantics, compiler, files };
 }
 function hashBaseline(baseline: Fields): string {
   return createHash('sha256').update(canonicalize(baseline)).digest('hex');
@@ -100,6 +131,7 @@ function hashBaseline(baseline: Fields): string {
  */
 export function synchronizeBaseline(source: string, destination: string): void {
   const baseline = readBaseline(source);
+  const files = readPortableFiles(source);
   const manifest = readRecord(destination, 'package.json');
   const nx = readRecord(destination, 'nx.json');
   const typescript = readRecord(destination, 'tsconfig.base.json');
@@ -125,10 +157,15 @@ export function synchronizeBaseline(source: string, destination: string): void {
     ...requireRecord(typescript['compilerOptions'], 'compilerOptions'),
     ...requireRecord(baseline['compiler'], 'compiler'),
   };
+  for (const path of portableFiles) inspectAncestors(destination, path);
   // All source and destination configuration is read and validated before the first write.
   writeRecord(destination, 'package.json', manifest);
   writeRecord(destination, 'nx.json', nx);
   writeRecord(destination, 'tsconfig.base.json', typescript);
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(destination, path)), { recursive: true });
+    writeFileSync(join(destination, path), content);
+  }
   writeRecord(destination, '.puni-baseline.json', {
     ...baseline,
     fingerprint: hashBaseline(baseline),
@@ -140,7 +177,8 @@ export function verifyBaseline(source: string, destination: string): void {
   const expected = readBaseline(source);
   const observed = readBaseline(destination);
   // Proof: removing this comparison fails 'changed dependency pin fails conformance before transfer'.
-  for (const key of ['packageManager', 'pins', 'semantics', 'compiler']) {
+  // Proof: omitting files changed the drift test's named-file failure into a receipt mismatch.
+  for (const key of ['packageManager', 'pins', 'semantics', 'compiler', 'files']) {
     if (canonicalize(expected[key]) !== canonicalize(observed[key]))
       throw new Error(`Baseline mismatch in ${key}: ${canonicalize(expected[key])}`);
   }

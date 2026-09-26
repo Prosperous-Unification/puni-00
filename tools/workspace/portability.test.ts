@@ -16,6 +16,14 @@ import { afterEach, expect, test } from 'bun:test';
 import { copyProject, synchronizeBaseline, verifyBaseline } from './portability';
 
 const roots: string[] = [];
+const portableFiles = [
+  'tools/workspace/portability.ts',
+  'tools/workspace/portability.test.ts',
+  'tools/workspace/project.json',
+  'tools/workspace/tsconfig.json',
+  'tools/workspace/eslint.portable.mjs',
+  'tools/workspace/prettier.portable.json',
+];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -39,6 +47,9 @@ function workspace(visibility: 'public' | 'private') {
       typescript: 'npm:@typescript/typescript6@6.0.2',
       'bun-types': '1.4.2',
       prettier: '3.9.6',
+      eslint: '10.10.0',
+      '@eslint/js': '10.0.1',
+      'typescript-eslint': '8.69.0',
     },
   });
   json(join(root, 'nx.json'), {
@@ -59,6 +70,8 @@ function workspace(visibility: 'public' | 'private') {
     },
   });
   json(join(root, 'workspace.portability.json'), { version: 1, visibility });
+  mkdirSync(join(root, 'tools/workspace'), { recursive: true });
+  for (const path of portableFiles) writeFileSync(join(root, path), `${visibility}:${path}`);
   return root;
 }
 function project(
@@ -124,6 +137,34 @@ test('invalid project namespace metadata is refused before copying', () => {
   // Proof: removing the namespace guard allows a missing ring: tag and copies the malformed manifest.
   expect(() => copyProject(source, destination, 'libs/fixture/domain/core')).toThrow('ring:');
   expect(existsSync(join(destination, 'libs'))).toBe(false);
+});
+
+test('sync carries portable lint and tool files, and check detects content drift', () => {
+  const source = workspace('public');
+  const destination = workspace('private');
+  synchronizeBaseline(source, destination);
+  for (const path of portableFiles) {
+    expect(readFileSync(join(destination, path), 'utf8')).toBe(
+      readFileSync(join(source, path), 'utf8'),
+    );
+  }
+  writeFileSync(join(destination, 'tools/workspace/eslint.portable.mjs'), 'changed lint policy');
+  // Proof: omitting the file comparison changed this named failure into a receipt mismatch.
+  expect(() => {
+    verifyBaseline(source, destination);
+  }).toThrow('files');
+});
+
+test('missing portable source blocks sync before changing destination', () => {
+  const source = workspace('public');
+  const destination = workspace('private');
+  const before = readFileSync(join(destination, 'package.json'), 'utf8');
+  rmSync(join(source, 'tools/workspace/eslint.portable.mjs'));
+  // Proof: omitting the ESLint config from required files let sync accept its absence.
+  expect(() => {
+    synchronizeBaseline(source, destination);
+  }).toThrow();
+  expect(readFileSync(join(destination, 'package.json'), 'utf8')).toBe(before);
 });
 
 test('declared aliases transfer with their project and conflicting aliases refuse all writes', () => {

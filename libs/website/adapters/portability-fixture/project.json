@@ -16,7 +16,12 @@
       "command": "bun test libs/website/adapters/portability-fixture"
     },
     "lint": {
-      "command": "bunx eslint libs/website/adapters/portability-fixture && bunx prettier --check libs/website/adapters/portability-fixture"
+      "command": "bunx eslint --config tools/workspace/eslint.portable.mjs libs/website/adapters/portability-fixture && bunx prettier --config tools/workspace/prettier.portable.json --check libs/website/adapters/portability-fixture",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/tools/workspace/eslint.portable.mjs",
+        "{workspaceRoot}/tools/workspace/prettier.portable.json"
+      ]
     },
     "typecheck": {
       "command": "bunx tsc -p libs/website/adapters/portability-fixture/tsconfig.json"

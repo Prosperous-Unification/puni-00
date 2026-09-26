@@ -9,7 +9,12 @@
       "command": "bun test tools/workspace/portability.test.ts"
     },
     "lint": {
-      "command": "bunx eslint tools/workspace && bunx prettier --check tools/workspace"
+      "command": "bunx eslint --config tools/workspace/eslint.portable.mjs tools/workspace && bunx prettier --config tools/workspace/prettier.portable.json --check tools/workspace",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/tools/workspace/eslint.portable.mjs",
+        "{workspaceRoot}/tools/workspace/prettier.portable.json"
+      ]
     },
     "typecheck": {
       "command": "bunx tsc -p tools/workspace/tsconfig.json"

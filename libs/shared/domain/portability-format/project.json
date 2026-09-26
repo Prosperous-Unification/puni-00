@@ -16,7 +16,12 @@
       "command": "bun test libs/shared/domain/portability-format"
     },
     "lint": {
-      "command": "bunx eslint libs/shared/domain/portability-format && bunx prettier --check libs/shared/domain/portability-format"
+      "command": "bunx eslint --config tools/workspace/eslint.portable.mjs libs/shared/domain/portability-format && bunx prettier --config tools/workspace/prettier.portable.json --check libs/shared/domain/portability-format",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/tools/workspace/eslint.portable.mjs",
+        "{workspaceRoot}/tools/workspace/prettier.portable.json"
+      ]
     },
     "typecheck": {
       "command": "bunx tsc -p libs/shared/domain/portability-format/tsconfig.json"
