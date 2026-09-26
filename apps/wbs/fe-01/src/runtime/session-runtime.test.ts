@@ -111,6 +111,33 @@ describe('the session runtime', () => {
     await owner.leave();
   });
 
+  it('keeps the first credential’s project client when the same user arrives with another', async () => {
+    const credentials: string[] = [];
+    const client = fakeProjectApi();
+    const trees = recordCalls(client, 'tree', (projectId) => projectId);
+    const owner = createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      projectClientFor: (credential) => {
+        credentials.push(credential);
+        return client;
+      },
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: credentialOf('first') });
+    await owner.open({ userId: 'u1', credential: credentialOf('second') });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+
+    await opened.services.catalog.list();
+    await opened.services.projects.open('p1');
+    await vi.waitFor(() => {
+      expect(trees).toEqual(['p1']);
+    });
+
+    expect(credentials).toEqual(['first']);
+    await owner.leave();
+  });
+
   it('sends nothing for a catalog gesture asked of a withdrawn session', async () => {
     const client = fakeProjectApi();
     const listed = recordCalls(client, 'listProjects');
