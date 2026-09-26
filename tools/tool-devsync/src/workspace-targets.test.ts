@@ -597,8 +597,11 @@ describe('every test-running target answers the same from an agent shell', () =>
  * under that preload. `scratch.test.ts` proves the flag ends a hang in every file.
  *
  * Proof: with `--timeout=10000` removed from `wbs-mcp-01:test`, this failed naming
- * `wbs-mcp-01:test` (2026-09-27). With the Bun-command pattern misspelled so the sweep matched
- * nothing, it failed on `Expected: > 40 · Received: 0` (2026-09-27).
+ * `wbs-mcp-01:test` (2026-09-27). It failed the same way with a `ci` configuration running plain
+ * `bun test` added to that target, and with `\nbun test` appended to its budgeted command. With the
+ * Bun-command pattern misspelled so the sweep matched nothing, it failed on
+ * `Expected: > 40 · Received: 0` (2026-09-27). It reads target commands only: a test that spawns
+ * `bun test` itself passes its own `--timeout`, as `oauth-timing-safe.test.ts` does.
  */
 describe('every Bun test command states its own time budget', () => {
   it('passes --timeout=<ms> to each bun test it runs', async () => {
@@ -615,19 +618,25 @@ describe('every Bun test command states its own time budget', () => {
     let seen = 0;
     for (const [project, node] of Object.entries(projectGraph.nodes)) {
       for (const [target, config] of Object.entries(node.data.targets ?? {})) {
-        const options = (config.options ?? {}) as {
-          command?: string;
-          commands?: readonly (string | { command: string })[];
-        };
-        const commands = [
+        // A configuration replaces the base command when it is selected, so each is read too.
+        const configurations: Record<string, unknown> = config.configurations ?? {};
+        const variants = [config.options as unknown, ...Object.values(configurations)].map(
+          (options) =>
+            (options ?? {}) as {
+              command?: string;
+              commands?: readonly (string | { command: string })[];
+            },
+        );
+        const commands = variants.flatMap((options) => [
           options.command ?? '',
           ...(options.commands ?? []).map((each) =>
             typeof each === 'string' ? each : each.command,
           ),
-        ];
+        ]);
         const runs = commands
           // A `$( … )` selector runs before Bun and may pipe; its pipes do not end a command.
-          .flatMap((command) => command.replace(/\$\([^()]*\)/g, '$()').split(/&&|\|\||;|\|/))
+          .map((command) => command.replace(/\$\([^()]*\)/g, '$()'))
+          .flatMap((command) => command.split(/&&|\|\||[;|&\n]/))
           .filter((segment) => /\bbun test\b/.test(segment));
         seen += runs.length;
         if (runs.some((segment) => !/(?:^|\s)--timeout=\d+(?:\s|$)/.test(segment))) {

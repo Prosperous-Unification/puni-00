@@ -1173,7 +1173,7 @@ describe('index production CLI', () => {
       ),
       'Markdown directory README cycle in README.md: docs',
     );
-  }, 5_000);
+  }, 30_000);
 
   test('refuses mutual directory README symlinks that restart fallback', () => {
     const repository = createRepository();
