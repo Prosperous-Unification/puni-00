@@ -958,22 +958,18 @@ test.describe('the chart, after the browser has scaled it', () => {
   });
 
   /**
-   * The change's headline, in pixels: an entirely unestimated predecessor holds
-   * its successor back.
+   * An entirely unestimated predecessor holds its successor back by nothing.
    *
-   * jsdom can say what `earliestStart` be-01 sent. Only a browser can say that
-   * the bar a reader sees is drawn to the right of the bars it waits for, at a
-   * width that is there to be seen — which is the whole complaint
-   * `assumed-duration-schedules` answers: unsized work used to be free, and the
-   * chart drew the plan as if it were.
+   * WBS 010.4.4 (`unestimated-steps-take-no-schedule-time`): an unknown step
+   * takes zero schedule time, so the successor starts where the predecessor
+   * does, while the predecessor's placeholders are still drawn two workdays
+   * wide and reach past that start. Only a browser can say both at once.
    *
    * Every box is asserted to have area **before** any of them are compared, for
    * the reason `AGENTS.md` records against `G gantt-calendar-axis`: a
-   * zero-width bar makes an overlap or ordering check unfailable, and the first
-   * version of that test compared a caret against exactly such a mark and could
-   * not see the fault it was written for.
+   * zero-width bar makes an overlap or ordering check unfailable.
    */
-  test('draws a successor after the predecessor nobody estimated', async ({ page }) => {
+  test('starts a successor beside the predecessor nobody estimated', async ({ page }) => {
     await seedUnestimatedChain(page, nextAccount());
     await openTheChart(page);
     // One arrow: `020` waits for `010` and there is nothing else in the plan.
@@ -1016,22 +1012,24 @@ test.describe('the chart, after the browser has scaled it', () => {
     }
 
     // And the claim. `NEARLY` of tolerance, because the two are laid out by the
-    // same transform and a sub-pixel boundary is not a schedule.
+    // same transform and a sub-pixel boundary is not a schedule. The successor
+    // starts where the unknown predecessor stands, and the placeholders still
+    // reach past that start: drawn, but not waited for.
     //
-    // Proof: `durationOf`'s assumed arm removed in `apps/wbs/be-01/src/service/
-    // schedule.ts`, so an unestimated slice is zero days again — this failed on
-    // `the successor is drawn left of the work it waits for: Expected: > 259 /
-    // Received: 204`, the successor's bar back at the project's first workday
-    // beside the work it depends on. The predecessor's two bars keep their
-    // width through that fault, because the **drawing** has assumed two
-    // workdays since `gantt-view`; it is the successor's placement that this
-    // change moved, and it is the ordering rather than the widths that sees it.
-    // Watched 2026-08-30.
-    const holdsUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
+    // The injected fault for this claim — `durationOf` answering
+    // `ASSUMED_SLICE_WORKDAYS` for null days — was watched red in the Bun and
+    // jsdom suites (the change's verify.md), not in a browser: this case was
+    // rewritten from the one that asserted the opposite delay.
+    const standsAt = Math.min(...drawn.predecessor.map((bar) => bar.left));
+    const drawnUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
     expect(
-      drawn.successor[0].left,
-      'the successor is drawn left of the work it waits for',
-    ).toBeGreaterThan(holdsUntil - NEARLY);
+      Math.abs(drawn.successor[0].left - standsAt),
+      'the successor waits for a placeholder nobody estimated',
+    ).toBeLessThan(NEARLY);
+    expect(
+      drawnUntil,
+      'the unestimated predecessor is no longer drawn past its zero-time finish',
+    ).toBeGreaterThan(drawn.successor[0].left + NEARLY);
   });
 
   /**

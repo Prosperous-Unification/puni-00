@@ -659,6 +659,18 @@ export interface GanttBar {
    * fields answer different questions and `estimated` is which one applies.
    */
   drawnSpan: number;
+  /**
+   * Which horizontal lane of its row this bar is drawn in, of {@link lanes}.
+   *
+   * `0` of `1` for every bar except a cluster of drawn spans that overlap on
+   * one row and hold an unestimated placeholder: unknown slices share their
+   * scheduled instant, and their placeholders (and the estimated slice after
+   * them) would otherwise be drawn on top of each other and hide one another
+   * from the pointer. The lane moves the drawing only; no date reads it.
+   */
+  lane: number;
+  /** How many lanes this bar's row cluster is split into — see {@link lane}. */
+  lanes: number;
   /** How many workdays this bar can slip before the project's finish moves. */
   float: number;
   critical: boolean;
@@ -1985,6 +1997,8 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         // zero-time span nor `duration`, which is the effort nobody supplied.
         // See {@link GanttBar.drawnSpan}.
         drawnSpan: slice.estimated ? slice.duration : ASSUMED_SLICE_WORKDAYS,
+        lane: 0,
+        lanes: 1,
         float: slice.float,
         critical: slice.critical,
         estimated: slice.estimated,
@@ -2226,7 +2240,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
 
   return {
     labels,
-    bars,
+    bars: withPlaceholderLanes(bars),
     brackets,
     arrows,
     personLinks,
@@ -2836,6 +2850,8 @@ function doneBarOf(
     finish: stop,
     duration: slices.reduce((sum, slice) => sum + slice.duration, 0),
     drawnSpan: stop - start,
+    lane: 0,
+    lanes: 1,
     float: Math.min(...slices.map((slice) => slice.float)),
     critical: slices.some((slice) => slice.critical),
     estimated: true,
@@ -2862,4 +2878,52 @@ function doneBarOf(
     lateBy: lateBy.length === 0 ? null : Math.max(...lateBy),
     done: true,
   };
+}
+
+/**
+ * The bars with each overlapping cluster that holds an unestimated placeholder
+ * split into lanes — see {@link GanttBar.lane}.
+ *
+ * Per row, bars are swept by drawn start; a cluster is a run whose drawn spans
+ * overlap (touching ends do not). Within a cluster that holds an unknown bar,
+ * each bar takes the first lane whose last drawing has ended. Scheduled dates,
+ * brackets and arrows are untouched: they are read from the bars before this
+ * runs.
+ *
+ * Proof: returning `bars` unchanged made `keeps simultaneous unknown slices as
+ * separate bars at one scheduled instant` fail on every bar reporting lane 0
+ * of 1; watched 2026-09-27.
+ */
+function withPlaceholderLanes(bars: readonly GanttBar[]): GanttBar[] {
+  const laned = bars.map((bar) => ({ ...bar }));
+  const byRow = new Map<number, number[]>();
+  bars.forEach((bar, at) => byRow.set(bar.rowIndex, [...(byRow.get(bar.rowIndex) ?? []), at]));
+  const split = (cluster: readonly number[]): void => {
+    if (cluster.length < 2 || cluster.every((at) => bars[at].estimated)) return;
+    const laneEnds: number[] = [];
+    for (const at of cluster) {
+      const bar = bars[at];
+      const free = laneEnds.findIndex((end) => end <= bar.start);
+      const lane = free === -1 ? laneEnds.length : free;
+      laneEnds[lane] = bar.start + bar.drawnSpan;
+      laned[at].lane = lane;
+    }
+    for (const at of cluster) laned[at].lanes = laneEnds.length;
+  };
+  for (const members of byRow.values()) {
+    const swept = [...members].sort((left, right) => bars[left].start - bars[right].start);
+    let cluster: number[] = [];
+    let reach = -Infinity;
+    for (const at of swept) {
+      const bar = bars[at];
+      if (bar.start >= reach) {
+        split(cluster);
+        cluster = [];
+      }
+      cluster.push(at);
+      reach = Math.max(reach, bar.start + bar.drawnSpan);
+    }
+    split(cluster);
+  }
+  return laned;
 }

@@ -1849,6 +1849,13 @@ describe('the shapes a real schedule makes', () => {
     ]);
     expect(chart.brackets).toEqual([{ rowId: 'step', rowIndex: 0, start: 0, finish: 3 }]);
     expect(chart.horizon).toBe(5);
+    // Drawn in two lanes of their row so neither hides the other from the
+    // pointer; the estimated row beside them keeps its single lane.
+    expect(chart.bars.map((bar) => [bar.sliceId, bar.lane, bar.lanes])).toEqual([
+      ['strip-dev', 0, 1],
+      ['sand-dev', 0, 2],
+      ['sand-qa', 1, 2],
+    ]);
   });
 
   it('stretches the horizon to hold the assumed span, so the ghost bar has canvas', () => {

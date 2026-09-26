@@ -785,6 +785,46 @@ describe('the chart is drawn in calendar days', () => {
     expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
   });
 
+  itDom('draws unknown slices at one instant in separate lanes of their row', () => {
+    // Two unknown steps of one work item share a scheduled instant. Each is
+    // its own control with its own name, and their rects do not overlap, so
+    // a pointer can reach either.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('sand', 3, 3)],
+          slices: [
+            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false, duration: 0, effort: 0 }),
+            sliceAt('sand-qa', 'sand', 3, 3, {
+              stepId: 'qa',
+              estimated: false,
+              duration: 0,
+              effort: 0,
+            }),
+          ],
+          steps: [
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+
+    const dev = drawnBox('[data-gantt-bar="sand-dev"]');
+    const qa = drawnBox('[data-gantt-bar="sand-qa"]');
+    expect(dev.x).toBe(qa.x);
+    expect(dev.height).toBeGreaterThan(0);
+    expect(dev.y + dev.height).toBeLessThanOrEqual(qa.y);
+    expect(labelOf(markFor('sand-dev'))).not.toBe(labelOf(markFor('sand-qa')));
+  });
+
   itDom('the bar still says it is a guess', () => {
     // The payload be-01 sends since `unestimated-steps-take-no-schedule-time`
     // (2026-09-27): an unestimated slice placed 3 → 3, zero schedule time, with

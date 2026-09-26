@@ -1,7 +1,13 @@
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { DependencyStore, Project, ProjectStore, WorkItemStore } from '../index';
+import type {
+  DependencyStore,
+  EstimateStore,
+  Project,
+  ProjectStore,
+  WorkItemStore,
+} from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -11,22 +17,49 @@ const OWNER = 'owner-account';
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let dependencies: DependencyStore;
+let estimates: EstimateStore;
 let service: WorkItemService;
 let broadcast: RecordingBroadcaster;
 let projectId: string;
 
+/** The one step every leaf here is estimated on. */
+const DEV = 'step-dev';
+
 beforeEach(async () => {
   broadcast = recordingBroadcaster();
   const harness = inMemoryServices({ broadcast });
-  ({ projects, workItems, dependencies } = harness.stores);
+  ({ projects, workItems, dependencies, estimates } = harness.stores);
   service = harness.service;
   const project: Project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
-  await projects.create(project, [], { at: 1, by: OWNER });
+  await projects.create(project, [{ id: DEV, projectId: project.id, name: 'Dev', position: 10 }], {
+    at: 1,
+    by: OWNER,
+  });
   projectId = project.id;
 });
 
+/**
+ * Gives a leaf one estimated day. An unestimated work item takes no schedule
+ * time, so without an estimate a dependency moves no start and there is
+ * nothing to arrange by.
+ */
+async function estimate(workItemId: string): Promise<void> {
+  await estimates.set(
+    { workItemId, stepId: DEV, optimistic: 1, realistic: 1, pessimistic: 1 },
+    { at: 1, by: OWNER },
+  );
+}
+
 async function add(name: string, afterId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId: null, afterId, name });
+  if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+  await estimate(outcome.value.id);
+  return outcome.value.id;
+}
+
+/** A parent row, which holds no estimate of its own. */
+async function addGroup(name: string): Promise<string> {
+  const outcome = await service.create(projectId, OWNER, { parentId: null, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -34,6 +67,7 @@ async function add(name: string, afterId: string | null = null): Promise<string>
 async function addUnder(parentId: string, name: string): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+  await estimate(outcome.value.id);
   return outcome.value.id;
 }
 
@@ -89,7 +123,7 @@ describe('arrangeBySchedule', () => {
   });
 
   it('arranges a group at every depth', async () => {
-    const branch = await add('Branch');
+    const branch = await addGroup('Branch');
     const early = await addUnder(branch, 'Early');
     const late = await addUnder(branch, 'Late');
     await waitOn(late, early);

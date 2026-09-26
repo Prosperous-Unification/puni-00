@@ -4768,8 +4768,10 @@ function GanttChart({
             // from the engine's `finish`: an unestimated slice finishes
             // where it starts, and that width is no bar at all.
             width={width}
-            y={bar.rowIndex + BAR_INSET}
-            height={BAR_HEIGHT}
+            // Its own lane where unknown placeholders overlap on one row, so
+            // each stays under the pointer — see {@link GanttBar.lane}.
+            y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
+            height={BAR_HEIGHT / bar.lanes}
             rx={BAR_RADIUS_PX / dayPx}
             ry={BAR_RADIUS_PX / ROW_PX}
             // Who is on it — an unestimated slice included, at 35% through
