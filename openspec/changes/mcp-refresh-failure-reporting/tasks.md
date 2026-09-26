@@ -1,7 +1,7 @@
 ## 1. Refresh outcomes
 
 - [x] 1.1 `SessionRefreshRefused` in `wbs-client.ts`; `refreshSession` rejects with it for a missing family and a provider refusal. Tests: `oauth.test.ts` ended/unrefreshable session and store-failure identity; negatives with `Proof:`.
-- [x] 1.2 Transient provider outcomes become `UpstreamRefreshUnavailable` (mapped to `EdgeGate`); store failures inside the refresh propagate unchanged. Tests: lease store failure identity, transient provider stays `EdgeGate`; negatives with `Proof:`.
+- [x] 1.2 Transient provider outcomes become `UpstreamRefreshUnavailable` (mapped to `EdgeGate`); store failures and classifier defects inside the refresh propagate unchanged (defects after releasing the lease). Tests: lease store failure identity, transient provider stays `EdgeGate`; negatives with `Proof:`.
 
 ## 2. Tool-call boundary
 

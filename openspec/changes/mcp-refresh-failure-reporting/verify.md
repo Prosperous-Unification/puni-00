@@ -24,6 +24,9 @@ session outcome` on `toBeInstanceOf(SessionRefreshRefused)`.
 tool-call refresh with a store failure during the lease, not an edge outcome`; throwing a plain
   `Error` for an incomplete provider refresh failed `keeps a transient provider refresh failure an
 edge-gate outcome of a tool-call refresh`.
+- `oauth.ts` provider catch: wrapping classifier defects as unavailable failed `rejects a tool-call
+refresh with a local refresh defect, and releases the lease` (received `EdgeGate`); skipping the
+  lease release before rethrowing made its second refresh time out at 5000 ms.
 - `main.test.ts`: against the previous `server.ts`, the lookup case wrote no operator record and
   the session-end case rejected with `MCP error -32603` carrying the unredacted Basic credential.
 

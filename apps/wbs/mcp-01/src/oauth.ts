@@ -805,7 +805,8 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         const upstreamClaims = await this.verifyUpstream(tokens.accessToken);
         upstreamExpiresAt = upstreamExpiryOf(tokens, upstreamClaims, this.now());
       } catch (cause) {
-        if (classifyOidcFailure(cause).kind === 'refused') {
+        const failureKind = classifyOidcFailure(cause).kind;
+        if (failureKind === 'refused') {
           this.store.revokeFamily(family.familyId, this.now());
           throw new UpstreamRefreshRefused(
             'upstream refresh was refused; the MCP family was revoked',
@@ -813,6 +814,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           );
         }
         this.store.releaseRefreshLease(family.familyId, owner, tokens?.refreshToken);
+        // A local defect is not a provider outage: it propagates so the caller reports it.
+        // Proof: on 2026-09-27, wrapping defects too failed `rejects a tool-call refresh with a
+        // local refresh defect, and releases the lease` (received EdgeGate, not the defect);
+        // skipping the lease release made its second refresh time out at 5000 ms.
+        if (failureKind === 'defect') throw cause;
         // Proof: on 2026-09-27, throwing a plain Error here failed `keeps a transient provider
         // refresh failure an edge-gate outcome of a tool-call refresh`.
         throw new UpstreamRefreshUnavailable('upstream refresh could not be completed', { cause });

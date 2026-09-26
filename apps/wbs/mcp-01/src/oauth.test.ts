@@ -1308,6 +1308,38 @@ describe('InMemoryMcpOAuth', () => {
     expect(caught).toBeInstanceOf(EdgeGate);
   });
 
+  it('rejects a tool-call refresh with a local refresh defect, and releases the lease', async () => {
+    const defect = new TypeError('Cannot read properties of undefined (reading accessToken)');
+    let refreshCalls = 0;
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      refresh: () => {
+        refreshCalls += 1;
+        return Promise.reject(defect);
+      },
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+
+    const first = await oauth.refreshSession(mcpSessionId).catch((rejection: unknown) => rejection);
+    const second = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((rejection: unknown) => rejection);
+
+    expect(first).toBe(defect);
+    expect(second).toBe(defect);
+    expect(refreshCalls).toBe(2);
+  });
+
   it('rejects a tool-call refresh with a store failure during the lease, not an edge outcome', async () => {
     const store = new McpSessionStore(':memory:', [randomBytes(32)]);
     const failure = new Error('SQLITE_IOERR while leasing the refresh');
