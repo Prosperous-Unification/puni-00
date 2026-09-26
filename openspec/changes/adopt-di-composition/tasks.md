@@ -434,3 +434,7 @@
       into the `@wbs/core directly` or `@wbs/runtime-portable directly` form is skipped until
       forwarding rows are compared by identity against the library's index, the kind rules owning
       the wording; and `apps/wbs/fe-01/src/modules` is outside this change.
+
+## 2026-09-26 follow-up
+
+The label inference limit recorded in task 7 is closed by `di-bag-label-surface` (WBS `cc9361f6`): the check reads the scanned module's `moduleLabel` getter on di-bag 0.5.1. Historical task evidence remains dated.

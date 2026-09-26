@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'bun:test';
-import { DiBag, type GraphSnapshot } from 'di-bag';
+import { DiBag } from 'di-bag';
 
 const WORKSPACE = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -99,24 +99,16 @@ async function exportedValues(path: string): Promise<readonly unknown[]> {
 }
 
 /**
- * The labels di-bag gives the private bindings of one installation of the module `module.ts`
- * exports, read from the running library rather than from any spelling in the source.
+ * The exact label on the sealed module exported by `module.ts`. Installing it makes DI Bag
+ * validate that the single runtime export really is a module; no provider is acquired.
  *
- * Exported bindings keep their bare key and carry their public names in `serviceKeys`, so only a
- * binding with no key is read: an exported key that merely contains a slash cannot pass for a label. The
- * label is observable only this way, so every sealed module keeps at least one private binding by
- * convention; one that exports every binding is refused as sealing none.
+ * `moduleLabel` is the sealing value, including when every binding is exported or the module
+ * installs a labelled child. Binding-label strings cannot establish either fact.
  *
- * Known limit: di-bag exposes a label only as the prefix of private binding names — 0.5.0 keeps
- * `moduleLabel` write-only, held in a private `WeakMap` — so a module that drops its label and
- * either spells `<label>/<key>` into a private key or installs an inner module sealed under that
- * label reads as labelled. Closing that needs a label accessor the library does not have yet (WBS
- * 040.13, left open by the 0.5.0 migration).
- *
- * @throws When `module.ts` exports anything but exactly one value, or when di-bag refuses it as a
+ * @throws When `module.ts` exports anything but exactly one value, or when DI Bag refuses it as a
  *   module.
  */
-async function privateBindingLabels(directory: string): Promise<readonly string[]> {
+async function sealedModuleLabel(directory: string): Promise<unknown> {
   const values = await exportedValues(`${directory}/module.ts`);
   // Proof (2026-09-24): appending `export const decoy = capacityModule;` to Capacity's module.ts
   // failed "seals every module under the label its location implies" with `…/capacity/module.ts
@@ -124,20 +116,17 @@ async function privateBindingLabels(directory: string): Promise<readonly string[
   if (values.length !== 1) {
     throw new Error(`${directory}/module.ts exports ${String(values.length)} values, expected 1`);
   }
-  // The host below supplies none of the module's requirements, which the type checker refuses;
-  // the runtime still builds the graph, and describing it resolves nothing.
+  // The host supplies none of the module's requirements, which the type checker refuses;
+  // the runtime still builds the graph without resolving any service.
   const builder = DiBag.createBuilder() as unknown as {
-    withInstalledModules: (modules: readonly unknown[]) => {
-      buildContainer: () => { graphSnapshot: () => GraphSnapshot };
-    };
+    withInstalledModules: (modules: readonly unknown[]) => { buildContainer: () => unknown };
   };
-  const graph = builder.withInstalledModules([values[0]]).buildContainer().graphSnapshot();
-  // Proof (2026-09-24): reading no binding as private reported every one of the eighteen modules
-  // as `seals no private binding` in "seals every module under the label its location implies"
-  // (4 pass, 1 fail).
-  return graph.bindings
-    .filter((binding) => binding.serviceKeys.length === 0)
-    .map((binding) => binding.bindingLabel);
+  builder.withInstalledModules([values[0]]).buildContainer();
+  const module = values[0];
+  if (typeof module !== 'object' || module === null || !('moduleLabel' in module)) {
+    throw new Error(`${directory}/module.ts has no moduleLabel getter`);
+  }
+  return module.moduleLabel;
 }
 
 /**
@@ -235,21 +224,12 @@ test('discovers the sealed modules of both roots', async () => {
 test('seals every module under the label its location implies', async () => {
   const mismatches: string[] = [];
   for (const { directory, label } of await sealedModules()) {
-    const labels = await privateBindingLabels(directory);
-    if (labels.length === 0) mismatches.push(`${directory}: seals no private binding`);
-    for (const binding of labels) {
-      // One identifier after the label: a label with a slash in it, or a labelled outer module,
-      // would otherwise put a different label in front of a key that looks right.
-      const key = binding.startsWith(`${label}/`) ? binding.slice(label.length + 1) : '';
-      // Proof (2026-09-24): Capacity's contract label set to `application.capacities`, then to
-      // `application.capacity/nested`, and its `buildModule` call without the label each failed
-      // "seals every module under the label its location implies" naming the private binding
-      // `application.capacities/capacityOptions`, `application.capacity/nested/capacityOptions`
-      // and `capacityOptions` (4 pass, 1 fail each); with the first of them Capacity's own
-      // module tests stayed green (5 pass), the drift no earlier check saw.
-      if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)) {
-        mismatches.push(`${directory}: private binding "${binding}" is not under ${label}`);
-      }
+    const actual = await sealedModuleLabel(directory);
+    // Proof (2026-09-26): a forged Capacity private key and a labelled inner module under an
+    // unlabelled Capacity wrapper each failed this test with `moduleLabel undefined, expected
+    // application.capacity`; disabling this comparison made each planted module pass.
+    if (actual !== label) {
+      mismatches.push(`${directory}: moduleLabel ${String(actual)}, expected ${label}`);
     }
   }
 

@@ -46,7 +46,7 @@
     "application-exception": "0.7.0",
     "arktype": "^2.2.3",
     "caught-object-report-json": "13.0.0",
-    "di-bag": "0.5.0",
+    "di-bag": "0.5.1",
     "drizzle-orm": "1.0.0-rc.4",
     "elysia": "^1.4.30",
     "jose": "^6.2.12",
