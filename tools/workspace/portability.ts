@@ -273,10 +273,12 @@ export function copyProject(source: string, destination: string, project: string
       throw new Error(`Invalid project tags: ${path}`);
     const segments = path.split('/');
     const library = segments[0] === 'libs';
-    const ring = library ? (segments[2] ?? '') : 'adapter';
+    const directory = segments[2] ?? '';
+    // Proof: treating adapters as ring:adapters failed the checked-in website fixture copy.
+    const ring = library ? (directory === 'adapters' ? 'adapter' : directory) : 'adapter';
     if (
       (library &&
-        (segments.length !== 4 || !['domain', 'application', 'adapters'].includes(ring))) ||
+        (segments.length !== 4 || !['domain', 'application', 'adapters'].includes(directory))) ||
       (!library && segments.length !== 3)
     )
       throw new Error(`Invalid project layout: ${path}`);

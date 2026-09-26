@@ -89,7 +89,7 @@ function project(
     name,
     tags: [
       library ? 'scope:shared' : 'scope:app',
-      `ring:${library ? segments[2] : 'adapter'}`,
+      `ring:${library && segments[2] !== 'adapters' ? segments[2] : 'adapter'}`,
       'runtime:isomorphic',
       `product:${segments[1] ?? ''}`,
     ],
@@ -124,6 +124,19 @@ test('same baseline and dependency closure transfer in both directions without p
   expect(readFileSync(join(returning, 'apps/fixture/client/source.ts'), 'utf8')).toBe(
     readFileSync(join(source, 'apps/fixture/client/source.ts'), 'utf8'),
   );
+});
+
+test('checked-in website fixture and its shared dependency copy into a clean workspace', () => {
+  const source = join(import.meta.dir, '../..');
+  const destination = workspace('private');
+  synchronizeBaseline(source, destination);
+  expect(copyProject(source, destination, 'libs/website/adapters/portability-fixture')).toEqual([
+    'libs/shared/domain/portability-format',
+    'libs/website/adapters/portability-fixture',
+  ]);
+  expect(
+    readFileSync(join(destination, 'libs/website/adapters/portability-fixture/index.ts'), 'utf8'),
+  ).toBe(readFileSync(join(source, 'libs/website/adapters/portability-fixture/index.ts'), 'utf8'));
 });
 
 test('invalid project namespace metadata is refused before copying', () => {
