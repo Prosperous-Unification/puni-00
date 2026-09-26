@@ -89,7 +89,8 @@ const slice = (
  * pushes and never pins; the person case pins the levelling queue and
  * `waitingForPerson`; the pool case pins reservations, `capacityTeamId`, the
  * whole `capacityPredecessorIds` set and `waitingForCapacity`; the unestimated
- * case pins `ASSUMED_SLICE_WORKDAYS` and the `estimated` flag; and the
+ * case pins that an unknown length takes no schedule time, and the `estimated`
+ * flag; and the
  * `anchor-slice` case pins the reach mode, which is a parameter whose default
  * changing is exactly the kind of silent semantics change this file is for.
  *
@@ -263,8 +264,8 @@ export const scheduleBehaviourDigest = (run: ScheduleFn): string =>
  * `SCHEDULE_ALGORITHM_ID` is stale as of the same commit.
  */
 const PINNED = {
-  id: 'slice-leveling-v2',
-  digest: '18b55455829f4eb1',
+  id: 'slice-leveling-v3',
+  digest: 'f0145c81759486b5',
 } as const;
 
 /**
@@ -283,6 +284,10 @@ const PINNED = {
  * The measurement was on h2puni at the committed bytes, not on the workspace
  * box, and both values are in this comment so a future re-pin can be checked
  * against the one it replaced.
+ *
+ * `v2` was `18b55455829f4eb1`. `v3` moved it through the corpus's unestimated
+ * case alone: WBS 010.4.4 gives an unknown slice zero schedule time instead of
+ * `ASSUMED_SLICE_WORKDAYS`. Measured on the workstation 2026-09-27.
  */
 
 /** One perturbed value of the same shape — the smallest change a real edit makes. */

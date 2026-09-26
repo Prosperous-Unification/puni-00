@@ -9,7 +9,8 @@
  * library. A cache keyed on the solver alone would serve a row computed by a
  * different function.
  *
- * **Bump it for any change to:** Fast semantics, {@link ASSUMED_SLICE_WORKDAYS},
+ * **Bump it for any change to:** Fast semantics, whether an unknown length
+ * takes schedule time,
  * `snapWorkdays`, dependency reach, numbering semantics, resource tie-breaks,
  * the canonicalizer, {@link SOLVER_QUANTUM}, or the duration rule. The bump is
  * what evicts every pre-existing cached result; there is no migration of stored
@@ -55,14 +56,14 @@
  * gave `durationUnits` `49` before this change and `48` after.
  *
  * The number is also not free at this point: every request fixture in
- * the golden corpus is checked in carrying `"10+0.1.3"`, and
+ * the golden corpus is checked in carrying `"11+0.1.3"`, and
  * `wire-contract-version.test.ts` in `libs/wbs/domain/contracts` pins the constant to that
  * prefix — so a change here without a change there is a red test rather than a
  * cache that quietly keeps its old rows.
  *
  * The corpus re-key that makes an *unbumped* domain change fail is task 1.6 and
  * is not this constant's own guard: nothing here can notice that
- * `ASSUMED_SLICE_WORKDAYS` moved. Stated so the next reader does not mistake the
+ * the duration rule moved. Stated so the next reader does not mistake the
  * fixture pin above for that proof.
  *
  * **Since TASK-338 the number below is not only a human obligation.** CI's
@@ -90,7 +91,7 @@
  *   That is not a cache-safety hole — the corpus lands under a new version and
  *   the old rows are evicted either way — but the mechanism proves the two
  *   moved together, and nothing about the author's reason.
- * - It says nothing about the entries below that move neither eight plans nor
+ * - It says nothing about the entries below that move neither ten plans nor
  *   six slices. There is no fixture for those, so there is nothing for a
  *   two-commit comparison to compare, and the next paragraph's last sentence
  *   still stands.
@@ -99,9 +100,9 @@
  *   merge discipline on pull requests and detective on direct pushes.
  *
  * **Two corpora enforce this list, and neither enforces all of it.**
- * `fast-golden-corpus.ts` is a VALUE guard over eight named plans as
+ * `fast-golden-corpus.ts` is a VALUE guard over ten named plans as
  * `schedule()` renders them, and its cases are aimed one apiece at the entries
- * plan output depends on — {@link ASSUMED_SLICE_WORKDAYS}, `snapWorkdays`,
+ * plan output depends on — unknown-length slices, `snapWorkdays`,
  * dependency reach, numbering, resource tie-breaks; each case's own comment
  * names which. Only the first of those has a watched red behind it, so read the
  * rest as aim rather than as proof. What IS measured is the other half: it is
@@ -111,15 +112,15 @@
  * `solver-quantum-golden-corpus.ts` covers the entry it cannot, over six named
  * slices as `durationUnits` renders them, and `1.0000000005` above is its first
  * case for the reason this comment already gives. Everything on the list that
- * moves neither eight plans nor six slices is still a human obligation, which
+ * moves neither ten plans nor six slices is still a human obligation, which
  * is what this paragraph exists to say out loud. What the two of them now buy
- * together with the lint above: a change that moves eight plans or six slices
+ * together with the lint above: a change that moves ten plans or six slices
  * cannot reach `main` **through a reviewed pull request** under an unchanged
  * version number — the suite reddens until the writer is run, and the lint
  * reddens until the number moves. On a direct push the lint reports after the
  * commit has landed, which is detection and not prevention.
  */
-export const SCHEDULER_CONTRACT_VERSION = 10;
+export const SCHEDULER_CONTRACT_VERSION = 11;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one
@@ -140,9 +141,10 @@ export const SCHEDULER_CONTRACT_VERSION = 10;
  *
  * The scheduler half moves when Bun changes either a published Fast schedule
  * or its independent solver re-validation; the solver half moves when the
- * Python package or the request facts it consumes change. TASK-510 changes
- * Fast's zero-step lateness projection, so durable rows written under
- * `9+0.1.3` cannot be reused even though the Python half stays at `0.1.3`.
+ * Python package or the request facts it consumes change. WBS 010.4.4 gives
+ * an unestimated slice zero schedule time in Fast and on the wire
+ * (`unestimated-steps-take-no-schedule-time`), so durable rows written under
+ * `10+0.1.3` cannot be reused even though the Python half stays at `0.1.3`.
  *
  * `solverVersion` is the Python package's own version and this library never
  * invents one: it arrives from the spawn that is about to run, because the

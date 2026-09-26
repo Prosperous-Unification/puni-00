@@ -751,18 +751,15 @@ describe('work item routes', () => {
       }[];
     };
 
-    expect(body.waitingForPerson).toBe(2);
+    expect(body.waitingForPerson).toBe(1);
     // The slices leave the process, not merely the service: the route spreads
     // the tree, so this is what says the array survives serialisation to JSON
     // and the ids in it still refer to each other on the other side.
     const held = body.slices.filter((one) => one.boundBy === 'person');
-    // Two work items, since `assumed-duration-schedules` (2026-08-29). One
-    // assignment on a work item makes Ada its assumed assignee, so she does all
-    // four slices, and the two `QA`s nobody estimated are two workdays each
-    // rather than nothing: her day is `Strip` Dev 0→3, `Sand` Dev 3→5, `Sand`
-    // QA 5→7, `Strip` QA 7→9. `Sand`'s Dev waits behind `Strip`'s exactly as it
-    // did; `Strip`'s own QA is the one this change added to the queue.
-    expect(held.map((one) => one.workItemId)).toEqual([first, second]);
+    // One work item: Ada does all four slices, and the two `QA`s nobody
+    // estimated take no schedule time and occupy nobody. Her day is `Strip`
+    // Dev 0→3 then `Sand` Dev 3→5, so only `Sand`'s Dev waits for her.
+    expect(held.map((one) => one.workItemId)).toEqual([second]);
     // Named rather than indexed: the assertion is about `Sand`'s Dev, which is
     // the slice the original claim was about, and an index would follow
     // whichever slice the payload happened to list first.
