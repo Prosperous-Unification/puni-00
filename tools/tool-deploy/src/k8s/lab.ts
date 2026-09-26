@@ -8,6 +8,7 @@
  *
  * Owns only resources named `puni-f8-*`; `--keep` leaves them for inspection.
  */
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -41,6 +42,94 @@ const keep = process.argv.includes('--keep');
 
 function log(line: string): void {
   console.log(`[lab ${new Date().toISOString().slice(11, 19)}] ${line}`);
+}
+
+/** Cap diagnostic output after replacing lab key material; never include a Secret payload. */
+export function redactDiagnostic(message: string, secrets: readonly string[]): string {
+  let redacted = message;
+  // Proof: deleting this replacement exposed generated-key-material in
+  // lab-diagnostics.test.ts (2026-09-27); restoring it passed the same test.
+  for (const secret of secrets) redacted = redacted.replaceAll(secret, '[REDACTED]');
+  redacted = redacted.replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, '[REDACTED]');
+  redacted = redacted.replace(/(MCP_(?:STORE|SIGNING)_KEY_[A-Z]+[=:])[^\s]+/g, '$1[REDACTED]');
+  return redacted.slice(0, 8192);
+}
+
+/** Reject a failed Secret write while keeping its payload out of the error. */
+export function assertSecretApplied(
+  invocation: { exitCode: number | null; stderr: string },
+  secrets: readonly string[],
+): void {
+  // Proof: replacing this refusal with a return made the rejected lab Secret write test fail
+  // on 2026-09-27; restoring it passed.
+  if (invocation.exitCode !== 0) {
+    throw new Error(
+      `wbs-mcp-secrets apply failed: ${redactDiagnostic(invocation.stderr, secrets)}`,
+    );
+  }
+}
+
+/** Create throwaway lab credentials through stdin, without putting values in argv or errors. */
+async function createMcpSecret(): Promise<string[]> {
+  const storeKey = randomBytes(32).toString('base64');
+  const signingKey = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    .privateKey.export({ format: 'der', type: 'pkcs8' })
+    .toString('base64');
+  const secret = {
+    apiVersion: 'v1',
+    kind: 'Secret',
+    metadata: { name: 'wbs-mcp-secrets', namespace: 'wbs' },
+    type: 'Opaque',
+    stringData: { MCP_STORE_KEY_CURRENT: storeKey, MCP_SIGNING_KEY_CURRENT: signingKey },
+  };
+  const applied = await run(
+    [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT, 'apply', '-f', '-'],
+    JSON.stringify(secret),
+    30_000,
+  );
+  assertSecretApplied(applied, [storeKey, signingKey]);
+  return [storeKey, signingKey];
+}
+
+/** A rollout failure keeps its original error; diagnostics are bounded and Secret-redacted. */
+async function diagnoseMcp(secrets: readonly string[]): Promise<void> {
+  const base = [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT];
+  const listed = await run(
+    [
+      ...base,
+      '--request-timeout=10s',
+      '-n',
+      'wbs',
+      'get',
+      'pods',
+      '-l',
+      'app.kubernetes.io/name=wbs-mcp',
+      '-o',
+      'jsonpath={.items[*].metadata.name}',
+    ],
+    null,
+    15_000,
+  );
+  if (listed.exitCode !== 0) {
+    log(`MCP diagnostic unavailable: ${redactDiagnostic(listed.stderr, secrets)}`);
+    return;
+  }
+  for (const pod of listed.stdout.trim().split(/\s+/).filter(Boolean).slice(0, 3)) {
+    for (const args of [
+      ['describe', 'pod', pod],
+      ['logs', pod, '-c', 'mcp', '--tail=40', '--limit-bytes=4096'],
+      ['logs', pod, '-c', 'mcp', '--previous', '--tail=40', '--limit-bytes=4096'],
+    ]) {
+      const diagnostic = await run(
+        [...base, '--request-timeout=10s', '-n', 'wbs', ...args],
+        null,
+        15_000,
+      );
+      log(
+        `MCP ${args[0]} ${pod}: ${redactDiagnostic(diagnostic.stdout + diagnostic.stderr, secrets)}`,
+      );
+    }
+  }
 }
 
 async function sh(
@@ -491,12 +580,14 @@ async function main(): Promise<void> {
   const sourceSha = (await sh(['git', '-C', ROOT, 'rev-parse', 'HEAD'])).trim();
   log(`source ${sourceSha}; state ${state}`);
   const port = await up();
+  let mcpSecrets: string[] = [];
   try {
     const labImages = await images(port, sourceSha);
     writeFileSync(join(state, 'images.json'), JSON.stringify(labImages, null, 2));
     log(`images ${JSON.stringify(labImages)}`);
     const { v1, v2, broken, v3 } = labImages;
     await platform();
+    mcpSecrets = await createMcpSecret();
     const uid = (
       await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
     ).trim();
@@ -518,6 +609,35 @@ async function main(): Promise<void> {
     // Bootstrap is not a release: seed F6's list with the one v1 digest it runs.
     await approve([v1.images.backend]);
     await bootstrap(v1, settings);
+    const mcpStoreBefore = (
+      await k([
+        '-n',
+        'wbs',
+        'exec',
+        'deployment/wbs-mcp',
+        '-c',
+        'mcp',
+        '--',
+        'sha256sum',
+        '/var/lib/wbs-mcp/sessions.sqlite',
+      ])
+    ).trim();
+    await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
+    await k(['-n', 'wbs', 'rollout', 'status', 'deployment/wbs-mcp', '--timeout=300s']);
+    const mcpStoreAfter = (
+      await k([
+        '-n',
+        'wbs',
+        'exec',
+        'deployment/wbs-mcp',
+        '-c',
+        'mcp',
+        '--',
+        'sha256sum',
+        '/var/lib/wbs-mcp/sessions.sqlite',
+      ])
+    ).trim();
+    assert(mcpStoreBefore === mcpStoreAfter, 'MCP store survives a pod replacement');
     await insertProject('f8-row-before');
     assert((await projectNames()).includes('f8-row-before'), 'row inserted through the v1 API');
 
@@ -710,6 +830,15 @@ async function main(): Promise<void> {
       `at most one writer pod with two coordinators (max ${String(seen.max)} over ${String(seen.samples)} samples)`,
     );
     log('all lab assertions passed');
+  } catch (cause) {
+    if (mcpSecrets.length > 0) {
+      try {
+        await diagnoseMcp(mcpSecrets);
+      } catch {
+        log('MCP diagnostic unavailable; preserving the rollout failure');
+      }
+    }
+    throw cause;
   } finally {
     if (keep)
       log(
