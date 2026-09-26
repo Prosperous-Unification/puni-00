@@ -20,6 +20,40 @@ _Avoid_: session, token chain
 The short exclusive claim one mcp-01 process holds while replacing a refresh family's provider credential. It prevents concurrent tool calls from refreshing the same provider token twice.
 _Avoid_: lock, refresh mutex
 
+### Organization access
+
+**Organization**:
+The ownership and access boundary for WBS projects and shared resources. A user may belong to more than one organization.
+_Avoid_: tenant, workspace, account
+
+**Membership**:
+One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
+_Avoid_: team membership, IdP group
+
+**Role**:
+The level of authority a membership grants within its organization: super-admin, admin, member or viewer.
+_Avoid_: scope, group
+
+**Super-admin**:
+The organization role responsible for ownership and security decisions within that organization.
+_Avoid_: platform administrator, root user
+
+**Verified domain**:
+An exact email domain whose controller has proved ownership and which is associated with one organization.
+_Avoid_: company domain, claimed email suffix
+
+**Join request**:
+An authenticated user's request to become a member of an organization; it grants no access by itself.
+_Avoid_: automatic enrollment, JIT membership
+
+**Invitation**:
+An offer to a specific email address to join an organization with a specified role.
+_Avoid_: join request, signup link
+
+**Legacy organization**:
+The single organization that receives WBS content and users from before organization ownership was introduced.
+_Avoid_: default tenant, personal organization
+
 ### WBS
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
@@ -109,9 +143,9 @@ the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
-The people and service teams every project draws from — one list for the whole
-deployment, readable and writable by any signed-in account. Not a per-project list, and
-not an account on this tool.
+The people and service teams projects in one organization draw from — one list scoped to
+that organization. Current members may read it; current member, admin and super-admin roles
+may edit it. It is not a per-project list or an account on this tool.
 _Avoid_: roster, address book, org chart, users
 
 **Service team**:
@@ -269,8 +303,9 @@ itself.
 _Avoid_: plus, add affordance, new button, opener
 
 **Project owner**:
-The account that created a project and the only one that may edit it while it is
-restricted. An account, never a person from the directory.
+The account that created a project and retains stewardship of a restricted project within
+its organization. A current creator-member may edit it; a current super-admin may make an
+audited recovery edit. An account, never a person from the directory.
 _Avoid_: author, creator, user
 
 **Project entry**:
@@ -289,16 +324,28 @@ Three durations in days — optimistic, realistic, pessimistic — held for one 
 one step. A work item with children has no estimates of its own.
 _Avoid_: points, effort, sizing
 
+**Project-step allowance**:
+The percentage on a project step, default zero, applied to each leaf's combined base estimate
+before project rounding. It does not change optimistic, realistic or pessimistic entries, and a
+parent does not apply it again.
+_Avoid_: contingency estimate, per-work-item allowance
+
+**Charged estimate**:
+The effort for an estimated leaf step after its project-step allowance is applied to the combined
+base and the project rounds the result. Unknown remains unknown and contributes zero scheduling
+duration; a stated zero stays estimated.
+_Avoid_: base estimate, raw estimate
+
 **Trio shorthand**:
 One estimate written as one value — `2/3/8`, or `5` meaning all three are five. What a
 folded step's cell shows and takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
 
 **Final days**:
-One step's single number of days for one work item — the project's estimate method applied
-to its **estimate** and charged at the project's **estimate rounding**. Shown beside the
-**trio shorthand** it came from, summed across steps into the work item's total days, and
-summed across descendants for a work item with children.
+One step's **charged estimate** for one work item: apply the project's estimate method to its
+**estimate**, then the **project-step allowance**, then **estimate rounding**. Shown beside the
+**trio shorthand** when the two differ, summed across steps into the work item's total days, and
+summed across descendants for a work item with children without a second allowance.
 _Avoid_: PERT number, computed figure, effective estimate
 
 **PERT weights**:
@@ -308,7 +355,8 @@ otherwise; read only under the `pert` estimate method.
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
-A project's answer to how one step's combined figure becomes the days it is charged:
+A project's answer to how one step's combined figure, after its project-step allowance, becomes
+the days it is charged:
 `floor`, `round`, `ceil`, or `exact` for the fraction itself. `ceil` unless the project says
 otherwise, and applied per step before any sum is taken.
 _Avoid_: precision, rounding mode, day granularity
@@ -382,13 +430,29 @@ with today offered, and cancelling it writes nothing.
 _Avoid_: done modal, confirmation, completion dialog, date picker
 
 **Dependency**:
-One work item waiting for another's reached slice to finish before it starts — which of
-the predecessor's slices that is comes from the project's Dependency reach. Either end may
-be a parent, which means every leaf beneath it. Held once per pair, in one direction.
+An authored ordering relationship between predecessor and successor dependency endpoints.
+Legacy dependencies use project Dependency reach; typed dependencies name their endpoints and relationship type.
 _Avoid_: link, blocker, edge (outside the graph code)
 
+**Dependency endpoint**:
+One side of a typed dependency: a work item with either whole scope or one selected project step.
+A parent endpoint expands to every descendant leaf; a dependency constrains each selected
+predecessor/successor leaf pair. A selected step resolves to that leaf's named slice.
+_Avoid_: anchor (for an explicit endpoint), bar end
+
+**Relationship type**:
+The lower-bound boundary ordering of a typed dependency: finish-to-start (FS), start-to-start
+(SS), or finish-to-finish (FF). SS and FF permit a later start or finish; they never require
+simultaneous boundaries. A typed edit that creates a cycle in the combined slice graph is
+refused atomically.
+_Avoid_: dependency reach, link mode
+
+**All descendants**:
+The leaves beneath a parent endpoint, each of which participates in the dependency constraint. It is the parent selection shown to a planner.
+_Avoid_: parent envelope, first child
+
 **Dependency reach**:
-A project's answer to how far into a predecessor its dependencies reach: `whole-item`, the
+A project's answer to how far into a predecessor its legacy dependencies reach: `whole-item`, the
 predecessor's last slice in step order, or `anchor-slice`, its Anchor slice with the steps
 behind it running alongside the successor. Stored per project, read by the scheduler, never
 sent by a client. `whole-item` unless the project says otherwise.
@@ -400,12 +464,12 @@ project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in role order that somebody estimated — the one a dependency
-waits on where the project's Dependency reach is `anchor-slice`. A role listed in front of
-it and left unestimated is stepped over, and having an assumed duration does not make it
-the anchor. Reordering a project's roles moves what every such dependency waits for. Where
-nothing is estimated the anchor is the work item's finish, which is its steps' assumed
-durations end to end — the one case where both reaches name the same slice.
+A work item's first slice in project-step order that somebody estimated — the one a legacy
+dependency waits on where project Dependency reach is `anchor-slice`. An earlier unestimated
+step is stepped over; its drawing-only assumed span does not make it the anchor. Reordering
+steps or changing estimates can move the anchor and must revalidate the combined dependency
+graph. Where nothing is estimated, the anchor is the work item's zero-duration scheduled finish
+after its ordered unknown slices, so both reaches name the same zero-time boundary.
 _Avoid_: dev slice, first slice, handoff point
 
 **Projection**:
@@ -559,16 +623,16 @@ numbers it carries stay the engine's.
 _Avoid_: segment, block, task bar
 
 **Assumed duration**:
-The two workdays a schedule gives a slice nobody has estimated, so that unsized work is
-work of unknown length rather than no work. One constant, shared by the engine and the
-drawing. It is never an estimate: nothing is written, the days column and the roll-up stay
-blank, and the readiness badge still counts the gap.
+The drawing-only span, currently two workdays, shown for a slice nobody has estimated.
+It contributes no scheduling duration or resource demand. It is never an estimate:
+nothing is written, the days column and the roll-up stay blank, and the readiness badge
+still counts the gap.
 _Avoid_: default duration, placeholder estimate, assumed estimate
 
 **Assumed span**:
-How a slice on its assumed duration is painted: a dotted translucent bar with a `?`, so
-that the width reads as a guess. The width itself is the schedule's — what the bar adds is
-the saying.
+How an unestimated slice is painted: a dotted translucent bar with a `?`, drawn across
+the **assumed duration** from its scheduled start. Its width is a visual placeholder,
+not the slice's scheduled duration.
 _Avoid_: ghost bar, placeholder bar
 
 **Done bar**:
@@ -595,9 +659,11 @@ never a sum, exactly as the projection is.
 _Avoid_: parent bar, group bar, rollup bar
 
 **Arrow route**:
-The corners a dependency arrow is drawn through, from the predecessor's anchor to the
-successor's start: horizontal and vertical runs only, arriving from the left so the head
-points right. Chosen against the bars the panel is drawing — it passes through no bar's
+The corners a dependency arrow is drawn through, from the selected predecessor boundary to the
+selected successor boundary — finish→start for FS, start→start for SS, finish→finish for FF: horizontal and vertical runs only.
+The head arrives from outside the bar at that boundary: from the left, pointing right, at a
+start (FS, SS); from the right, pointing left, at a finish (FF), through a gutter right of the
+finishes. Chosen against the bars the panel is drawing — it passes through no bar's
 interior, the two it joins included — and not merely from the two ends.
 _Avoid_: elbow, path, polyline
 
@@ -1002,8 +1068,9 @@ one excludes other processes, the other orders this one's own writers.
 _Avoid_: using this name for the coordinator
 
 **Restricted project**:
-A project only its owner may edit. Every authenticated account may still read it; an
-unrestricted project may be edited by any of them.
+A project readable by current members of its organization but ordinarily editable only by
+its creator while that creator remains a member. A current super-admin may make an audited
+recovery edit; an unrestricted project is editable by current members, admins and super-admins.
 _Avoid_: private, locked project
 
 **External ref**:
@@ -1361,19 +1428,20 @@ resource and lifetime guarantees. A development-only alternative to the solver s
 _Avoid_: direct solver, direct optimizer, unsupervised solver, embedded solver
 
 **Solver quantum**:
-`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because
-Fast's durations are genuinely fractional — a width-two one-day slice is 0.5 workdays — and
-CP-SAT interval variables are integers. Durations round **up** to the next unit when an
-estimate does not divide, never down — which is what makes every quantised-feasible
-solution real-feasible. Because rounding up can also put real Fast's value out of reach
-(three serial `days=1, width=5` slices finish at 28.8 units but need 30 rounded), the
-solver's hint and bound come from the Quantised baseline, never from real Fast.
+`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. Fast durations can
+be fractional, while CP-SAT intervals are integer. Positive durations round up to a unit;
+zero and unknown durations remain zero. For FS and SS, integer precedence with rounded
+durations is conservative. For FF, rounded finish order alone can admit a real finish-order
+violation, so the solver enforces `W_FF = max(D_a − D_b, ceil(48 × (d_a − d_b)))` and
+independently checks materialized real finishes. Rounding can also exclude a real-feasible
+plan, so the solver's hint and bound come from a validated Quantised baseline, never directly
+from real Fast.
 _Avoid_: tick, granularity, resolution
 
 **Quantised baseline**:
 Fast's own placement re-run over the rounded durations, in integer solver units. It is what
-the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage,
-because it is feasible in the model the solver actually gets. Distinct from the Baseline
+the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage when
+validated against all active constraints and deadlines. Distinct from the Baseline
 schedule, which is the real-domain Fast result the publication guard scores against.
 _Avoid_: rounded Fast, hint schedule
 
