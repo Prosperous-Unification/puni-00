@@ -6,9 +6,9 @@
 
 ## 2. Validate SS/FF graph semantics
 
-- [ ] 2.1 Red: parent Cartesian, whole-scope boundary selection, negative FF weight and combined-graph cycle cases.
+- [ ] 2.1 Red: parent Cartesian, whole-scope boundary selection, negative FF weight and combined-graph cycle cases, including a project `depReach` update with typed SS/FF and legacy links.
 - [ ] 2.2 Extend shared expansion to SS/FF with the Stage A acyclic slice-graph rule.
-- [ ] 2.3 Negative proof: omit a parent pair or clamp an FF weight; watch graph goldens fail, restore, add adjacent `Proof:`.
+- [ ] 2.3 Negative proof: omit a parent pair, clamp an FF weight or bypass the `depReach` update guard; watch graph or mounted update tests fail, restore, add adjacent `Proof:`.
 
 ## 3. Extend typed commands
 

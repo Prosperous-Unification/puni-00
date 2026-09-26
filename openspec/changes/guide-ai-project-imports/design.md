@@ -2,7 +2,7 @@
 
 ## Help flow
 
-Publish `docs/import-with-ai.md` through an accessible help page. Export / Import → Import with AI opens the same canonical content: choose a client; copy its connection configuration and the verified public `/mcp` URL; sign in and confirm read/write access; provide source material; copy the prompt; review the mapping; approve the write; reconcile the new WBS project. Troubleshoot connection, login, insufficient scope and rejected import separately. Do not offer a token-copy workflow. Explain client account or admin requirements where known and distinguish a one-time copy from synchronization.
+Publish `docs/import-with-ai.md` through an accessible help page. Export / Import → Import with AI opens the same canonical content: choose a client; copy its connection configuration and the verified public `/mcp` URL; sign in, confirm the selected grant-bound destination organization and current role permit project creation, and confirm read/write access; provide source material; copy the prompt; review the mapping; approve the destination organization and write; reconcile the new WBS project. Troubleshoot connection, login, insufficient scope and rejected import separately. Do not offer a token-copy workflow. Explain client account or admin requirements where known and distinguish a one-time copy from synchronization.
 
 The guide carries this client matrix; **status describes documentation, not a successful WBS connection**. Every row begins untested until the live evidence record exists. `U` means the verified public MCP URL. Include a version/date column in the published guide and update it when verified.
 
@@ -41,14 +41,16 @@ Preserve the following v1 prompt verbatim in the guide and in-app copy action:
 
 > Import `[source project/link/files]` into a new WBS project named `[name]` using the WBS MCP tools.
 >
-> First inspect the available tool schemas and source material. Read the source without modifying it. Show a concise mapping preview covering hierarchy, project steps, estimates and units, dependencies, people, dates and source references. List unsupported or ambiguous fields; do not silently discard them or invent estimates.
+> Confirm the destination WBS organization `[organization]` bound to my current MCP grant and my current WBS role. If it is wrong or cannot be verified, stop; switching organizations requires fresh MCP authorization.
+>
+> First inspect the available tool schemas and source material. Read the source without modifying it. Show a concise mapping preview naming the destination organization, my role, and covering hierarchy, project steps, estimates and units, dependencies, people, dates and source references. List unsupported or ambiguous fields; do not silently discard them or invent estimates.
 >
 > Use explicit day estimates only. Represent a single day estimate as equal optimistic/realistic/pessimistic values. Ask before converting hours or story points. Preserve unknown estimates as missing.
 >
-> After I approve the preview, use `postApiProjectsImport` for a complete valid WBS plan document. Alternatively, create the project and steps, then use `postApiProjectsByIdCommands` with ordered commands, `ref`, `parentRef`, `afterRef`, `workItemRef` and `predecessorRef`. Use `postApiDirectoryCommands` only for directory entries actually needed.
+> After I approve the preview and the named destination organization, use `postApiProjectsImport` for a complete valid WBS plan document. Alternatively, create the project and steps, then use `postApiProjectsByIdCommands` with ordered commands, `ref`, `parentRef`, `afterRef`, `workItemRef` and `predecessorRef`. Use `postApiDirectoryCommands` only for directory entries actually needed.
 >
 > Respect request limits. Each command batch is atomic and one undo; multiple batches are not one transaction. Keep the returned ID mapping. After an uncertain timeout, read back before retrying to avoid duplicates.
 >
 > Finally read back the project, reconcile counts, hierarchy, estimates and dependencies, and report imported, omitted and unresolved records with the WBS project link.
 
-Jira, Linear and Asana use a client-supported source integration or exported files; MS Project uses XML/CSV, not promised native `.mpp`; spreadsheets identify hierarchy, units and predecessor columns. Preserve source IDs as external references. Distinguish effort from duration, and list relationship types unsupported by the current deployed dependency stage. Mark **WBS import tested** only when a record names client version/date, callback, registration method, requested/granted scopes, owned-project read, reversible write, actual refresh and revoked-token rejection.
+Jira, Linear and Asana use a client-supported source integration or exported files; MS Project uses XML/CSV, not promised native `.mpp`; spreadsheets identify hierarchy, units and predecessor columns. Preserve source IDs as external references. Distinguish effort from duration, and list relationship types unsupported by the current deployed dependency stage. Mark **WBS import tested** only when a record names client version/date, callback, registration method, requested/granted scopes, grant-bound organization and role observed at the live request, owned-project read, reversible write, actual refresh and revoked-token rejection.

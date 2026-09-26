@@ -24,13 +24,25 @@ Only a current super-admin SHALL start a domain claim. WBS SHALL canonicalize an
 
 ### Requirement: Verification has a loss and transfer lifecycle
 
-WBS SHALL recheck verified domains every seven days and record the last successful proof. A failed check SHALL suspend domain-based onboarding after a 14-day grace period since the last successful proof; a successful check within that period SHALL restore verification. DNS errors SHALL retain the last known ownership during grace and surface an administrator warning. A suspended domain SHALL not route new users or approve new domain-based join requests, but SHALL not delete existing memberships or transfer content. A current super-admin SHALL be able to release a domain; another organization SHALL claim it only through a new DNS challenge after release. Missing or unreadable maintained public-domain policy SHALL stop claim and verification operations.
+On successful initial verification, WBS SHALL promote the verified challenge digest to a retained organization-and-domain-bound ownership proof distinct from the 24-hour initial challenge expiry. That proof SHALL remain eligible for seven-day checks after the initial challenge expires; a super-admin MAY rotate it, with the previous proof accepted only until the new proof succeeds or a 24-hour rotation window ends; successful rotation SHALL replace the retained proof. WBS SHALL recheck verified domains every seven days against the retained current proof and record the last successful proof. A failed check SHALL suspend domain-based onboarding after a 14-day grace period since the last successful proof; a successful check within that period SHALL retain verified status. A successful check against the retained or freshly rotated proof after suspension SHALL restore verified status and domain-based onboarding without changing ownership. DNS errors SHALL retain the last known ownership during grace and surface an administrator warning. A suspended domain SHALL retain its unique organization ownership claim and SHALL not route new users or approve new domain-based join requests, but SHALL not delete existing memberships or transfer content. A current super-admin SHALL be able to release a domain; another organization SHALL claim it only through a new DNS challenge after release. Missing or unreadable maintained public-domain policy SHALL stop claim and verification operations.
+
+#### Scenario: Initial challenge expires before periodic check
+
+- **GIVEN** A verified a domain on day 0 and the 24-hour initial challenge expired
+- **WHEN** the day-7 check finds the retained current TXT ownership proof
+- **THEN** verification succeeds and the domain stays verified
 
 #### Scenario: Domain proof disappears
 
-- **GIVEN** a verified domain has no successful TXT proof for more than 14 days
+- **GIVEN** a verified domain has no successful TXT proof for 14 days
 - **WHEN** scheduled re-verification runs
-- **THEN** the domain is suspended, signup no longer routes to it, and existing members retain their memberships
+- **THEN** the domain is suspended, signup no longer routes to it, A retains the unique ownership claim, and existing members retain their memberships
+
+#### Scenario: Suspended owner recovers
+
+- **GIVEN** A owns a suspended domain after no successful proof for 14 days
+- **WHEN** A restores the retained TXT proof or rotates it with a fresh challenge and verification succeeds
+- **THEN** A returns to verified status and onboarding resumes, without releasing ownership or changing existing memberships
 
 #### Scenario: Transfer requires fresh proof
 

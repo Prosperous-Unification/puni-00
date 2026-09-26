@@ -18,9 +18,9 @@
 
 ## 4. Preserve policy across boundaries
 
-- [ ] 4.1 Add failing new and legacy import/export, project copy, child hand-down, subtree duplication, snapshot freeze and generated MCP contract tests.
+- [ ] 4.1 Add failing new and legacy import/export, project copy, child hand-down, subtree duplication, saved-plan freeze, working-plan batch visibility and generated MCP contract tests.
 - [ ] 4.2 Version formats with the typed-dependency change; implement explicit legacy zero conversion and required new-format field. Confirm destination policy applies once to copied base estimates.
-- [ ] 4.3 Inject a dropped export field or live-policy snapshot leak; watch negatives fail, restore and add Proof: comments.
+- [ ] 4.3 Inject a dropped export field or live-policy saved-plan leak or stale working-plan read; watch negatives fail, restore and add Proof: comments.
 
 ## 5. Verify
 

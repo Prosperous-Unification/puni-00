@@ -31,3 +31,31 @@ be-01 SHALL check current membership for each MCP call and mcp-01 SHALL revoke o
 - **GIVEN** an unexpired MCP access token bound to A
 - **WHEN** the user's A membership is removed and the token calls a tool
 - **THEN** the call is refused and refresh cannot mint renewed A access
+
+### Requirement: Pre-activation MCP credentials cannot cross the organization cutover
+
+The durable mcp-01 store SHALL have a versioned, paired migration that adds organization, local-user and identity binding to newly issued refresh families and access sessions, with a persistent credential epoch. Authorization codes and consent transactions, including the current process-local grants, SHALL carry the same epoch and organization binding. After all organization-unaware mcp-01 processes have drained and cannot restart, and before the WBS isolation marker is committed, mcp-01 SHALL atomically advance its store epoch and revoke every pre-activation family and session, and activation SHALL wait for this durable acknowledgment; outstanding codes and consent transactions SHALL be rejected at exchange, including after process restart. Every routable mcp-01 process SHALL read the current durable epoch before code exchange, tool calls and refresh, and fail closed if its code cannot understand it. Legacy rows with null organization or an older epoch SHALL never be interpreted as a current grant or refreshed into one. Clients SHALL reauthorize and select an organization. The paired down migration SHALL be executable only before activation after all new-format credentials are revoked or expired; after activation the permanent marker SHALL refuse mcp-01 schema reversal as well as WBS rollback. A missing, unreadable or malformed MCP store or cutover epoch SHALL fail closed.
+
+#### Scenario: Old writer cannot mint a credential after the fence
+
+- **GIVEN** a blue/green overlap with an organization-unaware mcp-01 process
+- **WHEN** activation preflight has not proved that process drained and cannot restart
+- **THEN** the MCP credential epoch cannot advance and isolation cannot activate
+
+#### Scenario: Restart cannot revive an old refresh family
+
+- **GIVEN** a pre-activation family and refresh token survive in the durable MCP store
+- **WHEN** isolation activates, mcp-01 restarts and the client refreshes
+- **THEN** refresh is refused and fresh organization-selecting authorization is required
+
+#### Scenario: Old code or direct token cannot bypass cutover
+
+- **GIVEN** a pre-activation authorization code or an unbound direct upstream token
+- **WHEN** either is used for a resource tool after activation
+- **THEN** code exchange or the tool call is refused without be-01 resource access
+
+#### Scenario: Refresh retry keeps authenticated delegation
+
+- **GIVEN** a current organization-bound MCP session whose upstream credential expires
+- **WHEN** mcp-01 refreshes upstream and retries the be-01 call
+- **THEN** the retry carries the same verified user, organization, client, family, scope and audience binding, and current membership is rechecked
