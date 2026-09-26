@@ -9,7 +9,7 @@ Written as a spec-time plan; implementation slices record their observed evidenc
 
 ## Task completion and delta sync
 
-- Tasks 1.2, 1.3 and 1.5 are complete at the storage boundary (slice 1 below); every other checkbox remains open and archive is blocked.
+- Tasks 1.2, 1.3, 1.4 and 1.5 are complete at the storage boundary (slice 1 below); every other checkbox remains open and archive is blocked.
 - `organization-access`, `organization-onboarding`, `organization-domains`, `organization-realtime`, `organization-mcp` and `organization-migration` are new delta capabilities; main-spec sync is pending after implementation.
 
 ## R5 failure proofs — pending implementation
@@ -52,6 +52,17 @@ Each migration constraint (single legacy organization, invitation expiry and con
 Command: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/organization-records.db.test.ts`, 21 pass with the faults restored.
 
 Pre-activation rollback round trip: `rolls back before activation, taking only its tables and keeping users` passes; every existing rollback-list test now names the new folder.
+
+## Slice 2 — ownership side tables (task 1.4)
+
+Branch `batch-9/010-5-2-orgs-ownership`, stacked on slice 1. `apps/wbs/be-01/drizzle/20260927130000_add_organization_ownership` adds one `<root>_organization` side table per root (project, person, service_team, service, tag, work_item_type, external_system, saved_plan). The six catalog tables carry an organization-scoped `name` under `UNIQUE (organization_id, name)`. The legacy global name indexes are unchanged; Astra's design call was that no additive index can relax them. `ON DELETE CASCADE` lets the outgoing release delete a mapped root. `OrganizationOwnershipRepository.findUnmappedRoots` is the reconciliation that activation preflight (7.1) will require to be empty.
+
+| Check                                 | Injected fault                          | Observed failure (`organization-ownership.db.test.ts`, 2026-09-27)                               |
+| ------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Reconciliation covers every root kind | `saved_plan` filtered out of the walk   | `reports an unmapped root of every kind`: `- "saved_plan"`                                       |
+| Organization-scoped catalog name      | `tag_organization_name` made non-unique | `holds the same catalog name in two organizations, once each`: `Received function did not throw` |
+
+The same-name case proves storage capability only; live two-organization naming belongs to task 3.2's mounted test. Pre-activation rollback keeps every root (`rolls back before activation, keeping every root`). Command: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src`: 789 pass, 1 fail. The failure is the `Bun.spawn` lock-holder case that also fails on an untouched main checkout on this host.
 
 ## Pending gate output
 

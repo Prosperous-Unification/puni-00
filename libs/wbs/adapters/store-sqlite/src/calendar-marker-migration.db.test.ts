@@ -58,8 +58,21 @@ const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
  * descending reversal list and tails every ascending one.
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
+/**
+ * The newest: the ownership side tables `organization-ownership-and-access`
+ * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
+ */
+const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /** The tables {@link ORGANIZATION_RECORDS} adds, which the same rollback takes. */
 const ORGANIZATION_TABLES = [
+  'external_system_organization',
+  'person_organization',
+  'project_organization',
+  'saved_plan_organization',
+  'service_organization',
+  'service_team_organization',
+  'tag_organization',
+  'work_item_type_organization',
   'external_identity',
   'organization',
   'organization_domain_claim',
@@ -197,6 +210,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,

@@ -2715,3 +2715,119 @@ export const organizationDomainClaim = sqliteTable(
 );
 
 export type OrganizationDomainClaimRow = typeof organizationDomainClaim.$inferSelect;
+
+/**
+ * Which organization owns each root resource, one side table per root, added
+ * by `20260927130000_add_organization_ownership`. A missing row is an unmapped
+ * root; catalog tables carry the organization-scoped display name the global
+ * name indexes cannot. The migration's comments say why each shape exists.
+ */
+export const personOrganization = sqliteTable(
+  'person_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('person_organization_name').on(t.organizationId, t.name)],
+);
+
+export const serviceTeamOrganization = sqliteTable(
+  'service_team_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('service_team_organization_name').on(t.organizationId, t.name)],
+);
+
+export const serviceOrganization = sqliteTable(
+  'service_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => service.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('service_organization_name').on(t.organizationId, t.name)],
+);
+
+export const tagOrganization = sqliteTable(
+  'tag_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => tag.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('tag_organization_name').on(t.organizationId, t.name)],
+);
+
+export const workItemTypeOrganization = sqliteTable(
+  'work_item_type_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => workItemType.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('work_item_type_organization_name').on(t.organizationId, t.name)],
+);
+
+export const externalSystemOrganization = sqliteTable(
+  'external_system_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => externalSystem.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('external_system_organization_name').on(t.organizationId, t.name)],
+);
+
+export const projectOrganization = sqliteTable(
+  'project_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+  },
+  (t) => [index('project_organization_organization').on(t.organizationId)],
+);
+
+export const savedPlanOrganization = sqliteTable(
+  'saved_plan_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => savedPlan.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+  },
+  (t) => [index('saved_plan_organization_organization').on(t.organizationId)],
+);

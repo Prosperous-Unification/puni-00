@@ -75,6 +75,11 @@ const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
  * descending reversal list and tails every ascending one.
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
+/**
+ * The newest: the ownership side tables `organization-ownership-and-access`
+ * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
+ */
+const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -123,6 +128,14 @@ const ALSO_ROLLED_BACK = [
   'organization_invitation',
   'organization_join_request',
   'organization_membership',
+  'external_system_organization',
+  'person_organization',
+  'project_organization',
+  'saved_plan_organization',
+  'service_organization',
+  'service_team_organization',
+  'tag_organization',
+  'work_item_type_organization',
 ] as const;
 
 const ADDED_INDEX = 'solver_queue_dequeue_order';
@@ -302,6 +315,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
