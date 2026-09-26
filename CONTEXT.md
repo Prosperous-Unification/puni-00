@@ -382,10 +382,21 @@ with today offered, and cancelling it writes nothing.
 _Avoid_: done modal, confirmation, completion dialog, date picker
 
 **Dependency**:
-One work item waiting for another's reached slice to finish before it starts — which of
-the predecessor's slices that is comes from the project's Dependency reach. Either end may
-be a parent, which means every leaf beneath it. Held once per pair, in one direction.
+An authored ordering relationship between predecessor and successor dependency endpoints.
+Legacy dependencies use project Dependency reach; typed dependencies name their endpoints and relationship type.
 _Avoid_: link, blocker, edge (outside the graph code)
+
+**Dependency endpoint**:
+One side of a typed dependency: a work item with either its whole scope or one selected project step. A parent endpoint represents all descendant leaves.
+_Avoid_: anchor (for an explicit endpoint), bar end
+
+**Relationship type**:
+The boundary ordering of a typed dependency: finish-to-start (FS), start-to-start (SS), or finish-to-finish (FF). It sets a lower bound, not simultaneous timing.
+_Avoid_: dependency reach, link mode
+
+**All descendants**:
+The leaves beneath a parent endpoint, each of which participates in the dependency constraint. It is the parent selection shown to a planner.
+_Avoid_: parent envelope, first child
 
 **Dependency reach**:
 A project's answer to how far into a predecessor its dependencies reach: `whole-item`, the

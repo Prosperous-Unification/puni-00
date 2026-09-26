@@ -47,3 +47,34 @@ When a plan has no nested work items, Expand all and Collapse all SHALL do nothi
 - **GIVEN** a filter matching a nested child
 - **WHEN** the filtered plan is shown
 - **THEN** the match is visible without replacing the saved reader expansion
+
+### Requirement: Moving into a parent has a clear target and keyboard equivalent
+
+The existing middle-row drag zone SHALL move the dragged subtree beneath the target as its last child. While that valid zone is targeted, the row SHALL be tinted and show an indented cue such as “Move under 010 · Release”; top and bottom zones SHALL keep insertion lines. Hovering a valid collapsed parent for about 600ms SHALL temporarily expand it without changing the target or zone as layout moves. Exiting or cancelling SHALL clear the timer and restore transient expansion; successful drop SHALL retain the expansion. Frozen-number rows SHALL remain movable and keep their labels. Self/descendant and dependency-invalid reparenting SHALL be refused; a concurrent tree edit SHALL cancel the gesture. A refused write SHALL restore the preview and explain the refusal. A successful move SHALL be one undoable structural command. Keyboard and mobile users SHALL have a Move under… parent picker for arbitrary destinations; Alt+Right indent and Alt+Left outdent SHALL remain available.
+
+#### Scenario: A middle drop nests a subtree
+
+- **GIVEN** a valid dragged subtree and target row numbered 010 · Release
+- **WHEN** the pointer enters its middle zone and the move succeeds
+- **THEN** “Move under 010 · Release” is shown before drop and the subtree becomes its last child
+- **AND** one undo restores its former position
+
+#### Scenario: Hover expansion is temporary until success
+
+- **GIVEN** a valid collapsed parent under the drag pointer
+- **WHEN** the middle zone is held for about 600ms
+- **THEN** the parent opens without changing the targeted move
+- **AND** exit or cancellation restores its prior expansion, while a successful drop keeps it open
+
+#### Scenario: An invalid or stale move is refused
+
+- **GIVEN** a self/descendant target, dependency-invalid target, concurrent tree edit or server refusal
+- **WHEN** the move is attempted
+- **THEN** no invalid structure is committed, the preview is restored, and a refused write is explained
+
+#### Scenario: A keyboard or mobile user chooses another parent
+
+- **GIVEN** a work item and an arbitrary valid destination parent
+- **WHEN** Move under… is chosen from its accessible picker
+- **THEN** the same undoable structural move places it as that parent's last child
+- **AND** Alt+Right and Alt+Left remain usable for adjacent indent and outdent

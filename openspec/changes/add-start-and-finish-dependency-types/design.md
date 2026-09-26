@@ -1,0 +1,25 @@
+# Design — start and finish dependency types
+
+## Dependency and endpoint semantics
+
+This design builds on `add-step-finish-start-dependencies`. Enable SS and FF in its typed table and command validator; old legacy `depReach` links remain legacy FS. For a leaf whole endpoint, FS is last finish→first start, SS is first start→first start, and FF is last finish→last finish. A selected step uses that slice boundary. Parents still expand to every descendant leaf pair; parent SS means every selected predecessor leaf has started before each selected successor start, and parent FF means every selected successor leaf finishes no earlier than every selected predecessor leaf. No parent envelope shortcut is valid. Keep the authored expanded slice DAG rule, including internal step order, even where an SS cycle would be mathematically satisfiable.
+
+## Weighted constraints and CP-SAT
+
+For real durations `d_a`, `d_b`, require FS `S_b >= S_a + d_a`, SS `S_b >= S_a`, and FF `S_b >= S_a + d_a - d_b`. FF's weight can be negative; do not clamp it or require chronological processing order. CP-SAT uses integer durations `D_i = ceil(Q × d_i)` for positive slices, `D_i = 0` for zero or unknown, and Q=48. FS is `end[a] <= start[b]`; SS is `start[a] <= start[b]`; FF is `end[a] <= end[b]` plus the real-materialization protection below. Keep intervals only for positive duration, existing cumulative/person constraints, floors, deadlines and makespan machinery. Calendar dates are projected after scheduling; weekend spans do not enter the inequalities. Boundary finishes are exclusive: a successor can start at the exact predecessor finish.
+
+## FF quantization protection
+
+Integer FF alone is insufficient: `d_a=0.030`, `d_b=0.021` both round to `D=2` units, so equal integer starts pass while real B finishes too early. For each FF pair derive `W_FF = max(D_a − D_b, ceil(Q × (d_a − d_b)))` and require `S_b >= S_a + W_FF`. Carry the derived bound on the versioned solver wire; independently recompute it from canonical real durations and reject mismatches. Build the quantized Fast baseline using the same bound, and use it as hint/objective bound only if it satisfies all active constraints and deadlines. Validate materialized real FS, SS and FF boundaries before publication. The design probe at `/home/df/wd/puni/puni-plan/wbs-feedback-2026-09-26/cpsat-proof/prove_dependencies.py` supports CP-SAT feasibility; it does not exercise production wire, expansion or output validation and is not an R5 proof.
+
+## Fast placement, replay and float
+
+The earliest real start is `max(own floor, FS predecessor start + predecessor duration, SS predecessor start, FF predecessor start + predecessor duration − own duration)`, followed by a resource-feasible placement. Existing monotonic person queues and chronological topological replay in `schedule.ts` cannot represent a longer successor placed before its FF predecessor. Use availability structures that admit such placement, then reconstruct resource-order evidence from actual intervals. Compute replay, latest dates, float and critical paths from weighted precedence and actual resource order; keep negative FF weights. Validate the produced schedule with the same real-boundary checks as optimized publication. A valid authored DAG with adequate capacities, finite floors and no deadlines admits a feasible schedule; Fast missing a deadline does not prove global infeasibility, CP-SAT may find another ordering, quantization may exclude a tight fractional solution, and a timeout without an incumbent is unknown.
+
+## Contracts, history and transfer
+
+Extend Stage A's typed commands, HTTP/MCP schemas, generated OpenAPI, undo/redo and import/export/snapshot DTOs to accept and preserve SS/FF, with distinct endpoint/type uniqueness. Preserve legacy requests and legacy links. Bump solver wire/schema and scheduler contract versions and regenerate fixtures; hash authored relationship types and endpoints. No new SQL pair is expected if Stage A's type column and uniqueness constraint are present; verify that migration.sql and down.sql were shipped there before enabling B. Reject an unsupported type at the input boundary; refuse stale history or malformed archive types without partial mutation.
+
+## Picker and arrows
+
+Keep Stage A's one-click Whole→Whole FS default. Customize exposes FS, SS and FF with full names and explanatory lower-bound wording. Chips lead with number/type, such as `[010 FF · Whole → QA]`, and accessible labels name both work items/scopes. Draw SS left→left through a gutter left of starts and FF right→right through a gutter right of finishes, using actual zero-time ticks for unknown slices. Use neutral theme strokes, selection labels, non-scaling lines and a wider invisible hit target. Hover/focus highlights the same relationship across chip, card and arrow. Collapsed proxies group by visible ancestor pair, relationship type and endpoint scope; wholly internal links show a count rather than a self-arrow. Mobile cards expose the full wording and touch-sized editing.
