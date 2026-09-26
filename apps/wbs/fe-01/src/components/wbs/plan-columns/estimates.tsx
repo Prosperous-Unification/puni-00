@@ -146,24 +146,28 @@ export function createEstimatesColumns({
           // repeating it would be the fold's own reading with nothing
           // folded.
           const atRest = unfolded ? final : stored;
-          // A distinct result is drawn beside the folded trio. An equal result
-          // is already readable in the input or rolled-up trio; drawing its span
-          // would repeat the same number. An unfolded cell already reads the
-          // figure (`atRest`). The `!unfolded` guard also protects that case: with it
-          // dropped, `draws no result beside an unfolded step’s own figure` fails
-          // on `expected <span …(2)></span> to be null` — a folded-final span
-          // standing beside the unfolded row's own figure. Watched 2026-09-20.
+          // What the cell already reads without a result span: the box's own
+          // text on a folded leaf (a refused draft included), and `atRest`
+          // everywhere else — a folded parent's roll-up, or an unfolded
+          // step's figure, which is `final` itself.
+          const shown = shorthand ? foldedReading(reading, step.id).combinedValue : atRest;
+          // The result is drawn only where it says something the cell does not
+          // already read. That one comparison covers every case: an unfolded
+          // cell reads `final` as `atRest`; a flat `5` in the box, or an equal
+          // roll-up, reads it as the trio; a row with no estimate has neither a
+          // trio nor a figure because be-01 computes `finalDays` from
+          // `estimates` in the same call (see `WorkItemRow.finalDays`), so
+          // `final !== ''` keeps an empty span off it.
           //
-          // `final !== ''` excludes unestimated rows: they have neither a trio nor
-          // a figure because be-01 computes `finalDays` from `estimates` in the
-          // same call (see `WorkItemRow.finalDays`). `final !== atRest` excludes
-          // equal values that already have a visible reading in this cell.
-          //
-          // Proof: with `final !== atRest` removed, `says a flat trio once` and
-          // `shows a parent’s rolled-up trio once when it equals the result`
-          // failed on `expected <span ...> to be null`: each rendered a
-          // duplicate final span. Watched 2026-09-27.
-          const showsResult = !unfolded && final !== '' && final !== atRest;
+          // Proof: with `final !== shown` removed, six tests failed, among them
+          // `says a flat trio once`, `shows a parent’s rolled-up trio once when
+          // it equals the result` and `draws no result beside an unfolded
+          // step’s own figure`, each on `expected <span …(2)></span> to be
+          // null`. With `atRest` compared in place
+          // of `shown`, `keeps a flat estimate’s figure beside a cell holding a
+          // refused entry` failed on `expected undefined to be '5'`. Watched
+          // 2026-09-27.
+          const showsResult = final !== '' && final !== shown;
           // Nobody on this step and exactly one person on another: they are
           // assumed to be doing this step too. The same rule the unfolded
           // column has, in the cell that is always on screen — which is the

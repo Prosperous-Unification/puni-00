@@ -29,6 +29,17 @@ The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --js
 | Removed `final !== atRest` from `showsResult`, restoring the duplicate final span. | Both equal-value component tests failed on `expected <span ...> to be null`; the received span held `5`. Restored the condition. |
 | Restored transparent ink for equal leaf and parent trios.                          | Both equal-value component tests failed on `expected 'transparent' to be 'var(--muted-foreground)'`. Restored visible ink.       |
 
+## Review round 1 — 2026-09-27
+
+Astra (gpt-6-astra, high) found that a saved flat `5` lost its result once the box held a refused `9/9/`: the comparison used the stored trio, not the box's text. `showsResult` now compares `final` with what the cell already reads (the box's `combinedValue` on a folded leaf, `atRest` elsewhere), which also makes the separate `!unfolded` guard redundant, so it and its stale proof were removed.
+
+| Check or injected fault                                                                         | Observed result                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New test `keeps a flat estimate’s figure beside a cell holding a refused entry`, before the fix | Failed on `expected undefined to be '5'`; 1 failed, 33 passed.                                                                                                                                          |
+| `bunx vitest run src/components/wbs/plan-estimates.test.tsx` after the fix                      | Exit 0, 75 passed.                                                                                                                                                                                      |
+| Removed `final !== shown` from `showsResult`                                                    | 6 tests failed, including `says a flat trio once`, `shows a parent’s rolled-up trio once when it equals the result` and `draws no result beside an unfolded step’s own figure`. Restored the condition. |
+| Compared `atRest` in place of `shown`                                                           | Only the new refused-entry test failed, on `expected undefined to be '5'`. Restored `shown`.                                                                                                            |
+
 The initial `bunx nx run wbs-fe-01:test --args=...` sent the file argument only to the zoned half of the two-command target, so it was interrupted and a direct focused Vitest run was used for the red/green cycle. A later full Nx invocation first reported a recursive invocation before running tests; `bunx nx reset` cleared its interrupted invocation state, and the full target then passed.
 
 The h2puni gate does not apply on this host (`hostname` returned `pop-os`). No full repository gate was run here.

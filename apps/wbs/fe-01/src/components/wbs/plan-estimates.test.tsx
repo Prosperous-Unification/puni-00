@@ -981,6 +981,24 @@ describe('one cell for the whole trio', () => {
     expect(foldedFinal('010')?.textContent).toBe('4');
   });
 
+  itDom('keeps a flat estimate’s figure beside a cell holding a refused entry', async () => {
+    // A flat `5` draws no figure while the box reads `5`, because the box
+    // already says it. Once the box holds a refused `9/9/` it no longer says
+    // `5`, and the saved figure is the only place the cell still reads it.
+    await oneRow();
+    typeCombined('010', '5');
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
+    });
+    expect(foldedFinal('010')).toBeNull();
+
+    const cell = typeCombined('010', '9/9/');
+
+    expect(cell.value).toBe('9/9/');
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(foldedFinal('010')?.textContent).toBe('5');
+  });
+
   itDom('copies one row’s cell into another and lands the same estimate', async () => {
     // The wart under the complaint: `2.2` was never a legal way to have typed
     // `2/2/3`, so what the cell showed did not describe the estimate it stood
