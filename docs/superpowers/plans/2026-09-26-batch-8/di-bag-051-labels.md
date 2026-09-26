@@ -18,7 +18,7 @@ Keep the two scanned roots, README/pilot/shim clauses, runtime APIs, service lif
 
 ## 2. Read and release evidence
 
-Read these paths before slice 1: `tools/tool-devsync/src/module-labels.test.ts`, `tools/tool-devsync/src/toolchain-pins.test.ts`, `libs/wbs/application/core/src/module/capacity/{module.ts,contract.ts,module.test.ts}`, `openspec/changes/adopt-di-composition/{design.md,specs/di-composition/spec.md}`, `openspec/changes/migrate-di-bag/specs/di-bag-library/spec.md`, and the prior packet `docs/superpowers/plans/2026-09-25-batch-7/140-3-di-bag-migration.md`. Read the published 0.5.1 changelog, release commits `v0.5.0..v0.5.1`, `docs: explain module installation identities and ancestry`, `docs: record issue 42 implementation verification`, and emitted typings before editing. The issue-42 reproduction is an explanation of the forgeries, not a fixture this check scans.
+Read these paths before slice 1: `tools/tool-devsync/src/module-labels.test.ts`, `tools/tool-devsync/src/toolchain-pins.test.ts`, `libs/wbs/application/core/src/module/capacity/{module.ts,contract.ts,module.test.ts}`, `openspec/changes/adopt-di-composition/{design.md,specs/di-composition/spec.md}`, `openspec/changes/migrate-di-bag/specs/di-bag-library/spec.md`, and the prior packet `docs/superpowers/plans/2026-09-25-batch-7/140-3-di-bag-migration.md`. Before dispatch, the planner reads the published 0.5.1 changelog, release commits `v0.5.0..v0.5.1`, the two named documentation commits (`docs: explain module installation identities and ancestry`, `docs: record issue 42 implementation verification`), and emitted typings, and records that inspection in dispatch evidence. The slice-1 executor uses the release facts below. After installing 0.5.1, the slice-2 executor reads its installed declarations and performs the runtime probe required by §6. The issue-42 reproduction is an explanation of the forgeries, not a fixture this check scans.
 
 0.5.1's `Module.moduleLabel` is a read-only inherited getter returning the exact sealing label or `undefined`; renamed views retain it. `GraphSnapshot.moduleInstallations` includes empty, unlabelled and repeated installations; each record has a unique `installationId`, exact `moduleLabel`, and `parentInstallationId`. A binding's `moduleInstallationId` identifies the innermost installation that introduced it; host declarations and replacements may have `undefined`. Slash-containing keys and labels remain valid. No codemod is needed from 0.5.0 to 0.5.1.
 
@@ -416,7 +416,7 @@ index a37c4b79..4df77111 100644
 | `env -u CLAUDECODE -u AGENT bun test ./libs/wbs/application/core/src/module/capacity/module.test.ts`                                 | Executor                               | 5 pass, 0 fail. Its privacy and failure-label tests remain.                                                                                                                                                                    |
 | `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:lint --skip-nx-cache`                                           | Executor                               | Status 0, cache skipped.                                                                                                                                                                                                       |
 | Matching `tool-devsync:typecheck --skip-nx-cache`                                                                                    | Executor                               | Status 0, cache skipped.                                                                                                                                                                                                       |
-| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                        | Executor                               | Baseline N+1, zero failed; rehearsal 118/118, with 106 changes and 12 specs.                                                                                                                                                   |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                        | Executor                               | Slice 1: its baseline N+1 passed. Slice 2: its own baseline N passed. Zero failed in both slices. Rehearsal: 117 → 118 → 118, with 106 changes and 12 specs.                                                                   |
 | `NX_DAEMON=false env -u CLAUDECODE -u AGENT bunx nx run tool-devsync:test --skip-nx-cache`                                           | Planner, after commit                  | Exit 0 on a same-mount host. Scratch rehearsal: 380 pass, 2 fail, both `durable dev poller` tests on `Invalid cross-device link` with exit 128; exactly the two known preamble rule-21 cases, so pending planner verification. |
 | `env -u CLAUDECODE -u AGENT bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes committed . <slice-commit>`   | Planner, after each commit             | Exit 0; writes Git objects, so the executor cannot run it. No module index changes.                                                                                                                                            |
 | Frontend whole `wbs-fe-01:test:unit` / `wbs-fe-01:test`, port-binding or Node-child-output Vitest                                    | Planner only, if its gate selects them | Exit 0; the executor preamble forbids these sandbox-dependent tests. Run any multi-file Vitest serially with `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.                                                                    |
@@ -495,9 +495,12 @@ EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
   /home/df/wd/puni/puni-plan/exec/run-executor.sh di-bag-051-labels 1 <planning-sha> \
   --batch batch-8 --driver codex
 EXEC_MODEL=gpt-6-sol EXEC_EFFORT=medium \
-  /home/df/wd/puni/puni-plan/exec/run-executor.sh di-bag-051-labels 2 <slice-1-sha> \
-  --batch batch-8 --driver codex --network
+  /home/df/wd/puni/puni-plan/exec/run-executor.sh di-bag-051-labels 2 <planning-sha> \
+  --batch batch-8 --driver codex --resume --network \
+  --require-ancestor <slice-1-sha>
 ```
+
+Before resuming, the planner commits the reviewed slice-1 changes in the executor clone and verifies that its clean HEAD equals `<slice-1-sha>`. The base stays the planning SHA because the launcher checks the base exists in the main repository; `--require-ancestor` pins slice 1.
 
 Each planner commit uses the slice subject and these trailers, with hooks active:
 
@@ -507,3 +510,7 @@ Planned-By: Claude Opus 5.5 <noreply@anthropic.com>
 ```
 
 Open questions: none. If the real base moved, §9.1 determines whether a new patch rehearsal is needed; the executor must not improvise around drift.
+
+## Dispatch review, disposed
+
+The dispatch review (Codex gpt-6-astra, high, on the real base `cbb38d900`) replayed section 9.1 in all three modes, both forgeries and their twins, the pin fault and its twin and every restoration, and returned DISPATCH AFTER FIXES. Applied by the planner: the release reading moved to the planner before dispatch (slice 1 has no network), the slice-2 launch resumes the clone from the planning SHA with `--require-ancestor` on slice 1, and the OpenSpec expectation is +1 for slice 1 and +0 for slice 2. No diff or fault changed.
