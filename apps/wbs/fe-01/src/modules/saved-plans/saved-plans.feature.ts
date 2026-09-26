@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { unreachable } from '@/lib/http';
+import { savedPlanFailureCode } from '@/lib/saved-plan-api';
+import { createChannel } from '@/modules/channel';
 
-import type { SavedPlanListState } from '../components/wbs/saved-plan-list';
-import { unreachable } from './http';
-import { subscribeToProject } from './project-stream';
-import type { SavedPlanApi } from './saved-plan-api';
-import { httpSavedPlanApi, savedPlanFailureCode, savedPlansAvailable } from './saved-plan-api';
+import {
+  type OpenedSavedPlans,
+  type SavedPlanListState,
+  type SavedPlanRoutes,
+  type SavedPlans,
+  type SavedPlansReader,
+  SavedPlansWithdrawnError,
+} from './contract';
 
 /**
  * The two questions a shelf read is made of, injected rather than imported.
@@ -14,10 +19,7 @@ import { httpSavedPlanApi, savedPlanFailureCode, savedPlansAvailable } from './s
  * both and lose the ability to say "the probe said no and the list was never
  * asked" — which is the assertion this whole file exists for.
  */
-export interface ShelfDeps {
-  available(): Promise<boolean>;
-  list: SavedPlanApi['list'];
-}
+export type ShelfDeps = Pick<SavedPlanRoutes, 'available' | 'list'>;
 
 /**
  * One read of a project's shelf, from the capability question to the rows.
@@ -54,7 +56,7 @@ export async function readShelf(deps: ShelfDeps, projectId: string): Promise<Sav
       case 'refusal':
         // Proof: mapping not_found to an empty successful shelf failed the
         // production-path case: expected `error:not_found`, received
-        // `{kind:'ready',rows:[]}` (saved-plan-shelf.test.ts).
+        // `{kind:'ready',rows:[]}` (saved-plans.feature.test.ts).
         switch (reply.body.error) {
           case 'invalid_params':
           case 'unauthenticated':
@@ -91,9 +93,7 @@ const codeOf = (fault: unknown): string => (fault instanceof Error ? fault.messa
  * the *plan*, not to this. Naming only what is used keeps the fake in the cases
  * two lines long and keeps this file from acquiring an opinion about sequences.
  */
-export interface ShelfWatchDeps extends ShelfDeps {
-  subscribe(projectId: string, onChange: () => void): { unsubscribe(): void };
-}
+export type ShelfWatchDeps = ShelfDeps & Pick<SavedPlanRoutes, 'subscribe'>;
 
 /**
  * A project's shelf, read now and re-read whenever the project changes.
@@ -167,80 +167,52 @@ export function watchShelf(
 }
 
 /**
- * The three real answers, wired to the modules that give them.
+ * Opens one project's saved plans over their private port: reads its shelf now,
+ * watches it until {@link OpenedSavedPlans.close}, and answers requests only while
+ * the project runtime that opened them is current.
  *
- * A factory keeps one stable dependency object per mounted panel. HTTP and the
- * project stream both authenticate with the serving origin's cookies.
+ * Called once per project runtime, by `runtime/project-runtime.ts`, which
+ * publishes {@link SavedPlans} and gives the watch back when it retires the
+ * project. A new project is a new runtime and so a new shelf starting from
+ * `loading`: the rows of the project just left are never shown under the next
+ * one's name.
  *
- * `sinceSeq: -1` is this subscriber's honest answer: a shelf read is a list of
- * saved plans, not a read of the project at a sequence, so there is no sequence
- * for it to resume from and nothing here ever calls `seen`. The plan client owns
- * that conversation on its own socket.
+ * `isCurrent` is asked synchronously when anything happens. After the runtime
+ * is withdrawn the shelf does not change again — a read the old project still
+ * had in flight lands nowhere — and every request rejects with
+ * {@link SavedPlansWithdrawnError} and sends nothing. A broadcast that arrives
+ * between the withdrawal and the close may still read once; its answer is
+ * dropped by the same guard.
  */
-export const browserShelfDeps = (): ShelfWatchDeps => ({
-  available: savedPlansAvailable,
-  list: (projectId) => httpSavedPlanApi().list(projectId),
-  subscribe: (projectId, onChange) => subscribeToProject({ projectId, sinceSeq: -1, onChange }),
-});
-
-/**
- * A project's shelf as React state: read on mount, re-read on the broadcast,
- * stopped on unmount.
- *
- * Thin on purpose. Everything that can be got wrong about *reading* a shelf —
- * the capability question's order, the superseded read, the single subscription
- * — is in {@link watchShelf} and asserted without a renderer. What is left here
- * is the part only a component can get wrong, and there are exactly two of them:
- *
- * 1. **The stop is returned from the effect.** Without it the subscription
- *    outlives the component and every later broadcast calls `setState` on
- *    something nobody is rendering — for a shelf reachable from more than one
- *    screen, once per visit, forever.
- * 2. **A new project shows `loading`, not the previous project's rows.** The
- *    first read of `p2` resolves a request later; leaving `p1`'s rows on screen
- *    until then states, with a timestamp and an author, that they belong to a
- *    project they were never saved in. AC #4's "non-destructive" applies to
- *    reads too: showing nothing is a worse experience and an honest one.
- *
- * **`deps` is in the dependency array, so a caller must hold its identity**
- * (`useMemo` over {@link browserShelfDeps}). Excluding it — via a ref, the usual
- * dodge — would buy immunity to a re-render loop at the price of a replacement
- * dependency implementation never reaching the socket.
- * Keeping it honest means the linter checks this array rather than trusting it.
- */
-export function useSavedPlanShelf(
-  deps: ShelfWatchDeps,
-  projectId: string,
-): { readonly state: SavedPlanListState; readonly refresh: () => void } {
-  const [state, setState] = useState<SavedPlanListState>({ kind: 'loading' });
-  /**
-   * The current watch's `refresh`, held in a ref so callers get one identity.
-   *
-   * A `refresh` that changed on every project change would go into the
-   * dependency array of every effect and callback that saves, and each of those
-   * would then re-run on a change it does not care about. The ref is written
-   * inside the effect that creates the watch, so the stable function always
-   * forwards to the live one — and to nothing at all before the first effect
-   * runs, which is a press that cannot happen because nothing is rendered yet.
-   */
-  const live = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    // Re-seeded on every subscribe, not just the first: on mount this is what
-    // `useState` already holds, but on a change of project it is the difference
-    // between "reading p2" and "here are p1's plans, mislabelled".
-    setState({ kind: 'loading' });
-    const watch = watchShelf(deps, projectId, setState);
-    live.current = watch.refresh;
-    return () => {
-      live.current = null;
-      watch.stop();
-    };
-  }, [deps, projectId]);
-
-  const refresh = useCallback(() => {
-    live.current?.();
-  }, []);
-
-  return { state, refresh };
+export function openSavedPlans({
+  projectId,
+  routes,
+  isCurrent,
+}: SavedPlansReader & { readonly routes: SavedPlanRoutes }): OpenedSavedPlans {
+  const changes = createChannel<undefined>();
+  let current: SavedPlanListState = { kind: 'loading' };
+  const watch = watchShelf(routes, projectId, (next) => {
+    // Proof: on 2026-09-27, publishing regardless here (s1) failed `changes nothing once its
+    // runtime is withdrawn, not even with the read it had in flight` on `expected { kind: 'ready',
+    // rows: [ { …(7) } ] } to deeply equal { kind: 'loading' }`.
+    if (!isCurrent()) return;
+    current = next;
+    changes.publish(undefined);
+  });
+  const whileCurrent = <T>(send: () => Promise<T>): Promise<T> =>
+    // Proof: on 2026-09-27, sending regardless here (s2) failed `sends nothing once its runtime is
+    // withdrawn, and says so` on `expected Error: not answered in this case to be an instance of
+    // SavedPlansWithdrawnError`.
+    isCurrent() ? send() : Promise.reject(new SavedPlansWithdrawnError());
+  const savedPlans: SavedPlans = {
+    shelf: { subscribe: (onChange) => changes.subscribe(onChange), snapshot: () => current },
+    refresh: watch.refresh,
+    save: () => whileCurrent(() => routes.save(projectId)),
+    rename: (savedPlanId, name) => whileCurrent(() => routes.rename(savedPlanId, name)),
+    compare: (left, right) => whileCurrent(() => routes.compare(projectId, left, right)),
+  };
+  // Proof: on 2026-09-27, a close that stops nothing (s3) failed `stops watching when it is closed`
+  // on `expected "vi.fn()" to be called 1 times, but got 0 times` and `throws what its stream threw
+  // when it is closed` on `expected [Function] to throw an error`.
+  return { savedPlans, close: watch.stop };
 }

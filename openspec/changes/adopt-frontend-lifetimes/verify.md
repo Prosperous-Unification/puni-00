@@ -2707,3 +2707,32 @@ Checks: `vitest run` over the eleven affected files, 140 tests passing; `nx run 
 (uncached, with `typecheck:module`) `status=0`; ESLint over every touched file clean; Prettier
 `--write` over every touched file; `openspec validate --all --json` `{"items":118,"passed":118,"failed":0}`.
 The full `wbs-fe-01:test`, the host gate and CI are recorded in the pull request.
+
+## 050.09 (batch 9) — saved plans as a project-runtime facade
+
+Observed 2026-09-27 on branch `batch-9/050-09-saved-plans`, from `batch-9/050-08-delivery-routes`
+at `850fef10a` merged with `origin/main` at `140f86730`. Task 10's remainder: the new
+`modules/saved-plans` module reads and watches one project's shelf over its private
+`SavedPlanRoutes` port (`openSavedPlans`), the project runtime installs it through
+`ProjectServices.savedPlansFor`, publishes `ProjectRuntime.savedPlans` and closes the shelf's watch
+as its second owned disposable, and `ProjectPage` draws the shelf only from the live runtime. The
+delivery ledger went from five routes to one, `ApplicationServices.preferences` (task 12's accepted
+debt).
+
+Faults, each injected by hand, its test run, the file restored and the test rerun green:
+
+| Fault | Injected                                                                 | Named test                                                                                                                                                                                                                | Observed                                                                                            |
+| ----- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `s1`  | `openSavedPlans` publishes every shelf answer regardless of `isCurrent`  | `changes nothing once its runtime is withdrawn, not even with the read it had in flight`                                                                                                                                  | `expected { kind: 'ready', rows: [ { …(7) } ] } to deeply equal { kind: 'loading' }`                |
+| `s2`  | `openSavedPlans` sends every request regardless (`true ? send() : …`)    | `sends nothing once its runtime is withdrawn, and says so`                                                                                                                                                                | `expected Error: not answered in this case to be an instance of SavedPlansWithdrawnError`           |
+| `s3`  | `openSavedPlans` hands back a close that stops nothing                   | `stops watching when it is closed`; `throws what its stream threw when it is closed`                                                                                                                                      | `expected "vi.fn()" to be called 1 times, but got 0 times`; `expected [Function] to throw an error` |
+| `r1`  | the project runtime's saved-plan disposer closes nothing                 | `stops the saved-plan shelf’s watch once, when the project is left`; `shows a saved-plan shelf that will not stop as the fatal state`; `draws no shelf while the last project lets go, and the next one’s own rows after` | `expected +0 to be 1`; `expected false to be true`; `expected [] to deeply equal [ 'p1' ]`          |
+| `v1`  | `saveOf` builds a fresh `SaveDeps` on every call                         | `joins a save started before the shelf moved, rather than sending a second`                                                                                                                                               | `expected [ [ 'p1' ], [ 'p1' ] ] to have a length of 1 but got 2`                                   |
+| `v2`  | `ProjectPage` draws the shelf from the last live runtime through the gap | `draws no shelf while the last project lets go, and the next one’s own rows after`                                                                                                                                        | `expected [ Array(1) ] to be null`                                                                  |
+| `t1`  | `export type Leak = SavedPlanRoutes` in `saved-plans-panel.tsx`          | `refuses every route but the ones still owed`                                                                                                                                                                             | `+ "src/components/wbs/saved-plans-panel.tsx: SavedPlanRoutes is a repository port"`                |
+
+Checks: `nx run wbs-fe-01:typecheck --skip-nx-cache` (with `typecheck:module`) succeeded; ESLint
+and Prettier over every touched file clean; the affected suites (42 files, 414 tests) pass, four
+5-second timeouts under a host load average of 56 passing when rerun alone. The full
+`wbs-fe-01:test`, e2e, the host gate and CI are recorded in the pull request. The trusted-wiki lint
+of the new module's registration needs an external activation root this host does not have.

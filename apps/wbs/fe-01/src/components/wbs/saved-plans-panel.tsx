@@ -1,49 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { unreachable } from '../../lib/http';
 import type {
-  SavedPlanApi,
   SavedPlanListEntryView,
   SavedPlanRenameReply,
   SavedPlanSideRef,
 } from '../../lib/saved-plan-api';
-import { httpSavedPlanApi, savedPlanFailureCode } from '../../lib/saved-plan-api';
+import { savedPlanFailureCode } from '../../lib/saved-plan-api';
 import { compareRefusal, resolveSideSchedules } from '../../lib/saved-plan-compare';
-import type { SaveDeps, SavedPlanSaveState } from '../../lib/saved-plan-save';
-import { browserSaveDeps, useSavedPlanSave } from '../../lib/saved-plan-save';
-import type { ShelfWatchDeps } from '../../lib/saved-plan-shelf';
-import { browserShelfDeps, useSavedPlanShelf } from '../../lib/saved-plan-shelf';
+import type { SavedPlanSaveState } from '../../lib/saved-plan-save';
+import { saveOf, useSavedPlanSave } from '../../lib/saved-plan-save';
+import type { SavedPlans } from '../../modules/saved-plans/contract';
 import type { SavedPlanComparisonState } from './saved-plan-compare';
 import { SavedPlanComparison, SavedPlanSidePicker } from './saved-plan-compare';
 import { SavedPlanList } from './saved-plan-list';
-
-/**
- * Everything the panel asks of the outside world, as one object.
- *
- * One object and not three props because the caller has to hold its identity
- * anyway — {@link useSavedPlanShelf} and {@link useSavedPlanSave} both have
- * their deps in a dependency array — and three memoised objects is three chances
- * to forget one. A single `useMemo` over {@link browserSavedPlansDeps} is the
- * whole contract.
- */
-export interface SavedPlansPanelDeps extends ShelfWatchDeps, SaveDeps {
-  compare: SavedPlanApi['compare'];
-  rename: SavedPlanApi['rename'];
-}
-
-/**
- * The three real answers, composed from the two factories that already exist.
- *
- * A factory gives the caller one memoised identity for two dependency arrays. Built
- * by spreading rather than by hand so that a fourth dependency added to either
- * hook arrives here without this file being edited to notice.
- */
-export const browserSavedPlansDeps = (): SavedPlansPanelDeps => ({
-  ...browserShelfDeps(),
-  ...browserSaveDeps(),
-  compare: (projectId, left, right) => httpSavedPlanApi().compare(projectId, left, right),
-  rename: (savedPlanId, name) => httpSavedPlanApi().rename(savedPlanId, name),
-});
 
 /** One frozen empty shelf, so "no rows" has a stable identity. */
 const EMPTY_ROWS: readonly SavedPlanListEntryView[] = [];
@@ -136,6 +106,11 @@ export function renameWords(
  * screen rendered any of them, so every one of those green suites was a suite
  * over a feature no user could get to.
  *
+ * **Everything it asks goes through the project runtime's {@link SavedPlans}**,
+ * which owns the shelf's watch: the panel selects the shelf and holds no client,
+ * no port and no stream, and a new project is a new runtime whose shelf starts
+ * from `loading`.
+ *
  * **A successful save refreshes the shelf as the actor's fast path.** The
  * controller publishes `saved_plans_changed`, which refreshes collaborators,
  * but making the saver wait for their own event's round trip through the gateway
@@ -145,13 +120,13 @@ export function renameWords(
  */
 export function SavedPlansPanel({
   projectId,
-  deps,
+  savedPlans,
 }: {
   projectId: string;
-  deps: SavedPlansPanelDeps;
+  savedPlans: SavedPlans;
 }) {
-  const shelf = useSavedPlanShelf(deps, projectId);
-  const { state: saveState, save } = useSavedPlanSave(deps, projectId);
+  const shelfState = useSyncExternalStore(savedPlans.shelf.subscribe, savedPlans.shelf.snapshot);
+  const { state: saveState, save } = useSavedPlanSave(saveOf(savedPlans), projectId);
   /**
    * The last rows the shelf actually delivered, kept across a shelf that stops
    * being `ready`.
@@ -166,7 +141,7 @@ export function SavedPlansPanel({
    *
    * Retained rather than refetched: the rows are a *list of checkpoints*, and
    * the previous list is the right thing to keep offering while the next read is
-   * failing or in flight. `SavedPlanList` above still renders `shelf.state`
+   * failing or in flight. `SavedPlanList` above still renders `shelfState`
    * directly, so the failure itself is on screen — this keeps the comparison,
    * it does not hide the error.
    *
@@ -182,14 +157,14 @@ export function SavedPlansPanel({
    */
   const [lastReadyRows, setLastReadyRows] = useState<readonly SavedPlanListEntryView[]>(EMPTY_ROWS);
   useEffect(() => {
-    if (shelf.state.kind === 'ready') setLastReadyRows(shelf.state.rows);
-  }, [shelf.state]);
+    if (shelfState.kind === 'ready') setLastReadyRows(shelfState.rows);
+  }, [shelfState]);
   const rows: readonly SavedPlanListEntryView[] = useMemo(
-    () => (shelf.state.kind === 'ready' ? shelf.state.rows : lastReadyRows),
-    [shelf.state, lastReadyRows],
+    () => (shelfState.kind === 'ready' ? shelfState.rows : lastReadyRows),
+    [shelfState, lastReadyRows],
   );
 
-  const { refresh } = shelf;
+  const { refresh } = savedPlans;
   useEffect(() => {
     if (saveState.kind !== 'saved') return;
     refresh();
@@ -242,8 +217,8 @@ export function SavedPlansPanel({
     // slower one is the older answer roughly half the time.
     let cancelled = false;
     setComparison({ kind: 'loading' });
-    void deps
-      .compare(projectId, left, right)
+    void savedPlans
+      .compare(left, right)
       .then((reply): SavedPlanComparisonState => {
         switch (reply.kind) {
           case 'success':
@@ -299,7 +274,7 @@ export function SavedPlansPanel({
     // newer one: the affordance below bumps it, this effect re-runs, and the
     // `rows` it closes over are that render's — which is to say, current.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deps, projectId, left, right, asked]);
+  }, [savedPlans, left, right, asked]);
 
   /**
    * Whether the shelf has moved under a comparison that is on screen.
@@ -332,7 +307,7 @@ export function SavedPlansPanel({
   const [renameRefusal, setRenameRefusal] = useState<string | null>(null);
   const rename = (savedPlanId: string, name: string) => {
     setRenameRefusal(null);
-    void deps
+    void savedPlans
       .rename(savedPlanId, name)
       .then((reply) => {
         switch (reply.kind) {
@@ -393,7 +368,7 @@ export function SavedPlansPanel({
           </p>
         )}
       </div>
-      <SavedPlanList state={shelf.state} onRename={rename} />
+      <SavedPlanList state={shelfState} onRename={rename} />
       {/*
         `status` and not `alert`, for the same reason the save line is: a refused
         rename is a refusal of something the reader just asked for and is looking

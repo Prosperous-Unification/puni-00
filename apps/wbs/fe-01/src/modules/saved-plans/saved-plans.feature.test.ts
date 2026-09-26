@@ -1,13 +1,9 @@
-import { act, cleanup, renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import type { SavedPlanListEntryView, SavedPlanListReply } from './saved-plan-api';
-import type { ShelfWatchDeps } from './saved-plan-shelf';
-import { readShelf, useSavedPlanShelf, watchShelf } from './saved-plan-shelf';
+import type { SavedPlanListEntryView, SavedPlanListReply } from '@/lib/saved-plan-api';
 
-// fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
-const hasDom = typeof document !== 'undefined';
-const itDom = hasDom ? it : it.skip;
+import { type SavedPlanRoutes, SavedPlansWithdrawnError } from './contract';
+import { openSavedPlans, readShelf, watchShelf } from './saved-plans.feature';
 
 const ROW: SavedPlanListEntryView = {
   id: 'sp1',
@@ -339,136 +335,161 @@ describe('watching a project’s shelf', () => {
   });
 });
 
-describe('the shelf as React state', () => {
-  afterEach(() => {
-    cleanup();
-  });
-
+/**
+ * Task 10: the shelf's watch belongs to one project runtime, and nothing of a
+ * runtime that has been withdrawn reaches the page.
+ */
+describe('one project’s saved plans', () => {
   /** Resolves once everything already queued as a microtask has run. */
-  const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  /**
-   * One project's fake wiring, plus the handle to fire its broadcast.
-   *
-   * Returned as a stable object because the hook has `deps` in its dependency
-   * array: a fresh literal per render is exactly the re-subscribe loop the
-   * hook's JSDoc says a caller must not write, and building one here would test
-   * the mistake rather than the hook.
-   */
-  const fakeDeps = (rows: readonly SavedPlanListEntryView[] = [ROW]) => {
+  /** Routes that record every request, with each list read held until the case answers it. */
+  const heldRoutes = () => {
+    const sent: string[] = [];
+    const reads: ((reply: Awaited<ReturnType<SavedPlanRoutes['list']>>) => void)[] = [];
     let fire: (() => void) | undefined;
-    // Stops delivering, which `subscribeToProject`'s own `unsubscribe` really
-    // does. `watchShelf`'s `stopped` flag suppresses the *state*, not the
-    // request — a fake that kept firing after being unsubscribed would report a
-    // second read that no real stream can produce, and this file measured
-    // exactly that on its first gate run.
     const unsubscribe = vi.fn(() => {
       fire = undefined;
     });
-    const list = vi.fn(() => listReply(rows));
-    const deps: ShelfWatchDeps = {
+    const refused = () => Promise.reject(new Error('not answered in this case'));
+    const routes: SavedPlanRoutes = {
       available: () => Promise.resolve(true),
-      list,
+      list: (projectId) => {
+        sent.push(`list:${projectId}`);
+        return new Promise((answer) => reads.push(answer));
+      },
+      save: (projectId) => {
+        sent.push(`save:${projectId}`);
+        return refused();
+      },
+      rename: (savedPlanId, name) => {
+        sent.push(`rename:${savedPlanId}:${name}`);
+        return refused();
+      },
+      compare: (projectId) => {
+        sent.push(`compare:${projectId}`);
+        return refused();
+      },
       subscribe: (_projectId, onChange) => {
         fire = onChange;
         return { unsubscribe };
       },
     };
-    return { deps, list, unsubscribe, broadcast: () => fire?.() };
+    return { routes, sent, reads, unsubscribe, broadcast: () => fire?.() };
   };
 
-  itDom('starts on loading and holds the rows the read answered', async () => {
-    const wiring = fakeDeps();
-    const held = renderHook(() => useSavedPlanShelf(wiring.deps, 'p1'));
+  it('starts from loading and shows the rows its first read answered', async () => {
+    const held = heldRoutes();
+    const opened = openSavedPlans({ projectId: 'p1', routes: held.routes, isCurrent: () => true });
+    expect(opened.savedPlans.shelf.snapshot()).toEqual({ kind: 'loading' });
+    const told = vi.fn();
+    opened.savedPlans.shelf.subscribe(told);
 
-    // Before the first read resolves. `loading` and not an empty `ready`: "no
-    // plans saved yet" is a claim about the project, and this component has not
-    // yet been told anything about the project.
-    expect(held.result.current.state).toEqual({ kind: 'loading' });
+    await settled();
+    await listReply([ROW]).then(held.reads[0]);
+    await settled();
 
-    await flush();
-    expect(held.result.current.state).toEqual({ kind: 'ready', rows: [ROW] });
+    expect(opened.savedPlans.shelf.snapshot()).toEqual({ kind: 'ready', rows: [ROW] });
+    expect(told).toHaveBeenCalledTimes(1);
   });
 
-  itDom('stops watching when the component unmounts', async () => {
-    // **The case only a renderer can make.** `watchShelf` already proves the
-    // stop it hands back silences an in-flight read; what nothing else proves
-    // is that the effect's cleanup *calls* it. Negative: drop the
-    // `watch.stop()` from the returned cleanup and this reddens — the
-    // subscription outlives the component and every later broadcast writes
-    // state into something nobody is rendering.
-    //
-    // Asserted on `unsubscribe` and on the silence after it, never on
-    // `held.result.current`: React freezes an unmounted hook's last value, so a
-    // post-unmount `setState` is a leak the result object cannot see.
-    const wiring = fakeDeps();
-    const held = renderHook(() => useSavedPlanShelf(wiring.deps, 'p1'));
-    await flush();
-    expect(wiring.unsubscribe).not.toHaveBeenCalled();
+  it('changes nothing once its runtime is withdrawn, not even with the read it had in flight', async () => {
+    const held = heldRoutes();
+    let current = true;
+    const opened = openSavedPlans({
+      projectId: 'p1',
+      routes: held.routes,
+      isCurrent: () => current,
+    });
+    await settled();
 
-    held.unmount();
-    expect(wiring.unsubscribe).toHaveBeenCalledTimes(1);
+    current = false;
+    await listReply([ROW]).then(held.reads[0]);
+    await settled();
 
-    wiring.broadcast();
-    await flush();
-    expect(wiring.list).toHaveBeenCalledTimes(1);
+    expect(opened.savedPlans.shelf.snapshot()).toEqual({ kind: 'loading' });
   });
 
-  itDom('hands back one refresh identity that always drives the live watch', async () => {
-    // Two facts in one case because they are one design decision. The identity
-    // is stable so that a `save` callback taking `refresh` as a dependency does
-    // not re-create itself on every project change; the ref is what keeps that
-    // stable function pointed at the *current* watch, so a refresh after a
-    // project change re-reads p2 and not the closed-over p1.
-    //
-    // Negative: return `watch.refresh` from the hook directly instead of the
-    // `useCallback` and the identity assertion reddens; drop the
-    // `live.current = watch.refresh` and the second project's `list` is never
-    // asked a second time.
-    const first = fakeDeps([ROW]);
-    const other: SavedPlanListEntryView = { ...ROW, id: 'sp2', name: 'after the re-plan' };
-    const second = fakeDeps([other]);
-    const held = renderHook(({ deps, id }) => useSavedPlanShelf(deps, id), {
-      initialProps: { deps: first.deps, id: 'p1' },
+  it('sends nothing once its runtime is withdrawn, and says so', async () => {
+    const held = heldRoutes();
+    let current = true;
+    const { savedPlans } = openSavedPlans({
+      projectId: 'p1',
+      routes: held.routes,
+      isCurrent: () => current,
     });
-    await flush();
-    const refresh = held.result.current.refresh;
+    await settled();
+    held.sent.length = 0;
 
-    held.rerender({ deps: second.deps, id: 'p2' });
-    await flush();
-    expect(held.result.current.refresh).toBe(refresh);
-    expect(second.list).toHaveBeenCalledTimes(1);
+    current = false;
+    const asked = [
+      savedPlans.save(),
+      savedPlans.rename('sp1', 'Kept'),
+      savedPlans.compare({ saved: 'sp1' }, 'current'),
+    ];
 
-    act(() => {
-      refresh();
-    });
-    await flush();
-    expect(second.list).toHaveBeenCalledTimes(2);
-    // The watch p1 left behind is not driven by it: that one was stopped.
-    expect(first.list).toHaveBeenCalledTimes(1);
+    for (const request of asked) {
+      await expect(request).rejects.toBeInstanceOf(SavedPlansWithdrawnError);
+    }
+    expect(held.sent).toEqual([]);
   });
 
-  itDom('goes back to loading rather than showing the last project’s rows', async () => {
-    // AC #4, read side. The first read of `p2` resolves a request later, and
-    // leaving `p1`'s rows up until then states — with a name, an author and a
-    // timestamp — that they were saved in a project they were never in.
-    // Negative: drop the `setState({ kind: 'loading' })` from the effect and
-    // this reddens on the middle assertion with `p1`'s rows still current.
-    const other: SavedPlanListEntryView = { ...ROW, id: 'sp2', name: 'after the re-plan' };
-    const first = fakeDeps([ROW]);
-    const second = fakeDeps([other]);
-    const held = renderHook(({ deps, id }) => useSavedPlanShelf(deps, id), {
-      initialProps: { deps: first.deps, id: 'p1' },
+  it('asks each request of its own project while current', async () => {
+    const held = heldRoutes();
+    const { savedPlans } = openSavedPlans({
+      projectId: 'p1',
+      routes: held.routes,
+      isCurrent: () => true,
     });
-    await flush();
-    expect(held.result.current.state).toEqual({ kind: 'ready', rows: [ROW] });
+    await settled();
+    held.sent.length = 0;
 
-    held.rerender({ deps: second.deps, id: 'p2' });
-    expect(held.result.current.state).toEqual({ kind: 'loading' });
-    // And the first project's socket is closed rather than left open behind it.
-    expect(first.unsubscribe).toHaveBeenCalledTimes(1);
+    await Promise.allSettled([
+      savedPlans.save(),
+      savedPlans.rename('sp1', 'Kept'),
+      savedPlans.compare({ saved: 'sp1' }, 'current'),
+    ]);
 
-    await flush();
-    expect(held.result.current.state).toEqual({ kind: 'ready', rows: [other] });
+    expect(held.sent).toEqual(['save:p1', 'rename:sp1:Kept', 'compare:p1']);
+  });
+
+  it('stops watching when it is closed', async () => {
+    const held = heldRoutes();
+    const opened = openSavedPlans({ projectId: 'p1', routes: held.routes, isCurrent: () => true });
+    await settled();
+    await listReply([ROW]).then(held.reads[0]);
+    await settled();
+    expect(held.unsubscribe).not.toHaveBeenCalled();
+
+    opened.close();
+    held.broadcast();
+    opened.savedPlans.refresh();
+    await settled();
+
+    expect(held.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(held.sent).toEqual(['list:p1']);
+  });
+
+  it('throws what its stream threw when it is closed', async () => {
+    const held = heldRoutes();
+    const opened = openSavedPlans({
+      projectId: 'p1',
+      routes: {
+        ...held.routes,
+        subscribe: () => ({
+          unsubscribe: () => {
+            throw new Error('the socket would not close');
+          },
+        }),
+      },
+      isCurrent: () => true,
+    });
+    await settled();
+    await listReply([ROW]).then(held.reads[0]);
+    await settled();
+
+    expect(() => {
+      opened.close();
+    }).toThrow('the socket would not close');
   });
 });

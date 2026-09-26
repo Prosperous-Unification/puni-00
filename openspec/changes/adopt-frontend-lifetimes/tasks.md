@@ -125,7 +125,7 @@
       The page keeps the client for the project catalog and the archival import,
       which are not plan modules. When each service is opened and closed, and the
       feed's owner reads, stay task 10's.
-- [ ] 10. The project runtime owns feed, writer, markers and saved plans for one
+- [x] 10. The project runtime owns feed, writer, markers and saved plans for one
       selected project, replacing the per-effect ownership under `WbsTable`.
       Moved by 050-7-j, observed 2026-09-24: one DI Bag project runtime
       (`apps/wbs/fe-01/src/runtime/project-runtime.ts`) owns the selected
@@ -137,6 +137,16 @@
       project switch. This box stays unchecked for the one outcome still owed:
       saved plans, whose shelf keeps its own keyed watch and has no feature facade
       yet — the lifetime map's saved-plans prerequisite.
+      Closed by 050.09 (batch 9), observed 2026-09-27: the new `modules/saved-plans`
+      module's `openSavedPlans` reads and watches one project's shelf over its private
+      `SavedPlanRoutes` port and answers only while its runtime is current; the project
+      runtime installs it through `ProjectServices.savedPlansFor`, publishes
+      `ProjectRuntime.savedPlans` and closes the shelf's watch as its second owned
+      disposable. `ProjectPage` draws the shelf only from the live runtime and holds no
+      saved-plan client; `useSavedPlanShelf` and the browser factories are gone. The
+      switch test gained the saved-plan watch
+      (`components/wbs/project-replacement.test.tsx`). The delivery ledger went from five
+      routes to one, the application's `preferences` resource (task 12's accepted debt).
 - [x] 11. Project switch, route unmount and Strict Mode re-entry each replace all
       project ownership; a stale completion changes nothing.
       Closed by 050-7-m, observed 2026-09-25: a switch withdraws the old
