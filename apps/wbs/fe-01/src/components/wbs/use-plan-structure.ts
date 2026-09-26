@@ -191,6 +191,7 @@ export function usePlanStructure({
   flat,
   pushToast,
   setExpanded,
+  revealRow,
   run,
   commands,
   focusIntent,
@@ -202,6 +203,8 @@ export function usePlanStructure({
   flat: TreeRow[];
   pushToast: (toast: Toast) => void;
   setExpanded: React.Dispatch<React.SetStateAction<ExpandedState>>;
+  /** Keeps a row just made on screen through the filter that is on; see `narrowTree`. */
+  revealRow: (rowId: string) => void;
   run: RunPlanWrite;
   commands: PlanCommands;
   focusIntent: React.RefObject<FocusIntent>;
@@ -283,11 +286,16 @@ export function usePlanStructure({
         // child is visible`, `opens a collapsed leaf’s first child after an
         // earlier Collapse all` and the card's `adds a child through the
         // table’s own handler and opens it into view` failed with the new row
-        // absent from the screen. Watched 2026-09-27.
-        setExpanded((current) => pathTo(flat, parent.id).reduce(expandBranch, current));
+        // absent from the screen. Opening the parent alone, `reveals a child
+        // made under a filter and opens every ancestor it sits under` failed
+        // on `[ '010', '020' ]` once the filter was cleared. Watched 2026-09-27.
+        setExpanded((current) => collectPath(flat, parent.id).reduce(expandBranch, current));
+        // Proof: removed, the same filter case failed with the new row hidden
+        // by the filter it was made under. Watched 2026-09-27.
+        revealRow(created.id);
         focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
       }),
-    [commands, flat, focusIntent, run, setExpanded],
+    [commands, flat, focusIntent, revealRow, run, setExpanded],
   );
 
   /**
@@ -566,7 +574,7 @@ export function expandBranch(current: ExpandedState, rowId: string): ExpandedSta
  * Throws on a parent link to a row `flat` does not hold: the tree on screen
  * is one read, so a dangling link is a broken payload, not a state to open.
  */
-export function pathTo(flat: readonly TreeRow[], rowId: string): string[] {
+export function collectPath(flat: readonly TreeRow[], rowId: string): string[] {
   const byId = new Map(flat.map((row) => [row.id, row]));
   const path: string[] = [];
   for (let at: string | null = rowId; at !== null;) {

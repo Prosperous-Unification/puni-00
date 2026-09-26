@@ -9,6 +9,8 @@ import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as TableFrameModule from './table-frame';
+import { collectPath } from './use-plan-structure';
+import type { TreeRow } from './wbs-rows';
 import { type SubscriptionHandlers } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -281,6 +283,21 @@ describe('duplicating a branch', () => {
   });
 });
 
+describe('collectPath', () => {
+  it('walks a row up to its root, and throws on a parent the tree does not hold', () => {
+    const rows = [
+      { id: 'a', parentId: null },
+      { id: 'a1', parentId: 'a' },
+      { id: 'x', parentId: 'gone' },
+    ] as TreeRow[];
+
+    expect(collectPath(rows, 'a1')).toEqual(['a1', 'a']);
+    // Proof: the throw replaced with a `break`, this failed on `expected
+    // [Function] to throw an error`. Watched 2026-09-27.
+    expect(() => collectPath(rows, 'x')).toThrow('row gone is not in the tree on screen');
+  });
+});
+
 describe('adding a child from the row menu', () => {
   /** `010 Strip` with `010.1 Sockets` under it, and `020 Sand`, already on screen. */
   async function shownBranch(api: ProjectApi, shown: ProjectApi = api): Promise<void> {
@@ -359,6 +376,43 @@ describe('adding a child from the row menu', () => {
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020', '020.1']);
+    });
+  });
+
+  itDom('reveals a child made under a filter and opens every ancestor it sits under', async () => {
+    // A filter shows `Sockets` as the ancestor of a match while the reader's
+    // own expansion has every branch shut. The new blank child matches
+    // nothing, so it stays on screen only because it was just made here, and
+    // clearing the filter must find its whole line open in the saved state.
+    const api = fakeApi();
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sockets = await api.createWorkItem('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.createWorkItem('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    click('Collapse all');
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Back' } });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+    });
+
+    takeRowAction('010.1', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.1.2']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.1.2'));
+    });
+
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: '' } });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.1.2', '020']);
     });
   });
 
