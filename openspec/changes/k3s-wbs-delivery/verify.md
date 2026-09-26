@@ -1,5 +1,45 @@
 # Verification
 
+## P0 MCP k3s wiring (2026-09-27, `batch-9/080-20-mcp-k3s`)
+
+The manifest now gives MCP a dedicated PVC and `Recreate` rollout, sets its store path, and
+sources current keys plus optional previous rotation slots from `wbs-mcp-secrets`. Local uses
+the retained `puni-local` class; staging and prod use `puni-retain`. The lab creates a fresh
+Secret once per disposable cluster and collects capped, redacted MCP pod descriptions and
+current/previous logs if a rollout fails. Production declares an operator-provided Secret;
+the SOPS ciphertext and credentials remain deployment inputs, not committed test values.
+
+| Command                                                                 | Observed result                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run tool-deploy:test --skip-nx-cache`                          | exit 0, 262 pass, 0 fail                                                                                                                                                                                                                                                                                                                        |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                           | exit 0, 165 pass, 0 fail                                                                                                                                                                                                                                                                                                                        |
+| `PUNI_TOOL_CACHE=/tmp/puni-tools bunx nx run tool-fleet:check`          | exit 0, including its dependent tests and rendered manifest checks                                                                                                                                                                                                                                                                              |
+| `bunx nx run tool-deploy:lint`                                          | exit 0                                                                                                                                                                                                                                                                                                                                          |
+| `bunx nx run tool-deploy:typecheck`; `bunx nx run wbs-mcp-01:typecheck` | exit 0 for both                                                                                                                                                                                                                                                                                                                                 |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                | exit 0, 106/106 change items and 12/12 specs                                                                                                                                                                                                                                                                                                    |
+| `bunx prettier --check` on the touched files                            | exit 0                                                                                                                                                                                                                                                                                                                                          |
+| `bunx nx run tool-deploy:test:k3s`                                      | first attempt stopped before startup: `k3d` absent from PATH. After installing locked k3d v5.9.0 and using locked kubectl, the retry reached `docker build` and failed because buildx could not write `/home/df/.docker/buildx/activity` (`read-only file system`). The lab cleaned up its cluster and registry. No Docker workaround was used. |
+
+R5 proofs: `mcp-manifest.test.ts` first failed because `mcp-storage.yaml` did not exist. After
+implementation, deleting the production manifest's `MCP_STORE_KEY_CURRENT` Secret ref made
+`mounts a retained single-writer store and sources rotating keys from a Secret` fail; restoring
+it passed. Deleting the lab diagnostic's generated-key replacement made `bounds pod diagnostics
+and removes generated key material` fail because the test found the injected key; restoring it
+passed. The MCP OAuth startup test also passed with `MCP_STORE_KEY_CURRENT` omitted and asserted
+the named `MCP_STORE_KEY_CURRENT` error. Replacing the lab Secret-write refusal with an
+unconditional return made `fails a rejected lab Secret write without disclosing its keys` fail;
+restoring the refusal passed. Adjacent `Proof:` comments mark the changed safety paths.
+
+Still unverified: a live missing-key pod exit/log, OAuth session persistence over a real pod
+replacement, the production SOPS Secret provision, and the production MCP image. The lab has
+a store checksum check across a pod replacement, but Docker prevented it from running here.
+The orchestrator can run `K3D=/tmp/puni-tools/k3d-v5.9.0/k3d KUBECTL=/tmp/puni-tools/kubectl-v1.36.4/kubectl bunx nx run tool-deploy:test:k3s` in a writable Docker environment.
+
+Astra review advised required current and optional previous key refs, runtime lab generation
+through stdin, an external declaration until genuine SOPS ciphertext exists, and bounded
+redacted diagnostics. It noted that the platform Secret closure validator covers only the
+platform graph; the WBS overlay declaration must not be mistaken for provisioning.
+
 ## F8 commands and results (2026-09-18, worktree `change/tbf-f8`)
 
 Tools: k3d v5.9.0 and kubectl v1.36.4 downloaded from the `infra/versions/toolchain.json`
