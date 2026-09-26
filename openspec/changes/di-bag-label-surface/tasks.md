@@ -1,0 +1,4 @@
+- [x] 1. Record the 0.5.1 contract and baseline.
+- [x] 2. Pin di-bag 0.5.1 and rewrite label agreement against the module getter.
+- [x] 3. Observe forged-prefix and borrowed-label production-path negatives and clause-disabled twins; update known-limit notes.
+- [x] 4. Verify focused suites, lint, typecheck and OpenSpec; record planner-only gates.

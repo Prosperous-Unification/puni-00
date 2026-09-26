@@ -109,6 +109,14 @@ Amended 2026-09-25 by `migrate-di-bag`: di-bag 0.5.0 still exposes a label only 
 first limit stands, tracked as WBS 040.13; `inspectGraph()` is now `graphSnapshot()`, whose private
 bindings carry an empty `serviceKeys` and a `bindingLabel`.
 
+Amended 2026-09-26 by `di-bag-label-surface`: di-bag 0.5.1 exposes each sealed module's exact
+label through its read-only `moduleLabel` getter. The label-agreement check reads the scanned
+module itself, closing the forged-prefix and borrowed-inner limit above. Its private-binding
+convention is no longer needed for label agreement. `graphSnapshot().moduleInstallations`
+records empty and unlabelled installations with identity and parentage; bindings carry
+`moduleInstallationId`, so a container-only consumer need not parse slash-delimited labels.
+Capacity's own private-binding and failure-label tests retain their separate contract.
+
 ## Layering debt ledger
 
 Task 7.4, per module: the obligations sealing leaves open, each stated in that module's

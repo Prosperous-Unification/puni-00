@@ -8,7 +8,7 @@ library only through its root entry, so that no Node built-in is bundled for the
 #### Scenario: The pin is exact
 
 - **WHEN** the pins suite reads the root manifest
-- **THEN** `di-bag` is pinned to `0.5.0` with no range
+- **THEN** `di-bag` is pinned to `0.5.1` with no range
 
 #### Scenario: A Node built-in reaches the browser probe
 
