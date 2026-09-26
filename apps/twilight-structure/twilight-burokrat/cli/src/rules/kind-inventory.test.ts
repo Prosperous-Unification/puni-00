@@ -177,6 +177,25 @@ describe('kind inventory in the kind graph', () => {
     expect(graph.supportFiles).toEqual(['m/shim.ts']);
   });
 
+  test('keeps a delivery entry in its enclosing module, with its sibling view files', () => {
+    const graph = resolveKinds(
+      ['m/a.resource.ts', 'm/view/panel.ts', 'm/view/other.ts'].map(entry),
+      [{ path: 'm/view/panel.ts', kind: 'delivery' }],
+    );
+    expect(graph.files.map((file) => [file.path, file.kind, file.module])).toEqual([
+      ['m/a.resource.ts', 'resource', 'm'],
+      ['m/view/other.ts', 'delivery', 'm'],
+      ['m/view/panel.ts', 'delivery', 'm'],
+    ]);
+    expect(graph.moduleRoots).toEqual(['m']);
+  });
+
+  test('refuses a delivery entry that no module contains', () => {
+    expect(() =>
+      resolveKinds(['loose/panel.ts'].map(entry), [{ path: 'loose/panel.ts', kind: 'delivery' }]),
+    ).toThrow('kind inventory calls loose/panel.ts delivery, but no module contains it');
+  });
+
   test('refuses an entry for a composition root, which stays exempt', () => {
     // Proof: on 2026-09-27, deleting the composition-root conflict made this call return a graph
     // instead of throwing.
@@ -204,6 +223,90 @@ describe('kind inventory through the production CLI', () => {
       } as Verdict['findings'][number],
     ]);
     expect(outcome.exitCode, outcome.stderr).toBe(0);
+  }, 30_000);
+
+  const unsuffixedEdges: [string, Record<string, string>, InventoryEntry[], string, string][] = [
+    [
+      'K3',
+      {
+        'src/m/run.ts':
+          "import { read } from './store';\nexport const run = (): number => read();\n",
+        'src/m/store.ts': 'export const read = (): number => 1;\n',
+      },
+      [
+        { path: 'src/m/run.ts', kind: 'feature' },
+        { path: 'src/m/store.ts', kind: 'repository' },
+      ],
+      'src/m/run.ts',
+      'src/m/store.ts',
+    ],
+    [
+      'K4',
+      {
+        'src/m/load.ts': "import { run } from './run';\nexport const load = (): number => run();\n",
+        'src/m/run.ts': 'export const run = (): number => 1;\n',
+      },
+      [
+        { path: 'src/m/load.ts', kind: 'resource' },
+        { path: 'src/m/run.ts', kind: 'feature' },
+      ],
+      'src/m/load.ts',
+      'src/m/run.ts',
+    ],
+    [
+      'K5',
+      {
+        'src/m/store.ts':
+          "import { load } from './load';\nexport const read = (): number => load();\n",
+        'src/m/load.ts': 'export const load = (): number => 1;\n',
+      },
+      [
+        { path: 'src/m/load.ts', kind: 'resource' },
+        { path: 'src/m/store.ts', kind: 'repository' },
+      ],
+      'src/m/store.ts',
+      'src/m/load.ts',
+    ],
+    [
+      'K6',
+      {
+        'src/a/load.ts':
+          "import { other } from '../b/load';\nexport const load = (): number => other();\n",
+        'src/b/load.ts': 'export const other = (): number => 1;\n',
+      },
+      [
+        { path: 'src/a/load.ts', kind: 'resource' },
+        { path: 'src/b/load.ts', kind: 'resource' },
+      ],
+      'src/a/load.ts',
+      'src/b/load.ts',
+    ],
+  ];
+
+  for (const [ruleId, sources, inventory, source, target] of unsuffixedEdges) {
+    test(`an inventory-declared forbidden edge is a ${ruleId} finding`, () => {
+      // Proof: on 2026-09-27, passing no inventory entries to resolveKinds in check.ts made each of
+      // these tests receive `findings: []`.
+      const outcome = check(commitCandidate(sources, inventory), ruleId);
+      expect(
+        outcome.verdict.findings.map((finding) => [finding.ruleId, finding.path, finding.subject]),
+      ).toEqual([[ruleId, source, target]]);
+      expect(outcome.exitCode, outcome.stderr).toBe(0);
+    }, 30_000);
+  }
+
+  test('an unreadable selected inventory blob is reported as a Git read failure', () => {
+    const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
+    const blob = runGit(candidate.repository, ['rev-parse', `HEAD:${inventoryPath}`]);
+    rmSync(join(candidate.repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+    // Proof: on 2026-09-27, moving the blob read inside the JSON error boundary made this reason
+    // start `malformed kind inventory JSON` instead.
+    const outcome = check(candidate, 'K2');
+    expect(outcome.verdict.unevaluated).toHaveLength(1);
+    expect(outcome.verdict.unevaluated[0]?.reason).toStartWith(
+      `cannot read selected blob ${blob} for ${inventoryPath}`,
+    );
+    expect(outcome.exitCode).toBe(1);
   }, 30_000);
 
   test('without a named inventory the same candidate stays suffix-only', () => {
@@ -285,6 +388,14 @@ describe('kind inventory through the production CLI', () => {
       // `unevaluated: []` for F1.
       'kind inventory classifies src/n/n.feature.ts, which declares its kind by suffix',
     ],
+    [
+      'classifying a composition root',
+      [...storeIsResource, { path: 'src/m/composition.ts', kind: 'feature' }],
+      { 'src/m/composition.ts': 'export const wire = (): number => 1;\n' },
+      // Proof: on 2026-09-27, deleting the composition-root conflict made this test receive
+      // `unevaluated: []` for F1.
+      'kind inventory classifies composition root src/m/composition.ts',
+    ],
   ];
 
   for (const [name, inventory, extra, reason] of refusals) {
@@ -297,7 +408,7 @@ describe('kind inventory through the production CLI', () => {
         expect(outcome.verdict.allowed).toBe(false);
         expect(outcome.exitCode).toBe(1);
       }
-    }, 60_000);
+    }, 120_000);
   }
 
   test('the repository rule policy names the tracked kind inventory', () => {

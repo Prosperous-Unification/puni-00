@@ -1,6 +1,6 @@
 ## Commands
 
-- `TOOL_WIKI_TRUSTED_NODE_MODULES=<repo>/node_modules env -u CLAUDECODE bun test --preload ../../../../tools/test/scratch/preload.ts src/rules/kind-inventory.test.ts` from `apps/twilight-structure/twilight-burokrat/cli`: 13 pass (2026-09-27).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=<repo>/node_modules env -u CLAUDECODE bun test --preload ../../../../tools/test/scratch/preload.ts src/rules/kind-inventory.test.ts` from `apps/twilight-structure/twilight-burokrat/cli`: 21 pass (2026-09-27).
 - `bunx nx run twilight-burokrat:typecheck` and `twilight-burokrat:lint:fast`: pass.
 
 ## R5 proofs (2026-09-27, each fault injected alone and reverted)
@@ -15,4 +15,4 @@
 | composition-root conflict disabled                                        | unit test: function did not throw                             |
 | F1, K2 (graph rules), MOD-LAYOUT guard each return an empty observed list | malformed test received `unevaluated: []` for that rule       |
 
-An unreadable inventory blob is a Git object read failure (`readCandidateBlob`) and is reported as that, not as a malformed inventory; it is not separately exercised.
+The unreadable case deletes the committed blob's loose object, so `git cat-file` fails for the selected revision.

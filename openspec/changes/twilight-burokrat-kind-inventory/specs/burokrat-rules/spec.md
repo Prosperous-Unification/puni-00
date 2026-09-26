@@ -2,13 +2,19 @@
 
 ### Requirement: Kind resolution reads a candidate-held kind inventory
 
-When the rule policy names a kind inventory, Twilight Burokrat SHALL read it from the selected candidate's blob and SHALL give each listed `delivery`, `feature`, `resource` or `repository` file that kind for MOD-LAYOUT, F1 and K2 through K6. A `support` entry SHALL be recorded and never judged. An inventory that is absent from the candidate, malformed, fails its schema, lists a path twice, lists a path that is not a regular file in the candidate, or classifies a suffix-declared file or a composition root SHALL leave every rule that reads kinds unevaluated. Without a named inventory, kinds SHALL come from suffixes and `view` directories alone.
+When the rule policy names a kind inventory, Twilight Burokrat SHALL read it from the selected candidate's blob and SHALL give each listed `delivery`, `feature`, `resource` or `repository` file that kind for MOD-LAYOUT, F1 and K2 through K6. A `support` entry SHALL be recorded and never judged. A `delivery` entry SHALL belong to its enclosing module and SHALL NOT make a module of its own directory; one that no module contains SHALL be refused. An inventory that is absent from the candidate, malformed, fails its schema, lists a path twice, lists a path that is not a regular file in the candidate, classifies a suffix-declared file or a composition root, or cannot be read from Git SHALL leave every rule that reads kinds unevaluated. Without a named inventory, kinds SHALL come from suffixes and `view` directories alone.
 
 #### Scenario: An inventory-declared resource is judged
 
 - **GIVEN** an unsuffixed file the inventory calls a resource, and a delivery file that imports it
 - **WHEN** K2 is checked
 - **THEN** the verdict names the delivery file's import as a K2 finding
+
+#### Scenario: Every direction rule sees inventory-declared kinds
+
+- **GIVEN** unsuffixed files the inventory classifies, joined by an import K3, K4, K5 or K6 forbids
+- **WHEN** that rule is checked
+- **THEN** the verdict names the import as that rule's finding
 
 #### Scenario: The selected revision's inventory governs
 

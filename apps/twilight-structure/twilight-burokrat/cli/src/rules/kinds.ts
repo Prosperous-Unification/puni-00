@@ -120,8 +120,12 @@ export function resolveKinds(
   const moduleRoots = [
     ...new Set([
       ...paths.filter((path) => KindSuffix.test(path)).map(directoryOf),
+      // A delivery entry belongs to the module around it, as a `view` file does, so it makes no root:
+      // a root at `m/view` would take every sibling view file out of module `m`.
+      // Proof: on 2026-09-27, letting delivery entries make roots made the sibling-view unit test
+      // lose `m/view/other.ts` from the graph.
       ...inventory
-        .filter((entry) => entry.kind !== 'support')
+        .filter((entry) => entry.kind !== 'support' && entry.kind !== 'delivery')
         .map((entry) => directoryOf(entry.path)),
     ]),
   ].sort();
@@ -130,7 +134,14 @@ export function resolveKinds(
   for (const path of [...paths].sort()) {
     const directory = directoryOf(path);
     const module = moduleOf(directory, moduleRoots);
-    if (module === undefined) continue;
+    if (module === undefined) {
+      // Proof: on 2026-09-27, skipping this refusal made the moduleless-delivery unit test receive a
+      // graph that silently omitted the listed file.
+      if (inventoried.get(path) === 'delivery') {
+        throw new Error(`kind inventory calls ${path} delivery, but no module contains it`);
+      }
+      continue;
+    }
     // Proof: on 2026-09-20, classifying the composition root as a feature made its repository
     // import produce a K3 debt finding where the exemption test expected `findings: []`.
     if (path === modulePath(module, CompositionRootName)) {
