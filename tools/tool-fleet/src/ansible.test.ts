@@ -455,8 +455,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(joinPlaybook).toContain('k3s_agents');
     expect(base).toContain('puni_operator_authorized_keys is defined');
     expect(base).toContain('content: |');
-    expect(base).toContain('puni_swap_enabled is defined');
-    expect(base).toContain("ansible_distribution_version == '24.04'");
+    expect(base).toContain('puni_swap_file_mib is defined');
+    expect(base).toContain("ansible_distribution_version in ['24.04', '26.04']");
     expect(base).toContain('- jq');
     expect(base).toContain('path: /etc/systemd/journald.conf.d');
     expect(network).toContain('nft -c -f');
@@ -525,6 +525,53 @@ describe('the Ansible host and k3s contract', () => {
     ]) {
       expect(Bun.spawnSync(['bash', helper, ...argv]).exitCode).toBe(64);
     }
+  });
+
+  it('caps the kubelet below host memory and keeps pods off swap', async () => {
+    const root = join(import.meta.dir, '../../..');
+    for (const role of ['k3s_server', 'k3s_agent']) {
+      const config = await readFile(
+        join(root, `infra/ansible/roles/${role}/templates/config.yaml.j2`),
+        'utf8',
+      );
+      const tasks = await readFile(
+        join(root, `infra/ansible/roles/${role}/tasks/main.yml`),
+        'utf8',
+      );
+      expect(config).toContain('  - fail-swap-on=false');
+      expect(config).toContain('system-reserved=memory={{ puni_kubelet_system_reserved_memory }}');
+      expect(config).toContain('kube-reserved=memory={{ puni_kubelet_kube_reserved_memory }}');
+      // Overriding one hard-eviction signal resets the omitted ones to zero.
+      expect(config).toContain(
+        'eviction-hard=memory.available<{{ puni_kubelet_eviction_memory }},nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%',
+      );
+      expect(tasks).toContain("puni_kubelet_system_reserved_memory is match('^[0-9]+Mi$')");
+    }
+  });
+
+  it('keeps the host preflight free of mutating modules', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const preflight = await readFile(join(root, 'infra/ansible/playbooks/preflight.yml'), 'utf8');
+    const modules = [...preflight.matchAll(/^\s+(ansible\.builtin\.[a-z_]+):/gm)].map(
+      ([, module]) => module,
+    );
+    // The QEMU drill in enroll-existing-hosts/verify.md found no file changed by a run; this
+    // keeps writers such as file, copy, template, lineinfile, apt or service out of the play.
+    expect(new Set(modules)).toEqual(
+      new Set([
+        'ansible.builtin.assert',
+        'ansible.builtin.slurp',
+        'ansible.builtin.command',
+        'ansible.builtin.stat',
+        'ansible.builtin.shell',
+        'ansible.builtin.getent',
+        'ansible.builtin.set_fact',
+        'ansible.builtin.debug',
+      ]),
+    );
+    expect(preflight).not.toMatch(
+      /docker (?:inspect|exec|stop|start|rm|run)|systemctl (?:start|stop|restart)/,
+    );
   });
 
   it('ships no role defaults for required security or identity state', async () => {

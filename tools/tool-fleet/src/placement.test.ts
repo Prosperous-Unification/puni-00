@@ -267,3 +267,38 @@ describe('tool-fleet plan for enrollment', () => {
     expect(String(refused.stderr)).toMatch(/h3mon is not observed unenrolled/);
   });
 });
+
+describe('the existing-host inventory', () => {
+  it('matches desired placement, addresses, capabilities and machine IDs', async () => {
+    const fleet = decodeFleet(await readDesiredInput());
+    const inventory = parse(
+      await readFile(join(root, 'infra/ansible/inventory/production-existing-hosts.yml'), 'utf8'),
+    ) as {
+      all: {
+        children: Record<
+          'k3s_bootstrap_servers' | 'k3s_agents' | 'k3s_join_servers',
+          { hosts: Partial<Record<string, Record<string, unknown>>> }
+        >;
+      };
+    };
+    const groups = inventory.all.children;
+    const hosts = { ...groups.k3s_bootstrap_servers.hosts, ...groups.k3s_agents.hosts };
+    expect(Object.keys(groups.k3s_bootstrap_servers.hosts)).toEqual(['h4claw']);
+    expect(Object.keys(groups.k3s_agents.hosts)).toEqual(['h3mon']);
+    expect(Object.keys(groups.k3s_join_servers.hosts)).toEqual([]);
+    for (const node of fleet.nodes) {
+      const host = hosts[node.id];
+      if (host === undefined || node.provider.kind === 'hcloud') {
+        throw new Error(`inventory lacks SSH host ${node.id}`);
+      }
+      expect(host['ansible_host']).toBe(node.provider.address);
+      expect(host['puni_node_ip']).toBe(node.provider.address);
+      expect(host['puni_node_capabilities']).toEqual(node.capabilities);
+      // Proof: setting h3mon's inventory ID to a hex value while desired.yaml keeps the operator
+      // input made this fail, so the two files cannot drift after preflight.
+      expect(host['puni_machine_id']).toBe(
+        node.provider.machineId.startsWith('operator-input:') ? 'unread' : node.provider.machineId,
+      );
+    }
+  });
+});

@@ -1,0 +1,292 @@
+---
+# Read-only host preflight for an existing host before and after fleet enrollment.
+# Runbook: docs/infra/enroll-h4claw-h3mon.md. It reads files, sockets, units, routes and Docker
+# state, then asserts; no task writes, installs, restarts or changes a mount.
+- name: Inspect a host before or after fleet enrollment
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Require preflight inputs
+      ansible.builtin.assert:
+        that:
+          - puni_preflight_stage in ['before-enrollment', 'after-enrollment']
+          - puni_node_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+          - puni_private_interface is defined
+          - puni_cluster_cidr is defined
+          - puni_service_cidr is defined
+          - puni_operator_name is defined
+          - puni_operator_authorized_keys is defined
+          - puni_preflight_minimum_memory_mib | int > 0
+          - puni_required_mounts is defined
+          - puni_preserved_listeners is defined
+          - puni_preserved_containers is defined
+          # `unread` is the first contact, whose fact supplies the ID the operator then commits.
+          - puni_machine_id == 'unread' or puni_machine_id is match('^[0-9a-f]{32}$')
+          - puni_preflight_stage == 'before-enrollment' or puni_machine_id != 'unread'
+        fail_msg: >-
+          Stage, private address and interface, cluster and service CIDRs, operator identity,
+          memory floor, mounts, the preserved listeners and containers, and the machine ID (or
+          `unread` before enrollment) are required
+
+    - name: Require a supported host and enough memory
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Ubuntu'
+          - ansible_distribution_version in ['24.04', '26.04']
+          - ansible_architecture in ['x86_64', 'amd64']
+          - ansible_memtotal_mb >= puni_preflight_minimum_memory_mib | int
+        fail_msg: >-
+          {{ ansible_distribution }} {{ ansible_distribution_version }} {{ ansible_architecture }}
+          with {{ ansible_memtotal_mb }} MiB is not a supported host with
+          {{ puni_preflight_minimum_memory_mib }} MiB
+
+    - name: Require the private address on the private interface
+      # Proof: naming enp9s0 on the QEMU lab agent failed here (verify.md, preflight negatives).
+      ansible.builtin.assert:
+        that:
+          - puni_private_interface in ansible_interfaces
+          - >-
+            (hostvars[inventory_hostname]['ansible_' ~ (puni_private_interface | replace('-', '_'))]
+            .ipv4.address | default('')) == puni_node_ip
+        fail_msg: '{{ puni_node_ip }} is not the IPv4 address of {{ puni_private_interface }}'
+
+    - name: Require each declared mount and free-space floor
+      ansible.builtin.assert:
+        that:
+          - ansible_mounts | selectattr('mount', 'equalto', item.path) | list | length == 1
+          - >-
+            (ansible_mounts | selectattr('mount', 'equalto', item.path) | first).size_available
+            | int >= item.minimum_bytes | int
+        fail_msg: 'Required mount {{ item.path }} is absent or below {{ item.minimum_bytes }} bytes'
+      loop: '{{ puni_required_mounts }}'
+
+    - name: Read machine identity
+      ansible.builtin.slurp:
+        src: /etc/machine-id
+      register: puni_preflight_machine_identity
+
+    - name: Require the machine the operator reviewed
+      # Proof: a wrong puni_machine_id for the lab agent failed here (verify.md, preflight negatives).
+      ansible.builtin.assert:
+        that:
+          - >-
+            puni_machine_id == 'unread' or
+            puni_machine_id == (puni_preflight_machine_identity.content | b64decode | trim)
+        fail_msg: '{{ inventory_hostname }} answers with another machine ID than the reviewed one'
+
+    - name: Read listening sockets
+      ansible.builtin.command: ss -Hlntu
+      register: puni_preflight_sockets
+      changed_when: false
+
+    - name: Read active swap devices
+      ansible.builtin.command: cat /proc/swaps
+      register: puni_preflight_swap
+      changed_when: false
+
+    - name: Read the k3s service states
+      ansible.builtin.command: systemctl is-active k3s.service k3s-agent.service
+      register: puni_preflight_k3s_units
+      changed_when: false
+      # `is-active` exits 3 for an inactive and 4 for an unknown unit; stdout carries each state.
+      failed_when: puni_preflight_k3s_units.rc not in [0, 3, 4]
+
+    - name: Inspect installed k3s artifacts
+      ansible.builtin.stat:
+        path: '{{ item }}'
+      loop:
+        - /usr/local/bin/k3s
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s
+      register: puni_preflight_k3s_paths
+
+    - name: Read IPv4 routes
+      ansible.builtin.command: ip -j -4 route show table all
+      register: puni_preflight_routes
+      changed_when: false
+
+    - name: Find the Docker client
+      ansible.builtin.command: sh -c 'command -v docker'
+      register: puni_preflight_docker_client
+      changed_when: false
+      # Absence is the modeled Docker-free host; any other status is an inspection failure.
+      failed_when: puni_preflight_docker_client.rc not in [0, 1, 127]
+
+    - name: Read running Docker containers without their environment
+      ansible.builtin.command: >-
+        docker ps --format '{{ "{{" }}.Names{{ "}}" }}|{{ "{{" }}.Image{{ "}}" }}|{{ "{{" }}.Ports{{ "}}" }}|{{ "{{" }}.Mounts{{ "}}" }}'
+      register: puni_preflight_containers
+      changed_when: false
+      when: puni_preflight_docker_client.rc == 0
+
+    - name: Read Docker network subnets
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        docker network ls --quiet | xargs --no-run-if-empty docker network inspect
+        --format '{{ "{{" }}.Name{{ "}}" }}|{{ "{{" }}range .IPAM.Config{{ "}}" }}{{ "{{" }}.Subnet{{ "}}" }} {{ "{{" }}end{{ "}}" }}'
+      args:
+        executable: /bin/bash
+      register: puni_preflight_networks
+      changed_when: false
+      when: puni_preflight_docker_client.rc == 0
+
+    - name: Inspect the cloud-init sudo grant that the base role removes
+      ansible.builtin.stat:
+        path: /etc/sudoers.d/90-cloud-init-users
+      register: puni_preflight_cloud_init_sudoers
+
+    - name: Read the cloud-init sudo grant
+      ansible.builtin.slurp:
+        src: /etc/sudoers.d/90-cloud-init-users
+      register: puni_preflight_cloud_init_grant
+      when: puni_preflight_cloud_init_sudoers.stat.exists
+
+    - name: Look up the fleet operator account
+      ansible.builtin.getent:
+        database: passwd
+        key: '{{ puni_operator_name }}'
+        fail_key: false
+
+    - name: Inspect the fleet operator authorized keys
+      ansible.builtin.stat:
+        path: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
+      register: puni_preflight_operator_keys_file
+
+    - name: Read the fleet operator authorized keys
+      ansible.builtin.slurp:
+        src: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
+      register: puni_preflight_operator_keys
+      when: puni_preflight_operator_keys_file.stat.exists
+
+    - name: Name the connecting user behind privilege escalation
+      ansible.builtin.set_fact:
+        puni_preflight_connecting_user: '{{ ansible_env.SUDO_USER | default(ansible_user_id) }}'
+
+    - name: Derive preflight observations
+      ansible.builtin.set_fact:
+        puni_preflight_listeners: >-
+          {{ puni_preflight_sockets.stdout_lines | map('split') | map(attribute=4) | list | unique }}
+        puni_preflight_k3s_active: >-
+          {{ 'active' in puni_preflight_k3s_units.stdout_lines }}
+        puni_preflight_k3s_installed: >-
+          {{ puni_preflight_k3s_paths.results | selectattr('stat.exists') | list | length > 0 }}
+        puni_preflight_container_rows: >-
+          {{ puni_preflight_containers.stdout_lines | default([]) }}
+        puni_preflight_subnets: >-
+          {{ (puni_preflight_networks.stdout_lines | default([])
+              | map('split', '|') | map('last') | map('split') | flatten
+              + (puni_preflight_routes.stdout | from_json | map(attribute='dst')
+                 | select('search', '/') | list)) | unique }}
+        puni_preflight_connecting_user_via_cloud_init: >-
+          {{ puni_preflight_cloud_init_sudoers.stat.exists and
+             (puni_preflight_cloud_init_grant.content | b64decode).splitlines()
+             | select('match', '^' ~ puni_preflight_connecting_user ~ '\s') | list | length > 0 }}
+
+    - name: Emit the preflight fact document
+      ansible.builtin.debug:
+        msg: >-
+          PUNI_PREFLIGHT_FACT={{ {
+            'name': inventory_hostname,
+            'stage': puni_preflight_stage,
+            'machineId': puni_preflight_machine_identity.content | b64decode | trim,
+            'address': puni_node_ip,
+            'os': ansible_distribution ~ ' ' ~ ansible_distribution_version,
+            'kernel': ansible_kernel,
+            'cpus': ansible_processor_vcpus,
+            'memoryMiB': ansible_memtotal_mb,
+            'privateMtu': hostvars[inventory_hostname]['ansible_' ~ (puni_private_interface | replace('-', '_'))].mtu,
+            'swap': puni_preflight_swap.stdout_lines[1:] | map('split') | map('first') | list,
+            'listeners': puni_preflight_listeners,
+            'containers': puni_preflight_container_rows,
+            'subnets': puni_preflight_subnets,
+            'k3sActive': puni_preflight_k3s_active,
+            'k3sInstalled': puni_preflight_k3s_installed,
+            'cloudInitSudoers': puni_preflight_cloud_init_sudoers.stat.exists,
+            'operatorExists': (getent_passwd[puni_operator_name] is not none)
+          } | to_json }}
+
+    - name: Require a host with no k3s before enrollment
+      # Proof: the enrolled QEMU lab agent failed here at stage before-enrollment (verify.md).
+      ansible.builtin.assert:
+        that:
+          - not puni_preflight_k3s_active
+          - not puni_preflight_k3s_installed
+        fail_msg: k3s is already installed or running; this is not a fresh enrollment target
+      when: puni_preflight_stage == 'before-enrollment'
+
+    - name: Require free k3s ports before enrollment
+      # Proof: a listener on 10250 made the lab agent fail here (verify.md, preflight negatives).
+      ansible.builtin.assert:
+        that:
+          - >-
+            puni_preflight_listeners | select('search', ':' ~ item ~ '$') | list | length == 0
+        fail_msg: 'Port {{ item }} that k3s needs is already listening'
+      loop: [6443, 6444, 2379, 2380, 8472, 10248, 10249, 10250, 10256]
+      when: puni_preflight_stage == 'before-enrollment'
+
+    - name: Require cluster and service CIDRs disjoint from host and Docker networks
+      # Proof: a Docker network on 10.42.7.0/24 in the lab failed here (verify.md).
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - |
+            import ipaddress, sys
+            fleet = [ipaddress.ip_network(value) for value in sys.argv[1:3]]
+            host = [ipaddress.ip_network(value, strict=False)
+                    for value in sys.argv[3].split(',') if value]
+            clashes = [f'{a} overlaps {b}' for a in fleet for b in host
+                       if a.version == b.version and a.overlaps(b)
+                       and b.prefixlen > 0]
+            if clashes:
+                sys.exit('; '.join(clashes))
+          - '{{ puni_cluster_cidr }}'
+          - '{{ puni_service_cidr }}'
+          - "{{ puni_preflight_subnets | reject('search', ':') | join(',') }}"
+      changed_when: false
+      when: puni_preflight_stage == 'before-enrollment'
+
+    - name: Require that removing the cloud-init sudo grant keeps the connecting user's sudo
+      ansible.builtin.assert:
+        that:
+          - >-
+            puni_preflight_connecting_user == puni_operator_name or
+            not puni_preflight_connecting_user_via_cloud_init
+        fail_msg: >-
+          {{ puni_preflight_connecting_user }} gets sudo from /etc/sudoers.d/90-cloud-init-users, which the base
+          role deletes; connect as {{ puni_operator_name }} or grant sudo separately first
+      when: puni_preflight_stage == 'before-enrollment'
+
+    - name: Require an absent operator or one whose keys the base role would keep
+      ansible.builtin.assert:
+        that:
+          - >-
+            getent_passwd[puni_operator_name] is none or
+            (puni_preflight_operator_keys.content | default('') | b64decode | trim)
+            == (puni_operator_authorized_keys | join('\n') | trim)
+        fail_msg: >-
+          {{ puni_operator_name }} exists with other authorized keys, which the base role would
+          replace; choose a new operator name or reconcile its keys first
+
+    - name: Require k3s running after enrollment
+      ansible.builtin.assert:
+        that:
+          - puni_preflight_k3s_active
+        fail_msg: No k3s service is active after enrollment
+      when: puni_preflight_stage == 'after-enrollment'
+
+    - name: Require every preserved listener
+      # Proof: stopping the lab sentinel container made this fail (verify.md).
+      ansible.builtin.assert:
+        that:
+          - item in puni_preflight_listeners
+        fail_msg: 'Preserved listener {{ item }} is not listening'
+      loop: '{{ puni_preserved_listeners }}'
+
+    - name: Require every preserved container running
+      ansible.builtin.assert:
+        that:
+          - puni_preflight_container_rows | select('match', item ~ '\|') | list | length == 1
+        fail_msg: 'Preserved container {{ item }} is not running'
+      loop: '{{ puni_preserved_containers }}'
