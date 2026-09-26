@@ -15,6 +15,9 @@
       - puni_node_ip is defined
       - puni_private_interface is defined
       - puni_node_capabilities is defined
+      - puni_kubelet_system_reserved_memory is match('^[0-9]+Mi$')
+      - puni_kubelet_kube_reserved_memory is match('^[0-9]+Mi$')
+      - puni_kubelet_eviction_memory is match('^[0-9]+Mi$')
     fail_msg: k3s agent identity, pinned artifact, endpoint, and token are required
 
 - name: Download the pinned k3s agent binary

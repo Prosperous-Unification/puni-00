@@ -50,7 +50,7 @@ const ToolchainSchema = type({
   schemaVersion: '1',
   supportedHosts: type({
     distribution: "'ubuntu'",
-    version: "'24.04'",
+    version: "'24.04' | '26.04'",
     arch: "'amd64'",
     '+': 'reject',
   })

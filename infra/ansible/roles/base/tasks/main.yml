@@ -3,17 +3,19 @@
   ansible.builtin.assert:
     that:
       - ansible_distribution == 'Ubuntu'
-      - ansible_distribution_version == '24.04'
+      # 26.04 is the release of the probed h3mon and h4claw; the QEMU lab image proves it.
+      - ansible_distribution_version in ['24.04', '26.04']
       - ansible_architecture in ['x86_64', 'amd64']
       - puni_operator_name is defined
       - puni_operator_name | length > 0
       - puni_operator_authorized_keys is defined
       - puni_operator_authorized_keys | length > 0
-      - puni_swap_enabled is defined
-      - puni_swap_enabled == false
+      # 0 disables every swap device; a positive size keeps exactly one fleet swap file.
+      - puni_swap_file_mib is defined
+      - puni_swap_file_mib | string is match('^[0-9]+$')
       - puni_machine_id is defined
       - puni_machine_id is match('^[0-9a-f]{32}$')
-    fail_msg: Host support, operator identity, keys, and the disabled-swap policy are required
+    fail_msg: Host support, operator identity, keys, and the swap-file size are required
 
 - name: Install host prerequisites
   ansible.builtin.apt:
@@ -126,16 +128,84 @@
   register: puni_active_swap
   changed_when: false
 
-- name: Disable active swap explicitly
-  ansible.builtin.command: swapoff --all
-  when: puni_active_swap.stdout_lines | length > 1
+- name: Disable every active swap device except the fleet swap file
+  ansible.builtin.command: 'swapoff {{ item }}'
+  loop: >-
+    {{ puni_active_swap.stdout_lines[1:] | map('split') | map('first') | list
+       | difference(['/swap.puni'] if puni_swap_file_mib | int > 0 else []) }}
   changed_when: true
 
-- name: Disable configured swap mounts
+- name: Disable configured swap mounts other than the fleet swap file
   ansible.builtin.replace:
     path: /etc/fstab
-    regexp: '^(?!#)(\S+\s+\S+\s+swap\s+.*)$'
+    regexp: '^(?!#)(?!/swap\.puni\s)(\S+\s+\S+\s+swap\s+.*)$'
     replace: '# puni-fleet disabled swap: \1'
+
+- name: Inspect the fleet swap file
+  ansible.builtin.stat:
+    path: /swap.puni
+  register: puni_swap_file
+
+- name: Remove a fleet swap file of another size or one no longer wanted
+  # Proof: without this, changing puni_swap_file_mib left the old-size file active; the lab
+  # resize drill recorded in openspec/changes/k3s-fleet/verify.md observed the exact new size.
+  when:
+    - puni_swap_file.stat.exists
+    - puni_swap_file_mib | int == 0 or puni_swap_file.stat.size != puni_swap_file_mib | int * 1048576
+  block:
+    - name: Deactivate the stale fleet swap file
+      ansible.builtin.command: swapoff /swap.puni
+      when: "'/swap.puni' in puni_active_swap.stdout"
+      changed_when: true
+
+    - name: Delete the stale fleet swap file
+      ansible.builtin.file:
+        path: /swap.puni
+        state: absent
+
+- name: Remove the fleet swap mount when swap is disabled
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^/swap\.puni\s'
+    state: absent
+  when: puni_swap_file_mib | int == 0
+
+- name: Provide the fleet swap file
+  when: puni_swap_file_mib | int > 0
+  block:
+    - name: Allocate the fleet swap file
+      ansible.builtin.command: 'fallocate --length {{ puni_swap_file_mib | int * 1048576 }} /swap.puni'
+      args:
+        creates: /swap.puni
+      register: puni_swap_allocated
+
+    - name: Restrict the fleet swap file to root
+      ansible.builtin.file:
+        path: /swap.puni
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Format the new fleet swap file
+      ansible.builtin.command: mkswap /swap.puni
+      when: puni_swap_allocated is changed
+      changed_when: true
+
+    - name: Mount the fleet swap file at boot
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^/swap\.puni\s'
+        line: /swap.puni none swap sw 0 0
+
+    - name: Read swap devices after provisioning the fleet swap file
+      ansible.builtin.command: cat /proc/swaps
+      register: puni_provisioned_swap
+      changed_when: false
+
+    - name: Activate the fleet swap file
+      ansible.builtin.command: swapon /swap.puni
+      when: "'/swap.puni' not in puni_provisioned_swap.stdout"
+      changed_when: true
 
 - name: Start chrony
   ansible.builtin.service:
