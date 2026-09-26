@@ -324,11 +324,15 @@ one step. A work item with children has no estimates of its own.
 _Avoid_: points, effort, sizing
 
 **Project-step allowance**:
-The percentage on a project step that increases each estimate for that step before rounding, without changing its optimistic, realistic or pessimistic values.
+The percentage on a project step, default zero, applied to each leaf's combined base estimate
+before project rounding. It does not change optimistic, realistic or pessimistic entries, and a
+parent does not apply it again.
 _Avoid_: contingency estimate, per-work-item allowance
 
 **Charged estimate**:
-The rounded effort for an estimated leaf step after its project-step allowance is applied.
+The effort for an estimated leaf step after its project-step allowance is applied to the combined
+base and the project rounds the result. Unknown remains unknown and contributes zero scheduling
+duration; a stated zero stays estimated.
 _Avoid_: base estimate, raw estimate
 
 **Trio shorthand**:
@@ -337,10 +341,10 @@ folded step's cell shows and takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
 
 **Final days**:
-One step's single number of days for one work item — the project's estimate method applied
-to its **estimate** and charged at the project's **estimate rounding**. Shown beside the
+One step's **charged estimate** for one work item: apply the project's estimate method to its
+**estimate**, then the **project-step allowance**, then **estimate rounding**. Shown beside the
 **trio shorthand** when the two differ, summed across steps into the work item's total days, and
-summed across descendants for a work item with children.
+summed across descendants for a work item with children without a second allowance.
 _Avoid_: PERT number, computed figure, effective estimate
 
 **PERT weights**:
@@ -350,7 +354,8 @@ otherwise; read only under the `pert` estimate method.
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
-A project's answer to how one step's combined figure becomes the days it is charged:
+A project's answer to how one step's combined figure, after its project-step allowance, becomes
+the days it is charged:
 `floor`, `round`, `ceil`, or `exact` for the fraction itself. `ceil` unless the project says
 otherwise, and applied per step before any sum is taken.
 _Avoid_: precision, rounding mode, day granularity
@@ -429,11 +434,16 @@ Legacy dependencies use project Dependency reach; typed dependencies name their 
 _Avoid_: link, blocker, edge (outside the graph code)
 
 **Dependency endpoint**:
-One side of a typed dependency: a work item with either its whole scope or one selected project step. A parent endpoint represents all descendant leaves.
+One side of a typed dependency: a work item with either whole scope or one selected project step.
+A parent endpoint expands to every descendant leaf; a dependency constrains each selected
+predecessor/successor leaf pair. A selected step resolves to that leaf's named slice.
 _Avoid_: anchor (for an explicit endpoint), bar end
 
 **Relationship type**:
-The boundary ordering of a typed dependency: finish-to-start (FS), start-to-start (SS), or finish-to-finish (FF). It sets a lower bound, not simultaneous timing.
+The lower-bound boundary ordering of a typed dependency: finish-to-start (FS), start-to-start
+(SS), or finish-to-finish (FF). SS and FF permit a later start or finish; they never require
+simultaneous boundaries. A typed edit that creates a cycle in the combined slice graph is
+refused atomically.
 _Avoid_: dependency reach, link mode
 
 **All descendants**:
@@ -441,7 +451,7 @@ The leaves beneath a parent endpoint, each of which participates in the dependen
 _Avoid_: parent envelope, first child
 
 **Dependency reach**:
-A project's answer to how far into a predecessor its dependencies reach: `whole-item`, the
+A project's answer to how far into a predecessor its legacy dependencies reach: `whole-item`, the
 predecessor's last slice in step order, or `anchor-slice`, its Anchor slice with the steps
 behind it running alongside the successor. Stored per project, read by the scheduler, never
 sent by a client. `whole-item` unless the project says otherwise.
@@ -453,12 +463,12 @@ project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in role order that somebody estimated — the one a dependency
-waits on where the project's Dependency reach is `anchor-slice`. A role listed in front of
-it and left unestimated is stepped over, and having an assumed duration does not make it
-the anchor. Reordering a project's roles moves what every such dependency waits for. Where
-nothing is estimated the anchor is the work item's finish, which is its steps' assumed
-durations end to end — the one case where both reaches name the same slice.
+A work item's first slice in project-step order that somebody estimated — the one a legacy
+dependency waits on where project Dependency reach is `anchor-slice`. An earlier unestimated
+step is stepped over; its drawing-only assumed span does not make it the anchor. Reordering
+steps or changing estimates can move the anchor and must revalidate the combined dependency
+graph. Where nothing is estimated, the anchor is the work item's zero-duration scheduled finish
+after its ordered unknown slices, so both reaches name the same zero-time boundary.
 _Avoid_: dev slice, first slice, handoff point
 
 **Projection**:
@@ -1414,19 +1424,20 @@ resource and lifetime guarantees. A development-only alternative to the solver s
 _Avoid_: direct solver, direct optimizer, unsupervised solver, embedded solver
 
 **Solver quantum**:
-`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because
-Fast's durations are genuinely fractional — a width-two one-day slice is 0.5 workdays — and
-CP-SAT interval variables are integers. Durations round **up** to the next unit when an
-estimate does not divide, never down — which is what makes every quantised-feasible
-solution real-feasible. Because rounding up can also put real Fast's value out of reach
-(three serial `days=1, width=5` slices finish at 28.8 units but need 30 rounded), the
-solver's hint and bound come from the Quantised baseline, never from real Fast.
+`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. Fast durations can
+be fractional, while CP-SAT intervals are integer. Positive durations round up to a unit;
+zero and unknown durations remain zero. For FS and SS, integer precedence with rounded
+durations is conservative. For FF, rounded finish order alone can admit a real finish-order
+violation, so the solver enforces `W_FF = max(D_a − D_b, ceil(48 × (d_a − d_b)))` and
+independently checks materialized real finishes. Rounding can also exclude a real-feasible
+plan, so the solver's hint and bound come from a validated Quantised baseline, never directly
+from real Fast.
 _Avoid_: tick, granularity, resolution
 
 **Quantised baseline**:
 Fast's own placement re-run over the rounded durations, in integer solver units. It is what
-the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage,
-because it is feasible in the model the solver actually gets. Distinct from the Baseline
+the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage when
+validated against all active constraints and deadlines. Distinct from the Baseline
 schedule, which is the real-domain Fast result the publication guard scores against.
 _Avoid_: rounded Fast, hint schedule
 
