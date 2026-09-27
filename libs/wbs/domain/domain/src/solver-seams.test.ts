@@ -45,12 +45,12 @@ describe('the solver seams libs/wbs/domain/domain publishes', () => {
   });
 
   it('publishes the slice graph — the chain, the join, and the reach that decides it', () => {
-    // `sliceGraphEdges` moved out of `schedule()` in run 8 precisely so
+    // `resolveStepNodeGraph` moved out of `schedule()` in run 8 precisely so
     // `buildSolverEdges` could import it rather than restate it. Moving a
     // function out of a file it was exported from is exactly the edit that
     // silently drops it from the barrel, which `tsc` and every test inside
     // this library would still call green.
-    expect(typeof domain.sliceGraphEdges).toBe('function');
+    expect(typeof domain.resolveStepNodeGraph).toBe('function');
     expect(typeof domain.reachedSliceOf).toBe('function');
     expect(typeof domain.expandToLeaves).toBe('function');
     expect(typeof domain.sliceKey).toBe('function');
