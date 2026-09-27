@@ -238,7 +238,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...stepRoutes(opts.steps, commands),
-    ...directoryRoutes(opts.directory),
+    ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history),
     ...solutionRoutes(opts.projects),
     // Proof: omitting this spread made the production import reachability test receive 404.
