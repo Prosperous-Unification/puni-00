@@ -127,6 +127,28 @@ describe('a project step allowance', () => {
     expect((await finalsOf(zero))[QA]).toBe(0);
   });
 
+  it('charges a duplicated branch’s copied base estimates once', async () => {
+    const leaf = await add('Leaf');
+    await estimate(leaf, QA, 2);
+    await allowance(30);
+
+    const copied = await service.duplicate(leaf, OWNER);
+
+    if (!copied.ok) throw new Error(`duplicate refused: ${copied.reason}`);
+    expect((await finalsOf(copied.value.id))[QA]).toBe(3);
+  });
+
+  it('charges an estimate handed down to a first child once, at the child', async () => {
+    const leaf = await add('Leaf');
+    await estimate(leaf, QA, 2);
+    await allowance(30);
+
+    const child = await add('Child', leaf);
+
+    expect((await finalsOf(child))[QA]).toBe(3);
+    expect((await finalsOf(leaf))[QA]).toBe(3);
+  });
+
   it('announces the edited step', async () => {
     await allowance(12.5);
 

@@ -17,3 +17,12 @@ Version export/import and saved-plan records deliberately. Legacy import maps ab
 Deploy compatible readers before nonzero writes. An old binary may insert default zero, but would miscalculate a nonzero policy. Rollback of code or the column must refuse while nonzero settings exist unless an explicit operator-approved conversion preserves their meaning; `down.sql` must not silently erase that meaning. Migration lint and rollback must run against the paired scripts.
 
 Working-plan state is distinct from immutable saved plans: after a committed allowance edit, later commands in the same batch read the new allowance and charged values; refusal leaves retained state unchanged.
+
+## Implementation decisions (2026-09-27)
+
+- Domain and wire carry `allowancePercent`; only SQLite holds hundredths, through one column converter that throws on a value that is not whole hundredths. The column adds a range and integrality `CHECK`.
+- The allowance write lives on `ProjectStore.setStepAllowance` and the journalled edit on `WorkItemService.setStepAllowance`, because the journal and `apply` live there. A step has no revision, so the compensating `set_step_allowance` command carries `expectedPercent` as its own precondition. It refuses as stale after a newer edit or the step's removal. An edit that leaves the value unchanged writes and announces but is not journalled.
+- `PATCH` on a step with `allowancePercent` runs the `setStepAllowance` command through the batch runner, so HTTP, batches and MCP share one mutation. A patch naming both fields renames first, then sets the allowance. These are two acts, not one transaction.
+- Plan document version `2` carries step allowances. Version `1` is the explicit legacy conversion at 0%, and it refuses a version-1 file that names an allowance. The typed-dependency changes take the next free number, `3`.
+- Canonical saved-plan input schema `2` captures each step's allowance. A `1`→`2` upgrade reads older bodies at 0%. Charged readings are not stored separately: they are recomputed from the captured three points, rule and allowance, all of which are immutable in the body.
+- `SCHEDULER_CONTRACT_VERSION` is `12`. The golden corpora gained no new cases, because charging happens before `schedule()` and before the solver request. They are re-keyed to the new version only. The slice seam test covers the uplift instead. An allowance edit also changes the canonical schedule input hash, which is what keeps an optimized row cached under the old policy from being read.
