@@ -159,6 +159,19 @@ export function createServer(deps: ServerDeps): Server {
       );
     }
 
+    // be-01 checks the forwarded upstream token, which carries the account's full IdP groups, so
+    // the narrower MCP grant is enforced here: a signed-in login is not write access. Every
+    // non-GET be-01 operation requires write scope (pinned by `the MCP grant scope` tests).
+    // Proof: on 2026-09-27, disabling this guard failed both `the MCP grant scope` refusals
+    // (server.test.ts) and the omitted-scope and narrowed-scope mounted refusals (oauth.test.ts).
+    if (tool.method !== 'get' && extra.authInfo?.scopes.includes('write') !== true) {
+      return asCallToolResult(
+        errorText(
+          `${tool.name} could not be called: insufficient_scope. This MCP authorization does not include wbs:write; reauthorize requesting scope "wbs:read wbs:write".`,
+        ),
+      );
+    }
+
     try {
       return asCallToolResult(
         await callTool(
