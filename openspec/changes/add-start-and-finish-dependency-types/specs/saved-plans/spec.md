@@ -2,7 +2,7 @@
 
 ### Requirement: Saved plans retain typed dependency history
 
-A saved plan SHALL capture each typed relationship's stable ID, endpoint scopes, step IDs and FS, SS or FF type with the tree and project-step identities needed to interpret it. Historical reads SHALL display that captured meaning after live edits to steps, parentage or relationships. Saved plans remain immutable inspection records; this change SHALL NOT introduce restoration of a saved plan into the live project.
+A saved plan SHALL capture each typed relationship's stable ID, endpoint scopes, step IDs, step codes, work-item numbers and FS, SS or FF type with the tree and project-step identities needed to interpret it. Historical reads SHALL display that captured meaning after live edits to steps, parentage or relationships. Saved plans remain immutable inspection records; this change SHALL NOT introduce restoration of a saved plan into the live project.
 
 #### Scenario: Later step reorder does not reinterpret history
 
