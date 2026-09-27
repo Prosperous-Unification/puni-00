@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
@@ -12,7 +13,6 @@ import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { isoToday } from './gantt-panel';
 import { refusedDraftFor } from './live-editing';
-import type { SavedPlansPanelDeps } from './saved-plans-panel';
 import { shortIsoDate } from './short-date';
 import type * as TableFrameModule from './table-frame';
 import { POPOVER_ROW_LAYER } from './table-frame';
@@ -104,15 +104,6 @@ class PlanFaultBoundary extends Component<{ children: ReactNode }, { failed: boo
     );
   }
 }
-
-const unavailableShelf: SavedPlansPanelDeps = {
-  available: () => Promise.resolve(false),
-  list: () => Promise.reject(new Error('Shelf unavailable')),
-  subscribe: () => ({ unsubscribe: () => undefined }),
-  save: () => Promise.reject(new Error('Shelf unavailable')),
-  compare: () => Promise.reject(new Error('Shelf unavailable')),
-  rename: () => Promise.reject(new Error('Shelf unavailable')),
-};
 
 describe('step node details', () => {
   async function showStepNode(reference?: string | null) {
@@ -311,7 +302,7 @@ describe('step node details', () => {
       ];
       localStorage.setItem('wbs.project', 'p2');
       window.history.replaceState(null, '', `/?project=p1&stepNode=sn1.${workItemId}.${stepId}`);
-      render(<ProjectPageOverOwner api={api} savedPlansDeps={unavailableShelf} />);
+      render(<ProjectPageOverOwner api={api} savedPlanRoutes={NO_SAVED_PLANS} />);
       await waitFor(() => {
         expect(screen.getByLabelText('Project')).toHaveValue('Rewire the shed');
         expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
@@ -325,7 +316,7 @@ describe('step node details', () => {
     const api = fakeApi();
     localStorage.setItem('wbs.project', 'p1');
     window.history.replaceState(null, '', '/?project=missing&stepNode=sn1.bad');
-    render(<ProjectPageOverOwner api={api} savedPlansDeps={unavailableShelf} />);
+    render(<ProjectPageOverOwner api={api} savedPlanRoutes={NO_SAVED_PLANS} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('project you cannot open');
     expect(window.location.search).toBe('');
   });
