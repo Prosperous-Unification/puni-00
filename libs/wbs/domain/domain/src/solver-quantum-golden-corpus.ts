@@ -169,12 +169,11 @@ export const QUANTUM_GOLDEN_CASES: readonly QuantumGoldenCase[] = [
     slice: work(1, 2),
   },
   {
-    // `durationOf`'s other arm: a null estimate takes `ASSUMED_SLICE_WORKDAYS`
-    // whole and is never divided by width. That constant is on
-    // `contract-version.ts`'s bump list too, and unlike `SOLVER_QUANTUM` the
-    // Fast corpus does see it — this case is here so that the two corpora
-    // disagree loudly rather than one of them quietly, if it ever moves.
-    name: 'unestimated-takes-the-assumption-whole',
+    // `durationOf`'s other arm: a null estimate is zero schedule time and
+    // crosses as exactly zero units, whatever its width. If the Gantt's
+    // assumed span ever re-entered scheduling it would move this byte and the
+    // Fast corpus's `unestimated-middle` together.
+    name: 'unestimated-crosses-as-zero',
     slice: work(null, 3),
   },
   {

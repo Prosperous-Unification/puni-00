@@ -10,6 +10,7 @@ import { type EnvLayout, envLayout } from './lib/env';
 import { waitForHealthy } from './lib/health';
 import { flipColor, parseStateJson, renderStateJson } from './lib/state';
 import {
+  execute,
   isFileAbsent,
   parseRecordedColor,
   parseTierList,
@@ -20,6 +21,7 @@ import {
   shouldRestoreSiteCaddy,
   startGreen,
   type StartGreenDeps,
+  type SwapExecutionIo,
   type SwapRunDeps,
 } from './swap';
 
@@ -686,4 +688,52 @@ it('startGreen admits merged backend config and writes the supervisor directory 
     },
   );
   expect(started).toBe(true);
+});
+
+describe('execute, after routing has moved', () => {
+  /**
+   * Proof: with the `backfill-step-codes` case emptied (the step logged and
+   * skipped), this case failed on `Expected path: "message"` — the swap went
+   * on to write `committed` and the state file; watched 2026-09-27.
+   */
+  it('fails before commit when the step-code backfill fails, naming the manual command', async () => {
+    const ran: string[][] = [];
+    const written: string[] = [];
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        return Promise.reject(new Error(`docker ${args.join(' ')} failed: no such table: step`));
+      },
+      readPhase: () => Promise.resolve('old-stopped'),
+      writePhase: (_path, phase) => {
+        written.push(`phase ${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomic: (path) => {
+        written.push(`file ${path}`);
+        return Promise.resolve();
+      },
+    };
+
+    let caught: unknown;
+    try {
+      await execute(
+        { tier: 'be', from: 'blue', to: 'green', steps: ['backfill-step-codes', 'commit'] },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toHaveProperty(
+      'message',
+      'step-code backfill failed on be-01-green; the new colour is serving with uncoded steps. ' +
+        'Finish it by hand: docker exec be-01-green bun run src/backfill-step-codes-cli.ts',
+    );
+    expect(ran).toEqual([['exec', 'be-01-green', 'bun', 'run', 'src/backfill-step-codes-cli.ts']]);
+    // Not abortable, and not committed: green stays live, the deploy unrecorded.
+    expect(written).toEqual([]);
+  });
 });

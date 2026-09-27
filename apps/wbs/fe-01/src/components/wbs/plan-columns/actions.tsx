@@ -30,7 +30,8 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
         }}
         actions={[
           // The status entries first — every settable status but the one the
-          // row reads, so a row in progress offers both — then Duplicate, then
+          // row reads, so a row in progress offers both — then Add child, Move
+          // under… and Duplicate, then
           // Unfreeze where it applies, and Delete last in the destructive tint
           // (Dany, 2026-09-13: "Set status * … Duplicate … Delete in the end").
           // `Set status to Done` asks for the days through the completion
@@ -53,6 +54,24 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
               void live.current.setStatus(row.original.id, status, isoToday(new Date()));
             },
           })),
+          {
+            id: 'add-child',
+            // Offered on a frozen row as well: its number stays pinned, and a
+            // new child is given a number of its own beneath it.
+            label: 'Add child',
+            run: () => {
+              void live.current.addChild(row.original);
+            },
+          },
+          {
+            id: 'move-under',
+            // The keyboard's and the phone's reparent to any row, where a
+            // drag or Alt+Right reaches only what is next to it.
+            label: 'Move under…',
+            run: () => {
+              live.current.openMoveUnder(row.original.id);
+            },
+          },
           {
             id: 'duplicate',
             // Offered on a frozen row as well, unlike Delete and unlike

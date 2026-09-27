@@ -6,15 +6,16 @@ Start here to run the k3s fleet and deliver WBS onto it. Each row below names on
 its required inputs, and links to the doc that explains it. Flags, refusals and evidence live
 in those docs, not here.
 
-| Doc                             | Owns                                                                        |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| [local](local.md)               | k3d profiles, source-run dev environments, fresh-clone walkthrough          |
-| [fleet](fleet.md)               | node identities, Ubuntu VM lab, enroll/retire/replace/upgrade               |
-| [platform](platform.md)         | Flux stages, admission, secrets, registry, certificates, observability      |
-| [deployment](deployment.md)     | WBS release transaction, descriptor, staging/prod promotion, CI/CD          |
-| [recovery](recovery.md)         | backups, cold restore, maintenance, health, synthetic worker drills         |
-| [cutover plan](cutover-plan.md) | the one-time Compose → k3s production move (prepared, not authorized)       |
-| `infra/terraform/README.md`     | Terragrunt provision/destroy inputs: backend evidence, variables, the token |
+| Doc                                               | Owns                                                                                           |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [local](local.md)                                 | k3d profiles, source-run dev environments, fresh-clone walkthrough                             |
+| [fleet](fleet.md)                                 | node identities, Ubuntu VM lab, enroll/retire/replace/upgrade                                  |
+| [platform](platform.md)                           | Flux stages, admission, secrets, registry, certificates, observability                         |
+| [deployment](deployment.md)                       | WBS release transaction, descriptor, staging/prod promotion, CI/CD                             |
+| [recovery](recovery.md)                           | backups, cold restore, maintenance, health, synthetic worker drills                            |
+| [cutover plan](cutover-plan.md)                   | the one-time Compose → k3s production move (prepared, not authorized)                          |
+| [enroll h4claw and h3mon](enroll-h4claw-h3mon.md) | preflight, backups, bootstrap, join and rollback of the two existing hosts (prepared, not run) |
+| `infra/terraform/README.md`                       | Terragrunt provision/destroy inputs: backend evidence, variables, the token                    |
 
 ## Commands
 

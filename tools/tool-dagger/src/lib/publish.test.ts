@@ -9,6 +9,12 @@ describe('imageRef', () => {
     );
   });
 
+  it('names the MCP release image by its own tier', () => {
+    expect(imageRef('registry.infra.bulletpoints.club', 'mcp', 'abc1234')).toBe(
+      'registry.infra.bulletpoints.club/wbs-mcp-01:abc1234',
+    );
+  });
+
   it('rejects an empty sha rather than publishing a floating tag', () => {
     expect(() => imageRef('r.example.com', 'be', '')).toThrow(/sha/);
   });

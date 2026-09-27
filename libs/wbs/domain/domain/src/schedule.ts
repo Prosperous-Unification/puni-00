@@ -1,4 +1,3 @@
-import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
 import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
@@ -541,57 +540,39 @@ function groupByWorkItem(
 
 /**
  * How long a slice occupies the calendar: its effort divided among the people
- * working on it at once, or — where nobody has estimated it —
- * {@link ASSUMED_SLICE_WORKDAYS}.
+ * working on it at once, or zero where nobody has estimated it.
  *
- * **The assumption is a duration and not an effort**, so `width` does not
- * divide it. Nobody has said how much work this is, and dividing an assumption
- * by the number of people who might share it would give a plan that lists four
- * people on an unsized step a narrower guess than one that lists one. Two
- * workdays is how long the slice is drawn and how long the schedule holds it,
- * and those have to be the same number for the bar and the date columns beside
- * it to agree.
- *
- * `null` and not falsiness: an explicit `0` is somebody saying this step costs
- * nothing, which is an answer the assumption must not overrule. That is the
- * same reading `estimated` and the anchor walk make, and it is the whole of the
- * distinction this change rests on.
+ * **An unknown length is zero schedule time.** The Gantt draws such a slice
+ * `ASSUMED_SLICE_WORKDAYS` wide as a placeholder, and that width is a
+ * drawing only: it delays no successor, occupies no assignee, spends no pool
+ * and moves no projected date (OpenSpec
+ * `unestimated-steps-take-no-schedule-time`). The slice stays a node, and
+ * `Slice.days` stays `null`, so `estimated` and the anchor walk still tell it
+ * apart from an explicit zero, which follows the same arithmetic.
  *
  * **`E / 1 === E` exactly**, for every value that can reach {@link Slice.days}.
- * That is the whole of this change's identity claim and it is narrower than
- * "for all doubles": `days` arrives only through `finalDays()` over a validated
+ * `days` arrives only through `finalDays()` over a validated
  * `ThreePointEstimate`, whose three fields are `number>=0` — finite and
  * non-negative — or through `null`. Division by one is exact in IEEE-754 for
- * every finite value, `-0 / 1 === -0`, and the prefix sum's `0 + -0` already
- * normalises to `+0` on both sides of this change. So `offsets[]` is the same
- * array of the same doubles for every plan that sets no capacity field, and the
- * differential is the proof rather than this paragraph.
- *
- * The boundary that makes the claim true is asserted separately: a non-finite
- * estimate cannot reach `Slice.days` (`estimate.test.ts`).
+ * every finite value, so `offsets[]` is the same array of doubles for every
+ * plan that sets no capacity field. A non-finite estimate cannot reach
+ * `Slice.days` (`estimate.test.ts`).
  *
  * Proof: the division dropped, so duration is effort again, and `compresses six
  * days of effort into two when three may work at once` failed with a duration
  * of 6 where 2 was owed; watched 2026-08-12.
  *
- * Proof: the assumed arm removed, so an unestimated slice is zero days again,
- * and `an entirely unestimated predecessor delays its successor` failed on
- * `- "earliestFinish": 2 / + "earliestFinish": 0`, with the Chromium chain spec
- * red beside it on `the successor is drawn left of the work it waits for`;
- * watched 2026-08-30.
+ * Proof: `slice.days === null` answered with `ASSUMED_SLICE_WORKDAYS` again,
+ * and `reproduces every stored schedule value for value` in
+ * `fast-golden-corpus.test.ts` failed on `unestimated-middle` with `c` moved
+ * from 2 to 4; watched 2026-09-27.
  *
- * **Exported on 2026-09-03 so that the solver has no second copy of it.**
- * `durationUnits` quantises this number for CP-SAT, and the alternative was for
- * `solver-quantum.ts` to restate the two arms above. The plan already restated
- * them once and got both wrong — it divided the assumption by `width` and it
- * put `snapWorkdays` in the estimated arm — which is why the wire tasks now
- * carry the correction in prose. A second implementation of a rule this
- * particular is a divergence waiting for one of the two to be edited, and the
- * divergence would surface as a solver plan whose bars are a different length
- * from Fast's on the same input. One function, two callers.
+ * Exported so that the solver's `durationUnits` quantises this number rather
+ * than restating the rule: one function, two callers, so a Fast plan and a
+ * solver plan cannot disagree about how long a slice is.
  */
 export function durationOf(slice: Slice): number {
-  if (slice.days === null) return ASSUMED_SLICE_WORKDAYS;
+  if (slice.days === null) return 0;
   return slice.days / slice.width;
 }
 
@@ -1686,11 +1667,9 @@ function placeSlices(
     // that ends on day 3 reported as ending on day 5 because a slice with
     // nothing in it was placed there.
     //
-    // **Zero, and no longer "unestimated"**: since `assumed-duration-schedules`
-    // (2026-08-29) an unestimated slice's duration is
-    // {@link ASSUMED_SLICE_WORKDAYS} rather than 0, so it is above this line
-    // and does occupy its assignee — which is the change's D3, and the whole
-    // reason it reaches leveling at all.
+    // An unestimated slice is zero schedule time too (see {@link durationOf}),
+    // so it falls under this line and occupies nobody, however wide the Gantt
+    // draws its placeholder.
     //
     // Proof: the length dropped from this condition and `gives a slice
     // somebody sized at zero no place in the queue` failed — the empty `QA`
@@ -2089,8 +2068,13 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * an engine that could not have ordered a deadlined project the way this one
  * does and could not have reported a missed date at all, so re-reading its
  * dates as current is exactly the restatement this constant exists to refuse.
+ *
+ * **`v3` because an unestimated slice takes zero schedule time** (WBS 010.4.4,
+ * `unestimated-steps-take-no-schedule-time`). A `v2` plan gave it the assumed
+ * two workdays, so its successors, people and pools moved with a length nobody
+ * estimated.
  */
-export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v2';
+export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v3';
 
 /**
  * The schedule for a project: computed in slices, and levelled so that one
@@ -2165,7 +2149,7 @@ export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v2';
  * for five of its fields. {@link PlannedRow} names those five instead, and
  * `WorkItem` satisfies it structurally, so nothing maps anything. The engine
  * now sits beside the rules it always shared: {@link snapWorkdays},
- * {@link ASSUMED_SLICE_WORKDAYS}, {@link DependencyReach},
+ * `ASSUMED_SLICE_WORKDAYS`, {@link DependencyReach},
  * {@link treeOrder}. It reads those four modules and {@link leafFloorsOf},
  * and no others — the fifth is the floor fold, moved out on 2026-09-03 so the
  * solver request builder reads the same walk rather than writing a second one.

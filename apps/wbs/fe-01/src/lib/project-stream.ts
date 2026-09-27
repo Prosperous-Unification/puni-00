@@ -53,9 +53,9 @@ export interface ProjectStreamOptions {
    * `() => void` is still a valid handler, and `resourcesFor` treats an absent
    * argument exactly as it treats `null`.
    *
-   * It is a `string` and not a union on purpose. The union lives in be-01
-   * (`service/broadcast.ts`) and is not shared, so what arrives here is an
-   * unvalidated word off a socket; a caller that narrows on it must treat an
+   * It is a `string` and not a union on purpose. The union lives in the
+   * backend core (`ports/project-event.ts`) and is not shared, so what arrives
+   * here is an unvalidated word off a socket; a caller that narrows on it must treat an
    * unrecognised one exactly as it treats `null`. R5: unknown is not OK, and
    * the honest answer to an unknown event is the full read.
    */

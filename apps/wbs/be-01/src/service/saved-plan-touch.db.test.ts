@@ -81,7 +81,7 @@ describe('renaming and deleting a saved plan', () => {
     }
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
       wrote,
     );
     await new WorkItemRepository(db, OPEN).insert(item('wi-1', 10), [], wrote);

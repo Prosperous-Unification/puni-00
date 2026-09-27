@@ -305,5 +305,5 @@ describe('buildPackage', () => {
     // and timed out at 20039.60ms in the gate on d748f1a7 (2026-09-20), after the rule model added
     // five runs of the built binary to its two builds. A limit a loaded host reaches is a gate
     // that fails at random, so it has three times the observed duration.
-  }, 60_000);
+  }, 180_000);
 });

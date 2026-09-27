@@ -1,4 +1,4 @@
-import { ASSUMED_SLICE_WORKDAYS, type Slice, sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
+import { type Slice, sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { buildSolverSlices, type LeafConstraintMaps } from './build-solver-slices';
@@ -31,11 +31,11 @@ describe('buildSolverSlices', () => {
     expect(buildSolverSlices([sliceOf({ days: 1, width: 5 })], none)[0].durationUnits).toBe(10);
   });
 
-  it('reads a null estimate as the assumed duration WITHOUT dividing by width', () => {
-    // The arm the plan restated wrong twice. Nothing in the pre-existing domain
-    // suite held it until 2.8's slice did.
+  it('reads a null estimate as zero units, whatever its width', () => {
+    // An unknown length is zero schedule time on the wire as in Fast; the
+    // Gantt's assumed span never crosses the solver boundary.
     const built = buildSolverSlices([sliceOf({ days: null, width: 4 })], none);
-    expect(built[0].durationUnits).toBe(ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM);
+    expect(built[0].durationUnits).toBe(0);
   });
 
   it('emits poolIds as a sorted set, whatever the caller hands it', () => {

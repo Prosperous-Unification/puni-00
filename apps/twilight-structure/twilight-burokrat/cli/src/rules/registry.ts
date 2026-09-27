@@ -91,21 +91,25 @@ const moduleLayoutRule: RegisteredRule = {
   source: `${KindSpecSource}#requirement-module-layout`,
   inputs: ['candidate.entries'],
   evaluate: (context) =>
-    context.indexes.ok
-      ? {
-          kind: 'observed',
-          observations: moduleLayoutObservations(
-            context.kinds,
-            context.candidate.entries,
-            new Set(context.indexes.report.indexes.map((index) => index.indexPath)),
-          ),
-        }
-      : // Proof: on 2026-09-20, reporting an empty observed list here made the malformed-index
-        // test expect exit 1 and receive 0.
-        {
-          kind: 'not-evaluated',
-          reason: `the index report is unavailable: ${context.indexes.reason}`,
-        },
+    // Proof: on 2026-09-27, returning an empty observed list here made the malformed-inventory test
+    // receive `unevaluated: []` for MOD-LAYOUT.
+    !context.kinds.ok
+      ? { kind: 'not-evaluated', reason: context.kinds.reason }
+      : context.indexes.ok
+        ? {
+            kind: 'observed',
+            observations: moduleLayoutObservations(
+              context.kinds.report,
+              context.candidate.entries,
+              new Set(context.indexes.report.indexes.map((index) => index.indexPath)),
+            ),
+          }
+        : // Proof: on 2026-09-20, reporting an empty observed list here made the malformed-index
+          // test expect exit 1 and receive 0.
+          {
+            kind: 'not-evaluated',
+            reason: `the index report is unavailable: ${context.indexes.reason}`,
+          },
 };
 
 const relationshipsRule: RegisteredRule = {
@@ -168,13 +172,16 @@ function graphRule(
     source: `${KindSpecSource}${anchor}`,
     inputs,
     evaluate: (context) => {
+      // Proof: on 2026-09-27, returning an empty observed list here made the malformed-inventory
+      // test receive `unevaluated: []` for K2.
+      if (!context.kinds.ok) return { kind: 'not-evaluated', reason: context.kinds.reason };
       const outcome = context.relationships();
       // Proof: on 2026-09-20, reporting an empty observed list when extraction failed made the
       // unconfigured-modules test expect exit 1 and receive 0.
       if (!outcome.ok) return { kind: 'not-evaluated', reason: outcome.reason };
       return {
         kind: 'observed',
-        observations: observe(context.kinds, outcome.report.typescript.imports, context),
+        observations: observe(context.kinds.report, outcome.report.typescript.imports, context),
       };
     },
   };
@@ -250,11 +257,18 @@ const plainTypeScriptRule: RegisteredRule = {
       new Set(context.candidate.entries.map((entry) => entry.path)),
     );
     if (!resolved.ok) return { kind: 'not-evaluated', reason: resolved.reason };
+    // Proof: on 2026-09-27, returning an empty observed list here made the malformed-inventory test
+    // receive `unevaluated: []` for F1.
+    if (!context.kinds.ok) return { kind: 'not-evaluated', reason: context.kinds.reason };
     const outcome = context.relationships();
     if (!outcome.ok) return { kind: 'not-evaluated', reason: outcome.reason };
     return {
       kind: 'observed',
-      observations: reactObservations(context.kinds, outcome.report.typescript.imports, selectors),
+      observations: reactObservations(
+        context.kinds.report,
+        outcome.report.typescript.imports,
+        selectors,
+      ),
     };
   },
 };

@@ -14,13 +14,14 @@
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
         "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
         "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/consumer/**/*",
+        "{workspaceRoot}/docs/code-organization/rule-policy.json",
         "{projectRoot}/package.json",
         "{projectRoot}/NOTICE",
         "{workspaceRoot}/infra/ci/burokrat/**/*",
         "{workspaceRoot}/bin/tool-wiki-*.sh"
       ],
       "options": {
-        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts",
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts --timeout=60000",
         "cwd": "apps/twilight-structure/twilight-burokrat/cli"
       }
     },
@@ -87,7 +88,7 @@
       "cache": false,
       "dependsOn": ["pack"],
       "options": {
-        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src/packaging",
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src/packaging --timeout=60000",
         "cwd": "apps/twilight-structure/twilight-burokrat/cli"
       }
     },

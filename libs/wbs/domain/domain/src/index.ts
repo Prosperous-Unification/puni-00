@@ -109,6 +109,13 @@ export * from './slice-groups';
 export * from './solver-quantum';
 export * from './solver-quantum-golden-corpus';
 export * from './step';
+// Step codes: the immutable, project-unique names step references spell step
+// nodes with (ADR 0031). One suggestion rule for creation, import and backfill.
+export * from './step-code';
+// Step nodes and step references: the pair's stable id and its readable,
+// renumbering-sensitive spelling (ADR 0031).
+export * from './step-node';
+export * from './step-reference';
 // The order every reader draws a project in, and the one sibling grouping
 // `deriveNumbers`, `treeOrder` and `arrangeBySchedule` share. Since ADR 0023 a
 // number is a name rather than a place, so the order has to be stated: two
