@@ -1153,7 +1153,11 @@ export function importServiceSourceContract(
           const classified = await classifyPlanDocument(file);
           if (!classified.ok) throw new Error(`version ${String(version)} refused`);
 
-          const imported = await importService(source).import(classified.value, ACTOR);
+          const imported = await importService(source).import(
+            classified.value,
+            ACTOR,
+            LEGACY_ACCESS,
+          );
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
@@ -1186,7 +1190,7 @@ export function importServiceSourceContract(
         if (verify === undefined) throw new Error('round-trip fixture lacks its third step');
         verify.code = 'impl';
 
-        const refused = await importService(source).import(duplicated, ACTOR);
+        const refused = await importService(source).import(duplicated, ACTOR, LEGACY_ACCESS);
 
         expect(refused).toMatchObject({
           ok: false,
