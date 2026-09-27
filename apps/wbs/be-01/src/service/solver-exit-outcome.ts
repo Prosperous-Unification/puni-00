@@ -18,7 +18,7 @@ import {
 import { guardRealPublication, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import type { OutcomeToStore } from '../repository/optimized-schedule-cache';
+import type { OptimizationOutcome } from '../module/optimization/contract';
 
 type SolverRequest = Extract<BuiltSolverRequest, { readonly ok: true }>['request'];
 
@@ -28,7 +28,8 @@ export type SolverProcessOutcome =
   | { readonly kind: 'failed'; readonly reason: SolverFailureReason };
 
 export type EvaluatedSolverOutcome =
-  OutcomeToStore | { readonly kind: 'plan-infeasible'; readonly certificate: PlanInfeasibleResult };
+  | OptimizationOutcome
+  | { readonly kind: 'plan-infeasible'; readonly certificate: PlanInfeasibleResult };
 
 /**
  * Turn one classified child outcome into the exact cache value it earned.
@@ -120,7 +121,7 @@ export function evaluateSolverOutcome(
     );
     return {
       kind: 'ok',
-      result: publishOptimizedResult(decision, response.objectiveValues),
+      optimized: publishOptimizedResult(decision, response.objectiveValues),
     };
   } catch {
     return { kind: 'failed', reason: 'invalid-output' };

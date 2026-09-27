@@ -1,4 +1,5 @@
 import type { CandidateEntry } from '../inventory/read-candidate';
+import type { KindInventoryEntry } from './kind-inventory';
 import type { RuleObservation } from './rule';
 
 export type ServiceKind = 'delivery' | 'feature' | 'repository' | 'resource';
@@ -22,7 +23,7 @@ export interface KindedFile {
 }
 
 export interface KindGraph {
-  /** Every directory that directly contains a kind-suffixed file, sorted. */
+  /** Every directory that directly contains a kind-suffixed or inventory-kinded file, sorted. */
   readonly moduleRoots: readonly string[];
   /**
    * Every file a direction rule may judge, as a source or as a target.
@@ -34,6 +35,11 @@ export interface KindGraph {
    */
   readonly files: readonly KindedFile[];
   readonly compositionRoots: readonly string[];
+  /**
+   * Files the kind inventory calls `support`: accounted for, and, like a composition root, never a
+   * rule's source or target.
+   */
+  readonly supportFiles: readonly string[];
 }
 
 function directoryOf(path: string): string {
@@ -78,37 +84,79 @@ function moduleOf(directory: string, moduleRoots: readonly string[]): string | u
 }
 
 /**
- * Resolves every candidate file's kind and module from its path alone. It cannot fail: a file with no
- * suffix and no view directory simply has no kind, and no direction rule applies to it.
+ * Resolves every candidate file's kind and module from its filename suffix, its `view` directory,
+ * or the kind inventory the rule policy names, which {@link readKindInventory} has already checked
+ * for duplicate and stale paths.
  *
- * **This is a suffix-only adapter, and nothing else makes a file accountable.** `INV-CLASSIFY` and
- * `classification-policy.v1.json` classify *content* — source, test, config, migration — and demand
- * no service kind, so an unsuffixed service is debt nowhere in this package; the only inventory that
- * demands a kind is `tools/tool-devsync/src/service-kinds.ts`, over three backend directories, and it
- * is not consulted here. Deleting every suffix in a candidate empties this graph and satisfies every
- * direction rule vacuously.
+ * An inventory entry that contradicts the path is refused rather than ranked: an entry for a
+ * suffix-declared file states the kind twice, and an entry for a composition root would take away
+ * its K2-to-K6 exemption. `support` entries join {@link KindGraph.supportFiles} and nothing else.
  *
  * Unsatisfied and recorded rather than claimed: `SERVICE-TAXONOMY-001`, `002` and `003`, which belong
  * to the inventory lane; and the **repository port** half of K3 and K4, because a port lives in an
- * unsuffixed `contract.ts` and is invisible here. A port boundary needs a declared input of its own.
+ * unsuffixed `contract.ts` and the inventory has no port kind. A port boundary needs a declared input
+ * of its own.
+ * @throws Error naming the inventory entry that contradicts a suffix or a composition root.
  */
-export function resolveKinds(entries: readonly CandidateEntry[]): KindGraph {
+export function resolveKinds(
+  entries: readonly CandidateEntry[],
+  inventory: readonly KindInventoryEntry[],
+): KindGraph {
   const paths = entries
     .filter((entry) => entry.mode === '100644' || entry.mode === '100755')
     .map((entry) => entry.path);
+  const inventoried = new Map(inventory.map((entry) => [entry.path, entry.kind]));
+  for (const path of inventoried.keys()) {
+    // Proof: on 2026-09-27, deleting this conflict made the suffix-conflict CLI test receive
+    // `unevaluated: []` for F1.
+    if (KindSuffix.test(path)) {
+      throw new Error(`kind inventory classifies ${path}, which declares its kind by suffix`);
+    }
+  }
+  const supportFiles = inventory
+    .filter((entry) => entry.kind === 'support')
+    .map((entry) => entry.path)
+    .sort();
   const moduleRoots = [
-    ...new Set(paths.filter((path) => KindSuffix.test(path)).map(directoryOf)),
+    ...new Set([
+      ...paths.filter((path) => KindSuffix.test(path)).map(directoryOf),
+      // A delivery entry belongs to the module around it, as a `view` file does, so it makes no root:
+      // a root at `m/view` would take every sibling view file out of module `m`.
+      // Proof: on 2026-09-27, letting delivery entries make roots made the sibling-view unit test
+      // lose `m/view/other.ts` from the graph.
+      ...inventory
+        .filter((entry) => entry.kind !== 'support' && entry.kind !== 'delivery')
+        .map((entry) => directoryOf(entry.path)),
+    ]),
   ].sort();
   const files: KindedFile[] = [];
   const compositionRoots: string[] = [];
   for (const path of [...paths].sort()) {
     const directory = directoryOf(path);
     const module = moduleOf(directory, moduleRoots);
-    if (module === undefined) continue;
+    if (module === undefined) {
+      // Proof: on 2026-09-27, skipping this refusal made the moduleless-delivery unit test receive a
+      // graph that silently omitted the listed file.
+      if (inventoried.get(path) === 'delivery') {
+        throw new Error(`kind inventory calls ${path} delivery, but no module contains it`);
+      }
+      continue;
+    }
     // Proof: on 2026-09-20, classifying the composition root as a feature made its repository
     // import produce a K3 debt finding where the exemption test expected `findings: []`.
     if (path === modulePath(module, CompositionRootName)) {
+      // Proof: on 2026-09-27, deleting this conflict made the composition-root unit test receive a
+      // graph instead of the refusal.
+      if (inventoried.has(path)) {
+        throw new Error(`kind inventory classifies composition root ${path}`);
+      }
       compositionRoots.push(path);
+      continue;
+    }
+    const listed = inventoried.get(path);
+    if (listed === 'support') continue;
+    if (listed !== undefined) {
+      files.push({ path, kind: listed, module });
       continue;
     }
     const declared = kindOfSuffix(path);
@@ -123,7 +171,7 @@ export function resolveKinds(entries: readonly CandidateEntry[]): KindGraph {
       files.push({ path, kind: 'delivery', module });
     }
   }
-  return { moduleRoots, files, compositionRoots };
+  return { moduleRoots, files, compositionRoots, supportFiles };
 }
 
 /**

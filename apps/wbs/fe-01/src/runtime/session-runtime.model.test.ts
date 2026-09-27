@@ -6,6 +6,7 @@ import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import type { DirectorySnapshot } from '@/modules/directory-management/contract';
 import type { ProjectRuntime } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
@@ -548,6 +549,9 @@ describe('the session owner, against a reference model', () => {
             clientFor: (credential) => clientFor(world, credential),
             // Project reads answer at once, as the fresh client of every project source did.
             projectClientFor: () => fakeProjectApi(),
+            // Proof: without this line (2026-09-27) `nx run wbs-fe-01:test:unit` exited 1
+            // with 29 unhandled `ReferenceError`s for the page's address from this file.
+            streamDeps: SILENT_STREAM,
             install: (dependencies) => {
               const record = world.byClient.get(dependencies.directoryApi);
               if (record === undefined) throw new Error('a session was installed from no client');

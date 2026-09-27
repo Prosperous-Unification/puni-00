@@ -102,7 +102,16 @@ describe('a captured plan and its deadlines', () => {
         estimateMethod: 'realistic',
         startDate: START,
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, allowancePercent: 0 }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);

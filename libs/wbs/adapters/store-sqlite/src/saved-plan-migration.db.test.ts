@@ -55,8 +55,25 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/**
+ * The inert organization records `organization-ownership-and-access`
+ * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back.
+ */
+const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
+/**
+ * The ownership side tables `organization-ownership-and-access`
+ * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
+ */
+const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/**
+ * The newest: the nullable step code column and its partial unique index
+ * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
+ * forward, the index and the column back, so it heads every descending reversal
+ * list and tails every ascending one.
+ */
+const STEP_CODE = '20260927150000_add_step_code';
 /** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
-const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
+const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
 
 let dir: string;
 let path: string;
@@ -138,6 +155,9 @@ describe('the saved-plan migration', () => {
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
       STEP_ALLOWANCE,
+      STEP_CODE,
+      ORGANIZATION_OWNERSHIP,
+      ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,

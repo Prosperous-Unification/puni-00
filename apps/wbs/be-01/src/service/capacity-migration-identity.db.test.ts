@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
+import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -279,9 +279,13 @@ describe('every plan schedules identically across the migration', () => {
       expect(depReach).toBe('anchor-slice');
       const lifted = {
         ...treeWithoutReach,
-        // The capture predates step allowances. Every replayed step carries the
-        // 0% the migration gives it, asserted and then lifted for `lateBy`'s reason.
-        steps: tree.steps.map(({ allowancePercent, ...step }) => {
+        // `code` is lifted by `address-step-nodes` and asserted: the oracle
+        // predates step codes, and each replayed step carries the code its
+        // name suggests. A step code names a step; it moves no date.
+        steps: tree.steps.map(({ code, allowancePercent, ...step }) => {
+          expect(code).toBe(suggestStepCode(step.name, new Set()));
+          // The capture also predates step allowances: every replayed step carries
+          // the 0% the migration gives it.
           expect(allowancePercent).toBe(0);
           return step;
         }),
@@ -619,6 +623,7 @@ describe('every plan schedules identically across the migration', () => {
       id,
       projectId: plan.projectId,
       name: `Step ${String(place)}`,
+      code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
       allowancePercent: 0,
     }));

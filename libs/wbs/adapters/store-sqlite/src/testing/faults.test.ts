@@ -147,7 +147,16 @@ describe('SQLite conformance fault controls', () => {
       );
       await source.stores.projects.create(
         projectRow({ id: 'p1', ownerId: 'owner' }),
-        [{ id: 'step-1', projectId: 'p1', name: 'Dev', position: 10, allowancePercent: 0 }],
+        [
+          {
+            id: 'step-1',
+            projectId: 'p1',
+            name: 'Dev',
+            position: 10,
+            code: 'dev',
+            allowancePercent: 0,
+          },
+        ],
         stamp,
       );
       await source.stores.journal.append(entry('sentinel'), event('sentinel'));
@@ -194,7 +203,16 @@ describe('SQLite conformance fault controls', () => {
       );
       await source.stores.projects.create(
         projectRow({ id: 'p1', ownerId: 'owner' }),
-        [{ id: 'step-1', projectId: 'p1', name: 'Dev', position: 10, allowancePercent: 0 }],
+        [
+          {
+            id: 'step-1',
+            projectId: 'p1',
+            name: 'Dev',
+            position: 10,
+            code: 'dev',
+            allowancePercent: 0,
+          },
+        ],
         stamp,
       );
       await source.stores.subtrees.insertSubtree(subtree('sentinel'), stamp);

@@ -107,7 +107,14 @@ const TREE: WorkItemTree = {
     },
   ],
   steps: [
-    { id: 'step-1', projectId: PROJECT.id, name: 'Build', position: 10, allowancePercent: 30 },
+    {
+      id: 'step-1',
+      projectId: PROJECT.id,
+      name: 'Build',
+      position: 10,
+      code: 'build',
+      allowancePercent: 30,
+    },
   ],
   assignedPeople: [{ id: 'person-used', name: 'Kat' }],
   teamCapacities: [{ serviceTeamId: 'team-capacity', size: 4 }],

@@ -376,7 +376,14 @@ describe('adding and renaming a step', () => {
         response(
           200,
           JSON.stringify({
-            step: { id: 'r3', projectId: 'p1', name: 'Design', position: 0, allowancePercent: 0 },
+            step: {
+              id: 'r3',
+              projectId: 'p1',
+              name: 'Design',
+              position: 0,
+              code: 'design',
+              allowancePercent: 0,
+            },
           }),
         ),
       ),

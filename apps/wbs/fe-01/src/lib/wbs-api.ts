@@ -809,7 +809,7 @@ export interface PersonView extends PersonIdentityView {
  *
  * Each arm names its kind **and what that kind does**, rather than a count
  * somebody would have to interpret. Mirrors `DirectoryEffect` in
- * `apps/wbs/be-01/src/service/directory-usage.ts`, which owns the rule; this is a
+ * `libs/wbs/application/core/src/service/directory-usage.ts`, which owns the rule; this is a
  * description of what arrives.
  */
 export type DirectoryEffect =

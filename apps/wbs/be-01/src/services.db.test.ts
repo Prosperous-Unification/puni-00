@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { subscriptionFor } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -24,7 +25,6 @@ import {
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
 import { nodeDigest } from './runtime/bun-runtime';
-import { subscriptionFor } from './service/broadcast';
 import type { ReservedSpawner, ReservedSpawnRequest } from './service/optimization-coordinator';
 import { PlanCommandRunner } from './service/plan-commands';
 import { SavedPlanService } from './service/saved-plan.service';
@@ -100,7 +100,16 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
       id: projectId,
       ownerId,
     }),
-    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10, allowancePercent: 0 }],
+    [
+      {
+        id: crypto.randomUUID(),
+        projectId,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     { at: 1, by: ownerId },
   );
   return { projectId: project.id, ownerId };

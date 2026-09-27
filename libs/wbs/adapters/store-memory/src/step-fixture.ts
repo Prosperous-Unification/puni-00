@@ -1,5 +1,5 @@
 import type { Step, StepRemoved, StepStore, StepUsageRows } from '@wbs/core';
-import { NO_ALLOWANCE, STEP_POSITION_STEP } from '@wbs/domain';
+import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCode } from '@wbs/domain';
 
 /**
  * A `Step` row carrying every field the schema requires.
@@ -8,11 +8,13 @@ import { NO_ALLOWANCE, STEP_POSITION_STEP } from '@wbs/domain';
  * step, so a row this builds sorts where production would put it.
  */
 export function stepRow(overrides: Partial<Step> = {}): Step {
+  const name = overrides.name ?? 'Build';
   return {
     id: crypto.randomUUID(),
     projectId: 'project',
-    name: 'Build',
+    name,
     position: STEP_POSITION_STEP,
+    code: suggestStepCode(name, new Set()),
     allowancePercent: NO_ALLOWANCE,
     ...overrides,
   };
@@ -22,8 +24,9 @@ export function stepRow(overrides: Partial<Step> = {}): Step {
  * A StepStore backed by an array, for tests that only need `buildApp` to be
  * constructible.
  *
- * It keeps the one rule a caller branches on — a name a project already holds
- * is refused — because a fixture laxer than production lets a test pass against
+ * It keeps the rules a caller branches on — a name or a code a project already
+ * holds is refused, and a missing code is suggested as production suggests it —
+ * because a fixture laxer than production lets a test pass against
  * behaviour that does not exist.
  *
  * **What it deliberately does not model** is everything the removal is: the
@@ -73,8 +76,13 @@ export function inMemorySteps(
       if (held.some((each) => each.name === toAdd.name)) {
         return Promise.resolve({ ok: false, reason: 'taken' });
       }
+      const taken = new Set(held.flatMap((each) => (each.code === null ? [] : [each.code])));
+      if (toAdd.code !== undefined && taken.has(toAdd.code)) {
+        return Promise.resolve({ ok: false, reason: 'code_taken' });
+      }
       const written: Step = {
         ...toAdd,
+        code: toAdd.code ?? suggestStepCode(toAdd.name, taken),
         position: Math.max(0, ...held.map((each) => each.position)) + STEP_POSITION_STEP,
       };
       rows.push(written);

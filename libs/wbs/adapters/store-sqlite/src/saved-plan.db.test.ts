@@ -59,7 +59,16 @@ describe('SavedPlanRepository', () => {
     );
     await new ProjectRepository(seed.db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Build', position: 10, allowancePercent: 0 }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Build',
+          position: 10,
+          code: 'build',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     seed.close();

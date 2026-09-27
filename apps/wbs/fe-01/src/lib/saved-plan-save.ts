@@ -1,19 +1,20 @@
 import type { Quota } from '@wbs/contracts';
 import { useCallback, useLayoutEffect, useState } from 'react';
 
+import type { SavedPlans } from '../modules/saved-plans/contract';
 import { unreachable } from './http';
-import type { SavedPlanApi, SavedPlanListEntryView } from './saved-plan-api';
-import { httpSavedPlanApi, savedPlanFailureCode } from './saved-plan-api';
+import type { SavedPlanListEntryView, SavedPlanSaveReply } from './saved-plan-api';
+import { savedPlanFailureCode } from './saved-plan-api';
 
 /**
- * The one question a save is made of, injected for {@link ShelfDeps}'s reason.
+ * The one question a save is made of, injected so a fake for these cases is one
+ * line.
  *
- * Narrower than {@link SavedPlanApi} on purpose: a fake for these cases is one
- * line, and this hook cannot grow an opinion about listing or comparing without
- * the signature changing to say so.
+ * Narrower than {@link SavedPlans} on purpose: this hook cannot grow an opinion
+ * about listing or comparing without the signature changing to say so.
  */
 export interface SaveDeps {
-  save: SavedPlanApi['save'];
+  save: (projectId: string, name?: string) => Promise<SavedPlanSaveReply>;
 }
 
 /**
@@ -295,12 +296,24 @@ export function useSavedPlanSave(
   return { state, save };
 }
 
+const savesOf = new WeakMap<SavedPlans, SaveDeps>();
+
 /**
- * The real answer, wired to the module that gives it.
+ * The save of one project's {@link SavedPlans}, as the one {@link SaveDeps}
+ * identity {@link useSavedPlanSave} keys its running saves by.
  *
- * A factory for {@link browserShelfDeps}'s identity reason; authentication is
- * carried by the serving origin's cookies.
+ * Cached per facade rather than built by the caller, because the facade is the
+ * project runtime's and outlives every mount of the shelf: a shelf moved between
+ * the header and the phone's sheet is a fresh component, and only a stable key
+ * lets it join the save its predecessor started.
  */
-export const browserSaveDeps = (): SaveDeps => ({
-  save: (projectId, name) => httpSavedPlanApi().save(projectId, name),
-});
+export function saveOf(savedPlans: SavedPlans): SaveDeps {
+  const known = savesOf.get(savedPlans);
+  if (known !== undefined) return known;
+  // Proof: on 2026-09-27, building a fresh object on every call here (v1) failed `joins a save
+  // started before the shelf moved, rather than sending a second` on `expected [ [ 'p1' ],
+  // [ 'p1' ] ] to have a length of 1 but got 2`.
+  const deps: SaveDeps = { save: () => savedPlans.save() };
+  savesOf.set(savedPlans, deps);
+  return deps;
+}

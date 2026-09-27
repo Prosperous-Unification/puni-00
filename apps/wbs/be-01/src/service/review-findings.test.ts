@@ -24,7 +24,16 @@ async function newProject(name: string): Promise<string> {
   // the project does not hold, and production's foreign key refuses it harder.
   await projects.create(
     project,
-    [{ id: 'step-dev', projectId: project.id, name: 'Dev', position: 10, allowancePercent: 0 }],
+    [
+      {
+        id: 'step-dev',
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     { at: 1, by: OWNER },
   );
   return project.id;

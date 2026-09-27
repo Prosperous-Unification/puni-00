@@ -58,8 +58,8 @@ beforeEach(async () => {
     ownerId,
   });
   const steps: Step[] = [
-    { id: stepId, projectId, name: 'Dev', position: 10, allowancePercent: 0 },
-    { id: otherStepId, projectId, name: 'QA', position: 20, allowancePercent: 0 },
+    { id: stepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
+    { id: otherStepId, projectId, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
   ];
   await new ProjectRepository(db, OPEN).create(project, steps, wrote());
   itemId = crypto.randomUUID();

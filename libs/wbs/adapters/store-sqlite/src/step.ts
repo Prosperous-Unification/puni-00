@@ -1,4 +1,4 @@
-import { STEP_POSITION_STEP, type StepHoldings, stepIsInUse } from '@wbs/domain';
+import { STEP_POSITION_STEP, type StepHoldings, stepIsInUse, suggestStepCode } from '@wbs/domain';
 
 export { type StepHoldings, stepIsInUse } from '@wbs/domain';
 
@@ -12,7 +12,7 @@ import type {
   StepWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, eq, inArray, max } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -36,6 +36,7 @@ export const STEP_COLUMNS = {
   projectId: step.projectId,
   name: step.name,
   position: step.position,
+  code: step.code,
   allowancePercent: step.allowancePercent,
 };
 
@@ -125,25 +126,36 @@ export class StepRepository implements StepStore {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       try {
-        return this.db.transaction((tx) => {
-          const last = tx
-            .select({ position: max(step.position) })
-            .from(step)
-            .where(eq(step.projectId, toAdd.projectId))
-            .get();
-          const written: Step = {
-            ...toAdd,
-            position: (last?.position ?? 0) + STEP_POSITION_STEP,
-          };
-          tx.insert(step)
-            .values({ ...written, ...auditOnCreate(stamp) })
-            .run();
-          bumpProject(tx, toAdd.projectId, stamp);
-          return { ok: true, step: written };
-        });
+        return this.db.transaction(
+          (tx) => {
+            const held = tx
+              .select({ position: step.position, code: step.code })
+              .from(step)
+              .where(eq(step.projectId, toAdd.projectId))
+              .all();
+            const taken = new Set(held.flatMap((each) => (each.code === null ? [] : [each.code])));
+            const written: Step = {
+              ...toAdd,
+              code: toAdd.code ?? suggestStepCode(toAdd.name, taken),
+              position: Math.max(0, ...held.map((each) => each.position)) + STEP_POSITION_STEP,
+            };
+            tx.insert(step)
+              .values({ ...written, ...auditOnCreate(stamp) })
+              .run();
+            bumpProject(tx, toAdd.projectId, stamp);
+            return { ok: true, step: written };
+          },
+          // `IMMEDIATE`: the write lock is taken before the codes are read, so
+          // the post-swap backfill — another process — cannot hand out the
+          // code this suggestion is about to take between the read and the
+          // insert. The unique index is still what refuses a collision.
+          { behavior: 'immediate' },
+        );
       } catch (err) {
         if (isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject))
           return { ok: false, reason: 'taken' };
+        if (isUniqueViolation(err, UNIQUE_INDEXES.stepCodeInProject))
+          return { ok: false, reason: 'code_taken' };
         throw err;
       }
     });

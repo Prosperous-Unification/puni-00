@@ -71,3 +71,11 @@ nothing.
 
 `--version`, `--since` and `--skip-build` are **refused** — they were parsed and ignored
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
+
+**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before
+`commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
+step an older release inserted without a code. If it fails, the new colour stays live, the swap
+exits non-zero and `commit` does not run. The error names the manual command,
+`docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
+run it until it prints `step codes backfilled: <n>`, then rerun the deploy to record it
+(`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).

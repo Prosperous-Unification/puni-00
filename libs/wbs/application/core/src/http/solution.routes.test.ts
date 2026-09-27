@@ -26,7 +26,14 @@ test('direct solution binding reads the exact slug and complete project with ord
     solutionRef: { slug: 'linked', url: 'https://example.com/linked' },
   });
   const steps = [
-    { id: 'step', projectId: 'project', name: 'Build', position: 10, allowancePercent: 0 },
+    {
+      id: 'step',
+      projectId: 'project',
+      name: 'Build',
+      position: 10,
+      code: 'build',
+      allowancePercent: 0,
+    },
   ];
   await store.create(project, steps, { at: 1, by: 'owner' });
   const [endpoint] = solutionRoutes(

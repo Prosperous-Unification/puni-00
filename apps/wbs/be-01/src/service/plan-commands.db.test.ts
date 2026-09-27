@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Broadcaster } from '@wbs/core';
 import {
   DEFAULT_PRIORITY_BANDS,
   ORDINARY_BAND_RANK,
@@ -36,7 +37,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import type { Broadcaster } from './broadcast';
 import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
@@ -362,6 +362,33 @@ describe('a command batch', () => {
     // The second edit read the first's 30% as its before-state, so walking the
     // batch back lands on the 0% it started from.
     expect(held?.allowancePercent).toBe(0);
+  });
+
+  it('refuses a third command binding two types and rolls back the first two', async () => {
+    // The spec's atomic batch: an id and a ref join into two types only once
+    // refs are bound, so the parser cannot see it and the service refuses it.
+    const story = await directoryStore.addWorkItemType(
+      { id: crypto.randomUUID(), name: 'Story' },
+      { at: 1, by: ownerId },
+    );
+    const outcome = await run([
+      { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Strip' },
+      { kind: 'createWorkItemType', ref: 't', name: 'Spike' },
+      {
+        kind: 'patchWorkItem',
+        workItemRef: 'w',
+        patch: { typeIds: [story.id], typeRefs: ['t'] },
+      },
+    ]);
+    expect(outcome).toEqual({
+      ok: false,
+      at: 2,
+      kind: 'patchWorkItem',
+      reason: 'work_item_takes_one_type',
+    });
+    expect(await names()).toEqual([]);
+    expect((await directoryStore.listWorkItemTypes()).map((each) => each.name)).toEqual(['Story']);
+    expect(await journal()).toHaveLength(0);
   });
 
   it('is one journal entry, one plan event, and one undo puts all of it back', async () => {

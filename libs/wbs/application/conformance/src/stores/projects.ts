@@ -31,6 +31,7 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
           projectId: project.id,
           name: 'Build',
           position: 10,
+          code: 'build',
           allowancePercent: 0,
         },
         {
@@ -38,6 +39,7 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
           projectId: project.id,
           name: 'Verify',
           position: 20,
+          code: 'verify',
           allowancePercent: 0,
         },
       ];

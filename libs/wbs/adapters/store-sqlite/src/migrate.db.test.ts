@@ -274,8 +274,25 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/**
+ * The inert organization records `organization-ownership-and-access`
+ * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back.
+ */
+const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
+/**
+ * The ownership side tables `organization-ownership-and-access`
+ * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
+ */
+const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/**
+ * The newest: the nullable step code column and its partial unique index
+ * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
+ * forward, the index and the column back, so it heads every descending reversal
+ * list and tails every ascending one.
+ */
+const STEP_CODE = '20260927150000_add_step_code';
 /** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
-const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
+const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -381,6 +398,9 @@ describe('the WBS domain migration', () => {
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -720,6 +740,9 @@ describe('the capacity migrations', () => {
 
       expect(reversed).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1197,6 +1220,9 @@ describe('the work item team migration', () => {
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1441,6 +1467,9 @@ describe('the priority band migration', () => {
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1737,6 +1766,9 @@ describe('the plan event migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1971,6 +2003,9 @@ describe('the actual migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -2249,6 +2284,9 @@ describe('the step progress migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -2511,6 +2549,9 @@ describe('the not-before reason migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -2764,6 +2805,9 @@ describe('the tag migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3122,6 +3166,9 @@ describe('the service migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3272,6 +3319,9 @@ describe('the work-item-service migration', () => {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
       STEP_ALLOWANCE,
+      STEP_CODE,
+      ORGANIZATION_OWNERSHIP,
+      ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,
@@ -3433,6 +3483,9 @@ describe('the work-item-service migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3727,6 +3780,9 @@ describe('the step measure migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3820,6 +3876,9 @@ describe('the person kind migration', () => {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       STEP_ALLOWANCE,
+      STEP_CODE,
+      ORGANIZATION_OWNERSHIP,
+      ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,
@@ -4053,6 +4112,9 @@ describe('the person kind migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         STEP_ALLOWANCE,
+        STEP_CODE,
+        ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -4245,7 +4307,7 @@ describe('the step allowance migration', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toEqual([STEP_ALLOWANCE]);
+      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([STEP_ALLOWANCE]);
       seededBeforeAllowances(db.path);
 
       runMigrations(db.path, FOLDER);
@@ -4278,7 +4340,7 @@ describe('the step allowance migration', () => {
       runMigrations(db.path, FOLDER);
       seededBeforeAllowances(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toEqual([STEP_ALLOWANCE]);
+      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([STEP_ALLOWANCE]);
       expect(stepColumns(db.path)).not.toContain('allowance_bps');
       expect(stepColumns(db.path)).not.toContain('allowance_revision');
       expect(tables(db.path)).not.toContain('step_allowance_rollback_guard');
@@ -4308,7 +4370,7 @@ describe('the step allowance migration', () => {
         sqlite.close();
       }
 
-      expect(() => rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toThrow(
+      expect(() => rollbackTo(db.path, FOLDER, STEP_CODE)).toThrow(
         'CHECK constraint failed: step_allowance_rollback_guard',
       );
       expect(allowanceOf(db.path, 'qa')).toBe(3000);

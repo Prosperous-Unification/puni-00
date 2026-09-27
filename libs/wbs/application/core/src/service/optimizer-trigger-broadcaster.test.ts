@@ -11,7 +11,14 @@ describe('OptimizerTriggerBroadcaster', () => {
     const broadcast = new OptimizerTriggerBroadcaster(inner, (projectId) => {
       changed.push(projectId);
     });
-    const step = { id: 's-1', projectId: 'p-1', name: 'Dev', position: 10, allowancePercent: 0 };
+    const step = {
+      id: 's-1',
+      projectId: 'p-1',
+      name: 'Dev',
+      position: 10,
+      code: 'dev',
+      allowancePercent: 0,
+    };
     const schedulingEvents: ProjectEvent[] = [
       { type: 'tree_replaced', workItems: [] },
       { type: 'step_added', step },
@@ -70,7 +77,14 @@ describe('OptimizerTriggerBroadcaster and step allowances', () => {
     });
     await broadcast.publish('p-1', {
       type: 'step_updated',
-      step: { id: 's-1', projectId: 'p-1', name: 'QA', position: 20, allowancePercent: 30 },
+      step: {
+        id: 's-1',
+        projectId: 'p-1',
+        name: 'QA',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 30,
+      },
     });
     expect(changed).toEqual(['p-1']);
   });

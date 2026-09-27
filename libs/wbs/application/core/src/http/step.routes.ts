@@ -3,11 +3,16 @@ import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
+import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 
 /** Keeps each named-step domain refusal paired with its existing wire status. */
-function namedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
+function namedReply(
+  outcome:
+    | { ok: true; value: Step }
+    | { ok: false; reason: 'not_found' | 'forbidden' | 'taken' | 'name_required' },
+): HttpReply<typeof renameStep> {
   if (outcome.ok) return { ok: true, status: 200, body: { step: outcome.value } };
   switch (outcome.reason) {
     case 'not_found':
@@ -18,6 +23,33 @@ function namedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
       return { ok: false, status: 409, body: { error: outcome.reason } };
     case 'name_required':
       return { ok: false, status: 422, body: { error: outcome.reason } };
+  }
+}
+
+/** {@link namedReply}, plus the refusals only a chosen code can earn. */
+function addedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
+  if (outcome.ok) return namedReply(outcome);
+  switch (outcome.reason) {
+    case 'invalid_code':
+    case 'reserved_code':
+      return { ok: false, status: 422, body: { error: outcome.reason } };
+    case 'code_taken':
+      return { ok: false, status: 409, body: { error: outcome.reason } };
+    default:
+      return namedReply({ ok: false, reason: outcome.reason });
+  }
+}
+
+/** A rename keeps the step's code, so no code refusal can reach it. */
+function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
+  if (outcome.ok) return namedReply(outcome);
+  switch (outcome.reason) {
+    case 'invalid_code':
+    case 'reserved_code':
+    case 'code_taken':
+      throw new Error(`a rename answered ${outcome.reason}, which only a chosen code can earn`);
+    default:
+      return namedReply({ ok: false, reason: outcome.reason });
   }
 }
 
@@ -47,7 +79,7 @@ export function stepRoutes(
         return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
-      return namedReply(await steps.add(params.id, principal.id, body.name, allowance));
+      return addedReply(await steps.add(params.id, principal.id, body.name, allowance, body.code));
     }),
     bind(renameStep, async ({ params, body, principal }) => {
       const allowance =
@@ -61,11 +93,11 @@ export function stepRoutes(
         if (body.name === undefined) {
           return { ok: false, status: 422, body: { error: 'invalid_body' } };
         }
-        return namedReply(await steps.rename(params.id, params.stepId, principal.id, body.name));
+        return renamedReply(await steps.rename(params.id, params.stepId, principal.id, body.name));
       }
       if (body.name !== undefined) {
         const renamed = await steps.rename(params.id, params.stepId, principal.id, body.name);
-        if (!renamed.ok) return namedReply(renamed);
+        if (!renamed.ok) return renamedReply(renamed);
       }
       const outcome = await runCommandBatch(commands, {
         projectId: params.id,
@@ -83,7 +115,7 @@ export function stepRoutes(
           return { ok: false, status: 404, body: { error: 'not_found' } };
         throw new Error(`setStepAllowance refused with an unmodelled reason: ${outcome.reason}`);
       }
-      return namedReply(await steps.find(params.id, params.stepId, principal.id));
+      return renamedReply(await steps.find(params.id, params.stepId, principal.id));
     }),
     bind(removeStep, async ({ params, query, principal }) => {
       // Proof: truthy cascade deleted on cascade=1 (204 instead of409); reading

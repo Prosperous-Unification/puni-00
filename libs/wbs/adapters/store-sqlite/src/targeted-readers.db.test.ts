@@ -49,7 +49,14 @@ beforeEach(async () => {
   );
   const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
   const steps: Step[] = [
-    { id: STEP, projectId: PROJECT, name: 'Build', position: 10, allowancePercent: 0 },
+    {
+      id: STEP,
+      projectId: PROJECT,
+      name: 'Build',
+      position: 10,
+      code: 'build',
+      allowancePercent: 0,
+    },
   ];
   await new ProjectRepository(db, OPEN).create(project, steps, STAMP);
   await new WorkItemRepository(db, OPEN).insert(
@@ -260,6 +267,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
           projectId: FOREIGN_PROJECT,
           name: 'Foreign',
           position: 10,
+          code: 'foreign',
           allowancePercent: 0,
         },
       ],

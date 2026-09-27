@@ -8,21 +8,34 @@ import { DiBag } from 'di-bag';
 const WORKSPACE = fileURLToPath(new URL('../../..', import.meta.url));
 
 /**
- * The two directories whose subdirectories are the sealed DI Bag modules of `adopt-di-composition`,
- * and the identifier segment each location implies: a library module carries its ring, a module
- * under an app its runtime word. `apps/wbs/fe-01/src/modules` is outside this change and carries
- * no index block yet, so it is not read here.
+ * The directories whose subdirectories are modules, and the identifier segment each location
+ * implies: a library module carries its ring, a module under an app its runtime word. The
+ * frontend's runtimes under `apps/wbs/fe-01/src/runtime` own lifetimes rather than modules and
+ * carry no index block, so they are not a root.
  */
 const MODULE_ROOTS = [
   { root: 'libs/wbs/application/core/src/module', segment: 'application' },
   { root: 'apps/wbs/be-01/src/module', segment: 'backend' },
+  { root: 'apps/wbs/fe-01/src/modules', segment: 'frontend' },
 ] as const;
 
 /**
- * The sealed modules with no content-review pilot registration. Both predecessors postdate the
- * pilot's frozen `sourceRevision`, so no `sourceSelector` can bind them (task 7.5).
+ * The frontend modules composed by plain functions instead of sealed as a DI Bag module, so they
+ * carry no `module.ts` and no `moduleLabel`. Each must also import no `di-bag` outside its tests:
+ * a composition that starts building a bag has to seal and leave this list, rather than pass as
+ * a labelled module it is not.
  */
-const UNREGISTERED = ['module.application.plan-document', 'module.application.plan-import'];
+const UNSEALED: readonly string[] = [
+  'module.frontend.calendar-markers',
+  'module.frontend.directory',
+  'module.frontend.plan-commands',
+  'module.frontend.plan-feed',
+  'module.frontend.plan-writer',
+  'module.frontend.project',
+  // Proof (2026-09-27, integration round 5): without this entry the merged tree failed the sealing
+  // test with `apps/wbs/fe-01/src/modules/saved-plans: has no module.ts and is not declared unsealed`.
+  'module.frontend.saved-plans',
+];
 
 /** The project a `kinds.json` shim row lives in, and the segment of the modules it may name. */
 const PROJECTS = [
@@ -50,8 +63,8 @@ const SHIM_FORWARD =
 /** Where a `@wbs/core/service/<file>` forwarding row's file lives. */
 const CORE_SERVICES = 'libs/wbs/application/core/src/service';
 
-/** One sealed module directory and the identity its location implies. */
-interface SealedModule {
+/** One module directory and the identity its location implies. */
+interface ModuleDirectory {
   readonly directory: string;
   readonly moduleId: string;
   readonly label: string;
@@ -64,8 +77,8 @@ interface SealedModule {
  * @throws When a root is unreadable or holds no directory: a moved root would otherwise read as
  *   "no module disagrees".
  */
-async function sealedModules(): Promise<readonly SealedModule[]> {
-  const modules: SealedModule[] = [];
+async function discoverModuleDirectories(): Promise<readonly ModuleDirectory[]> {
+  const modules: ModuleDirectory[] = [];
   for (const { root, segment } of MODULE_ROOTS) {
     const names: string[] = [];
     // Proof (2026-09-24): pointing the backend root at a missing `src/modules` failed all five
@@ -127,6 +140,32 @@ async function sealedModuleLabel(directory: string): Promise<unknown> {
     throw new Error(`${directory}/module.ts has no moduleLabel getter`);
   }
   return module.moduleLabel;
+}
+
+/**
+ * The non-test sources under a module directory that import `di-bag`, including hidden paths and
+ * those reached through a symbolic link.
+ * @throws When a symbolic link under the directory is broken.
+ */
+async function findDiBagImporters(directory: string): Promise<readonly string[]> {
+  const importers: string[] = [];
+  const sources = new Bun.Glob('**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}').scan({
+    cwd: join(WORKSPACE, directory),
+    dot: true,
+    followSymlinks: true,
+    throwErrorOnBrokenSymlink: true,
+  });
+  // Proof (2026-09-27): with Bun's default scan options, a `.internal/bag.ts` importing `di-bag`
+  // under Project passed the sealing test; with these options it failed with
+  // `…/project/.internal/bag.ts: imports di-bag in a module declared unsealed`.
+  // Proof (2026-09-27): a broken `.internal/broken.ts` link under Project failed the sealing test
+  // with `ENOENT: no such file or directory, open '.internal/broken.ts'`.
+  for await (const path of sources) {
+    if (/\.test\.[cm]?[jt]sx?$/.test(path)) continue;
+    const source = await readFile(join(WORKSPACE, directory, path), 'utf8');
+    if (/['"]di-bag['"]/.test(source)) importers.push(`${directory}/${path}`);
+  }
+  return importers.sort();
 }
 
 /**
@@ -214,22 +253,53 @@ function moduleDirectoryOf(path: string): string | undefined {
   return undefined;
 }
 
-test('discovers the sealed modules of both roots', async () => {
-  const identifiers = (await sealedModules()).map(({ moduleId }) => moduleId);
+test('discovers the modules of every root', async () => {
+  const identifiers = (await discoverModuleDirectories()).map(({ moduleId }) => moduleId);
 
   expect(identifiers).toContain('module.application.plan-history');
   expect(identifiers).toContain('module.backend.optimization');
+  // Proof (2026-09-27): dropping the frontend root failed this test at this line and the sealing
+  // test with `module.frontend.calendar-markers: declared unsealed, yet no such module directory`.
+  expect(identifiers).toContain('module.frontend.preferences');
 });
 
 test('seals every module under the label its location implies', async () => {
+  const modules = await discoverModuleDirectories();
   const mismatches: string[] = [];
-  for (const { directory, label } of await sealedModules()) {
+  for (const { directory, label, moduleId } of modules) {
+    const hasModuleFile = await Bun.file(join(WORKSPACE, directory, 'module.ts')).exists();
+    if (UNSEALED.includes(moduleId)) {
+      // Proof (2026-09-27): adding a `module.ts` to Project failed this test with
+      // `…/modules/project: declared unsealed, yet has module.ts` (4 pass, 1 fail).
+      if (hasModuleFile) mismatches.push(`${directory}: declared unsealed, yet has module.ts`);
+      // Proof (2026-09-27): importing `DiBag` into Project's composition.ts failed this test with
+      // `…/project/composition.ts: imports di-bag in a module declared unsealed` (4 pass, 1 fail).
+      for (const importer of await findDiBagImporters(directory)) {
+        mismatches.push(`${importer}: imports di-bag in a module declared unsealed`);
+      }
+      continue;
+    }
+    // Proof (2026-09-27): renaming Preferences' module.ts failed this test with
+    // `…/modules/preferences: has no module.ts and is not declared unsealed` (4 pass, 1 fail).
+    if (!hasModuleFile) {
+      mismatches.push(`${directory}: has no module.ts and is not declared unsealed`);
+      continue;
+    }
     const actual = await sealedModuleLabel(directory);
     // Proof (2026-09-26): a forged Capacity private key and a labelled inner module under an
     // unlabelled Capacity wrapper each failed this test with `moduleLabel undefined, expected
     // application.capacity`; disabling this comparison made each planted module pass.
+    // Proof (2026-09-27): Preferences' label respelled `frontend.preference` failed this test with
+    // `…/modules/preferences: moduleLabel frontend.preference, expected frontend.preferences`.
     if (actual !== label) {
       mismatches.push(`${directory}: moduleLabel ${String(actual)}, expected ${label}`);
+    }
+  }
+  for (const moduleId of UNSEALED) {
+    // Proof (2026-09-27): declaring a `module.frontend.gone` unsealed failed this test with
+    // `module.frontend.gone: declared unsealed, yet no such module directory` (4 pass, 1 fail).
+    if (!modules.some((module) => module.moduleId === moduleId)) {
+      mismatches.push(`${moduleId}: declared unsealed, yet no such module directory`);
     }
   }
 
@@ -238,18 +308,21 @@ test('seals every module under the label its location implies', async () => {
 
 test('indexes every module under the identifier its location implies', async () => {
   const mismatches: string[] = [];
-  for (const { directory, moduleId } of await sealedModules()) {
+  for (const { directory, moduleId } of await discoverModuleDirectories()) {
     const indexed = await indexedModuleId(directory);
     // Proof (2026-09-24): Capacity's README naming `module.application.capacities` failed this
     // test with `…/capacity: README names module.application.capacities` (4 pass, 1 fail).
+    // Proof (2026-09-27): Plan feed's README naming `module.frontend.plan-feeds` failed it with
+    // `…/modules/plan-feed: README names module.frontend.plan-feeds`, and deleting its index
+    // line with `…/plan-feed/README.md holds 0 HTML comments, expected 1` (4 pass, 1 fail each).
     if (indexed !== moduleId) mismatches.push(`${directory}: README names ${indexed}`);
   }
 
   expect(mismatches).toEqual([]);
 });
 
-test('registers every module in the pilot under that identifier, or is known not to', async () => {
-  const modules = await sealedModules();
+test('registers every module in the pilot under that identifier', async () => {
+  const modules = await discoverModuleDirectories();
   const rows = await recordsOf('docs/wiki-policy/modules.json', 'modules');
   const boundaries = await recordsOf('docs/wiki-policy/policy.json', 'boundaries');
   const mismatches: string[] = [];
@@ -264,7 +337,7 @@ test('registers every module in the pilot under that identifier, or is known not
       continue;
     }
     // Proof (2026-09-24): Capacity's `modules.json` row renamed `module.application.capacities`
-    // failed "registers every module in the pilot under that identifier, or is known not to" with
+    // failed "registers every module in the pilot under that identifier" with
     // `…/capacity: modules.json does not index it once as module.application.capacity` and the
     // reverse clause's line (4 pass, 1 fail).
     if (row.length !== 1 || textOf(row[0], 'indexPath') !== `${directory}/README.md`) {
@@ -284,6 +357,8 @@ test('registers every module in the pilot under that identifier, or is known not
   for (const row of rows) {
     const directory = moduleDirectoryOf(textOf(row, 'indexPath') ?? '');
     const owner = modules.find((candidate) => candidate.directory === directory);
+    // Proof (2026-09-27): Plan feed's row indexing Project's README failed the same test with
+    // `modules.json: module.frontend.plan-feed indexes apps/wbs/fe-01/src/modules/project`.
     // Proof (2026-09-24): the Memory source row's index path moved to Plan document's README
     // failed the same test with `modules.json: module.adapter.store-memory indexes
     // …/plan-document` alone (4 pass, 1 fail).
@@ -295,11 +370,13 @@ test('registers every module in the pilot under that identifier, or is known not
   expect(mismatches).toEqual([]);
   // Proof (2026-09-24): dropping Capacity's `modules.json` row and `policy.json` boundary failed
   // the same test here, the received list gaining `module.application.capacity` (4 pass, 1 fail).
-  expect(unregistered).toEqual(UNREGISTERED);
+  // Every module registers: one created after the pilot's frozen `sourceRevision` names a
+  // `creationRevision` instead of a predecessor.
+  expect(unregistered).toEqual([]);
 });
 
 test('names in kinds.json only the module that owns every export of the shim', async () => {
-  const modules = await sealedModules();
+  const modules = await discoverModuleDirectories();
   const entries = await recordsOf('docs/code-organization/kinds.json', 'entries');
   const mismatches: string[] = [];
   let named = 0;

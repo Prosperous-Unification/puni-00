@@ -27,12 +27,12 @@ async function openSeededStores(): Promise<TransactionalStores> {
   await stores.users.create({ id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 }, STAMP);
   await stores.projects.create(
     projectRow({ id: PROJECT_A, ownerId: OWNER }),
-    [{ id: STEP_A, projectId: PROJECT_A, name: 'A', position: 10, allowancePercent: 0 }],
+    [{ id: STEP_A, projectId: PROJECT_A, name: 'A', position: 10, code: 'a', allowancePercent: 0 }],
     STAMP,
   );
   await stores.projects.create(
     projectRow({ id: PROJECT_B, ownerId: OWNER }),
-    [{ id: STEP_B, projectId: PROJECT_B, name: 'B', position: 10, allowancePercent: 0 }],
+    [{ id: STEP_B, projectId: PROJECT_B, name: 'B', position: 10, code: 'b', allowancePercent: 0 }],
     STAMP,
   );
   await stores.steps.add(

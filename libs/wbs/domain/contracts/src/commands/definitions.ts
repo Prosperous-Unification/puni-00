@@ -86,7 +86,8 @@ export const commandDefinitions = {
   patchWorkItem: defineCommand('patchWorkItem', {
     schema: type({ kind: "'patchWorkItem'", ...target, patch: workItemPatch }),
     scope: 'project',
-    description: 'Change fields of a work item; only the fields named change.',
+    description:
+      'Change fields of a work item; only the fields named change. typeIds and typeRefs together name at most one type (a list of zero clears it); more is refused with work_item_takes_one_type.',
   }),
   moveWorkItem: defineCommand('moveWorkItem', {
     schema: type({ kind: "'moveWorkItem'", ...target, ...placement }),

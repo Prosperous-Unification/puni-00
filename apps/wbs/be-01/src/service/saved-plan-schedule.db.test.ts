@@ -67,7 +67,16 @@ describe('scheduling a captured plan', () => {
     );
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: 'p1', name: 'plan', ownerId: 'owner', estimateMethod: 'realistic' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, allowancePercent: 0 }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);

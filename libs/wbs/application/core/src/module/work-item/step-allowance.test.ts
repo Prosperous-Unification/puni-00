@@ -26,8 +26,8 @@ beforeEach(async () => {
   await projects.create(
     projectRow({ id: projectId, ownerId: OWNER }),
     [
-      { id: DEV, projectId, name: 'Dev', position: 10, allowancePercent: 0 },
-      { id: QA, projectId, name: 'QA', position: 20, allowancePercent: 0 },
+      { id: DEV, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
+      { id: QA, projectId, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
     ],
     WROTE,
   );

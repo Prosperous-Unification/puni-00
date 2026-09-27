@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
+import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -338,6 +338,7 @@ describe('a priority ladder moves no date', () => {
           projectId: 'contended',
           name: 'Dev',
           position: STEP_POSITION_STEP,
+          code: 'dev',
           allowancePercent: 0,
         },
       ],
@@ -466,9 +467,14 @@ describe('a priority ladder moves no date', () => {
     expect(depReach).toBe('anchor-slice');
     return {
       ...treeWithoutReach,
-      // The capture predates step allowances. Every replayed step carries the
-      // 0% the migration gives it, asserted and then lifted for `lateBy`'s reason.
-      steps: tree.steps.map(({ allowancePercent, ...step }) => {
+      // **`code` is lifted by `address-step-nodes`**, for `depReach`'s reason
+      // and asserted rather than dropped: the oracle predates step codes, and
+      // every replayed step was created with the code its name suggests. A
+      // step code names a step; it moves no date.
+      steps: tree.steps.map(({ code, allowancePercent, ...step }) => {
+        expect(code).toBe(suggestStepCode(step.name, new Set()));
+        // The capture also predates step allowances: every replayed step carries
+        // the 0% the migration gives it.
         expect(allowancePercent).toBe(0);
         return step;
       }),
@@ -753,6 +759,7 @@ describe('a priority ladder moves no date', () => {
       id,
       projectId: plan.projectId,
       name: `Step ${String(place)}`,
+      code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
       allowancePercent: 0,
     }));

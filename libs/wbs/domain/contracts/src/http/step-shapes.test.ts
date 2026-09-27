@@ -56,6 +56,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           projectId: { type: 'string' },
           name: { type: 'string' },
           position: { type: 'number' },
+          code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           allowancePercent: { type: 'number' },
         },
         required: ['allowancePercent', 'id', 'name', 'position', 'projectId'],
@@ -80,4 +81,18 @@ test('declares the full step response and each usage count and assumed-assignee 
       },
     },
   });
+});
+
+test('still reads a step from a be-01 that predates step codes', async () => {
+  // The allowance is required of every be-01 this client pairs with: allowances
+  // ship readers before nonzero writes, so a reply without one is refused.
+  const older = {
+    step: { id: 'step', projectId: 'project', name: 'Dev', position: 10, allowancePercent: 0 },
+  };
+  const reply = addStep.responses[0].schema;
+
+  expect(await validateSchema(reply, older)).toEqual({ value: older });
+  const uncoded = { step: { ...older.step, code: null } };
+  expect(await validateSchema(reply, uncoded)).toEqual({ value: uncoded });
+  expect((await validateSchema(reply, { step: { ...older.step, code: 7 } })).issues).toBeDefined();
 });

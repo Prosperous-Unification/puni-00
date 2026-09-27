@@ -179,7 +179,7 @@ describe('a step allowance edit over the memory source', () => {
     const source = openMemorySource();
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'qa', projectId: PROJECT, name: 'QA', position: 10, allowancePercent: 0 }],
+      [{ id: 'qa', projectId: PROJECT, name: 'QA', position: 10, code: 'qa', allowancePercent: 0 }],
       { at: 1, by: OWNER },
     );
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });

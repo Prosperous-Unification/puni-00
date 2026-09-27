@@ -4,6 +4,7 @@ import operationPlanSchema from '@tools/fleet-operation-plan-schema' with { type
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 
 import type { Capability, Fleet, FleetNode, Observation } from './contracts';
+import type { FleetObservation } from './observation';
 
 export type OperationRequest =
   | {
@@ -141,12 +142,69 @@ function identifyNodeProvider(node: FleetNode): string {
     : `ssh:${node.provider.machineId}`;
 }
 
+/**
+ * Prefix of an SSH machine ID the operator has not yet read from the host. Desired state may carry
+ * it so placement is reviewable before first contact; no operation may target such a node.
+ */
+export const operatorInputPrefix = 'operator-input:';
+
 function requireNode(fleet: Fleet, nodeId: string): FleetNode {
   const node = fleet.nodes.find(({ id }) => id === nodeId);
   // Proof: disabling this guard made the unknown-node production planner negative reach an
   // undefined property access instead of naming the invalid target.
   if (node === undefined) throw new Error(`Operation targets unknown fleet node: ${nodeId}`);
+  if (node.provider.kind === 'ssh' && node.provider.machineId.startsWith(operatorInputPrefix)) {
+    // Proof: disabling this guard made `refuses every operation on an unresolved operator input`
+    // plan enrollment of the committed h4claw placeholder, binding a plan to an identity no host has.
+    throw new Error(`Node ${node.id} machine ID is an unresolved operator input`);
+  }
   return node;
+}
+
+/**
+ * Require an enrollment target to be observed, unenrolled, at exactly its desired identity.
+ *
+ * Discovery keys observed machines by provider identity, so a host answering at the desired SSH
+ * address with another machine ID leaves the desired node `missing` and appears as an unmatched
+ * node at that address. Both refuse here, before any plan is written.
+ */
+export function requireEnrollmentTarget(
+  fleet: Fleet,
+  observation: FleetObservation,
+  nodeId: string,
+): void {
+  const node = requireNode(fleet, nodeId);
+  const identity = identifyNodeProvider(node);
+  const address = node.provider.kind === 'ssh' ? node.provider.address : undefined;
+  const impostor = observation.nodes.find(
+    (observed) =>
+      observed.desiredNodeId !== nodeId &&
+      address !== undefined &&
+      observed.privateAddress === address,
+  );
+  if (impostor !== undefined) {
+    // Proof: disabling this guard made `refuses enrollment when another machine answers at the
+    // desired address` plan h4claw while a machine with another ID answered at 10.1.0.4.
+    throw new Error(
+      `Enroll target ${nodeId} address ${String(address)} is observed as ${impostor.providerIdentity}`,
+    );
+  }
+  const observed = observation.nodes.filter(({ desiredNodeId }) => desiredNodeId === nodeId);
+  const target = observed.at(0);
+  if (
+    observed.length !== 1 ||
+    target?.providerIdentity !== identity ||
+    target.states.includes('missing') ||
+    target.states.includes('enrolled') ||
+    !target.states.includes('discovered-unenrolled') ||
+    (node.provider.kind === 'ssh' &&
+      (target.privateAddress !== node.provider.address ||
+        target.machineId !== node.provider.machineId))
+  ) {
+    // Proof: disabling this guard made `refuses enrollment of a missing, enrolled, or
+    // wrong-address target` plan h3mon while its observation said missing.
+    throw new Error(`Enroll target ${nodeId} is not observed unenrolled at ${identity}`);
+  }
 }
 
 function requireProvisioningRequest(

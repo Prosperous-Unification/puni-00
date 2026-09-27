@@ -162,7 +162,16 @@ describe('SavedPlanService.save is atomic', () => {
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, allowancePercent: 0 }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);

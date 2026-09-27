@@ -678,10 +678,13 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         status: 200,
         body: {
           project: projectWire(projectId),
+          // A distinct placeholder code per position: the read requires one,
+          // and the screens this checks read only ids and names.
           steps: (await stepsAnswer(projectId)).map((step, position) => ({
             ...step,
             projectId,
             position,
+            code: `fake-${String(position + 1)}`,
           })),
         },
       }));

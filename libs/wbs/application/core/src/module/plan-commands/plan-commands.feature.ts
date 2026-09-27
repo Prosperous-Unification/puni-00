@@ -1,5 +1,6 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 
+import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
   Person,
   PersonWithTeams,
@@ -9,7 +10,6 @@ import type {
 import type { Broadcaster } from '../../ports/project-event';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-store';
-import { AnnouncementCollector } from '../../service/broadcast';
 import type { CapacityService } from '../../service/capacity.service';
 import type {
   DirectoryOutcome,

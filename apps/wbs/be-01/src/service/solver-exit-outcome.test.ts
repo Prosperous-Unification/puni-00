@@ -78,8 +78,8 @@ describe('evaluateSolverOutcome', () => {
 
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') return;
-    expect(outcome.result.publication).toBe('solver');
-    expect(outcome.result.schedule.slices.get('w-1\u0000dev')?.earliestFinish).toBe(2);
+    expect(outcome.optimized.publication).toBe('solver');
+    expect(outcome.optimized.schedule.slices.get('w-1\u0000dev')?.earliestFinish).toBe(2);
   });
 
   it('maps framing and revalidation defects to invalid-output', () => {

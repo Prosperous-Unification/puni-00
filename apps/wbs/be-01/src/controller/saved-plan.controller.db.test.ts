@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { AnnouncementCollector } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -13,7 +14,6 @@ import type { SavedPlanWrite } from '../repository/saved-plan';
 import { UserRepository } from '../repository/user';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { type AuthenticatedUser, AuthService } from '../service/auth.service';
-import { AnnouncementCollector } from '../service/broadcast';
 import { ProjectService } from '../service/project.service';
 import { defaultSavedPlanName } from '../service/saved-plan-default-name';
 import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';

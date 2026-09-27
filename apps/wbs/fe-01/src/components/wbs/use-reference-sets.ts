@@ -490,6 +490,9 @@ export function useReferenceSets({ run, commands }: { run: RunPlanWrite; command
    * Adds a type nobody had yet and labels the work item with it, in one go —
    * `createTagFor`'s shape.
    *
+   * The Type cell passes `current` as `[]`, so the new type is selected alone
+   * (WBS 010.4.10); the parameter keeps `createTagFor`'s shape.
+   *
    * This is the **only** way a type vocabulary ever gets a first member: unlike a
    * tag, which the directory page can create before any column shows it, a type's
    * column is hidden by default and its cell is where naming happens.
@@ -675,7 +678,7 @@ export function usePlanAssignments({
       // The row's own answer, filtered to the person this cell shows — and that
       // covers the assumed assignee too, which is not obvious and is the reason
       // this is written down. An assumption is `assumedAssignee(row.assignees)`
-      // (`apps/wbs/be-01/src/service/assumed-assignee.ts`): the one person the row
+      // (`libs/wbs/application/core/src/service/assumed-assignee.ts`): the one person the row
       // *does* state, promoted to cover the steps it does not. So whoever this
       // cell shows is always in `assigneesOf(row)` and therefore always in
       // `mismatchByRow`'s list, and a second call for the assumed case cannot

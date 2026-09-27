@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { responseSchema } from './schema-shape';
+import { stepShape } from './step-shapes';
 
 /** Complete stored project settings, shared by project reads, lists, writes and exports. */
 export const project = type({
@@ -32,12 +33,6 @@ export const project = type({
 export const projectWithSteps = responseSchema(
   type({
     project,
-    steps: type({
-      id: 'string',
-      projectId: 'string',
-      name: 'string',
-      position: 'number',
-      allowancePercent: 'number',
-    }).array(),
+    steps: stepShape.array(),
   }),
 );
