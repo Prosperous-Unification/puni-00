@@ -2,6 +2,8 @@ import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
 import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import { EventLogService } from '../module/event-log/event-log.resource';
+import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import type { PlanEvent } from '../ports/plan-event-store';
 import { RetentionTimer, type Swept } from './retention-timer';
 
@@ -63,7 +65,7 @@ function event(id: string, daysAgo: number): PlanEvent {
 }
 
 /** The options every case shares beyond what it varies. Written out so a new required one lands here once. */
-const history = () => inMemoryPlanEvents();
+const history = () => new PlanEventService(inMemoryPlanEvents());
 const internal = { principal: { kind: 'internal' as const } };
 
 describe('RetentionTimer', () => {
@@ -73,7 +75,7 @@ describe('RetentionTimer', () => {
     const swept: number[] = [];
     const timer = new RetentionTimer({
       ...internal,
-      repo: log,
+      repo: new EventLogService(log),
       maxPerSubscription: 2,
       planEvents: history(),
       planEventRetentionDays: 365,
@@ -115,7 +117,7 @@ describe('RetentionTimer', () => {
     const swept: number[] = [];
     const timer = new RetentionTimer({
       ...internal,
-      repo: failing,
+      repo: new EventLogService(failing),
       maxPerSubscription: 2,
       planEvents: history(),
       planEventRetentionDays: 365,
@@ -155,7 +157,7 @@ describe('RetentionTimer', () => {
     let finished = false;
     const timer = new RetentionTimer({
       ...internal,
-      repo: slow,
+      repo: new EventLogService(slow),
       maxPerSubscription: 2,
       planEvents: history(),
       planEventRetentionDays: 365,
@@ -189,7 +191,7 @@ describe('RetentionTimer', () => {
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
       ...internal,
-      repo: log,
+      repo: new EventLogService(log),
       maxPerSubscription: 2,
       planEvents: history(),
       planEventRetentionDays: 365,
@@ -229,7 +231,7 @@ describe('RetentionTimer', () => {
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
       ...internal,
-      repo: slow,
+      repo: new EventLogService(slow),
       maxPerSubscription: 2,
       planEvents: history(),
       planEventRetentionDays: 365,
@@ -272,9 +274,9 @@ describe('RetentionTimer, on the plan’s history', () => {
     const swept: Swept[] = [];
     const timer = new RetentionTimer({
       ...internal,
-      repo: log,
+      repo: new EventLogService(log),
       maxPerSubscription: 2,
-      planEvents: events,
+      planEvents: new PlanEventService(events),
       planEventRetentionDays: 365,
       now: () => NOW,
       intervalMs: 1_000,
@@ -300,9 +302,9 @@ describe('RetentionTimer, on the plan’s history', () => {
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
       ...internal,
-      repo: await seed(1),
+      repo: new EventLogService(await seed(1)),
       maxPerSubscription: 2,
-      planEvents: events,
+      planEvents: new PlanEventService(events),
       planEventRetentionDays: 365,
       now: () => NOW,
       intervalMs: 1_000,
@@ -335,9 +337,9 @@ describe('RetentionTimer, on the plan’s history', () => {
     const errors: unknown[] = [];
     const timer = new RetentionTimer({
       ...internal,
-      repo: await seed(1),
+      repo: new EventLogService(await seed(1)),
       maxPerSubscription: 2,
-      planEvents: failing,
+      planEvents: new PlanEventService(failing),
       planEventRetentionDays: 365,
       now: () => NOW,
       intervalMs: 1_000,

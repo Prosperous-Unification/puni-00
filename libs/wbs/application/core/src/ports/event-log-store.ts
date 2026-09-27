@@ -1,10 +1,5 @@
-/** One durable subscription event, with its monotonic sequence. */
-export interface RecordedEvent {
-  readonly subscription: string;
-  readonly seq: number;
-  readonly message: unknown;
-  readonly createdAt: number;
-}
+import type { RecordedEvent } from './recorded-event';
+export type { RecordedEvent } from './recorded-event';
 
 /** The source-neutral event history used by replay and retention. */
 export interface EventLogStore {

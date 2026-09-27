@@ -1,20 +1,21 @@
 import type { Clock } from '../../ports/clock';
-import type { EventLogStore, RecordedEvent } from '../../ports/event-log-store';
 import { type Broadcaster, type ProjectEvent, subscriptionFor } from '../../ports/project-event';
 import type { PushTransport } from '../../ports/push-transport';
+import type { RecordedEvent } from '../../ports/recorded-event';
+import type { EventLogService } from '../event-log/event-log.resource';
 import type { ReplayBuffer } from './replay-buffer';
 
 export interface GatewayBroadcasterOptions {
   /**
-   * The durable log, written straight rather than through a wrapper.
+   * The durable log resource, retaining the store's sequencing and transaction turn.
    *
    * `EventSequencer` stood here until 2026-09-02 and did nothing but pass the
    * two calls through, reading a clock on the way — which is what a
-   * {@link Clock} is for. The sequence numbers were always the log's own, out of
+   * {@link Clock} is for. The sequence numbers remain the log's own, out of
    * `event_sequencer` in one statement (see `DrizzleEventLogStore.recordEvent`);
    * nothing about them was ever this layer's.
    */
-  eventLog: EventLogStore;
+  eventLog: EventLogService;
   /** The instant each event is recorded at — see {@link Clock}. */
   clock: Clock;
   push: PushTransport;
@@ -46,7 +47,7 @@ export class GatewayBroadcaster implements Broadcaster {
   }
 
   latestSeq(projectId: string): Promise<number> {
-    return this.opts.eventLog.latestSeq(subscriptionFor(projectId));
+    return this.opts.eventLog.readLatestSequence(subscriptionFor(projectId));
   }
 
   /**
@@ -74,6 +75,9 @@ export class GatewayBroadcaster implements Broadcaster {
    */
   async publish(projectId: string, event: ProjectEvent): Promise<void> {
     const subscription = subscriptionFor(projectId);
+    // Proof (2026-09-27): replacing this durable record with an in-memory
+    // fabricated sequence failed the gateway broadcaster suite (1 pass, 4 fail),
+    // including `records the event and pushes it under the project subscription`.
     const recorded = await this.opts.eventLog.recordEvent(subscription, event, this.clock.now());
     // Proof: moving push inside the durable half made the real-client
     // durability case observe entered=false for its second writer while

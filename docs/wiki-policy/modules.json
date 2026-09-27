@@ -899,6 +899,70 @@
           }
         ]
       }
+    },
+    {
+      "moduleId": "module.application.plan-event",
+      "name": "Plan event sealed resource module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-event",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-event/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/module/bounded-replay-sweep/retention-job.ts"
+          }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.application.event-log",
+      "name": "Event log sealed resource module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/event-log",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/event-log/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/module/realtime/replay-orchestrator.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/module/bounded-replay-sweep/retention-job.ts"
+          }
+        ]
+      }
     }
   ]
 }
