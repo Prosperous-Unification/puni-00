@@ -9,7 +9,7 @@ The website introduces Prosperous Unification's software services and turns a vi
 - `puni-pr-00/apps/website/site`: destination for the licensed Astro/Novaform website. The existing empty `puni-site` repository is left unchanged.
 - `apps/website/fe-01`, `apps/website/be-01` and `libs/website/`: proposed app, API and library paths, kept identical across public and private workspaces.
 
-[ADR 0031](../adr/0031-public-and-private-monorepos-share-a-portable-project-contract.md) records the private companion decision and the requirement to copy eligible projects, with their local dependencies, between the two monorepos.
+[ADR 0032](../adr/0032-public-and-private-monorepos-share-a-portable-project-contract.md) records the private companion decision and the requirement to copy eligible projects, with their local dependencies, between the two monorepos.
 
 ## Release order
 

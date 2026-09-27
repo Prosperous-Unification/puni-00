@@ -1,6 +1,6 @@
 # PUNI funnel plan review
 
-**Verdict: approve the planning artifacts for the authorized planning work.** No material unresolved inconsistency remains in the reviewed WBS batch, OpenSpec change, ADR 0031, glossary, or local funnel prototype.
+**Verdict: approve the planning artifacts for the authorized planning work.** No material unresolved inconsistency remains in the reviewed WBS batch, OpenSpec change, ADR 0032, glossary, or local funnel prototype.
 
 The 30-leaf WBS DAG is acyclic with the documented original edges. M1 transitively waits for the private repository baseline and bidirectional portability proof (WF27–30), the Astro source item `060.3`, prompt-first `060.4`, infrastructure `070.08`, anonymous intake/manual brief, operator identity and inbox, privacy, and three-host release readiness. M2 contains prospect sign-in, bounded chat and unsettled-cost handling; M3 contains the constrained preview. Removing the old broad `080.12 → 110` edge and adding selected `110` prerequisites permits the manual-first path without a cycle. Four title patches update the original website, site, intake and deploy rows to the latest private-companion choice. WBS product `040`/`050` remains untouched.
 

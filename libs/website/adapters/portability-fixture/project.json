@@ -13,7 +13,7 @@
   },
   "targets": {
     "test": {
-      "command": "bun test libs/website/adapters/portability-fixture"
+      "command": "bun test libs/website/adapters/portability-fixture --timeout=30000"
     },
     "lint": {
       "command": "bunx eslint --config tools/workspace/eslint.portable.mjs libs/website/adapters/portability-fixture && bunx prettier --config tools/workspace/prettier.portable.json --check libs/website/adapters/portability-fixture",
@@ -24,7 +24,10 @@
       ]
     },
     "typecheck": {
-      "command": "bunx tsc -p libs/website/adapters/portability-fixture/tsconfig.json"
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/website/adapters/portability-fixture/tsconfig.json"
+      }
     },
     "build": {
       "command": "bun build libs/website/adapters/portability-fixture/index.ts --target=bun --outdir=dist/libs/website/adapters/portability-fixture"

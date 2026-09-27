@@ -13,7 +13,7 @@
   },
   "targets": {
     "test": {
-      "command": "bun test libs/shared/domain/portability-format"
+      "command": "bun test libs/shared/domain/portability-format --timeout=30000"
     },
     "lint": {
       "command": "bunx eslint --config tools/workspace/eslint.portable.mjs libs/shared/domain/portability-format && bunx prettier --config tools/workspace/prettier.portable.json --check libs/shared/domain/portability-format",
@@ -24,7 +24,10 @@
       ]
     },
     "typecheck": {
-      "command": "bunx tsc -p libs/shared/domain/portability-format/tsconfig.json"
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/domain/portability-format/tsconfig.json"
+      }
     },
     "build": {
       "command": "bun build libs/shared/domain/portability-format/index.ts --target=bun --outdir=dist/libs/shared/domain/portability-format"

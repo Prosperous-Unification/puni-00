@@ -1,6 +1,6 @@
 ## Context
 
-WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only branding and 12-month privacy terms; `060.4` puts the request field above the pitch; `080.12` requires intake and chat to survive reload. The latest user choice puts the site in private `puni-pr-00/apps/website/site` under [ADR 0031](../../../docs/adr/0031-public-and-private-monorepos-share-a-portable-project-contract.md). The private repository exists and is empty; the theme archive is available for a later private import. EmDash research is historical.
+WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only branding and 12-month privacy terms; `060.4` puts the request field above the pitch; `080.12` requires intake and chat to survive reload. The latest user choice puts the site in private `puni-pr-00/apps/website/site` under [ADR 0032](../../../docs/adr/0032-public-and-private-monorepos-share-a-portable-project-contract.md). The private repository exists and is empty; the theme archive is available for a later private import. EmDash research is historical.
 
 ## Goals / Non-Goals
 
@@ -12,11 +12,11 @@ WBS item `060` selects static Astro/Novaform; `060.2` approved PUNI-only brandin
 
 ### Source ownership and release slices
 
-Private `puni-pr-00/apps/website/site` owns static Astro landing/blog and licensed Novaform source, mapped from the archive's `src/pages/index.astro`, `src/pages/blog/{index,[slug]}.astro` and `src/pages/services/{index,[slug]}.astro`. `apps/website/fe-01` and `apps/website/be-01` in the public monorepo may start the app/API, with `libs/website/` dependencies, and move at unchanged relative paths under ADR 0031. M1 submits a manual brief anonymously with inference disabled. M2 adds prospect sign-in and chat; M3 adds optional preview. The local walkthrough is an in-memory decision demo only.
+Private `puni-pr-00/apps/website/site` owns static Astro landing/blog and licensed Novaform source, mapped from the archive's `src/pages/index.astro`, `src/pages/blog/{index,[slug]}.astro` and `src/pages/services/{index,[slug]}.astro`. `apps/website/fe-01` and `apps/website/be-01` in the public monorepo may start the app/API, with `libs/website/` dependencies, and move at unchanged relative paths under ADR 0032. M1 submits a manual brief anonymously with inference disabled. M2 adds prospect sign-in and chat; M3 adds optional preview. The local walkthrough is an in-memory decision demo only.
 
 ### Portable repository contract
 
-The private repository consumes a pinned, versioned governance/toolchain baseline sourced from the public repository, rather than independently maintained config. Both retain `apps/` and `libs/` relative layout, product tags, Nx target names/semantics, Bun/TypeScript and compatible pinned dependencies, OpenSpec, AGENTS and wiki conventions. A project transfer includes its declared local dependency closure, preserves paths and runs the same Nx test/lint/typecheck/build commands in a clean-copy fixture in each permitted direction. Detect collisions and missing dependencies before destination writes. Repository history, credentials and release authorization remain separate. Novaform source is classified private and cannot transfer to public. This follows ADR 0031; no separate implementation of that decision exists yet.
+The private repository consumes a pinned, versioned governance/toolchain baseline sourced from the public repository, rather than independently maintained config. Both retain `apps/` and `libs/` relative layout, product tags, Nx target names/semantics, Bun/TypeScript and compatible pinned dependencies, OpenSpec, AGENTS and wiki conventions. A project transfer includes its declared local dependency closure, preserves paths and runs the same Nx test/lint/typecheck/build commands in a clean-copy fixture in each permitted direction. Detect collisions and missing dependencies before destination writes. Repository history, credentials and release authorization remain separate. Novaform source is classified private and cannot transfer to public. This follows ADR 0032; no separate implementation of that decision exists yet.
 
 ### Handoff and session boundary
 

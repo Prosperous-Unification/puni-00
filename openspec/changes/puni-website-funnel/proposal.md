@@ -39,7 +39,7 @@ Visitor, Prospect, Request description, Intake draft, Software request, Scoping 
 
 ## Decisions Recorded
 
-[ADR 0031](../../../docs/adr/0031-public-and-private-monorepos-share-a-portable-project-contract.md).
+[ADR 0032](../../../docs/adr/0032-public-and-private-monorepos-share-a-portable-project-contract.md).
 
 ## Impact
 

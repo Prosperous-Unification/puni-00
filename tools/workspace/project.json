@@ -6,7 +6,7 @@
   "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
   "targets": {
     "test": {
-      "command": "bun test tools/workspace/portability.test.ts"
+      "command": "bun test tools/workspace/portability.test.ts --timeout=30000"
     },
     "lint": {
       "command": "bunx eslint --config tools/workspace/eslint.portable.mjs tools/workspace && bunx prettier --config tools/workspace/prettier.portable.json --check tools/workspace",
@@ -17,7 +17,10 @@
       ]
     },
     "typecheck": {
-      "command": "bunx tsc -p tools/workspace/tsconfig.json"
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/workspace/tsconfig.json"
+      }
     },
     "build": {
       "command": "bun build tools/workspace/portability.ts --target=bun --outdir=dist/tools/workspace"

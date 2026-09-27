@@ -24,6 +24,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
   ['libs/shared/domain/failures', 'shared-failures'],
+  ['libs/shared/domain/portability-format', 'shared-portability-format'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],
@@ -39,6 +40,7 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['libs/wbs/domain/contracts', 'wbs-contracts'],
   ['libs/wbs/domain/domain', 'wbs-domain'],
   ['libs/wbs/domain/validation', 'wbs-validation'],
+  ['libs/website/adapters/portability-fixture', 'website-portability-fixture'],
 ] as const;
 
 /**
