@@ -14,6 +14,7 @@
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
         "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
         "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/consumer/**/*",
+        "{workspaceRoot}/docs/code-organization/rule-policy.json",
         "{projectRoot}/package.json",
         "{projectRoot}/NOTICE",
         "{workspaceRoot}/infra/ci/burokrat/**/*",

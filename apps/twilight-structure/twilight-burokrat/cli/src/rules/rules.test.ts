@@ -794,7 +794,7 @@ describe('kind resolution', () => {
     blob: '0'.repeat(40),
   });
   const kindsOf = (paths: string[]): [string, ServiceKind, string][] =>
-    resolveKinds(paths.map(kindEntry)).files.map((file) => [file.path, file.kind, file.module]);
+    resolveKinds(paths.map(kindEntry), []).files.map((file) => [file.path, file.kind, file.module]);
 
   test('reads a kind from the filename suffix', () => {
     expect(kindsOf(['m/a.feature.ts', 'm/b.resource.ts', 'm/c.repository.ts'])).toEqual([
@@ -825,6 +825,7 @@ describe('kind resolution', () => {
         'inner/b.feature.ts',
         'inner/view/x.tsx',
       ].map(kindEntry),
+      [],
     );
     const moduleOfPath = (path: string): string | undefined =>
       graph.files.find((file) => file.path === path)?.module;
@@ -838,6 +839,7 @@ describe('kind resolution', () => {
   test('assigns a file to its nearest module', () => {
     const graph = resolveKinds(
       ['m/a.feature.ts', 'm/inner/b.feature.ts', 'm/inner/view/x.tsx'].map(kindEntry),
+      [],
     );
     expect(graph.files.find((file) => file.path === 'm/inner/view/x.tsx')?.module).toBe('m/inner');
     expect(graph.moduleRoots).toEqual(['m', 'm/inner']);
