@@ -1649,6 +1649,32 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     expect(await typesOn(id)).toEqual([]);
   });
 
+  it('reads a stored type conflict whole through the plan read, choosing neither', async () => {
+    // Proof: the store's read truncated to `typesOf.get(row.id)?.slice(0, 1)` in
+    // store-sqlite work-item.ts and this failed with one of the two ids missing.
+    // Watched 2026-09-27.
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    const spike = await typeNamed('Spike');
+    await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
+
+    const tree = await workItems.tree(projectId);
+    if (tree === null || !('workItems' in tree)) throw new Error('the plan read answered no tree');
+    const row = tree.workItems.find((each) => each.id === id);
+    expect([...(row?.typeIds ?? [])].sort()).toEqual([bug, spike].sort());
+  });
+
+  it('duplicates a type conflict unchanged rather than resolving it', async () => {
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    const spike = await typeNamed('Spike');
+    await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
+
+    const copied = await workItems.duplicate(id, ownerId);
+    if (!copied.ok) throw new Error(`duplicate refused: ${copied.reason}`);
+    expect([...(await typesOn(copied.value.id))].sort()).toEqual([bug, spike].sort());
+  });
+
   it('accepts an unrelated edit on a type conflict and leaves both types', async () => {
     const id = await root('Strip the roof');
     const bug = await typeNamed('Bug');

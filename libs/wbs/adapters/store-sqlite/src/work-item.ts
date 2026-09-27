@@ -1003,6 +1003,7 @@ export class SubtreeRepository implements SubtreeStore {
         for (const row of copy.rows) {
           const stored = { ...row };
           Reflect.deleteProperty(stored, 'teamIds');
+          Reflect.deleteProperty(stored, 'typeIds');
           tx.insert(workItem)
             .values({ ...stored, ...auditOnCreate(stamp) })
             .run();
@@ -1021,6 +1022,18 @@ export class SubtreeRepository implements SubtreeStore {
         if (joined.length > 0)
           tx.insert(workItemTeam)
             .values(joined.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+            .run();
+        // The types, exactly as the original carried them: a copy or a restore
+        // reproduces a type conflict rather than resolving it (WBS 010.4.10).
+        //
+        // Proof: this write deleted and `duplicates a type conflict unchanged
+        // rather than resolving it` (be-01 undo.db) received []. Watched 2026-09-27.
+        const typed = copy.rows.flatMap((row) =>
+          [...new Set(row.typeIds ?? [])].map((typeId) => ({ workItemId: row.id, typeId })),
+        );
+        if (typed.length > 0)
+          tx.insert(workItemWorkItemType)
+            .values(typed.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
             .run();
         // After the rows, because these point at them. A restored parent's
         // children come home here, and a row that gained a parent gained a

@@ -50,6 +50,12 @@ export function inMemorySubtrees(
           if (!written.ok)
             throw new Error(`cannot restore team set for ${row.id}: ${written.reason}`);
         }
+        if (row.typeIds !== undefined && row.typeIds.length > 0) {
+          // The store's own patch, not the authored service path: a copy carries
+          // a type conflict unchanged.
+          const typed = await stores.workItems.patch(row.id, { typeIds: row.typeIds }, stamp);
+          if (!typed.ok) throw new Error(`cannot restore type set for ${row.id}: ${typed.reason}`);
+        }
       }
       // After the rows, because the real transaction has no choice: these point
       // at rows that must already exist. `move` is what the in-memory work item
