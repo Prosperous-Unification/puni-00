@@ -30,11 +30,11 @@ async function fixture(restricted = false) {
   const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
   const commandsRun: unknown[] = [];
   const commands = {
-    run: (projectId: string, actorId: string, batch: readonly PlanCommand[]) => {
+    runWithin: (projectId: string, actorId: string, batch: readonly PlanCommand[]) => {
       commandsRun.push({ projectId, actorId, batch });
       return Promise.resolve({ ok: true as const, results: [], undoable: true, redoable: false });
     },
-    runDirectory: () => Promise.reject(new Error('a step route ran a directory batch')),
+    runDirectoryWithin: () => Promise.reject(new Error('a step route ran a directory batch')),
   };
   return {
     projects,
@@ -159,8 +159,8 @@ test('typed removal carries every usage field and only literal true confirms cas
   const remove = stepRoutes(
     service,
     {
-      run: () => Promise.reject(new Error('a removal ran a command batch')),
-      runDirectory: () => Promise.reject(new Error('a removal ran a directory batch')),
+      runWithin: () => Promise.reject(new Error('a removal ran a command batch')),
+      runDirectoryWithin: () => Promise.reject(new Error('a removal ran a directory batch')),
     },
     legacyOrganizationAccess,
   )[2];

@@ -5,7 +5,8 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
 /**
  * Steps and calendar markers under organization isolation (task 3.3), over
  * real SQLite and the production organization access; see
- * {@link OrganizationHarness}.
+ * {@link OrganizationHarness.openComposed}, whose real units of work the
+ * allowance edit's command batch needs.
  */
 let h: OrganizationHarness;
 let own: string;
@@ -16,7 +17,7 @@ const MARKER = '6b0d9f3e-4c1a-4c77-9a53-1b2f0e6d7c11';
 const FOREIGN_MARKER = '0f3c7a2e-8d14-4b6e-a1c9-5e2d7b3f9a40';
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -90,7 +91,7 @@ async function foreignState(): Promise<Answer[]> {
 describe('before activation', () => {
   it('keeps deployment-wide step and marker access across organizations', async () => {
     h.close();
-    h = OrganizationHarness.open();
+    h = OrganizationHarness.openComposed();
     for (const username of ['ada', 'grace']) await h.register(username);
     h.organization('org-b');
     h.member('org-b', 'grace', 'member');

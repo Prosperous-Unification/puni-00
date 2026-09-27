@@ -71,7 +71,7 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  */
 export function stepRoutes(
   steps: StepService,
-  commands: Pick<PlanCommandRunner, 'run' | 'runDirectory'>,
+  commands: Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>,
   organizations: OrganizationAccess,
 ) {
   return [
@@ -123,13 +123,16 @@ export function stepRoutes(
           ),
         );
       }
-      // The allowance command runs through the organization-unaware runner, so
-      // the project, the step and the caller's role are checked here first,
-      // through the caller's access, before anything is written.
+      // The project, the step and the caller's role are checked here first,
+      // through the caller's access, before the rename or the command writes
+      // anything; the command batch then holds itself to the same access.
       // Proof: skipping this check made `refuses an allowance edit of a foreign
       // step or project, changing nothing` in
       // `step-marker-organization.controller.db.test.ts` change B's step
-      // allowance from 0 to 25; watched 2026-09-27.
+      // allowance from 0 to 25 before the command batch was scoped; since it
+      // is, the same fault answers 500 instead of 404 for B's step under A's
+      // project, the batch's `unknown_step` being no reply this route models;
+      // watched 2026-09-27.
       const admitted = await steps.findWithin(
         params.id,
         params.stepId,
@@ -153,9 +156,15 @@ export function stepRoutes(
         commands: [
           { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
         ],
+        access: resolved.access,
       });
       // The shape's write-scope policy refused this before the handler ran.
       if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
+      if ('refusal' in outcome) {
+        return outcome.refusal === 'not_found'
+          ? { ok: false, status: 404, body: { error: 'not_found' } }
+          : { ok: false, status: 403, body: { error: 'forbidden' } };
+      }
       if (!outcome.ok) {
         if (outcome.reason === 'forbidden')
           return { ok: false, status: 403, body: { error: 'forbidden' } };

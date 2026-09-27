@@ -126,6 +126,8 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_found':
     case 'nothing_to_undo':
     case 'stale_undo':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -371,6 +373,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'in_use':
     case 'calendar_range':
     case 'deadline_before_project_start':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'allowancePercent_must_be_0_to_1000_with_two_decimals':
       return refusal.error;
     default:

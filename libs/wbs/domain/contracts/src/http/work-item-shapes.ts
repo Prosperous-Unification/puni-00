@@ -474,8 +474,19 @@ const writeRefusals = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
 ] as const;
+/**
+ * A batch refused whole, before any command: the caller's organization does
+ * not own the project (the same 404 as an absent one) or its role may not
+ * write there. Answered only after organization activation.
+ */
+const scopedBatchRefusals = [
+  organizationRefusal,
+  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+] as const;
 const batchRefusals = [
   ...writeRefusals,
+  ...scopedBatchRefusals,
   { status: 400, schema: commandParserRefusal },
   {
     status: 400,
@@ -682,6 +693,7 @@ const undoResponses = [
 ] as const;
 const undoRefusals = [
   ...writeRefusals,
+  organizationRefusal,
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   {

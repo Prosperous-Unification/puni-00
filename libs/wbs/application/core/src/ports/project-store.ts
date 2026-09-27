@@ -5,10 +5,39 @@ import type { Step, StepAllowanceWritten } from './step-store';
 import type { WriteStamp } from './write-stamp';
 export type { NewProject, Project, ProjectPatch, ProjectWithAccess } from './project-values';
 
+/**
+ * Every relation {@link ProjectStore.findCrossReferences} follows, as the
+ * reconciliation names it. Closed, so a consumer that maps each kind to a
+ * refusal cannot silently miss one.
+ */
+export const PROJECT_CROSS_REFERENCE_KINDS = [
+  'estimate_step',
+  'actual_step',
+  'step_progress_step',
+  'step_measure_step',
+  'assignment_step',
+  'assignment_person',
+  'work_item_tag',
+  'work_item_team',
+  'work_item_type',
+  'work_item_service_link',
+  'work_item_external_ref',
+  'work_item_service_team',
+  'work_item_service',
+  'work_item_parent',
+  'dependency_endpoint',
+  'project_team_capacity',
+  'incoming_step_row',
+  'incoming_parent',
+  'incoming_dependency',
+] as const;
+
+export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
+
 /** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
 export interface ProjectCrossReference {
-  /** Which relation it is, as the reconciliation names it (`estimate_step`, `assignment_person`, …). */
-  readonly kind: string;
+  /** Which relation it is. */
+  readonly kind: ProjectCrossReferenceKind;
   /** The referring row, as the reconciliation identifies it. */
   readonly id: string;
 }
@@ -39,7 +68,12 @@ export interface ProjectStore {
    * project's step, a work item's parent or dependency endpoint in another
    * project, and a team, service, tag, type, external system, assignee or
    * capacity team that the organization does not own (an unmapped one
-   * included). Empty for a coherent project.
+   * included). Also every reference **into** the project from another: a
+   * per-step row of another project's work item on this project's step, a
+   * work item of another project under one of this project's rows, and a
+   * dependency filed under another project with an endpoint here. A write to
+   * this project would otherwise change those rows. Empty for a coherent
+   * project.
    */
   findCrossReferences(
     projectId: string,
