@@ -61,6 +61,11 @@ const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
  * descending reversal list and tails every ascending one.
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
+/**
+ * The newest: the ownership side tables `organization-ownership-and-access`
+ * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
+ */
+const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -141,6 +146,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
