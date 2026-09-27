@@ -134,17 +134,16 @@ describe('before activation', () => {
     h = OrganizationHarness.open();
     for (const username of ['ada', 'grace']) await h.register(username);
     const theirs = await create('ada', 'Legacy plan');
-    const other = await create('grace', 'Other plan');
-    const otherStep = await firstStep('grace', other);
     h.sqlite.run(
       "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-l', ?, NULL, 0, 'Root')",
       [theirs],
     );
-    // A crossing row: this project's work item estimated on the other project's step.
-    h.sqlite.run(
-      'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 2, 3)',
-      ['w-l', otherStep],
-    );
+    // A crossing row: a label no organization owns, which any scoped read
+    // would refuse. (A per-step row on another project's step no longer
+    // serves: since 010.4.5 the legacy read itself fails on a step it cannot
+    // find an allowance for.)
+    h.sqlite.run("INSERT INTO tag (id, name) VALUES ('t-l', 'unowned')");
+    h.sqlite.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-l', 't-l')");
     expect((await h.call('grace', 'GET', `/api/projects/${theirs}/work-items`)).status).toBe(200);
   });
 });
