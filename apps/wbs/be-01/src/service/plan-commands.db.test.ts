@@ -853,6 +853,12 @@ it('retains producer kinds and create-versus-patch entity requirements internall
 });
 
 it('throws on malformed trusted deadline detail before creating a modeled batch refusal', async () => {
+  const targetId = applied(
+    await run([
+      { kind: 'createWorkItem', ref: 'target', parentId: null, afterId: null, name: 'Target' },
+    ]),
+  ).get('target');
+  if (targetId === undefined) throw new Error('target command minted no work item');
   const patch = spyOn(workItems, 'patch');
   try {
     for (const missing of [
@@ -861,7 +867,7 @@ it('throws on malformed trusted deadline detail before creating a modeled batch 
     ]) {
       patch.mockResolvedValueOnce(missing as never);
       await runner
-        .run(projectId, ownerId, [{ kind: 'patchWorkItem', workItemId: 'w', patch: {} }])
+        .run(projectId, ownerId, [{ kind: 'patchWorkItem', workItemId: targetId, patch: {} }])
         .then(
           () => {
             throw new Error('Malformed deadline refusal resolved');
